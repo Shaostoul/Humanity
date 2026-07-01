@@ -1,0 +1,32 @@
+// Corridor types (v0.639, superstructure M2c-tail -- connecting the tiled home clones).
+//
+// The operator's pushback on the v0.638 home-clone tiling: "there's no real structure to it... we need
+// some way of laying out multiple homesteads... adding the corridors, elevators, stairs, ramps, etc.
+// between all of them... to make it actually feel like a spaceship community." This registry is the
+// data-driven CONNECTOR spec `home_structure::tile_home_clones` reads to bridge adjacent clone slots --
+// infinite-of-X: add a corridor STYLE (a narrow service catwalk vs a wide public concourse) by adding
+// one entry here, no code.
+//
+// Fields:
+//   id            the style's id. A residential zone uses the FIRST entry today; a future per-zone
+//                 style override is a one-line change once more than one entry exists.
+//   width         metres, the walkway's clear width (perpendicular to travel).
+//   road_class    -> road_types.ron id: the floor ribbon's material stack (reuses the SAME primitive
+//                 the road graph already renders with -- "reuse an existing structure/road type").
+//   wall_material -> wall_materials.ron id for the two low side rails (a kerb, not a full corridor
+//                 wall -- keeps the tiled community open-plan rather than a maze of blind hallways).
+//   wall_height   metres, the side rail height.
+//   deck_type     -> structure_types.ron id used at each home's doorstep landing where the corridor
+//                 ribbon butts against the entrance (a flat pad the same width as the corridor).
+//   note          documents intent; not rendered anywhere yet.
+[
+    (
+        id: "residential_walkway",
+        width: 2.0,
+        road_class: "footpath",
+        wall_material: 5,
+        wall_height: 0.4,
+        deck_type: "deck",
+        note: "The default link between tiled home clones: a footpath-class ribbon with a low kerb rail on each side, wide enough for two people to pass.",
+    ),
+]

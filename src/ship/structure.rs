@@ -226,6 +226,59 @@ pub fn road_type(id: &str) -> Option<&'static RoadType> {
     road_types().iter().find(|t| t.id == id)
 }
 
+/// A CORRIDOR TYPE (v0.639, superstructure M2c-tail): the connector style
+/// `home_structure::tile_home_clones` bridges adjacent tiled home-clone slots with, so a residential
+/// zone reads as a connected community instead of floating boxes (the operator's pushback on v0.638:
+/// "there's no real structure to it... we need some way of laying out multiple homesteads... adding
+/// the corridors, elevators, stairs, ramps, etc. between all of them"). `width` is the walkway's clear
+/// width; `road_class` -> `road_types.ron` supplies the floor ribbon's material stack (the SAME
+/// primitive road-graph edges already render with -- "reuse an existing structure/road type"; the
+/// wearing-course top layer's colour tints the ribbon just like a road edge does); `wall_material` /
+/// `wall_height` are two low kerb rails so the corridor reads as a defined walkway without becoming a
+/// blind hallway; `deck_type` -> `structure_types.ron` is the landing pad placed at each end where the
+/// corridor meets a home's footprint edge. Infinite-of-X: add a style (a narrow service catwalk vs a
+/// wide public concourse) by adding one entry to `corridor_types.ron`, no code.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CorridorType {
+    pub id: String,
+    pub width: f32,
+    /// -> road_types.ron id.
+    pub road_class: String,
+    /// -> wall_materials.ron id for the two side kerb rails.
+    pub wall_material: u32,
+    pub wall_height: f32,
+    /// -> structure_types.ron id for the landing pad at each connected end.
+    pub deck_type: String,
+    pub note: String,
+}
+
+/// The corridor-type registry, parsed once + embedded (same pattern as road_types).
+pub fn corridor_types() -> &'static [CorridorType] {
+    static REG: std::sync::OnceLock<Vec<CorridorType>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/corridor_types.ron");
+        match ron::from_str::<Vec<CorridorType>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("corridor_types.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// The DEFAULT corridor style: the first entry in the registry. `tile_home_clones` uses this for
+/// every connector today; a future per-zone override (a mall gets a wider concourse style) is a
+/// one-line change once more than one entry exists. None only if the registry is empty/unparseable.
+pub fn default_corridor_type() -> Option<&'static CorridorType> {
+    corridor_types().first()
+}
+
+/// Look up a corridor type by id (None if unknown).
+pub fn corridor_type(id: &str) -> Option<&'static CorridorType> {
+    corridor_types().iter().find(|t| t.id == id)
+}
+
 /// Palette items grouped by category, sorted by label -- mirrors `MachineHome::palette_categories`
 /// so the construction palette renders structural pieces with the same widget. Wall sorts FIRST in
 /// its category (a leading space) since it is the most-used tool.
@@ -538,6 +591,28 @@ mod tests {
         let mid = walk_surface(ramp, pos, 0.0, 0.0, 0.0).unwrap(); // local z = 0 -> halfway
         assert!((mid - h * 0.5).abs() < 0.05, "ramp midpoint ~ half height, got {mid}");
         let _ = d;
+    }
+
+    #[test]
+    fn corridor_types_parse_and_resolve_their_references() {
+        // v0.639: the corridor registry parses, has at least one style, and every entry's
+        // road_class/deck_type/wall_material actually resolves -- catches a typo the moment it's
+        // added, rather than the ribbon/rail/pad silently failing to render.
+        let corridors = corridor_types();
+        assert!(!corridors.is_empty(), "corridor_types.ron should parse with at least one style");
+        for c in corridors {
+            assert!(c.width > 0.0, "{} has a positive width", c.id);
+            assert!(road_type(&c.road_class).is_some(), "{} references a real road class", c.id);
+            assert!(structure_type(&c.deck_type).is_some(), "{} references a real deck structure type", c.id);
+            assert!(
+                crate::ship::home_structure::wall_material(c.wall_material).is_some(),
+                "{} references a real wall material",
+                c.id
+            );
+        }
+        assert!(default_corridor_type().is_some(), "the default (first) corridor style resolves");
+        assert!(corridor_type(&corridors[0].id).is_some(), "lookup by id finds the first entry");
+        assert!(corridor_type("no_such_corridor_style").is_none(), "an unknown id is None");
     }
 
     #[test]

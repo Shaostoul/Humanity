@@ -93,6 +93,17 @@ pub mod debug;
 #[cfg(feature = "wasm")]
 pub mod wasm_entry;
 
+/// Whether the docked-drone model should render this frame (v0.639). Extracted to crate level
+/// (not inside `native_app` below) and made callable from both the render call site and its test
+/// in `machines.rs`, so the test guards the REAL condition instead of a hand-copied duplicate
+/// that could silently drift from it (caught in review, 2026-07-01). Pure bool logic, no
+/// rendering/ECS dependency, so it costs nothing to keep it available to the relay build too.
+/// `drone_active` reflects `!gui_state.drones.is_empty()` as of the last refresh this frame;
+/// callers must call this only after that refresh runs, or it reads one frame stale.
+pub(crate) fn drone_dock_visible(showroom: bool, hide_machines: bool, drone_active: bool) -> bool {
+    !showroom && !hide_machines && !drone_active
+}
+
 #[cfg(feature = "native")]
 mod native_app {
     use glam::{Quat, Vec3};
@@ -1087,6 +1098,56 @@ mod native_app {
             "pyramid" => Mesh::pyramid(device, sx.max(0.05), sy.max(0.05)),
             _ => Mesh::box_xyz(device, sx.max(0.02), sy.max(0.02), sz.max(0.02)),
         }
+    }
+
+    /// Resolve the home's drone hangar (the "drone_hangar" catalog machine, e.g. `drone_hangar_1`
+    /// in data/machines/home.ron) to its world DECK position + yaw, so the mining-drone visual
+    /// (v0.639) can sit exactly where the hangar pad is drawn. Reuses the same tested
+    /// `MachineHome::placements` the machine meshes themselves are built from, so the drone never
+    /// drifts from the pad under it even as the home layout is edited live.
+    ///
+    /// Design choice (v1, documented per the operator's ask): today's home.ron places exactly ONE
+    /// "drone_hangar" instance, and `DroneSystem` allows only ONE drone in flight at a time (see
+    /// `systems::mining::DroneSystem::tick`'s "one drone per player" gate -- a second commission
+    /// while one is flying is refused). So "the hangar" and "the drone" are both singular right
+    /// now -- this picks the FIRST drone_hangar instance found, and the caller treats hangar
+    /// occupancy as a simple binary (any drone in flight => pad empty; no drone => docked). That is
+    /// not a simplifying guess, it is EXACT given today's one-drone rule. If a future change adds
+    /// multiple hangars or multiple simultaneous drones, this needs real per-drone-per-hangar
+    /// assignment (e.g. tagging `Drone` with the hangar id it launched from).
+    fn hangar_placement(state: &EngineState) -> Option<(Vec3, f32)> {
+        use std::collections::HashMap;
+        let home = state.gui_state.home_machines.as_ref()?;
+        let rooms: HashMap<String, crate::machines::RoomGeom> = state
+            .gui_state
+            .room_bounds
+            .iter()
+            .map(|rb| {
+                (
+                    rb.id.clone(),
+                    crate::machines::RoomGeom {
+                        center_x: (rb.min.x + rb.max.x) * 0.5,
+                        center_z: (rb.min.z + rb.max.z) * 0.5,
+                        floor_y: rb.min.y,
+                        ceiling_y: rb.max.y,
+                    },
+                )
+            })
+            .collect();
+        if rooms.is_empty() {
+            return None;
+        }
+        let (box_mode, box_dims) = match &state.gui_state.home_structure {
+            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
+            None => (false, (0.0, 0.0, 0.0)),
+        };
+        // Match by CATALOG TYPE ("drone_hangar"), not by id or label text, so a renamed label or a
+        // re-numbered instance id still resolves correctly.
+        let hangar_id = home.all_instances().into_iter().find(|i| i.machine == "drone_hangar")?.id;
+        home.placements(&rooms, box_mode, box_dims)
+            .into_iter()
+            .find(|p| p.id == hangar_id)
+            .map(|p| (Vec3::new(p.pos.0, p.pos.1, p.pos.2), p.rotation))
     }
 
     /// World position of a machine's port gizmo (v0.625, the viewport drag-to-connect handles). Ports
@@ -4192,6 +4253,14 @@ mod native_app {
         /// in build mode so the rail line reads as ALIVE. Created on first render.
         rail_car_mesh: Option<usize>,
         rail_car_mat: Option<usize>,
+        /// Cached mining-drone meshes + materials (v0.639): a small multi-part placeholder (body,
+        /// nose, 4 rotor pods) shown DOCKED at the home's drone hangar whenever no drone is currently
+        /// in flight (`gui_state.drone_active == false`), and hidden the instant one launches --
+        /// undocking on Outbound, docking again on delivery. Built once on first render; each part's
+        /// mesh/material index is reused every frame (see `render_drone_dock`). Real geometry, not a
+        /// borrowed machine primitive, so it visually reads as "a drone", not "a box".
+        drone_dock_meshes: Option<[usize; 3]>, // [body, nose, rotor_pod]
+        drone_dock_mats: Option<[usize; 2]>, // [body/nose, rotor]
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
         flow_rgb_mats: Vec<usize>,
@@ -4919,6 +4988,8 @@ mod native_app {
                 port_node_mesh: None,
                 rail_car_mesh: None,
                 rail_car_mat: None,
+                drone_dock_meshes: None,
+                drone_dock_mats: None,
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -8630,6 +8701,69 @@ mod native_app {
                         // One drone per player: the panel shows the active drone +
                         // disables Launch while one is in flight.
                         state.gui_state.drone_active = !state.gui_state.drones.is_empty();
+                    }
+                    // Mining drone, DOCKED at the hangar (v0.639): the operator's "the homestead
+                    // should feel like a homestead" ask. `DroneSystem` (systems::mining) is pure
+                    // simulation with no visual today; this is the first render of it. The model is
+                    // shown at the "drone_hangar" machine's placement WHENEVER no drone is currently
+                    // in flight (gui_state.drone_active is the same "one drone per player" flag the
+                    // Mining panel already uses to grey out Launch) and hidden once a drone undocks
+                    // (Outbound), reappearing once it delivers + despawns (Done). No new ECS state:
+                    // purely a function of the existing drone_active flag + the hangar's resolved
+                    // world placement. This block runs AFTER drone_active is refreshed above (moved
+                    // here 2026-07-01, an earlier placement before the refresh left a real one-frame-
+                    // stale window on both launch and return, caught in review), so it is in sync
+                    // as of the current frame. Hidden in the showroom (avatar-only) and follows the
+                    // "Machine" declutter toggle, same as the hangar pad it sits on.
+                    if crate::drone_dock_visible(showroom, hide_machines, state.gui_state.drone_active) {
+                        if let Some((hangar_pos, hangar_yaw)) = hangar_placement(state) {
+                            if state.drone_dock_meshes.is_none() {
+                                let body = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.9, 0.22, 0.55));
+                                let nose = state.renderer.add_mesh(Mesh::pyramid(&state.renderer.device, 0.5, 0.35));
+                                let rotor_pod = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.12, 0.08, 10));
+                                state.drone_dock_meshes = Some([body, nose, rotor_pod]);
+                            }
+                            if state.drone_dock_mats.is_none() {
+                                // theme-exempt: placeholder drone hull, neutral gunmetal + dark rotor pods.
+                                let hull = state.renderer.add_material_typed([0.62, 0.65, 0.68, 1.0], 0.55, 0.35, 0.0);
+                                let rotor = state.renderer.add_material_typed([0.12, 0.12, 0.14, 1.0], 0.2, 0.6, 0.0);
+                                state.drone_dock_mats = Some([hull, rotor]);
+                            }
+                            let [body_mesh, nose_mesh, pod_mesh] = state.drone_dock_meshes.unwrap();
+                            let [hull_mat, rotor_mat] = state.drone_dock_mats.unwrap();
+                            // Rest the body on the pad (box_xyz is y-bottom-origin already) and nose it
+                            // in the hangar's facing direction (the pyramid points +Y by default, so lay
+                            // it on its side pointing +X of the hangar's local frame before the yaw).
+                            let yaw = Quat::from_rotation_y(hangar_yaw.to_radians());
+                            let deck_y = hangar_pos.y + 0.10; // just above the pad surface
+                            let body_pos = Vec3::new(hangar_pos.x, deck_y + 0.11, hangar_pos.z);
+                            all_objects.push(RenderObject {
+                                position: body_pos,
+                                rotation: yaw,
+                                scale: Vec3::ONE,
+                                mesh: body_mesh,
+                                material: hull_mat,
+                            });
+                            let nose_local = Vec3::new(0.55, -0.11, 0.0);
+                            all_objects.push(RenderObject {
+                                position: body_pos + yaw * nose_local,
+                                rotation: yaw * Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
+                                scale: Vec3::ONE,
+                                mesh: nose_mesh,
+                                material: hull_mat,
+                            });
+                            const POD_OFFSETS: [(f32, f32); 4] = [(0.4, 0.24), (0.4, -0.24), (-0.4, 0.24), (-0.4, -0.24)];
+                            for (dx, dz) in POD_OFFSETS {
+                                let pod_local = Vec3::new(dx, 0.0, dz);
+                                all_objects.push(RenderObject {
+                                    position: body_pos + yaw * pod_local,
+                                    rotation: yaw,
+                                    scale: Vec3::ONE,
+                                    mesh: pod_mesh,
+                                    material: rotor_mat,
+                                });
+                            }
+                        }
                     }
 
                     // Bridge game time from DataStore (if TimeSystem writes it)

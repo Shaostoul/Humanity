@@ -1962,6 +1962,44 @@ mod tests {
         assert_eq!(placed.len(), home.all_instances().len(), "box mode skips nothing -- the seed home renders fully");
     }
 
+    /// v0.639: the shipped home.ron has EXACTLY ONE "drone_hangar" instance, and it resolves to a
+    /// real placement in box mode -- the same lookup `lib.rs::hangar_placement` performs each frame
+    /// to park the mining-drone visual on the pad. This is the renderer-free half of the dock/undock
+    /// feature: it proves the hangar the drone docks at actually exists and resolves, independent of
+    /// wgpu/the live ECS Drone state (which needs a real World + can't run in this pure data module).
+    #[test]
+    fn shipped_home_has_one_resolvable_drone_hangar() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("machines")
+            .join("home.ron");
+        let home = MachineHome::load(&path).expect("home.ron parses");
+        let hangars: Vec<_> = home.all_instances().into_iter().filter(|i| i.machine == "drone_hangar").collect();
+        assert_eq!(hangars.len(), 1, "v1 assumes exactly one drone hangar; update the visual's doc comment if this ever changes");
+        let hangar_id = hangars[0].id.clone();
+        // Box mode (the live HomeStructure home) never skips a machine, so this must resolve.
+        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        let hangar_placement = placed.iter().find(|p| p.id == hangar_id).expect("drone hangar resolves to a placement");
+        assert_eq!(hangar_placement.shape, "box", "the hangar pad renders as its authored box shape");
+    }
+
+    #[test]
+    fn drone_dock_visibility_tracks_drone_active_flag() {
+        // Calls the REAL crate-level fn the render call site in src/lib.rs also calls (moved to
+        // crate root and out of the native-only module 2026-07-01 specifically so this test can
+        // reach it without pulling in rendering/ECS deps; a hand-copied duplicate here previously
+        // could not have caught a regression in the real gate, this can).
+        use crate::drone_dock_visible;
+        // Docked: no drone out, in gameplay, machines not decluttered away.
+        assert!(drone_dock_visible(false, false, false), "no drone in flight -> docked model shows");
+        // Undocked: a drone launched (Outbound/Mining/Returning) -> gui_state.drone_active is true.
+        assert!(!drone_dock_visible(false, false, true), "a drone is out -> the pad reads empty");
+        // Never shown in the character showroom, regardless of drone state.
+        assert!(!drone_dock_visible(true, false, false));
+        // Never shown while the "Machine" type is decluttered away in the build editor.
+        assert!(!drone_dock_visible(false, true, false));
+    }
+
     /// v0.527: palette_categories groups the catalog by `category`, sorted, with every machine in
     /// exactly one category -- the data the footer placement palette renders.
     #[test]

@@ -945,6 +945,135 @@ impl HomeStructure {
                 }
             }
         }
+        // CONNECT the tiled slots (v0.639, the operator's "there's no real structure to it... we need
+        // some way of laying out multiple homesteads... adding the corridors, elevators, stairs, ramps
+        // between all of them"). Bake ONE connector segment ONCE (same discipline as the home clones
+        // above -- a mothership can tile hundreds of slot-pairs, so per-pair regeneration is a non-
+        // starter) then translate + (for the vertical direction) axis-swap it into the gap between
+        // every horizontally and vertically adjacent slot pair. Single-level today: `tile_home_clones`
+        // only ever lays slots out on ONE y-plane (`oy`), so every corridor is a flat, walkable
+        // ground-level link; stacking clones onto multiple Y-levels (and connecting those with
+        // elevators/stairs) is out of scope for this pass -- see the doc comment on
+        // `bake_corridor_segment` for why.
+        // Only bake + insert a colour bucket for the connectors when there is at LEAST one adjacent
+        // pair to bridge -- a 1x1 grid (one clone, no neighbour) must add NOTHING, not an empty bucket.
+        if nx > 1 || nz > 1 {
+            if let Some((cverts, cindices, ccolor)) = Self::bake_corridor_segment(GAP) {
+                let key = [(ccolor[0] * 64.0) as i32, (ccolor[1] * 64.0) as i32, (ccolor[2] * 64.0) as i32];
+                let mut local: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+                // Stamp the baked segment at `(cx, cz)`, running along `along` ((1,0) = +X, (0,1) =
+                // +Z); the bake is authored running along +X from local x=0..GAP, so a +Z run swaps
+                // x<->z. Accumulates into a LOCAL buffer first so a grid with no actual adjacent pair
+                // (shouldn't happen once nx>1||nz>1, but keeps the invariant honest) still adds nothing.
+                let mut stamp = |cx: f32, cz: f32, along_z: bool| {
+                    let base = local.0.len() as u32;
+                    local.0.extend(cverts.iter().map(|v| {
+                        let (lx, lz) = if along_z { (v.position[2], v.position[0]) } else { (v.position[0], v.position[2]) };
+                        let (nx_, nz_) = if along_z { (v.normal[2], v.normal[0]) } else { (v.normal[0], v.normal[2]) };
+                        Vertex { position: [lx + cx, v.position[1] + oy, lz + cz], normal: [nx_, v.normal[1], nz_], uv: v.uv }
+                    }));
+                    local.1.extend(cindices.iter().map(|i| i + base));
+                };
+                for iz in 0..nz {
+                    for ix in 0..nx {
+                        let (sx, sz) = (ox + ix as f32 * step_x, oz + iz as f32 * step_z);
+                        // Link to the NEXT slot to the east: the gap runs from this slot's east edge
+                        // (sx + dw) to the next slot's west edge (sx + step_x), centred in z on this row.
+                        if ix + 1 < nx {
+                            stamp(sx + dw, sz + dd * 0.5, false);
+                        }
+                        // Link to the NEXT slot to the south: the gap runs from this slot's south edge
+                        // (sz + dd) to the next slot's north edge (sz + step_z), centred in x on this
+                        // column.
+                        if iz + 1 < nz {
+                            stamp(sx + dw * 0.5, sz + dd, true);
+                        }
+                    }
+                }
+                if !local.0.is_empty() {
+                    let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), ccolor));
+                    let base = g.0.len() as u32;
+                    g.0.extend(local.0);
+                    g.1.extend(local.1.into_iter().map(|i| i + base));
+                }
+            }
+        }
+    }
+
+    /// Bake ONE corridor connector's LOCAL-space geometry (v0.639): a floor ribbon (the corridor's
+    /// road-class top layer, reusing the SAME `wall_box` ribbon primitive the road graph renders with)
+    /// running along +X from local x=0 to x=`span`, centred on z=0 at its configured width, flanked by
+    /// two low kerb rails, capped at each end by a landing-pad deck the same width as the corridor. This
+    /// runs ONCE per `tile_home_clones` call (not once per slot-pair) -- `tile_home_clones` translates
+    /// + axis-swaps the single baked result into every gap, mirroring how it already bakes each home
+    /// design's mesh once. Returns None if `corridor_types.ron` has no entries (an honest no-op, not a
+    /// guessed default) or `span` is degenerate.
+    ///
+    /// SCOPE NOTE (single-level v1): `tile_home_clones` lays every slot on one Y-plane, so every
+    /// corridor here is a flat ground-level link -- there is no vertical connector (elevator/stairs)
+    /// between STOREYS of clones because the tiling grid itself does not yet stack slots on multiple
+    /// Y-levels. Extending the grid to tile upward (and bridging levels with the existing elevator/
+    /// stairs `structure_types.ron` pieces, the same reuse-first approach used here) is a clean follow-
+    /// up once the operator wants multi-storey residential districts; it is a bigger scope change to
+    /// the tiling grid itself, not a small addition to this bake, so it is deliberately deferred rather
+    /// than half-built here.
+    fn bake_corridor_segment(span: f32) -> Option<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
+        let ct = crate::ship::structure::default_corridor_type()?;
+        if span < 0.2 {
+            return None; // no meaningful gap to bridge
+        }
+        let width = ct.width.max(0.5);
+        // NOTE: the whole segment (ribbon + rails + pads) bakes as ONE colour bucket, taken only from
+        // the road class's top layer, matching the single-colour-per-mesh-group pattern used elsewhere
+        // in this file. `ct.wall_material` (e.g. Aluminum kerb rails) is validated to exist by
+        // corridor_types_parse_and_resolve_their_references but is NOT applied to the rail geometry,
+        // a documented simplification (flagged in review, 2026-07-01), not a bug: a future per-part
+        // colour would need `merge` to carry a colour tag instead of always inheriting the caller's.
+        let (col, slab) = match crate::ship::structure::road_type(&ct.road_class) {
+            Some(rt) => {
+                let top = rt.layers.first().map(|l| l.material).unwrap_or(2);
+                let total: f32 = rt.layers.iter().map(|l| l.thickness_m.max(0.0)).sum();
+                (Self::material_color(top), total.clamp(0.04, 0.2))
+            }
+            None => ([0.25, 0.25, 0.27, 1.0], 0.1),
+        };
+        let mut acc: (Vec<Vertex>, Vec<u32>) = (Vec::new(), Vec::new());
+        // Floor ribbon: the same wall_box-as-ribbon primitive the road graph already renders with.
+        merge(&mut acc, wall_box(Vec3::new(0.0, 0.0, 0.0), Vec3::new(span, 0.0, 0.0), 0.0, slab, width));
+        // Two kerb rails along the ribbon's edges, clear of the walking surface.
+        let rail_t = 0.1_f32;
+        let half = width * 0.5;
+        for side in [1.0f32, -1.0] {
+            // `off` is a LATERAL (Z) offset, not vertical -- wall_box derives its run direction from
+            // the X/Z components of start/end and overwrites Y with its own `y_base` param, so putting
+            // `off` in the Y slot (as this originally shipped) silently discarded it: both rails baked
+            // onto the exact same Z band at the ribbon's centerline instead of flanking its edges
+            // (caught in review, 2026-07-01, verified empirically before this fix). Z is correct here.
+            let off = (half - rail_t * 0.5) * side;
+            merge(
+                &mut acc,
+                wall_box(Vec3::new(0.0, 0.0, off), Vec3::new(span, 0.0, off), slab, ct.wall_height.max(0.05), rail_t),
+            );
+        }
+        // A landing pad at each end, matching the corridor's width, so the ribbon reads as butting
+        // cleanly against each home's entrance rather than stopping mid-air at the gap's edge.
+        if let Some(deck) = crate::ship::structure::structure_type(&ct.deck_type) {
+            let pad_depth = width.min(deck.size.2.max(0.5));
+            for end_x in [0.0f32, span] {
+                let (mut v, i) = crate::ship::structure::structure_mesh(
+                    &crate::ship::structure::StructureType { size: (width, deck.size.1, pad_depth), ..deck.clone() },
+                    Vec3::new(end_x, 0.0, 0.0),
+                    0.0,
+                );
+                let base = acc.0.len() as u32;
+                acc.0.append(&mut v);
+                acc.1.extend(i.into_iter().map(|k| k + base));
+            }
+        }
+        if acc.0.is_empty() {
+            return None;
+        }
+        Some((acc.0, acc.1, [col[0], col[1], col[2]]))
     }
 
     /// The swappable roster of clonable home shells (v0.638). Every entry is the WALLS + STRUCTURES
@@ -2163,5 +2292,131 @@ mod tests {
         );
         let total_verts: usize = after.material_walls.iter().map(|(v, _, _)| v.len()).sum();
         assert!(total_verts > 0, "the real home clones into real geometry");
+    }
+
+    /// v0.639: a bare corridor segment bakes non-empty geometry (floor ribbon + kerb rails + landing
+    /// pads) for a real gap span, and returns None for a degenerate (near-zero) span rather than
+    /// emitting garbage. Locks the standalone bake function the tiling loop stamps into every gap.
+    #[test]
+    fn corridor_segment_bakes_real_geometry_for_a_real_gap() {
+        let (verts, indices, color) = HomeStructure::bake_corridor_segment(2.0).expect("a 2m gap bakes");
+        assert!(!verts.is_empty(), "the corridor segment has real geometry");
+        assert!(!indices.is_empty());
+        assert_eq!(indices.len() % 3, 0, "triangulated");
+        assert!(color[0] >= 0.0 && color[0] <= 1.0, "a valid rgb color");
+        // The ribbon should span roughly [0, span] in local X (the floor ribbon + end pads).
+        let max_x = verts.iter().map(|v| v.position[0]).fold(f32::MIN, f32::max);
+        let min_x = verts.iter().map(|v| v.position[0]).fold(f32::MAX, f32::min);
+        assert!(max_x > 1.5 && min_x < 0.5, "the segment spans the gap in local X, got [{min_x}, {max_x}]");
+        // The two kerb rails must actually FLANK the walkway's edges (distinct, separated Z bands),
+        // not both collapse onto the ribbon's centerline (the exact bug caught in review, 2026-07-01:
+        // the lateral offset was originally written into wall_box's Y slot, which it silently discards,
+        // so both rails baked onto the same Z band). Rail geometry sits above the floor slab (y > the
+        // ribbon's own top), so filtering by height isolates rails+pads from the floor ribbon itself.
+        let slab_top = 0.2_f32; // generous upper bound on the road-class floor thickness clamp (0.04-0.2)
+        let elevated_z: Vec<f32> = verts.iter().filter(|v| v.position[1] > slab_top).map(|v| v.position[2]).collect();
+        assert!(!elevated_z.is_empty(), "there is elevated (rail/pad) geometry above the floor ribbon");
+        let max_z = elevated_z.iter().cloned().fold(f32::MIN, f32::max);
+        let min_z = elevated_z.iter().cloned().fold(f32::MAX, f32::min);
+        assert!(
+            max_z - min_z > 1.0,
+            "the two kerb rails must occupy separated Z bands flanking the walkway, not collapse onto \
+             one band at the centerline, got elevated-geometry Z range [{min_z}, {max_z}] (span {})",
+            max_z - min_z
+        );
+        assert!(max_z > 0.3, "one rail sits on the positive-Z side of the walkway, got max_z={max_z}");
+        assert!(min_z < -0.3, "one rail sits on the negative-Z side of the walkway, got min_z={min_z}");
+        // A degenerate (near-zero) span bakes nothing, rather than a zero-length garbage ribbon.
+        assert!(HomeStructure::bake_corridor_segment(0.0).is_none(), "a zero-length gap is a no-op");
+    }
+
+    /// v0.639: the operator's pushback on v0.638 -- "there's no real structure to it... we need some
+    /// way of laying out multiple homesteads... adding the corridors... between all of them." A
+    /// residential zone big enough for a 2x2 grid of home clones must render MORE geometry once
+    /// corridor connectors are added on top of the bare clones -- proving the connectors actually
+    /// generate real linking geometry between adjacent slots, not just floating boxes.
+    #[test]
+    fn adjacent_home_clones_are_bridged_by_corridor_geometry() {
+        let mut hs = HomeStructure {
+            width: 12.0,
+            depth: 12.0,
+            height: 3.0,
+            shell_material: 1,
+            roof_material: 4,
+            walls: Vec::new(),
+            shell_thickness: None,
+            lights: Vec::new(),
+            spawn: None,
+            structures: Vec::new(),
+            road_nodes: Vec::new(),
+            road_edges: Vec::new(),
+            zones: Vec::new(),
+            rail_nodes: Vec::new(),
+            rail_edges: Vec::new(),
+        };
+        // Room for a 2x2 grid of 12x12 homes (+2m gap each): needs >= 28x28, matching the
+        // zone_filler_populates_interiors test's sizing.
+        hs.add_zone("residential", (0.0, 0.0, 0.0), (30.0, 4.0, 30.0));
+        let m = hs.generate_meshes();
+
+        // Isolate JUST the corridor colour bucket (the road class's top-layer colour, from
+        // corridor_types.ron's default style) and confirm it carries real geometry distinct from the
+        // home-clone buckets -- i.e. the connectors rendered as their OWN group, not merged/dropped.
+        let ct = crate::ship::structure::default_corridor_type().expect("a corridor style is registered");
+        let rt = crate::ship::structure::road_type(&ct.road_class).expect("its road class resolves");
+        let top_mat = rt.layers.first().map(|l| l.material).unwrap_or(2);
+        let corridor_color = HomeStructure::material_color(top_mat);
+        let key = [(corridor_color[0] * 64.0) as i32, (corridor_color[1] * 64.0) as i32, (corridor_color[2] * 64.0) as i32];
+        let corridor_bucket = m.material_walls.iter().find(|(_, _, c)| {
+            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
+        });
+        assert!(corridor_bucket.is_some(), "the corridor's road-class colour bucket exists in material_walls");
+        assert!(!corridor_bucket.unwrap().0.is_empty(), "the corridor bucket carries real vertex geometry");
+
+        // Sanity: removing the zone (no residential district at all) means NO corridor bucket appears,
+        // proving the corridor geometry is genuinely tied to the populated zone, not always-present.
+        let bare = box_only().generate_meshes();
+        let bare_has_corridor = bare.material_walls.iter().any(|(_, _, c)| {
+            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
+        });
+        assert!(!bare_has_corridor, "a home with no residential zone has no corridor geometry");
+    }
+
+    /// v0.639: a residential zone that only fits a 1x1 grid (a single home clone, no neighbour in
+    /// either direction) must NOT emit any corridor geometry -- there is nothing to connect, and the
+    /// bake must not panic/underflow when `nx == 1 && nz == 1`.
+    #[test]
+    fn a_single_clone_slot_gets_no_dangling_corridor() {
+        let mut hs = HomeStructure {
+            width: 12.0,
+            depth: 12.0,
+            height: 3.0,
+            shell_material: 1,
+            roof_material: 4,
+            walls: Vec::new(),
+            shell_thickness: None,
+            lights: Vec::new(),
+            spawn: None,
+            structures: Vec::new(),
+            road_nodes: Vec::new(),
+            road_edges: Vec::new(),
+            zones: Vec::new(),
+            rail_nodes: Vec::new(),
+            rail_edges: Vec::new(),
+        };
+        // Room for exactly one 12x12 home (+2m gap) but not a second in either axis: 15x15 fits one
+        // slot (12 + 2 gap = 14 <= 15) but not two (26 > 15).
+        hs.add_zone("residential", (0.0, 0.0, 0.0), (15.0, 4.0, 15.0));
+        let m = hs.generate_meshes();
+
+        let ct = crate::ship::structure::default_corridor_type().expect("a corridor style is registered");
+        let rt = crate::ship::structure::road_type(&ct.road_class).expect("its road class resolves");
+        let top_mat = rt.layers.first().map(|l| l.material).unwrap_or(2);
+        let corridor_color = HomeStructure::material_color(top_mat);
+        let key = [(corridor_color[0] * 64.0) as i32, (corridor_color[1] * 64.0) as i32, (corridor_color[2] * 64.0) as i32];
+        let has_corridor = m.material_walls.iter().any(|(_, _, c)| {
+            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
+        });
+        assert!(!has_corridor, "a single isolated clone slot has no neighbour to bridge, so no corridor geometry");
     }
 }
