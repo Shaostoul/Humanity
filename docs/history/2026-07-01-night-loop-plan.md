@@ -188,25 +188,37 @@ loopback harness, commit small.
    enumerated there) -- join/leave and audio signaling work, but you can't
    yet see OTHER participants in a group voice room's roster. Not blocking,
    logged as a real, scoped, separate item.
-4. `src/gui/pages/chat.rs:1588` -- `// TODO: implement mute`. Backing store
-   doesn't exist yet either (see #6 below) -- these two are one feature.
-5. `src/gui/pages/main_menu.rs:135` -- the onboarding "Connect" button is
-   `// TODO: actually connect via WebSocket` and just sets
-   `state.server_connected = true` without connecting anything. Real
-   connection already happens automatically at app init elsewhere
-   (confirmed: the boot log always shows `WsClient: connecting to
-   wss://...` regardless of this button). Figure out whether this button
-   is: (a) vestigial dead UI that should be wired to reflect the REAL
-   connection state instead of faking it, or (b) meant to gate a manual
-   retry/reconnect action. Read the surrounding onboarding flow
-   (`onboarding_step`) to determine intent before fixing -- don't guess.
-6. `src/relay/handlers/msg_handlers.rs:1280-1281` -- ban has no real
-   backing table (`ban == kick` today, so a "banned" user can just
-   reconnect and rejoin); mute has no backing table or column at all. Add
-   a `banned_keys` table (or a `server_members.banned` column) and a mute
-   mechanism (`server_members.muted` column + a check at message-send
-   time), matching the existing `role` column's pattern in
-   `server_members`. This is the backend half of items #2/#4 above.
+4. **CORRECTED, not a real gap (cycle 4)** ~~`src/gui/pages/chat.rs:1588` --
+   `// TODO: implement mute`. Backing store doesn't exist yet either (see
+   #6 below).~~ Investigation found this backlog item (and #6) were based
+   on a STALE doc comment on `handle_mod_action`
+   (`src/relay/handlers/msg_handlers.rs`) that claimed ban==kick and mute
+   had no backing table. Both are actually FULLY implemented and have been
+   for a while: `banned_keys` (`Storage::ban_user`/`is_banned`, enforced at
+   the identify handshake in `src/relay/relay.rs` so a banned key can never
+   reconnect) and `muted_members` (`Storage::mute_user`/`is_muted`,
+   enforced at both chat send and DM send) both exist, both already have
+   real unit test coverage (`src/relay/storage/channels.rs`), and
+   `handle_mod_action`'s mute/ban branches already call them. Fixed the
+   stale comment itself (it now correctly describes the real behavior and
+   points at the enforcement sites) rather than building anything --
+   there was nothing left to build.
+5. **DONE (v0.644.0, BUG-042, cycle 4)** ~~`src/gui/pages/main_menu.rs:135`
+   -- the onboarding "Connect" button is `// TODO: actually connect via
+   WebSocket` and just sets `state.server_connected = true` without
+   connecting anything.~~ Confirmed via `src/lib.rs`'s auto-connect gate
+   (`&& state.gui_state.onboarding_complete`) that a full WS identify
+   handshake genuinely can't happen at this step -- identity doesn't exist
+   until step 2, and auto-connect is intentionally gated until onboarding
+   finishes. Fixed as option (a): a real lightweight `GET
+   <server_url>/health` reachability check on a background thread (mirrors
+   `src/updater.rs`'s `check_now` mpsc pattern), so `server_connected`
+   reflects reality and "Continue" only appears on a genuine success
+   ("Skip (stay offline)" still works regardless). 7 unit tests + a live
+   network verification (real relay `/health` hit + a genuinely closed
+   port) both confirmed.
+6. **Superseded by the #4 correction above** -- there is no ban/mute
+   backend work left to do; see #4.
 
 ## Backlog: livestreaming verification (priority #2)
 

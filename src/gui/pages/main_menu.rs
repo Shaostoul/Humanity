@@ -81,8 +81,49 @@ fn draw_step_welcome(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
+/// `<server_url>/health` -- the same endpoint every relay instance exposes
+/// (`GET /health`, see src/relay/mod.rs), used here purely as a lightweight
+/// reachability probe. Mirrors `chat::derive_ws_url`'s normalization but
+/// keeps the http(s) scheme instead of converting to ws(s).
+fn derive_health_url(url: &str) -> String {
+    let base = url.trim_end_matches('/');
+    if base.ends_with("/health") {
+        base.to_string()
+    } else {
+        format!("{base}/health")
+    }
+}
+
+/// Poll the in-flight reachability check (if any) started by the "Connect"
+/// button below, applying its result to `server_connected`/
+/// `server_check_error` once it arrives. A no-op while idle or still
+/// checking. Extracted so the receive-and-apply logic is unit-testable
+/// without a real network call or a real egui frame.
+fn poll_server_check(state: &mut GuiState) {
+    let Some(rx) = state.server_check_rx.as_ref() else { return };
+    match rx.try_recv() {
+        Ok(Ok(())) => {
+            state.server_connected = true;
+            state.server_check_error.clear();
+            state.server_check_rx = None;
+        }
+        Ok(Err(e)) => {
+            state.server_connected = false;
+            state.server_check_error = e;
+            state.server_check_rx = None;
+        }
+        Err(std::sync::mpsc::TryRecvError::Empty) => {} // still checking
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            state.server_connected = false;
+            state.server_check_error = "Check failed unexpectedly (no response).".to_string();
+            state.server_check_rx = None;
+        }
+    }
+}
+
 /// Step 1: Server connection
 fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    poll_server_check(state);
     ui.vertical_centered(|ui| {
         ui.add_space(20.0);
         ui.label(RichText::new("Connect to a Server").size(24.0).color(theme.accent()));
@@ -107,7 +148,12 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .hint_text("https://united-humanity.us"),
         );
         if response.changed() {
+            // The URL changed -- any in-flight or previous check result is
+            // for a different address now, so drop it rather than apply a
+            // stale outcome to the newly-typed URL.
             state.server_connected = false;
+            state.server_check_error.clear();
+            state.server_check_rx = None;
         }
     });
 
@@ -124,16 +170,41 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if state.server_connected {
         ui.horizontal(|ui| {
             ui.add_space(40.0);
-            ui.label(RichText::new("Connected!").size(14.0).color(theme.success()));
+            ui.label(RichText::new("Reachable!").size(14.0).color(theme.success()));
+        });
+    } else if state.server_check_rx.is_some() {
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            ui.label(RichText::new("Checking...").size(14.0).color(theme.text_muted()));
+        });
+    } else if !state.server_check_error.is_empty() {
+        ui.horizontal(|ui| {
+            ui.add_space(40.0);
+            ui.label(RichText::new(&state.server_check_error).size(12.0).color(theme.danger()));
         });
     }
 
     ui.add_space(20.0);
     ui.vertical_centered(|ui| {
         if !state.server_connected {
-            if widgets::primary_button(ui, theme, "  Connect  ") {
-                // TODO: actually connect via WebSocket
-                state.server_connected = true;
+            let checking = state.server_check_rx.is_some();
+            if widgets::primary_button(ui, theme, if checking { "  Checking...  " } else { "  Connect  " }) && !checking {
+                // A real lightweight reachability probe (GET .../health, the
+                // same endpoint every relay exposes) on a background thread --
+                // see poll_server_check's doc comment for why this isn't the
+                // full WS identify handshake (that genuinely can't happen
+                // until onboarding completes and identity exists).
+                let (tx, rx) = std::sync::mpsc::channel();
+                state.server_check_rx = Some(rx);
+                state.server_check_error.clear();
+                let health_url = derive_health_url(&state.server_url);
+                std::thread::spawn(move || {
+                    let result = ureq::get(&health_url)
+                        .call()
+                        .map(|_| ())
+                        .map_err(|e| format!("Could not reach {health_url}: {e}"));
+                    let _ = tx.send(result);
+                });
             }
         } else {
             if widgets::primary_button(ui, theme, "  Continue  ") {
@@ -149,6 +220,83 @@ fn draw_step_server(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             state.onboarding_step = 0;
         }
     });
+}
+
+#[cfg(test)]
+mod server_check_tests {
+    use super::{derive_health_url, poll_server_check};
+    use crate::gui::GuiState;
+
+    #[test]
+    fn derive_health_url_appends_the_endpoint() {
+        assert_eq!(derive_health_url("https://united-humanity.us"), "https://united-humanity.us/health");
+        assert_eq!(derive_health_url("https://united-humanity.us/"), "https://united-humanity.us/health");
+    }
+
+    #[test]
+    fn derive_health_url_is_idempotent() {
+        // Must not double-append if it's somehow already there.
+        assert_eq!(
+            derive_health_url("https://united-humanity.us/health"),
+            "https://united-humanity.us/health"
+        );
+    }
+
+    #[test]
+    fn poll_is_a_no_op_when_idle() {
+        let mut state = GuiState::default();
+        assert!(state.server_check_rx.is_none());
+        poll_server_check(&mut state);
+        assert!(!state.server_connected);
+        assert!(state.server_check_error.is_empty());
+    }
+
+    #[test]
+    fn poll_applies_a_success_result() {
+        let mut state = GuiState::default();
+        let (tx, rx) = std::sync::mpsc::channel();
+        state.server_check_rx = Some(rx);
+        state.server_check_error = "stale error from a previous check".to_string();
+        tx.send(Ok(())).unwrap();
+        poll_server_check(&mut state);
+        assert!(state.server_connected);
+        assert!(state.server_check_error.is_empty(), "a fresh success must clear a stale error");
+        assert!(state.server_check_rx.is_none(), "the receiver is consumed once the result lands");
+    }
+
+    #[test]
+    fn poll_applies_a_failure_result_without_faking_connected() {
+        let mut state = GuiState::default();
+        let (tx, rx) = std::sync::mpsc::channel();
+        state.server_check_rx = Some(rx);
+        tx.send(Err("Could not reach https://bad.example/health: timeout".to_string())).unwrap();
+        poll_server_check(&mut state);
+        assert!(!state.server_connected, "a failed reachability check must never flip server_connected true");
+        assert_eq!(state.server_check_error, "Could not reach https://bad.example/health: timeout");
+        assert!(state.server_check_rx.is_none());
+    }
+
+    #[test]
+    fn poll_leaves_state_untouched_while_still_checking() {
+        let mut state = GuiState::default();
+        let (_tx, rx) = std::sync::mpsc::channel(); // sender kept alive, nothing sent yet
+        state.server_check_rx = Some(rx);
+        poll_server_check(&mut state);
+        assert!(!state.server_connected);
+        assert!(state.server_check_rx.is_some(), "still checking -- must not clear the receiver early");
+    }
+
+    #[test]
+    fn poll_handles_a_dropped_sender_without_fabricating_success() {
+        let mut state = GuiState::default();
+        let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
+        state.server_check_rx = Some(rx);
+        drop(tx); // simulates the background thread dying without sending
+        poll_server_check(&mut state);
+        assert!(!state.server_connected, "a dead checker thread must never be reported as reachable");
+        assert!(!state.server_check_error.is_empty());
+        assert!(state.server_check_rx.is_none());
+    }
 }
 
 /// Step 2: Identity / display name

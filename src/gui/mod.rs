@@ -1072,6 +1072,20 @@ pub struct GuiState {
     pub server_url: String,
     /// Whether currently connected to a server.
     pub server_connected: bool,
+    /// Onboarding step 1's "Connect" button (v0.643) used to just set
+    /// `server_connected = true` unconditionally with no real check -- the
+    /// full WS identify handshake genuinely can't happen yet at this step
+    /// (the auto-connect gate in src/lib.rs requires `onboarding_complete`,
+    /// and identity/pubkey isn't created until step 2), so this is instead a
+    /// lightweight `/health` reachability probe, spawned on a background
+    /// thread (mirrors src/updater.rs's `check_now` mpsc pattern) so the UI
+    /// thread never blocks on the network. `None` = idle, `Some(rx)` =
+    /// checking (poll it once per frame in `draw_step_server`).
+    #[allow(clippy::type_complexity)]
+    pub server_check_rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    /// Human-readable error from the last failed reachability check (empty
+    /// if the last check succeeded or none has run yet).
+    pub server_check_error: String,
     /// User display name input.
     pub user_name: String,
     // v0.197.0: removed `context_real`. Real/Sim toggle deleted —
@@ -2422,6 +2436,8 @@ impl Default for GuiState {
             onboarding_step: 0,
             server_url: "https://united-humanity.us".to_string(),
             server_connected: false,
+            server_check_rx: None,
+            server_check_error: String::new(),
             user_name: "Player".to_string(),
             concept_tour_seen: false,
             default_page: GuiPage::Humanity,

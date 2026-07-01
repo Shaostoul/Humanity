@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-042: Onboarding "Connect" button always said "Connected!" regardless of whether the server was reachable
+- **Status**: Fixed
+- **Version Fixed**: v0.644.0
+- **Reported**: found during the 2026-07-01 overnight autonomous-loop chat-completeness sweep (repo-wide TODO scan), not operator-reported.
+- **Root cause**: `src/gui/pages/main_menu.rs`'s first-run onboarding wizard, step 1 (server URL), had `// TODO: actually connect via WebSocket` and unconditionally set `state.server_connected = true` on click, regardless of whether the typed URL pointed at anything real. Investigation found the app's REAL auto-connect mechanism (`src/lib.rs`) is intentionally gated on `onboarding_complete` and a live identity (created at step 2, one step later) -- so a full WS identify handshake genuinely can't happen yet at step 1. The honest fix isn't the full handshake; it's a real reachability check.
+- **Fix**: the button now spawns a background thread (mirrors `src/updater.rs`'s existing `check_now` mpsc pattern, so the UI thread never blocks) that does a lightweight `GET <server_url>/health` (the same endpoint every relay instance already exposes). `server_connected` now reflects the real outcome; a failure shows the actual error message instead of a silent success, and "Continue" only appears once the check genuinely succeeds ("Skip (stay offline)" remains available regardless). Extracted `derive_health_url` and `poll_server_check` as small testable functions (7 unit tests, including the fail-safe cases: a still-checking receiver, a dropped sender, a failed check must never fabricate `server_connected = true`). Verified live: hit a real local relay's `/health` endpoint (success) and a genuinely closed port (failure) to confirm both paths behave correctly. Files: `src/gui/mod.rs`, `src/gui/pages/main_menu.rs`.
+
 ### BUG-041: Every group chat member saw themselves as group admin
 - **Status**: Fixed
 - **Version Fixed**: v0.641.0

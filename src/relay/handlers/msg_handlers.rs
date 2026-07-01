@@ -1302,8 +1302,17 @@ pub async fn handle_task_comments_request(
 ///
 /// Effects per action:
 ///   - kick: DELETE FROM server_members for target; broadcast MemberLeft
-///   - ban:  same as kick (banned-keys table is TODO — for now ban == kick)
-///   - mute: TODO — needs a muted_members table or a server_members.muted column
+///   - ban:  same as kick, PLUS persists to `banned_keys` (`Storage::ban_user`) --
+///     the identify handshake (`src/relay/relay.rs`, `is_banned` check) rejects
+///     any banned key and closes the socket, so they can never rejoin until an
+///     admin unbans them. (This doc comment used to say the table was a TODO
+///     and ban==kick; that was stale -- the real table + enforcement have
+///     existed since before this comment was last touched, found + corrected
+///     during the 2026-07-01 overnight chat-completeness sweep.)
+///   - mute: persists to `muted_members` (`Storage::mute_user`/`is_muted`) --
+///     a muted user can still read but message-send is rejected both in chat
+///     (`src/relay/relay.rs`) and DMs (`handle_dm`, this file). Also stale in
+///     the old version of this comment; corrected the same sweep.
 ///   - mod:  set target's role to "mod"
 ///   - unmod: set target's role to "member"
 ///
