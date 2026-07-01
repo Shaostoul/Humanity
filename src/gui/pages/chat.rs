@@ -1246,7 +1246,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Channel rows (only when expanded). Same layout as server
                     // channels: voice-mic icon, settings cog, then the # name.
                     if !group.collapsed {
-                        let is_group_admin = true; // TODO: per-group role once server reports it
+                        let is_group_admin = is_group_admin(&group.role);
                         for ch in group.channels.iter() {
                             let is_active = state.chat_active_channel == ch.id;
                             let accent = Color32::from_rgb(80, 200, 80);
@@ -6548,5 +6548,40 @@ pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, stat
 
     if close_modal {
         state.dm_unencrypted_confirm = None;
+    }
+}
+
+/// Whether `role` (a `ChatGroup::role`, as reported by the server's `group_list` message --
+/// `GroupData::role`, `"admin"` for the group's creator per
+/// `src/relay/storage/social.rs::create_group`, `"member"` otherwise) grants group-admin UI
+/// (currently: the channel-edit gear icon). Anything other than the exact string `"admin"` --
+/// including an empty/missing/malformed value -- is treated as non-admin, so a payload that
+/// fails to carry a role never silently grants admin (v0.641, was previously hardcoded `true`
+/// for every group regardless of real role).
+fn is_group_admin(role: &str) -> bool {
+    role == "admin"
+}
+
+#[cfg(test)]
+mod group_admin_tests {
+    use super::is_group_admin;
+
+    #[test]
+    fn admin_role_grants_admin() {
+        assert!(is_group_admin("admin"));
+    }
+
+    #[test]
+    fn member_role_does_not_grant_admin() {
+        assert!(!is_group_admin("member"));
+    }
+
+    #[test]
+    fn missing_or_malformed_role_defaults_closed_not_open() {
+        // A payload that fails to carry a real role must never be treated as admin --
+        // fail closed, not open.
+        assert!(!is_group_admin(""));
+        assert!(!is_group_admin("Admin")); // case-sensitive: no silent upgrade
+        assert!(!is_group_admin("owner")); // a plausible-sounding but wrong value
     }
 }

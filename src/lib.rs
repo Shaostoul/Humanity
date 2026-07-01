@@ -9564,6 +9564,11 @@ mod native_app {
                                             for g in groups {
                                                 let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                                 let id = g.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                                // "admin" for the group's creator, "member" otherwise (see
+                                                // GroupData::role, src/relay/storage/social.rs::create_group).
+                                                // Default to "member" so a malformed/legacy payload never
+                                                // silently grants admin.
+                                                let role = g.get("role").and_then(|v| v.as_str()).unwrap_or("member").to_string();
                                                 // Groups render like servers: an expandable header with
                                                 // nested channels. The channel id is `group:<id>` so the
                                                 // send path routes correctly (see chat.rs ~1609). When
@@ -9589,6 +9594,7 @@ mod native_app {
                                                         voice_participants: Vec::new(),
                                                     }],
                                                     collapsed: false,
+                                                    role,
                                                 });
                                             }
                                             log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());

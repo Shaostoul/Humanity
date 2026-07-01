@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-041: Every group chat member saw themselves as group admin
+- **Status**: Fixed
+- **Version Fixed**: v0.641.0
+- **Reported**: found during the 2026-07-01 overnight autonomous-loop chat-completeness sweep (repo-wide TODO scan), not operator-reported.
+- **Root cause**: `src/gui/pages/chat.rs`'s group-channel-row rendering had `let is_group_admin = true; // TODO: per-group role once server reports it` -- every member of every group saw the admin-only channel-edit gear icon as clickable, regardless of real role. The server was NOT actually missing this: `GroupData::role` (`src/relay/relay.rs`) already carries `"admin"` (the group's creator, per `src/relay/storage/social.rs::create_group`) or `"member"` for every entry in the `group_list` WS message -- the client's `ChatGroup` struct (`src/gui/mod.rs`) just had no field to receive it, so the `group_list` handler (`src/lib.rs`) silently discarded the role on the way in.
+- **Fix**: `ChatGroup` gained a `role: String` field (defaults to `"member"` if a payload is malformed/legacy -- fail closed, not open); the `group_list` handler now reads `role` from the JSON payload; `chat.rs` gained a small testable `is_group_admin(role: &str) -> bool` helper (`role == "admin"`, case-sensitive, no silent upgrades) with 3 unit tests covering the admin/member/malformed-default cases. Files: `src/gui/mod.rs`, `src/lib.rs`, `src/gui/pages/chat.rs`.
+
 ### BUG-040: Star skybox (stars + constellations) entirely invisible in first person
 - **Status**: Fixed
 - **Version Fixed**: v0.446.0

@@ -732,6 +732,12 @@ pub struct ChatGroup {
     pub channels: Vec<ChatChannel>,
     /// Whether this group's channel list is collapsed in the sidebar
     pub collapsed: bool,
+    /// This user's role in the group, as reported by the server's
+    /// `group_list` message (`GroupData.role`, `"admin"` for the group's
+    /// creator, `"member"` otherwise -- see `group_members.role` in
+    /// `src/relay/storage/social.rs::create_group`). Defaults to `"member"`
+    /// so an old/partial payload never silently grants admin.
+    pub role: String,
 }
 
 /// A server entry for the left panel (each server has text + voice channels).
