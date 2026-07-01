@@ -259,10 +259,13 @@
 
     // Cached identity promise: resolves { id, pub, fp } or null. fp = first
     // 16 bytes of BLAKE3(Dilithium pubkey) hex, the same author fingerprint
-    // the relay stores, so my-vote tracking is keyed per identity.
-    let _me;
+    // the relay stores, so my-vote tracking is keyed per identity. Only a
+    // SUCCESSFUL load is cached: if the user signs in via Chat in another
+    // tab and clicks vote again, we re-check instead of staying stuck on
+    // "sign in first".
+    let _me = null;
     function myIdentity() {
-      if (_me === undefined) {
+      if (!_me) {
         _me = (async function(){
           if (typeof window.getPqIdentity !== 'function') return null;
           const id = await window.getPqIdentity();
@@ -277,6 +280,7 @@
           console.warn('governance: identity load failed', e);
           return null;
         });
+        _me.then(function(r){ if (!r) _me = null; });
       }
       return _me;
     }

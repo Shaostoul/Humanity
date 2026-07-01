@@ -56,7 +56,7 @@ function fail(msg) { console.error(`vote-object-kat: FAIL — ${msg}`); process.
 
 try {
   const { cborText, cborMap } = await import(pathToFileURL(CBOR).href);
-  const { buildVoteV1, voteV1Payload } = await import(pathToFileURL(OBJ).href);
+  const { buildVoteV1, voteV1Payload, verifyObjectSubmission } = await import(pathToFileURL(OBJ).href);
   const noble = await import(pathToFileURL(BUNDLE).href);
   if (!noble.ml_dsa65 || !noble.blake3) fail('vendored bundle missing ml_dsa65/blake3 — run `just pq-vendor`');
   const blake3 = (d) => noble.blake3.create({ dkLen: 32 }).update(d).digest();
@@ -132,6 +132,23 @@ try {
   }
   if (hx(Uint8Array.from(Buffer.from(s.payload_b64, 'base64'))) !== GOLDEN_PAYLOAD_HEX) {
     fail('submission payload_b64 does not decode to the golden payload');
+  }
+
+  // 6) The frozen JS-built submission fixture (src/relay/core/
+  // pq_kat_vote_submission.json — the reverse-direction Rust test
+  // api_v2_objects.rs::js_built_vote_submission_verifies_through_the_wire_path
+  // drives it through the relay's actual POST parse+verify path) must stay
+  // valid: same identity, same signable bytes, noble-verifiable signature.
+  const FIXTURE = join(REPO, 'src', 'relay', 'core', 'pq_kat_vote_submission.json');
+  const fixture = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  const pqVerify = async (pub, msg, sig) => !!noble.ml_dsa65.verify(sig, msg, pub);
+  const fx = await verifyObjectSubmission(fixture, { blake3, pqVerify });
+  if (!fx.ok) fail('frozen vote submission fixture no longer verifies — regenerate BOTH it and the Rust test');
+  if (fixture.object_type !== 'vote_v1' || fixture.references[0] !== KAT_PROPOSAL_ID) {
+    fail('frozen vote submission fixture has wrong object_type/references');
+  }
+  if (hx(Uint8Array.from(Buffer.from(fixture.author_public_key_b64, 'base64'))) !== hx(kp.publicKey)) {
+    fail('frozen vote submission fixture was built with a different identity');
   }
 
   // Encoder unit vector from src/relay/core/encoding.rs::canonical_map_key_ordering:
