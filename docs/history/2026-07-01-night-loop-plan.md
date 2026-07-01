@@ -226,22 +226,35 @@ The code (`streams.rs` storage, `chat-voice-streaming.js`, the relay
 handlers) looks structurally complete on inspection -- no TODO/stub markers
 found. The ask is to CONFIRM it actually works, not to find missing pieces.
 Use the protocol test harness to verify, end to end:
-- Starting a stream creates a real `streams` row and broadcasts the right
-  signaling message to viewers.
-- Viewer join/leave updates `viewer_peak` correctly.
-- Stream chat messages are stored via `store_stream_chat` and delivered to
-  viewers in real time.
-- Ending a stream sets `ended_at` and finalizes `viewer_peak`.
-- The WebRTC signaling path for the actual video/audio stream (not just
-  the chat/metadata layer) -- trace `chat-voice-streaming.js`'s signaling
-  calls through to `src/relay/handlers/federation.rs`/`msg_handlers.rs`
-  and confirm the offer/answer/ICE-candidate relay actually round-trips.
-- Scene management UI (`chat-voice-streaming.js`'s scene picker) -- confirm
-  it's wired to something real, not just a UI shell.
-If a real gap is found, fix it with the same rigor as the chat backlog
-above. If everything checks out, document that verification in
-`docs/BUGS.md` or `docs/STATUS.md` (whichever fits) so nobody re-audits
-this from scratch later, and move to the broader sweep.
+- **DONE (cycle 5)** Starting a stream creates a real `streams` row and
+  broadcasts the right signaling message to viewers -- verified live.
+- **DONE (cycle 5), BUG FOUND + FIXED (v0.645.0, BUG-043)** ~~Viewer
+  join/leave updates `viewer_peak` correctly.~~ It didn't: the persisted
+  peak was fed the LIVE count at leave/stop time, which only ever
+  decreases from a join -- by stop time the real peak was usually long
+  gone. Fixed with an in-memory `ActiveStream::peak_viewers` high-water
+  mark updated on every join. 4 regression tests, proven via
+  revert-and-retest to actually catch the bug. See BUG-043 + FEATURES.md.
+- **DONE (cycle 5)** Stream chat messages are stored via
+  `store_stream_chat` and delivered to viewers in real time -- verified
+  live: sent a `stream_chat` message, confirmed both the real-time
+  broadcast AND the persisted DB row.
+- **DONE (cycle 5)** Ending a stream sets `ended_at` and finalizes
+  `viewer_peak` -- verified live (see the BUG-043 fix above; `ended_at`
+  confirmed set in the same test).
+- **NOT verified this cycle, lower risk, code-reading only**: the WebRTC
+  signaling path (`stream_offer`/`stream_answer`/`stream_ice` in
+  `src/relay/relay.rs` + `handle_stream_offer/answer/ice` in
+  `msg_handlers.rs`) is a simple store-and-forward broadcast relay with no
+  business logic of its own (each handler just re-broadcasts the payload
+  verbatim to the `to` key) -- read as correct, but not exercised with a
+  real WebRTC peer connection this cycle (would need a browser or a real
+  str0m client, out of scope for the WS-only test harness). Scene
+  management UI (`chat-voice-streaming.js`'s scene picker) is
+  client-side-only and wasn't audited this cycle either. If time remains
+  after the broader sweep, a real 2-browser WebRTC round-trip (via the
+  Claude Preview browser tools against two tabs) would close this out
+  fully.
 
 ## Backlog: broader stub sweep (priority #3, if time remains)
 

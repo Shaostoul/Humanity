@@ -2094,6 +2094,13 @@ pub struct ActiveStream {
     pub category: String,
     pub started_at: u64,
     pub viewer_keys: HashSet<String>,
+    /// High-water mark of `viewer_keys.len()` across the stream's lifetime so
+    /// far (v0.645). `viewer_keys.len()` alone is only ever the CURRENT count
+    /// -- it's highest right at a join and only ever decreases from there, so
+    /// reading it at "leave" or "stop" time (as the persisted `viewer_peak`
+    /// column wants) systematically undercounts the real peak. Updated on
+    /// every join in `handle_stream_viewer_join`.
+    pub peak_viewers: usize,
     pub external_urls: Vec<StreamExternalUrl>,
     pub db_id: Option<i64>,
 }

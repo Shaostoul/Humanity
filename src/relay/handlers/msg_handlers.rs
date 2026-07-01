@@ -2609,6 +2609,7 @@ pub async fn handle_stream_start(
             category: category.clone(),
             started_at: now,
             viewer_keys: HashSet::new(),
+            peak_viewers: 0,
             external_urls: Vec::new(),
             db_id,
         };
@@ -2636,7 +2637,11 @@ pub async fn handle_stream_stop(
     if let Some(ref stream) = *stream_lock {
         let role = state.db.get_role(my_key).unwrap_or_default();
         if stream.streamer_key == my_key || role == "admin" {
-            let viewer_peak = stream.viewer_keys.len() as i64;
+            // The tracked high-water mark, not the live count at stop time --
+            // by the time a stream ends most viewers have often already left,
+            // so `viewer_keys.len()` here is frequently 0 or far below the
+            // real peak (see ActiveStream::peak_viewers' doc comment).
+            let viewer_peak = stream.peak_viewers as i64;
             if let Some(db_id) = stream.db_id {
                 let _ = state.db.end_stream(db_id, viewer_peak);
             }
@@ -2708,7 +2713,12 @@ pub async fn handle_stream_viewer_join(
     let mut stream_lock = state.active_stream.write().await;
     if let Some(ref mut stream) = *stream_lock {
         stream.viewer_keys.insert(my_key.to_string());
-        let count = stream.viewer_keys.len() as u32;
+        let count = stream.viewer_keys.len();
+        // The count is highest right here, at a join -- this is the ONLY
+        // place the true peak can be observed, so record it now rather than
+        // waiting to read a (by-then-lower) count at leave/stop time.
+        stream.peak_viewers = stream.peak_viewers.max(count);
+        let count = count as u32;
         let streamer_key = stream.streamer_key.clone();
         let info_msg = RelayMessage::StreamInfo {
             active: true,
@@ -2739,7 +2749,10 @@ pub async fn handle_stream_viewer_leave(
     if let Some(ref mut stream) = *stream_lock {
         stream.viewer_keys.remove(my_key);
         let count = stream.viewer_keys.len() as u32;
-        let peak = stream.viewer_keys.len() as i64;
+        // Persist the tracked high-water mark, NOT the post-leave live count
+        // (which just decreased and is never the actual peak -- see
+        // ActiveStream::peak_viewers' doc comment).
+        let peak = stream.peak_viewers as i64;
         if let Some(db_id) = stream.db_id {
             let _ = state.db.update_stream_viewer_peak(db_id, peak);
         }
@@ -4413,5 +4426,121 @@ mod mod_action_tests {
             "donor",
             "role still intact after unmute"
         );
+    }
+}
+
+// ── Livestream handler tests (v0.645, overnight-loop priority #2 verification) ──
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+    use crate::relay::relay::RelayState;
+
+    fn fresh_state() -> Arc<RelayState> {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_stream_{pid}_{nanos}.db"));
+        let db = Storage::open(&path).expect("open test db");
+        Arc::new(RelayState::new(db))
+    }
+
+    fn block<F: std::future::Future>(f: F) -> F::Output {
+        tokio::runtime::Runtime::new().expect("tokio rt").block_on(f)
+    }
+
+    /// Enable the server-wide streaming switch (off by default) and grant the
+    /// streamer's role can_stream (mirrors the real admin/mod seed defaults).
+    fn allow_streaming(st: &Arc<RelayState>, streamer_key: &str) {
+        st.db.set_role(streamer_key, "admin").unwrap();
+        let mut settings = st.db.get_server_settings().unwrap_or_default();
+        settings.video_streaming_enabled = true;
+        st.db.set_server_settings(&settings, streamer_key).unwrap();
+    }
+
+    /// The exact bug this test guards: `viewer_peak` used to be fed the LIVE
+    /// `viewer_keys.len()` at leave/stop time, which is only ever highest
+    /// right at a join and monotonically decreases from there -- so by the
+    /// time a stream actually ends (viewers usually already trickled out),
+    /// the persisted peak was frequently 0 or far below the real maximum.
+    /// Two viewers join (peak momentarily 2), both leave (live count back to
+    /// 0), THEN the stream stops -- the persisted viewer_peak must still be
+    /// the true historical 2, not the live-at-stop-time 0.
+    #[test]
+    fn viewer_peak_survives_viewers_leaving_before_stream_stops() {
+        let st = fresh_state();
+        allow_streaming(&st, "streamer_key");
+
+        block(handle_stream_start(&st, "streamer_key", "Test Stream".to_string(), "testing".to_string()));
+        block(handle_stream_viewer_join(&st, "viewer1_key"));
+        block(handle_stream_viewer_join(&st, "viewer2_key"));
+        // Peak is 2 right now -- both viewers leave before anyone checks.
+        block(handle_stream_viewer_leave(&st, "viewer1_key"));
+        block(handle_stream_viewer_leave(&st, "viewer2_key"));
+        block(handle_stream_stop(&st, "streamer_key"));
+
+        let streams = st.db.get_recent_streams(1).unwrap();
+        assert_eq!(streams.len(), 1, "expected exactly one recorded stream");
+        let (_, streamer_key, _, _, _, ended_at, viewer_peak) = &streams[0];
+        assert_eq!(streamer_key, "streamer_key");
+        assert!(ended_at.is_some(), "stream_stop must set ended_at");
+        assert_eq!(*viewer_peak, 2, "the persisted peak must be the true historical max (2), not the live count at stop time (0)");
+    }
+
+    /// A single viewer who joins then leaves (peak 1) must not be recorded
+    /// as 0 just because they left before the stream ended -- the simplest
+    /// case of the same bug class, kept separate so a regression here is
+    /// unambiguous about which scenario broke.
+    #[test]
+    fn viewer_peak_of_one_is_not_lost_when_that_viewer_leaves() {
+        let st = fresh_state();
+        allow_streaming(&st, "streamer_key");
+
+        block(handle_stream_start(&st, "streamer_key", "Solo Viewer Stream".to_string(), "testing".to_string()));
+        block(handle_stream_viewer_join(&st, "viewer1_key"));
+        block(handle_stream_viewer_leave(&st, "viewer1_key"));
+        block(handle_stream_stop(&st, "streamer_key"));
+
+        let streams = st.db.get_recent_streams(1).unwrap();
+        let (_, _, _, _, _, _, viewer_peak) = &streams[0];
+        assert_eq!(*viewer_peak, 1);
+    }
+
+    /// A stream nobody ever watches must record a peak of 0, not error or
+    /// panic -- the zero-viewer path through the same code.
+    #[test]
+    fn a_stream_with_no_viewers_records_zero_peak() {
+        let st = fresh_state();
+        allow_streaming(&st, "streamer_key");
+
+        block(handle_stream_start(&st, "streamer_key", "Empty Room".to_string(), "testing".to_string()));
+        block(handle_stream_stop(&st, "streamer_key"));
+
+        let streams = st.db.get_recent_streams(1).unwrap();
+        let (_, _, _, _, _, _, viewer_peak) = &streams[0];
+        assert_eq!(*viewer_peak, 0);
+    }
+
+    /// Streaming is refused when the server-wide switch is off, even for an
+    /// admin -- the master-kill-switch half of the authorization check
+    /// (`may_stream = settings.video_streaming_enabled && rd.can_stream`).
+    #[test]
+    fn streaming_disabled_server_wide_blocks_even_an_admin() {
+        let st = fresh_state();
+        st.db.set_role("streamer_key", "admin").unwrap();
+        // Deliberately do NOT enable video_streaming_enabled.
+        let mut rx = st.broadcast_tx.subscribe();
+        block(handle_stream_start(&st, "streamer_key", "Should Not Start".to_string(), "testing".to_string()));
+        let mut saw_refusal = false;
+        while let Ok(msg) = rx.try_recv() {
+            if let RelayMessage::Private { message, .. } = msg {
+                if message.contains("disabled server-wide") {
+                    saw_refusal = true;
+                }
+            }
+        }
+        assert!(saw_refusal, "expected a server-wide-disabled refusal message");
+        assert_eq!(st.db.get_recent_streams(10).unwrap().len(), 0, "no stream row should be created");
     }
 }

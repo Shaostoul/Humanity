@@ -146,9 +146,22 @@ the P2P data mesh is unchanged. The voice-room JOIN registers with the relay
 - Web: `web/chat/chat-voice-calls.js`, `web/chat/chat-voice-webrtc.js`
 
 ### Screen Sharing / Streaming
-Share your screen or stream to a channel.
+Share your screen or stream to a channel. Server-wide master switch
+(`video_streaming_enabled`, off by default) plus per-role `can_stream`
+(mod/admin by default) both gate who can start one. Verified end-to-end
+live against a local relay (2026-07-01 overnight-loop priority #2 sweep):
+start/stop, viewer join/leave, and stream chat send + persistence all work
+correctly. Found and fixed a real bug in the process (v0.645.0): the
+persisted `viewer_peak` was fed the LIVE viewer count at leave/stop time,
+which is only ever highest right at a join and decreases from there -- by
+the time a stream actually ends (viewers have often already left), the
+recorded peak was frequently 0 or far below the true maximum. `ActiveStream`
+now tracks a `peak_viewers` high-water mark, updated on every join, used
+instead of the live count when persisting. 4 regression tests
+(`src/relay/handlers/msg_handlers.rs::stream_tests`), proven to actually
+catch the bug via a revert-and-retest.
 - Web: `web/chat/chat-voice-streaming.js`
-- Server: `src/relay/storage/streams.rs`
+- Server: `src/relay/storage/streams.rs`, `src/relay/handlers/msg_handlers.rs` (`handle_stream_start/stop/viewer_join/viewer_leave/chat`)
 
 ### Reactions
 Emoji reactions on messages.

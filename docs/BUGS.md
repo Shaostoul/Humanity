@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-043: Livestream "peak viewer count" was recorded wrong -- fed the live count at the wrong moment, not the actual peak
+- **Status**: Fixed
+- **Version Fixed**: v0.645.0
+- **Reported**: found during the 2026-07-01 overnight autonomous-loop livestreaming end-to-end verification sweep, not operator-reported.
+- **Root cause**: `handle_stream_viewer_leave` and `handle_stream_stop` (`src/relay/handlers/msg_handlers.rs`) both persisted `stream.viewer_keys.len()` (the LIVE viewer count) as the stream's `viewer_peak`. That count is only ever highest right at the moment of a join and monotonically decreases from there -- `handle_stream_viewer_join` never wrote to `viewer_peak` at all. By the time a stream ends (viewers usually trickle out before the streamer stops), the persisted peak was frequently 0 or far below the real maximum. Proved live: 2 viewers joined a test stream (true peak 2), both left, the stream stopped -- the OLD code would have recorded `viewer_peak: 0`.
+- **Fix**: `ActiveStream` (`src/relay/relay.rs`) gained a `peak_viewers: usize` high-water mark, updated via `.max()` on every `handle_stream_viewer_join` (the only place the true peak is ever observable). Both the leave and stop handlers now persist `stream.peak_viewers` instead of the live `viewer_keys.len()`. Verified live against a real relay (2 joins -> both leave -> stop -> DB row correctly shows `viewer_peak: 2`) and with 4 unit tests in `src/relay/handlers/msg_handlers.rs::stream_tests`, confirmed to actually catch the bug via a temporary revert-and-retest (both regression tests failed against the old code, recording 1 and 0 instead of 2 and 1). Files: `src/relay/relay.rs`, `src/relay/handlers/msg_handlers.rs`.
+
 ### BUG-042: Onboarding "Connect" button always said "Connected!" regardless of whether the server was reachable
 - **Status**: Fixed
 - **Version Fixed**: v0.644.0
