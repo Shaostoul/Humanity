@@ -4,8 +4,8 @@ Open-source cooperative platform. Goal: end poverty, unite humanity.
 Live: https://united-humanity.us | GitHub: https://github.com/Shaostoul/Humanity
 SSH alias: `humanity-vps` (server1.shaostoul.com)
 
-> **⚠️ START HERE (mandatory, every session):**
-> 0. Run `just clean-worktrees` to kill stale AI context before it corrupts new work
+> **⚠️ START HERE (mandatory, every TOP-LEVEL session):**
+> 0. Run `just clean-worktrees` to kill stale AI context before it corrupts new work. **OPERATOR/ORCHESTRATOR ONLY — a dispatched subagent must NEVER run this.** The script (2026-07-01 hardened, `scripts/clean-worktrees.sh`) now refuses to touch a worktree with uncommitted changes or unmerged commits, but a subagent told to "read CLAUDE.md first" (a routine review-agent instruction) used to read this step literally and run it as its own first action, force-deleting sibling worktrees mid-review — it happened 3 times in one day before the script was hardened. If you are a subagent reading this file as background context for a specific delegated task, skip this step entirely; it is not part of your task.
 > 1. **READ `docs/PRIORITIES.md`** — strict-ranked TACTICAL backlog. The TOP item of TIER 0 is what gets worked on next. New convention as of v0.283.x. Its STRATEGIC companion is **`docs/ROADMAP.md`** (themed, status-badged, the public roadmap AND the build to-do list; the website renders it from `data/roadmap.json` via `scripts/roadmap-to-json.js`). When you change strategic scope, update ROADMAP.md + regenerate the JSON.
 > 2. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
 > 3. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
