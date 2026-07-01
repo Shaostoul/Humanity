@@ -82,7 +82,7 @@ This domain includes:
 - personal space and privacy
 - meaningful consent rather than coercion
 
-Deprivation of agency produces despair, resentment, and resistance—even when material needs are met.
+Deprivation of agency produces despair, resentment, and resistance, even when material needs are met.
 
 ---
 

@@ -276,6 +276,18 @@ To add a help button next to any UI element:
 
 When a checkbox flips to `[x]`, bump its status and the version in the "Last updated" line above.
 
+## Every page must earn its existence (operator principle, 2026-06-30)
+
+HumanityOS has spent a long time getting the GUI right, especially the main menu /
+top-level nav that ties every page together (see the "Merged super-tabs" and
+"Category-landing pages" sections of `docs/PAGES.md` for the several rounds of nav
+consolidation this has already been through). The standing rule going forward: a page
+is only justified if it is irreplaceable and unique enough that merging it into
+another page would lose something real. This cuts both ways, don't fold a genuinely
+distinct page into another just to shrink the nav count, and don't add a new page for
+something that's really a section of an existing one. When proposing a new page or a
+merge, name specifically what would be lost by the other choice.
+
 ## Page parity (web ↔ native)
 
 The dual-UI rule from CLAUDE.md: every UI pattern must be implementable in

@@ -244,20 +244,52 @@ The game teaches the homestead; the homestead is real.
   S2: per-utility usage meters + a home self-sufficiency fraction. Paused 2026-06-29
   awaiting the operator's steer on M1's editor architecture, M3 (civic mall), and grid
   S3 (multi-home substations), see "Right now" above. Design in
-  `docs/design/mothership-superstructure.md`.
+  `docs/design/mothership-superstructure.md`. **Priority order confirmed 2026-06-30:
+  the player's own home first** (it has to actually work before anything mirrors from
+  it), **then mothership population**: clone the working home design into every
+  residential zone slot so the mothership looks inhabited (swap in real variety once
+  more home designs exist), and give every other zone type (hangar, mech bay,
+  industrial kept safely away from homes, power/reactor, medical, armory with a firing
+  range, arena, cargo, storage, agriculture, transit hub) a cheap, data-driven generic
+  interior filler instead of an empty wireframe, both `armory` and `arena` are new
+  zone types added to `data/blueprints/zone_types.ron` for this. Zone-population work
+  in progress as of 2026-06-30.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
   vs closed Battle.net); the Play launcher with character select, homes, and a default.
 - `[planned]` First Playable: walk-up stations, a 3D vitals HUD, and a guided first
   day (shared with the survival theme above).
-- `[next]` Game/simulator opt-out toggle: someone who only wants chat or the Studio
-  streaming feature shouldn't pay the compute/GPU/electricity cost of the simulation
-  engine running in the background (operator intent, 2026-06-30). Logged as a concrete
-  next feature in `docs/PRIORITIES.md`.
+- `[next]` Real/fake multi-save model + real-life-first boot (revised 2026-06-30, was
+  a blanket "sim opt-out toggle," rejected as confusing). Every save's houses and
+  characters carry a real or fake flag; real ones map to actual life (the operator's
+  real house, car, furniture, clothing, entered as data), fake ones are today's sim
+  sandbox. Default app state is real-life; the sim/game world loads only for a
+  fake-flagged save or an explicit Settings opt-in, not unconditionally on boot like
+  today's early-dev Esc-from-chat shortcut. Detailed scope in `docs/PRIORITIES.md`
+  TIER 2 item 9.
 - `[future]` Generation-Ship co-op: a shared life-support habitat where selfishness
   literally collapses the colony, the first mission-shaped multiplayer scenario.
 - `[future]` AI Mentor "Sage": a first-class NPC citizen with its own identity and a
   scripted-fallback decision tree (ships with zero LLM dependency, pluggable later).
+- `[future]` A single default mothership design scaled to house up to 10 billion
+  humans, simulated at that scale to see how food/water/power/waste flows hold up and
+  where people actually enjoy spending their time (operator north star, 2026-06-30).
+  Sequenced well after the peaceful gameplay loop is solid, this is a stretch target
+  for the zone-population and grid-hierarchy work above, not a near-term build.
+- `[future]` Population consumption/production economy: every occupant tracks what
+  they've produced versus consumed (the fleet can start with "infinite" resources as a
+  bootstrap assumption while this is built). Ties combat expeditions to the economy,
+  e.g. going off-ship with new gear to acquire resources (steel from a hostile
+  faction) that feed back into what the expedition's home/guild can build. Sequenced
+  after combat exists, which is itself sequenced after peaceful gameplay is solid.
+- `[future]` Armory with a firing range and an arena (zone types added 2026-06-30,
+  interiors not yet populated), the eventual home of combat expeditions, explicitly
+  gated behind the peaceful survival/construction/economy loop working first (operator
+  priority order, 2026-06-30).
+- `[future]` Non-LLM tactical combat AI: compelling, humanlike PvP with a wide variety
+  of real tactics, driven by self-play (the AI plays itself to get good) rather than an
+  LLM behind every decision, both for cost and for genuinely emergent tactical depth.
+  No design work started; this is explicitly a "once peaceful gameplay works" goal.
 - `[future]` Game-world depth: more content, characters, and deeper coupled systems.
 - `[future]` Real-terrain world generation from real elevation data (USGS / SRTM /
   Copernicus) keyed to a place's latitude and longitude.
