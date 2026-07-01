@@ -286,11 +286,24 @@ verify:
 lints:
     export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
-# Render the native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
-# (the dev machine has one); skips gracefully if none. Open the PNGs after.
+# Render ALL 26 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
+# (the dev machine has one); skips gracefully if none. Open the PNGs after. For just
+# ONE page, use `just snapshot <name>` instead (much faster).
 snapshots:
     cargo test --features native --lib snapshot_ -- --ignored --test-threads=1 --nocapture
-    @echo "UI snapshots written to tests/snapshots/ — open them to review."
+    @echo "UI snapshots written to tests/snapshots/, open them to review."
+
+# Render ONE named page to tests/snapshots/<name>.png. Names are the test suffix in
+# src/gui/ui_snapshots.rs, e.g. `just snapshot construction` or `just snapshot homes`.
+# Full list: main_menu, humanity, chat, homes, tasks, market, profile, crafting,
+# library, governance, identity, wallet, quests, calendar, notes, audio_settings,
+# graphics_settings, controls_settings, laws_page, inventory, inventory_transfer,
+# garden_modal_soil, mining_modal, mining_map, garden_modal_tower, construction. This
+# is 26 of the app's 52 native pages, the rest have no snapshot test yet, check
+# docs/PAGES.md for the full page registry.
+snapshot name:
+    cargo test --features native --lib snapshot_{{name}} -- --ignored --nocapture
+    @echo "Wrote tests/snapshots/{{name}}.png"
 
 # Pre-push checklist: the recurring CI gotchas in one shot (untracked source
 # files that fail a fresh checkout, broken doc links) plus full verify.
