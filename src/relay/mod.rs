@@ -307,13 +307,13 @@ pub async fn run_relay() {
     }
 
     // Game world simulation tick loop: 20 ticks/sec (50ms). Always ticks now
-    // — game_time advances and crew NPCs work through their data-driven chore
+    // -- game_time advances and crew NPCs work through their data-driven chore
     // rotation (data/npc/chores.ron) even when no humans are connected, so AI
     // agents perceive a living world.
     //
     // Chore events (crew picked up / working on / finished a task, plus
     // throttled travel positions) broadcast as `game_npc_update` so clients
-    // can render crew actually completing tasks — but only while at least one
+    // can render crew actually completing tasks -- but only while at least one
     // player entity is in the world (same gate as TimeSync; the simulation
     // itself never pauses, only the broadcast).
     {
