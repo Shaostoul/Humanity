@@ -19,11 +19,14 @@
 > 6 concrete file:line TODOs found and enumerated, (2) livestreaming
 > end-to-end verification, (3) a broader stub-completion sweep. Docs sync
 > every cycle. On stop: write `docs/history/2026-07-01-night-loop-results.md`.
-> **Progress: chat backlog items 1-2/6 shipped -- v0.641.0/BUG-041 (fake
-> `is_group_admin` fixed) and v0.642.0 (native DM-notification toggle wired
-> to the server, was a no-op; new `scripts/ws-test-client.js` reusable
-> protocol-test harness built + proven). Next up: item 3 (group voice
-> join/leave, `chat.rs:1346`).** <<<**
+> **Progress: chat backlog items 1-3/6 shipped -- v0.641.0/BUG-041 (fake
+> `is_group_admin` fixed), v0.642.0 (native DM-notification toggle wired to
+> the server; new `scripts/ws-test-client.js` reusable protocol-test
+> harness built + proven), v0.643.0 (group voice join/leave wired, PLUS a
+> real server-side gap found+fixed: group rooms would've been rejected by
+> a channels-table lookup that has no row for them -- now gated on real
+> group membership). Next up: item 4 (mute, `chat.rs:1588` +
+> `msg_handlers.rs` ban/mute backing tables).** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed

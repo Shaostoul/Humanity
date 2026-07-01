@@ -518,6 +518,17 @@
         "scripts/ws-test-client.js",
         "docs/FEATURES.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 3: shipped v0.643.0 -- wired group voice channel join/leave (src/gui/pages/chat.rs, was a no-op TODO) to the existing voice_room protocol using the group channels synthetic group:<id> id. Investigating this surfaced a REAL server-side bug that would have broken it even with a correct client fix alone: handle_voice_room (src/relay/handlers/msg_handlers.rs) validated every room_id against the channels tables voice_enabled flag, which has no row for a group room at all -- every group voice join would have silently failed with Voice is not enabled for this channel. Fixed by adding a group: prefix branch gated on Storage::is_group_member (src/relay/storage/social.rs, pre-existing but previously had zero callers using it for authorization) instead of skipping validation, closing what would otherwise be an open join-any-group-by-guessing-its-id hole. Verified LIVE: seeded a test group + one member directly via node:sqlite (group_create needs a verified/admin role a fresh bot lacks) on a local relay, then used scripts/ws-test-client.js to confirm a member joins silently and a non-member gets rejected with the right message. Added 5 unit tests for is_group_member. Logged a real, scoped follow-up in FEATURES.md: group voice rooms dont yet appear in the voice_channel_list broadcast (only the channels table is enumerated), so you cant see OTHER participants in a group voice rooms roster yet, though join/leave + audio signaling both work. Verified: both cargo checks, 635 lib tests (5 new), 5 lints, 0 broken doc links, real protocol test. Committed + pushed. Resolves chat backlog item 3 of 6. Next: item 4 (mute implementation + ban/mute backing tables, chat.rs:1588 + msg_handlers.rs).",
+      "scope": "chat (night-loop cycle 3)",
+      "files": [
+        "src/gui/pages/chat.rs",
+        "src/relay/handlers/msg_handlers.rs",
+        "src/relay/storage/social.rs",
+        "docs/FEATURES.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
