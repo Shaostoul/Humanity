@@ -2,6 +2,11 @@
 
 Goal: model non-human lifeforms with comparable systemic depth to humans (organs, thoughts, feelings, skills, behavior), while remaining computationally tractable.
 
+> **Aspirational, not yet built.** This describes a future depth target, not current
+> code. It is content/design planning within the single `src/` crate (see
+> `00-START-HERE.md`), not a separate module/crate. Cross-check `docs/STATUS.md`'s
+> Game Engine table before assuming any lifeform-parity infrastructure exists today.
+
 ---
 
 ## 1) Lifeform architecture

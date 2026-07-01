@@ -1,12 +1,20 @@
 # Social Graph: Follows, Friends, and Direct Messages
 
+> **Mixed status.** Follows/friends (mutual follow) and DM E2EE are shipped
+> (`follows` table, `src/relay/storage/social.rs`; DM crypto per CLAUDE.md's
+> "Cryptography" table). The identity key is Dilithium3, not Ed25519, and DM
+> E2EE is pure Kyber768 (ML-KEM-768) dual-seal, not X25519 + XChaCha20-Poly1305
+> — this doc has been corrected below. The friend-handshake auto-offer protocol
+> and P2P/multi-server sections remain forward design; check current behavior
+> in `src/relay/handlers/msg_handlers.rs::handle_dm` before relying on specifics.
+
 ## Purpose
 
 Define how users discover, follow, befriend, and privately communicate with each other across servers, transitioning from server-mediated communication to peer-to-peer direct connections.
 
 ## Principles
 
-- **Identity is portable.** Your Ed25519 keypair is yours. It works on any server.
+- **Identity is portable.** Your Dilithium3 keypair (derived from your BIP39 seed) is yours. It works on any server. (An Ed25519 key derived from the same seed backs the optional Solana wallet only — see CLAUDE.md's Cryptography table.)
 - **Your social graph is yours.** Follow lists are stored client-side, not controlled by any server.
 - **Mutual consent for DMs.** Both parties must follow each other (friends) before direct messaging.
 - **Servers are meeting places, not gatekeepers.** You discover people on servers; your relationships transcend them.
@@ -49,7 +57,7 @@ The local database of follows + friends + metadata:
 
 ```
 contacts {
-    public_key: Ed25519 public key (primary identifier)
+    public_key: Dilithium3 public key, hex (primary identifier)
     display_name: string (cached, may be outdated)
     relationship: "follow" | "friend" | "blocked"
     added_at: timestamp
@@ -66,21 +74,35 @@ Stored in IndexedDB (web client) or local SQLite (native client). Encrypted at r
 
 ### Requirements
 
-- Both users must be friends (mutual follow)
-- End-to-end encrypted (XChaCha20-Poly1305)
-- Messages are signed (Ed25519)
-- Work P2P when both online; relay-fallback when one is offline
+- Both users must be friends (mutual follow) — enforced client-side today; see
+  `handle_dm` in `src/relay/handlers/msg_handlers.rs` for the relay's actual gate
+  (fail-closed on unencrypted DMs, not a friend-check at the relay layer).
+- End-to-end encrypted: pure **Kyber768 (ML-KEM-768) → BLAKE3-KDF → AES-256-GCM**
+  dual-seal envelope (see CLAUDE.md's Cryptography table). Not XChaCha20-Poly1305.
+- Messages are signed with the sender's Dilithium3 identity key, not Ed25519.
+- Work P2P when both online; relay-fallback when one is offline.
 
-### Key Exchange
+### Key derivation (shipped, `src/net/dm_pq.rs` / `web/chat/pq.js`)
 
-On becoming friends, clients perform an X25519 key exchange:
+There is no interactive key exchange. Each user's Kyber768 keypair is derived
+**deterministically** from their BIP39 seed (`derive_kyber_seed`, BLAKE3 domain
+`hum/kyber768/v1`), so every device the user owns computes the identical
+keypair with no vault sync needed:
 
-1. Each party derives an X25519 public key from their Ed25519 key (per RFC 8032 / libsodium)
-2. Shared secret computed via X25519 Diffie-Hellman
-3. Session keys derived via BLAKE3 KDF from the shared secret
-4. Keys are rotated periodically (ratchet protocol, future spec)
+1. Sender encapsulates to the recipient's Kyber768 public key:
+   `(kyber_ct, shared_secret) = ML-KEM-768.encapsulate(recipient_kyber_pub)`
+   (a fresh KEM per message — no static shared key on the wire).
+2. `aes_key = BLAKE3.derive_key("hum/dm-aes/v1", shared_secret)` (32 bytes).
+3. `nonce` = 12 random bytes; `ciphertext = AES-256-GCM.seal(aes_key, nonce, plaintext)`.
+4. The envelope is dual-sealed (one copy to the recipient's Kyber pub, one to
+   the sender's own, `{v:1,r,s}`) so both parties can read history on any device.
 
-### Message Routing (3-tier)
+### Message Routing (3-tier, forward design)
+
+DMs today route through the relay (`RelayMessage::Dm`, `handle_dm`); the
+peer-to-peer tiers below are the target architecture, following the same
+relay-optional pattern being built for P2P groups
+([docs/design/p2p-groups.md](../design/p2p-groups.md)), not yet shipped for DMs.
 
 **Tier 1, Direct P2P:**
 - If both parties are online and reachable (same LAN, or public IP, or hole-punched)
@@ -99,17 +121,19 @@ On becoming friends, clients perform an X25519 key exchange:
 - Recipient retrieves on next connect
 - Messages expire after configurable TTL (default: 30 days)
 
-### DM Data Model
+### DM Data Model (as shipped)
+
+The relay's `Dm` message carries the sender/recipient identity keys (Dilithium3
+hex) and an opaque encrypted `content` blob holding the `{v:1,r,s}` dual-seal
+envelope described above:
 
 ```
-direct_message {
-    id: BLAKE3 hash of (sender_key + recipient_key + timestamp + nonce)
-    from: Ed25519 public key
-    to: Ed25519 public key
+Dm {
+    from: Dilithium3 public key (hex)
+    to: Dilithium3 public key (hex)
+    content: opaque encrypted blob ({v:1,r,s} Kyber768 dual-seal envelope)
+    encrypted: bool (relay REJECTS false for non-bot senders — fail-closed)
     timestamp: u64 (ms since epoch)
-    nonce: 24 bytes (XChaCha20-Poly1305)
-    ciphertext: encrypted payload
-    signature: Ed25519 signature over (ciphertext + timestamp + nonce)
 }
 ```
 
@@ -131,7 +155,7 @@ Servers provide:
 - User discovery (see who's in the server)
 - Friend handshake relay (forwarding encrypted offers)
 - Presence aggregation (who's online, for server members only)
-- Moderation within their space
+- Moderation within their server (bans, mutes — `banned_keys`, `muted_members` tables)
 
 Servers do NOT provide:
 - Authority over identity
@@ -179,16 +203,18 @@ Users can share server URLs. Servers can optionally publish to a public director
 - **Metadata minimization**: relays should not log sender/recipient pairs long-term
 - **Plausible deniability**: future spec may add deniable authentication
 
-## Migration Path from Current MVP
+## Migration Path
 
-1. **Phase 1 (now):** Server-scoped user list, admin/mod reports
-2. **Phase 2:** Local contacts/follow list in IndexedDB, `/follow` and `/unfollow` commands
-3. **Phase 3:** Friend handshake protocol, mutual follow detection
-4. **Phase 4:** DMs via server relay (encrypted)
-5. **Phase 5:** P2P direct connections (WebRTC data channels for web, raw TCP/QUIC for native)
-6. **Phase 6:** Multi-server identity, cross-server friend discovery
-7. **Phase 7:** Store-and-forward for offline DMs, message expiry
-8. **Phase 8:** Key ratcheting, forward secrecy
+1. **Phase 1 (shipped):** Server-scoped user list, admin/mod reports.
+2. **Phase 2 (shipped):** Local contacts/follow list, `/follow` and `/unfollow`, `follows` table.
+3. **Phase 3 (partially shipped):** mutual-follow = friend is enforced server-side
+   (`mutual_follow_required_for_friendship` test, `src/relay/storage/social.rs`);
+   the `friend_offer` auto-handshake protocol above is forward design.
+4. **Phase 4 (shipped):** DMs via server relay, full E2EE (Kyber768 dual-seal).
+5. **Phase 5 (forward design):** P2P direct connections (WebRTC data channels).
+6. **Phase 6 (forward design):** Multi-server identity, cross-server friend discovery.
+7. **Phase 7 (forward design):** Store-and-forward for offline DMs, message expiry.
+8. **Phase 8 (forward design):** Key ratcheting, forward secrecy.
 
 ## Open Questions
 

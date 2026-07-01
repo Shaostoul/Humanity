@@ -22,7 +22,7 @@ engine-wasm/             WASM-specific entry point + JS glue
   pkg/                   Generated: engine_wasm_bg.wasm + engine_wasm.js
   index.html             Test harness
 
-Desktop: engine runs natively via Tauri (winit window, native wgpu)
+Desktop: engine runs natively as a standalone Rust binary (winit window, native wgpu; no Tauri/WebView)
 Browser: engine runs as WASM, renders to <canvas> via WebGPU
 ```
 

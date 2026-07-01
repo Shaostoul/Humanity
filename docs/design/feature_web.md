@@ -1,7 +1,7 @@
-# Feature Web Design (Project Universe)
+# Feature Web Design
 
 ## Goal
-Build an interactive, teaching-first feature graph that maps Project Universe end-to-end:
+Build an interactive, teaching-first feature graph that maps HumanityOS end-to-end:
 - vision, business, school, game systems, economy, roadmap, lore, operations.
 - dependencies between features/subfeatures.
 - a guided way for newcomers to learn how pieces connect.

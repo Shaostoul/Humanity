@@ -57,7 +57,7 @@ docs/STATUS.md             -- Feature completion inventory
 docs/FEATURES.md           -- Feature file paths
 docs/BUGS.md               -- Known issues, resolved bugs
 docs/SOP.md                -- Version bumping, deploy procedures
-docs/design/*.md           -- 87 design documents for specific systems
+docs/design/*.md           -- design documents for specific systems (see docs/design/README.md)
 CLAUDE.md                  -- Project-wide instructions
 ```
 
@@ -199,17 +199,23 @@ AI Agent spawns
 
 ## Content Generation Backlog
 
+> **Stale table, kept for shape only (2026-06-30):** the counts below are a v0.116.0
+> snapshot and have since moved (e.g. `data/items.csv` and `data/recipes.csv` are both
+> larger now). Don't quote these numbers; check the actual data files or
+> `docs/STATUS.md` for current counts. The backlog *pattern* (content generation is
+> good work for a dedicated Data agent) is still valid.
+
 These are "obvious work" items that dedicated agents could grind through independently:
 
-| Task | Current | Target | Agent |
-|------|---------|--------|-------|
-| Dictionary/glossary | 150 terms | 2,000+ terms | Data |
-| Item database | 306 items | 1,000+ items | Data |
-| Recipe database | 227 recipes | 500+ recipes | Data |
-| Quest content | 4 quest chains | 20+ chains | Data |
-| NPC dialogue | 0 | 50+ NPCs with trees | Data |
-| Planet shaders wired | 2 (sun, basic) | 10+ (all planets) | Shaders |
-| Procedural materials wired | 4 types | 10+ types | Shaders |
-| Surface material shaders | 10 written, 0 wired | All 10 wired | Shaders |
-| Tutorial content | Basic | Comprehensive | Data |
-| Policy/law templates | 0 | 50+ templates | Data |
+| Task | Agent |
+|------|-------|
+| Dictionary/glossary expansion | Data |
+| Item database expansion | Data |
+| Recipe database expansion | Data |
+| Quest content expansion | Data |
+| NPC dialogue trees | Data |
+| Planet shaders wiring | Shaders |
+| Procedural materials wiring | Shaders |
+| Surface material shaders wiring | Shaders |
+| Tutorial content | Data |
+| Policy/law templates | Data |

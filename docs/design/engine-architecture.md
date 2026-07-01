@@ -4,7 +4,7 @@
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-18 (updated 2026-03-22 for v0.37.1 restructure + egui GUI)
 **Supersedes:** Project Universe approach
-**Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md](graphics-pipeline.md) (renderer design), [audio-engine.md](audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
+**Depends on:** [game-engine.md](game-engine.md) (engine decision), [graphics-pipeline.md (superseded draft)](../history/graphics-pipeline-tauri-draft-2026-03.md) (early renderer design), [audio-engine.md](../history/audio-engine.md) (audio stack), [educational-gameplay.md](educational-gameplay.md) (skill system philosophy)
 
 > **Implementation vs Design:** This document describes the v1.0 target architecture, including
 > a multi-crate layout (`crates/`) that was **explored but not adopted**. As of the v0.90.0
@@ -1252,9 +1252,9 @@ egui and wgpu share the same Rust process. No IPC needed:
 - Web-only users access all social features without the desktop app
 - The 3D renderer focuses on what egui cannot do: terrain, PBR materials, physics visualization
 
-For the full rendering pipeline design (G-Buffer, lighting, RT, post-processing), see [graphics-pipeline.md](graphics-pipeline.md).
+For the early rendering pipeline design (G-Buffer, lighting, RT, post-processing; superseded draft, kept for historical rationale), see [graphics-pipeline.md](../history/graphics-pipeline-tauri-draft-2026-03.md).
 
-For the audio architecture (kira + Steam Audio), see [audio-engine.md](audio-engine.md).
+For the audio architecture (kira + Steam Audio), see [audio-engine.md](../history/audio-engine.md).
 
 ---
 
@@ -1575,9 +1575,9 @@ Large fleet projects (new ship construction, station expansion, Dyson sphere seg
 | Document | Location | Relevance |
 |----------|----------|-----------|
 | Engine decision | [game-engine.md](game-engine.md) | Why custom wgpu, not Bevy |
-| Graphics pipeline | [graphics-pipeline.md](graphics-pipeline.md) | Renderer architecture, PBR, RT, VR |
-| Audio engine | [audio-engine.md](audio-engine.md) | kira + Steam Audio stack |
+| Graphics pipeline (superseded draft) | [graphics-pipeline.md](../history/graphics-pipeline-tauri-draft-2026-03.md) | Early renderer design, PBR/RT/VR rationale |
+| Audio engine | [audio-engine.md](../history/audio-engine.md) | kira + Steam Audio stack |
 | Educational gameplay | [educational-gameplay.md](educational-gameplay.md) | Skill-teaching philosophy |
-| Gardening game | [gardening-game.md](gardening-game.md) | First minigame, 2D prototype |
+| Gardening game (superseded proposal) | [gardening-game.md](../history/gardening-minigame-proposal-2026-03.md) | Early unbuilt 2D minigame draft; real loop is `FarmingSystem`, see gameplay-loops.md |
 | Multi-scale maps | [maps-multi-scale.md](maps-multi-scale.md) | Seamless cosmic-to-street navigation |
 | VR tracking | [vr-tracking.md](vr-tracking.md) | VR input and rendering |

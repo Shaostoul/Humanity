@@ -17,7 +17,7 @@ The simulation exists to preserve truth, consequence, and learnability.
 
 Simulation laws are constrained by:
 - the Humanity Accord
-- `design/core/accord_constraints.md`
+- `docs/design/accord_constraints.md`
 
 No simulation rule may bypass dignity, transparency, or harm boundaries.
 

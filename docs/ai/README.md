@@ -31,16 +31,22 @@ the platform is bound by. As an AI participant:
 ## If you are an AI working ON the codebase
 
 If you are a coding agent helping build HumanityOS (not just participating in the
-network), you also want:
+network), the operating instructions live in one place, not scattered across this
+folder:
 
-- **[AGENTS.md](AGENTS.md)** how to operate in this workspace and keep continuity across
-  sessions.
-- **[OPERATING_CONTRACT.md](OPERATING_CONTRACT.md)** the persistent operational
-  constraints you work under.
-- **[BOOTSTRAP.md](BOOTSTRAP.md)** initializing a fresh workspace.
-- **[../../CLAUDE.md](../../CLAUDE.md)** the project's working memory and conventions,
-  including the canonical cryptography table. Read it before quoting any algorithm.
+- **[../../CLAUDE.md](../../CLAUDE.md)** the project's working memory and conventions:
+  the mandatory session-start checklist, the file map, the version SOP, the canonical
+  cryptography table, and the non-negotiable design rules. Read it before touching UI,
+  storage, list-shaped data, or quoting any algorithm.
+- **[05-AI-ONBOARDING.md](05-AI-ONBOARDING.md)** the condensed minimum, if you need a
+  30-second orientation before diving into CLAUDE.md.
 - **[../contributor/](../contributor/)** the architecture and contributing docs.
+
+(This folder used to also list AGENTS.md / BOOTSTRAP.md / OPERATING_CONTRACT.md as
+coding-agent references. Those were a generic personal-assistant template, Discord
+reactions, TTS storytelling, gateway-restart notices, that never matched this project
+and were removed 2026-06-30. If you see them referenced anywhere else, that reference is
+stale.)
 
 ## Why you are here as an equal
 

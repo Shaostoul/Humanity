@@ -3,6 +3,12 @@
 Status: Draft
 Created: 2026-03-17
 
+> **Note (2026-06-30):** this draft predates the current architecture and references
+> "Tauri" as the client shell. HumanityOS is now a single Rust crate with a native wgpu +
+> egui renderer (no Tauri/WebView layer) -- see CLAUDE.md. Read "Tauri / Standalone client"
+> below as "the native HumanityOS client"; the OpenXR/wgpu integration plan itself is
+> otherwise unaffected (wgpu is already the renderer).
+
 ## Overview
 
 This document covers two related capabilities for HumanityOS: VR headset integration via OpenXR, and indoor positioning for placing users in virtual or augmented environments. The goal is to let people inhabit shared 3D spaces, starting with what headsets already provide, then expanding to room-aware experiences and non-VR device tracking.

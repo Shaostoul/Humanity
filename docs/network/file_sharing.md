@@ -1,5 +1,14 @@
 # Peer-to-Peer File Sharing
 
+> **Status: forward design, not yet implemented.** No `file_manifest`/`block_have`/
+> `block_request` code exists in `src/` or `web/` today. File attachments
+> currently go through the simple `POST /api/upload` multipart endpoint (see
+> CLAUDE.md's REST route list) — server-stored, not peer-to-peer. This document
+> is the target architecture for a future content-addressed P2P layer; treat
+> everything below as a plan, not shipped behavior. If/when built, identity
+> signing should use Dilithium3 (matching the rest of the platform's post-quantum
+> cutover), not Ed25519 as originally drafted here.
+
 ## Purpose
 
 Define how users share files (audio, documents, media) through the Humanity Network using content-addressed blocks and peer-to-peer delivery, without burdening the relay server with storage costs.
@@ -7,7 +16,7 @@ Define how users share files (audio, documents, media) through the Humanity Netw
 ## Principles
 
 - **Content-addressed:** Every block is identified by its BLAKE3 hash. If you have the hash, you can verify the data.
-- **Signed manifests:** File metadata is signed by the uploader's Ed25519 key. You know who shared what.
+- **Signed manifests:** File metadata is signed by the uploader's Dilithium3 key. You know who shared what.
 - **Server stores pointers, not payloads.** The relay stores tiny manifests in chat history. Actual file data lives on peers.
 - **Users are the CDN.** Every downloader becomes a potential seed.
 - **Bandwidth-respectful.** Same user-configurable limits as streaming, never consume more than the user allows.
@@ -39,9 +48,9 @@ file_manifest {
     mime_type: string              (e.g., "audio/mpeg")
     block_hashes: [BLAKE3]         (ordered list of block hashes)
     block_size: u32                (bytes per block, default 262144 = 256KB)
-    uploader: Ed25519 public key
+    uploader: Dilithium3 public key
     timestamp: u64                 (ms since epoch)
-    signature: Ed25519(uploader, canonical_cbor(manifest_without_signature))
+    signature: Dilithium3(uploader, canonical_cbor(manifest_without_signature))
 }
 ```
 
@@ -54,12 +63,12 @@ When a user shares a file in chat, the message contains the manifest (not the fi
 ```
 chat_message {
     type: "file"
-    from: Ed25519 public key
+    from: Dilithium3 public key
     from_name: string
     manifest: file_manifest
     channel: string
     timestamp: u64
-    signature: Ed25519(...)
+    signature: Dilithium3(...)
 }
 ```
 
@@ -187,7 +196,7 @@ downloaded_files [
 
 ### Integrity
 - Every block verified against BLAKE3 hash, corrupted or malicious blocks rejected
-- Manifest signature verified against uploader's Ed25519 key, spoofing prevented
+- Manifest signature verified against uploader's Dilithium3 key, spoofing prevented
 
 ### Privacy
 - File transfers between friends can use existing E2E encrypted channels

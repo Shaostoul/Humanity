@@ -1,5 +1,12 @@
 # Server Federation
 
+> **Mixed status.** Trust tiers, `GET /api/federation/servers`, and signed
+> profile gossip (Dilithium3, see CLAUDE.md "Cryptography" table) are shipped
+> (`src/relay/handlers/federation.rs`, `src/relay/api.rs::list_federation_servers`).
+> The signed `.well-known/humanity-servers.json` root registry and the
+> verification-code operator flow described below are forward design, not yet
+> implemented — servers are added to the local registry today without that flow.
+
 ## Purpose
 
 Define how multiple independently-operated servers form the Humanity Network. Servers are meeting places, not gatekeepers. Identity is portable, the same Dilithium3 (`did:hum:`) key works on any server. Users choose which servers to join; servers choose which servers to trust.
@@ -71,7 +78,7 @@ humanity-verify:<random-32-hex>:<issued-timestamp>:<server-domain>
 
 ---
 
-## Server Registry
+## Server Registry (forward design, not yet implemented)
 
 A signed JSON document maintained by the root authority, served at a well-known URL:
 
@@ -79,13 +86,18 @@ A signed JSON document maintained by the root authority, served at a well-known 
 https://united-humanity.us/.well-known/humanity-servers.json
 ```
 
+No code serves this file today; `GET /api/federation/servers` returns the
+relay's own `federated_servers` DB table instead (populated ad hoc, not from a
+signed root registry). The schema below is the design target if/when a signed
+root registry is built.
+
 ### Schema
 
 ```json
 {
   "version": 1,
   "updated": "2026-02-10T00:00:00Z",
-  "root_key": "<ed25519-public-key-of-root-authority>",
+  "root_key": "<dilithium3-public-key-hex-of-root-authority>",
   "servers": [
     {
       "domain": "chat.united-humanity.us",
@@ -100,12 +112,12 @@ https://united-humanity.us/.well-known/humanity-servers.json
       "tags": ["official", "development"]
     }
   ],
-  "signature": "<ed25519-signature-of-servers-array>"
+  "signature": "<dilithium3-signature-hex-of-servers-array>"
 }
 ```
 
-The registry is:
-- Signed by the root authority's Ed25519 key (tamper-proof).
+The registry, once built, should be:
+- Signed by the root authority's Dilithium3 key (tamper-proof).
 - Fetched by clients on startup (cached locally, refreshed periodically).
 - Small enough to embed in the client as a fallback.
 
@@ -120,14 +132,14 @@ Unverified servers are stored locally in the client's IndexedDB.
 
 ---
 
-## Signed Profile Replication
+## Signed Profile Replication (shipped)
 
 Profiles are NOT owned by any server. They are signed objects that replicate to every server the user connects to.
 
 ### Protocol
 
 1. **On connect**: Client sends `ProfileUpdate` with signed profile data
-2. **Server validates**: Verify Ed25519 signature over canonical payload
+2. **Server validates**: Verify Dilithium3 (`verify_profile_signature`) signature over canonical payload
 3. **Server stores**: Cache in `signed_profiles` table with timestamp
 4. **Server gossips**: Forward to all federated peers via `ProfileGossip` message
 5. **Receiving server validates**: Verify signature, store if newer than existing
@@ -144,7 +156,7 @@ Profiles are NOT owned by any server. They are signed objects that replicate to 
   "avatar_url": "https://...",
   "socials": {},
   "timestamp": 1711036800000,
-  "signature": "<ed25519-sig-over-canonical-payload>"
+  "signature": "<dilithium3-sig-hex-over-canonical-payload>"
 }
 ```
 

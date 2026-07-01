@@ -1,10 +1,18 @@
 # HumanityOS Platform Architecture
 
-**Status:** Active Reference Document
+**Status:** Active Reference Document (desktop-shell sections corrected 2026-06-30)
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-18
 **Scope:** Civilization-scale platform design, the master reference for how HumanityOS operates as infrastructure for all of humanity.
 **Companion docs:** [engine-architecture.md](engine-architecture.md) (game engine), [../network/server_federation.md](../network/server_federation.md) (federation), [../01-VISION.md](../contributor/01-VISION.md) (mission), [../accord/humanity_accord.md](../accord/humanity_accord.md) (governance)
+
+> **2026-06-30 correction:** this doc was written 2026-03-18, before the desktop shell
+> dropped Tauri + WebView2 for native egui immediate-mode GUI, and before `native/`/
+> `engine/` collapsed into the single `src/` crate (one binary, feature flags
+> `native`/`relay`/`wasm`, no workspace). Sections 5, 8, 12, and 13 below were rewritten
+> to match; the rest of the doc (federation, data sovereignty, crypto, AI integration,
+> economy, resilience, governance) was cross-checked against `CLAUDE.md` and is still
+> directionally accurate. See `CLAUDE.md` for the always-current file map + crypto table.
 
 ---
 
@@ -253,46 +261,52 @@ Authentication for vault operations uses Dilithium3 / ML-DSA-65 signatures over 
 
 ## 5. Desktop App Architecture
 
-### Tauri Shell (Local-First)
+### Native egui Shell (Local-First)
 
-The desktop app is a Tauri 2 application: a Rust core with a WebView2 frontend. It is not a thin wrapper around a website. It is a local-first application that happens to share its UI codebase with the web.
+The desktop app is a single Rust binary (`HumanityOS.exe`, one crate at `src/`, feature
+flags `native`/`relay`/`wasm`, no workspace, no webview). The UI is native egui
+immediate-mode GUI (`src/gui/`), not a browser engine, and the 3D world is rendered by
+the same process's wgpu pipeline (`src/renderer/`). It is a local-first application; the
+web frontend (`web/`) is a separate, parity-mirrored HTML/JS/CSS surface served by nginx,
+not the source the desktop app embeds.
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                  Tauri Window                    │
+│              Native Desktop Window               │
 │  ┌───────────────────────────────────────────┐  │
-│  │            WebView2 Layer                 │  │
-│  │  ┌─────────────────────────────────────┐  │  │
-│  │  │  HTML/JS/CSS (social, HUD, menus)   │  │  │
-│  │  │  Loaded from LOCAL files, not web    │  │  │
-│  │  └─────────────────────────────────────┘  │  │
+│  │        wgpu 3D scene (renderer/)          │  │
+│  │   terrain, ships, PBR, bloom, particles   │  │
 │  └──────────────────┬────────────────────────┘  │
-│                     │ Tauri IPC                  │
+│                     │ same process, same frame   │
 │  ┌──────────────────▼────────────────────────┐  │
-│  │            Rust Core                      │  │
+│  │        egui immediate-mode UI (gui/)      │  │
+│  │  menus, HUD, inventory, chat, settings    │  │
+│  └──────────────────┬────────────────────────┘  │
+│                     │ shared Rust state (no IPC) │
+│  ┌──────────────────▼────────────────────────┐  │
+│  │            Rust Core (src/)               │  │
 │  │  ┌──────────┐  ┌──────────┐  ┌─────────┐ │  │
-│  │  │ Network  │  │ Storage  │  │ Game    │ │  │
-│  │  │ (WS/HTTP)│  │ (SQLite) │  │ Engine  │ │  │
-│  │  └──────────┘  └──────────┘  │ (wgpu)  │ │  │
-│  │                              └─────────┘ │  │
+│  │  │ Network  │  │ Storage  │  │ ECS/     │ │  │
+│  │  │ (WS/HTTP)│  │ (SQLite/ │  │ Systems  │ │  │
+│  │  │          │  │  local)  │  │ (hecs)  │ │  │
+│  │  └──────────┘  └──────────┘  └─────────┘ │  │
 │  └───────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────┘
 ```
 
 ### Offline from First Launch
 
-All web UI files are bundled inside the Tauri binary. The app works offline immediately after installation. No initial "loading" or "syncing" phase. Open the app, generate a keypair, start using it.
+The compiled binary contains the full native UI (egui renders from Rust code + data
+files, not bundled HTML). Game/UI data (`data/`, `assets/`) ships alongside the exe and
+hot-reloads via a file watcher. The app works offline immediately after installation.
+Open the app, generate a keypair, start using it.
 
-Background sync checks for updates to web assets (granular file-level diffing, not full re-download). Updates are applied silently on next restart.
+### Single-Process Rendering
 
-### Dual Rendering
-
-The desktop app has two rendering surfaces:
-
-1. **WebView2**, all social features, HUD, menus, inventory, settings, task boards. This is the existing HTML/JS/CSS stack, proven and functional.
-2. **wgpu**, 3D game engine rendering. Custom renderer built on wgpu, running in a separate native window or embedded surface.
-
-They communicate via Tauri IPC commands. The WebView2 overlay can render UI elements on top of the 3D view (health bars, chat overlay, minimap). Neither rendering system owns the other.
+egui and wgpu run in the **same process, same frame loop** (no IPC, no second window,
+no webview compositing). egui draws its immediate-mode UI each frame; the wgpu pipeline
+renders the 3D world; both composite into one swapchain. There is no "dual rendering"
+synchronization problem because there is only one renderer with two draw passes.
 
 ### Game Asset Management
 
@@ -310,7 +324,7 @@ Assets are cached locally, verified by hash, and shared via P2P when available (
 
 The desktop app can host a local AI via Ollama, llama.cpp, or similar runtimes:
 
-- AI runs as a subprocess alongside the Tauri app
+- AI runs as a subprocess alongside the native app
 - Communicates via localhost API (same interface as cloud AI)
 - Processes user data without sending it to any server
 - Provides offline assistance, teaching, and NPC behavior
@@ -404,10 +418,10 @@ The desktop app can run AI models locally:
 
 ```
 ┌──────────────────────────────────┐
-│         Tauri Desktop App        │
+│      Native Desktop App          │
 │  ┌────────────┐  ┌────────────┐  │
 │  │ HumanityOS │  │ Local AI   │  │
-│  │ (WebView2) │  │ (Ollama/   │  │
+│  │ (egui/wgpu)│  │ (Ollama/   │  │
 │  │            │◄─┤ llama.cpp) │  │
 │  │            │  │            │  │
 │  └────────────┘  └────────────┘  │
@@ -483,7 +497,7 @@ Interior detail (cm)  ──►  Building (m)  ──►  City (km)  ──►  
 
 LOD (level of detail) and streaming manage this range. Nearby objects render at full detail; distant objects simplify progressively. No loading screens between scales, continuous zoom from a light switch to a Dyson sphere.
 
-### Dual Rendering Coexistence
+### Rendering Coexistence (native egui + wgpu, one process)
 
 ```
 ┌─────────────────────────────────────────┐
@@ -494,7 +508,7 @@ LOD (level of detail) and streaming manage this range. Nearby objects render at 
 │  │    vehicles, environment)         │  │
 │  │                                   │  │
 │  │  ┌─────────────────────────────┐  │  │
-│  │  │   WebView2 Overlay (HUD)   │  │  │
+│  │  │   egui Overlay (HUD)       │  │  │
 │  │  │   Health, chat, minimap,   │  │  │
 │  │  │   inventory, notifications │  │  │
 │  │  └─────────────────────────────┘  │  │
@@ -502,7 +516,11 @@ LOD (level of detail) and streaming manage this range. Nearby objects render at 
 └─────────────────────────────────────────┘
 ```
 
-The WebView2 layer handles all 2D interface elements. The wgpu layer handles all 3D rendering. They coexist in the same window, communicating via Tauri IPC. This reuses the entire existing web UI stack for menus, settings, social features, and HUD elements.
+egui (`src/gui/`) handles all 2D interface elements. wgpu (`src/renderer/`) handles all
+3D rendering. Both run in the same Rust process, same frame loop, no IPC boundary. The
+web frontend (`web/`) mirrors the same UI patterns in HTML/JS for browser access, per
+the "Rust-first canonical UI, web mirrors" rule (see `docs/design/ui-system.md`), but it
+is a separate codebase, not something the desktop app embeds.
 
 ### Educational Integration
 
@@ -713,11 +731,10 @@ Daily driver: `just ship "commit message"`, commits, pushes, and force-syncs the
 
 ### Desktop App Distribution
 
-| Platform | Format | Toolchain |
-|----------|--------|-----------|
-| Windows | NSIS installer (.exe) | Tauri 2 + GitHub Actions |
-| macOS | .dmg | Tauri 2 + GitHub Actions |
-| Linux | .AppImage | Tauri 2 + GitHub Actions |
+Windows builds are produced locally (`just build-game`) since CI does not build with
+GPU deps; releases are signed (`docs/admin/release-signing.md`) and offered via the
+in-app updater (`src/updater.rs`). macOS/Linux native builds are not yet part of the
+regular release cadence.
 
 ### Version SOP
 
@@ -735,7 +752,7 @@ Automated bump script (`node scripts/bump-version.js [patch|minor|major]`) updat
 4. `web/shared/shell.js`, version reference
 5. `web/activities/download.html`, fallback badge
 
-Note: Tauri app (`app/`) is deprecated. Its `tauri.conf.json` and `Cargo.toml` are no longer maintained.
+Note: the Tauri shell was dropped in favor of native egui; there is no `app/` directory or `tauri.conf.json` in the current repo.
 
 ### Scaling the Relay
 
@@ -756,13 +773,13 @@ The federation model means no single relay needs to handle global scale. Each re
 
 ```
 DESKTOP CLIENT
-  Shell:        Tauri 2 (Rust)
-  UI:           WebView2 (Chromium-based)
+  Shell:        native binary (src/, single crate, no workspace)
+  UI:           egui (immediate-mode, src/gui/)
   3D Engine:    wgpu (Vulkan/Metal/DX12/WebGPU)
   Physics:      rapier3d
-  Audio:        kira + Steam Audio (HRTF, occlusion)
+  Audio:        kira (spatial 3D audio)
   ECS:          hecs
-  Shaders:      WGSL (30+ procedural material shaders)
+  Shaders:      WGSL (procedural material shaders)
 
 WEB CLIENT
   Language:     Plain JavaScript (ES2020+, no transpilation)
@@ -807,14 +824,21 @@ DATA FORMATS
 
 CI/CD
   Platform:     GitHub Actions
-  Deploy:       SSH + rsync + systemd restart
-  Desktop:      Tauri build pipeline (NSIS/dmg/AppImage)
+  Deploy:       SSH + rsync + systemd restart (relay, headless)
+  Desktop:      local build (just build-game); CI has no GPU deps, doesn't build Windows
   Command:      just ship "message" (daily driver)
 ```
 
 ---
 
 ## 14. Roadmap to v1.0.0
+
+> **This section is a historical snapshot from 2026-03-18 and is stale on specifics**
+> (much of "Phase 2: Game Engine Rendering" below has since shipped: deferred PBR,
+> bloom, hologram renderer, terrain, atmosphere all exist in `src/renderer/` /
+> `src/terrain/` today). For the current, actively-maintained backlog and roadmap, see
+> `docs/PRIORITIES.md` (tactical, top of TIER 0 = next) and `docs/ROADMAP.md`
+> (strategic, public-facing). Keep the phase *shape* below for mission context only.
 
 ### Phase 1: Foundation (current)
 
@@ -905,6 +929,6 @@ This document is the top-level architectural reference. It connects to:
 | [../ROADMAP.md](../ROADMAP.md) | Current feature priority list |
 | [../accord/humanity_accord.md](../accord/humanity_accord.md) | Governance principles |
 | [../security/security_and_privacy_architecture.md](../reference/security_and_privacy_architecture.md) | Threat model and encryption details |
-| [../network/offline_first_sync.md](../network/offline_first_sync.md) | Offline-first sync strategy |
+| [two_timeline_offline_model.md](two_timeline_offline_model.md) | Offline-first sync strategy |
 | [../economy/crypto_exchange.md](../game/crypto_exchange.md) | Crypto payment layer design |
 | [../core/ai_interface.md](./ai_interface.md) | AI authority limits and access rules |

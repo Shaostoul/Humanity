@@ -36,18 +36,28 @@ this hour" detail lives in the maintainers' journal
 
 The active queue, strict-ranked. The top item is what is being worked on next.
 
-1. `[building]` **Multiplayer co-presence + the character selector.** Co-presence
+1. `[awaiting operator steer]` **Three mothership-superstructure design forks,** logged
+   2026-06-29 when the autonomous loop paused itself at v0.637 after 9 verified
+   construction/superstructure releases (v0.629 to v0.637: zones M1, conduit tiers,
+   machine rotation, zone interactivity, the rail node graph M2/M2b, viewport hide-per-type).
+   The remaining backlog needs a taste/architecture call before it resumes: (1) M1
+   zone-editor architecture, one editor with a zoom/scale switch (mothership to zone to
+   room) versus separate editors; (2) M3 civic mall/meeting-zone design, shop stalls,
+   plaza, transit-hub access, ties into market + guilds; (3) grid S3 multi-home tiers,
+   substations aggregating homes into the fleet grid. See
+   `docs/design/mothership-superstructure.md` and `docs/design/grid-hierarchy.md`.
+2. `[building]` **Multiplayer co-presence + the character selector.** Co-presence
    CLIENT WIRING SHIPPED (v0.472): two players share the VPS world, stream position, and
    see each other as avatars; pending a two-player test. Remaining: nameplates, the
    world-snapshot prefill, and the CHARACTER LAUNCHER (the Play button becomes a launcher
    with character select + homes + a default to skip it; self-custodial LOCAL vs
    server-authoritative SERVER characters, open / closed / hybrid like Diablo II). Design
    in `docs/design/characters-and-servers.md`.
-2. `[building]` **First Playable / live home sim depth.** Battery state-of-charge SHIPPED
+3. `[building]` **First Playable / live home sim depth.** Battery state-of-charge SHIPPED
    (v0.473: the banks now charge/discharge with the solar swing, live HUD readout).
    Remaining: walk-up stations, a 3D vitals HUD, death and respawn, a guided first day,
    and letting battery discharge prevent load-shedding.
-3. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
+4. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
    relay with no approval gate) and the backup-restore drill.
 
 ---
@@ -151,6 +161,9 @@ of your identity, and your identity is portable across all of them.
   deploys do not drop active calls.
 - `[planned]` Native streaming and video: the screen-share and video transport native
   still lacks (web users have video today).
+- `[future]` Regular self-hosted livestreaming from the relay via the Studio (OBS-like)
+  page, once the daily-release cadence settles down enough to make a stream worth
+  watching (operator intent, 2026-06-30).
 - `[planned]` Calendar with RSVP: events, recurring schedules, group calendars,
   reminders.
 - `[future]` Mobile clients for Android and iOS.
@@ -216,19 +229,31 @@ The game teaches the homestead; the homestead is real.
   entities (generators / consumers / batteries) that load-shed by priority and charge /
   discharge with the solar swing; a design-time buildability validator (power source,
   energy balance, wiring, conduits, power circuit).
-- `[building]` Utility wiring, no magic transmission (v0.604 to v0.608): power, water,
-  air, and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop
-  physics); machines declare IN / OUT ports by utility. SHIPPED: the data model + cable
-  registry + physics, machine ports + the Conduits buildability check, the Power-circuit
-  connectivity check, runtime per-island power-flow gating, and a live water / plumbing sim
-  coupled to power (powered pumps fill the cistern; cut the power and it drains). Next: a
-  wire-A-to-B gizmo and the room-temperature superconductor upgrade mission. Design in
-  `docs/design/utility-wiring.md`.
+- `[done]` Utility wiring, no magic transmission (v0.604 to v0.628): power, water, air,
+  and data travel through rated cables and pipes (real AWG / ampacity / voltage-drop
+  physics); machines declare IN / OUT ports by utility, rendered as real port-node
+  gizmos with a viewport drag-to-connect gesture; pipes/wires terminate at the port
+  node instead of a generic anchor (grid S1). Coupled water/air/power consequence
+  chains are live (cut the power, the cistern drains and the air scrubbers stop).
+  Design in `docs/design/utility-wiring.md`.
+- `[building]` Mothership superstructure (v0.629 to v0.637, M1 + M2 shipped): the
+  homestead-to-fleet scale-up. ZONES (M1): a labelled bounded volume, the macro
+  analogue of a room, data-driven zone types, full gizmo interactivity (click / drag /
+  duplicate). RAIL (M2/M2b): a multi-stop rail node graph mirroring the road graph,
+  with animated rail cars so a line reads as living transit, not static topology. Grid
+  S2: per-utility usage meters + a home self-sufficiency fraction. Paused 2026-06-29
+  awaiting the operator's steer on M1's editor architecture, M3 (civic mall), and grid
+  S3 (multi-home substations), see "Right now" above. Design in
+  `docs/design/mothership-superstructure.md`.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
   vs closed Battle.net); the Play launcher with character select, homes, and a default.
 - `[planned]` First Playable: walk-up stations, a 3D vitals HUD, and a guided first
   day (shared with the survival theme above).
+- `[next]` Game/simulator opt-out toggle: someone who only wants chat or the Studio
+  streaming feature shouldn't pay the compute/GPU/electricity cost of the simulation
+  engine running in the background (operator intent, 2026-06-30). Logged as a concrete
+  next feature in `docs/PRIORITIES.md`.
 - `[future]` Generation-Ship co-op: a shared life-support habitat where selfishness
   literally collapses the colony, the first mission-shaped multiplayer scenario.
 - `[future]` AI Mentor "Sage": a first-class NPC citizen with its own identity and a
@@ -284,7 +309,21 @@ Every operator gets the same sovereignty tools, not just the original.
 - `[done]` First dependency security audit (`cargo audit` on the cadence): three TLS
   certificate-validation advisories patched via a rustls-webpki upgrade (v0.470).
 - `[building]` In-app ops console: bring every admin action into the app (the GUI-first
-  mandate), paying down the CLI-only debt.
+  mandate), paying down the CLI-only debt. Concrete driving case (2026-06-30): the
+  operator should be able to edit what a hosted website shows from the HumanityOS exe
+  on their own PC, authenticated by their existing admin-tiered Dilithium identity, no
+  SSH required, and no one without that admin role should be able to. The native
+  Server Settings service-control bridge already does this for relay ops; the web
+  admin surface is still read-only (`web/pages/admin.html`/`admin-app.js` has a single
+  GET, no mutating calls) and is the next parity gap to close.
+- `[future]` Multi-site hosting from one relay: united-humanity.us is the first
+  HumanityOS-branded site; the operator may stand up additional branded sites
+  (candidates floated 2026-06-30: public.guide, shaostoul.com, project.universe,
+  our.universe) off the same relay/exe rather than standing up separate
+  infrastructure per site.
+- `[future]` Relay-hosted file sharing as torrents: beyond seeding release binaries
+  (the `[done]` BitTorrent seeder above), let the operator share arbitrary files from
+  their relay as torrents for the community to pull.
 - `[planned]` Device mesh: a "My Devices" dashboard, backup designation, restore flow,
   and direct LAN sync, so your own devices back each other up.
 - `[planned]` Litestream continuous replication (roughly 1-minute recovery point) and
@@ -305,6 +344,36 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.637` M2b: animated rail cars -- a box car animates along each rail edge in build
+  mode so the rail graph reads as a living transit line, not static topology.
+- `v0.636` Viewport hide-per-type: a Hide/Show toggle beside Lock in each object-browser
+  group header, decluttering the busy construction editor.
+- `v0.635` Superstructure M2: the rail node graph -- a multi-stop rail line (mirrors the
+  road graph), `HomeStructure` gains `rail_nodes` / `rail_edges`.
+- `v0.634` Zone interactivity (completes superstructure M1): zones are first-class
+  gizmo objects -- click / drag / duplicate, like machines and nodes.
+- `v0.633` Machine rotation (yaw): a placed machine can rotate about Y to face a chosen
+  direction.
+- `v0.632` Conduit node tiers + service-entrance grid-tie: a conduit node's detail panel
+  sets its tier (Main / Sub / Subsub) in the trunk hierarchy.
+- `v0.631` Mothership superstructure M1: the zone primitive -- a labelled bounded volume
+  (the macro analogue of a room), data-driven zone types.
+- `v0.630` Grid S2: per-utility usage meters + a home self-sufficiency fraction (power /
+  water / data generation vs demand).
+- `v0.629` Build-editor Phase 2 (viewport pipe-graph) + the mothership-superstructure
+  design doc; the autonomous loop-mode build run engaged.
+- `v0.628` Grid S1 first step: pipes terminate at port nodes instead of a generic floor
+  anchor.
+- `v0.627` Port-node gizmo redesign (a real node with cardinal arrows, colour-coded by
+  utility) + the grid-hierarchy vision doc.
+- `v0.626` Construction viewport-first push, Phase 1: clickable pipes, per-conduit
+  gizmos, decluttered auto-routing.
+- `v0.625` Viewport drag-to-connect: wiring becomes a 3D gesture (select a machine, its
+  ports render as coloured handles) instead of panel dropdowns.
+- `v0.624` Root-cause fix for the v0.623 cistern-cap winding bug (both end caps were
+  wound inward) plus a toolchain-recovery detour.
+- `v0.623` Conduit flow-viz refinement + a build-editor click-footgun fix, addressing 7
+  operator items on the v0.622 flow visualization.
 - `v0.622` Build-editor: conduit FLOW VISUALIZATION -- emissive colour-coded spheres flow
   along each pipe so you can read where connections go + which utility (legible in the dark).
   Plus the multi-modal detection/sensing vision captured in docs/design/detection-sensing.md.

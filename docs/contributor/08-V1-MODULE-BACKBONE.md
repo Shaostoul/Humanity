@@ -4,6 +4,12 @@ This is the first executable backbone for Humanity's "teach everything" trajecto
 
 Principle: start with high-impact self-sustainability modules, then expand breadth and fidelity.
 
+> **"Module" = a feature/content domain inside the single `src/` crate (a systems
+> module or a `data/` domain), not a separate Cargo crate.** See `00-START-HERE.md`.
+> Many of these already exist in some form, water/electrical/plumbing basics map to
+> `data/food_system.ron`, `electrical.ron`, `hvac.ron`; check `docs/STATUS.md` and
+> `docs/FEATURES.md` before assuming a listed module below is unbuilt.
+
 ---
 
 ## V1 target modules (first 12)

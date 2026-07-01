@@ -1,167 +1,83 @@
-# Systems
+# design/systems/construction/README.md
 
-This folder contains **bounded system specifications**.
+## Purpose
 
-A system is a coherent set of rules that governs how a specific domain of reality behaves over time under constraint.
-
-Systems are not features.
-Systems are not content.
-Systems are not implementations.
-
-Systems define behavior.
+Construction models the creation, modification, and maintenance of structures and built
+objects under constraint: what can be built from available materials, tools, time, and
+energy; what fails, why; and how built form affects safety, comfort, capability, and
+resource flow. See `../construction.md` for the full top-level design law this system
+implements.
 
 ---
 
-## Purpose of Systems
+## Scope
 
-Systems exist to:
-- model reality or constrained abstraction
-- enforce causality and consequence
-- expose tradeoffs and failure modes
-- interact predictably with other systems
+### Included
+- Blueprint-driven assembly: foundations, frames, walls, floors, roofs, openings
+- Utility routing as physical installation (conduit, pipes, wiring) with real
+  code-grounded geometry (up-over-down risers, elbows, support spacing)
+- Structural integrity analysis via a node-beam load-bearing solver
+- Grid-snapped placement of buildable structures
 
-Every system exists to answer the question:
-“What happens if…?”
-
----
-
-## What Belongs in This Folder
-
-A system document belongs here if it:
-
-- defines rules of behavior
-- operates over time
-- consumes structured data
-- produces observable outcomes
-- interacts with other systems
-
-Examples include:
-- construction
-- farming
-- health
-- energy
-- ecology
-- transport
-- storage
-- population
-
-Each system must be internally coherent and externally compatible.
+### Excluded
+- Extraction/refinement of raw materials (materials/industry system)
+- Full CFD/thermal simulation (environment/HVAC system)
+- Social/legal permitting regimes (governance system, if modeled)
+- Detailed combat damage mechanics beyond a declared "damage events" interface
 
 ---
 
-## What Does NOT Belong Here
+## Interfaces
 
-Do not place the following in this folder:
+Construction consumes:
+- Blueprint definitions (`Blueprint` in `src/systems/construction/mod.rs`): id, name,
+  category, bill-of-materials, build_time, size, snap_to tags, health, provides
+- Material strength properties (`data/materials.csv`) for structural analysis
+- Routing rules (`data/routing_rules.ron`) for utility-run lane assignment
 
-- ethics or human principles  
-  (these belong in `accord/`)
-
-- real-world reference material  
-  (these belong in `knowledge/`)
-
-- data shape definitions  
-  (these belong in `schemas/`)
-
-- engine implementation details  
-  (these belong in `src/`)
-
-- speculative ideas without constraints  
-
-Systems are law, not exploration.
+Construction produces:
+- `Construction` component state (a build in progress: progress, build_time, builder_key)
+- `Structure` component state (a completed build: health, max_health, provides)
+- Structural verdicts (`Stable` / `Unstable` / `Collapsed`) from the framing solver
+- Routed utility geometry (pipe/wire/ventilation segments) for the renderer
 
 ---
 
-## Required Structure of a System Document
+## Primary System Invariants
 
-Each system document must include, at minimum:
-
-1. **Purpose**  
-   What problem this system exists to model or regulate.
-
-2. **Scope**  
-   What is included and explicitly excluded.
-
-3. **Inputs**  
-   Data consumed by the system (referencing schemas).
-
-4. **Outputs**  
-   State changes or effects produced by the system.
-
-5. **Constraints**  
-   Limits imposed by design law (time, energy, materials, realism).
-
-6. **Failure Modes**  
-   How the system degrades, breaks, or produces harm.
-
-7. **Interactions**  
-   How this system affects and is affected by other systems.
-
-8. **Abstractions**  
-   Any intentional simplifications and why they exist.
+- Determinism: identical plans + actions + inputs produce identical outcomes.
+- Conservation: materials consumed/wasted/salvaged must balance (design law; current
+  implementation gap: material consumption is not yet deducted at build time, see
+  `processes.md`).
+- No free upgrades: improvements require added material/time/energy.
+- Explainability: failures map to load exceedance, join weakness, seal failure, or
+  degradation state (design law; several failure paths are not yet wired, see
+  `processes.md`'s Non-Goals section for the honest current list).
 
 ---
 
-## System Boundaries
+## Data and Schema Dependencies
 
-Systems must be:
-- narrowly scoped
-- composable
-- predictable under repetition
-
-When a system grows beyond a single responsibility, it must be split.
-
-Hidden coupling between systems is a design failure.
+This system depends on:
+- Blueprint RON definitions (e.g. `data/blueprints/home_structure.ron`,
+  `data/blueprints/materials.ron`, `data/blueprints/wall_materials.ron`)
+- `data/materials.csv` (structural strength properties)
+- `data/routing_rules.ron` (utility lane rules)
 
 ---
 
-## Authority and Change
+## Non-Goals
 
-System documents are authoritative.
-
-Changes to a system must:
-- preserve determinism
-- document tradeoffs
-- list affected systems
-- respect the Humanity Accord
-
-System evolution is expected.
-Silent change is forbidden.
+Construction does not attempt full finite-element structural analysis or a full
+fluid/electrical simulation. Where abstraction is used (a three-state structural verdict,
+rule-derived utility routing instead of continuous physics), it is explicit and bounded,
+matching `../construction.md`'s design law.
 
 ---
 
-## Relationship to Schemas
+## Files in this Folder
 
-Systems consume schemas.
-
-Systems may:
-- validate schema invariants
-- reject invalid data
-- produce new data instances
-
-Systems may not:
-- redefine schema structure
-- embed schema logic in prose
-
-Structure and behavior must remain separate.
-
----
-
-## Relationship to Implementation
-
-Systems define behavior.
-Engines implement behavior.
-
-Implementation details must not leak back into system definitions.
-
-A system that requires a specific implementation is improperly designed.
-
----
-
-## Closing Note
-
-Systems are the engines of consequence.
-
-Good systems make tradeoffs visible.
-Bad systems hide them.
-
-Design systems as if future humans will depend on their honesty.
+- `README.md`, system scope, interfaces, invariants (this file)
+- `states.md`, authoritative list of construction state variables, ranges, and invariants
+- `processes.md`, authoritative list of construction processes/actions, inputs/outputs,
+  and failure modes

@@ -1,5 +1,16 @@
 # CLI Playtest Mode
 
+> **⚠️ Not built (verified 2026-06-30).** This describes a `humanity-cli-game` REPL binary
+> from an experimental multi-crate layout that was never adopted (see
+> `docs/game/README.md`'s sibling files and `CLAUDE.md`, single crate at `src/`, one binary
+> `HumanityOS`). None of the commands below (`farm_tick`, `craft_filter`, `treat_water`,
+> `save_db`/`load_db`, etc.) exist in `src/`. The REAL headless/AI-testable surface today is
+> `just snapshots` (renders native egui pages to PNGs an AI can Read, see memory
+> `reference_ui_snapshots.md`) and `HumanityOS --headless` (relay-only server mode, no GPU;
+> not a gameplay REPL). Treat this doc as future design intent for a scriptable playtest
+> mode, not a description of anything that exists. Cross-check `docs/PRIORITIES.md` before
+> building toward this.
+
 CLI mode is an official testing surface, not a throwaway debug script.
 
 ## Purpose

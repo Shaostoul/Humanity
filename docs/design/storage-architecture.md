@@ -1,6 +1,6 @@
 # Storage Architecture
 
-> **Last updated:** v0.115 (2026-04-25)
+> **Last updated:** v0.115 (2026-04-25); module count refreshed v0.637 (2026-06-30)
 >
 > The single source of truth for how data lives, replicates, and scales across
 > client / server / game / federation. If you're integrating a new feature, read
@@ -12,7 +12,8 @@
 
 ### 1. Server (relay): SQLite at `/opt/Humanity/data/relay.db`
 
-- 38 storage modules in `src/relay/storage/`
+- 45 storage modules in `src/relay/storage/` (was 38 at v0.115; grown with governance,
+  recovery, agent_sessions, and other additions since)
 - Single SQLite file with WAL mode (`PRAGMA journal_mode=WAL` set in `Storage::open`)
 - Litestream-ready for async S3-compatible replication (see `docs/operations/litestream.md`)
 - Stores both:
@@ -245,7 +246,7 @@ without touching any item file.
 ## Related docs
 
 - `docs/network/object_format.md`, canonical CBOR signed object format
-- `docs/network/hybrid_replication.md`, what replicates P2P vs centralized
+- `docs/design/p2p-groups.md`, what replicates P2P vs centralized (groups)
 - `docs/network/server_federation.md`, federation protocol
 - `docs/operations/litestream.md`, replication ops
 - `docs/design/identity.md`, DID + key rotation

@@ -1,7 +1,13 @@
 # Merge Rules Examples
 
 ## Purpose
-Provide examples of deterministic merge rules for Bucket B (mergeable) state.
+Provide examples of deterministic merge rules for "Bucket B" (mergeable) state, as
+opposed to "Bucket A" (local-only, never merges into shard-authoritative state). This
+maps onto the local-vs-shard split defined in `social_vs_game_state_boundary.md`: Bucket A
+is local-only game state that a server never accepts, Bucket B is state a shard CAN accept
+under an explicit merge rule (lore discovery, cosmetic unlocks, non-competitive
+achievements below). No separate "bucket taxonomy" doc exists yet; this note is the
+canonical pointer until one is written.
 
 These are examples and must be expanded per system.
 

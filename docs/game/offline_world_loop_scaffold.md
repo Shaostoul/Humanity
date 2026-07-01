@@ -1,5 +1,13 @@
 # Offline First-Person World Loop Scaffold
 
+> **⚠️ Partially not built (verified 2026-06-30).** The "CLI adapter (current, headless
+> test/play mode)" below does not exist, no `humanity-cli-game` REPL was ever built (see
+> `docs/game/cli_playtest_mode.md`'s correction). The real headless-testable surface is
+> `just snapshots` (renders native egui pages to PNGs) and `HumanityOS --headless` (relay
+> server, not a gameplay loop). The simulation-core / session-orchestration split described
+> below remains a reasonable target architecture; treat the CLI-specific claims as future
+> design intent, not current fact.
+
 This document defines the engine-facing world loop contract for offline-first gameplay.
 
 ## Goals

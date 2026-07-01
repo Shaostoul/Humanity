@@ -254,10 +254,11 @@ Once connected with your admin key, you have access to:
 | `/ban <name>` | Permanently ban a user |
 | `/mute <name> <seconds>` | Temporarily mute a user |
 | `/lockdown` | Toggle lockdown (block new registrations) |
-| `/invite-code` | Generate an invite code for lockdown bypass |
+| `/invite` | Generate a one-time invite code (24h validity) for lockdown bypass; admins and mods |
 | `/channel-create <name>` | Create a new channel |
 | `/channel-delete <name>` | Delete a channel |
-| `/wipe-channel <name>` | Clear all messages in a channel |
+| `/wipe` | Clear all messages in the CURRENT channel (admin only) |
+| `/wipe-all` | Clear all messages across every channel (admin only) |
 | `/server-add <url>` | Add a federated server |
 | `/server-trust <name> <tier>` | Set federation trust tier |
 

@@ -1,9 +1,16 @@
 # Game Engine Decision: HumanityOS
 
-**Status:** Proposed
+**Status:** DECIDED (2026-03-17); the engine-choice outcome (custom wgpu, no Bevy) still stands and
+is the live architecture. **Historical note:** this doc's framing assumes the Tauri/WebView2 desktop
+shell that existed at the time of writing. As of v0.36.0 (2026-03-22), Tauri was removed entirely; the
+desktop app is a standalone Rust binary with egui rendered natively alongside wgpu in the same window
+(no WebView, no IPC boundary). Every reference to "Tauri" / "WebView2" / dual-window IPC below is
+superseded by that restructure, read them as the reasoning-in-context that led to today's simpler
+single-window egui+wgpu architecture, not the current shell. See `docs/design/engine-architecture.md`
+for the as-built picture.
 **Author:** Shaostoul + Claude
 **Date:** 2026-03-17
-**Affects:** Game client, desktop app (Tauri), rendering pipeline, multiplayer architecture
+**Affects:** Game client, desktop app (Tauri at the time; see note above), rendering pipeline, multiplayer architecture
 
 ---
 

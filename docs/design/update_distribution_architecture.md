@@ -1,5 +1,16 @@
 # Update & Distribution Architecture (GitHub-Independent)
 
+> **Status: unrealized alternate proposal, not the shipped design.** The system that
+> actually shipped (v0.421.0+, ACTIVE) keeps GitHub Releases as the PRIMARY distribution
+> channel: a signed `release-manifest.json` rides as a release asset, `src/updater.rs`
+> verifies it against embedded ML-DSA-65 pubkeys before installing. See
+> `docs/admin/release-signing.md` for the real, current mechanism and the "Version SOP" /
+> "Deploy pipeline" sections of `CLAUDE.md`. This doc's self-hosted
+> `updates.united-humanity.us` endpoint (with GitHub only as fallback) and the
+> hot/warm/full-restart layer split were never built. Kept as a reference proposal in
+> case self-hosted distribution independence is revisited; do not read it as describing
+> current behavior.
+
 ## Goals
 - Support hot reload for as many layers as safely possible.
 - Keep app usable offline with bundled baseline content.

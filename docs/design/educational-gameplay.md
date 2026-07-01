@@ -114,9 +114,6 @@ Each category has its own progression system, and skills from different categori
 ## Related documents
 
 - [Core education model](./education_model.md), How learning is represented and validated
-- [Core skill progression](../game/core-skill-progression.md), Skill progression system design
-- [Core teaching graph](../game/core-teaching-graph.md), Teaching graph architecture
 - [Feature web](./feature_web.md), Interactive teaching-first feature graph
-- [Gardening game](gardening-game.md), First minigame, grounded in real botanical data
-- [Module specs](../game/README.md), Individual skill module specifications
+- [Gardening game (superseded proposal)](../history/gardening-minigame-proposal-2026-03.md), an early unbuilt 2D minigame draft; the real gardening/farming loop is the native `FarmingSystem`, see [gameplay-loops.md](gameplay-loops.md)
 - [History](../history/history.md), Project timeline and origins

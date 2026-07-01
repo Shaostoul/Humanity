@@ -15,9 +15,9 @@ Its purpose is navigational:
 - to help contributors choose bounded work
 
 All systems listed here must comply with:
-- `design/core/accord_constraints.md`
-- `design/core/simulation_laws.md`
-- `design/core/realism_constraints.md`
+- `docs/design/accord_constraints.md`
+- `docs/design/simulation_laws.md`
+- `docs/design/realism_constraints.md`
 
 ---
 
@@ -91,7 +91,7 @@ Add a system here only when:
 - it has clear interfaces to other systems
 
 Then create the authoritative specification in:
-- `design/systems/<system>.md`
+- `docs/design/<system>.md`
 
 ---
 

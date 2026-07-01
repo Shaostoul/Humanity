@@ -43,7 +43,7 @@ The platform consists of:
 
 - [01-VISION](../contributor/01-VISION.md), Mission statement and product shape
 - [Product vision](../design/vision.md), Detailed product vision
-- [Project Universe integration](../design/project_universe_integration.md), Integration notes from the original Project Universe
+- [Project Universe integration (superseded draft)](project-universe-integration-blueprint-2026-03.md), Integration notes from the original Project Universe
 - [Educational gameplay](../design/educational-gameplay.md), The educational game design philosophy
 - [Game engine decision](../design/game-engine.md), Why a custom engine on wgpu
 - [Roadmap](../ROADMAP.md), Current feature priority list

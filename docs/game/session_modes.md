@@ -1,5 +1,13 @@
 # Session Modes & Authority Model
 
+> **Note (2026-06-30):** the multiplayer architecture actually being built is
+> relay-authoritative (client connects to the axum WebSocket relay in `src/relay/`; see
+> `docs/ROADMAP.md` "Multiplayer co-presence", shipping v0.472+), not the LAN/direct-P2P
+> host/join model this doc describes. Read this as an alternate/future design direction, not
+> the current multiplayer plan. `docs/game/cli_playtest_mode.md`'s `transition
+> <offline|host|join|dedicated>` command referenced below does not exist (no CLI REPL was
+> built).
+
 This document defines how Humanity supports:
 
 - offline singleplayer

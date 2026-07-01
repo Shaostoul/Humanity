@@ -5,69 +5,62 @@ title: Status
 
 # Project Status
 
-**Last updated:** March 2026 · v0.4.1
+**Last updated:** June 2026 · v0.637
 
 ---
 
-## Current Phase: Live Platform
+## Current Phase: Live Platform + Growing Game Engine
 
-The chat and hub are **operational and in daily use** at [united-humanity.us/chat](https://united-humanity.us/chat). We're past spec phase, this is a real platform people use.
+The chat and hub are **operational and in daily use** at [united-humanity.us/chat](https://united-humanity.us/chat). Alongside the web platform, a native Rust game engine (`HumanityOS`, one desktop binary) is under active development, teaching real survival skills (farming, construction, off-grid power, water systems) through simulation. This page summarizes both halves; the full build-by-build inventory lives in the project's [STATUS](https://github.com/Shaostoul/Humanity/blob/main/docs/STATUS.md) doc.
 
 ---
 
 ## What's Built
 
-### Communication
+### Communication (web chat)
 - ✅ Channels (public rooms)
 - ✅ E2E encrypted DMs, Kyber768 / ML-KEM-768 (post-quantum) to BLAKE3-KDF to AES-256-GCM, server never sees plaintext
 - ✅ Groups (private group conversations)
 - ✅ Voice & video calling, WebRTC P2P with camera, screen share, PiP, camera selection
-- ✅ Persistent voice channels, always-on WebRTC mesh rooms
+- ✅ Persistent voice channels, always-on WebRTC mesh rooms; native voice (pure-Rust capture/Opus/WebRTC) bridges web and desktop
 - ✅ Message search, full-text search across conversations
 - ✅ @mentions, persistent emoji reactions, message editing
 - ✅ Image sharing and file uploads
-- ✅ Browser notifications with 6 sound options
+- ✅ Browser notifications
 - ✅ Pin system, server pins + personal pins
 
 ### Social System
-- ✅ Follow/friend system (mutual follow = friends)
-- ✅ Friend codes, 8-character codes, 24-hour expiry, auto-mutual-follow
+- ✅ Follow system, signed profiles replicated across federated servers
 - ✅ User profiles with bio and social links
 - ✅ Identicons (generated avatars)
 - ✅ Device management, list, label, and revoke linked keys
 - ✅ Blocking and reporting
 
-### Hub Tools (11 tabs total)
+### Hub Tools
 - ✅ Project board (kanban task management)
-- ✅ Marketplace, P2P listings, kiosks, 3D model subcategories, donation pricing
-- ✅ Asset library, file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal
+- ✅ Marketplace, P2P listings, donation pricing
+- ✅ Asset library, file upload, browse by category, search, preview
 - ✅ Universal catalog (elements, materials, processing chains)
-- ✅ Browse tab, web directory with 52 sites, Tranco ranks, RDAP, uptime pings, collections
-- ✅ Dashboard tab, 10 widget types, customizable drag-and-drop layout
-- ✅ Personal inventory tracker
-- ✅ Notes (private)
-- ✅ Todos (personal task lists)
-- ✅ Garden tracker v2, 5 growing methods, 12 metrics, optimal ranges
+- ✅ Personal inventory tracker, notes, todos
+- ✅ Garden tracker
 
-### Game & Creative
-- ✅ Fantasy tab, character sheet, lore, world map, achievements
-- ✅ Streams tab, local capture demo
-- ✅ Concept art for in-game spaces (spaceships, virtual malls)
+### Game Engine (native Rust client)
+- ✅ Data-driven ECS (hecs) with 15+ simulation systems: farming, crafting, vehicles, quests, weather, disasters, ecology
+- ✅ PBR renderer (wgpu), icosphere planets, voxel asteroids, ship interiors from data files
+- ✅ Home-building and construction, walls, utilities, electrical/solar/plumbing, mothership superstructure
+- ✅ Rapier3d physics, spatial audio
+- ✅ Multiplayer relay-backed world (co-presence client wiring shipping)
 
 ### Platform & Security
-*(Canonical, current crypto details live in CLAUDE.md "Cryptography"; the bullets below summarize the post-quantum state.)*
-- ✅ Cryptographic identity (Dilithium3 / ML-DSA-65, post-quantum, derived from the BIP39 seed), no accounts, no passwords
+*(Canonical, current crypto details live in the project's `CLAUDE.md`; the bullets below summarize the post-quantum state.)*
+- ✅ Cryptographic identity (Dilithium3 / ML-DSA-65, post-quantum, derived from a BIP39 seed), no accounts, no passwords
 - ✅ Key backup/export/import
-- ✅ Encrypted user data sync, AES-256-GCM derived from private key
+- ✅ Encrypted user data sync, AES-256-GCM
 - ✅ PWA, installable on mobile
-- ✅ Desktop app, Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)
-- ✅ Settings panel, accent colors, font size, themes
-- ✅ Command palette
-- ✅ Auto-reload on deploy, auto-login
-- ✅ Admin/mod tools, lockdown, invite codes
+- ✅ Signed, auto-updating native desktop builds (Windows, macOS, Linux)
+- ✅ Settings panel, themes
 - ✅ Rate limiting, upload validation, CSP headers, TLS 1.2+, HSTS
-- ✅ Server federation Phase 1, discovery, trust tiers
-- ✅ Federation Phase 2, server-to-server WebSocket with Ed25519 handshake
+- ✅ Server federation, discovery, signed-profile gossip between servers
 
 ### Documentation
 - ✅ Humanity Accord (civilizational framework)
@@ -78,31 +71,29 @@ The chat and hub are **operational and in daily use** at [united-humanity.us/cha
 
 ## In Progress
 
-- 🔄 **Local AI integration**, Ollama setup for client-side AI hosting
-- 🔄 **Native game client**, Rust-based first-person client development
-- 🔄 **Platform optimization**, performance improvements and token efficiency
+- 🔄 **Multiplayer co-presence + character selection** for the native client
+- 🔄 **First Playable / live home sim depth**, vitals HUD, guided first day
+- 🔄 **Mothership superstructure**, zone editor, civic/market zones, multi-home power grids
 
 ---
 
 ## What's Planned
 
-- ⏳ Native game client (Rust)
-- ⏳ P2P game distribution via GitHub Releases
-- ⏳ In-game commerce (virtual mall with real retailer kiosks)
-- ⏳ Payment processing (Stripe Connect or crypto)
+- ⏳ In-game commerce (virtual spaces with real retailer tie-ins)
+- ⏳ Payment processing
 - ⏳ Content-addressed file sharing
-- ⏳ Local AI integration (Ollama)
+- ⏳ Local AI integration
+
+The full, continuously-updated backlog is public: see the project's [ROADMAP](https://github.com/Shaostoul/Humanity/blob/main/docs/ROADMAP.md).
 
 ---
 
 ## Recent Milestones
 
-- **Mar 2026**, v0.4.1: Download page with module management, settings overhaul, studio panel, system context awareness, desktop auto-updater fix
-- **Feb 2026**, Persistent voice channels, garden tracker, fantasy tab, streams tab
-- **Jan 2026**, Marketplace, universal catalog, project board, inventory system
-- **Late 2025**, Voice chat (WebRTC P2P), follow/friend system, groups, user profiles
-- **Mid 2025**, Core chat platform launch, channels, DMs, reactions, moderation
-- **Early 2025**, Server federation Phase 1, PWA support, key backup/import
+- **Jun 2026**, v0.629-0.637: mothership superstructure (zones, conduits, rail transit), zone interactivity
+- **May 2026**, Full post-quantum cryptography cutover (Dilithium3 identity, Kyber768 DMs), native voice chat
+- **2026 (ongoing)**, Home-building/construction system, farming and crafting gameplay loop, aeroponic towers, seed economy
+- **Late 2025 / early 2026**, Native Rust game engine bootstrapped (ECS, renderer, terrain); chat platform, marketplace, and project board matured on the web side
 
 ---
 

@@ -134,7 +134,7 @@ When `transition` is `Some`, the system interpolates between `from` and `to` eac
 ### Platform Compatibility
 
 The camera system is pure Rust math (vectors, matrices, quaternions) with no platform-specific code. Works identically in:
-- Native desktop via Tauri
+- Native desktop as a standalone Rust binary (no Tauri/WebView)
 - WASM browser via WebGPU
 - Future VR headsets (override view matrices with headset pose data)
 

@@ -37,9 +37,10 @@ The guide to this folder is **[README.md](README.md)**, organized by who you are
 - **[SYNC.md](SYNC.md)** the pre-push checklist.
 - **[BUGS.md](BUGS.md)** resolved bugs.
 - **[INCIDENT-PLAYBOOK.md](INCIDENT-PLAYBOOK.md)** live-failure recipes.
-- **[SECURITY_AUDIT.md](SECURITY_AUDIT.md)**, **[SECURITY-CADENCE.md](SECURITY-CADENCE.md)**,
-  **[HEALTH-DASHBOARD.md](HEALTH-DASHBOARD.md)**, **[BUS-FACTOR.md](BUS-FACTOR.md)**
-  security and long-term posture.
+- **[SECURITY-CADENCE.md](SECURITY-CADENCE.md)**, **[HEALTH-DASHBOARD.md](HEALTH-DASHBOARD.md)**,
+  **[BUS-FACTOR.md](BUS-FACTOR.md)** security and long-term posture. (The Feb 2026
+  SECURITY_AUDIT.md is superseded and archived at
+  [history/SECURITY_AUDIT_2026-02-12.md](history/SECURITY_AUDIT_2026-02-12.md).)
 
 For how the system works right now (architecture, the canonical cryptography table, the
 file map, conventions), the single source of truth is **[../CLAUDE.md](../CLAUDE.md)**.

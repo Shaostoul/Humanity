@@ -1,5 +1,14 @@
 # Offline Playable (No-Combat) Milestone
 
+> **⚠️ Not built (verified 2026-06-30).** The `cargo run -p humanity-cli-game` invocation
+> below references a crate from an experimental multi-crate layout that was never adopted;
+> HumanityOS is one crate (`src/`) building one binary (`HumanityOS`). See
+> `docs/game/cli_playtest_mode.md` for the same correction. This doc's actual gameplay-loop
+> milestone (gather/craft/purify/farm/save-load, offline-first) has separately shipped for
+> real in the native GUI, not via this CLI, per `docs/history/` v0.323-0.342 (the
+> engine-wiring + gameplay-loop arcs). Treat this file as a historical description of an
+> abandoned test-harness approach, not a live pass/fail gate.
+
 This milestone defines "ready for human test" before combat implementation.
 
 ## Required gameplay loop

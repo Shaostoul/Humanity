@@ -1,18 +1,35 @@
 # Identity Architecture
 
+> **2026-06-30 correction:** this doc predates the full post-quantum cutover
+> (Inc1-6, completed + verified 2026-05-20). It was written when Ed25519 WAS the chat
+> identity; that is no longer true. **The current identity key is Dilithium3 / ML-DSA-65
+> (FIPS 204)**, derived from the same BIP39 seed. Ed25519 now plays only one role: the
+> seed-scalar source for the Solana wallet address. Everywhere below that says "Ed25519"
+> for chat/profile/message signing, read "Dilithium3 / ML-DSA-65" — the *mechanisms*
+> described (signed profiles, key rotation, name-uniqueness layers, P2P QR exchange)
+> are still architecturally accurate, only the specific algorithm changed. Always check
+> `CLAUDE.md`'s Cryptography section for the current, audited algorithm table before
+> quoting one from this file.
+
 ## Core Principle
 
-**Identity IS the Ed25519 keypair.** Not a username, not a server, not an account. The cryptographic key proves who you are. Every message, profile update, and transaction is signed by your key. No server grants identity, the math does.
+**Identity IS a cryptographic keypair.** Not a username, not a server, not an account.
+The cryptographic key proves who you are. Every message, profile update, and
+transaction is signed by your key. No server grants identity, the math does. (The
+signing algorithm is Dilithium3 / ML-DSA-65 today; it was Ed25519 pre-cutover, see the
+banner above.)
 
 ## Identity Components
 
 ### Public Key = Universal Address
 
-Your Ed25519 public key serves as:
+Your Dilithium3 / ML-DSA-65 public key (hex) serves as:
 - **Chat identity**, messages signed and attributed to this key
-- **Solana wallet**, same key, base58-encoded, receives/sends crypto
 - **Profile anchor**, all profile data is signed by this key
 - **Cross-server ID**, same key recognized on any server
+
+Your Ed25519 keypair (derived from the same BIP39 seed) serves one remaining role:
+- **Solana wallet**, base58-encoded, receives/sends crypto
 
 ### Seed Phrase = Master Backup
 
@@ -129,8 +146,9 @@ Works without any server:
 
 ## Related Files
 
-- `web/chat/crypto.js`, Ed25519 key generation, signing, BIP39 seed phrase
-- `web/shared/wallet.js`, Solana address derivation from same keys
+- `web/chat/crypto.js`, BIP39 seed phrase, Ed25519 seed scalar, Solana wallet derivation
+- `web/shared/pq-identity.js`, Dilithium3 + Kyber768 client API (chat identity + DM keys)
+- `web/shared/wallet.js`, Solana address derivation from the Ed25519 seed scalar
 - `src/relay/relay.rs`, Profile handling, key rotation
 - `src/relay/handlers/federation.rs`, Server-to-server communication
 - `docs/network/server_federation.md`, Federation protocol

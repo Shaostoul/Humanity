@@ -150,7 +150,7 @@ Under 10 minutes from zero to live. **[Full guide →](docs/admin/SELF-HOSTING.m
 | **Storage** | Encrypted vaults — server stores only ciphertext |
 | **Logs** | No IP logging, no analytics, no tracking pixels |
 | **Privilege** | Non-root systemd service with hardened sandboxing |
-| **Audit** | Full report → [SECURITY_AUDIT.md](docs/SECURITY_AUDIT.md) |
+| **Audit** | Ongoing cadence → [SECURITY-CADENCE.md](docs/SECURITY-CADENCE.md) (initial Feb 2026 audit archived at [docs/history/SECURITY_AUDIT_2026-02-12.md](docs/history/SECURITY_AUDIT_2026-02-12.md)) |
 
 Solana wallet support is **optional** and decoupled from your identity. Using HumanityOS doesn't require any blockchain. If you opt in, the wallet derives from the same 24-word seed via a separate path (`hum/solana/v1`).
 

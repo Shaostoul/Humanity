@@ -1,6 +1,12 @@
-# Humanity: New Contributor Onboarding
+# Humanity: The Fuller Story
 
-Welcome. This document answers the questions that every newcomer has. Read it once, then keep [CONTRIBUTING.md](../contributor/04-CONTRIBUTING.md) open as a reference.
+You've read [getting-started.md](getting-started.md). This is the longer version, the
+two layers, the Humanity Accord, and where the project actually stands today.
+
+If you want to build or contribute rather than just use it, this is the wrong door,
+go to **[docs/contributor/00-START-HERE.md](../contributor/00-START-HERE.md)** instead.
+It has the real architecture, file map, and a "first day in this repo" walkthrough kept
+current with the code (this document is not, by design, it is for users, not builders).
 
 ---
 
@@ -9,138 +15,69 @@ Welcome. This document answers the questions that every newcomer has. Read it on
 **Humanity** is an open-source platform with two interconnected layers:
 
 ### Layer 1: HumanityOS (the real-world platform)
-A communication and life-management system you actually own. Think Discord + Notion + life-OS, but:
-- No accounts, your identity is a cryptographic key stored in your browser
+
+A communication and life-management system you actually own. Think Discord + Notion +
+life-OS, but:
+- No accounts, your identity is a cryptographic key that lives on your device
 - No tracking, no ads, no central authority
 - Federated, anyone can host a server; users keep their identity across all servers
 - Public domain (CC0), no permission required to use, fork, or deploy
 
-What's live right now: chat channels, E2E encrypted DMs, voice/video calls, streaming, follow/friend system, project boards, marketplace, asset library, inventory tracking, skills, maps, calendar, dashboard, and more.
+What's live right now: chat channels, end-to-end encrypted DMs, voice/video calls,
+streaming, follow system, project boards, marketplace, asset library, inventory
+tracking, skills, maps, calendar, dashboard, and more. See
+**[docs/STATUS.md](../STATUS.md)** for the full, currently-accurate feature inventory
+and **[docs/ROADMAP.md](../ROADMAP.md)** for what's coming next; both are living
+documents updated every release, unlike the snapshot below.
 
-### Layer 2: Project Universe (the game)
-A free game teaching practical skills, homesteading, agriculture, building, health, survival. The game uses the same data layer as the platform. Skills you develop in the game reflect real-world capability. The game is how people learn to use the tools for real.
+### Layer 2: The simulation (the game)
+
+A free game teaching practical skills, homesteading, agriculture, building, health,
+survival. The game uses the same data layer as the platform. Skills you develop in the
+game reflect real-world capability. The game is how people learn to use the tools for
+real. Toggle between the two with the Real/Sim switch (see `CLAUDE.md`'s "Real/Sim
+toggle" section if you're curious why it isn't called "Game").
 
 ### The Humanity Accord
-A living document of civilizational principles, non-negotiable ethical foundations that all servers must adopt to earn verified status. Think of it as the constitution. Everything in this repo must conform to it.
+
+A living document of civilizational principles, non-negotiable ethical foundations that
+all servers must adopt to earn verified status. Think of it as the constitution.
+Everything in this project must conform to it. Read it at
+**[docs/accord/humanity_accord.md](../accord/humanity_accord.md)**.
 
 ---
 
 ## Why Does It Exist?
 
-In 2017, Michael Boisson nearly died. That experience stripped away the noise and left one clear answer: help people become capable of helping themselves.
+In 2017, Michael Boisson (Shaostoul) nearly died. That experience stripped away the
+noise and left one clear answer: help people become capable of helping themselves.
 
-Poverty is not just lack of money, it's lack of capability. People trapped in systems they can't understand, knowledge they can't access, skills they never learned. The solution is education, tools, and community built at civilizational scale.
+Poverty is not just lack of money, it's lack of capability. People trapped in systems
+they can't understand, knowledge they can't access, skills they never learned. The
+solution is education, tools, and community built at civilizational scale.
 
 Everything here is public domain. This belongs to everyone, present and future.
 
 ---
 
-## The State of the Project (March 2026)
+## The State of the Project
 
-The platform is **live and actively used** at [united-humanity.us](https://united-humanity.us).
+The platform is **live and actively used** at
+[united-humanity.us](https://united-humanity.us). It ships new releases continuously
+(hundreds shipped since early 2026), so any specific feature count or file layout
+written here would be stale within days. For a snapshot that stays accurate, read:
 
-What's solid and working:
-- Chat, DMs, voice/video, streaming, the full communication layer
-- Cryptographic identity and E2E encryption
-- Federation Phase 1 (server discovery, trust tiers)
-- 18 standalone page stubs (some fully built, some placeholders)
+- **[docs/STATUS.md](../STATUS.md)**, what's built, partial, or planned, feature by feature
+- **[docs/ROADMAP.md](../ROADMAP.md)**, the public strategic roadmap
+- **[docs/PAGES.md](../PAGES.md)**, every page in the app (native + web) with its purpose
 
-What's actively being built:
-- The standalone pages (home, profile, skills, etc.), most exist as stubs that need content
-- Federation Phase 2, cross-server identity and room directory
-- The game layer, game mechanics exist in `web/activities/` and `src/` but need more development
-- Better onboarding for new users (which is why this document exists)
+What's solid and working: chat, DMs, voice/video, streaming, the full communication
+layer; post-quantum cryptographic identity and end-to-end encryption; federation
+(server discovery, trust tiers); construction/home-building; farming and skills;
+inventory and marketplace.
 
-What just happened (this session):
-- `app.js` was a 6,400-line monolith, split into 8 focused modules
-- `style.css` was a 2,760-line monolith, split into 7 component CSS files
-- `relay.rs` and `storage.rs` (Rust server) split into focused domain modules
-- `game/index.html` was a 15,216-line monolith, split into JS modules + JSON data files
-- Nav system unified across all 18 pages, 4 bugs fixed
-
----
-
-## The Codebase in 5 Minutes
-
-### The server (Rust)
-
-Lives at `src/relay/` inside the single root crate (since v0.90.0 there is no
-separate `server/` crate). Build with `--features relay --no-default-features`
-for headless mode.
-
-```
-src/relay/
-├── mod.rs        ← Router setup, CSP middleware, axum config.
-├── relay.rs      ← The heart. The dispatch loop routes WebSocket messages
-│                    by type. Add a new RelayMessage variant + arm here.
-├── api.rs        ← HTTP REST API handlers (~2800 LOC).
-├── core/         ← Crypto primitives - encoding, identity, signing, kdf,
-│                    pq_crypto, did, merkle_disclosure, object.
-├── handlers/     ← Pure functions extracted from relay.rs
-│   ├── broadcast.rs    broadcast_peer_list, build_channel_list, etc.
-│   ├── federation.rs   server-to-server connection logic + profile gossip
-│   ├── game_state.rs   server-authoritative game world handlers
-│   ├── msg_handlers.rs catch-all for client-originated message handlers
-│   └── utils.rs        is_private_ip, fetch_link_preview, html_decode, etc.
-├── storage/      ← SQLite - each file = one domain (~30 modules)
-│   ├── mod.rs          Storage struct, open(), schema migrations
-│   ├── messages.rs     store/load messages
-│   ├── channels.rs     channel CRUD
-│   ├── dms.rs          direct messages
-│   ├── social.rs       follow/friend/group system
-│   ├── profile.rs      user profiles
-│   ├── reactions.rs    emoji reactions
-│   ├── pins.rs         pinned messages
-│   ├── marketplace.rs  listings + friend codes
-│   ├── streams.rs      stream records
-│   ├── board.rs        project board tasks
-│   ├── assets.rs       asset library
-│   ├── skill_dna.rs    skill tracking
-│   └── misc.rs         server state, sync, federation, voice channels, etc.
-└── api.rs        ← HTTP REST API (bot access, webhooks, stats)
-```
-
-**Key concept:** The server is stateless per-connection. Identity is verified by a Dilithium3 / ML-DSA-65 signature on every message. There are no user accounts, only public keys.
-
-### The chat client (JavaScript)
-
-```
-web/chat/
-├── index.html          ← The shell. Loads scripts in order. Don't reorder them.
-├── crypto.js           ← Dilithium3 + Kyber768 + AES (derived from the BIP39 seed; Ed25519 = seed source + Solana wallet). The crypto foundation.
-├── app.js              ← Core: WebSocket connection, message dispatch, state globals
-│                          (ws, myKey, myName, activeChannel, peerData, etc.)
-├── chat-messages.js    ← Emoji reactions, edit, pins, typing, image upload, threads
-├── chat-dms.js         ← DM state, openDmConversation, conversation list
-├── chat-social.js      ← Follow/friend system, isFriend(), groups
-├── chat-ui.js          ← Notifications, sidebar, search, command palette, unread
-├── chat-voice.js       ← Voice rooms, 1-on-1 calls, video panel, right sidebar
-├── chat-profile.js     ← Profile edit/view modals, avatar/banner
-└── chat-p2p.js         ← Signed contact cards, WebRTC DataChannel
-```
-
-**Key concept:** No build step. All modules share global scope. `app.js` globals (`ws`, `myKey`, `handleMessage`, etc.) are accessible from every other module. To extend behavior without touching `app.js`, use the monkey-patch pattern:
-
-```js
-const _orig = handleMessage;
-handleMessage = function(msg) {
-  if (msg.type === 'new_type') { /* handle it */ return; }
-  _orig(msg);
-};
-```
-
-### The standalone pages
-
-18 HTML files in the repo root. Each one:
-- Loads `shell.js` with `data-active="key"` to highlight its nav button
-- Has its own page content and any page-specific scripts
-- Is served by nginx from `/var/www/humanity/`
-
-Most pages are stubs that need content, this is where non-developer contributors can make a big impact.
-
-### The nav system (`shared/shell.js`)
-
-Shell.js injects the sticky nav bar on every page. The nav is defined in one place, one `navTab()` call per page. To add a page to the nav, you add one line here. Auto-detection maps URL paths to active keys, so if you link to `/yourpage` it will highlight the right button automatically.
+What's actively being built: check the top of **[docs/PRIORITIES.md](../PRIORITIES.md)**,
+that is the single ranked source for "what's happening right now."
 
 ---
 
@@ -148,97 +85,54 @@ Shell.js injects the sticky nav bar on every page. The nav is defined in one pla
 
 Understanding this unlocks the whole platform.
 
-Every user has a **Dilithium3 / ML-DSA-65 keypair** (FIPS 204, post-quantum) derived deterministically from their BIP39 24-word seed in the browser:
-- **Private key**, never leaves the device, stored in IndexedDB
-- **Public key**, their identity; also their "user ID" (displayed as a short hex string)
-- (The BIP39 seed scalar is an Ed25519 key, but its only roles now are seeding the Dilithium + Kyber keys and serving as the Solana wallet address; it is no longer the chat identity.)
+Every user's chat identity is a **Dilithium3 / ML-DSA-65 keypair** (FIPS 204,
+post-quantum), derived deterministically from a BIP39 24-word seed phrase generated on
+first use:
+- **Private key**, never leaves your device
+- **Public key**, your identity; also your "user ID" (a short hex string)
 
-Every message is signed with the private key. The server verifies the signature before accepting the message. This means:
-- No passwords, no accounts
-- The server cannot impersonate users
-- Users own their identity completely
+Every message is signed with the private key. The server verifies the signature before
+accepting the message. This means no passwords, no accounts, the server cannot
+impersonate you, and you own your identity completely.
 
-For encrypted DMs, a **Kyber768 / ML-KEM-768 keypair** (FIPS 203, post-quantum) handles key exchange, deriving an AES-256-GCM key via BLAKE3-KDF in a dual-seal envelope (recipient copy + self copy). The server never sees DM content.
+For encrypted DMs, a **Kyber768 / ML-KEM-768 keypair** (FIPS 203, post-quantum) handles
+key exchange, deriving an AES-256-GCM key so the server never sees DM content.
 
-This is implemented in `web/shared/pq-identity.js` + `web/chat/pq.js` (web), `src/net/dm_pq.rs` (native DM seal), and `src/relay/core/pq_crypto.rs` (server-side Dilithium + Kyber). For the canonical, always-current crypto inventory, see the "Cryptography" section of `CLAUDE.md`.
-
----
-
-## The Message Protocol
-
-Messages between client and server are JSON over WebSocket. Every outbound message has the shape:
-
-```json
-{
-  "type": "message",
-  "from": "<public_key_hex>",
-  "name": "Alice",
-  "body": "Hello world",
-  "channel": "general",
-  "timestamp": 1741840000000,
-  "sig": "<dilithium3_signature_hex>"
-}
-```
-
-The server routes by `type`. To add a new feature, you add a new message type, handle it in `relay.rs`'s match statement, and handle the response in `handleMessage()` on the client.
+This is a summary. The canonical, always-current crypto inventory (with exact algorithm
+names, file locations, and activation status) lives in the "Cryptography" section of
+**[CLAUDE.md](../../CLAUDE.md)**, read that before quoting any algorithm in your own
+writing.
 
 ---
 
 ## The Accord (Read Before Proposing Changes)
 
-The [Humanity Accord](../accord/humanity_accord.md) defines what this project must never do. It's short. Read it.
+The [Humanity Accord](../accord/humanity_accord.md) defines what this project must
+never do. It's short. Read it.
 
-Non-negotiable prohibitions include anything involving sexual violence, child exploitation, slavery, political coercion, and a handful of others. Every server that joins the network must adopt it to reach verified status.
+Non-negotiable prohibitions include anything involving sexual violence, child
+exploitation, slavery, political coercion, and a handful of others. Every server that
+joins the network must adopt it to reach verified status.
 
-The Accord isn't ideology, it's a minimal floor that allows people from radically different backgrounds to cooperate.
-
----
-
-## Your First Contribution
-
-Pick the thing that matches your skills:
-
-**For developers:**
-- Find a `TODO` comment: `grep -r "TODO\|FIXME" --include="*.js" --include="*.rs" .`
-- Pick a GitHub issue labeled `good first issue`
-- Look at any of the 18 standalone pages, most need their full feature implementation
-- Run the server locally, open the chat, and fix something that annoys you
-
-**For designers/UI:**
-- The standalone pages (`home.html`, `profile.html`, `skills.html`, etc.) need proper UI
-- Look at the CSS files, 7 component files, one per concern
-- Mobile responsiveness is a constant need
-
-**For writers:**
-- The `docs/design/` directory has architecture docs that need updating
-- Every page could use better help text and tooltips
-- The Knowledge page (`knowledge.html`) needs actual content
-
-**For everyone:**
-- Join the chat: [united-humanity.us/chat](https://united-humanity.us/chat)
-- Ask what needs doing, active contributors know the current priorities
-- File issues for bugs you find
+The Accord isn't ideology, it's a minimal floor that allows people from radically
+different backgrounds to cooperate.
 
 ---
 
-## How Decisions Are Made
+## Want to Help Build It?
 
-This is not a democracy, but it's not a dictatorship either. The project has a clear authority hierarchy:
-
-1. **The Accord**, inviolable principles. Nobody overrides this.
-2. **Design specs** (`design/`), architectural decisions. Changes need justification.
-3. **Michael (Shaostoul)**, project lead and final decision-maker for direction.
-4. **Active contributors**, people who show up and do the work shape the project.
-
-The best way to get your idea implemented is to implement it and submit a PR. Good work speaks for itself.
+Good work speaks for itself. Start at
+**[docs/contributor/00-START-HERE.md](../contributor/00-START-HERE.md)**, it has the
+real, currently-maintained architecture map, module layout, and a first safe task to
+try. This document intentionally stops here, anything more technical belongs there, not
+in the user-facing folder.
 
 ---
 
 ## Getting Help
 
 - **Chat**, [united-humanity.us/chat](https://united-humanity.us/chat), real-time, best for quick questions
-- **Discord**, [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC), more structured discussion
-- **GitHub Issues**, for bugs and feature proposals
-- **This repo**, most architecture questions are answered in `docs/design/`
+- **Discord**, [discord.gg/9XxmmeQnWC](https://discord.gg/9XxmmeQnWC), longer-form discussion and voice chat
+- **GitHub Issues**, for bugs and feature proposals: [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-Don't overthink it. Show up, ask questions, start somewhere small. The codebase is large but the concepts are straightforward once you see the patterns.
+Don't overthink it. Show up, ask questions, start somewhere small.

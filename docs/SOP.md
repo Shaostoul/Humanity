@@ -83,6 +83,19 @@ This triggers the desktop app build workflow (Windows/Mac/Linux installers).
 
 **Do NOT skip tags.** The download page pulls from GitHub Releases API. Stale tags mean users get old builds.
 
+> **Recommendation, flagged 2026-06-30, not yet an enforced rule, operator review
+> wanted:** release signing (`just sign-release`) is manual and passphrase-gated,
+> operator-only. During an autonomous loop-mode run, tags can land every 10-25
+> minutes, faster than a human can keep up with signing. This has now caused the
+> desktop auto-updater to silently freeze twice (v0.421-469, 48 releases; and again
+> through v0.637, 12+ releases), because the fail-closed updater only offers a
+> **signed** latest release. Consider tagging/releasing at coarser checkpoints
+> (end of a work session, or when a TIER 0 item in `docs/PRIORITIES.md` completes)
+> rather than on every `Cargo.toml` version bump, bump the version for internal
+> tracking every time, but only `git tag` + `gh release create` at those coarser
+> points. This reduces the signing backlog without changing the "don't skip tags,
+> don't re-tag" rule for whatever IS tagged.
+
 ## Feature Tracking (STATUS.md)
 
 `docs/STATUS.md` is the feature inventory. Update it when:

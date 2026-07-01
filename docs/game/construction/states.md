@@ -1,167 +1,156 @@
-# Systems
+# design/systems/construction/states.md
 
-This folder contains **bounded system specifications**.
+## Purpose
 
-A system is a coherent set of rules that governs how a specific domain of reality behaves over time under constraint.
+This document defines the authoritative state variables for the Construction system.
 
-Systems are not features.
-Systems are not content.
-Systems are not implementations.
+States describe what can exist and what can be true at a given time.
+States do not define behavior. Behavior belongs in `processes.md`.
 
-Systems define behavior.
+All state fields must be:
+- explicit
+- bounded
+- unit-consistent
+- explainable
 
----
-
-## Purpose of Systems
-
-Systems exist to:
-- model reality or constrained abstraction
-- enforce causality and consequence
-- expose tradeoffs and failure modes
-- interact predictably with other systems
-
-Every system exists to answer the question:
-“What happens if…?”
+> **Grounding note (2026-06-30):** field names below track the real Rust types in
+> `src/systems/construction/` (`mod.rs`, `structural.rs`, `routing.rs`, `solver.rs`) plus
+> `src/ship/structure.rs`. Where the design calls for more fidelity than currently
+> implemented, that gap is called out explicitly rather than implied as shipped.
 
 ---
 
-## What Belongs in This Folder
+## State Model Overview
 
-A system document belongs here if it:
-
-- defines rules of behavior
-- operates over time
-- consumes structured data
-- produces observable outcomes
-- interacts with other systems
-
-Examples include:
-- construction
-- farming
-- health
-- energy
-- ecology
-- transport
-- storage
-- population
-
-Each system must be internally coherent and externally compatible.
+Construction state is organized into:
+- Blueprint definitions (what CAN be built)
+- Construction state (a build in progress)
+- Structure state (a completed built object)
+- Structural/framing state (load-bearing graph, for integrity checks)
+- Routing state (utility runs threaded through the structure)
+- Derived indicators (computed for explanation, not authoritative)
 
 ---
 
-## What Does NOT Belong Here
+## Blueprint Definition (data, not runtime state)
 
-Do not place the following in this folder:
-
-- ethics or human principles  
-  (these belong in `accord/`)
-
-- real-world reference material  
-  (these belong in `knowledge/`)
-
-- data shape definitions  
-  (these belong in `schemas/`)
-
-- engine implementation details  
-  (these belong in `src/`)
-
-- speculative ideas without constraints  
-
-Systems are law, not exploration.
+Loaded from RON via `Blueprint` (`src/systems/construction/mod.rs`):
+- `id` (stable identifier)
+- `name`
+- `category`
+- `materials` (list of `(item_id, quantity)` pairs, the bill of materials)
+- `build_time` (seconds of accumulated construction progress required)
+- `size` (`[f32; 3]`, world-space footprint)
+- `snap_to` (list of surface/attachment tags this blueprint can snap onto)
+- `health` (max structural health once completed)
+- `provides` (optional capability tag, e.g. a room/utility this structure grants)
 
 ---
 
-## Required Structure of a System Document
+## Construction State (per active build, `Construction` component)
 
-Each system document must include, at minimum:
+### Identity
+- `blueprint_id` (definition reference)
+- `builder_key` (optional, identity of the player/agent building it)
 
-1. **Purpose**  
-   What problem this system exists to model or regulate.
+### Progress
+- `progress` (0.0 – `build_time`, accumulates by `dt` per tick while active)
+- Implicit completion: `progress >= build_time` converts `Construction` into `Structure`
+  and removes the `Construction` component (see `processes.md::advance_construction`).
 
-2. **Scope**  
-   What is included and explicitly excluded.
-
-3. **Inputs**  
-   Data consumed by the system (referencing schemas).
-
-4. **Outputs**  
-   State changes or effects produced by the system.
-
-5. **Constraints**  
-   Limits imposed by design law (time, energy, materials, realism).
-
-6. **Failure Modes**  
-   How the system degrades, breaks, or produces harm.
-
-7. **Interactions**  
-   How this system affects and is affected by other systems.
-
-8. **Abstractions**  
-   Any intentional simplifications and why they exist.
+### Placement
+- `position` (world Vec3, snapped to the 1m grid via `snap_to_grid`)
+- `rotation` (currently always `Quat::IDENTITY`, free rotation not yet implemented)
+- `scale` (from blueprint `size`)
 
 ---
 
-## System Boundaries
+## Structure State (per completed build, `Structure` component)
 
-Systems must be:
-- narrowly scoped
-- composable
-- predictable under repetition
+### Identity
+- `blueprint_id` (definition reference)
 
-When a system grows beyond a single responsibility, it must be split.
+### Health
+- `health` (0.0 – `max_health`)
+- `max_health` (set at completion from blueprint `health`)
 
-Hidden coupling between systems is a design failure.
+### Capability
+- `provides` (optional, carried over from blueprint; downstream systems read this to
+  know what a structure grants, e.g. shelter, a utility hookup point)
 
----
-
-## Authority and Change
-
-System documents are authoritative.
-
-Changes to a system must:
-- preserve determinism
-- document tradeoffs
-- list affected systems
-- respect the Humanity Accord
-
-System evolution is expected.
-Silent change is forbidden.
+### Not yet modeled (design intent, no runtime fields today)
+- Wear/degradation over time (`construction.md` describes this; no tick-based decay
+  exists yet for `Structure.health` outside of external damage events)
+- Join-level state (bolted/welded/etc. per-component graph), the real system tracks
+  one `health` per structure, not a fine-grained join graph
+- Seal/containment state (leak risk, moisture), not represented
 
 ---
 
-## Relationship to Schemas
+## Structural / Framing State (load-bearing analysis)
 
-Systems consume schemas.
+Used by `StructuralAnalyzer::analyze` (`structural.rs`), which delegates to the node-beam
+solver in `solver.rs`:
 
-Systems may:
-- validate schema invariants
-- reject invalid data
-- produce new data instances
+- `FramingNode`, a point in the load-bearing graph (position + support/fixed flags)
+- `FramingMember`, an edge between two nodes (the structural member itself, with
+  material/strength properties from `data/materials.csv`)
+- `StructuralVerdict` (enum, from `solver.rs`): `Stable`, `Unstable`, `Collapsed`
+- `StructuralResult` (enum, `structural.rs`): mirrors `StructuralVerdict` 1:1, this is
+  the public three-state verdict a build check reduces to.
 
-Systems may not:
-- redefine schema structure
-- embed schema logic in prose
-
-Structure and behavior must remain separate.
-
----
-
-## Relationship to Implementation
-
-Systems define behavior.
-Engines implement behavior.
-
-Implementation details must not leak back into system definitions.
-
-A system that requires a specific implementation is improperly designed.
+This is a real, working solver, not aspirational, but it is invoked as an explicit
+analysis step, not yet wired into every placement automatically (see `PRIORITIES.md`/
+`STATUS.md` for current wiring status before assuming full automatic enforcement).
 
 ---
 
-## Closing Note
+## Routing State (utility runs through a structure)
 
-Systems are the engines of consequence.
+Used by `AutoRouter` (`routing.rs`), which turns a straight machine-to-machine connection
+into a realistic orthogonal run:
 
-Good systems make tradeoffs visible.
-Bad systems hide them.
+- `RouteType` (enum): `Pipe`, `Wire`, `Ventilation`
+- Per-run geometry: riser up, right-angle overhead run, riser down (the "up-over-down"
+  pattern), with elbows at corners, fitting collars at machine ports, support brackets at
+  code-derived spacing, and shutoff valves on fluid lines at destination inlets
+- Rules loaded from `data/routing_rules.ron`; vertical lane assignment keeps power, water,
+  and ventilation from overlapping in the same riser lane
 
-Design systems as if future humans will depend on their honesty.
+Grounded in real code standards cited in the source: ASME A13.1 (pipe color), IPC 308.5 /
+NEC 358.30 (support spacing), NEC 300.4 (electrical-above-water separation).
+
+---
+
+## Derived Indicators (non-authoritative)
+
+- `structural_verdict`, computed on demand from the framing graph, not stored per-tick
+- `build_percent`, `progress / build_time`, for UI display
+- `missing_materials`, computed by diffing blueprint `materials` against current
+  inventory at build-queue time
+
+---
+
+## Invariants (must always hold)
+
+- `progress` must remain within `[0, build_time]`.
+- `health` must remain within `[0, max_health]`.
+- A `Construction` and a `Structure` component are mutually exclusive on the same entity
+  at any given tick (the system removes one before inserting the other).
+- Position is always grid-snapped to whole-meter coordinates at placement time.
+- `StructuralVerdict`/`StructuralResult` values must be one of the three declared states;
+  no partial/interpolated structural states exist.
+
+---
+
+## Notes on Abstraction
+
+This state model is intentionally bounded:
+- One scalar `health` represents a whole structure rather than per-join health
+- The framing solver's `Stable`/`Unstable`/`Collapsed` three-state verdict stands in for
+  full finite-element stress analysis
+- Utility routing is a rule-derived geometric path with code-grounded decoration, not a
+  full fluid/electrical simulation
+
+All abstraction must remain explicit and explainable, matching `construction.md`'s
+top-level design law.

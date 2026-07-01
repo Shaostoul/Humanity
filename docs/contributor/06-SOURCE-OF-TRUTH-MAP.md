@@ -48,12 +48,13 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## A) Ecosystem vision and product direction
 
 - Design sources:
-  - `docs/design/product/vision.md`
-  - `docs/design/product/ecosystem_architecture.md`
-  - `docs/design/product/project_universe_integration.md`
-  - `docs/design/product/product_roadmap.md`
+  - `docs/design/vision.md`
+  - `docs/ROADMAP.md` (the live, actively-maintained strategic roadmap; the old
+    `product_roadmap.md`, `ecosystem_architecture.md`, and
+    `project_universe_integration.md` drafts were archived to `docs/history/` 2026-06-30,
+    superseded by this file)
 - Implementation now:
-  - Partially reflected in relay + web experience + desktop wrapper
+  - Partially reflected in relay + web experience + native desktop app
 - Status:
   - **Documented: strong**
   - **Implemented: partial**
@@ -61,9 +62,9 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## B) Identity, cryptography, signed object model
 
 - Design sources:
-  - `docs/design/architecture_decisions/client_side_identity_keys.md`
-  - `docs/design/architecture_decisions/canonical_encoding_and_hashing.md`
-  - `docs/design/network/object_format.md`
+  - `docs/design/client_side_identity_keys.md`
+  - `docs/design/canonical_encoding_and_hashing.md`
+  - `docs/network/object_format.md`
 - Implementation now:
   - `src/relay/core/{encoding,hashing,identity,signing}.rs` (+ `pq_crypto.rs`, `did.rs`, `kdf.rs`)
 - Status:
@@ -73,9 +74,11 @@ Most domain systems are already documented in `docs/design/`, but many are not y
 ## C) Relay/server, realtime transport, API surface
 
 - Design sources:
-  - `docs/design/network/realtime_transport.md`
-  - `docs/design/network/realtime_relay_protocol.md`
-  - `docs/design/network/server_federation.md`
+  - `src/relay/relay.rs`'s `RelayMessage` enum is the only spec of the real
+    WebSocket protocol; the old `realtime_transport.md` / `realtime_relay_protocol.md`
+    docs described a fictional CBOR frame protocol that was never built and were
+    deleted 2026-06-30
+  - `docs/network/server_federation.md`
 - Implementation now:
   - `src/relay/{relay,api,mod}.rs` + `src/relay/storage/*.rs` + `src/relay/handlers/*.rs` (entry point `src/main.rs --headless`)
 - Status:
