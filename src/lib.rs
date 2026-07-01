@@ -4204,6 +4204,24 @@ mod native_app {
             "quest_registry",
             QuestRegistry::from_ron_dir(&data_dir.join("quests")),
         );
+        // BlueprintRegistry: read by ConstructionSystem::tick (registered 2026-07-01, see
+        // lib.rs's system_runner.register list) -- basic.ron already ships a real
+        // foundation/wall/door/window/roof/furniture/machine catalog that had nothing
+        // loading it into the DataStore before this, so every queue_build() call would
+        // have silently missed the registry lookup forever.
+        match std::fs::read(data_dir.join("blueprints").join("basic.ron")) {
+            Ok(bytes) => match crate::systems::construction::BlueprintRegistry::from_ron(&bytes) {
+                Ok(reg) => {
+                    log::info!("Loaded {} blueprints from blueprints/basic.ron", reg.blueprints.len());
+                    store.insert("blueprint_registry", reg);
+                }
+                Err(e) => log::warn!("Failed to parse blueprints/basic.ron: {e}"),
+            },
+            Err(e) => log::warn!(
+                "Data file {} not found ({e}); blueprint_registry unavailable (ConstructionSystem idle)",
+                data_dir.join("blueprints").join("basic.ron").display()
+            ),
+        }
         // Container types + content-class compatibility (graceful on missing files).
         {
             use crate::systems::inventory::containers::ContainerRegistry;
@@ -4877,6 +4895,18 @@ mod native_app {
             // "container_registry" loaded into the DataStore above.
             system_runner.register(ContainerCompatibilitySystem::new());
             system_runner.register(CraftingSystem::new());
+            // ConstructionSystem: blueprint placement -> timed build -> Structure entity.
+            // Reads "blueprint_registry" (loaded in load_data_registries from
+            // data/blueprints/basic.ron). Registered 2026-07-01 (was fully coded but never
+            // turned on, per the afternoon audit) -- nothing calls queue_build() yet, so
+            // this ticks as a safe no-op until a GUI/economy-automation caller is wired in
+            // a later cycle; that's the honest current state, not a regression.
+            system_runner.register(crate::systems::construction::ConstructionSystem::new());
+            // ManufacturingSystem: ProductionFacility entities -> timed recipe -> output_count.
+            // Loads data/manufacturing.ron itself. Registered 2026-07-01 (same "coded but
+            // never turned on" story as ConstructionSystem) -- safe no-op until something
+            // spawns a ProductionFacility entity.
+            system_runner.register(crate::systems::manufacturing::ManufacturingSystem::new(&data_dir));
             // FoodSystem: nutrition (eat -> Vitals + buffs), hunger/thirst decay,
             // and spoilage. Reads consume_request + status_effect_registry from the
             // DataStore. Loads food_system.ron from the data dir at construction.

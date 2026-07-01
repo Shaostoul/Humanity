@@ -42,7 +42,11 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // Gameplay systems — implemented but need their content/UI/data layer wired.
     ("CombatSystem", "needs combat encounters + live-behaviour verification vs player/NPC"),
     ("AISystem", "behaviour trees/autonomy; needs NPC spawn + dialogue wiring (note: off-screen autonomy is currently relay-side)"),
-    ("ConstructionSystem", "needs build-mode UI + placement events wired"),
+    // ConstructionSystem is REGISTERED in src/lib.rs as of 2026-07-01 (afternoon audit:
+    // fully-coded blueprint->build->Structure loop, just never turned on) plus
+    // BlueprintRegistry now actually loads data/blueprints/basic.ron -- nothing calls
+    // queue_build() yet (no GUI/economy-automation caller wired), so it's a live,
+    // correct no-op today, not deferred.
     ("PlacementSystem", "paired with ConstructionSystem; same build-mode gating"),
     ("EconomySystem", "needs market/credits entities + live verification"),
     ("VehicleSystem", "needs vehicle entities + control wiring"),
@@ -64,7 +68,9 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     ("WasteSystem", "scaffold; needs waste/sanitation entities"),
     ("OfflineSystem", "scaffold; off-screen autonomy is relay-side"),
     ("OceanographySystem", "scaffold; needs ocean bodies"),
-    ("ManufacturingSystem", "scaffold; superset of crafting; not yet wired"),
+    // ManufacturingSystem is REGISTERED in src/lib.rs as of 2026-07-01 (afternoon audit:
+    // fully-coded ProductionFacility->timed recipe->output_count loop, just never turned
+    // on). Safe no-op until something spawns a ProductionFacility entity.
     ("MedicalSystem", "scaffold; needs health/injury entities"),
     ("TransportationSystem", "scaffold; needs a transit network"),
     ("HvacSystem", "scaffold; needs enclosed-space climate entities"),
