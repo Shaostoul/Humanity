@@ -46,7 +46,14 @@
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      throw new Error(`POST ${path}: ${res.status} ${res.statusText}`);
+      // Surface the relay's JSON error body (e.g. "signature verification
+      // failed", rate-limit text) instead of only the bare status code.
+      let detail = '';
+      try {
+        const j = await res.json();
+        if (j && j.error) detail = `: ${j.error}`;
+      } catch (_e) { /* non-JSON error body — keep the status line */ }
+      throw new Error(`POST ${path}: ${res.status} ${res.statusText}${detail}`);
     }
     return res.json();
   }

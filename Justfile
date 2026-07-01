@@ -63,6 +63,12 @@ group-kat:
     node scripts/group-object-kat.mjs
     node scripts/object-verify-kat.mjs
 
+# Cross-language vote_v1 KAT: the web governance page's Dilithium-signed votes
+# (web/pages/governance.html via pq-object.js buildVoteV1) must be byte-identical
+# to the Rust relay encoder. Pairs with object.rs::vote_v1_cross_language_kat.
+vote-kat:
+    node scripts/vote-object-kat.mjs
+
 # Rebuild the vendored same-origin post-quantum bundle (pins versions,
 # bundles with esbuild, verifies the KAT). Needs network for npm.
 pq-vendor:
