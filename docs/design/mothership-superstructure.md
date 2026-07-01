@@ -44,6 +44,45 @@ placed sub-structure. Reuse, don't reinvent.
   gathering plaza, seating, info boards, transit hub access. This is where the "community" of grid-
   hierarchy.md becomes a PLACE. Probably the first macro zone to prototype because it is social + visible.
 
+## Insulation constraints: sound and thermal (operator, 2026-07-01)
+
+Zone placement isn't just "does it fit," it has real physical consequences that should
+feed back into the aggregate simulation (see the "Population scale target" open
+question below): "if the industrial area is too close, no one can sleep, the noise
+comes through the steel frame of the ship." This is the same category of mechanic as
+the already-shipped WiFi-RF-harms-crops consequence chain (v0.619-620), a zone property
+that degrades a nearby zone's livability unless properly separated or insulated.
+Proposed model (not yet built): give each `zone_types.ron` entry a `noise_output` and
+`thermal_output` coefficient (industrial and power high, residential/medical low), and
+compute a per-residential-zone "disturbance" value from `sum(nearby_zone.output /
+distance^2)` (an inverse-square falloff, cheap, matches the existing per-island utility
+math's spirit), reduced by any wall/hull material between them (ties to the real
+density/tensile material data `wall_materials.ron` already has for sound/thermal
+engineering education, not just structural). A disturbed residential zone should
+degrade sleep/rest quality in the aggregate resident model, not the individual one,
+same reasoning as the population-capacity framing below. Teaches a real fact (sound
+insulation, thermal mass) through a mechanic instead of a tooltip.
+
+## Residential zone sizing: Dunbar's number (operator, 2026-07-01)
+
+The operator's instinct, "how big should a residential zone be, kind of like a city,
+with a city center," maps onto real anthropology: Robin Dunbar's research on cognitive
+limits to stable social relationships found a widely-cited layered structure, roughly 5
+(intimate circle), 15 (close friends), 50 (good friends), 150 (Dunbar's number proper,
+the most-cited figure, meaningful relationships you'd grieve losing), 500 (acquaintances
+you recognize and place), 1500 (recognizable faces/names). These are approximations
+from Dunbar's own work and follow-on studies, not a precise universal constant, but
+they're a real, teachable, defensible design basis rather than an arbitrary number.
+Proposed application: size a "neighborhood"-scale residential zone around the 150-500
+range (a community small enough that most residents can plausibly know or recognize
+each other, matching the "city" feel the operator wants), with its own small civic
+node (not necessarily the full M3 mall, more like a corner plaza or the transit-hub
+stop that already exists as a zone type) rather than one mega civic_mall serving the
+whole mothership. This reframes M3 (civic mall) as potentially needing TWO tiers: a
+neighborhood-scale civic node (Dunbar-sized) and a larger district-scale mall (multiple
+neighborhoods' worth), not decided yet, flagged for the operator's steer alongside the
+existing M1 editor-architecture and M3 design open questions.
+
 ## What it builds on (do NOT rebuild)
 - `HomeStructure` box + walls + multi-level (`level`) + the structural piece system (`structure_types`:
   stairs, ladders, elevators, train platforms, ramps, decks -- v0.583-592).
@@ -93,7 +132,14 @@ placed sub-structure. Reuse, don't reinvent.
   island system already implements one tier down. Individual "living their lives" NPCs (schedules, needs,
   riding the rail cars) stay a small, deliberately-bounded population layered on top for flavor, not the
   mechanism computing whether the ship's numbers close. Full writeup: ask for the 2026-07-01 mothership
-  simulation research findings, not yet split into its own design doc.
+  simulation research findings, not yet split into its own design doc. **Independently confirmed by the
+  operator the same day**, unprompted, before seeing the research conclusion: "we don't literally have to
+  render everything and do physics for everything, most things are just simple calculations like going to
+  x to spend x time then go to do this for x time, at any given time everything is being done by a certain
+  percentage of people." This is the aggregate model exactly, two independent paths arriving at the same
+  answer is a good sign it's the right one. Also worth noting: no day/night cycle aboard the ship means
+  the "percentage of people doing X" is likely closer to a steady-state shift split (a fixed fraction
+  always working/sleeping/socializing) than a diurnal wave, simpler to model than a real city's rhythm.
 
 ## Reconciliation with docs/game/humanity_one.md (2026-07-01)
 

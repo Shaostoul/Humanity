@@ -314,6 +314,12 @@ The game teaches the homestead; the homestead is real.
   LLM behind every decision, both for cost and for genuinely emergent tactical depth.
   No design work started; this is explicitly a "once peaceful gameplay works" goal.
 - `[future]` Game-world depth: more content, characters, and deeper coupled systems.
+- `[future]` Render quality bar (operator, 2026-07-01): "when the renders start looking
+  like real life instead of everything being cubes, pyramids, spheres, you'll know the
+  render engine is doing well." Two concrete near-term-feeling targets inside that:
+  infinite procedural textures that avoid visible tiling/repetition, and real-looking
+  dirt/soil (chunks, footprints, disturbance) so planted crops read as planted in
+  actual ground, not a flat color swatch. No design work started.
 - `[future]` Real-terrain world generation from real elevation data (USGS / SRTM /
   Copernicus) keyed to a place's latitude and longitude.
 - `[future]` VR support and a "boot straight into Play" mode.
