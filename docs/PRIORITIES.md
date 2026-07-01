@@ -19,10 +19,11 @@
 > 6 concrete file:line TODOs found and enumerated, (2) livestreaming
 > end-to-end verification, (3) a broader stub-completion sweep. Docs sync
 > every cycle. On stop: write `docs/history/2026-07-01-night-loop-results.md`.
-> **Progress: chat backlog item 1/6 shipped -- v0.641.0 / BUG-041, the
-> hardcoded `is_group_admin = true` fake-admin bug (server already reported
-> real per-group roles, client was discarding them). Next up: item 2 (DM
-> notification toggle, `chat.rs:705`).** <<<**
+> **Progress: chat backlog items 1-2/6 shipped -- v0.641.0/BUG-041 (fake
+> `is_group_admin` fixed) and v0.642.0 (native DM-notification toggle wired
+> to the server, was a no-op; new `scripts/ws-test-client.js` reusable
+> protocol-test harness built + proven). Next up: item 3 (group voice
+> join/leave, `chat.rs:1346`).** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed

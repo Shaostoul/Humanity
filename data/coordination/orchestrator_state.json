@@ -506,6 +506,18 @@
         "src/lib.rs",
         "docs/BUGS.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 2: shipped v0.642.0 -- wired the native DM-notification toggle (src/gui/pages/chat.rs, was a hardcoded no-op) to the relays already-complete notification_prefs system (the web client already had this fully working via web/pages/settings-app.js -- a dual-UI-parity gap, not a from-scratch build). GuiState gained 6 fields tracking dm/mentions/tasks/dnd state + a loaded flag; the popup fetches on first open, the button is a real toggle, update sends all 5 fields together (server requires them together) so mentions/tasks/DND are preserved even though native has no UI for them yet (logged as a follow-up in FEATURES.md). Built scripts/ws-test-client.js: a reusable Node WS test client using the bot_/bot_secret auth fastpath (src/relay/relay.rs) to test relay protocol behavior against a LOCAL relay without the full Dilithium handshake -- used to verify this feature with a REAL round-trip (get defaults -> update -> get again, confirmed persisted) against a locally-run relay, and will be reused for the rest of tonights chat/streaming verification. Verified: both cargo checks, 630 lib tests (3 new), 5 lints, 0 broken doc links. Committed + pushed. Resolves chat backlog item 1 (of 6). Next: item 3 (chat.rs:1346 group voice join/leave -- check if web already does this correctly, i.e. another dual-UI-parity gap).",
+      "scope": "chat (night-loop cycle 2)",
+      "files": [
+        "src/gui/mod.rs",
+        "src/gui/pages/chat.rs",
+        "src/lib.rs",
+        "scripts/ws-test-client.js",
+        "docs/FEATURES.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
