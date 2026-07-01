@@ -8449,14 +8449,32 @@ mod native_app {
                         // lights illuminate -- the operator's "turn off global illumination and still
                         // see" test. Default ON restores the normal sun (2.5) + the cool fill (0.6).
                         let gi = state.gui_state.gi_enabled;
-                        if sun_dir != glam::DVec3::ZERO {
-                            state.renderer.set_sun_light(
-                                Vec3::new(
-                                    sun_dir.x as f32,
-                                    sun_dir.y as f32,
-                                    sun_dir.z as f32,
-                                ),
+                        // Construction-editor sun override (operator: the real astronomical sun is
+                        // tied to Earth's slow orbital drift + a ship position that never rotates, so
+                        // a bad real-world sun angle can leave a build permanently hard to see with no
+                        // way to fix it). Only applies while actively editing; the visible Sun disc
+                        // position (sun_world_pos above) is left alone -- only the LIGHT ray direction/
+                        // color used for illumination is swapped, trading disc/light consistency for
+                        // being able to actually see the build.
+                        let (light_dir, light_color) = if state.gui_state.construction_active
+                            && state.gui_state.construction_sun_override
+                        {
+                            let dir = crate::systems::time::TimeSystem::sun_direction(
+                                state.gui_state.construction_sun_override_hour,
+                            );
+                            (dir, crate::systems::time::TimeSystem::sun_color(
+                                state.gui_state.construction_sun_override_hour,
+                            ))
+                        } else {
+                            (
+                                Vec3::new(sun_dir.x as f32, sun_dir.y as f32, sun_dir.z as f32),
                                 [1.0, 0.97, 0.92],
+                            )
+                        };
+                        if light_dir != Vec3::ZERO {
+                            state.renderer.set_sun_light(
+                                light_dir,
+                                light_color,
                                 if gi { 2.5 } else { 0.0 },
                             );
                         }

@@ -77,7 +77,12 @@ impl TimeSystem {
 
     /// Compute sun direction from hour of day.
     /// Sun rises at 6, peaks at 12, sets at 18, below horizon at night.
-    fn sun_direction(hour: f32) -> Vec3 {
+    /// `pub` (not private): reused directly by the construction editor's manual
+    /// sun-override (`GuiState::construction_sun_override`, src/lib.rs) since
+    /// the real astronomical sun direction is tied to a ship position that
+    /// never rotates -- this hour-based model is the only way to get a
+    /// deliberately different lighting angle for editing.
+    pub fn sun_direction(hour: f32) -> Vec3 {
         // Map hour to angle: 6h = 0 (horizon), 12h = PI/2 (zenith), 18h = PI (horizon)
         let day_fraction = (hour - 6.0) / 12.0; // 0 at sunrise, 1 at sunset
         let angle = day_fraction * std::f32::consts::PI;
@@ -94,7 +99,8 @@ impl TimeSystem {
     }
 
     /// Compute sun color based on hour — warm at dawn/dusk, white at noon, dark at night.
-    fn sun_color(hour: f32) -> [f32; 3] {
+    /// `pub` for the same reason as `sun_direction` above.
+    pub fn sun_color(hour: f32) -> [f32; 3] {
         if hour < 5.0 || hour > 19.5 {
             // Deep night — faint blue moonlight
             [0.05, 0.05, 0.1]
@@ -242,5 +248,46 @@ mod game_time_export_tests {
         let mut sys = TimeSystem::new();
         sys.tick(&mut world, 1.0, &data);
         assert!(sys.game_time().elapsed_seconds > 0.0);
+    }
+}
+
+#[cfg(test)]
+mod sun_override_tests {
+    // `sun_direction`/`sun_color` were made `pub` (v0.652.0) specifically so the
+    // construction editor's manual sun-angle override (GuiState::
+    // construction_sun_override) can drive lighting independent of a real
+    // TimeSystem instance -- these tests pin the values that override control
+    // actually relies on.
+    use super::*;
+
+    #[test]
+    fn noon_gives_a_high_elevation_sun() {
+        let dir = TimeSystem::sun_direction(12.0);
+        assert!(dir.y > 0.9, "noon sun should be nearly overhead, got y={}", dir.y);
+    }
+
+    #[test]
+    fn sunrise_and_sunset_give_a_low_elevation_sun() {
+        let sunrise = TimeSystem::sun_direction(6.0);
+        let sunset = TimeSystem::sun_direction(18.0);
+        assert!(sunrise.y < 0.2, "sunrise should be near the horizon, got y={}", sunrise.y);
+        assert!(sunset.y < 0.2, "sunset should be near the horizon, got y={}", sunset.y);
+    }
+
+    #[test]
+    fn midnight_falls_back_to_a_below_horizon_moonlight_direction() {
+        let dir = TimeSystem::sun_direction(0.0);
+        assert!(dir.y < 0.0, "midnight should be below the horizon, got y={}", dir.y);
+    }
+
+    #[test]
+    fn noon_color_is_near_white_midnight_is_dim_blue() {
+        let noon = TimeSystem::sun_color(12.0);
+        let midnight = TimeSystem::sun_color(0.0);
+        assert!(noon[0] > 0.9 && noon[1] > 0.9, "noon should read as near-white, got {noon:?}");
+        assert!(
+            midnight[0] < 0.2 && midnight[2] > midnight[0],
+            "midnight should read as dim and blue-shifted, got {midnight:?}"
+        );
     }
 }

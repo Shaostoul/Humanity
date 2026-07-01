@@ -716,6 +716,21 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                         if ui.checkbox(&mut state.gi_enabled, RichText::new("Sun / global light (off = local lights only)").size(theme.font_size_small).color(theme.text_primary())).changed() {
                             state.construction_structure_dirty = true;
                         }
+                        // Sun-position override (operator: the real astronomical sun tracks Earth's
+                        // slow orbital drift only -- the ship itself has no rotation to speed up, so a
+                        // bad real-world sun angle has no way to be fixed while editing). Lets the
+                        // editor pick any hour-of-day lighting angle instead, independent of real time.
+                        ui.checkbox(&mut state.construction_sun_override, RichText::new("Override sun angle (pick a time of day for lighting)").size(theme.font_size_small).color(theme.text_primary()))
+                            .on_hover_text("The real sun position barely changes minute to minute (it tracks Earth's slow orbit, and the ship doesn't rotate) -- turn this on to light the scene from whatever hour of day sees your build best.");
+                        if state.construction_sun_override {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Hour of day").size(theme.font_size_small).color(theme.text_muted()));
+                                ui.add(egui::Slider::new(&mut state.construction_sun_override_hour, 0.0..=24.0).suffix("h"));
+                                if ui.small_button("noon").clicked() {
+                                    state.construction_sun_override_hour = 12.0;
+                                }
+                            });
+                        }
                         // Undo depth (Blender-style): how many editor actions Ctrl+Z can step back.
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Undo steps (Ctrl+Z / Ctrl+Shift+Z)").size(theme.font_size_small).color(theme.text_muted()));

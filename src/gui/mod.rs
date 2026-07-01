@@ -1648,6 +1648,20 @@ pub struct GuiState {
     /// zeroed so a room is lit ONLY by local placed lights -- the "turn off GI and still see" test.
     /// Default true. Toggled in the wall editor.
     pub gi_enabled: bool,
+    /// Sun-position override for the construction editor (operator: the real
+    /// astronomical sun direction is tied to Earth's slow orbital drift + a
+    /// FIXED ship position that never rotates, so there is no way to get a
+    /// better lighting angle while editing -- "the sun is low on the horizon
+    /// and I can't roll the ship to change that"). When true (and only while
+    /// `construction_active`), the celestial-pass sun direction/color use
+    /// `construction_sun_override_hour` via `TimeSystem::sun_direction`/
+    /// `sun_color` instead of the real astronomical vector, so a bad real-world
+    /// sun angle never blocks seeing your own build. Does not affect normal
+    /// gameplay lighting. Default false.
+    pub construction_sun_override: bool,
+    /// Hour of day (0.0..24.0) used when `construction_sun_override` is on.
+    /// Default noon (12.0) -- the best overhead angle for construction work.
+    pub construction_sun_override_hour: f32,
     /// Max construction-editor undo steps (v0.575), Blender-style configurable depth. Set in the wall
     /// editor. Default 64; clamped 1..=4096.
     pub construction_undo_depth: usize,
@@ -2707,6 +2721,8 @@ impl Default for GuiState {
             construction_grid_snap: true,
             construction_dev_overlay: false,
             gi_enabled: true,
+            construction_sun_override: false,
+            construction_sun_override_hour: 12.0,
             construction_undo_depth: 64,
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
