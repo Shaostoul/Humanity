@@ -593,7 +593,12 @@ P2P trading interface.
 - Native: `src/gui/pages/trade.rs`
 
 ### Studio Page
-Content creation tools.
+Content creation / streaming rehearsal tools: scenes, sources, resolution/bitrate/FPS,
+chat overlay. Real mic-level meter (v0.658, `crate::net::voice::mic_level()` -- reads
+0 unless a mic test or live voice session is actually capturing, matching the page's
+"rehearsal only, no real transport yet" honesty fix from v0.652.0). First-ever adoption
+of the built-but-previously-unused help_modal system (3 topics: scenes/sources, stream
+settings, chat overlay) -- see the Help Modal entry below.
 - Native: `src/gui/pages/studio.rs`
 
 ### Civilization Page
@@ -1496,9 +1501,9 @@ Single source of truth for colors, spacing, radii, fonts. Native reads `data/gui
 - Script: `scripts/gen-theme-css.js`
 
 ### Universal Help Modal
-`data/help/topics.json` is shared between web and native. Both UIs load it on startup and show the same help content. Help buttons (`?`) anywhere in the UI open a themed modal with the topic body.
+`data/help/topics.json` is shared between web and native. Both UIs load it on startup and show the same help content. Help buttons (`?`) anywhere in the UI open a themed modal with the topic body. The native `help_button`/`draw` plumbing was fully wired at the app level (registry loads at startup, modal draws in the render loop) since it shipped, but had ZERO real call sites in any native page until v0.658 wired 3 into the Studio page (Scenes, Resolution/Bitrate/FPS, Chat Overlay) -- the first native page to actually use it.
 - Data: `data/help/topics.json`
-- Native: `src/gui/widgets/help_modal.rs` (help_button + draw fn + HelpRegistry loader)
+- Native: `src/gui/widgets/help_modal.rs` (help_button + draw fn + HelpRegistry loader), `src/gui/pages/studio.rs` (first real adoption)
 - Web: `window.hosHelp.register/show` in `web/shared/shell.js`, plus `[data-help-id]` attribute on any button
 
 ### Real/Sim Help Icon

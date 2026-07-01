@@ -58,11 +58,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ScrollArea::vertical().id_salt("studio_left_scroll").show(ui, |ui| {
         // ── Scenes ──
-        ui.label(
-            RichText::new("Scenes")
-                .size(theme.font_size_heading)
-                .color(theme.text_primary()),
-        );
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Scenes")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary()),
+            );
+            widgets::help_modal::help_button(ui, theme, "studio-scenes-sources", &mut state.active_help_topic);
+        });
         ui.add_space(theme.section_gap);
 
         let active_scene = state.studio.active_scene_index;
@@ -447,13 +450,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.panel_margin);
 
-        // Audio level meter (placeholder bar)
+        // Audio level meter -- the REAL mic peak (crate::net::voice::mic_level()), the
+        // same reader the voice-chat mic test uses. It reads 0 unless a mic capture
+        // stream is actually running (a mic test or a live voice session), which is
+        // honest: Studio itself doesn't open the mic, so silence here means nothing is
+        // capturing yet, not that the meter is broken.
         ui.label(RichText::new("Audio:").size(theme.font_size_small).color(theme.text_muted()));
         let (meter_rect, _) = ui.allocate_exact_size(Vec2::new(80.0, 12.0), egui::Sense::hover());
         let painter = ui.painter_at(meter_rect);
         painter.rect_filled(meter_rect, 2.0, Color32::from_rgb(30, 30, 40));
-        // Simulated level (static placeholder)
-        let level = 0.4_f32;
+        let level = crate::net::voice::mic_level();
+        if crate::net::voice::mic_test_running() || crate::net::voice::voice_session_running() {
+            ui.ctx().request_repaint();
+        }
         let fill_rect = egui::Rect::from_min_size(
             meter_rect.min,
             Vec2::new(meter_rect.width() * level, meter_rect.height()),
@@ -642,7 +651,10 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.section_gap);
 
         // Resolution
-        ui.label(RichText::new("Resolution").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Resolution").size(theme.font_size_small).color(theme.text_secondary()));
+            widgets::help_modal::help_button(ui, theme, "studio-stream-settings", &mut state.active_help_topic);
+        });
         egui::ComboBox::from_id_salt("studio_resolution")
             .selected_text(&state.studio.stream_resolution)
             .width(190.0)
@@ -676,11 +688,14 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(theme.panel_margin);
 
         // ── Chat Overlay Settings ──
-        ui.label(
-            RichText::new("Chat Overlay")
-                .size(theme.font_size_heading)
-                .color(theme.text_primary()),
-        );
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Chat Overlay")
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary()),
+            );
+            widgets::help_modal::help_button(ui, theme, "studio-chat-overlay", &mut state.active_help_topic);
+        });
         ui.add_space(theme.section_gap);
 
         ui.label(RichText::new("Channel").size(theme.font_size_small).color(theme.text_secondary()));

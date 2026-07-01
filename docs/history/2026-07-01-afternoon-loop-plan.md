@@ -110,13 +110,16 @@ risk slice:**
 
 **Phase B -- author the 4 genuine content gaps the design found (small,
 specific, in priority order, only after Phase A ships and is verified):**
-1. `data/plants.csv`: add `oyster_mushroom` (+ 1-2 more edible fungi) --
-   the `mushroom_rack`'s kcal claim is currently unbacked by any real
-   crop id (only alien fungi exist today).
-2. `data/creatures.csv`: add `tilapia` and/or `channel_catfish` -- the
-   aquaponic tank's unique B12/omega-3 closure claim currently has no
-   real freshwater tank fish species to back it.
-3. `data/plants.csv` calorie columns (or a new
+1. **DONE (v0.657.0).** `data/plants.csv`: added `oyster_mushroom`,
+   `shiitake`, `button_mushroom` -- backs the `mushroom_rack`'s kcal claim
+   with real crop ids (only alien fungi existed before).
+2. **DONE (v0.657.0).** `data/creatures.csv`: added `tilapia` and
+   `channel_catfish` -- backs the aquaponic tank's B12/omega-3 closure
+   claim with a real freshwater tank species. Note: `creatures.csv` has no
+   runtime loader at all yet, so this is honest content-gap closure, not a
+   mechanically-computed claim (still string-based in the machine
+   catalog, same as before).
+3. **DEFERRED (not started).** `data/plants.csv` calorie columns (or a new
    `data/food/crop_nutrition.ron` mapping) -- today per-machine kcal are
    hardcoded STRINGS in the machine catalog ("+120 kcal/d"), not
    computed from real crop yield data; this is what actually lets a
@@ -176,23 +179,43 @@ exists and just needs plumbing:
   calls into this at all -- wiring it in is what would make streaming real,
   not just less-fake-looking).
 Concrete follow-ups, roughly in order of value/effort:
-1. Real mic meter (swap the static placeholder for `mic_level()`) -- small,
-   self-contained, immediately real.
+1. **DONE (v0.658.0).** Real mic meter: swapped the static `0.4_f32`
+   placeholder for `crate::net::voice::mic_level()` (the same reader the
+   voice-chat mic test uses). Reads 0 unless a mic test or a live voice
+   session is actually capturing -- honest, consistent with the page's
+   existing "rehearsal only" framing, not a fake-but-moving bar.
 2. Program/Preview split -- the single biggest OBS-workflow gap (can't
    stage a scene change before it's "live"). Needs a second canvas/state
    for "what's staged" vs "what's shown," a real design decision on layout,
    not a one-line fix -- scope carefully, this alone could be a full cycle.
+   **STILL OPEN.**
 3. Wire Go Live to actually call `create_stream`/relay stream lifecycle +
    `net::webrtc`/`net::voice` for real transport. This is the "weeks each"
    item `docs/STATUS.md` already tracks -- don't force the WHOLE thing in
    one cycle; land it in verifiable slices (e.g. "camera capture only,
-   local preview, no network yet" before "actually transmits").
-4. Inline help via the already-adopted `help_modal` pattern (`help_button`
-   + new `data/help/topics.json` entries for bitrate/resolution/chat
-   overlay) -- cheap, self-contained, no new pattern to invent.
+   local preview, no network yet" before "actually transmits"). **STILL
+   OPEN.**
+4. **DONE (v0.658.0).** Inline help via the `help_modal` pattern: 3
+   `help_button` calls added (Scenes, Resolution/Bitrate/FPS, Chat
+   Overlay) + matching `data/help/topics.json` entries
+   (`studio-scenes-sources`, `studio-stream-settings`,
+   `studio-chat-overlay`). Notable discovery: the native `help_button`/
+   `draw` plumbing was fully wired at the app level (registry load +
+   modal render loop) but had ZERO real call sites anywhere in the native
+   UI until this -- Studio is the first page to actually use the built
+   help system.
 5. Move the 7 hardcoded source-type fill colors (`studio.rs:312-318`) into
    `theme.ron` as a proper palette; remove `studio.rs` from
    `tests/theme_token_lint.rs::LEGACY_OFFENDERS` once migrated.
+   **STILL OPEN -- scoped out this cycle**: `studio.rs` has 13 total
+   hardcoded `Color32` literals (not just the 7 source-type fills), and
+   the lint's allowlist is per-file, so migrating only 7 wouldn't earn
+   removal from `LEGACY_OFFENDERS` anyway -- doing this properly means
+   all 13 in one pass (7 source-type tokens + AFK-timer purple + meter
+   background + border alpha, etc.), each needing a `theme.ron` token +
+   `theme.rs` accessor + a `theme_editor_coverage`-satisfying settings.rs
+   row. Left for a dedicated pass rather than a partial one that changes
+   nothing checklist-visible.
 
 ## Backlog: Humanity / Governance / Laws / Donate (priority #3)
 

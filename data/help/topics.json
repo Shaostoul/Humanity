@@ -83,6 +83,30 @@
         "Rule of thumb: a handful of friends, use a group. A community that needs 24/7 presence, run a server. You can do both from the same identity. Admins still run groups, servers still have owners, the difference is just where the bits live when you are asleep.",
         "Running your own server is about ten minutes of setup. See the self-hosting guide on GitHub."
       ]
+    },
+    "studio-scenes-sources": {
+      "title": "Scenes and sources",
+      "body": [
+        "A <strong>scene</strong> is a saved arrangement of layers you switch to in one click, like a preset. A <strong>source</strong> is one layer inside a scene: your camera, a game capture, an image, or the chat overlay.",
+        "Build a few scenes ahead of time (\"Starting soon\", \"Gameplay\", \"BRB\") and switch between them live instead of rearranging sources mid-broadcast.",
+        "Studio's scene/source management works today. The broadcast transport itself is still rehearsal-only: Go Live previews and rehearses your layout, it does not yet send video/audio anywhere. See the Go Live tooltip for the current status."
+      ]
+    },
+    "studio-stream-settings": {
+      "title": "Resolution, bitrate, and FPS",
+      "body": [
+        "<strong>Resolution</strong> is the pixel size of your output (e.g. 1920x1080). Higher looks sharper but costs more bitrate and CPU to encode.",
+        "<strong>Bitrate</strong> (kbps) is how much data you send per second of video. Too low and fast motion turns blocky; too high and viewers with slower connections buffer. 3000-6000 kbps is a common range for 1080p.",
+        "<strong>FPS</strong> (frames per second) is motion smoothness. 30 is fine for most content; 60 helps fast gameplay look fluid at the cost of roughly double the bitrate need at the same quality.",
+        "These settings shape what a real broadcast would send once the transport is wired up (see the \"Scenes and sources\" topic for the current rehearsal-only status)."
+      ]
+    },
+    "studio-chat-overlay": {
+      "title": "Chat overlay",
+      "body": [
+        "The chat overlay renders recent messages from a channel directly over your stream, so viewers see the conversation without a separate window.",
+        "<strong>Channel</strong> picks which chat feed to show. <strong>Position</strong>, <strong>opacity</strong>, and <strong>font size</strong> control how it looks over your other sources. <strong>Max messages</strong> caps how many recent lines are kept on screen at once so old chat does not pile up."
+      ]
     }
   }
 }
