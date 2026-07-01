@@ -768,7 +768,7 @@ Scaffolded system modules for expanded gameplay.
 
 ## Game Systems
 
-> **⚠️ Registration status (2026-05-29 game-code audit):** only **7** of the systems below are actually registered + tick in the runtime, Player Controller, Interaction, Day/Night, Farming, Inventory, Crafting (+ ContainerCompatibility, not separately listed here). Every other system in this section is **implemented but NOT registered**, so it never ticks. `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative list (the build fails if a system is neither registered nor deferred-with-reason); `docs/STATUS.md` has the per-system status.
+> **Registration status (corrected 2026-07-01, overnight loop; the 2026-05-29 "only 7" count below was stale):** **16** systems are actually registered + tick in the runtime (`src/lib.rs`, grep `system_runner.register`): Time/Day-Night, Weather, Solar, Electrical, Plumbing, Atmosphere, Player Controller, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Food, Drone, Skills, Quests. Every other system in this section below is **implemented but NOT registered**, so it never ticks -- and IS still accurate for those (Construction, AI native, Vehicles, Combat, Economy, Ecology, Hydrology, Disaster, Psychology, and the scaffold-tier systems). `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative live list (the build fails if a system is neither registered nor deferred-with-reason) -- always cross-check THAT before trusting any per-system note below, since these notes silently go stale as systems get registered over time (this correction found and fixed 4 stale ones: Weather, Atmosphere, Skills, Quests). `docs/STATUS.md` has the per-system status.
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
@@ -783,7 +783,7 @@ GameTime with seasons, sun direction/color computation. 20 real minutes = 1 game
 - Native: `src/systems/time.rs`
 
 ### Weather System
-7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **⚠️ NOT registered, never ticks (see the lint).**
+7 conditions (clear, cloudy, rain, storm, snow, fog, sandstorm). Seasonal transitions. **Registered, ticks live** (`WeatherSystem` is NOT in `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01 during the overnight loop's registration-status sweep).
 - Native: `src/systems/weather.rs`
 
 ### Hydrological System
@@ -791,7 +791,7 @@ Rain cycle, rivers, aquifers, contamination tracking, water table simulation. **
 - Native: `src/systems/hydrology.rs`
 
 ### Atmospheric System
-Gas tracking, explosions, suffocation, pressure simulation. **⚠️ NOT registered, never ticks (see the lint).**
+Gas tracking, explosions, suffocation, pressure simulation. **Registered (v0.617), ticks the home's sealed EnclosedSpace + publishes live AirStatus** (`AtmosphereSystem` is NOT in `DEFERRED_SYSTEMS` -- the lint's own comment there notes it was removed at v0.617; this "NOT registered" note was stale, corrected 2026-07-01).
 - Native: `src/systems/atmosphere.rs`
 
 ### Disaster System
@@ -817,7 +817,7 @@ Blueprint placement, snap-to-grid, timed building, material consumption. **⚠�
 - Data: `data/blueprints/basic.ron`
 
 ### Skills/Progression
-20 skills across 5 categories, XP curves, level-up notifications. **⚠️ NOT registered, never ticks (see the lint).**
+20 skills across 5 categories, XP curves, level-up notifications. **Registered, ticks live** (`SkillSystem` is NOT in `DEFERRED_SYSTEMS` -- this "NOT registered" note was stale, corrected 2026-07-01). Note: `src/systems/skills/learning.rs`'s `Skill`/`add_practice` is a SEPARATE, unused struct with its own unresolved TODO (learning-curve level thresholds) -- it has zero callers anywhere in the tree and is not what the live, registered `SkillSystem` actually uses; treat it as dead/superseded code, not a gap in the live skill system.
 - Native: `src/systems/skills/mod.rs`
 - Data: `data/skills/skills.csv`
 
@@ -834,7 +834,7 @@ Disease spread by proximity, seasonal effects, population tracking. **⚠️ NOT
 - Native: `src/systems/ecology.rs`
 
 ### Quests
-Data-driven quest progression from RON files. 6 objective types. **⚠️ Native `QuestSystem` NOT registered, never ticks. (The relay runs the authoritative quest chain, so quests work in multiplayer; the native single-player system does not.) See the lint.**
+Data-driven quest progression from RON files. 6 objective types. **Registered, ticks live in native single-player too** (`QuestSystem` is NOT in `DEFERRED_SYSTEMS`; this "NOT registered, native single-player doesn't work" note was stale, corrected 2026-07-01. The relay separately runs the authoritative quest chain for multiplayer -- that part remains accurate.)
 - Native: `src/systems/quests/mod.rs`
 - Data: `data/quests/*.ron`
 

@@ -272,9 +272,24 @@ self-contained scope first; skip ones that need a larger design decision
 - `src/systems/navigation/orbital.rs:27` -- Kepler's equation solve, a
   well-defined self-contained math problem (real orbital mechanics --
   don't approximate, there's real reference material for this).
-- `src/renderer/sky.rs:63` -- wire sun direction to `renderer.set_sun_light()`
-  -- likely small given `set_sun_light` already exists and is used
-  elsewhere (mothership home lighting from tonight's spotlight-cone work).
+- **RECLASSIFIED to open_questions_for_human (cycle 6)** -- `src/renderer/sky.rs:63`
+  turned out NOT to be small. Investigation found `SkyRenderer` is entirely
+  DEAD CODE (grepped the whole tree: zero references outside sky.rs itself
+  -- never instantiated, never ticked, nothing reads its sky_color/
+  ambient_light/fog_color/sun_intensity). The mothership's actual sun
+  lighting (`src/lib.rs`, both the celestial pass AND the interior
+  `lit_uniform` injection) is ALREADY driven by the real astronomically-
+  computed Earth-Sun vector, not a simplified day/night-hour formula --
+  and that's arguably the more correct choice for a ship in real orbit.
+  `Weather`/`WeatherCondition` (the type `SkyRenderer::update` consumes) IS
+  a live system used elsewhere (`src/systems/hydrology.rs`, `src/gui/mod.rs`,
+  `src/lib.rs`), so this isn't fully vestigial -- but whether `SkyRenderer`
+  still has a coherent role (a ground/planet-surface exploration mode with
+  an actual visible sky, distinct from the mothership interior?) is a real
+  product question, not a wiring task. Logged as an open question rather
+  than guessing at scope or force-wiring something that might conflict
+  with the already-working astronomical sun. See
+  `open_questions_for_human` in `data/coordination/orchestrator_state.json`.
 - Larger/riskier, defer or log as a question rather than guessing at scope:
   `src/physics/fluid.rs`, `src/systems/ai/autonomy.rs`,
   `src/systems/construction/{blueprint,csg}.rs`, `src/systems/logistics/mod.rs`,
