@@ -239,12 +239,26 @@
             label: "Smelter",
             category: "Production",
             stats: [(kind: "heat", value: "1200 C", status: "ok"), (kind: "power", value: "-1.0 kWh/d", status: "warn")],
+            // Economy automation (v0.663): ore in the home stock auto-refines into
+            // ingots (2x iron_ore_0 + 1x coal_0 -> iron_ingot_0, 10s per batch) with
+            // no craft click -- the mining drone's deliveries feed straight in.
+            auto_recipe: Some("smelt_iron"),
         ),
         "forge": (
             shape: "box", size: (0.65, 0.75, 0.65), color: (0.50, 0.25, 0.16),
             label: "Forge",
             category: "Production",
             stats: [(kind: "heat", value: "900 C", status: "ok"), (kind: "power", value: "idle", status: "off")],
+        ),
+        "workbench": (
+            shape: "box", size: (1.2, 0.9, 0.6), color: (0.45, 0.35, 0.22),
+            label: "Workbench",
+            category: "Production",
+            stats: [(kind: "progress", value: "auto-crafting", status: "ok")],
+            // Economy automation (v0.663): the smelter's ingots + wood planks in the
+            // home stock auto-craft into hammers -- the last link of the drone -> ore
+            // -> ingot -> tool chain, running with zero player interaction.
+            auto_recipe: Some("craft_hammer"),
         ),
         "fuel_refinery": (
             shape: "cylinder", size: (0.45, 1.1, 0.45), color: (0.50, 0.46, 0.20),
@@ -349,6 +363,7 @@
         // ── Study: fabrication + the home network ──
         (id: "smelter_1", machine: "smelter", room: "study", offset: (39.6, 0.0, 24.6)),
         (id: "forge_1", machine: "forge", room: "study", offset: (41.2, 0.0, 24.6)),
+        (id: "workbench_1", machine: "workbench", room: "study", offset: (39.6, 0.0, 23.0)),
         (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (43.2, 0.0, 24.6)),
         (id: "uplink_1", machine: "network_uplink", room: "study", offset: (39.0, 0.0, 22.6)),
         (id: "server_1", machine: "home_server", room: "study", offset: (40.0, 0.0, 22.6)),

@@ -336,6 +336,12 @@ pub struct ActiveCraft {
     pub time_remaining: f32,
     /// Entity performing the craft.
     pub crafter: hecs::Entity,
+    /// True for an AutoRefine MACHINE batch (v0.663): outputs always land in the
+    /// HOME (player) inventory, keyed by this flag rather than a lookup on the
+    /// crafter entity -- the machine may legitimately be despawned mid-batch
+    /// (load_world despawns + respawns every HomeMachine), and the batch's
+    /// already-consumed inputs must still come back as outputs.
+    pub auto: bool,
 }
 
 /// Request to start crafting — queued for the system to validate and begin.
@@ -381,6 +387,41 @@ impl CraftingSystem {
         for (item_id, qty) in &recipe.inputs {
             inventory.remove_item(item_id, *qty);
         }
+    }
+
+    /// Would the recipe's outputs land WITHOUT overflow-loss? Conservative slot
+    /// math (existing same-item stack headroom first, then free slots). Used by
+    /// the AutoRefine arm so automation never grinds inputs into discarded
+    /// outputs when the home inventory is full (adversarial review 2026-07-01);
+    /// manual crafting keeps its existing lossy-with-warning behavior since a
+    /// human sees the warning and made the click.
+    fn outputs_fit(
+        inventory: &Inventory,
+        recipe: &Recipe,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+    ) -> bool {
+        let mut free_slots = inventory.slots.iter().filter(|s| s.is_none()).count() as u32;
+        for (item_id, qty) in &recipe.outputs {
+            let max_stack = item_registry.map(|r| r.max_stack_for(item_id)).unwrap_or(99);
+            let headroom: u32 = inventory
+                .slots
+                .iter()
+                .flatten()
+                .filter(|s| s.item_id == *item_id)
+                .map(|s| s.max_stack.min(max_stack).saturating_sub(s.quantity))
+                .sum();
+            if headroom >= *qty {
+                continue;
+            }
+            let remaining = *qty - headroom;
+            let per_slot = max_stack.max(1);
+            let slots_needed = remaining.div_ceil(per_slot);
+            if slots_needed > free_slots {
+                return false;
+            }
+            free_slots -= slots_needed;
+        }
+        true
     }
 
     /// Produce recipe outputs into inventory.
@@ -529,6 +570,71 @@ impl System for CraftingSystem {
             self.request_craft(recipe_id, entity);
         }
 
+        // ── AutoRefine machines (economy automation Phase 1, v0.663) ──
+        // Each home machine carrying an AutoRefine marker (smelter -> smelt_iron,
+        // workbench -> craft_hammer; data-driven from home.ron's `auto_recipe`)
+        // continuously runs its recipe against the HOME (player) inventory: when
+        // the inputs are in stock and the machine has no craft already in flight,
+        // consume the inputs now and queue a timed craft whose `crafter` is the
+        // MACHINE entity (so multiple machines run concurrently); completion
+        // redirects the outputs back into the home inventory (`auto` flag).
+        // Deliberately bypasses the skill gate -- owning the machine IS the
+        // unlock; the machine does the work, not the player's hands.
+        //
+        // Adversarial-review hardening (2026-07-01):
+        // - Automation ALWAYS requires + consumes REAL inputs, even in creative
+        //   mode. Creative's free-craft bypass is a per-click manual convenience;
+        //   applied here it turned every auto machine into an unbounded item
+        //   printer running from the main menu (flooding the persisted inventory
+        //   and auto-firing XP/quest events). Automation exists to demonstrate
+        //   material FLOW, so it uses real materials unconditionally.
+        // - Each start re-validates against the NOW-current inventory right
+        //   before consuming: without this, two machines sharing an input both
+        //   passed the same pre-consumption snapshot and duplicated outputs from
+        //   one batch of stock (consume_inputs ignores deficits).
+        // - A batch only starts when its OUTPUTS also fit (`outputs_fit`):
+        //   otherwise a full inventory became an unattended grinder, consuming
+        //   inputs forever and overflow-discarding every output.
+        if let (Some(recipes), Some(player_e)) = (recipe_registry, player) {
+            let mut auto_starts: Vec<(hecs::Entity, String)> = Vec::new();
+            for (machine, auto) in world
+                .query::<&crate::ecs::components::AutoRefine>()
+                .iter()
+            {
+                if self.active_crafts.iter().any(|c| c.crafter == machine) {
+                    continue; // this machine is mid-batch
+                }
+                if recipes.recipes.contains_key(&auto.recipe_id) {
+                    auto_starts.push((machine, auto.recipe_id.clone()));
+                }
+            }
+            for (machine, recipe_id) in auto_starts {
+                let recipe = recipes.recipes.get(&recipe_id).cloned();
+                let Some(recipe) = recipe else { continue };
+                // Authoritative check at consume time (not a stale snapshot):
+                // inputs present AND output space available.
+                let ready = match world.get::<&Inventory>(player_e) {
+                    Ok(inv) => {
+                        Self::can_craft(&inv, &recipe)
+                            && Self::outputs_fit(&inv, &recipe, item_registry)
+                    }
+                    Err(_) => false,
+                };
+                if !ready {
+                    continue;
+                }
+                if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
+                    Self::consume_inputs(&mut inv, &recipe);
+                }
+                self.active_crafts.push(ActiveCraft {
+                    recipe_id,
+                    time_remaining: recipe.craft_time.max(0.01),
+                    crafter: machine,
+                    auto: true,
+                });
+            }
+        }
+
         // Process pending craft requests
         if let Some(recipes) = recipe_registry {
             let requests: Vec<_> = self.pending_requests.drain(..).collect();
@@ -592,6 +698,7 @@ impl System for CraftingSystem {
                         recipe_id: recipe.id.clone(),
                         time_remaining: recipe.craft_time,
                         crafter: request.crafter,
+                        auto: false,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -607,10 +714,13 @@ impl System for CraftingSystem {
             }
         }
 
-        // Advance active crafts
+        // Advance active crafts. Timers run on GAME time (v0.663): scaling by the
+        // current time_scale means "accelerated for testing" speeds every craft,
+        // not just the wall clock. Absent game_time (unit tests) = raw dt.
+        let sdt = crate::systems::time::scaled_dt(dt, data);
         let mut completed = Vec::new();
         for (i, craft) in self.active_crafts.iter_mut().enumerate() {
-            craft.time_remaining -= dt;
+            craft.time_remaining -= sdt;
             if craft.time_remaining <= 0.0 {
                 completed.push(i);
             }
@@ -622,15 +732,25 @@ impl System for CraftingSystem {
 
             if let Some(recipes) = recipe_registry {
                 if let Some(recipe) = recipes.recipes.get(&craft.recipe_id) {
-                    if let Ok(mut inv) = world.get::<&mut Inventory>(craft.crafter) {
-                        Self::produce_outputs(&mut inv, recipe, item_registry);
-                        Self::on_craft_complete(data, recipe);
-                        log::debug!("Craft complete: {}", recipe.id);
-                    } else {
-                        log::warn!(
-                            "Craft complete but entity lost Inventory: {}",
-                            craft.recipe_id
-                        );
+                    // AutoRefine crafts carry the MACHINE as crafter (for
+                    // per-machine concurrency) but their outputs land in the
+                    // HOME inventory the inputs came from -- keyed on the
+                    // `auto` FLAG, not a lookup on the crafter entity, because
+                    // the machine may have been despawned mid-batch (load_world
+                    // respawns every HomeMachine); the batch's consumed inputs
+                    // must still come back as outputs (v0.663 review fix).
+                    let target = if craft.auto { player } else { Some(craft.crafter) };
+                    if let Some(target) = target {
+                        if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
+                            Self::produce_outputs(&mut inv, recipe, item_registry);
+                            Self::on_craft_complete(data, recipe);
+                            log::debug!("Craft complete: {}", recipe.id);
+                        } else {
+                            log::warn!(
+                                "Craft complete but entity lost Inventory: {}",
+                                craft.recipe_id
+                            );
+                        }
                     }
                 }
             }
@@ -816,5 +936,242 @@ mod skill_xp_tests {
             assert_eq!(inv.count_item("iron_ingot_0"), 1, "at-level craft succeeds");
             assert_eq!(inv.count_item("iron_ore_0"), 1, "the craft consumed one ore");
         }
+    }
+}
+
+#[cfg(test)]
+mod auto_refine_tests {
+    use super::*;
+    use crate::ecs::components::{AutoRefine, Controllable};
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+
+    fn real_data() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert(
+            "recipe_registry",
+            RecipeRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/recipes.csv"
+            )))
+            .expect("recipes.csv"),
+        );
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/items.csv"
+            )))
+            .expect("items.csv"),
+        );
+        data
+    }
+
+    /// Economy automation Phase 1 (v0.663): a smelter machine with an AutoRefine
+    /// marker refines ore sitting in the HOME inventory into ingots with ZERO
+    /// craft clicks -- inputs consumed, timed batch, output back into the home
+    /// stock. No skill gate: owning the machine is the unlock.
+    #[test]
+    fn auto_refine_smelts_home_stock_without_a_craft_click() {
+        let data = real_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 20);
+        inv.add_item("coal_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..12 {
+            sys.tick(&mut world, 1.0, &data); // smelt_iron is a 10s recipe
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert!(inv.has_item("iron_ingot_0", 1), "ore auto-refined into an ingot");
+        assert_eq!(inv.count_item("iron_ore_0"), 0, "inputs were consumed");
+        assert_eq!(inv.count_item("coal_0"), 0, "coal was consumed");
+    }
+
+    /// THE LIVING-ECOSYSTEM CHAIN (operator vision, 2026-07-01): commission ONE
+    /// mining drone and then touch nothing -- the drone mines + delivers iron ore
+    /// to the home stock, the smelter auto-refines it into an ingot, and the
+    /// workbench auto-crafts the ingot + a wood plank into a hammer. Raw rock in
+    /// space becomes a tool on the shelf with zero further interaction.
+    #[test]
+    fn full_chain_drone_ore_becomes_a_hammer_untouched() {
+        use crate::ecs::components::AsteroidBody;
+
+        let mut data = real_data();
+        data.insert(
+            "commission_drone",
+            std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
+        );
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        // The home already holds the auxiliary inputs; the IRON comes from space.
+        inv.add_item("coal_0", 1, 99);
+        inv.add_item("wood_plank_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AsteroidBody {
+            id: "rock".to_string(),
+            name: "rock".to_string(),
+            classification: "M".into(),
+            ores: [("iron_ore_0".to_string(), 2.0)].into_iter().collect(),
+            position: [0.0, 0.0, 0.0],
+        },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string() },));
+
+        // The ONLY player action in this test: commission the drone.
+        *data
+            .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("commission_drone")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("rock".to_string(), vec![("iron_ore_0".to_string(), 2)]));
+
+        let mut drones = crate::systems::mining::DroneSystem::new();
+        let mut crafting = CraftingSystem::new();
+        for _ in 0..60 {
+            drones.tick(&mut world, 1.0, &data);
+            crafting.tick(&mut world, 1.0, &data);
+        }
+
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert!(
+            inv.has_item("hammer_0", 1),
+            "drone ore should have become a hammer with zero interaction (have: ingots={}, ore={})",
+            inv.count_item("iron_ingot_0"),
+            inv.count_item("iron_ore_0"),
+        );
+    }
+
+    /// Review fix (2026-07-01): creative mode must NOT turn auto machines into
+    /// item printers -- automation always requires real inputs, so an empty
+    /// home stock produces nothing even with creative_mode on (which is the
+    /// app's default and used to mint hammers from the main menu forever).
+    #[test]
+    fn creative_mode_does_not_let_machines_print_items() {
+        let mut data = real_data();
+        data.insert("creative_mode", std::sync::Mutex::new(true));
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable)); // EMPTY stock
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "craft_hammer".to_string() },));
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..30 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("iron_ingot_0"), 0, "no inputs = no ingots, even creative");
+        assert_eq!(inv.count_item("hammer_0"), 0, "no inputs = no hammers, even creative");
+    }
+
+    /// Review fix (2026-07-01): two machines sharing recipe inputs must not
+    /// both start from ONE batch of stock (the same-tick TOCTOU that minted 2
+    /// ingots from 2 ore + 1 coal). Exactly one batch's output may appear.
+    #[test]
+    fn two_machines_sharing_inputs_cannot_duplicate() {
+        let data = real_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 20);
+        inv.add_item("coal_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },)); // second smelter
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..25 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(
+            inv.count_item("iron_ingot_0"),
+            1,
+            "one batch of inputs must yield exactly one ingot, never two"
+        );
+    }
+
+    /// Review fix (2026-07-01): a machine despawned mid-batch (load_world
+    /// respawns every HomeMachine on Enter World) must not destroy the batch --
+    /// the consumed inputs still come back as outputs into the home inventory.
+    #[test]
+    fn machine_despawned_mid_batch_still_delivers_to_home() {
+        let data = real_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 20);
+        inv.add_item("coal_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        let smelter = world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data); // batch starts (inputs consumed)
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.count_item("iron_ore_0"), 0, "batch consumed the ore");
+        }
+        world.despawn(smelter).unwrap(); // the world-reload despawn
+        for _ in 0..12 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(
+            inv.count_item("iron_ingot_0"),
+            1,
+            "the in-flight batch must complete into the home inventory, not vanish"
+        );
+    }
+
+    /// Review fix (2026-07-01): a FULL home inventory must stop batches from
+    /// starting at all (no input consumption), instead of grinding the whole
+    /// stock into overflow-discarded outputs.
+    #[test]
+    fn full_inventory_blocks_batch_start_without_consuming() {
+        let data = real_data();
+        let mut world = hecs::World::new();
+        // 2 slots only: ore stack + coal stack -- zero room for an ingot.
+        let mut inv = Inventory::new(2);
+        inv.add_item("iron_ore_0", 4, 20);
+        inv.add_item("coal_0", 2, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..25 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("iron_ore_0"), 4, "inputs untouched while outputs cannot fit");
+        assert_eq!(inv.count_item("coal_0"), 2, "coal untouched while outputs cannot fit");
+        assert_eq!(inv.count_item("iron_ingot_0"), 0);
+    }
+
+    /// Craft timers run on GAME time (v0.663): at time_scale 10 a 10s recipe
+    /// completes in ~1s of real dt; at scale 1 it takes the full 10s.
+    #[test]
+    fn craft_timers_respect_time_scale() {
+        let mut data = real_data();
+        let mut gt = crate::systems::time::GameTime::default();
+        gt.time_scale = 10.0;
+        data.insert("game_time", std::sync::Mutex::new(gt));
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("iron_ore_0", 2, 20);
+        inv.add_item("coal_0", 1, 99);
+        let player = world.spawn((inv, Controllable));
+        world.spawn((AutoRefine { recipe_id: "smelt_iron".to_string() },));
+
+        let mut sys = CraftingSystem::new();
+        // 3 ticks of 1s at 10x = 30 scaled seconds; the 10s smelt must be done.
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert!(
+            inv.has_item("iron_ingot_0", 1),
+            "at 10x time scale the 10s smelt completes within 3 real seconds"
+        );
     }
 }

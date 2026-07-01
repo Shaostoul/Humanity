@@ -893,6 +893,31 @@ Damage calculation, status effects. **⚠️ `CombatSystem` NOT registered, neve
 Fleet resource management. **⚠️ `EconomySystem` NOT registered, never ticks (see the lint).**
 - Native: `src/systems/economy/`
 
+### Economy Automation Phase 1: the living production chain (v0.663)
+The operator's living-ecosystem loop, running with ZERO player interaction after one
+click: commission a mining drone (with "Keep mining" checked) and raw asteroid ore
+becomes finished tools on its own. Three pieces:
+- **AutoRefine machines** (`data/machines/home.ron` `auto_recipe` -> `AutoRefine` ECS
+  component): a machine continuously runs one recipe against the HOME inventory
+  whenever the inputs are in stock -- the smelter auto-runs `smelt_iron` (drone ore +
+  coal -> ingots), the NEW workbench machine auto-runs `craft_hammer` (ingot + plank
+  -> hammer). Inputs consumed from home stock, timed batch per machine (machines run
+  concurrently), outputs land back in home stock. Deliberately no skill gate: owning
+  the machine is the unlock. Data-driven -- any machine gains auto production by
+  adding `auto_recipe` in the RON, no code.
+- **Drone standing orders**: the Mining panel's "Keep mining" checkbox turns a
+  commission into a standing order (`auto_mine_order`); the drone re-launches the
+  same trip after every delivery until the asteroid depletes (which removes the
+  target and ends the loop naturally) or the box is unchecked.
+- **Game-time economy clocks** (`systems::time::scaled_dt`): craft timers, drone
+  phase timers, and manufacturing progress all scale with `time_scale`, so
+  "accelerated for testing" speeds the whole economy, not just the wall clock
+  (previously they all ran on raw frame dt and ignored the time scale).
+Locked by 5 new tests, incl. `full_chain_drone_ore_becomes_a_hammer_untouched`: one
+drone commission -> ore -> auto-smelted ingot -> auto-crafted hammer, untouched.
+- Native: `src/systems/crafting/mod.rs` (AutoRefine arm + completion redirect), `src/systems/mining.rs` (standing order), `src/systems/time.rs` (`scaled_dt`), `src/systems/manufacturing.rs`, `src/ecs/components.rs` (`AutoRefine`), `src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
+- Data: `data/machines/home.ron` (smelter `auto_recipe` + the new workbench machine)
+
 ### Navigation
 Multi-scale navigation (galaxy, system, orbital, surface). **⚠️ Support module, not wired into the runtime.**
 - Native: `src/systems/navigation/`

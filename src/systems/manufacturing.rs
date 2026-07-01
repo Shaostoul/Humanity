@@ -64,9 +64,11 @@ impl ManufacturingSystem {
 impl System for ManufacturingSystem {
     fn name(&self) -> &str { "ManufacturingSystem" }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         if dt <= 0.0 { return; }
-        let day_fraction = dt / REAL_SECONDS_PER_GAME_DAY;
+        // Production timers run on GAME time (v0.663): "accelerated for testing"
+        // speeds facilities too. Absent game_time (unit tests) = raw dt.
+        let day_fraction = crate::systems::time::scaled_dt(dt, data) / REAL_SECONDS_PER_GAME_DAY;
 
         let mut completions: Vec<(hecs::Entity, String, u32)> = Vec::new();
 

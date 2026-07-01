@@ -133,6 +133,20 @@ impl TimeSystem {
     }
 }
 
+/// `dt` scaled by the CURRENT game `time_scale`, read from the DataStore's
+/// `game_time` slot (TimeSystem registers first and exports it every frame, so
+/// downstream systems see this frame's value). Timer-based economy systems
+/// (crafting, drones, manufacturing) call this so "accelerated for testing"
+/// speeds the WHOLE economy, not just the wall clock (v0.663 -- previously
+/// those systems ran on raw dt and ignored the time scale entirely). Do NOT
+/// pre-multiply dt at the SystemRunner call site instead: TimeSystem scales
+/// internally and would double-scale. Absent slot (unit tests) = raw dt.
+pub fn scaled_dt(dt: f32, data: &DataStore) -> f32 {
+    data.get::<std::sync::Mutex<GameTime>>("game_time")
+        .and_then(|m| m.lock().ok().map(|g| dt * g.time_scale))
+        .unwrap_or(dt)
+}
+
 impl System for TimeSystem {
     fn name(&self) -> &str {
         "TimeSystem"
@@ -248,6 +262,25 @@ mod game_time_export_tests {
         let mut sys = TimeSystem::new();
         sys.tick(&mut world, 1.0, &data);
         assert!(sys.game_time().elapsed_seconds > 0.0);
+    }
+}
+
+#[cfg(test)]
+mod scaled_dt_tests {
+    use super::*;
+
+    /// scaled_dt multiplies by the exported time_scale, and falls back to raw dt
+    /// when no game_time slot exists (unit tests / headless contexts).
+    #[test]
+    fn scaled_dt_tracks_time_scale_and_defaults_to_raw() {
+        let empty = DataStore::new();
+        assert_eq!(scaled_dt(1.0, &empty), 1.0, "no slot = raw dt");
+
+        let mut data = DataStore::new();
+        let mut gt = GameTime::default();
+        gt.time_scale = 5.0;
+        data.insert("game_time", std::sync::Mutex::new(gt));
+        assert!((scaled_dt(2.0, &data) - 10.0).abs() < 1e-6, "dt x time_scale");
     }
 }
 

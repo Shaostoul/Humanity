@@ -115,16 +115,67 @@ impl System for DroneSystem {
                     }
                     (None, _) => {
                         log::info!("[Mining] target asteroid '{target}' not found; not launching");
+                        // A standing order aimed at a now-gone asteroid (mined
+                        // out and deleted) would refire this dead commission
+                        // every trip forever -- end the loop here (v0.663).
+                        if let Some(slot) = data
+                            .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>(
+                                "auto_mine_order",
+                            )
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                if s.as_ref().map_or(false, |(t, _)| *t == target) {
+                                    log::info!(
+                                        "[Mining] standing order for '{target}' ended (target gone)"
+                                    );
+                                    *s = None;
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
             }
         }
 
+        // ── STANDING ORDER refire (economy automation Phase 1, v0.663): while a
+        //    standing order exists and NOTHING is flying or queued, re-commission
+        //    it. Living at tick level (not inside the Deliver arm) makes the loop
+        //    self-healing: it resumes after a world reload that despawned an
+        //    in-flight drone, not just after a clean delivery. Runs AFTER the
+        //    drain above, so it takes effect next tick (no same-tick relaunch).
+        {
+            let any_drone = world.query::<&Drone>().iter().next().is_some();
+            if !any_drone {
+                let standing: Option<(String, Vec<(String, u32)>)> = data
+                    .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>(
+                        "auto_mine_order",
+                    )
+                    .and_then(|m| m.lock().ok().and_then(|s| s.clone()));
+                if let Some(order) = standing {
+                    if let Some(slot) = data
+                        .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>(
+                            "commission_drone",
+                        )
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            if s.is_none() {
+                                log::info!("[Mining] standing order: re-commissioning {}", order.0);
+                                *s = Some(order);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── ADVANCE: tick each drone's phase machine, recording cross-entity intents.
+        // Phase timers run on GAME time (v0.663): accelerated testing speeds the
+        // trips too, not just the clock. Absent game_time (unit tests) = raw dt.
+        let sdt = crate::systems::time::scaled_dt(dt, data);
         let mut intents: Vec<DroneIntent> = Vec::new();
         for (entity, drone) in world.query_mut::<&mut Drone>() {
-            drone.phase_time += dt;
+            drone.phase_time += sdt;
             let dur = drone.phase_duration(drone.phase);
             match drone.phase {
                 DronePhase::Outbound if drone.phase_time >= dur => {
@@ -203,6 +254,8 @@ impl System for DroneSystem {
                         }
                     }
                     let _ = world.despawn(drone);
+                    // (Standing-order relaunch happens at TICK level above, not
+                    // here -- see the refire block after the commission drain.)
                 }
             }
         }
@@ -283,6 +336,118 @@ mod drone_tests {
         assert!(iron >= 8, "manifest ore delivered (got {iron})");
         assert_eq!(world.query::<&Drone>().iter().count(), 0, "completed drone despawned");
         assert!(world.get::<&AsteroidBody>(ast).is_err(), "depleted asteroid removed");
+    }
+
+    /// Standing order (economy automation Phase 1, v0.663): with an auto_mine_order
+    /// set, the Deliver arm re-commissions the SAME trip after each haul -- the
+    /// drone keeps cycling until the asteroid depletes, with zero further clicks.
+    #[test]
+    fn standing_order_relaunches_the_drone_after_delivery() {
+        let mut data = make_store();
+        data.insert(
+            "auto_mine_order",
+            std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
+        );
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        // Big enough that the asteroid cannot deplete during the test window --
+        // depletion legitimately ENDS the standing-order loop (target removed),
+        // which is its own designed exit, not what this test measures.
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 100.0)]),));
+
+        commission(&data, "rock", vec![("iron_ore_0", 8)]);
+        // The standing order mirrors the commissioned trip ("Keep mining" checked).
+        *data
+            .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("rock".to_string(), vec![("iron_ore_0".to_string(), 8)]));
+
+        // First full trip (launch + fly + mine + return + deliver)...
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let after_first = world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0");
+        assert!(after_first >= 8, "first haul delivered (got {after_first})");
+
+        // ...and WITHOUT any new commission, a second trip runs on the standing order.
+        for _ in 0..25 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let after_second = world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0");
+        assert!(
+            after_second > after_first,
+            "standing order should have relaunched and delivered a second haul \
+             ({after_first} -> {after_second})"
+        );
+    }
+
+    /// Review fix (2026-07-01): the standing-order refire lives at TICK level, so
+    /// auto-mining resumes even when the in-flight drone was lost without a
+    /// delivery (a world reload despawns drones) -- a standing order + no drone +
+    /// no commission must relaunch by itself.
+    #[test]
+    fn standing_order_resumes_after_drone_loss() {
+        let mut data = make_store();
+        data.insert(
+            "auto_mine_order",
+            std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::Some((
+                "rock".to_string(),
+                vec![("iron_ore_0".to_string(), 4u32)],
+            ))),
+        );
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        let player = world.spawn((Inventory::new(16), Controllable));
+        world.spawn((asteroid("rock", vec![("iron_ore_0", 40.0)]),));
+
+        // NO commission was ever written -- the refire alone must launch.
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(
+            world.query::<&Drone>().iter().count(),
+            1,
+            "the standing order alone relaunches a lost trip"
+        );
+        // And it delivers like any trip.
+        for _ in 0..20 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let iron = world.get::<&Inventory>(player).unwrap().count_item("iron_ore_0");
+        assert!(iron >= 4, "refired trip delivered (got {iron})");
+    }
+
+    /// Review fix (2026-07-01): when the standing order's target asteroid no
+    /// longer exists (mined out and deleted), the order is CLEARED instead of
+    /// refiring a dead commission every trip forever.
+    #[test]
+    fn depleted_target_ends_the_standing_order() {
+        let mut data = make_store();
+        data.insert(
+            "auto_mine_order",
+            std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::Some((
+                "gone".to_string(),
+                vec![("iron_ore_0".to_string(), 4u32)],
+            ))),
+        );
+        let mut sys = DroneSystem::new();
+        let mut world = hecs::World::new();
+        world.spawn((Inventory::new(16), Controllable));
+        // No asteroid named "gone" exists.
+
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let order = data
+            .get::<std::sync::Mutex<Option<(String, Vec<(String, u32)>)>>>("auto_mine_order")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(order.is_none(), "a standing order aimed at a gone target must end");
+        assert_eq!(world.query::<&Drone>().iter().count(), 0, "nothing launched");
     }
 
     /// Loot is BOUNDED by the target asteroid's stock: requesting more than it holds

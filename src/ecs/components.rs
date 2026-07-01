@@ -596,6 +596,21 @@ pub struct Battery {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct HomeMachine;
 
+/// A home machine that CONTINUOUSLY runs one recipe against the HOME inventory
+/// (economy automation Phase 1, v0.663): whenever the recipe's inputs are
+/// present in the player/home stock and this machine has no craft already in
+/// flight, `CraftingSystem` consumes the inputs and queues a timed craft whose
+/// outputs land back in the home stock. Data-driven: spawned when a machine def
+/// in `data/machines/*.ron` carries `auto_recipe` (e.g. the smelter auto-runs
+/// `smelt_iron`, the workbench `craft_hammer`). Deliberately NOT gated on the
+/// player's skill level: owning the machine is the unlock -- the machine does
+/// the work, not the player's hands.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoRefine {
+    /// Recipe id from `data/recipes.csv` this machine keeps running.
+    pub recipe_id: String,
+}
+
 /// The electrical ISLAND (connected power component) a power entity belongs to (v0.607). Attached to
 /// every spawned generator/consumer/battery from `MachineHome::electrical_islands`, so the
 /// `ElectricalSystem` balances + sheds PER ISLAND instead of summing the whole world -- power flows

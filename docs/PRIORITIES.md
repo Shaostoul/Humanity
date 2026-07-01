@@ -11,6 +11,30 @@
 
 ## Active focus
 
+> **>>> AFTERNOON LOOP continued (2026-07-01 evening, Fable 5): four more
+> releases shipped, each adversarially reviewed pre-commit where substantive.
+> v0.657.0 homestead gaps #1-2 (edible mushrooms in plants.csv, tilapia/
+> catfish in creatures.csv). v0.658.0 Studio real mic meter
+> (net::voice::mic_level) + FIRST-EVER help_modal adoption (3 topics; the
+> native help plumbing had zero call sites until now). v0.659.0 Donate page
+> fetches the connected server's REAL funding info (was native-blind,
+> web-only); review caught a money-routing bug pre-commit (stale server-A
+> addresses shown as server-B's) -- fixed + regression-locked; the fake
+> "$350/$1000" progress bar is gone. v0.660.0 native GOVERNANCE GOES LIVE:
+> real proposal feed with weighted tally bars + Dilithium-signed vote_v1/
+> proposal_v1 submission built with the in-crate ObjectBuilder the relay
+> verifies with (7 regression tests incl. relay-storage round-trip);
+> review found + fixed 6 defects incl. cross-server stale-proposal voting.
+> **Next up:** (a) Laws quick wins (surface the loaded-but-unused
+> `categories` as filter chips; BASE/REAL as a real chip), (b) Humanity
+> page visual pass, (c) economy automation Phase 1 (time-scale fix first,
+> then drone auto-relaunch -> auto-smelt -> craft_hammer proof -- the
+> operator's living-ecosystem vision), (d) homestead Phase B gaps #3/#4
+> (crop-calorie bridge, component_outputs.ron) + Phase C (grow-light meter,
+> "what this cannot close" Home panel), (e) NPC task-AI minimal step.
+> Web governance voting = its own tracked item (needs canonical-CBOR JS +
+> KAT). <<<**
+
 > **>>> AFTERNOON LOOP, Phase A of the homestead design SHIPPED (v0.656.1,
 > 2026-07-01): `data/machines/home_solo.ron` -- the one-person self-sufficient
 > homestead from `docs/design/homestead-solo-design.md` (4 solar/2 battery/1

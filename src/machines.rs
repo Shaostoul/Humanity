@@ -91,6 +91,12 @@ pub struct MachineDef {
     /// 0 = a quiet wired/optical device. Spawns an `RfEmitter` ECS component.
     #[serde(default)]
     pub rf_emission: f32,
+    /// Economy automation (v0.663): a recipe id from `data/recipes.csv` this machine runs
+    /// CONTINUOUSLY against the home inventory whenever the inputs are in stock (the smelter
+    /// auto-runs `smelt_iron`, the workbench `craft_hammer`). Spawns an `AutoRefine` ECS
+    /// component; `CraftingSystem` does the rest. None = a machine with no auto production.
+    #[serde(default)]
+    pub auto_recipe: Option<String>,
 }
 
 /// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
@@ -1444,6 +1450,7 @@ mod tests {
             ports: Vec::new(),
             storage: Vec::new(),
             rf_emission: 0.0,
+            auto_recipe: None,
         }
     }
 

@@ -937,6 +937,16 @@ fn mining_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
             }
             ui.add_space(theme.spacing_sm);
+            // Standing order (economy automation, v0.663): with this checked, the
+            // drone re-launches the same trip automatically after every delivery
+            // until the asteroid runs out or the box is unchecked.
+            ui.checkbox(
+                &mut state.auto_mine_enabled,
+                RichText::new("Keep mining (auto-relaunch this trip after each delivery)")
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_xs);
             ui.horizontal(|ui| {
                 let any = draft.iter().any(|(_, u)| *u > 0);
                 ui.add_enabled_ui(any && !drone_active, |ui| {

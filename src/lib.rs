@@ -247,7 +247,12 @@ mod native_app {
             .filter(|p| p.utility == crate::utilities::Utility::Air && p.dir == crate::utilities::PortDir::Out)
             .map(|p| p.flow_lpm)
             .sum();
-        if def.power.is_none() && !is_water && air_out <= 0.0 && def.rf_emission <= 0.0 {
+        if def.power.is_none()
+            && !is_water
+            && air_out <= 0.0
+            && def.rf_emission <= 0.0
+            && def.auto_recipe.is_none()
+        {
             return;
         }
         let e = world.spawn((HomeMachine,));
@@ -322,6 +327,16 @@ mod native_app {
                     strength: def.rf_emission,
                     needs_power: matches!(&def.power, Some(MachinePower::Consumer { .. })),
                 },
+            );
+        }
+        // Economy automation (v0.663): a machine with an `auto_recipe` continuously
+        // runs that recipe against the home inventory (CraftingSystem's AutoRefine
+        // arm). The smelter auto-smelts drone-delivered ore; the workbench turns the
+        // ingots into tools -- the operator's living-ecosystem loop.
+        if let Some(recipe_id) = &def.auto_recipe {
+            let _ = world.insert_one(
+                e,
+                crate::ecs::components::AutoRefine { recipe_id: recipe_id.clone() },
             );
         }
     }
@@ -4864,6 +4879,13 @@ mod native_app {
                 "commission_drone",
                 std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
             );
+            // Mining: STANDING order (economy automation, v0.663). While Some, the
+            // drone's Deliver arm re-commissions the same trip automatically ("Keep
+            // mining" toggle on the Mining panel). Cleared when the toggle goes off.
+            data_store.insert(
+                "auto_mine_order",
+                std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
+            );
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
@@ -6422,8 +6444,24 @@ mod native_app {
                         }
                     }
                     // Mining: bridge a commissioned drone order (target asteroid id +
-                    // manifest) to DroneSystem.
+                    // manifest) to DroneSystem. With "Keep mining" checked, the same
+                    // order also becomes the STANDING order the drone system re-fires
+                    // at tick level (economy automation, v0.663). Unchecking clears
+                    // the standing order; RE-checking re-arms it from the last
+                    // launched order (rising edge), so toggling mid-flight behaves
+                    // exactly as the checkbox reads (review fix).
                     if let Some(order) = state.gui_state.pending_drone_manifest.take() {
+                        state.gui_state.last_drone_order = Some(order.clone());
+                        if state.gui_state.auto_mine_enabled {
+                            if let Some(slot) = state.data_store.get::<std::sync::Mutex<
+                                Option<(String, Vec<(String, u32)>)>,
+                            >>("auto_mine_order")
+                            {
+                                if let Ok(mut s) = slot.lock() {
+                                    *s = Some(order.clone());
+                                }
+                            }
+                        }
                         if let Some(slot) = state.data_store.get::<std::sync::Mutex<
                             Option<(String, Vec<(String, u32)>)>,
                         >>("commission_drone")
@@ -6433,6 +6471,33 @@ mod native_app {
                             }
                         }
                     }
+                    if !state.gui_state.auto_mine_enabled {
+                        if let Some(slot) = state.data_store.get::<std::sync::Mutex<
+                            Option<(String, Vec<(String, u32)>)>,
+                        >>("auto_mine_order")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                if s.is_some() {
+                                    *s = None;
+                                }
+                            }
+                        }
+                    } else if !state.gui_state.prev_auto_mine_enabled {
+                        // Rising edge: re-arm from the last launched order (if any).
+                        if let Some(order) = state.gui_state.last_drone_order.clone() {
+                            if let Some(slot) = state.data_store.get::<std::sync::Mutex<
+                                Option<(String, Vec<(String, u32)>)>,
+                            >>("auto_mine_order")
+                            {
+                                if let Ok(mut s) = slot.lock() {
+                                    if s.is_none() {
+                                        *s = Some(order);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    state.gui_state.prev_auto_mine_enabled = state.gui_state.auto_mine_enabled;
                     // Survival: bridge the Rest button to FoodSystem's rest channel.
                     if state.gui_state.pending_rest {
                         state.gui_state.pending_rest = false;

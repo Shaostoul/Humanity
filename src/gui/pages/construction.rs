@@ -3497,6 +3497,7 @@ mod multi_select_tests {
             ports: Vec::new(),
             storage: Vec::new(),
             rf_emission: 0.0,
+            auto_recipe: None,
         }
     }
 

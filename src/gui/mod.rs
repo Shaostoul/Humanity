@@ -1496,6 +1496,17 @@ pub struct GuiState {
     /// Set the frame the player clicks "Launch drone" → bridged to DroneSystem's
     /// commission channel: `(target asteroid id, manifest)`. One asteroid per run.
     pub pending_drone_manifest: Option<(String, Vec<(String, u32)>)>,
+    /// "Keep mining" (economy automation, v0.663): while true, a launched drone
+    /// order becomes a STANDING order that auto-relaunches the same trip each
+    /// time a haul is delivered, until the asteroid depletes or this goes false.
+    pub auto_mine_enabled: bool,
+    /// The most recently launched drone order, kept so RE-CHECKING "Keep mining"
+    /// mid-flight (after having unchecked it) can re-arm the standing order --
+    /// the checkbox otherwise only took effect at launch time (review fix).
+    pub last_drone_order: Option<(String, Vec<(String, u32)>)>,
+    /// Previous frame's `auto_mine_enabled`, for rising-edge detection in the
+    /// lib.rs bridge.
+    pub prev_auto_mine_enabled: bool,
     /// True while a drone is in flight (synced) — one drone per player, so the panel
     /// shows the active drone instead of the builder + disables Launch.
     pub drone_active: bool,
@@ -2834,6 +2845,9 @@ impl Default for GuiState {
             dev_grow_crops: false,
             crops: Vec::new(),
             pending_drone_manifest: None,
+            auto_mine_enabled: false,
+            last_drone_order: None,
+            prev_auto_mine_enabled: false,
             drone_active: false,
             asteroids: Vec::new(),
             drones: Vec::new(),
