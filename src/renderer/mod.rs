@@ -14,7 +14,6 @@ pub mod multi_scale;
 pub mod particles;
 pub mod pipeline;
 pub mod shader_loader;
-pub mod sky;
 pub mod stars;
 
 use camera::{Camera, CameraUniforms};
