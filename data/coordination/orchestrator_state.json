@@ -529,6 +529,17 @@
         "src/relay/storage/social.rs",
         "docs/FEATURES.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 4: shipped v0.644.0, closing out the entire chat backlog. (1) BUG-042: onboarding Connect button (src/gui/pages/main_menu.rs) always said Connected regardless of reachability -- found the real auto-connect mechanism is intentionally gated on onboarding_complete + a live identity (created one step later), so a full WS handshake genuinely cant happen at this step; fixed with a real GET <server_url>/health check on a background thread (mirrors updater.rs check_now pattern), 7 unit tests, verified live against a real /health endpoint and a closed port. (2) Investigated the planned ban/mute backend work (backlog items 4+6) and found it was based on a STALE DOC COMMENT -- both banned_keys and muted_members are fully implemented, enforced, and already tested; fixed the comment instead of building anything (there was nothing to build). This closes chat backlog priority #1 entirely (started this session, all real gaps found via the repo-wide TODO scan are now resolved or corrected-as-non-issues). Verified: both cargo checks, 642 lib tests (7 new), 5 lints, 0 broken doc links. Committed + pushed. NEXT: moving to priority #2, livestreaming end-to-end verification, per docs/history/2026-07-01-night-loop-plan.md.",
+      "scope": "chat (night-loop cycle 4)",
+      "files": [
+        "src/gui/mod.rs",
+        "src/gui/pages/main_menu.rs",
+        "src/relay/handlers/msg_handlers.rs",
+        "docs/BUGS.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
