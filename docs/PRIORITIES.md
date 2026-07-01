@@ -42,9 +42,25 @@
 > investigation surfaced a real, high-confidence doc-accuracy fix instead:
 > 4 stale "NOT registered, never ticks" claims in FEATURES.md (Weather,
 > Atmosphere, Skills, Quests are all actually registered and ticking;
-> STATUS.md already had it right), fixed. Next: keep working the broader
-> sweep's remaining self-contained candidates (see the plan doc), or stop
-> if the backlog is genuinely exhausted.** <<<**
+> STATUS.md already had it right), fixed. **Cycle 7 (v0.646.0):**
+> `src/systems/navigation/orbital.rs`'s Kepler stub is dead code (zero
+> callers anywhere) -- left alone, not deleted. But checking for the
+> real math's home found `src/ecs/cosmos.rs`'s
+> `body_position_in_system_meters` (the Phase-2 cosmos position
+> resolver's `ContainerRef::Body` case) was ALSO a `DVec3::ZERO` stub,
+> and unlike orbital.rs this one is real, documented, currently-inert
+> infrastructure (no live caller yet -- Phase 3's Cosmos page / Phase
+> 4's ship containers aren't built) waiting on exactly the Kepler math
+> that already shipped separately in `src/cosmos.rs` (Maps page /
+> Sol-system model, v0.262.8). Wired it: now calls
+> `crate::cosmos::find_body` + `body_world_position_3d_au` for the
+> `"sol"` system and converts AU to meters; unknown system/body still
+> falls back to zero (documented). 4 new tests, proven via
+> revert-and-retest. No user-visible behavior changed tonight (nothing
+> calls this path in the live game loop yet) but it's real progress
+> banked for Phase 3+. Next: keep working the broader sweep's remaining
+> self-contained candidates (see the plan doc), or stop if the backlog
+> is genuinely exhausted.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
