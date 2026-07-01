@@ -338,6 +338,61 @@ pub async fn post_object(
         .into_response()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A vote_v1 submission built by the WEB stack exactly as the browser
+    /// sends it: web/shared/pq-object.js `buildVoteV1` over the KAT-locked
+    /// canonical-cbor.js, signed with the vendored noble Dilithium3 bundle
+    /// using the canonical KAT identity (master seed [7u8; 32], same as
+    /// pq_crypto::dilithium_cross_language_kat). Frozen 2026-07-01; ML-DSA
+    /// signing is hedged so the signature differs from the Rust fixture, but
+    /// VERIFY is deterministic, so a frozen valid submission stays valid.
+    ///
+    /// This test drives the frozen JSON through the SAME parse+verify path
+    /// `POST /api/v2/objects` uses (SignedObjectSubmission → to_object →
+    /// verify_signature), proving the full wire layer end-to-end: field
+    /// names, base64 encoding, canonical signable bytes, and RustCrypto
+    /// accepting a noble-produced signature. If this fails, every web-cast
+    /// governance vote 401s — DO NOT SHIP.
+    #[test]
+    fn js_built_vote_submission_verifies_through_the_wire_path() {
+        let json = include_str!("core/pq_kat_vote_submission.json");
+        let sub: SignedObjectSubmission =
+            serde_json::from_str(json).expect("fixture parses as SignedObjectSubmission");
+        assert_eq!(sub.object_type, "vote_v1");
+        assert_eq!(
+            sub.references,
+            vec!["0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string()]
+        );
+
+        let obj = sub.to_object().expect("base64 fields decode");
+        obj.verify_signature()
+            .expect("JS-built vote submission must verify under the relay's Dilithium check");
+
+        // The payload decodes to {choice: "yes"}.
+        let payload = crate::relay::core::encoding::from_canonical_bytes(&obj.payload)
+            .expect("payload is canonical CBOR");
+        let choice = match &payload {
+            ciborium::Value::Map(entries) => entries.iter().find_map(|(k, v)| match (k, v) {
+                (ciborium::Value::Text(k), ciborium::Value::Text(v)) if k.as_str() == "choice" => {
+                    Some(v.clone())
+                }
+                _ => None,
+            }),
+            _ => None,
+        };
+        assert_eq!(choice.as_deref(), Some("yes"));
+
+        // Tamper guard: flipping one payload byte must break verification
+        // (proves the verify above is not a no-op for this fixture).
+        let mut bad = obj.clone();
+        bad.payload[0] ^= 0x01;
+        assert!(bad.verify_signature().is_err(), "tampered payload must not verify");
+    }
+}
+
 /// `GET /api/v2/objects/{object_id}`
 pub async fn get_object_by_id(
     State(state): State<Arc<RelayState>>,

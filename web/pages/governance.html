@@ -75,8 +75,15 @@
       transition: all 0.15s;
     }
     .btn-vote:hover { border-color: var(--accent); }
-    .btn-vote.voted-yes { background: rgba(42,184,112,0.2); border-color: #2ab870; color: #2ab870; }
-    .btn-vote.voted-no { background: rgba(239,79,79,0.2); border-color: #ef4f4f; color: #ef4f4f; }
+    .btn-vote:disabled { opacity: 0.55; cursor: default; }
+    .btn-vote:disabled:hover { border-color: var(--border); }
+    .btn-vote.voted-yes { background: rgba(42,184,112,0.2); border-color: #2ab870; color: #2ab870; opacity: 1; }
+    .btn-vote.voted-no { background: rgba(239,79,79,0.2); border-color: #ef4f4f; color: #ef4f4f; opacity: 1; }
+    .btn-vote.voted-abstain { background: rgba(160,160,160,0.15); border-color: var(--text-muted); color: var(--text); opacity: 1; }
+
+    .vote-status { font-size: 0.8rem; margin-top: 8px; color: var(--text-muted); }
+    .vote-status.err { color: #ef4f4f; }
+    .vote-status.ok { color: #2ab870; }
 
     .empty-state {
       padding: 40px 24px; text-align: center;
@@ -97,6 +104,10 @@
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/pq-identity.js"></script>
+  <!-- Real voting: pq.js provides the KAT-locked Dilithium3 derivation/signing,
+       pq-relay-auth.js provides getPqIdentity (seed from localStorage). -->
+  <script src="/chat/pq.js?v=1"></script>
+  <script src="/shared/pq-relay-auth.js?v=1"></script>
 
   <div class="container">
     <header class="gov-hero">
@@ -153,6 +164,21 @@
       try { return new Date(ms).toLocaleString(); } catch(_) { return String(ms); }
     }
 
+    function tallyHtml(tally) {
+      const total = tally.total_weight || 1;
+      return '<div class="tally-bar">' +
+          '<div class="yes" style="width:' + (tally.yes_weight / total * 100) + '%"></div>' +
+          '<div class="no" style="width:' + (tally.no_weight / total * 100) + '%"></div>' +
+          '<div class="abstain" style="width:' + (tally.abstain_weight / total * 100) + '%"></div>' +
+        '</div>' +
+        '<div class="tally-numbers">' +
+          '<span class="yes">Yes: ' + tally.yes_weight.toFixed(2) + '</span>' +
+          '<span class="no">No: ' + tally.no_weight.toFixed(2) + '</span>' +
+          '<span>Abstain: ' + tally.abstain_weight.toFixed(2) + '</span>' +
+          '<span>(' + tally.vote_count + ' voter' + (tally.vote_count === 1 ? '' : 's') + ')</span>' +
+        '</div>';
+    }
+
     async function loadProposals() {
       var list = document.getElementById('proposal-list');
       list.innerHTML = '<div class="empty-state">Loading proposals...</div>';
@@ -162,16 +188,17 @@
         if (activeFilter === 'open') opts.onlyOpen = true;
         var props = await window.HumOS.pq.listProposals(opts);
         if (!props || !props.length) {
-          list.innerHTML = '<div class="empty-state">No proposals match these filters. Be the first to propose something \u2014 see the API docs at <code>POST /api/v2/objects</code> with object_type <code>proposal_v1</code>.</div>';
+          list.innerHTML = '<div class="empty-state">No proposals match these filters. Be the first to propose something: use the native app (Humanity tab, Governance) which has a proposal form, or post a <code>proposal_v1</code> signed object via <code>POST /api/v2/objects</code>.</div>';
           return;
         }
         list.innerHTML = '';
         for (const p of props) {
           let tally = { yes_weight: 0, no_weight: 0, abstain_weight: 0, total_weight: 0, vote_count: 0 };
           try { tally = await window.HumOS.pq.getProposalTally(p.proposal_object_id); } catch(_) {}
-          const total = tally.total_weight || 1;
+          const isOpen = Number(p.closes_at) > Date.now();
           const card = document.createElement('div');
           card.className = 'proposal-card';
+          card.dataset.pid = p.proposal_object_id;
           card.innerHTML =
             '<h3>' + escapeHtml(p.proposal_type) + '</h3>' +
             '<div class="proposal-meta">' +
@@ -182,34 +209,160 @@
             '<div class="proposal-body">' +
               'object_id: <code>' + escapeHtml(p.proposal_object_id.slice(0, 16)) + '...</code>' +
             '</div>' +
-            '<div class="tally-bar">' +
-              '<div class="yes" style="width:' + (tally.yes_weight / total * 100) + '%"></div>' +
-              '<div class="no" style="width:' + (tally.no_weight / total * 100) + '%"></div>' +
-              '<div class="abstain" style="width:' + (tally.abstain_weight / total * 100) + '%"></div>' +
-            '</div>' +
-            '<div class="tally-numbers">' +
-              '<span class="yes">Yes: ' + tally.yes_weight.toFixed(2) + '</span>' +
-              '<span class="no">No: ' + tally.no_weight.toFixed(2) + '</span>' +
-              '<span>Abstain: ' + tally.abstain_weight.toFixed(2) + '</span>' +
-              '<span>(' + tally.vote_count + ' voter' + (tally.vote_count === 1 ? '' : 's') + ')</span>' +
-            '</div>' +
-            '<div class="vote-actions">' +
-              '<button class="btn-vote" data-choice="yes" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote Yes</button>' +
-              '<button class="btn-vote" data-choice="no" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote No</button>' +
-              '<button class="btn-vote" data-choice="abstain" data-id="' + escapeHtml(p.proposal_object_id) + '">Abstain</button>' +
-            '</div>';
+            '<div class="tally-wrap">' + tallyHtml(tally) + '</div>' +
+            (isOpen
+              ? '<div class="vote-actions">' +
+                  '<button class="btn-vote" data-choice="yes" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote Yes</button>' +
+                  '<button class="btn-vote" data-choice="no" data-id="' + escapeHtml(p.proposal_object_id) + '">Vote No</button>' +
+                  '<button class="btn-vote" data-choice="abstain" data-id="' + escapeHtml(p.proposal_object_id) + '">Abstain</button>' +
+                '</div>' +
+                '<div class="vote-status">Votes are final and cannot be changed.</div>'
+              : '<div class="vote-status">Voting closed.</div>');
           list.appendChild(card);
         }
-        // Wire vote buttons (signing requires a Dilithium3 key in pq-identity.js;
-        // until the chat client lands, this surfaces the pending state).
         list.querySelectorAll('.btn-vote').forEach(function(b){
           b.addEventListener('click', function(){
-            alert('Voting requires a Dilithium3 identity. The PQ JS keygen lands in a follow-up; for now, post a vote_v1 signed_object via POST /api/v2/objects (see /api/v2/zk/schema for the wire format).');
+            castVote(b.dataset.id, b.dataset.choice, b.closest('.proposal-card'));
           });
         });
+        applyMyVotes();
       } catch (err) {
         list.innerHTML = '<div class="empty-state">Could not load proposals: ' + escapeHtml(String(err && err.message || err)) + '</div>';
       }
+    }
+
+    /* \u2500\u2500 Real voting: Dilithium3-signed vote_v1 objects \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+     * Path: seed from localStorage (pq-relay-auth.js getPqIdentity) \u2192
+     * KAT-locked Dilithium3 derivation (/chat/pq.js) \u2192 canonical CBOR
+     * object build (pq-object.js, locked byte-for-byte to the Rust relay
+     * by `just vote-kat`) \u2192 POST /api/v2/objects. The relay verifies the
+     * signature and tallies the FIRST vote per (proposal, voter). */
+
+    let _pqmods = null;
+    async function pqMods() {
+      if (_pqmods) return _pqmods;
+      const [obj, noble] = await Promise.all([
+        import('/shared/pq-object.js'),
+        import('/shared/vendor/noble-pq.bundle.js'),
+      ]);
+      if (!noble.blake3) throw new Error('post-quantum bundle failed to load');
+      const blake3 = function(d){ return noble.blake3.create({ dkLen: 32 }).update(d).digest(); };
+      _pqmods = { obj: obj, blake3: blake3 };
+      return _pqmods;
+    }
+
+    function hexToBytes(hex) {
+      const a = new Uint8Array(hex.length / 2);
+      for (let i = 0; i < a.length; i++) a[i] = parseInt(hex.substr(i * 2, 2), 16);
+      return a;
+    }
+
+    // Cached identity promise: resolves { id, pub, fp } or null. fp = first
+    // 16 bytes of BLAKE3(Dilithium pubkey) hex, the same author fingerprint
+    // the relay stores, so my-vote tracking is keyed per identity. Only a
+    // SUCCESSFUL load is cached: if the user signs in via Chat in another
+    // tab and clicks vote again, we re-check instead of staying stuck on
+    // "sign in first".
+    let _me = null;
+    function myIdentity() {
+      if (!_me) {
+        _me = (async function(){
+          if (typeof window.getPqIdentity !== 'function') return null;
+          const id = await window.getPqIdentity();
+          if (!id) return null;
+          const mods = await pqMods();
+          const pub = hexToBytes(id.dilithiumPublicHex);
+          const h = mods.blake3(pub);
+          let fp = '';
+          for (let i = 0; i < 16; i++) fp += h[i].toString(16).padStart(2, '0');
+          return { id: id, pub: pub, fp: fp };
+        })().catch(function(e){
+          console.warn('governance: identity load failed', e);
+          return null;
+        });
+        _me.then(function(r){ if (!r) _me = null; });
+      }
+      return _me;
+    }
+
+    // Votes are final; remember mine (per identity) so a reload keeps the label.
+    function readMyVotes(fp) {
+      try { return JSON.parse(localStorage.getItem('hum_gov_votes_' + fp) || '{}'); }
+      catch (_e) { return {}; }
+    }
+    function recordMyVote(fp, proposalId, choice) {
+      const m = readMyVotes(fp);
+      m[proposalId] = { choice: choice, at: Date.now() };
+      try { localStorage.setItem('hum_gov_votes_' + fp, JSON.stringify(m)); } catch (_e) {}
+    }
+
+    function markVoted(card, choice) {
+      card.querySelectorAll('.btn-vote').forEach(function(b){
+        b.disabled = true;
+        if (b.dataset.choice === choice) b.classList.add('voted-' + choice);
+      });
+      const st = card.querySelector('.vote-status');
+      if (st) {
+        st.textContent = 'Your vote: ' + choice + ' (votes are final; if you voted before, the original stands).';
+        st.className = 'vote-status ok';
+      }
+    }
+
+    async function applyMyVotes() {
+      const me = await myIdentity();
+      if (!me) return;
+      const votes = readMyVotes(me.fp);
+      document.querySelectorAll('.proposal-card').forEach(function(card){
+        const v = votes[card.dataset.pid];
+        if (v && v.choice) markVoted(card, v.choice);
+      });
+    }
+
+    async function castVote(proposalId, choice, card) {
+      const st = card.querySelector('.vote-status');
+      const buttons = card.querySelectorAll('.btn-vote');
+      buttons.forEach(function(b){ b.disabled = true; });
+      st.className = 'vote-status';
+      st.textContent = 'Checking your identity...';
+      try {
+        const me = await myIdentity();
+        if (!me) {
+          st.textContent = 'Sign in via Chat first: no identity key was found in this browser. Open the Chat page, unlock your account, then come back and vote.';
+          st.className = 'vote-status err';
+          buttons.forEach(function(b){ b.disabled = false; });
+          return;
+        }
+        st.textContent = 'Signing your vote (Dilithium3)...';
+        const mods = await pqMods();
+        const built = await mods.obj.buildVoteV1({
+          proposalId: proposalId,
+          choice: choice,
+          authorPublicKey: me.pub,
+          sign: async function(bytes){
+            const sig = await window.pqSignMessage(me.id.dilithiumSecret, bytes);
+            if (!sig) throw new Error('Dilithium signing failed (post-quantum bundle unavailable)');
+            return sig;
+          },
+          blake3: mods.blake3,
+        });
+        st.textContent = 'Submitting vote...';
+        await window.HumOS.pq.postObject(built.submission);
+        recordMyVote(me.fp, proposalId, choice);
+        markVoted(card, choice);
+        refreshTally(proposalId, card);
+      } catch (err) {
+        st.textContent = 'Vote failed: ' + String(err && err.message || err);
+        st.className = 'vote-status err';
+        buttons.forEach(function(b){ b.disabled = false; });
+      }
+    }
+
+    async function refreshTally(proposalId, card) {
+      try {
+        const t = await window.HumOS.pq.getProposalTally(proposalId);
+        const wrap = card.querySelector('.tally-wrap');
+        if (wrap && t) wrap.innerHTML = tallyHtml(t);
+      } catch (_e) { /* tally refresh is best-effort; the vote itself succeeded */ }
     }
 
     function escapeHtml(s) {
