@@ -77,6 +77,84 @@ pub struct DoorDef {
     pub direction: String,
 }
 
+// ── Crew chores (loaded from data/npc/chores.ron) ──
+
+/// One chore an ambient crew NPC can perform: walk to `room_id`, dwell there
+/// "working" for `duration_secs`, then rotate to the next allowed chore.
+/// Data-driven per the infinite-of-X rule; see schemas/chore.toml.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChoreDef {
+    pub id: String,
+    pub label: String,
+    pub room_id: String,
+    pub duration_secs: f32,
+    /// Roles allowed to do this chore; empty = any crew NPC.
+    pub roles: Vec<String>,
+}
+
+/// Event emitted by `GameWorld::tick` when a crew NPC's chore state changes
+/// (or, throttled, while it travels). The relay broadcasts these as
+/// `game_npc_update` messages so clients can render crew actually doing
+/// things: position + the human-readable chore label.
+#[derive(Debug, Clone, Serialize)]
+pub struct NpcChoreEvent {
+    pub entity_id: u64,
+    pub name: String,
+    pub position: [f32; 3],
+    pub chore_id: String,
+    pub chore_label: String,
+    /// "traveling" | "working" | "completed"
+    pub chore_state: String,
+    pub room_id: String,
+}
+
+/// Walking speed for a crew NPC traveling to a chore site (m/s). Faster than
+/// the old wander drift (0.4) so travel reads as purposeful walking.
+pub const CHORE_WALK_SPEED: f32 = 1.1;
+
+/// How often traveling NPC positions are broadcast to clients (seconds).
+/// State transitions (assigned / working / completed) always broadcast.
+pub const NPC_POSITION_BROADCAST_INTERVAL: f64 = 0.5;
+
+/// Deterministic chore rotation: which entry of an NPC's ALLOWED chore list
+/// it does next. `npc_seq` staggers crew so they don't all start on the same
+/// chore; `chores_done` advances the rotation one step per completed chore.
+/// Pure logic (no world, no RNG) so it is directly unit-testable.
+pub fn next_chore_index(npc_seq: usize, chores_done: u64, chore_count: usize) -> Option<usize> {
+    if chore_count == 0 {
+        return None;
+    }
+    Some(((npc_seq as u64 + chores_done) % chore_count as u64) as usize)
+}
+
+/// Straight-line movement step toward a target (no pathfinding exists in the
+/// engine yet -- an accepted, honest limitation of this first slice). Returns
+/// the new position and whether the mover arrived this step. Never overshoots:
+/// when the remaining distance fits inside this step, snaps to the target.
+/// Pure logic so travel timing is directly unit-testable.
+pub fn step_toward(pos: [f32; 3], target: [f32; 3], speed: f32, dt: f32) -> ([f32; 3], bool) {
+    let d = [target[0] - pos[0], target[1] - pos[1], target[2] - pos[2]];
+    let dist = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+    let step = (speed * dt).max(1e-6);
+    if dist <= step {
+        (target, true)
+    } else {
+        let k = step / dist;
+        ([pos[0] + d[0] * k, pos[1] + d[1] * k, pos[2] + d[2] * k], false)
+    }
+}
+
+/// Indices into `chores` that a crew member with `role` may perform
+/// (a chore with an empty roles list is open to everyone).
+pub fn allowed_chore_indices(chores: &[ChoreDef], role: &str) -> Vec<usize> {
+    chores
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.roles.is_empty() || c.roles.iter().any(|r| r == role))
+        .map(|(i, _)| i)
+        .collect()
+}
+
 // ── Perception response types ──
 
 /// Room info returned by spatial queries.
@@ -190,6 +268,11 @@ pub struct GameWorld {
     pub tick_rate: f32,
     pub rooms: Vec<ShipRoom>,
     pub ship_name: String,
+    /// Crew chore catalog from data/npc/chores.ron. Empty when the file is
+    /// missing/unparseable -- crew then fall back to the old wander drift.
+    pub chores: Vec<ChoreDef>,
+    /// Accumulator throttling traveling-NPC position broadcasts (not persisted).
+    npc_broadcast_accum: f64,
 }
 
 impl GameWorld {
@@ -202,10 +285,44 @@ impl GameWorld {
             tick_rate: 20.0,
             rooms: Vec::new(),
             ship_name: String::new(),
+            chores: Vec::new(),
+            npc_broadcast_accum: 0.0,
         };
         world.load_starter_ship();
+        world.load_chores();
         world.populate_ship_entities();
         world
+    }
+
+    /// Load the crew chore catalog from data/npc/chores.ron. Chores whose
+    /// room_id doesn't resolve against the loaded ship layout are dropped
+    /// with a warning (a typo'd room must not strand an NPC walking forever
+    /// toward nowhere). Missing/unparseable file -> empty catalog -> crew
+    /// keep the legacy wander behavior.
+    fn load_chores(&mut self) {
+        let path = "data/npc/chores.ron";
+        let contents = match std::fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Could not load {}: {} -- crew NPCs will wander instead of doing chores", path, e);
+                return;
+            }
+        };
+        let chores: Vec<ChoreDef> = match ron::from_str(&contents) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("Failed to parse {}: {} -- crew NPCs will wander instead of doing chores", path, e);
+                return;
+            }
+        };
+        let (valid, dropped): (Vec<ChoreDef>, Vec<ChoreDef>) = chores
+            .into_iter()
+            .partition(|c| self.rooms.iter().any(|r| r.id == c.room_id));
+        for c in &dropped {
+            tracing::warn!("Chore '{}' references unknown room '{}' -- dropped", c.id, c.room_id);
+        }
+        tracing::info!("Loaded {} crew chores from {}", valid.len(), path);
+        self.chores = valid;
     }
 
     /// Load the Pioneer frigate layout from data/ships/starter_fleet.ron.
@@ -341,6 +458,13 @@ impl GameWorld {
         // returned by handle_game_interact so AI agents (and humans) get a
         // bit of personality back when they interact. Makes the ship feel
         // crewed even when no humans are connected.
+        //
+        // Chore AI (data-driven, see data/npc/chores.ron): each crew NPC is
+        // also a `chore_agent` with a stable `npc_seq`. When the chore catalog
+        // is loaded, tick() replaces the wander drift with a real task loop
+        // (walk to a chore site, dwell "working", rotate to the next chore);
+        // the wander block remains only as a fallback for an empty catalog.
+        let mut npc_seq: u64 = 0;
         for room in &rooms {
             let (npc_type, npc_name, role, description, dialog, greetings) = match room.room_type.as_str() {
                 "bridge" => (
@@ -447,6 +571,13 @@ impl GameWorld {
                     "description": description,
                     "dialog": dialog,
                     "greetings": greetings,
+                    // Chore AI wiring: stable per-crew rotation offset + the
+                    // live activity label clients show ("Taking reactor
+                    // readings"). `chores_done` advances the rotation.
+                    "chore_agent": true,
+                    "npc_seq": npc_seq,
+                    "chores_done": 0,
+                    "activity": description,
                     "wander": {
                         "min_x": room.position[0] + 1.0,
                         "max_x": room.position[0] + room.size[0] - 1.0,
@@ -458,6 +589,7 @@ impl GameWorld {
                 }),
                 last_update: 0.0,
             });
+            npc_seq += 1;
         }
 
         tracing::info!("Populated {} ship entities across {} rooms",
@@ -857,22 +989,49 @@ impl GameWorld {
         }).collect()
     }
 
-    /// Advance the game simulation by dt seconds. Now also drives ambient
-    /// NPC wander behavior — any entity with a `wander` block in its
-    /// components JSON drifts to a random target within bounds at `speed`
-    /// units/sec. This makes the world feel alive for AI agents perceiving
-    /// it even when no humans are connected.
-    pub fn tick(&mut self, dt: f64) {
+    /// Advance the game simulation by dt seconds.
+    ///
+    /// Crew NPCs (`chore_agent` entities) run a real task loop when the chore
+    /// catalog is loaded: pick the next chore in their role's deterministic
+    /// rotation, walk straight-line to its room, dwell there "working" for
+    /// the chore's duration, then rotate to the next one. State transitions
+    /// (plus throttled travel positions) are returned as events for the relay
+    /// to broadcast as `game_npc_update`, so clients can show crew actually
+    /// completing tasks instead of an endless wander loop.
+    ///
+    /// Entities with only a `wander` block (or when no chores loaded) keep
+    /// the legacy Brownian drift within bounds.
+    pub fn tick(&mut self, dt: f64) -> Vec<NpcChoreEvent> {
         self.game_time += dt;
+        let mut events: Vec<NpcChoreEvent> = Vec::new();
 
-        // Apply wander to entities that have a `wander` component.
-        // Random number generator scoped to this tick.
+        // Throttle traveling-position broadcasts to NPC_POSITION_BROADCAST_INTERVAL.
+        self.npc_broadcast_accum += dt;
+        let emit_travel_positions = self.npc_broadcast_accum >= NPC_POSITION_BROADCAST_INTERVAL;
+        if emit_travel_positions {
+            self.npc_broadcast_accum = 0.0;
+        }
+
+        // Random number generator scoped to this tick (wander fallback only;
+        // the chore loop is fully deterministic).
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let dt_f = dt as f32;
 
         let entity_ids: Vec<u64> = self.entities.keys().copied().collect();
         for id in entity_ids {
+            let Some(entity) = self.entities.get(&id) else { continue };
+
+            // Chore-driven crew take the task loop; everything else falls
+            // through to the legacy wander drift.
+            let is_chore_agent = entity.components.get("chore_agent")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if is_chore_agent && !self.chores.is_empty() {
+                self.tick_chore_agent(id, dt_f, emit_travel_positions, &mut events);
+                continue;
+            }
+
             let Some(entity) = self.entities.get_mut(&id) else { continue };
             let wander = match entity.components.get("wander").cloned() {
                 Some(w) => w,
@@ -892,6 +1051,157 @@ impl GameWorld {
             entity.position[1] = y;
             entity.position[2] = (entity.position[2] + dz).clamp(min_z, max_z);
             entity.last_update = self.game_time;
+        }
+        events
+    }
+
+    /// The chore-site position for a room: its center at standing height.
+    fn chore_site(&self, room_id: &str) -> Option<[f32; 3]> {
+        self.rooms.iter().find(|r| r.id == room_id).map(|r| [
+            r.position[0] + r.size[0] / 2.0,
+            r.position[1] + 1.0,
+            r.position[2] + r.size[2] / 2.0,
+        ])
+    }
+
+    /// One simulation step for a single chore-driven crew NPC. State machine:
+    ///
+    ///   (no chore) --assign--> traveling --arrive--> working --timer--> done
+    ///        ^                                                            |
+    ///        +------------------------------------------------------------+
+    ///
+    /// Chore state lives in the entity's components JSON (`chore` block +
+    /// `chores_done` counter + flat `activity` label) so it is included in
+    /// world snapshots (AI perception + persistence) automatically.
+    fn tick_chore_agent(
+        &mut self,
+        id: u64,
+        dt: f32,
+        emit_travel_positions: bool,
+        events: &mut Vec<NpcChoreEvent>,
+    ) {
+        // Snapshot what we need before borrowing mutably.
+        let (name, role, npc_seq, chores_done, chore_block) = {
+            let Some(e) = self.entities.get(&id) else { return };
+            (
+                e.components.get("name").and_then(|v| v.as_str()).unwrap_or("Crew").to_string(),
+                e.components.get("role").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                e.components.get("npc_seq").and_then(|v| v.as_u64()).unwrap_or(0) as usize,
+                e.components.get("chores_done").and_then(|v| v.as_u64()).unwrap_or(0),
+                e.components.get("chore").cloned(),
+            )
+        };
+
+        match chore_block {
+            // ── No current chore: assign the next one in this crew's rotation ──
+            None => {
+                let allowed = allowed_chore_indices(&self.chores, &role);
+                let Some(slot) = next_chore_index(npc_seq, chores_done, allowed.len()) else {
+                    return; // role has no allowed chores -> stays idle (wander won't run; acceptable)
+                };
+                let def = self.chores[allowed[slot]].clone();
+                let Some(target) = self.chore_site(&def.room_id) else {
+                    // load_chores validates room ids, so this is unreachable in
+                    // practice; skip the entry defensively rather than loop on it.
+                    if let Some(e) = self.entities.get_mut(&id) {
+                        e.components["chores_done"] = serde_json::json!(chores_done + 1);
+                    }
+                    return;
+                };
+                let game_time = self.game_time;
+                let Some(e) = self.entities.get_mut(&id) else { return };
+                e.components["chore"] = serde_json::json!({
+                    "id": def.id,
+                    "label": def.label,
+                    "room_id": def.room_id,
+                    "state": "traveling",
+                    "target": target,
+                    "remaining": def.duration_secs,
+                });
+                e.components["activity"] = serde_json::json!(def.label);
+                e.last_update = game_time;
+                events.push(NpcChoreEvent {
+                    entity_id: id,
+                    name,
+                    position: e.position,
+                    chore_id: def.id,
+                    chore_label: def.label,
+                    chore_state: "traveling".to_string(),
+                    room_id: def.room_id,
+                });
+            }
+            // ── Has a chore: travel to it, then dwell "working" ──
+            Some(c) => {
+                let chore_id = c.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let label = c.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let room_id = c.get("room_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let state = c.get("state").and_then(|v| v.as_str()).unwrap_or("traveling").to_string();
+                let game_time = self.game_time;
+
+                if state == "traveling" {
+                    let target: [f32; 3] = c.get("target")
+                        .and_then(|t| {
+                            let a = t.as_array()?;
+                            if a.len() != 3 { return None; }
+                            Some([
+                                a[0].as_f64()? as f32,
+                                a[1].as_f64()? as f32,
+                                a[2].as_f64()? as f32,
+                            ])
+                        })
+                        .unwrap_or_else(|| self.entities.get(&id).map(|e| e.position).unwrap_or([0.0; 3]));
+                    let Some(e) = self.entities.get_mut(&id) else { return };
+                    let (new_pos, arrived) = step_toward(e.position, target, CHORE_WALK_SPEED, dt);
+                    e.position = new_pos;
+                    e.last_update = game_time;
+                    if arrived {
+                        e.components["chore"]["state"] = serde_json::json!("working");
+                        events.push(NpcChoreEvent {
+                            entity_id: id,
+                            name,
+                            position: new_pos,
+                            chore_id,
+                            chore_label: label,
+                            chore_state: "working".to_string(),
+                            room_id,
+                        });
+                    } else if emit_travel_positions {
+                        events.push(NpcChoreEvent {
+                            entity_id: id,
+                            name,
+                            position: new_pos,
+                            chore_id,
+                            chore_label: label,
+                            chore_state: "traveling".to_string(),
+                            room_id,
+                        });
+                    }
+                } else {
+                    // "working": count the dwell timer down; complete at zero.
+                    let remaining = c.get("remaining").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32 - dt;
+                    let Some(e) = self.entities.get_mut(&id) else { return };
+                    if remaining <= 0.0 {
+                        e.components["chores_done"] = serde_json::json!(chores_done + 1);
+                        if let Some(obj) = e.components.as_object_mut() {
+                            obj.remove("chore");
+                        }
+                        e.components["activity"] = serde_json::json!("Between tasks");
+                        e.last_update = game_time;
+                        events.push(NpcChoreEvent {
+                            entity_id: id,
+                            name,
+                            position: e.position,
+                            chore_id,
+                            chore_label: label,
+                            chore_state: "completed".to_string(),
+                            room_id,
+                        });
+                    } else {
+                        e.components["chore"]["remaining"] = serde_json::json!(remaining);
+                        e.last_update = game_time;
+                    }
+                }
+            }
         }
     }
 
@@ -1011,7 +1321,7 @@ impl GameWorld {
     /// shadow the newly-added entities. Player *progress* is keyed separately
     /// (by pubkey) and is NOT discarded by a world version bump — returning
     /// players keep their XP/quests even when the shared world is rebuilt.
-    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v8";
+    pub const PERSIST_KEY: &'static str = "game_world_snapshot_v9";
 
     /// Save the world to the `game_world_snapshots` table as a JSON blob.
     /// Called periodically from the relay tick loop (and on graceful shutdown).
@@ -1406,6 +1716,171 @@ mod tests {
         assert_eq!(completed2, saved_completed, "completed list restored");
         assert_eq!(xp2, 300, "xp restored");
         assert_eq!(rep2, 15, "reputation restored");
+    }
+
+    // ── Crew chore AI (v0.663) ──
+
+    /// The rotation is deterministic: one slot forward per completed chore,
+    /// wrapping, staggered by npc_seq so crew don't all start on chore 0.
+    #[test]
+    fn next_chore_index_rotates_deterministically() {
+        assert_eq!(next_chore_index(0, 0, 0), None, "empty catalog yields no chore");
+        assert_eq!(next_chore_index(0, 0, 4), Some(0));
+        assert_eq!(next_chore_index(0, 1, 4), Some(1));
+        assert_eq!(next_chore_index(0, 4, 4), Some(0), "wraps after a full cycle");
+        assert_eq!(next_chore_index(0, 5, 4), Some(1));
+        assert_eq!(next_chore_index(2, 0, 4), Some(2), "npc_seq staggers the start");
+        assert_eq!(next_chore_index(3, 2, 4), Some(1));
+        // Every chore in the catalog is eventually visited by any single NPC.
+        let visited: std::collections::HashSet<usize> =
+            (0..4).map(|done| next_chore_index(1, done, 4).unwrap()).collect();
+        assert_eq!(visited.len(), 4, "a full rotation covers the whole catalog");
+    }
+
+    /// Straight-line travel covers distance at the requested speed, arrives
+    /// on the expected step, and never overshoots the target.
+    #[test]
+    fn step_toward_travels_at_speed_and_never_overshoots() {
+        let target = [3.0_f32, 0.0, 0.0];
+        let mut pos = [0.0_f32, 0.0, 0.0];
+        let mut steps = 0;
+        loop {
+            let (p, arrived) = step_toward(pos, target, 1.5, 0.5); // 0.75 m per step
+            assert!(p[0] <= 3.0 + 1e-4, "must never overshoot the target");
+            pos = p;
+            steps += 1;
+            if arrived { break; }
+            assert!(steps < 100, "must converge");
+        }
+        assert_eq!(pos, target, "arrival snaps exactly onto the target");
+        assert_eq!(steps, 4, "3.0 m at 0.75 m/step arrives on the 4th step");
+        // Degenerate case: already at the target.
+        let (p, arrived) = step_toward(target, target, 1.5, 0.5);
+        assert!(arrived);
+        assert_eq!(p, target);
+    }
+
+    /// data/npc/chores.ron parses, ids are unique, labels/durations are sane,
+    /// and every referenced room resolves against the loaded ship layout.
+    #[test]
+    fn chores_file_parses_and_room_ids_resolve() {
+        let world = GameWorld::new();
+        assert!(!world.chores.is_empty(), "data/npc/chores.ron must load and validate");
+        let mut seen = std::collections::HashSet::new();
+        for c in &world.chores {
+            assert!(seen.insert(c.id.clone()), "duplicate chore id {}", c.id);
+            assert!(!c.label.trim().is_empty(), "chore {} needs a label", c.id);
+            assert!(!c.label.contains('\u{2014}'), "chore {} label contains an em dash", c.id);
+            assert!(c.duration_secs > 0.0, "chore {} needs a positive duration", c.id);
+            assert!(
+                world.rooms.iter().any(|r| r.id == c.room_id),
+                "chore {} references unknown room {}", c.id, c.room_id
+            );
+        }
+    }
+
+    /// Every spawned crew NPC's role has at least one allowed chore (so nobody
+    /// idles forever), and every role's chores span at least two rooms (so
+    /// crew visibly walk across the ship between tasks -- the design goal).
+    #[test]
+    fn every_crew_role_has_chores_spanning_rooms() {
+        let world = GameWorld::new();
+        let agents: Vec<&GameEntity> = world.entities.values()
+            .filter(|e| e.components.get("chore_agent").and_then(|v| v.as_bool()).unwrap_or(false))
+            .collect();
+        assert!(!agents.is_empty(), "expected crew chore agents in the world");
+        for e in &agents {
+            let role = e.components.get("role").and_then(|v| v.as_str()).unwrap_or("");
+            let allowed = allowed_chore_indices(&world.chores, role);
+            assert!(!allowed.is_empty(), "role {role} has no allowed chores");
+            let rooms: std::collections::HashSet<&str> = allowed.iter()
+                .map(|&i| world.chores[i].room_id.as_str())
+                .collect();
+            assert!(rooms.len() >= 2, "role {role} chores span only {rooms:?} -- crew should travel between rooms");
+        }
+    }
+
+    /// Live loop: over 120 simulated seconds every crew NPC completes at least
+    /// one chore, the event stream shows the full traveling -> working ->
+    /// completed lifecycle in order, and the synced `activity` label is kept.
+    #[test]
+    fn crew_complete_chores_and_rotate() {
+        let mut world = GameWorld::new();
+        assert!(!world.chores.is_empty());
+        let agent_id = *world.entities.iter()
+            .find(|(_, e)| e.components.get("chore_agent").and_then(|v| v.as_bool()).unwrap_or(false))
+            .map(|(id, _)| id)
+            .expect("at least one crew agent");
+
+        let mut all_events: Vec<NpcChoreEvent> = Vec::new();
+        for _ in 0..2400 { // 120 s at the live 50 ms tick
+            all_events.extend(world.tick(0.05));
+        }
+
+        for (id, e) in &world.entities {
+            let is_agent = e.components.get("chore_agent").and_then(|v| v.as_bool()).unwrap_or(false);
+            if !is_agent { continue; }
+            let done = e.components.get("chores_done").and_then(|v| v.as_u64()).unwrap_or(0);
+            assert!(done >= 1, "crew entity {id} completed no chores in 120 s");
+            let activity = e.components.get("activity").and_then(|v| v.as_str()).unwrap_or("");
+            assert!(!activity.is_empty(), "crew entity {id} lost its activity label");
+            // While a chore is in flight, the flat activity label mirrors it.
+            if let Some(chore) = e.components.get("chore") {
+                assert_eq!(
+                    chore.get("label").and_then(|v| v.as_str()),
+                    Some(activity),
+                    "activity label must match the current chore"
+                );
+            }
+        }
+
+        let states: Vec<&str> = all_events.iter()
+            .filter(|ev| ev.entity_id == agent_id)
+            .map(|ev| ev.chore_state.as_str())
+            .collect();
+        let first_travel = states.iter().position(|s| *s == "traveling");
+        let first_work = states.iter().position(|s| *s == "working");
+        let first_done = states.iter().position(|s| *s == "completed");
+        assert!(first_travel.is_some(), "agent never broadcast traveling");
+        assert!(first_work.is_some(), "agent never broadcast working");
+        assert!(first_done.is_some(), "agent never broadcast completed");
+        assert!(first_travel < first_work, "traveling must precede working");
+        assert!(first_work < first_done, "working must precede completed");
+    }
+
+    /// The dwell at a chore site matches the chore's declared duration_secs
+    /// (within one tick of quantization).
+    #[test]
+    fn working_dwell_matches_chore_duration() {
+        let mut world = GameWorld::new();
+        assert!(!world.chores.is_empty());
+        let mut working_at: Option<(u64, String, f64)> = None;
+        let mut completed_at: Option<f64> = None;
+        'sim: for _ in 0..20_000 { // up to 1000 simulated seconds
+            for ev in world.tick(0.05) {
+                match (&working_at, ev.chore_state.as_str()) {
+                    (None, "working") => {
+                        working_at = Some((ev.entity_id, ev.chore_id.clone(), world.game_time));
+                    }
+                    (Some((id, _, _)), "completed") if ev.entity_id == *id => {
+                        completed_at = Some(world.game_time);
+                        break 'sim;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let (_, chore_id, started) = working_at.expect("an NPC reached working");
+        let finished = completed_at.expect("the same NPC completed its chore");
+        let duration = world.chores.iter()
+            .find(|c| c.id == chore_id)
+            .map(|c| c.duration_secs as f64)
+            .expect("chore def exists");
+        let dwell = finished - started;
+        assert!(
+            dwell >= duration - 1e-6 && dwell <= duration + 0.15,
+            "dwell {dwell:.2}s should match duration {duration:.2}s within one tick"
+        );
     }
 
     /// End-to-end via SQLite: a player's progress saved to player_progress and

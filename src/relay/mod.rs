@@ -307,8 +307,15 @@ pub async fn run_relay() {
     }
 
     // Game world simulation tick loop: 20 ticks/sec (50ms). Always ticks now
-    // — game_time advances and ambient NPCs (e.g. maintenance_bot) wander
-    // even when no humans are connected, so AI agents perceive a living world.
+    // — game_time advances and crew NPCs work through their data-driven chore
+    // rotation (data/npc/chores.ron) even when no humans are connected, so AI
+    // agents perceive a living world.
+    //
+    // Chore events (crew picked up / working on / finished a task, plus
+    // throttled travel positions) broadcast as `game_npc_update` so clients
+    // can render crew actually completing tasks — but only while at least one
+    // player entity is in the world (same gate as TimeSync; the simulation
+    // itself never pauses, only the broadcast).
     {
         let game_state = state.clone();
         tokio::spawn(async move {
@@ -317,8 +324,26 @@ pub async fn run_relay() {
             loop {
                 interval.tick().await;
                 let mut world = game_state.game_world.write().await;
-                world.tick(0.05); // 50ms = 0.05 seconds
+                let npc_events = world.tick(0.05); // 50ms = 0.05 seconds
+                let player_count = world.player_count();
                 drop(world);
+                if player_count > 0 {
+                    for ev in npc_events {
+                        let payload = serde_json::json!({
+                            "type": "game_npc_update",
+                            "entity_id": ev.entity_id,
+                            "name": ev.name,
+                            "position": ev.position,
+                            "chore_id": ev.chore_id,
+                            "chore_label": ev.chore_label,
+                            "chore_state": ev.chore_state,
+                            "room_id": ev.room_id,
+                        });
+                        let _ = game_state.broadcast_tx.send(relay::RelayMessage::System {
+                            message: format!("__game__:{}", payload),
+                        });
+                    }
+                }
             }
         });
     }

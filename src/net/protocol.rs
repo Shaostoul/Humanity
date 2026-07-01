@@ -54,6 +54,16 @@ pub enum NetMessage {
         component: String,
         data: serde_json::Value,
     },
+    /// A crew NPC moved or changed chores (relay `game_npc_update`, v0.663).
+    /// `activity` is the human-readable chore label ("Taking reactor
+    /// readings"); `working` is true while the NPC dwells at the chore site.
+    NpcUpdate {
+        entity_id: u64,
+        name: String,
+        position: [f32; 3],
+        activity: String,
+        working: bool,
+    },
 
     // ── Actions ──
     /// Player interacts with an entity.

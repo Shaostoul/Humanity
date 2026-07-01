@@ -22,6 +22,26 @@ pub struct RemotePlayer {
     pub last_update_time: f64,
 }
 
+/// Component marking an entity as a relay-driven crew NPC (v0.663).
+/// Spawned/moved by `NetMessage::NpcUpdate` (the relay's `game_npc_update`
+/// chore-AI broadcasts). `name` + `activity` carry everything a nameplate
+/// needs ("Botanist Yara -- Inspecting the hydroponic racks"); a future
+/// nameplate pass should read them from this component (see the machine-label
+/// pattern in src/gui/pages/hud.rs for the world_to_screen text path).
+pub struct RemoteNpc {
+    pub entity_id: u64,
+    pub name: String,
+    /// Human-readable current chore label from data/npc/chores.ron.
+    pub activity: String,
+    /// True while the NPC dwells at its chore site ("working" state).
+    pub working: bool,
+    pub last_position: Vec3,
+    pub target_position: Vec3,
+    pub last_rotation: Quat,
+    pub target_rotation: Quat,
+    pub interpolation_t: f32,
+}
+
 /// Network synchronization system.
 pub struct NetSyncSystem {
     /// Time since last position send (throttle to 20/sec = 50ms interval).
@@ -182,6 +202,50 @@ impl System for NetSyncSystem {
                     }
                 }
 
+                NetMessage::NpcUpdate { entity_id, name, position, activity, working } => {
+                    // Update-or-spawn the crew NPC. Updates arrive at ~2 Hz
+                    // while traveling (plus on every chore state change), so
+                    // interpolation below smooths movement between them.
+                    let pos = Vec3::from_array(position);
+                    let mut found = false;
+                    for (_e, (transform, npc)) in
+                        world.query_mut::<(&mut Transform, &mut RemoteNpc)>()
+                    {
+                        if npc.entity_id == entity_id {
+                            // Face the direction of travel (yaw only) when moving.
+                            let delta = pos - transform.position;
+                            if delta.length_squared() > 0.0001 {
+                                npc.last_rotation = transform.rotation;
+                                npc.target_rotation = Quat::from_rotation_y(delta.x.atan2(delta.z));
+                            }
+                            npc.last_position = transform.position;
+                            npc.target_position = pos;
+                            npc.activity = activity.clone();
+                            npc.working = working;
+                            npc.interpolation_t = 0.0;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        world.spawn((
+                            Transform { position: pos, rotation: Quat::IDENTITY, scale: Vec3::ONE },
+                            RemoteNpc {
+                                entity_id,
+                                name: name.clone(),
+                                activity: activity.clone(),
+                                working,
+                                last_position: pos,
+                                target_position: pos,
+                                last_rotation: Quat::IDENTITY,
+                                target_rotation: Quat::IDENTITY,
+                                interpolation_t: 1.0,
+                            },
+                        ));
+                        log::info!("Crew NPC {} ({}) appeared: {}", name, entity_id, activity);
+                    }
+                }
+
                 NetMessage::TimeSync { game_time, .. } => {
                     log::debug!("Time sync: game_time={}", game_time);
                 }
@@ -203,6 +267,22 @@ impl System for NetSyncSystem {
             } else {
                 // Dead reckoning: predict based on last velocity
                 transform.position += remote.velocity * dt;
+            }
+        }
+
+        // Interpolate crew NPC positions. Updates arrive at ~2 Hz (see
+        // NPC_POSITION_BROADCAST_INTERVAL relay-side), so complete the lerp
+        // in 0.5s. No dead reckoning: crew walk slowly and stop at chore
+        // sites, so holding the last target beats drifting past it.
+        for (_entity, (transform, npc)) in
+            world.query_mut::<(&mut Transform, &mut RemoteNpc)>()
+        {
+            if npc.interpolation_t < 1.0 {
+                npc.interpolation_t += dt * 2.0;
+                npc.interpolation_t = npc.interpolation_t.min(1.0);
+                let t = smooth_step(npc.interpolation_t);
+                transform.position = npc.last_position.lerp(npc.target_position, t);
+                transform.rotation = npc.last_rotation.slerp(npc.target_rotation, t);
             }
         }
 
