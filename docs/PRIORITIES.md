@@ -11,6 +11,15 @@
 
 ## Active focus
 
+> **>>> OVERNIGHT AUTONOMOUS LOOP RUNNING (started 2026-07-01, ~8h unattended,
+> operator asleep) -- see [`docs/history/2026-07-01-night-loop-plan.md`](history/2026-07-01-night-loop-plan.md)
+> for the mission, safety rules, and full backlog. Read that file FIRST at the
+> start of every wake-up iteration tonight; it's the durable source of truth
+> across context resets. Priority order: (1) chat feature completeness --
+> 6 concrete file:line TODOs found and enumerated, (2) livestreaming
+> end-to-end verification, (3) a broader stub-completion sweep. Docs sync
+> every cycle. On stop: write `docs/history/2026-07-01-night-loop-results.md`. <<<**
+
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
 > ALL THREE in-flight diffs a second time mid-review (spotlight-cone rendering, the web
