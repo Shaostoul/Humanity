@@ -11,6 +11,25 @@
 
 ## Active focus
 
+> **>>> DAYTIME SESSION (2026-07-01, operator awake, following up on the overnight
+> loop's open questions): (1) SkyRenderer REMOVED (v0.651.0) -- operator confirmed
+> deletion once told the code had zero external callers already; no visual change
+> possible since it was never invoked. (2) Storage architecture / SurrealDB question
+> RESOLVED (v0.651.1, docs-only) -- verdict: not a hybrid DBMS, SQLite does 100% of
+> real database work, RON/CSV/TOML is a content layer not a second engine; SurrealDB
+> evaluated on current facts (BSL 1.1 license, not OSI open source; RocksDB backend
+> is a risky C++ dependency given this repo's known Windows linker issues; young 3.x
+> line with an open perf-regression issue) and NOT adopted for now -- full reasoning
+> in docs/design/storage-architecture.md's new "Is this a hybrid DBMS?" section, so
+> this doesn't need re-litigating. The ~133 .surql files the operator recalled were
+> confirmed via git history to be pre-rename "project_universe" speculative
+> world-knowledge schemas, never wired to any code -- not a prior backend plan. (3)
+> Mute Server DESIGN RESEARCHED, not yet built -- see
+> `open_questions_for_human` in orchestrator_state.json + the operator conversation
+> for the two-phase proposal (build native notification primitives first, since none
+> exist; then build tiered mute on top). Awaiting operator's steer on scope before
+> writing any code for this one.** <<<**
+
 > **>>> OVERNIGHT AUTONOMOUS LOOP RUNNING (started 2026-07-01, ~8h unattended,
 > operator asleep) -- see [`docs/history/2026-07-01-night-loop-plan.md`](history/2026-07-01-night-loop-plan.md)
 > for the mission, safety rules, and full backlog. Read that file FIRST at the
