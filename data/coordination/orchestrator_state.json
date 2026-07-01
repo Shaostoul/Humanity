@@ -495,6 +495,17 @@
         "docs/history/2026-07-01-night-loop-plan.md",
         "docs/PRIORITIES.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 1: fixed BUG-041 (v0.641.0) -- src/gui/pages/chat.rs had is_group_admin hardcoded to true for every group member regardless of real role. Investigation found the server already reports a real per-group role (GroupData::role in src/relay/relay.rs, \"admin\" for the groups creator per src/relay/storage/social.rs::create_group, \"member\" otherwise) via the group_list WS message -- the client ChatGroup struct just had no field to receive it, so src/lib.rs group_list handler silently discarded it. Added the role field (defaults to member on malformed input, fail-closed), wired the handler, extracted a small testable is_group_admin(role) helper in chat.rs with 3 unit tests. Verified: both cargo checks, 627 lib tests (3 new), 5 lints, 0 broken doc links. Committed + pushed to origin+forge. This resolves chat backlog item 2 (of 6) from docs/history/2026-07-01-night-loop-plan.md. Next: item 1 (chat.rs:705 DM notification toggle no-op).",
+      "scope": "chat (night-loop cycle 1)",
+      "files": [
+        "src/gui/mod.rs",
+        "src/gui/pages/chat.rs",
+        "src/lib.rs",
+        "docs/BUGS.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
