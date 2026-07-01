@@ -263,8 +263,18 @@ system modules (a struct/module with a comment describing intended fields,
 no real implementation yet). Pick the ones with the clearest, most
 self-contained scope first; skip ones that need a larger design decision
 (log those as `open_questions_for_human` instead of guessing):
-- `src/systems/food.rs:42,526` -- food spoilage: needs a data model + tick
-  logic, self-contained.
+- **DONE (cycle 8, BUG-044)** -- `src/systems/food.rs:42,526`. The
+  spoilage data model + tick logic already existed and worked correctly
+  (per-slot timer, freshness aging, the `spoiled` flag, GC of stale
+  entries) -- this backlog entry's estimate was wrong. The real gap: the
+  EAT handler never checked the `spoiled` flag, so a spoiled item could
+  be eaten with full nutrition and zero risk forever (as long as its
+  raw_consumption_risk was 0, true for all cooked/canned/preserved
+  food) -- exactly what the TODO comment at the spoiled-flip site
+  described but never implemented. Fixed: EAT now looks up the eaten
+  item's inventory slot, checks the spoilage side-table, and if spoiled
+  applies 25% nutrition + guaranteed food_poisoning. 1 new test,
+  confirmed via revert-and-retest. See docs/BUGS.md BUG-044.
 - `src/systems/economy/mod.rs:86` -- passive income credit application,
   self-contained if the wallet/credit system already exists (check first).
 - `src/systems/skills/learning.rs:29` -- learning-curve CSV threshold

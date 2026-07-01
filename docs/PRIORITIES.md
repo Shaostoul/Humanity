@@ -58,9 +58,16 @@
 > falls back to zero (documented). 4 new tests, proven via
 > revert-and-retest. No user-visible behavior changed tonight (nothing
 > calls this path in the live game loop yet) but it's real progress
-> banked for Phase 3+. Next: keep working the broader sweep's remaining
-> self-contained candidates (see the plan doc), or stop if the backlog
-> is genuinely exhausted.** <<<**
+> banked for Phase 3+. **Cycle 8 (v0.647.0, BUG-044):** food spoilage's
+> data model + tick logic already worked correctly -- the real gap was
+> narrower: the EAT handler never checked the `spoiled` flag, so a
+> spoiled item could be eaten with full nutrition and zero risk forever
+> (cooked/canned/preserved food all has raw_consumption_risk 0). Fixed:
+> spoiled food now grants 25% nutrition + guaranteed food_poisoning. 1
+> new test, proven via revert-and-retest. Next: keep working the
+> broader sweep's remaining self-contained candidates (see the plan
+> doc -- `learning.rs`'s CSV-threshold check is next), or stop if the
+> backlog is genuinely exhausted.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
