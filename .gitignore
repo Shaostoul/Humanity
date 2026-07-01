@@ -68,6 +68,11 @@ local-heron-admin.json
 *.sqlite-wal
 *.db-shm
 *.db-wal
+# The relay's live SQLite DB (data/relay.db on the VPS, same path when a
+# relay is run locally from the repo root for testing) -- never committed,
+# found untracked-but-not-ignored 2026-07-01 during the overnight loop.
+data/relay.db
+data/relay.db-journal
 
 # ── OS/editor noise ──
 .DS_Store
