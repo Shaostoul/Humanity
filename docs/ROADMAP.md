@@ -280,8 +280,25 @@ The game teaches the homestead; the homestead is real.
 - `[future]` A single default mothership design scaled to house up to 10 billion
   humans, simulated at that scale to see how food/water/power/waste flows hold up and
   where people actually enjoy spending their time (operator north star, 2026-06-30).
-  Sequenced well after the peaceful gameplay loop is solid, this is a stretch target
-  for the zone-population and grid-hierarchy work above, not a near-term build.
+  **Reframed 2026-07-01 after a research pass**: 10 billion is only achievable as an
+  aggregate population-capacity number the per-zone resource math is checked against
+  (a `population: u64` rolled up per zone/deck feeding per-capita demand/supply
+  coefficients, the same aggregation pattern the utility-trio's per-island power/water
+  sim already uses one tier down), NOT as literally-rendered/simulated individuals,
+  the renderer's instancing path is confirmed dead code and a single home's ~104
+  machine meshes already forced the draw-call cap up once (256 -> 1024, v0.528).
+  Concrete near-term path: add `population` to `Zone`, add a
+  `zone_resource_profiles.ron` + a pure report function mirroring
+  `MachineHome::buildability_report`, then wire zone-to-zone rollup as the same
+  mechanism as grid-hierarchy.md's S3 substation tiers below, build those together.
+  Individual "living their lives" NPCs (a `Needs`/`Schedule` component, `AISystem`
+  flipped on, one NPC on a 3-stop daily schedule riding the existing rail cars) are a
+  small, separately-bounded layer on top for flavor, not the mechanism computing
+  whether the ship's numbers close. Sequenced well after the peaceful gameplay loop is
+  solid; this is a stretch target for the zone-population work above, not a near-term
+  build, but the aggregate-model groundwork (population field, resource profiles) is
+  cheap enough to start on sooner. See `docs/design/mothership-superstructure.md`'s
+  "Open questions" + reconciliation section for the full reasoning.
 - `[future]` Population consumption/production economy: every occupant tracks what
   they've produced versus consumed (the fleet can start with "infinite" resources as a
   bootstrap assumption while this is built). Ties combat expeditions to the economy,

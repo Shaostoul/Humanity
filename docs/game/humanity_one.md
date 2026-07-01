@@ -1,5 +1,13 @@
 # Humanity 1: The Mothership
 
+> **Vision/lore document, not the active technical spec.** The mothership system that
+> actually shipped (v0.631+, `Zone`/`ZoneType` on `HomeStructure`) lives in
+> `docs/design/mothership-superstructure.md`, which cross-references this file's
+> useful ideas (the district list, the LOD/performance strategy) as of 2026-07-01. The
+> `Ring > Sector > Deck > Block > Room` addressing below and the Hub-tab mapping table
+> do NOT match the shipped `Deck > Zone > Room` model or the current nav, read this
+> for scale/theme inspiration, not as a current spec.
+
 ## Scale
 - **Population capacity**: 10 billion (entire humanity if needed)
 - **Length**: ~500 km (comparable to a small moon)

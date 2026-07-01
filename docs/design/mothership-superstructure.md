@@ -72,9 +72,47 @@ placed sub-structure. Reuse, don't reinvent.
 ## Open questions
 - Scale + performance: a mothership is far bigger than a home -- LOD the macro view (zones as blocks until
   you enter one), don't render every factory machine at city scale (mirrors the detection/grid perf rule).
+  Proposed answer (see reconciliation below): only render the current zone + adjacent zones in detail; a
+  distant zone renders as a simplified block/skybox-style placeholder. This is a rendering LOD strategy,
+  not a data-model change, and is NOT yet implemented, flagged here so M-stage work doesn't silently skip
+  it until it becomes a real performance wall.
 - One editor or two? Likely ONE editor with a ZOOM/scale switch (mothership view <-> zone view <-> room
-  view), since the data model is the same box+graph pattern at every scale. Decide before M1.
+  view), since the data model is the same box+graph pattern at every scale. Decide before M1. **Still
+  open as of 2026-07-01**, the operator has not resolved this fork yet.
 - Persistence/authority: is the mothership a server-owned shared object (one per relay/instance) that many
   players co-build, or a single-author blueprint? (Likely shared + server-authoritative; ties federation.)
 - Ownership/governance of zones: who can edit the mall vs a private shop vs a factory? Ties to the
   guild/accord/governance systems.
+- Population scale target: is "10 billion" meant as literally-rendered/simulated individuals, or as an
+  aggregate capacity number the resource-flow math (food/water/power per zone) should be validated
+  against? A 2026-07-01 research pass on this concluded the LATTER is what's actually achievable: the
+  renderer's instancing path is confirmed dead code, and a single home's ~104 machine meshes already hit
+  the draw-call cap once (had to be raised 256 -> 1024 at v0.528). An aggregate `population: u64` rolled
+  up per zone/deck, feeding a per-capita resource model, is unbounded by population size (only by zone
+  count) and reuses the exact aggregation pattern the utility-trio's `PowerCircuit`/`PlumbingCircuit`
+  island system already implements one tier down. Individual "living their lives" NPCs (schedules, needs,
+  riding the rail cars) stay a small, deliberately-bounded population layered on top for flavor, not the
+  mechanism computing whether the ship's numbers close. Full writeup: ask for the 2026-07-01 mothership
+  simulation research findings, not yet split into its own design doc.
+
+## Reconciliation with docs/game/humanity_one.md (2026-07-01)
+
+`docs/game/humanity_one.md` is an older lore/vision doc (10 billion population, 500km x 100km cylindrical
+ring-ship, a `Ring > Sector > Deck > Block > Room` addressing scheme) that predates this doc and was never
+wired to the `Zone` system that actually shipped (v0.631+). It is NOT a competing technical spec, treat it
+as vision/flavor context with a few genuinely useful ideas worth pulling forward:
+
+- Its **district list** (residential towers, agricultural rings, industrial sector, commercial district,
+  medical, docking bay) maps almost 1:1 onto the `zone_types.ron` registry that actually shipped
+  (residential / agriculture / industrial / civic_mall / medical / hangar / power / ...). Good alignment,
+  no action needed, the real system already covers this ground.
+- Its **LOD/performance strategy** ("only render the current section + adjacent sections; far sections as
+  simplified geometry") is the best existing answer to this doc's own "scale + performance" open question
+  above and should be the starting point when that gets built, not reinvented from scratch.
+- Its **Ring/Sector addressing tier** does NOT exist in the shipped model (which is `Deck > Zone > Room`)
+  and should not be assumed as current. If the mothership ever needs a tier ABOVE Deck (grouping many
+  decks, e.g. for federation/multi-server sharding of a huge ship), Ring/Sector is a reasonable name to
+  revisit, but it is not built and not scheduled.
+- Its **Hub-tab-to-ship-section mapping table** (Bridge=Map, Comms=Chat, Fantasy, Lore, Source, ...) is
+  decorative flavor text from an earlier nav era and does NOT match the current `GuiPage` enum (see
+  `docs/PAGES.md`, 52 real pages, none named this way). Do not treat that table as a current UI spec.
