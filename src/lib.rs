@@ -9919,15 +9919,18 @@ mod native_app {
                                             );
                                         }
                                     }
-                                    // v0.283.0: voice_room_signal / webrtc_signal stubs.
-                                    // The relay broadcasts these for active voice rooms but
-                                    // native has no WebRTC stack yet (the channel-list voice
-                                    // icon's click handler is a TODO in chat.rs:1060). Stubs
-                                    // keep the dispatcher exhaustive so future arms can detect
-                                    // unknown types via the catch-all without false positives.
-                                    // Implementing real voice means adding webrtc-rs + audio
-                                    // capture/playback + mute/deafen UI — weeks of work,
-                                    // tracked separately, not a propagation bug.
+                                    // STALE COMMENT CORRECTED 2026-07-01 (overnight loop, cycle 12):
+                                    // this used to say native had no WebRTC stack and these were
+                                    // stubs -- that was true at v0.283.0 when this arm was written,
+                                    // but native voice shipped end-to-end in the v0.485-495 arc
+                                    // (mic capture via cpal, Opus encode, str0m WebRTC transport --
+                                    // see docs/STATUS.md's "Native voice" row, src/net/voice.rs,
+                                    // src/net/webrtc.rs). Both arms below route real signaling into
+                                    // the live WebRTC manager (`webrtc.submit_voice_signal` /
+                                    // `submit_signal`), they are not stubs. The channel-list voice
+                                    // icon's join/leave click handler also shipped (chat.rs, search
+                                    // "voice_joined") -- it just isn't at the line this comment used
+                                    // to cite, since line numbers drift as the file grows.
                                     #[cfg(feature = "native")]
                                     Some("voice_room_signal") => {
                                         // Phase C: inbound voice-room signaling (offer /
