@@ -360,10 +360,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.spacing_mut().item_spacing.x = 6.0;
 
         // Go Live / LIVE button — Success variant when live (green), Primary when not.
+        // Real capture/encoding/transport isn't built yet (STATUS.md TIER 2 gap) --
+        // this drives scene/source rehearsal state only, so both labels carry an
+        // honest tooltip rather than implying a real broadcast is happening.
         if state.studio.is_live {
             // Indicator only — clicking does nothing (use Stop to end stream).
-            widgets::Button::success("LIVE").show(ui, theme);
-        } else if widgets::Button::primary("Go Live").show(ui, theme) {
+            widgets::Button::success("LIVE")
+                .tooltip("Rehearsal mode only -- no video/audio is actually being sent anywhere yet.")
+                .show(ui, theme);
+        } else if widgets::Button::primary("Go Live")
+            .tooltip("Rehearsal mode: lets you practice scenes/sources. Streaming isn't connected to a real broadcast yet.")
+            .show(ui, theme)
+        {
             state.studio.is_live = true;
             state.studio.is_paused = false;
             state.studio.live_start_time = ui.ctx().input(|i| i.time);
@@ -459,13 +467,16 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         };
         painter.rect_filled(fill_rect, 2.0, meter_color);
 
-        // Connection status placeholder
+        // Connection status. No real transport exists yet (see the Go Live tooltip
+        // above), so this must not claim a live bitrate/drop count that was never
+        // measured -- it previously showed a hardcoded "0 dropped | 3500 kbps" that
+        // looked like a real stat regardless of whether anything was connected.
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if state.studio.is_live {
                 ui.label(
-                    RichText::new("0 dropped | 3500 kbps")
+                    RichText::new("Rehearsing (not broadcasting)")
                         .size(theme.font_size_small)
-                        .color(theme.success()),
+                        .color(theme.warning()),
                 );
             } else {
                 ui.label(

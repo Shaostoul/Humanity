@@ -243,12 +243,12 @@ Help topics live in `data/help/topics.json`. Both UIs read from the same file.
 
 **Web** consumes this via `window.hosHelp.show('my-topic-id')` and the `[data-help-id="my-topic-id"]` attribute on any button.
 
-**Native** consumes via `gui_state.help_registry.show("my-topic-id")` (pending the help-modal widget implementation).
+**Native** consumes via `src/gui/widgets/help_modal.rs`, wired into the render loop and reading `gui_state.active_help_topic` (shipped; this note was stale, corrected 2026-07-01 -- it was never revisited after the widget landed). As of this correction only `chat.rs` actually calls it ("What's a group vs a server?"); most pages with controls that could use a help topic don't yet -- see `data/help/topics.json` (9 topics today) to add more.
 
 To add a help button next to any UI element:
 
 - **Web:** `<button class="hos-help-btn" data-help-id="my-topic-id" aria-label="Help">?</button>`
-- **Native:** call `help_button(ui, theme, "my-topic-id", &mut help_state)` (pending implementation).
+- **Native:** call `widgets::help_modal::help_button(ui, theme, "my-topic-id", &mut gui_state.active_help_topic)`.
 
 ## How to add a new page
 
