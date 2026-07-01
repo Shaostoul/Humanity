@@ -1925,6 +1925,20 @@ pub struct GuiState {
     pub dm_settings_popup_open: bool,
     pub groups_settings_popup_open: bool,
 
+    /// Notification preferences (v0.641, was unwired client-side despite the relay + web
+    /// client already fully supporting it -- see `update_notification_prefs`/
+    /// `get_notification_prefs`/`notification_prefs_data` in `src/relay/relay.rs`, mirrored by
+    /// `web/pages/settings-app.js`). Defaults match the server's own column defaults
+    /// (`notification_prefs` table) so a not-yet-fetched popup shows sensible values instead
+    /// of a false "off." `notif_prefs_loaded` is false until the first real
+    /// `notification_prefs_data` round-trips.
+    pub notif_dm_enabled: bool,
+    pub notif_mentions_enabled: bool,
+    pub notif_tasks_enabled: bool,
+    pub notif_dnd_start: Option<String>,
+    pub notif_dnd_end: Option<String>,
+    pub notif_prefs_loaded: bool,
+
     /// Pending unencrypted-DM confirmation (v0.199.0).
     ///
     /// When the user tries to send a DM but the recipient's ECDH key
@@ -2775,6 +2789,12 @@ impl Default for GuiState {
             show_create_group_modal: false,
             dm_settings_popup_open: false,
             groups_settings_popup_open: false,
+            notif_dm_enabled: true,
+            notif_mentions_enabled: true,
+            notif_tasks_enabled: true,
+            notif_dnd_start: None,
+            notif_dnd_end: None,
+            notif_prefs_loaded: false,
             dm_unencrypted_confirm: None,
             server_settings: None,
             chat_roles: Vec::new(),

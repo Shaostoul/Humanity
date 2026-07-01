@@ -1665,6 +1665,74 @@ mod native_app {
         }
     }
 
+    /// Parsed `notification_prefs_data` payload (v0.641). Pulled out of the WS-message match so
+    /// the parsing is directly testable: a missing/malformed `dm`/`mentions`/`tasks` field must
+    /// default to `true` (matching the server's own `notification_prefs` table column defaults
+    /// -- see `src/relay/storage/mod.rs`'s `CREATE TABLE`), never silently default to `false`
+    /// and mute someone who never asked to be muted.
+    struct NotifPrefsPayload {
+        dm: bool,
+        mentions: bool,
+        tasks: bool,
+        dnd_start: Option<String>,
+        dnd_end: Option<String>,
+    }
+
+    fn parse_notification_prefs(val: &serde_json::Value) -> NotifPrefsPayload {
+        NotifPrefsPayload {
+            dm: val.get("dm").and_then(|v| v.as_bool()).unwrap_or(true),
+            mentions: val.get("mentions").and_then(|v| v.as_bool()).unwrap_or(true),
+            tasks: val.get("tasks").and_then(|v| v.as_bool()).unwrap_or(true),
+            dnd_start: val.get("dnd_start").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            dnd_end: val.get("dnd_end").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        }
+    }
+
+    #[cfg(test)]
+    mod notification_prefs_tests {
+        use super::parse_notification_prefs;
+
+        #[test]
+        fn real_payload_parses_every_field() {
+            let v = serde_json::json!({
+                "dm": false, "mentions": true, "tasks": false,
+                "dnd_start": "22:00", "dnd_end": "07:00",
+            });
+            let p = parse_notification_prefs(&v);
+            assert!(!p.dm);
+            assert!(p.mentions);
+            assert!(!p.tasks);
+            assert_eq!(p.dnd_start.as_deref(), Some("22:00"));
+            assert_eq!(p.dnd_end.as_deref(), Some("07:00"));
+        }
+
+        #[test]
+        fn missing_dnd_is_none_not_a_default_string() {
+            let v = serde_json::json!({"dm": true, "mentions": true, "tasks": true});
+            let p = parse_notification_prefs(&v);
+            assert_eq!(p.dnd_start, None);
+            assert_eq!(p.dnd_end, None);
+        }
+
+        #[test]
+        fn malformed_or_missing_bool_fields_default_to_true_not_false() {
+            // Fail OPEN here specifically: a malformed payload must never silently mute
+            // someone who never asked to be muted -- true (notified) is the safe default,
+            // matching the server's own column defaults.
+            let v = serde_json::json!({});
+            let p = parse_notification_prefs(&v);
+            assert!(p.dm);
+            assert!(p.mentions);
+            assert!(p.tasks);
+
+            let wrong_type = serde_json::json!({"dm": "yes", "mentions": 1, "tasks": null});
+            let p2 = parse_notification_prefs(&wrong_type);
+            assert!(p2.dm);
+            assert!(p2.mentions);
+            assert!(p2.tasks);
+        }
+    }
+
     #[cfg(test)]
     mod screenshot_command_tests {
         use super::{screenshot_done_json, screenshot_output_path};
@@ -9599,6 +9667,18 @@ mod native_app {
                                             }
                                             log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
                                         }
+                                    }
+                                    Some("notification_prefs_data") => {
+                                        // See GuiState::notif_dm_enabled doc comment: the relay + web
+                                        // client already fully support this, the native client just
+                                        // never asked for or read it until now.
+                                        let prefs = parse_notification_prefs(&val);
+                                        state.gui_state.notif_dm_enabled = prefs.dm;
+                                        state.gui_state.notif_mentions_enabled = prefs.mentions;
+                                        state.gui_state.notif_tasks_enabled = prefs.tasks;
+                                        state.gui_state.notif_dnd_start = prefs.dnd_start;
+                                        state.gui_state.notif_dnd_end = prefs.dnd_end;
+                                        state.gui_state.notif_prefs_loaded = true;
                                     }
                                     Some("dm") => {
                                         // Incoming DM message

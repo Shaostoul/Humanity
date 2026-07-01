@@ -102,17 +102,22 @@ internet, zero firewall risk, zero pollution of the real server.
    throwaway SQLite DB (run from a scratch directory, or delete
    `data/relay.db` after -- never touch the real `data/relay.db` if one is
    tracked, check `.gitignore` first).
-2. **Lightweight protocol test client**: rather than launching a full
-   native GUI to test send/receive, write small scriptable WS test clients
-   (Node with the `ws` package -- check if it's already a devDependency
-   anywhere in `web/`, or a plain Rust test using `tokio-tungstenite`
-   which is already a dependency) that connect to the local relay and
-   assert on real protocol behavior: send a chat message and confirm
-   broadcast, join/leave a group channel, DM send/receive, the
-   moderation-action messages (kick/ban/mute/mod/unmod), and the stream
-   signaling messages (start/end stream, viewer join, stream chat). This
-   is the PRIMARY verification method for chat backend logic -- fully
-   automatable, no GUI, no button clicks, safe to run in a loop all night.
+2. **Lightweight protocol test client -- BUILT, use it**:
+   `scripts/ws-test-client.js` (added cycle 2, v0.641.0). Node's built-in
+   `WebSocket` (no `ws` package needed, Node 22+), authenticates via the
+   `bot_` + `bot_secret`/`API_SECRET` fastpath (`src/relay/relay.rs`
+   ~2542) so it never needs the full Dilithium identify handshake.
+   Usage: start the relay with `API_SECRET=<anything>` set, then
+   `API_SECRET=<same> node scripts/ws-test-client.js ws://127.0.0.1:<port>
+   bot_<name> '<json message>' '<json message>' ...` -- prints every
+   message received. Already proven for the notification-prefs round trip
+   (get defaults -> update -> get again, confirmed persisted). Reuse this
+   for: a chat message send + broadcast confirm, join/leave a group
+   channel, DM send/receive, the moderation-action messages
+   (kick/ban/mute/mod/unmod), and the stream signaling messages (start/end
+   stream, viewer join, stream chat). This is the PRIMARY verification
+   method for chat backend logic -- fully automatable, no GUI, no button
+   clicks, safe to run in a loop all night.
 3. **Native GUI passive checks** (when a visual confirmation is actually
    needed, e.g. "does the chat page render correctly with a placed spot
    light" from tonight's earlier work, or "does the livestream scene
@@ -140,19 +145,29 @@ Concrete, file:line-referenced gaps found by a repo-wide TODO/FIXME scan
 real requirement, implement for real (not another stub), verify via the
 loopback harness, commit small.
 
-1. `src/gui/pages/chat.rs:705` -- DM notification toggle is a `// TODO:
-   toggle DM notifications` no-op. Find the actual notification-prefs
-   plumbing (`notification_prefs` table exists per CLAUDE.md's storage
-   schema section -- `/api` route or WS message for it) and wire the
-   toggle to a real read/write.
-2. `src/gui/pages/chat.rs:1249` -- `let is_group_admin = true; // TODO: per-
-   group role once server reports it`. This is a HARDCODED FAKE admin flag
-   -- every user currently sees themselves as a group admin regardless of
-   real role. Find how per-group roles are (or should be) reported by the
-   relay (group membership table, `GuildMemberRecord` role field per
-   CLAUDE.md's key patterns, or a dedicated group-role concept) and wire
-   the real value through. This is a real permission-model bug, prioritize
-   it.
+1. **DONE (v0.641.0)** ~~`src/gui/pages/chat.rs:705` -- DM notification
+   toggle is a `// TODO: toggle DM notifications` no-op.~~ The relay +
+   web client already fully supported this (`notification_prefs` table,
+   `get`/`update_notification_prefs` WS messages); the native client just
+   never sent/received them. `GuiState` gained
+   `notif_dm_enabled`/`notif_mentions_enabled`/`notif_tasks_enabled`/
+   `notif_dnd_start`/`notif_dnd_end`/`notif_prefs_loaded`; the popup now
+   fetches on first open and the button is a real toggle that round-trips
+   to the server. Verified with a REAL protocol test against a local relay
+   using the new `scripts/ws-test-client.js` bot-auth harness (see below) --
+   confirmed defaults, update, and persisted re-fetch all correct.
+   **Follow-up left open**: mentions/tasks/DND are fetched and preserved
+   (so the DM toggle never clobbers them) but have no native UI control
+   yet -- a later increment should add a proper Settings-page section
+   mirroring `web/pages/settings-app.js`'s full toggle set, for dual-UI
+   parity. Logged in `docs/FEATURES.md`.
+2. **DONE (v0.641.0, BUG-041)** ~~`src/gui/pages/chat.rs:1249` -- `let
+   is_group_admin = true; // TODO: per-group role once server reports
+   it`.~~ The server already reported this (`GroupData::role`,
+   `"admin"`/`"member"` per `src/relay/storage/social.rs::create_group`)
+   via `group_list` -- the client `ChatGroup` struct just had no field to
+   receive it. Added `role: String`, wired the handler, extracted a
+   testable `is_group_admin(role: &str) -> bool` helper with 3 unit tests.
 3. `src/gui/pages/chat.rs:1346` -- `// TODO: wire group voice join/leave
    through the relay`. Compare against how the 1:1 voice call path already
    works (`chat-voice-calls.js`/`chat-voice-webrtc.js` on the web side,

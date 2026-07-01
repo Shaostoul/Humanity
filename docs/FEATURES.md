@@ -196,7 +196,11 @@ Web Push API with VAPID keys.
 
 ### Notification Preferences
 Per-user DM/mention/task/DND toggles synced to server.
-- Web: `web/pages/settings-app.js`
+- Web: `web/pages/settings-app.js` (full toggle set + DND time range)
+- Native: `src/gui/pages/chat.rs`'s DM-list "DM Notifications" button (v0.641.0) fetches +
+  toggles the DM flag only; mentions/tasks/DND are fetched and preserved (so the DM toggle
+  never clobbers them) but have no native UI control yet -- a later increment should add a
+  proper Settings-page section mirroring the web client's, for full dual-UI parity.
 - Server: `src/relay/storage/notification_prefs.rs`
 
 ### Notification Actions

@@ -679,6 +679,17 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Toggle popup open state on cog click.
     if dm_cog_clicked {
         state.dm_settings_popup_open = !state.dm_settings_popup_open;
+        // First time this popup opens this session, fetch the real prefs from the server
+        // (relay + web already support this fully -- see GuiState::notif_dm_enabled doc
+        // comment) so the toggle below reflects reality instead of the client-side default.
+        if state.dm_settings_popup_open && !state.notif_prefs_loaded {
+            if let Some(ref client) = state.ws_client {
+                if client.is_connected() {
+                    let msg = serde_json::json!({ "type": "get_notification_prefs" });
+                    client.send(&msg.to_string());
+                }
+            }
+        }
     }
     // Render the popup as a manual floating Area anchored to the cog.
     // Bypassing egui::popup_below_widget because that machinery uses
@@ -701,8 +712,26 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.chat_dms.clear();
                                 state.dm_settings_popup_open = false;
                             }
-                            if ui.button("DM Notifications").clicked() {
-                                // TODO: toggle DM notifications
+                            let dm_notif_label = if state.notif_dm_enabled {
+                                "DM Notifications: On"
+                            } else {
+                                "DM Notifications: Off"
+                            };
+                            if ui.button(dm_notif_label).clicked() {
+                                state.notif_dm_enabled = !state.notif_dm_enabled;
+                                if let Some(ref client) = state.ws_client {
+                                    if client.is_connected() {
+                                        let msg = serde_json::json!({
+                                            "type": "update_notification_prefs",
+                                            "dm": state.notif_dm_enabled,
+                                            "mentions": state.notif_mentions_enabled,
+                                            "tasks": state.notif_tasks_enabled,
+                                            "dnd_start": state.notif_dnd_start,
+                                            "dnd_end": state.notif_dnd_end,
+                                        });
+                                        client.send(&msg.to_string());
+                                    }
+                                }
                                 state.dm_settings_popup_open = false;
                             }
                         });
