@@ -222,6 +222,22 @@ mod plant_registry_csv_tests {
         assert!((t.humidity_max - 0.80).abs() < 1e-6, "humidity_max");
         assert_eq!(t.yield_max, 8, "yield still parses past the new columns");
     }
+
+    /// The shipped `data/plants.csv` carries real edible mushroom crops (added 2026-07-01 to
+    /// back the `mushroom_rack` machine's "+50 kcal/d" claim -- see
+    /// docs/design/homestead-solo-design.md gap #1). Guards the mushroom_rack's food-loop
+    /// story against a silent regression to the old alien-only fungi.
+    #[test]
+    fn shipped_plants_csv_has_real_edible_mushrooms() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let bytes = std::fs::read(&path).expect("data/plants.csv reads");
+        let reg = PlantRegistry::from_csv(&bytes).expect("data/plants.csv parses");
+        for id in ["oyster_mushroom", "shiitake", "button_mushroom"] {
+            let def = reg.get(id).unwrap_or_else(|| panic!("{id} present in plants.csv"));
+            assert!(def.growth_days > 0.0, "{id} has a real growth cycle");
+            assert!(def.humidity_min > 0.5, "{id} is a high-humidity crop, not a desert plant");
+        }
+    }
 }
 
 /// Rate at which water_level decreases per second (base dehydration).

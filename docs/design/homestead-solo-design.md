@@ -320,31 +320,29 @@ come from the layout file's single-source-of-truth block
 Honest gaps to author, following the schema patterns in the files above —
 **not** worked around silently.
 
-1. **No terrestrial edible mushroom crop.** `plants.csv` has
-   `mushroom_rack` (machine) and grow_media `mushroom`, but the only fungi
-   in `plants.csv` are alien (`shadow_fungi`, `phase_mushroom`, etc.). The
-   `mushroom_rack`'s +50 kcal/day is unbacked by a real crop id.
-   → **Author in `data/plants.csv`:** rows for `oyster_mushroom`,
-   `shiitake`, `button_mushroom` (type `fungus` or reuse `vegetable`),
-   with the existing 26-column schema
-   (`id,name,description,type,growth_days,water_liters_per_day,
-   nutrient_n/p/k,ph_min/max,temp_min/max,humidity_min/max,
-   yield_min/max,growth_stages,seasons,seed_value,harvest_value,
-   skill_required,seed_source,companion_plants,adverse_plants`). Real
-   data: oyster ~14-day cycle, high humidity 0.85–0.95, no light. This is
-   the single highest-value gap for food-loop honesty.
+1. ~~**No terrestrial edible mushroom crop.**~~ **CLOSED (v0.657.0,
+   2026-07-01).** Added `oyster_mushroom`, `shiitake`, `button_mushroom` to
+   `data/plants.csv` (type `vegetable`, no `fungus` type exists yet --
+   matches the "or reuse `vegetable`" fallback this gap originally called
+   for). Real-world-grounded: oyster 14-day cycle / 0.85-0.95 humidity,
+   shiitake 60-day / 0.80-0.90, button 25-day / 0.85-0.95, all no-light
+   (matching `mushroom_rack`'s "no light needed" stat). Regression test:
+   `systems::farming::plant_registry_csv_tests::
+   shipped_plants_csv_has_real_edible_mushrooms`.
 
-2. **No tank/aquaponic fish species.** The `aquaponic_tank` needs a fish,
-   and grow_media hints "e.g. tilapia," but `creatures.csv` only has wild
-   `salmon`, `tuna`, `clownfish` (ocean species) — no `tilapia`,
-   `catfish`, or `trout` suited to a closed freshwater tank. The
-   B12/omega-3 closure (the *unique* thing the aquaponic loop does per
-   self-sufficiency.md) rests on an absent species.
-   → **Author in `data/creatures.csv`:** `tilapia` and/or
-   `channel_catfish` rows following the existing schema
-   (`id,name,type,species,...,habitat,drops(raw_fish:x|fish_oil:y|...),
-   behavior,domesticable,...`), habitat `freshwater|tank`, domesticable
-   `true`. Fish_oil drop already models omega-3.
+2. ~~**No tank/aquaponic fish species.**~~ **CLOSED (v0.657.0,
+   2026-07-01).** Added `tilapia` and `channel_catfish` to
+   `data/creatures.csv` (`habitat_biomes: river`, `domesticable: true`,
+   `raw_fish`/`fish_oil`/`fish_scale` loot matching the existing
+   salmon/tuna rows -- fish_oil already models the omega-3 closure).
+   Note: `creatures.csv` currently has **no runtime loader at all** (no
+   `CreatureRegistry`/`CreatureDef` consumes it anywhere in `src/`) --
+   it is pure reference data today, same status as every other row in the
+   file. Adding these species is honest content-gap closure for when that
+   loader exists; it does not yet make the aquaponic tank's B12/omega-3
+   claim mechanically computed (that still rests on the hand-typed
+   `aquaponic_tank` catalog stat in home.ron/home_solo.ron, per gap #3
+   below).
 
 3. **No calorie/macro field on `plants.csv`.** Calories live only in
    `food_system.ron` **nutrition_profiles** keyed by broad *category*
