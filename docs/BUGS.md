@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-045: Cloned/mirrored homes in a residential zone rendered walls only -- no floor, ceiling, or trim
+- **Status**: Fixed
+- **Version Fixed**: v0.654.0
+- **Reported**: operator, in-game screenshot ("Looks like the floors for the mirrored homes aren't rendering and some of the other stuff in the home").
+- **Root cause**: `ClonableHomeDesign::bake_local_groups` (`src/ship/home_structure.rs`), which bakes the geometry `tile_home_clones` stamps into every residential-zone slot, extracted ONLY `HomesteadMeshes::material_walls` from the generated mesh -- `floors`, `ceilings`, and `trim` (separate fields on the same struct) were never pulled in, so every home clone besides the one the player is actively editing rendered walls with nothing else. The function's own doc comment already described the intent ("an opaque roof reads better en masse"), but the actual ceiling/floor extraction was simply never written.
+- **Fix**: `bake_local_groups` now also folds in floors (opaque only, alpha/material_type dropped -- the cloned-home colour bucket has no per-group material slot, the same simplification `material_walls` already accepted) and an always-opaque ceiling + trim (fixed colours matching `src/lib.rs`'s non-glass ceiling/trim materials, since a clone has no independent "is my roof glass" state). Windows and mirrors remain excluded (semi-transparent geometry needs an alpha-aware colour bucket the current flat-RGB scheme doesn't have; a real gap but not what "the floor is missing" was about) and logged as a known follow-up. New test `cloned_home_design_includes_floor_and_ceiling_not_just_walls`, confirmed via revert-and-retest (fails against the reverted code -- only the wall colour bucket present, no ceiling). Files: `src/ship/home_structure.rs`.
+
 ### BUG-044: Spoiled food had zero gameplay consequence -- tracked but never checked when eaten
 - **Status**: Fixed
 - **Version Fixed**: v0.646.0 (pending release)

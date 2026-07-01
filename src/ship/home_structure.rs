@@ -1401,6 +1401,20 @@ impl ClonableHomeDesign {
     /// groups are dropped (an opaque roof reads better en masse + skips the transparent-pass sort cost
     /// once tiled hundreds of times; the player's OWN home keeps its real glass roof, this only affects
     /// the cloned filler copies).
+    ///
+    /// BUG FIX (2026-07-01, operator: "floors for the mirrored homes aren't rendering and some of the
+    /// other stuff"): this used to return ONLY `material_walls`, silently dropping floors, ceilings, and
+    /// trim for every cloned/tiled home -- despite this very doc comment already describing the intent
+    /// ("an opaque roof reads better en masse"), the ceiling (and floor, and trim) extraction was simply
+    /// never written. All cloned-home geometry already collapses into the mothership's shared
+    /// `material_walls` bucket regardless of category (see `generate_zone_filler`'s doc comment: "Both
+    /// paths merge into material_walls... so this scales the SAME way roads/rails/structures already
+    /// do"), so folding floors/ceilings/trim into this same flat colour-bucketed output is consistent
+    /// with how the rest of the zone-filler system already works, not a new pattern. Windows and mirrors
+    /// remain excluded: windows are semi-transparent (would need a colour bucket that preserves alpha,
+    /// which this flat-RGB scheme does not) and mirrors are a portal-like accent detail rather than
+    /// structural -- both are a reasonable follow-up if cloned homes need them, not required for "the
+    /// floor is visibly missing."
     fn bake_local_groups(&self) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
         let stub = HomeStructure {
             width: self.width,
@@ -1419,12 +1433,37 @@ impl ClonableHomeDesign {
             rail_nodes: Vec::new(),
             rail_edges: Vec::new(),
         };
-        stub.generate_meshes()
+        let meshes = stub.generate_meshes();
+        let mut groups: Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> = meshes
             .material_walls
             .into_iter()
             .filter(|(_, _, color)| color[3] >= 0.999)
             .map(|(v, i, c)| (v, i, [c[0], c[1], c[2]]))
-            .collect()
+            .collect();
+        // Floors: per-room (vertices, indices, rgba, material_type) -- drop alpha (floors don't carry
+        // glass) and material_type (the cloned-home bucket has no per-group material slot, same
+        // simplification material_walls already accepts here).
+        groups.extend(
+            meshes
+                .floors
+                .into_iter()
+                .filter(|(_, _, color, _)| color[3] >= 0.999)
+                .map(|(v, i, c, _material_type)| (v, i, [c[0], c[1], c[2]])),
+        );
+        // Ceiling: always baked as the OPAQUE roof colour (matches this fn's own doc comment above and
+        // src/lib.rs's non-glass ceiling material) regardless of whether the player's own home currently
+        // has a glass roof -- that per-home glass toggle only makes sense for the one home you're really
+        // standing in, not a filler clone seen from a distance.
+        if !meshes.ceilings.0.is_empty() {
+            const OPAQUE_CEILING_RGB: [f32; 3] = [0.60, 0.62, 0.68];
+            groups.push((meshes.ceilings.0, meshes.ceilings.1, OPAQUE_CEILING_RGB));
+        }
+        // Trim (baseboard/crown/frame): always opaque wood-brown, matches src/lib.rs's trim material.
+        if !meshes.trim.0.is_empty() {
+            const TRIM_RGB: [f32; 3] = [0.42, 0.30, 0.18];
+            groups.push((meshes.trim.0, meshes.trim.1, TRIM_RGB));
+        }
+        groups
     }
 }
 
@@ -1817,6 +1856,41 @@ mod tests {
             [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
         });
         assert!(has_industrial_bucket, "the industrial filler renders tinted with its zone type's colour");
+    }
+
+    /// BUG FIX regression (2026-07-01, operator: "floors for the mirrored homes aren't rendering and
+    /// some of the other stuff") -- `ClonableHomeDesign::bake_local_groups` used to return ONLY
+    /// `material_walls`, silently dropping the floor and ceiling for every cloned/tiled home in a
+    /// residential zone. This pins that a design with a floor (every home has one -- even zero interior
+    /// walls still yields one whole-box floor quad) and a ceiling (unconditional, per `generate_meshes`)
+    /// produces colour groups for BOTH, not just the walls.
+    #[test]
+    fn cloned_home_design_includes_floor_and_ceiling_not_just_walls() {
+        let design = ClonableHomeDesign {
+            width: 12.0,
+            depth: 12.0,
+            height: 3.0,
+            shell_material: 1,
+            walls: Vec::new(),
+            structures: Vec::new(),
+        };
+        let groups = design.bake_local_groups();
+        assert!(!groups.is_empty(), "a box with a shell must bake at least the outer walls");
+
+        let floor_rgb = {
+            let c = HomeStructure::material_color(1);
+            [c[0], c[1], c[2]]
+        };
+        let has_floor = groups.iter().any(|(v, _, c)| !v.is_empty() && color_close(c, &floor_rgb));
+        assert!(has_floor, "expected a floor-coloured group ({floor_rgb:?}) in {groups:?}", groups = groups.iter().map(|(_, _, c)| c).collect::<Vec<_>>());
+
+        const OPAQUE_CEILING_RGB: [f32; 3] = [0.60, 0.62, 0.68];
+        let has_ceiling = groups.iter().any(|(v, _, c)| !v.is_empty() && color_close(c, &OPAQUE_CEILING_RGB));
+        assert!(has_ceiling, "expected the opaque ceiling colour ({OPAQUE_CEILING_RGB:?}) in {groups:?}", groups = groups.iter().map(|(_, _, c)| c).collect::<Vec<_>>());
+    }
+
+    fn color_close(a: &[f32; 3], b: &[f32; 3]) -> bool {
+        (0..3).all(|i| (a[i] - b[i]).abs() < 1e-4)
     }
 
     /// v0.638: a zone type with no entry in zone_filler.ron (and that isn't "residential") renders with
