@@ -190,8 +190,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ambient = albedo * 0.15 * ao;
     var color = ambient + radiance + emission;
 
-    // HDR tonemapping (Reinhard)
-    color = color / (color + vec3<f32>(1.0));
+    // HDR tonemapping (ACES filmic approximation, was Reinhard). Reinhard's `c / (c + 1)` compresses
+    // hard and near-instantly as radiance climbs, so a bright light "plateaus" almost immediately with
+    // barely any visible change past a few units of intensity (operator report, 2026-07-01: cranking a
+    // ceiling panel's intensity stopped looking any brighter). ACES (Narkowicz's fit) has a much longer
+    // shoulder before it clips to white, so raising intensity keeps reading as brighter over a far wider
+    // practical range while still not blowing out. This is purely a display-mapping change; `intensity`
+    // itself is uncapped in the data model (PlacedLight.intensity: Option<f32>, no clamp) and the light
+    // loop above has no clamp either, so there was never a hard ceiling, only this tonemap's shoulder.
+    let aces_a = 2.51;
+    let aces_b = 0.03;
+    let aces_c = 2.43;
+    let aces_d = 0.59;
+    let aces_e = 0.14;
+    color = clamp((color * (aces_a * color + aces_b)) / (color * (aces_c * color + aces_d) + aces_e), vec3<f32>(0.0), vec3<f32>(1.0));
     // Gamma correction
     color = pow(color, vec3<f32>(1.0 / 2.2));
 

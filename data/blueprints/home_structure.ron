@@ -25,10 +25,10 @@
             openings: [
                 (
                     kind: Door,
-                    at: 1.7638464,
-                    width: 1.0,
+                    at: 0.75,
+                    width: 3.0,
                     sill: 0.0,
-                    height: 2.1,
+                    height: 2.75,
                     style: "swing",
                     open_dist: 2.6,
                     locked: false,
@@ -38,6 +38,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (45.5, 57.0),
@@ -60,6 +61,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (50.0, 57.75),
@@ -82,6 +84,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (55.0, 55.5),
@@ -91,8 +94,8 @@
             openings: [
                 (
                     kind: Door,
-                    at: 1.904423,
-                    width: 1.0,
+                    at: 0.3272115,
+                    width: 3.9227886,
                     sill: 0.0,
                     height: 2.1,
                     style: "energy",
@@ -104,6 +107,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (52.75, 51.25),
@@ -113,8 +117,8 @@
             openings: [
                 (
                     kind: Door,
-                    at: 1.6830311,
-                    width: 1.0,
+                    at: 0.75,
+                    width: 2.75,
                     sill: 0.0,
                     height: 2.1,
                     style: "nanowall",
@@ -126,6 +130,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (51.0, 47.25),
@@ -148,6 +153,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (48.75, 45.5),
@@ -170,6 +176,7 @@
                 ),
             ],
             thickness: None,
+            layers: [],
         ),
         (
             a: (43.75, 45.75),
@@ -178,6 +185,7 @@
             material: 8,
             openings: [],
             thickness: None,
+            layers: [],
         ),
     ],
     shell_thickness: None,
@@ -202,7 +210,7 @@
         ),
         (
             type_id: "cool_panel",
-            pos: (27.5, 2.7, 54.2),
+            pos: (26.4, 2.7, 54.0),
             dir: (0.0, -1.0, 0.0),
             on: true,
             color: None,
@@ -216,7 +224,7 @@
             on: true,
             color: None,
             intensity: None,
-            range: None,
+            range: Some(10.0),
         ),
         (
             type_id: "strip",
@@ -227,5 +235,101 @@
             intensity: None,
             range: None,
         ),
+        (
+            type_id: "strip",
+            pos: (49.3, 1.0, 53.3),
+            dir: (0.0, -1.0, 0.0),
+            on: true,
+            color: None,
+            intensity: None,
+            range: Some(6.0),
+        ),
+        (
+            type_id: "ceiling_panel",
+            pos: (42.5, 2.8, 71.3),
+            dir: (0.0, -1.0, 0.0),
+            on: true,
+            color: None,
+            intensity: Some(11.0),
+            range: Some(40.0),
+        ),
+        (
+            type_id: "spotlight",
+            pos: (15.5, 2.7, 9.25),
+            dir: (0.0, -1.0, 0.0),
+            on: true,
+            color: None,
+            intensity: Some(10.0),
+            range: Some(20.0),
+        ),
     ],
+    spawn: Some((7.000847, 19.80943)),
+    structures: [
+        (
+            type_id: "elevator",
+            pos: (39.738163, 0.0, 78.54077),
+            rot_deg: 0.0,
+            pair: None,
+        ),
+        (
+            type_id: "ladder",
+            pos: (40.119217, 0.0, 74.29884),
+            rot_deg: 0.0,
+            pair: None,
+        ),
+        (
+            type_id: "ramp",
+            pos: (36.170937, 0.0, 77.89288),
+            rot_deg: 0.0,
+            pair: None,
+        ),
+        (
+            type_id: "stairs",
+            pos: (37.339706, 0.0, 69.06643),
+            rot_deg: 0.0,
+            pair: None,
+        ),
+        (
+            type_id: "teleporter",
+            pos: (44.128338, 0.0, 68.88978),
+            rot_deg: 0.0,
+            pair: Some(5),
+        ),
+        (
+            type_id: "teleporter",
+            pos: (49.330734, 0.0, 71.40354),
+            rot_deg: 0.0,
+            pair: Some(4),
+        ),
+        (
+            type_id: "train",
+            pos: (47.33094, 0.0, 79.641205),
+            rot_deg: 0.0,
+            pair: None,
+        ),
+    ],
+    road_nodes: [],
+    road_edges: [],
+    // First-pass mothership district layout (added 2026-07-01, so the M2c zone-population feature has
+    // something real to populate; the operator's zone-editor architecture fork (one zoomed editor vs
+    // separate mothership/zone/room editors) is still open, treat these as a rough placeholder layout
+    // to move/resize once that's resolved, not a final design). Kept clear of the player's own home box
+    // (0,0,0)-(55,3,89): every zone below starts at x>=60 or z<=-30 so nothing overlaps the real home.
+    zones: [
+        (id: "res-1", type_id: "residential", origin: (60.0, 0.0, 0.0), size: (120.0, 4.0, 200.0), label: "Residential District A"),
+        (id: "hangar-1", type_id: "hangar", origin: (200.0, 0.0, 0.0), size: (50.0, 12.0, 40.0), label: "Hangar Bay 1"),
+        (id: "mech-1", type_id: "mech_bay", origin: (200.0, 0.0, 45.0), size: (16.0, 8.0, 16.0), label: "Mech Bay 1"),
+        (id: "power-1", type_id: "power", origin: (200.0, 0.0, 65.0), size: (24.0, 8.0, 24.0), label: "Reactor 1"),
+        (id: "medical-1", type_id: "medical", origin: (200.0, 0.0, 93.0), size: (18.0, 4.0, 18.0), label: "Medical Bay"),
+        (id: "armory-1", type_id: "armory", origin: (200.0, 0.0, 115.0), size: (24.0, 5.0, 34.0), label: "Armory"),
+        (id: "arena-1", type_id: "arena", origin: (200.0, 0.0, 153.0), size: (36.0, 10.0, 36.0), label: "Arena"),
+        (id: "mall-1", type_id: "civic_mall", origin: (60.0, 0.0, 205.0), size: (40.0, 6.0, 40.0), label: "The Concourse"),
+        (id: "transit-1", type_id: "transit_hub", origin: (110.0, 0.0, 205.0), size: (24.0, 6.0, 24.0), label: "Transit Hub"),
+        (id: "industrial-1", type_id: "industrial", origin: (-190.0, 0.0, 0.0), size: (40.0, 8.0, 30.0), label: "Factory District"),
+        (id: "storage-1", type_id: "storage", origin: (-190.0, 0.0, 35.0), size: (20.0, 5.0, 20.0), label: "Storage"),
+        (id: "cargo-1", type_id: "cargo", origin: (-190.0, 0.0, 60.0), size: (24.0, 5.0, 24.0), label: "Cargo Freight"),
+        (id: "agri-1", type_id: "agriculture", origin: (-190.0, 0.0, 90.0), size: (30.0, 5.0, 30.0), label: "Agricultural Bay"),
+    ],
+    rail_nodes: [],
+    rail_edges: [],
 )
