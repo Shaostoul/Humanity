@@ -39,9 +39,11 @@ pub struct FoodData {
     pub temperature_zones: Vec<ron::Value>,
 }
 
-// TODO: Add a FoodSpoilage component (or item metadata) to ecs/components.rs:
-//   pub struct FoodSpoilage { pub spoilage_timer: f32, pub max_freshness: f32, pub spoiled: bool }
-// Then items in an Inventory could carry spoilage state directly.
+// Spoilage state is tracked in FoodSystem's own `spoilage: HashMap<FoodKey, ..>`
+// side-table (below) rather than as an ECS component on the item -- items are
+// plain data (item_id + quantity) with no per-instance component slot of their
+// own, so keying by (entity, inventory-slot-index) is the practical way to
+// attach per-stack state without an item-entity architecture change.
 
 /// Spoilage time limits (seconds) by item category.
 /// Categories are inferred from item_id prefixes until a proper item-metadata system exists.
@@ -268,23 +270,40 @@ impl System for FoodSystem {
                     .map(|r| r.duration("well_nourished"))
                     .filter(|d| *d > 0.0)
                     .unwrap_or(FALLBACK_WELL_FED_S);
-                for (_e, (inv, vitals, effects)) in
+                for (e, (inv, vitals, effects)) in
                     world.query_mut::<(&mut Inventory, &mut Vitals, &mut StatusEffects)>()
                 {
                     if !inv.has_item(&item_id, 1) {
                         continue;
                     }
+                    // Spoiled food (tracked by the spoilage pass below, §3) nourishes
+                    // far less and always poisons -- eating it is never a free meal.
+                    let entity_bits: u64 = e.to_bits().into();
+                    let slot_idx = inv
+                        .slots
+                        .iter()
+                        .position(|s| s.as_ref().is_some_and(|stack| stack.item_id == item_id));
+                    let is_spoiled = slot_idx
+                        .and_then(|idx| self.spoilage.get(&(entity_bits, idx)))
+                        .is_some_and(|s| s.spoiled);
+
                     inv.remove_item(&item_id, 1);
-                    vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE)
+                    let nutrition_mult = if is_spoiled { 0.25 } else { 1.0 };
+                    vitals.satiation = (vitals.satiation + calories * SATIATION_PER_CALORIE * nutrition_mult)
                         .min(vitals.satiation_max);
                     let hydration_gain = if is_produce { PRODUCE_HYDRATION } else { BASE_HYDRATION };
-                    vitals.hydration = (vitals.hydration + hydration_gain).min(vitals.hydration_max);
+                    vitals.hydration =
+                        (vitals.hydration + hydration_gain * nutrition_mult).min(vitals.hydration_max);
                     // Eating produces a little organic waste (scraps) to compost later.
                     vitals.waste = (vitals.waste + WASTE_PER_MEAL).min(vitals.waste_max);
-                    // Eating raw food risks illness; cooked/preserved food is safe.
-                    if risk > 0.0 && rand::random::<f32>() < risk {
+                    // Spoiled food always poisons; otherwise raw food risks illness while
+                    // cooked/preserved food (risk 0) is safe.
+                    if is_spoiled || (risk > 0.0 && rand::random::<f32>() < risk) {
                         effects.apply("food_poisoning", poison_dur);
-                        log::info!("[Food] {item_id} eaten raw -> food poisoning!");
+                        log::info!(
+                            "[Food] {item_id} eaten {} -> food poisoning!",
+                            if is_spoiled { "spoiled" } else { "raw" }
+                        );
                     }
                     // A satisfying meal grants well_fed (stamina regen) + well_nourished
                     // (a tangible +10% move speed via the camera speed_multiplier).
@@ -523,8 +542,10 @@ impl System for FoodSystem {
                         "[Food] {owner}'s {} (slot {slot_idx}) has spoiled after {:.0}s",
                         stack.item_id, state.spoilage_timer,
                     );
-                    // TODO: Replace item with "spoiled_food" variant or reduce nutrition value.
-                    // For now, just mark it in the spoilage map.
+                    // The item itself stays as-is (no item-def swap, so it still
+                    // stacks/sells as the same item_id); the EAT handler above (§1)
+                    // looks up this slot's spoiled flag and applies the real
+                    // consequence -- reduced nutrition + guaranteed food poisoning.
                 } else if should_log {
                     let pct = (state.spoilage_timer / state.max_freshness * 100.0) as u32;
                     if pct >= 75 {
@@ -627,6 +648,56 @@ mod nutrition_tests {
         assert!(
             !effects.has("food_poisoning"),
             "cooked/preserved food (risk 0) never poisons"
+        );
+    }
+
+    /// Eating a SPOILED item (tracked by the spoilage side-table in §3 of tick())
+    /// always causes food poisoning and grants far less nutrition than eating the
+    /// same fresh item -- even though cooked_meat's own raw_consumption_risk is 0.
+    #[test]
+    fn eating_spoiled_food_poisons_and_reduces_nutrition() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        inv.add_item("cooked_meat_0", 1, 99);
+        let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
+
+        // One tick (no consume_request) registers the item's slot in the
+        // spoilage side-table via §3; then force it spoiled, mirroring what
+        // happens naturally once max_freshness elapses.
+        sys.tick(&mut world, 0.0, &data);
+        let entity_bits: u64 = player.to_bits().into();
+        let slot_idx = world
+            .get::<&Inventory>(player)
+            .unwrap()
+            .slots
+            .iter()
+            .position(|s| s.as_ref().is_some_and(|st| st.item_id == "cooked_meat_0"))
+            .expect("cooked_meat_0 tracked in spoilage side-table");
+        sys.spoilage.get_mut(&(entity_bits, slot_idx)).unwrap().spoiled = true;
+
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("consume_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some("cooked_meat_0".to_string());
+        sys.tick(&mut world, 0.0, &data);
+
+        let v = world.get::<&Vitals>(player).unwrap();
+        let effects = world.get::<&StatusEffects>(player).unwrap();
+        assert!(
+            effects.has("food_poisoning"),
+            "spoiled cooked_meat (own risk=0) still poisons once spoiled"
+        );
+        // 165 kcal/100g * SATIATION_PER_CALORIE (0.15) = 24.75 fresh, so a full
+        // gain would land near 64.75; the 0.25x spoiled multiplier caps it well
+        // under 50.
+        assert!(
+            v.satiation < 50.0,
+            "spoiled food gives much less satiation than fresh (got {})",
+            v.satiation
         );
     }
 

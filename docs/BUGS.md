@@ -4,6 +4,13 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-044: Spoiled food had zero gameplay consequence -- tracked but never checked when eaten
+- **Status**: Fixed
+- **Version Fixed**: v0.646.0 (pending release)
+- **Reported**: found during the 2026-07-01 overnight autonomous-loop broader stub-completion sweep (repo-wide TODO scan), not operator-reported.
+- **Root cause**: `src/systems/food.rs`'s spoilage pass (§3 of `FoodSystem::tick`) correctly ages every food item in every inventory and flips a per-slot `spoiled: bool` once `spoilage_timer >= max_freshness` -- but the EAT handler (§1, drains `consume_request`) resolved nutrition purely from the item's static `NutritionProfile` (by item_id) and never consulted the spoilage side-table at all. A player could eat a fully-spoiled item with full nutrition and zero risk, forever, as long as the item_id's own `raw_consumption_risk` was 0 (true for all cooked/canned/preserved food). The `TODO: Replace item with "spoiled_food" variant or reduce nutrition value` comment right at the spoiled-flip site documented the gap but nothing implemented it.
+- **Fix**: the EAT handler now looks up the eaten item's inventory slot (`inv.slots.iter().position(...)`), checks `self.spoilage.get(&(entity_bits, slot_idx))` for `spoiled`, and if true applies a `nutrition_mult` of `0.25` to both satiation and hydration gain AND guarantees `food_poisoning` regardless of the profile's own `raw_consumption_risk`. Fresh food is unaffected (`nutrition_mult = 1.0`, existing risk-roll logic unchanged). New test `eating_spoiled_food_poisons_and_reduces_nutrition` (`src/systems/food.rs::nutrition_tests`), confirmed to actually catch the bug via a temporary revert-and-retest (fails against the reverted code with the exact expected wrong behavior -- no poisoning, full nutrition). Files: `src/systems/food.rs`.
+
 ### BUG-043: Livestream "peak viewer count" was recorded wrong -- fed the live count at the wrong moment, not the actual peak
 - **Status**: Fixed
 - **Version Fixed**: v0.645.0
