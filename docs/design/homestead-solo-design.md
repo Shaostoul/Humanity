@@ -344,32 +344,47 @@ Honest gaps to author, following the schema patterns in the files above —
    `aquaponic_tank` catalog stat in home.ron/home_solo.ron, per gap #3
    below).
 
-3. **No calorie/macro field on `plants.csv`.** Calories live only in
-   `food_system.ron` **nutrition_profiles** keyed by broad *category*
-   (`raw_vegetables` = 25 kcal/100g, `grains` = 340, etc.), while
-   per-machine kcal are **hardcoded strings in `home.ron` catalog stats**
-   ("+120 kcal/d"). There is no per-crop calorie/yield-to-kcal bridge, so
-   the food loop can't be computed from crop data — it's asserted in the
-   machine catalog.
-   → **Author:** add `calories_per_100g` (+ optional `protein_g/fat_g`)
-   columns to `plants.csv`, OR a small `data/food/crop_nutrition.ron`
-   mapping each plant id → macros, so the Home-page loop summary computes
-   food supply from crops instead of trusting the hand-typed catalog
-   strings. This is what self-sufficiency.md's "What data we'd add"
-   section calls for.
+3. ~~**No calorie/macro field on `plants.csv`.**~~ **CLOSED (v0.663,
+   2026-07-01) — data + loader shipped, UI integration pending.** Calories
+   used to live only in `food_system.ron` **nutrition_profiles** keyed by
+   broad *category*, while per-machine kcal were **hardcoded strings in
+   `home.ron` catalog stats** ("+120 kcal/d") — no per-crop calorie/yield-
+   to-kcal bridge, so the food loop couldn't be computed from crop data.
+   → **Authored `data/food/crop_nutrition.ron`:** one entry per FOOD crop
+   id in `data/plants.csv` (85 entries: vegetables, fruits, grains,
+   legumes, edible herbs, the three edible mushrooms; alien/decorative/
+   fiber/tree/medicinal-remedy types skipped) with `plant_id`,
+   `calories_per_100g`, `protein_g/fat_g/carbs_g` (USDA magnitude per 100 g
+   edible), and `grams_per_yield_unit` (the bridge normalizing plants.csv's
+   abstract yield units into real mass). Loaded by
+   `src/systems/self_sufficiency.rs` (`CropNutrition::from_ron` + the pure
+   `food_supply_kcal_per_day`). Every plant_id is cross-checked against
+   plants.csv by a unit test; the potato bridge is calibrated to land
+   within 2x of home.ron's "+120 kcal/d per bed" claim (924 vs 960 kcal for
+   8 beds). Still to do (deferred): wire the computed supply into the
+   Home-page loop summary so it replaces the hand-typed catalog strings.
 
-4. **No editable component-output table for the self-sufficiency score.**
-   self-sufficiency.md explicitly wants an "editable component-output
-   table (infinite-of-X data): for each generation/collection/recycling
-   component an output figure + assumptions" (e.g. `solar_panel: 400 W
-   peak, ~4.5 sun-h/day`). Today those assumptions are baked into catalog
-   stat *strings* in home.ron, not a queryable data file.
-   → **Author `data/self_sufficiency/component_outputs.ron`:** one entry
-   per generator/collector/recycler with `{id, output_value, unit,
-   assumptions}`, plus a `location.ron` (lat/long → sun-hours, rainfall,
-   degree-days) and a `household_size` selector, exactly as the design
-   doc's "What data we'd add" section specifies. This turns the whole
-   design from prose into a computed score.
+4. ~~**No editable component-output table for the self-sufficiency
+   score.**~~ **CLOSED (v0.663, 2026-07-01) — data + loader shipped, UI
+   integration pending.** The generation/collection/recycling assumptions
+   used to be baked into catalog stat *strings* in home.ron, not a
+   queryable data file.
+   → **Authored `data/self_sufficiency/component_outputs.ron`:** one entry
+   per generation/collection/recycling machine in home.ron's catalog
+   (solar_panel, wind_turbine_small, generator_portable, water_tank,
+   water_pump, water_purifier, composter, air_recycler) with `{id,
+   output_value, unit, assumptions}` — e.g. `solar_panel: 1.44, "kWh/day",
+   "400 W peak x 4.5 sun-hours x 0.80 system losses"`. Plus
+   **`data/self_sufficiency/location.ron`** (the reference location
+   "Silverdale, WA": sun-hours summer/winter, annual rainfall, heating/
+   cooling degree-days — real Kitsap County values). Loaded by
+   `src/systems/self_sufficiency.rs` (`ComponentOutputs`/`Location`
+   loaders + the pure `household_energy_balance`). Every component id is
+   cross-checked against the home.ron catalog by a unit test; all figures
+   were verified to AGREE with the home.ron catalog stats + this doc's
+   sizing math (no disagreements found). Still to do (deferred): a
+   `household_size` selector and wiring the tables into a live computed
+   per-loop score with autonomy days.
 
 5. **Grow-light energy meter (flagged in the doc, not built).**
    self-sufficiency.md's "Next" item: a live "grow-light draw vs power
