@@ -278,11 +278,19 @@ impl System for FoodSystem {
                     }
                     // Spoiled food (tracked by the spoilage pass below, §3) nourishes
                     // far less and always poisons -- eating it is never a free meal.
+                    // Must match remove_item's OWN consumption order below (last-to-
+                    // first) or this can inspect a different slot's spoilage state
+                    // than the one actually eaten when the same item_id occupies
+                    // more than one slot (e.g. a fresh stack plus an older, spoiled
+                    // one after add_item split it across slots).
                     let entity_bits: u64 = e.to_bits().into();
                     let slot_idx = inv
                         .slots
                         .iter()
-                        .position(|s| s.as_ref().is_some_and(|stack| stack.item_id == item_id));
+                        .enumerate()
+                        .rev()
+                        .find(|(_, s)| s.as_ref().is_some_and(|stack| stack.item_id == item_id))
+                        .map(|(idx, _)| idx);
                     let is_spoiled = slot_idx
                         .and_then(|idx| self.spoilage.get(&(entity_bits, idx)))
                         .is_some_and(|s| s.spoiled);
@@ -698,6 +706,55 @@ mod nutrition_tests {
             v.satiation < 50.0,
             "spoiled food gives much less satiation than fresh (got {})",
             v.satiation
+        );
+    }
+
+    /// When the SAME item_id occupies two separate slots (a fresh stack plus
+    /// an older, spoiled one -- a normal reachable state once `add_item`
+    /// splits a stack across slots after the first one fills), eating must
+    /// check the spoilage of whichever slot `remove_item` ACTUALLY consumes
+    /// from (last-to-first, see `Inventory::remove_item`), not just the
+    /// first matching slot found. This is the exact bug an adversarial
+    /// review caught in the initial BUG-044 fix.
+    #[test]
+    fn spoilage_check_matches_the_slot_remove_item_actually_consumes() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(8);
+        // Two separate stacks of the same item_id: slot 0 (fresh) and slot 3
+        // (will be marked spoiled). remove_item consumes last-to-first, so a
+        // single eat should draw from slot 3, not slot 0.
+        inv.slots[0] = Some(crate::systems::inventory::ItemStack::new("cooked_meat_0".to_string(), 1, 99));
+        inv.slots[3] = Some(crate::systems::inventory::ItemStack::new("cooked_meat_0".to_string(), 1, 99));
+        let player = world.spawn((inv, vitals(40.0, 50.0), StatusEffects::default(), Health::default()));
+
+        // Register both slots in the spoilage side-table, then mark ONLY
+        // slot 3 (the one that will actually be eaten) as spoiled.
+        sys.tick(&mut world, 0.0, &data);
+        let entity_bits: u64 = player.to_bits().into();
+        sys.spoilage.get_mut(&(entity_bits, 0)).unwrap().spoiled = false;
+        sys.spoilage.get_mut(&(entity_bits, 3)).unwrap().spoiled = true;
+
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("consume_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some("cooked_meat_0".to_string());
+        sys.tick(&mut world, 0.0, &data);
+
+        // Exactly one unit should have been removed, from slot 3 (last
+        // matching slot) -- slot 0's fresh stack must be untouched.
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert!(inv.slots[0].is_some(), "the fresh stack in slot 0 must be untouched");
+        assert!(inv.slots[3].is_none(), "the spoiled stack in slot 3 is the one actually eaten");
+        drop(inv);
+
+        let effects = world.get::<&StatusEffects>(player).unwrap();
+        assert!(
+            effects.has("food_poisoning"),
+            "the slot actually eaten (3) was spoiled -- must poison regardless of slot 0's fresh state"
         );
     }
 
