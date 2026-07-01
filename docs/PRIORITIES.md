@@ -91,10 +91,21 @@
 > conservative call made for the other 4 dead-file finds). This closes
 > out the ENTIRE original backlog list, both buckets. Only 2 genuinely
 > open product questions remain (SkyRenderer, Mute Server), both
-> already logged. Next: livestreaming's flagged follow-up (WebRTC
-> signaling relay pass-through -- "read as correct but not live-tested"
-> per the plan doc's priority #2 section) is the next concrete,
-> verifiable target with runway left in the 8h window.** <<<**
+> already logged. **Cycle 11:** live-verified the WebRTC signaling
+> relay pass-through (`stream_offer`/`stream_answer`/`stream_ice`) --
+> 3 bot connections (streamer/viewer/bystander) against a fresh local
+> relay confirmed correct unicast routing (bystander got nothing),
+> server-authenticated `from` (not client-spoofable), and no
+> self-echo. This closes the relay-side half of livestreaming's
+> remaining follow-up. What's left (the actual WebRTC media handshake
+> + the client-side scene-management UI) needs a real browser/str0m
+> peer or the live production relay -- out of scope for the loopback
+> harness, flagged for the operator rather than attempted against
+> production tonight. This effectively completes priorities #1 and #2
+> in full, plus the entire #3 backlog (both original buckets). Next:
+> if runway remains, look for genuinely new ground (e.g. a web/
+> frontend TODO sweep, since tonight's work was almost entirely
+> Rust-side) rather than re-covering closed backlog.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed

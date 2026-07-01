@@ -242,19 +242,32 @@ Use the protocol test harness to verify, end to end:
 - **DONE (cycle 5)** Ending a stream sets `ended_at` and finalizes
   `viewer_peak` -- verified live (see the BUG-043 fix above; `ended_at`
   confirmed set in the same test).
-- **NOT verified this cycle, lower risk, code-reading only**: the WebRTC
-  signaling path (`stream_offer`/`stream_answer`/`stream_ice` in
-  `src/relay/relay.rs` + `handle_stream_offer/answer/ice` in
-  `msg_handlers.rs`) is a simple store-and-forward broadcast relay with no
-  business logic of its own (each handler just re-broadcasts the payload
-  verbatim to the `to` key) -- read as correct, but not exercised with a
-  real WebRTC peer connection this cycle (would need a browser or a real
-  str0m client, out of scope for the WS-only test harness). Scene
-  management UI (`chat-voice-streaming.js`'s scene picker) is
-  client-side-only and wasn't audited this cycle either. If time remains
-  after the broader sweep, a real 2-browser WebRTC round-trip (via the
-  Claude Preview browser tools against two tabs) would close this out
-  fully.
+- **DONE (cycle 11)** the relay-level WebRTC SIGNALING PASS-THROUGH
+  (`stream_offer`/`stream_answer`/`stream_ice` routing, as distinct from a
+  real WebRTC peer connection/media stream) is live-verified: 3 bot
+  connections (streamer, viewer, bystander) against a fresh local relay --
+  streamer starts a stream, sends a `stream_offer` targeted at the viewer,
+  viewer answers back, streamer sends an ICE candidate. Confirmed: (1) the
+  viewer received the offer+ICE with the exact payload sent, the streamer
+  received the answer; (2) the bystander received NONE of the 3 signaling
+  message types -- no leakage to uninvolved peers; (3) the delivered
+  `from` field on the viewer's received offer was the streamer's real
+  connection-authenticated key, not merely echoing whatever the client
+  claimed in its own outbound message body (relay.rs re-derives `from`
+  server-side in each `handle_stream_*` fn from the WS connection's actual
+  identity, never trusts the client-supplied `from` -- correct anti-spoof
+  design, no fix needed, just confirmed); (4) the streamer did not receive
+  an echo of its own offer. This closes the relay-side signaling gap --
+  what remains genuinely unverifiable without a real browser/str0m peer
+  (out of scope for the WS-only harness) is the actual WebRTC MEDIA
+  handshake (SDP negotiation succeeding, ICE connectivity, audio/video
+  frames flowing) and the client-side scene-management UI
+  (`chat-voice-streaming.js`'s scene picker), neither of which the relay
+  layer can prove on its own. A real 2-browser round-trip (Claude Preview
+  browser tools, two tabs) would close those out fully but needs the live
+  production relay or a publicly reachable test relay, not the loopback
+  harness -- flagged for the operator rather than attempted against
+  production tonight.
 
 ## Backlog: broader stub sweep (priority #3, if time remains)
 
