@@ -246,14 +246,20 @@ The game teaches the homestead; the homestead is real.
   S3 (multi-home substations), see "Right now" above. Design in
   `docs/design/mothership-superstructure.md`. **Priority order confirmed 2026-06-30:
   the player's own home first** (it has to actually work before anything mirrors from
-  it), **then mothership population**: clone the working home design into every
-  residential zone slot so the mothership looks inhabited (swap in real variety once
-  more home designs exist), and give every other zone type (hangar, mech bay,
-  industrial kept safely away from homes, power/reactor, medical, armory with a firing
-  range, arena, cargo, storage, agriculture, transit hub) a cheap, data-driven generic
-  interior filler instead of an empty wireframe, both `armory` and `arena` are new
-  zone types added to `data/blueprints/zone_types.ron` for this. Zone-population work
-  in progress as of 2026-06-30.
+  it), **then mothership population. SHIPPED same day (M2c, v0.638.0):** residential
+  zones clone the working home design into every slot (swap in real variety once more
+  home designs exist, the clone source is already a swappable roster); every other
+  zone type (hangar, mech bay, industrial kept safely away from homes, power/reactor,
+  medical, armory with a firing range, arena, cargo, storage, agriculture, transit
+  hub, civic mall) gets a cheap, data-driven generic interior filler tinted by its
+  zone colour instead of an empty wireframe, from the new `data/blueprints/
+  zone_filler.ron`. `armory` and `arena` are new zone types. Known gap: this renders
+  via the same CPU-merged-vertex-buffer path every other homestead feature uses, not
+  true GPU instancing (that path exists in the renderer but is dead code), fine for
+  today's placeholder density, will need real instancing before this scales toward
+  the 10-billion-occupant stretch goal below. Not yet visually confirmed in the live
+  3D viewport (only the 2D egui snapshot harness ran), the operator should eyeball a
+  populated zone next launch.
 - `[next]` Multiplayer co-presence + the character / server model: two players in one
   world on the VPS; self-custodial local characters vs server-authoritative ones (open
   vs closed Battle.net); the Play launcher with character select, homes, and a default.
@@ -376,6 +382,9 @@ Every operator gets the same sovereignty tools, not just the original.
 
 Newest first. For older history see `docs/history/` and `git log`.
 
+- `v0.638` M2c: mothership zone interior population -- residential zones clone the
+  player's home into every slot; every other zone type gets a generic tiled filler
+  tinted by its zone colour; two new zone types (armory, arena).
 - `v0.637` M2b: animated rail cars -- a box car animates along each rail edge in build
   mode so the rail graph reads as a living transit line, not static topology.
 - `v0.636` Viewport hide-per-type: a Hide/Show toggle beside Lock in each object-browser

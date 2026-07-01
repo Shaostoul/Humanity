@@ -11,23 +11,22 @@
 
 ## Active focus
 
-> **DOCS CLEANUP SESSION IN PROGRESS (2026-06-30, first Sonnet 5 session).** Not a
-> code session, the three construction forks below are still open and unresolved,
-> nothing about them changed today. What DID happen: (1) a 13-agent reacquaintance
-> assessment of the whole project; (2) a doc-hygiene batch (ROADMAP/STATUS/PAGES
-> re-synced to v0.637 reality, OpenClaw personal-assistant template deleted from repo
-> root + docs/ai/ + docs/reference/, 133 dead SurrealDB `.surql` files removed from
-> docs/reference/, docs/accord/ duplication fixed); (3) operator resolved the
-> multi-crate question from `docs/contributor/00-START-HERE.md` et al., single crate
-> is final for now, those docs got corrected to match; (4) operator gave a
-> no-backwards-compatibility-debt directive (CLAUDE.md Working norm section); (5) new
-> infra vision captured in ROADMAP.md: multi-site hosting off one relay, admin-only
-> remote website editing from the exe (ties to the existing web-admin-read-only gap),
-> relay-hosted torrent file sharing, regular livestreaming, and a game/simulator
-> opt-out toggle (logged as TIER 2 item 9 further down this file). A second
-> parallel docs/-tree audit workflow (design/game/network/reference/admin/user/website)
-> is running to finish the cleanup. See `docs/history/2026-06-30.md` for the full
-> narrative once written.
+> **FIRST SONNET 5 SESSION (2026-06-30) -- docs cleanup + M2c zone population shipped.**
+> The three construction forks below are STILL open and unresolved, nothing about them
+> changed today. What did happen: (1) a 13-agent reacquaintance assessment; (2) a large
+> doc-hygiene + cleanup pass (ROADMAP/STATUS/PAGES re-synced to reality, the OpenClaw
+> personal-assistant template deleted a third time from repo root + docs/ai/ +
+> docs/reference/ + docs/design/ + docs/network/, 133 dead SurrealDB `.surql` files
+> removed, ~180 dead/duplicate files total removed or archived, a live-site OpenClaw
+> config leak found and fixed on the public Jekyll site); (3) operator resolved the
+> multi-crate question, single crate is final, docs corrected to match; (4) a
+> no-backwards-compatibility-debt directive (CLAUDE.md Working norm); (5) the
+> game/simulator toggle idea was REJECTED and replaced with a real/fake multi-save
+> model + real-life-first boot (TIER 2 item 9 below); (6) **v0.638.0 SHIPPED**:
+> mothership zone interior population, residential zones clone the player's home into
+> every slot, every other zone type gets a generic tiled filler, two new zone types
+> (armory, arena). Not yet visually confirmed in the live 3D viewport, operator should
+> eyeball a populated zone next launch. Full narrative in `docs/history/2026-06-30.md`.
 
 > **>>> AUTONOMOUS BULK RUN PAUSED (v0.637, 2026-06-29 night) -- AWAITING OPERATOR BULK-TEST + STEER. <<<**
 > Loop mode shipped **9 verified construction/superstructure releases** (all compile relay+native, lib

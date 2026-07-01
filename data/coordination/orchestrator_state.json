@@ -440,6 +440,11 @@
       "date": "2026-06-30",
       "decision": "Three construction/superstructure forks logged 2026-06-29 (M1 zone-editor architecture, M3 civic mall, grid S3 multi-home tiers) remain UNRESOLVED. This session was docs-only, nothing about them changed. Do not assume they were decided.",
       "scope": "construction"
+    },
+    {
+      "date": "2026-06-30",
+      "decision": "SHIPPED v0.638.0 -- mothership zone interior population (M2c). Residential zones clone the player home into every slot (swappable roster, one design today); every other zone type gets a generic tiled filler from new data/blueprints/zone_filler.ron, tinted by zone colour; added armory + arena zone types. Built by a subagent in an isolated worktree, reviewed line-by-line before merge, re-verified in the main tree (both cargo checks, full lib test suite, all 5 lints green). Operator rejected the game/simulator toggle idea (too confusing), real direction is a real/fake multi-save flag per house/character with real-life as the default boot state -- logged as PRIORITIES.md TIER 2 item 9, nothing built yet. Operator felt Jekyll (shaostoul.github.io/Humanity) could be retired; found the premise partly false (data/library was stale, now fixed via scripts/build-library.js; web/ has zero doc pages, deploy pipeline does not rsync docs to the nginx root) and did NOT retire it -- recommended building the missing web-side piece first. Why: operator gave real build direction (home first, then mothership population) plus explicit subagent-usage encouragement (unused weekly budget headroom). Honest known gaps carried forward, not hidden: zone population has no 3D viewport visual confirmation yet (only the 2D snapshot harness ran), and renders via CPU-merged buffers, not true GPU instancing (that path is dead code in the renderer) -- will not scale to the 10-billion-occupant stretch goal without a real instancing pass.",
+      "scope": "construction"
     }
   ],
   "active_scopes_to_avoid": [
