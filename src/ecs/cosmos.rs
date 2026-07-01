@@ -208,16 +208,17 @@ impl VesselRegistry {
 /// Returns the position in light-years, in the galactic frame
 /// (currently: Sol at J2000.0 = origin).
 ///
-/// Phase 2 implementation is approximate:
+/// Phase 2 implementation:
 /// - Vessel: recurses into the vessel's own position
-/// - Body: looks up the body's orbital position via stub fn (full
-///   orbital mechanics lands in a later phase)
+/// - Body: looks up the body's real Kepler-propagated position via
+///   `body_position_in_system_meters` (falls back to system center for
+///   systems without body data yet — currently only "sol" has any)
 /// - Space: uses the system's `galaxy_position_ly` from index.json
 /// - Deep: the variant carries its galactic position directly
 /// - Pocket: returns NaN — pocket dimensions aren't in the galaxy
 ///
-/// This will be tightened in subsequent phases as orbital + system
-/// data is wired up.
+/// This will be tightened in subsequent phases as more systems gain
+/// body data.
 pub fn world_position_ly(
     pos: &PositionInUniverse,
     vessels: &VesselRegistry,
@@ -306,27 +307,31 @@ impl SystemPositions {
     pub fn is_empty(&self) -> bool { self.by_id.is_empty() }
 }
 
-/// Stub: compute a body's position in its parent system's frame
-/// (meters from system barycenter) at a given sim time. Full
-/// implementation lands in a later phase — for now returns ZERO,
-/// which means "body is at system center" (good enough for
-/// system-scale rendering until orbital mechanics ships).
+/// Compute a body's position in its parent system's frame (meters from
+/// system barycenter) at a given sim time. Backed by the same Kepler
+/// propagator `src/cosmos.rs` uses for the Maps page and FPS world spawn
+/// (see that module's doc comment: one `SolBody` set, one propagator,
+/// every view reads it at its own scale — so this stays in sync with
+/// the Maps page for free).
 ///
-/// The eventual implementation reads orbital elements from the
-/// system's data file and applies Kepler's equations:
-/// - semi-major axis, eccentricity, inclination, longitude of
-///   ascending node, argument of periapsis, mean anomaly at epoch
-/// - solve for position at sim_time relative to the body's parent
-/// - recurse if the body orbits another body (e.g. moons)
+/// Only the `"sol"` system has body data today (`data/star_systems/
+/// sol.json`); an unknown system id or body id falls back to
+/// `DVec3::ZERO` ("body is at system center") rather than panicking,
+/// since new systems are added by dropping in a data file (see
+/// `data/star_systems/README.md`) and may not exist yet.
 pub fn body_position_in_system_meters(
-    _system_id: &str,
-    _body_id: &str,
-    _sim_time_ms: u64,
+    system_id: &str,
+    body_id: &str,
+    sim_time_ms: u64,
 ) -> DVec3 {
-    // Phase 2: stub. Returns zero so initial rendering shows bodies at
-    // system center — visually wrong but doesn't crash. Real orbital
-    // math arrives in a later phase along with the data-load wiring.
-    DVec3::ZERO
+    if system_id != "sol" {
+        return DVec3::ZERO;
+    }
+    let Some(body) = crate::cosmos::find_body(body_id) else {
+        return DVec3::ZERO;
+    };
+    let sim_time_seconds = sim_time_ms as f64 / 1000.0;
+    crate::cosmos::body_world_position_3d_au(body, sim_time_seconds) * crate::cosmos::M_PER_AU
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────
@@ -444,5 +449,49 @@ mod tests {
         };
         let wp = world_position_ly(&pos, &VesselRegistry::new(), &SystemPositions::new(), 0);
         assert!(wp.x.is_nan());
+    }
+
+    #[test]
+    fn sol_body_position_uses_real_kepler_math() {
+        // Earth is ~1 AU from the Sun; body_position_in_system_meters
+        // should return a non-zero vector whose magnitude is in that
+        // ballpark (not the old hardcoded DVec3::ZERO stub).
+        let pos = body_position_in_system_meters("sol", "earth", 0);
+        let radius_au = pos.length() / crate::cosmos::M_PER_AU;
+        assert!(
+            (0.9..1.1).contains(&radius_au),
+            "expected Earth at ~1 AU from Sun, got {radius_au} AU (pos={pos:?})"
+        );
+    }
+
+    #[test]
+    fn unknown_system_falls_back_to_zero() {
+        let pos = body_position_in_system_meters("alpha_centauri", "earth", 0);
+        assert_eq!(pos, DVec3::ZERO);
+    }
+
+    #[test]
+    fn unknown_body_in_known_system_falls_back_to_zero() {
+        let pos = body_position_in_system_meters("sol", "planet-nine", 0);
+        assert_eq!(pos, DVec3::ZERO);
+    }
+
+    #[test]
+    fn body_container_uses_real_orbital_position() {
+        // A Body-container entity's world position should now reflect
+        // Earth's actual ~1 AU offset from the Sol system's galactic
+        // position, not the old system-center-only approximation.
+        let mut systems = SystemPositions::new();
+        systems.insert("sol".to_string(), DVec3::ZERO);
+
+        let pos = PositionInUniverse {
+            container: ContainerRef::Body { system_id: "sol".into(), body_id: "earth".into() },
+            local_pos: DVec3::ZERO,
+            local_rot: DQuat::IDENTITY,
+        };
+        let wp = world_position_ly(&pos, &VesselRegistry::new(), &systems, 0);
+        // ~1 AU in light-years is tiny but non-zero; the old stub gave
+        // exactly (0,0,0) ly here.
+        assert!(wp.length() > 0.0, "expected non-zero offset from Earth's orbit, got {wp:?}");
     }
 }

@@ -269,9 +269,42 @@ self-contained scope first; skip ones that need a larger design decision
   self-contained if the wallet/credit system already exists (check first).
 - `src/systems/skills/learning.rs:29` -- learning-curve CSV threshold
   check, self-contained if the CSV schema already has the needed columns.
-- `src/systems/navigation/orbital.rs:27` -- Kepler's equation solve, a
-  well-defined self-contained math problem (real orbital mechanics --
-  don't approximate, there's real reference material for this).
+- **DONE (cycle 7)** -- `src/systems/navigation/orbital.rs:27`'s
+  `OrbitalElements::position_at` Kepler stub turned out to be DEAD CODE
+  (grepped the whole tree: zero references anywhere outside the file
+  itself -- never constructed, never called). Real, working, tested
+  Kepler orbital mechanics already exist in `src/cosmos.rs`
+  (`body_position_relative_au`/`body_world_position_3d_au`, extracted
+  v0.262.8 as the single canonical Sol-system model powering the Maps
+  page + FPS world spawn). `orbital.rs` is left as-is (unreferenced,
+  harmless, likely a leftover from the ProjectUniverse port) -- not
+  worth deleting mid-sweep since it's inert and deletion isn't part of
+  tonight's scope.
+  While investigating whether anything ELSE needed this math, found a
+  second, adjacent, ACTUALLY-LIVE stub: `src/ecs/cosmos.rs`'s
+  `body_position_in_system_meters` (feeding `world_position_ly`'s
+  `ContainerRef::Body` case, part of the Phase-2 cosmos position
+  resolver, `docs/design/cosmos-architecture.md`) always returned
+  `DVec3::ZERO` with a comment saying "Full implementation lands in a
+  later phase." That later phase's math had already shipped separately
+  in `src/cosmos.rs` (`data/star_systems/sol.json` + Kepler
+  propagator) -- just never wired to the ECS resolver. Wired it: for
+  `system_id == "sol"` (the only system with body data today),
+  `body_position_in_system_meters` now calls
+  `crate::cosmos::find_body` + `body_world_position_3d_au` and
+  converts AU to meters; unknown system/body ids still fall back to
+  `DVec3::ZERO` (documented, not a panic) since no other system has
+  data yet. No live caller outside `ecs/cosmos.rs`'s own tests exists
+  yet (Phase 3's Cosmos page + Phase 4's ship-as-container aren't built
+  ), so this changes no current user-visible behavior -- it's real
+  progress banked for when those phases land. 4 new tests added
+  (`sol_body_position_uses_real_kepler_math`,
+  `unknown_system_falls_back_to_zero`,
+  `unknown_body_in_known_system_falls_back_to_zero`,
+  `body_container_uses_real_orbital_position`), confirmed via
+  revert-and-retest to actually catch the old stub (2 of the 4 fail
+  against the reverted code with the exact expected wrong value,
+  `DVec3::ZERO`/0 AU instead of ~1 AU for Earth).
 - **RECLASSIFIED to open_questions_for_human (cycle 6)** -- `src/renderer/sky.rs:63`
   turned out NOT to be small. Investigation found `SkyRenderer` is entirely
   DEAD CODE (grepped the whole tree: zero references outside sky.rs itself
