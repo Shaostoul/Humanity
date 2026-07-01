@@ -455,6 +455,15 @@
       "date": "2026-07-01",
       "decision": "INCIDENT: ran just clean-worktrees after merging 2 of 4 in-flight subagent tasks, destroying the other 2 (spot-light cone rendering, the web Accord doc-browsing page) with no recovery path (confirmed via 3 independent review agents checking stash/reflog/all branches). Both re-dispatched with the full original plan replayed verbatim plus the one bug the review had already found in the lost spotlight work (render_celestial_onto write raw camera-buffer offsets that were not updated when the uniform struct grew). Added a hard rule to CLAUDE.md: never run clean-worktrees while any dispatched agent this session is still unmerged, committing inside a worktree does not protect it since the script force-deletes branches too.",
       "scope": "process"
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "INCIDENT REPEATED (3rd time, same day): after the first clean-worktrees wipe was already fixed with a CLAUDE.md doc-only warning, a SECOND wipe happened mid-review, destroying all 3 remaining in-flight diffs at once (spotlight-cone-redo agent-a3d1cb52b3dc11e66, web-Accord-page-redo agent-a7effdecc72683c98, and the live-screenshot-command feature agent-a6ee2b1dad5ab569c, which had not even been reviewed yet). Root cause confirmed: the doc-only warning was insufficient because multiple review subagents were told to \"read CLAUDE.md first\" as routine context, and Step 0 (\"run just clean-worktrees every session\") reads as a literal instruction to a fresh subagent with no way to know sibling worktrees hold unmerged work. Real fix this time (not just docs): scripts/clean-worktrees.sh rewritten to check every candidate worktree/branch/orphaned-folder for uncommitted changes or unmerged-into-main commits, and skip (not delete) anything unsafe even under --yes; --force-unmerged required to override. CLAUDE.md Step 0 reworded operator/orchestrator-only, explicitly telling subagents to skip it. All 3 lost diffs are being redone directly against main with small immediate commits instead of long-lived parallel worktrees, to shrink the risk window regardless of the script fix.",
+      "scope": "process",
+      "files": [
+        "scripts/clean-worktrees.sh",
+        "CLAUDE.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
