@@ -11,6 +11,30 @@
 
 ## Active focus
 
+> **>>> AFTERNOON LOOP RUNNING (2026-07-01, operator AWAKE and actively
+> testing HumanityOS live -- different from the earlier overnight loop) --
+> see [`docs/history/2026-07-01-afternoon-loop-plan.md`](history/2026-07-01-afternoon-loop-plan.md)
+> for the full backlog + safety rules. Read that file FIRST every wake-up.
+> Triggered by the operator directly: "enable loop mode to work what's been
+> discussed" + "dedicate a subagent to designing a fully fledged
+> self-sustaining homestead." A `self-sustaining-homestead-design` Workflow
+> (3 research agents + 1 synthesis) is in flight -- its result becomes
+> priority #1 once delivered (see the plan doc). Also fixed this turn before
+> the loop started: BUG-045 (cloned/mirrored homes in a residential zone had
+> no floor/ceiling/trim, only walls -- operator screenshot report) and the
+> manual sun-angle override for the construction editor (v0.653.0, operator
+> was stuck with unfixably bad lighting since the mothership has no
+> orbital rotation simulated at all yet -- a real, separate, larger project
+> per the cosmos-architecture design doc). Priority order for the loop:
+> homestead design implementation, Studio streaming pipeline, Humanity/
+> Governance/Laws/Donate pass, registering 4 disconnected-but-valuable
+> systems (ConstructionSystem/ManufacturingSystem/AISystem/OfflineSystem),
+> economy automation Phase 1, NPC task-AI minimal step. Explicitly NOT in
+> scope without operator input: Donate payment-method list (Patreon
+> discrepancy unresolved), Mute Server scope, the ~15+1 dead-code files
+> (cleanup opportunity, not yet greenlit for deletion), full ship orbital
+> mechanics.** <<<**
+
 > **>>> DAYTIME SESSION (2026-07-01, operator awake, following up on the overnight
 > loop's open questions): (1) SkyRenderer REMOVED (v0.651.0) -- operator confirmed
 > deletion once told the code had zero external callers already; no visual change
