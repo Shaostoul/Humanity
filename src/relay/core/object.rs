@@ -325,6 +325,105 @@ mod tests {
         assert_eq!(bytes1, bytes2, "canonical bytes must be identical across calls");
     }
 
+    // ── vote_v1 cross-language KAT (web governance voting) ──────────────
+    // Fixed, language-neutral vote object shared with scripts/vote-object-kat.mjs.
+    // The web page (web/pages/governance.html) builds vote_v1 objects with
+    // web/shared/{canonical-cbor,pq-object}.js and the relay verifies them by
+    // recomputing these exact signable bytes — any drift makes every web vote
+    // unverifiable (401) — DO NOT SHIP a change that breaks this.
+
+    const VOTE_KAT_PROPOSAL_ID: &str =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const VOTE_KAT_CREATED_AT: u64 = 1_751_328_000_000;
+    // GOLDEN — duplicated in scripts/vote-object-kat.mjs on purpose (editing the
+    // encoding must break BOTH or neither). Regenerate with the ignored
+    // vote_v1_kat_print_fixture test below.
+    const VOTE_KAT_PAYLOAD_HEX: &str = "a16663686f69636563796573";
+    const VOTE_KAT_SIGNABLE_LEN: usize = 5512;
+    const VOTE_KAT_SIGNABLE_BLAKE3: &str =
+        "053292d63bce79f4c936256509a95470d59cb416470c2d7416b136052a29cdb1";
+    const VOTE_KAT_OBJECT_ID: &str =
+        "375d12d51758c7b5a83e82f79dee29e1543e381192eacf138979841bc0b97e76";
+
+    /// The fixed vote_v1 object both languages must encode identically:
+    /// keypair from the canonical KAT master seed [7u8; 32] (same as
+    /// pq_crypto::dilithium_cross_language_kat), payload {choice:"yes"},
+    /// one reference (the proposal id), fixed created_at.
+    fn vote_kat_object() -> Object {
+        let master = [7u8; 32];
+        let dil_seed = pq_crypto::derive_dilithium_seed(&master);
+        let kp = DilithiumKeypair::from_seed(&dil_seed);
+        let payload = cbor_map(vec![("choice", cbor_text("yes"))]);
+        ObjectBuilder::new("vote_v1")
+            .reference(VOTE_KAT_PROPOSAL_ID)
+            .created_at(VOTE_KAT_CREATED_AT)
+            .payload_cbor(&payload)
+            .unwrap()
+            .sign(&kp)
+            .unwrap()
+    }
+
+    /// CROSS-LANGUAGE VOTE_v1 KAT (web governance voting, 2026-07-01).
+    ///
+    /// Locks the web vote path (canonical-cbor.js encodeObjectCanonical +
+    /// pq-object.js buildVoteV1) byte-for-byte to this Rust encoder:
+    /// - signable bytes (canonical CBOR, zero-filled 3309-byte signature)
+    /// - the full canonical object + object_id
+    /// - the frozen deterministic Rust signature fixture
+    ///   (src/relay/core/pq_kat_vote_sig.hex), which the JS KAT verifies with
+    ///   noble over ITS OWN signable bytes — a Dilithium verify binds the exact
+    ///   message, so a pass is cryptographic proof of byte equality.
+    /// Constants asserted in BOTH this test AND scripts/vote-object-kat.mjs
+    /// (`just vote-kat`); change the encoding and both MUST be regenerated.
+    #[test]
+    fn vote_v1_cross_language_kat() {
+        let obj = vote_kat_object();
+        assert_eq!(hex::encode(&obj.payload), VOTE_KAT_PAYLOAD_HEX, "vote payload encoding drifted");
+
+        let mut unsigned = obj.clone();
+        unsigned.signature = vec![0u8; DILITHIUM_SIG_LEN];
+        let signable = unsigned.to_canonical_bytes().unwrap();
+        assert_eq!(signable.len(), VOTE_KAT_SIGNABLE_LEN, "signable byte length drifted");
+        assert_eq!(
+            crate::relay::core::hash::Hash::digest(&signable).to_hex(),
+            VOTE_KAT_SIGNABLE_BLAKE3,
+            "signable bytes drifted (web-signed votes would be unverifiable)"
+        );
+
+        // Rust ML-DSA signing is deterministic — the frozen fixture must match,
+        // which keeps the fixture the JS KAT verifies in sync with this code.
+        let sig_hex = include_str!("pq_kat_vote_sig.hex").trim();
+        assert_eq!(
+            hex::encode(&obj.signature),
+            sig_hex,
+            "deterministic Rust signature drifted from the frozen fixture"
+        );
+
+        assert_eq!(obj.object_id().unwrap().to_hex(), VOTE_KAT_OBJECT_ID, "object_id drifted");
+        obj.verify_signature().expect("KAT vote must verify");
+    }
+
+    /// Fixture (re)generator for vote_v1_cross_language_kat — prints every
+    /// golden constant plus the signature hex for pq_kat_vote_sig.hex.
+    /// Run: cargo test --features relay --no-default-features --lib \
+    ///        vote_v1_kat_print_fixture -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn vote_v1_kat_print_fixture() {
+        let obj = vote_kat_object();
+        let mut unsigned = obj.clone();
+        unsigned.signature = vec![0u8; DILITHIUM_SIG_LEN];
+        let signable = unsigned.to_canonical_bytes().unwrap();
+        eprintln!("VOTE_KAT payload_hex={}", hex::encode(&obj.payload));
+        eprintln!("VOTE_KAT signable_len={}", signable.len());
+        eprintln!(
+            "VOTE_KAT signable_blake3={}",
+            crate::relay::core::hash::Hash::digest(&signable).to_hex()
+        );
+        eprintln!("VOTE_KAT object_id={}", obj.object_id().unwrap().to_hex());
+        eprintln!("VOTE_KAT signature_hex={}", hex::encode(&obj.signature));
+    }
+
     #[test]
     fn deterministic_object_with_same_seed_and_inputs() {
         // ML-DSA in deterministic mode produces identical signatures for identical inputs.
