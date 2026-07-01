@@ -64,10 +64,25 @@
 > spoiled item could be eaten with full nutrition and zero risk forever
 > (cooked/canned/preserved food all has raw_consumption_risk 0). Fixed:
 > spoiled food now grants 25% nutrition + guaranteed food_poisoning. 1
-> new test, proven via revert-and-retest. Next: keep working the
-> broader sweep's remaining self-contained candidates (see the plan
-> doc -- `learning.rs`'s CSV-threshold check is next), or stop if the
-> backlog is genuinely exhausted.** <<<**
+> new test, proven via revert-and-retest. **Cycle 9 (v0.648.0):**
+> `learning.rs`'s practice-hours `Skill` confirmed DEAD (superseded by
+> the real XP-based `SkillSystem` in `skills/mod.rs`) -- left alone. A
+> fresh full-repo TODO grep (not just the original list) found 2 more:
+> chat's "Mute Server" button needs notification infrastructure that
+> doesn't exist yet, logged as a real open question rather than wiring
+> a hollow flag; Cosmos page's "Track" button (disabled stub) WAS
+> self-contained (the orbital math already existed from cycle 7) --
+> implemented continuous camera-follow, 4 new tests via
+> revert-and-retest, plus a new `snapshot_cosmos` headless screenshot
+> test (the page had none before). Bonus: found `src/gui/pages/maps.rs`
+> (591 lines) is ALSO fully dead code -- `GuiPage::Maps` has forwarded
+> to `cosmos::draw` since v0.203.2 -- 4th instance this session of
+> "superseded file left in place, docs still point at it." Fixed the
+> stale FEATURES.md/PAGES.md file pointers. This closes out the
+> original plan doc's full self-contained backlog list. Next: either
+> do another fresh full-repo TODO/stub sweep for anything not yet
+> surfaced, or stop if genuinely exhausted -- see the plan doc's
+> updated backlog section for the full accounting.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
