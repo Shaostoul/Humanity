@@ -3075,6 +3075,73 @@ pub async fn write_file(
     }
 }
 
+// ── Humanity Accord document browser ──
+//
+// GUI-first governance transparency: the Accord used to be readable only
+// via a raw GitHub blob link from a handful of pages. These two routes
+// close that gap with an in-app two-pane browser (web/pages/accord.html).
+//
+// Security: both handlers only ever touch the fixed allowlist in
+// `storage::docs_accord::ACCORD_DOCS`. `get_accord_doc` resolves the slug
+// via `find_by_slug` (exact `==` match, no path concatenation) BEFORE any
+// filesystem access; an unresolved slug returns a generic 404 with no
+// path information at all, whether the input was a bogus slug, a path
+// traversal attempt, or the name of a real-but-unlisted repo file.
+
+/// GET /api/docs/accord — list all 17 allowlisted Accord docs (slug, title,
+/// category) for the browser's nav pane. No content, so this is safe to
+/// call cheaply and often.
+pub async fn list_accord_docs() -> impl IntoResponse {
+    let docs: Vec<_> = crate::relay::storage::docs_accord::ACCORD_DOCS
+        .iter()
+        .map(|d| serde_json::json!({
+            "slug": d.slug,
+            "title": d.title,
+            "category": d.category,
+        }))
+        .collect();
+
+    (StatusCode::OK, Json(serde_json::json!({
+        "ok": true,
+        "docs": docs,
+    }))).into_response()
+}
+
+/// GET /api/docs/accord/{slug} — fetch one Accord doc's rendered-ready
+/// markdown content by slug.
+///
+/// Any slug that doesn't resolve via `find_by_slug` (bogus, traversal-shaped,
+/// URL-encoded, or a real-but-unlisted file) gets an identical generic 404
+/// JSON body -- never a filesystem path, never a 500, never a panic.
+pub async fn get_accord_doc(Path(slug): Path<String>) -> impl IntoResponse {
+    let doc = match crate::relay::storage::docs_accord::find_by_slug(&slug) {
+        Some(d) => d,
+        None => {
+            return (StatusCode::NOT_FOUND, Json(serde_json::json!({
+                "ok": false,
+                "error": "Accord document not found",
+            }))).into_response();
+        }
+    };
+
+    match crate::relay::storage::docs_accord::read_doc(doc) {
+        Ok(content) => (StatusCode::OK, Json(serde_json::json!({
+            "ok": true,
+            "title": doc.title,
+            "category": doc.category,
+            "content": content,
+        }))).into_response(),
+        Err(_) => {
+            // The slug resolved (it's in the allowlist) but the file is
+            // missing/unreadable on disk -- still a generic error, no path.
+            (StatusCode::NOT_FOUND, Json(serde_json::json!({
+                "ok": false,
+                "error": "Accord document not found",
+            }))).into_response()
+        }
+    }
+}
+
 // ── Admin Analytics API ──
 
 /// Query params for GET /api/admin/stats (Ed25519-signed).

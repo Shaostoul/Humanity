@@ -586,6 +586,8 @@ pub async fn run_relay() {
         .route("/api/files", get(api::list_files))
         .route("/api/files/read", get(api::read_file))
         .route("/api/files/write", post(api::write_file))
+        .route("/api/docs/accord", get(api::list_accord_docs))
+        .route("/api/docs/accord/{slug}", get(api::get_accord_doc))
         .route("/api/admin/stats", get(api::get_admin_stats))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
