@@ -2522,6 +2522,10 @@ pub struct GuiState {
     pub laws_search: String,
     /// Kind filter tab (0=All, 1=HumanityOS base, 2=Real laws).
     pub laws_filter_tab: usize,
+    /// Selected category chip on the Laws page ("" = all). Categories come from
+    /// `data/laws/laws.json`'s own `categories` list (v0.661 -- loaded since
+    /// v0.496 but never surfaced in the UI until now).
+    pub laws_category: String,
     /// Active filter tab on the Governance page (0=Open, 1=All).
     pub governance_filter_tab: usize,
     /// DID being looked up on the Recovery page.
@@ -3224,6 +3228,7 @@ impl Default for GuiState {
             laws_location: String::new(),
             laws_search: String::new(),
             laws_filter_tab: 0,
+            laws_category: String::new(),
             governance_filter_tab: 0,
             recovery_lookup_did: String::new(),
             recovery_lookup_pending: false,

@@ -4,11 +4,23 @@
 //! with a source). Data-driven from `data/laws/laws.json` via `gui::laws`.
 //! See docs/design/laws.md.
 
-use egui::{RichText, ScrollArea};
+use egui::{Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::GuiState;
+
+/// A small bordered chip (BASE / REAL kind badge). Outline + colored text so it
+/// reads as a real chip (operator ask, 2026-07-01) without any literal colors.
+fn kind_chip(ui: &mut egui::Ui, theme: &Theme, label: &str, color: egui::Color32) {
+    Frame::none()
+        .rounding(Rounding::same(6))
+        .inner_margin(Margin::symmetric(6, 1))
+        .stroke(Stroke::new(1.0, color))
+        .show(ui, |ui| {
+            ui.label(RichText::new(label).strong().color(color).size(theme.font_size_small));
+        });
+}
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let laws = crate::gui::laws::install();
@@ -70,6 +82,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_sm);
                 let kinds = ["All", "HumanityOS base", "Real laws"];
                 widgets::tab_bar(ui, theme, &kinds, &mut state.laws_filter_tab);
+                // Category chips from the data file's own `categories` list
+                // (loaded since v0.496 but never surfaced until 2026-07-01).
+                // Click to filter to one category; click again to clear.
+                if !laws.categories.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    ui.horizontal_wrapped(|ui| {
+                        if widgets::Button::tab("All categories", state.laws_category.is_empty())
+                            .show(ui, theme)
+                        {
+                            state.laws_category.clear();
+                        }
+                        for cat in &laws.categories {
+                            let active = state.laws_category == *cat;
+                            if widgets::Button::tab(cat, active).show(ui, theme) {
+                                state.laws_category = if active { String::new() } else { cat.clone() };
+                            }
+                        }
+                    });
+                }
                 ui.add_space(theme.spacing_xs);
                 ui.horizontal(|ui| {
                     ui.label(
@@ -92,6 +123,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         continue;
                     }
                     if state.laws_filter_tab == 2 && r.is_base() {
+                        continue;
+                    }
+                    if !state.laws_category.is_empty() && r.category != state.laws_category {
                         continue;
                     }
                     if !q.is_empty() {
@@ -132,17 +166,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         false,
                         None,
                         |ui| {
-                            // All left-aligned natural flow: a small BASE/REAL badge,
+                            // All left-aligned natural flow: a small BASE/REAL chip,
                             // the category, the title (bold, never clipped), then the
                             // summary taking whatever's left on the line, ellipsized.
                             // No fixed-width cells -- those clipped long titles and left
                             // gaps before short ones.
-                            ui.label(
-                                RichText::new(badge)
-                                    .strong()
-                                    .color(badge_col)
-                                    .size(theme.font_size_small),
-                            );
+                            kind_chip(ui, theme, badge, badge_col);
                             if !r.category.is_empty() {
                                 ui.label(
                                     RichText::new(&r.category)

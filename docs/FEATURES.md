@@ -75,10 +75,10 @@ needs canonical-CBOR signing in JS + a cross-language KAT -- tracked as its own 
 - Native: `src/gui/pages/governance.rs` (fetch/build/post/draw + tests), `src/gui/mod.rs` (`governance_*` GuiState fields; `apply_pq_identity` clears per-identity vote tracking)
 - Snapshot: `src/gui/ui_snapshots.rs::snapshot_governance` (state-injected feed render)
 
-### Laws (location-aware rules and rights) (v0.496)
-Nested jurisdiction tree (Humanity -> Earth -> country -> state -> county -> locality); pick where you live and see the rules that apply, broadest first. Two kinds: HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source, not legal advice). Condense, do not ingest.
-- Native: `src/gui/pages/laws.rs` (`GuiPage::Laws`, reached from the Humanity hub "Laws" section), loader `src/gui/laws.rs`
-- Data: `data/laws/laws.json` (jurisdictions + rules, hot-reloadable)
+### Laws (location-aware rules and rights) (v0.496, chips v0.661)
+Nested jurisdiction tree (Humanity -> Earth -> country -> state -> county -> locality); pick where you live and see the rules that apply, broadest first. Two kinds: HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source, not legal advice). Condense, do not ingest. v0.661: the data file's own `categories` list (loaded since v0.496 but never surfaced) renders as clickable filter chips (Rights, Privacy, Work and money, ...), and the BASE/REAL kind badge is a real bordered chip instead of bare text.
+- Native: `src/gui/pages/laws.rs` (`GuiPage::Laws`, reached from the Humanity hub "Laws" section; `kind_chip` + category chip row), loader `src/gui/laws.rs`
+- Data: `data/laws/laws.json` (jurisdictions + rules + categories, hot-reloadable)
 - Design: `docs/design/laws.md`. Web mirror is a follow-up.
 
 ### AI-as-Citizen
