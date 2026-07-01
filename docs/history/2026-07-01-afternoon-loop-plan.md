@@ -36,12 +36,12 @@ there). That changes a few things:
 
 ## Priority order
 
-1. **The self-sustaining homestead design** (operator, explicit, dedicated
-   a workflow to this before the loop started -- see below). Once that
-   workflow's design synthesis is ready, this becomes the TOP implementation
-   priority: turn the design into real, buildable game content (RON/CSV data
-   + home.ron layout + any newly-authored machine/recipe entries the design
-   calls for). This is the single most mission-critical ask in this message
+1. **The self-sustaining homestead design -- RESULT IN, see the full section
+   below.** ~90% of a complete single-occupant self-sufficient homestead
+   already exists as real game data; this is now concrete assembly work
+   (Phase A: author `data/machines/home_solo.ron` from an exact,
+   already-worked-out bill of materials), not open design work. This is
+   the single most mission-critical ask in this message
    ("people need to see the bare minimum for 100% self-sufficiency").
 2. Studio streaming pipeline -- wire the ALREADY-EXISTING WebRTC/Opus
    infrastructure into the Studio page (see backlog below).
@@ -56,17 +56,108 @@ there). That changes a few things:
 7. Docs sync every cycle (BUGS/FEATURES/PRIORITIES/journal), same discipline
    as the overnight loop.
 
-## In flight right now (check on wake-up, don't re-launch)
+## Priority #1 IN DETAIL: the self-sustaining homestead design (RESULT IN, ready to implement)
 
-A `self-sustaining-homestead-design` Workflow was dispatched by the prior
-turn (before this loop started) -- 3 parallel research agents (power/water/
-air/waste systems, food/crafting systems, real-world self-sufficiency
-facts) feeding one synthesis pass. By the time this loop's first cycle
-reads this file, check whether that workflow's result has already been
-delivered via a task-notification earlier in the conversation. If so, its
-design becomes this cycle's top implementation target (see Priority #1
-above). If genuinely not yet returned, work on Priority #2+ first and
-circle back.
+The dispatched `self-sustaining-homestead-design` Workflow (3 research
+agents + 1 synthesis) returned a complete, rigorously-grounded design.
+**Headline finding: ~90% of a fully self-sufficient single-occupant
+homestead already exists as real, verified game data** -- this is
+assembly work, not a from-scratch build. The design's intellectual
+backbone is a pre-existing, excellent doc most of this session didn't
+know about: `docs/design/self-sufficiency.md` (written 2026-06-07,
+"weakest coupled loop" / Liebig's-law model, the honest "light cap"
+math on why indoor gardens can't grow all the calories). Read that doc
+FIRST, then this section, before touching anything.
+
+**Phase A -- assemble the solo home from EXISTING data (no new
+authoring, ~1 new file). Do this first, it's the highest-value/lowest-
+risk slice:**
+1. Create `data/machines/home_solo.ron` (mirror the structure of the
+   existing `data/machines/home.ron`, a proven, working 3-person
+   design) using this exact bill of materials, sized to real 2,200
+   kcal/day + 4.0 kWh/day + 80 L/day one-person demand (full sizing math
+   already worked out, don't re-derive it, just implement it):
+   - **Power:** 4x `solar_panel`, 2x `battery_bank`, 1x
+     `wind_turbine_small`, 1x `generator_portable`.
+   - **Water:** 1x `water_tank` (8000 L cistern), 1x `water_pump`, 1x
+     `water_purifier`, 1x `home_water_use`.
+   - **Food (this is the loop that was weakest for 3 people and now
+     closes near 100% for 1 -- the pedagogical payoff):** 9x
+     `aeroponic_tower_nutrition`, 1x `aeroponic_tower_apothecary`, 8x
+     `potato_grow_bed`, 3x `oilseed_bed`, 2x `staple_grain_tray`, 2x
+     `mushroom_rack`, 1x `aquaponic_tank`, 1x `grain_field`, 1x
+     `legume_field`, 1x `grain_silo`, 1x `irrigation_system`.
+   - **Air:** 1x `air_recycler`.
+   - **Waste:** 1-2x `composter`.
+   - Copy the `connections` topology straight from `home.ron` (already
+     correct), just with fewer instances. Use the existing `arrays` grid
+     RON syntax for the tower/bed blocks (infinite-of-X: one line per
+     block, not one line per instance).
+2. Reuse the existing room shells from
+   `data/blueprints/homestead_layout.ron` -- for the solo footprint,
+   omit `depot`/`hangar`/`ranch` (already supports being commented out,
+   same pattern `ranch` already uses), keep `garden` at its full 34x34 m
+   (correctly sized for 1 person, oversized for 3 -- don't shrink it).
+3. Furniture/walls/doors all reuse existing `structures.csv` ids --
+   nothing new needed here either.
+4. **Verify it, don't just author it**: load it via the construction
+   editor's buildability report (the same real NEC/wattage math already
+   built), confirm power/water/air/waste self-sufficiency actually
+   balances per the math above, and add a test if a reasonable one
+   exists (e.g. a `home_solo.ron` parses + its declared machine ids all
+   resolve against `data/machines/*.ron`'s real catalog, mirroring
+   `parses_the_shipped_home_structure`-style tests already in the repo).
+
+**Phase B -- author the 4 genuine content gaps the design found (small,
+specific, in priority order, only after Phase A ships and is verified):**
+1. `data/plants.csv`: add `oyster_mushroom` (+ 1-2 more edible fungi) --
+   the `mushroom_rack`'s kcal claim is currently unbacked by any real
+   crop id (only alien fungi exist today).
+2. `data/creatures.csv`: add `tilapia` and/or `channel_catfish` -- the
+   aquaponic tank's unique B12/omega-3 closure claim currently has no
+   real freshwater tank fish species to back it.
+3. `data/plants.csv` calorie columns (or a new
+   `data/food/crop_nutrition.ron` mapping) -- today per-machine kcal are
+   hardcoded STRINGS in the machine catalog ("+120 kcal/d"), not
+   computed from real crop yield data; this is what actually lets a
+   future self-sufficiency score compute from data instead of trusting
+   hand-typed text.
+4. `data/self_sufficiency/component_outputs.ron` + a `location.ron` +
+   a household-size selector -- turns the whole design from prose into
+   an actual computed per-loop score with autonomy days, exactly per
+   self-sufficiency.md's own "what data we'd add" section. This is
+   real, substantial follow-on work (probably its own multi-cycle
+   effort) -- don't try to do it in one pass.
+
+**Phase C -- the honest teaching artifacts (the operator's actual
+stated goal, do this once A+B are solid):**
+1. A live "grow-light draw vs power-budget meter" that turns red the
+   instant an LED grow-light is added past the free-sun headroom --
+   self-sufficiency.md itself already calls this out as "the single
+   most honest teaching artifact." The data already exists
+   (`electrical.ron`'s `grow_light`, 100 W); this is meter/wiring logic,
+   not new data.
+2. A "what this cannot close the loop on" panel on the Home page,
+   surfacing the design's own section 8 findings: electronics/
+   semiconductor manufacturing, metal/alloy production at ore scale,
+   medicine synthesis, and equipment-replacement/capital-goods renewal
+   are ALL things this game's own recipe data already abstracts away
+   real industrial infrastructure to make craftable at a workbench --
+   mark these as externally-sourced/traded, visually distinct from the
+   closed survival loops. **This panel is the actual pedagogical payoff
+   the operator asked for** ("people need to see the bare minimum...
+   so they understand the importance of all supporting civilizational
+   infrastructure") -- don't skip it once A+B are done, it's the point,
+   not a nice-to-have.
+
+Full design reasoning + exact sizing math for every number above is saved
+permanently at `docs/design/homestead-solo-design.md` -- read that file
+for the complete write-up (this section is a compressed summary of it).
+The raw workflow's power/water/air/waste and food/crafting research
+reports (more granular file:line citations than the design doc needed to
+carry) are NOT saved permanently -- they were used to produce
+homestead-solo-design.md and that document already contains every
+actionable fact from them; don't re-run that research.
 
 ## Backlog: Studio streaming pipeline (priority #2)
 
