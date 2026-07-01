@@ -1,0 +1,44 @@
+// Structural extrusion profiles (added 2026-07-01, operator's real-life 3D-printer parts bin).
+//
+// A profile is a closed 2D polygon in (out, up) metres, the SAME shape `sweep_profile`
+// (src/ship/fibonacci.rs) already extrudes for interior trim (baseboard/crown/casing). Reused
+// as-is here for STRUCTURAL framing instead: one cross-section, extruded to any length at
+// placement time. No 3D model needed for a constant-cross-section member, only its outline.
+// Infinite-of-X: add a profile by adding one entry here, no code.
+//
+// Fields:
+//   id            stable lookup key.
+//   name          display name.
+//   points        closed polygon, (out, up) metres, traced once around (do not repeat the
+//                 first point at the end, sweep_profile wraps with (i+1) % n).
+//   material      -> wall_materials.ron id (real density/tensile/cost teaching data, same as
+//                 every other buildable surface in this game).
+//   mass_kg_per_m real mass per metre of length, so a placed beam's total mass is
+//                 length * mass_kg_per_m (matches the density-driven realism the rest of the
+//                 build system already commits to, not a guessed constant).
+[
+    (
+        id: "extrusion_2020_tslot",
+        name: "2020 T-slot aluminum extrusion",
+        // A 20mm x 20mm square with a 6mm-wide, 3mm-deep T-slot channel opening cut into the
+        // middle of each face (the visible slot mouth only, the hidden internal T-cavity a real
+        // extrusion has behind that opening isn't modelled, it's never visible from outside the
+        // slot at normal viewing distance, so it would be pure vertex cost with zero payoff).
+        // Traced clockwise from the top-left corner, in metres.
+        points: [
+            (-0.01, 0.01), (-0.003, 0.01), (-0.003, 0.007), (0.003, 0.007), (0.003, 0.01),
+            (0.01, 0.01), (0.01, 0.003), (0.007, 0.003), (0.007, -0.003), (0.01, -0.003),
+            (0.01, -0.01), (0.003, -0.01), (0.003, -0.007), (-0.003, -0.007), (-0.003, -0.01),
+            (-0.01, -0.01), (-0.01, -0.003), (-0.007, -0.003), (-0.007, 0.003), (-0.01, 0.003),
+        ],
+        material: 5, // Aluminum (wall_materials.ron id 5: density 2700 kg/m3, tensile 310 MPa)
+        // From real published 2020 T-slot spec sheets (~0.20-0.24 kg/m for genuine hollow
+        // extrusion), NOT computed from the solid-ish visual profile above: a true 2020 has
+        // substantial internal material removed (the T-slot channels bore in much further than
+        // the visible face notch, plus a hollow/cross-braced core) that isn't worth modelling
+        // for a shape nobody sees the inside of. Using the real spec number here keeps the MASS
+        // honest even though the polygon is a simplified visual approximation, a documented
+        // simplification, not a silent one.
+        mass_kg_per_m: 0.22,
+    ),
+]

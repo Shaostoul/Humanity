@@ -193,6 +193,66 @@ pub fn zone_filler(type_id: &str) -> Option<&'static ZoneFiller> {
     zone_fillers().iter().find(|f| f.type_id == type_id)
 }
 
+/// A STRUCTURAL EXTRUSION PROFILE (v0.640): a closed 2D cross-section (out, up metres) that
+/// `crate::ship::fibonacci::sweep_profile` (already proven for interior trim: baseboard, crown,
+/// casing) extrudes along ANY run length at placement time. The right model for a constant-
+/// cross-section member (aluminum T-slot framing, steel angle, PVC conduit, ...), no 3D model or
+/// fixed-length asset needed, only the outline. Infinite-of-X: add a profile by adding one entry
+/// to `data/blueprints/extrusion_profiles.ron`, no code.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExtrusionProfile {
+    pub id: String,
+    pub name: String,
+    /// Closed polygon, (out, up) metres, traced once around (sweep_profile wraps with (i+1) % n,
+    /// do not repeat the first point at the end).
+    pub points: Vec<(f32, f32)>,
+    /// -> wall_materials.ron id (real density/tensile/cost teaching data).
+    pub material: u32,
+    /// Real mass per metre of length (from a published spec, may differ from what the visual
+    /// `points` polygon's own cross-sectional area would compute, see the .ron file's own notes
+    /// on any profile that simplifies away a hollow/internal cavity nobody sees from outside).
+    pub mass_kg_per_m: f32,
+}
+
+/// The extrusion-profile registry, parsed once + embedded (same pattern as zone_fillers).
+pub fn extrusion_profiles() -> &'static [ExtrusionProfile] {
+    static REG: std::sync::OnceLock<Vec<ExtrusionProfile>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/extrusion_profiles.ron");
+        match ron::from_str::<Vec<ExtrusionProfile>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("extrusion_profiles.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// Look up an extrusion profile spec by id (None if unknown).
+pub fn extrusion_profile(id: &str) -> Option<&'static ExtrusionProfile> {
+    extrusion_profiles().iter().find(|p| p.id == id)
+}
+
+/// Extrude an `ExtrusionProfile` along a straight run `a` -> `b` (home-local metres), reusing the
+/// same swept-solid geometry `sweep_profile` already builds for trim. `out_dir`/`up_dir` are the
+/// two axes the profile's (out, up) coordinates are measured against, perpendicular to the run
+/// (e.g. world +X and +Y for a horizontal beam running along Z). Returns `None` for an unknown
+/// profile id or a degenerate (near-zero-length) run.
+pub fn extrude_profile(
+    id: &str,
+    a: Vec3,
+    b: Vec3,
+    out_dir: Vec3,
+    up_dir: Vec3,
+) -> Option<(Vec<Vertex>, Vec<u32>)> {
+    let profile = extrusion_profile(id)?;
+    if (b - a).length() < 0.001 {
+        return None;
+    }
+    Some(crate::ship::fibonacci::sweep_profile(&profile.points, a, b, out_dir, up_dir))
+}
+
 /// A ROAD CLASS (v0.585): a named, FIXED top-to-bottom material stack -- "an airplane runway has
 /// different needs than a residential side road" (operator). The stack reuses `SurfaceLayer` (the
 /// same model walls layer with), so road materials teach the same density/strength/cost. Used when a
@@ -635,5 +695,53 @@ mod tests {
         let (hw0, _, hd0) = rotated_half_extents(ty, 0.0);
         let (hw45, _, hd45) = rotated_half_extents(ty, std::f32::consts::FRAC_PI_4);
         assert!(hw45 > hw0 && hd45 < hd0 + 0.01, "45deg rotation widens X, the AABB grows");
+    }
+
+    /// v0.640: the 2020 T-slot extrusion profile parses, has a closed polygon, resolves to a real
+    /// wall_materials.ron entry (Aluminum), and actually extrudes real geometry at both a short and
+    /// a long run length, proving `sweep_profile` (proven for interior trim) works unmodified for a
+    /// structural framing member -- no 3D model needed for a constant-cross-section beam.
+    #[test]
+    fn extrusion_2020_tslot_profile_parses_and_sweeps_to_real_geometry() {
+        let profiles = extrusion_profiles();
+        assert!(!profiles.is_empty(), "extrusion_profiles.ron should parse");
+        let p = extrusion_profile("extrusion_2020_tslot").expect("the 2020 T-slot profile exists");
+        assert!(p.points.len() >= 4, "a closed polygon needs at least 4 points");
+        assert!(p.mass_kg_per_m > 0.0, "a real mass-per-metre figure");
+        assert!(
+            crate::ship::home_structure::wall_material(p.material).is_some(),
+            "the profile's material id resolves to a real wall_materials.ron entry"
+        );
+
+        // A 1m beam (matching the operator's own reference length) along +Z.
+        let (v1, i1) = extrude_profile(
+            "extrusion_2020_tslot",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::X,
+            Vec3::Y,
+        )
+        .expect("a 1m run sweeps");
+        assert!(!v1.is_empty() && !i1.is_empty(), "real geometry for a 1m beam");
+        assert_eq!(i1.len() % 3, 0, "triangulated");
+
+        // A much longer beam (e.g. 4m) produces the SAME cross-section, just extruded further,
+        // proving this scales to any length with zero new authored content.
+        let (v4, _) = extrude_profile(
+            "extrusion_2020_tslot",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 4.0),
+            Vec3::X,
+            Vec3::Y,
+        )
+        .expect("a 4m run sweeps");
+        let max_z_1m = v1.iter().map(|v| v.position[2]).fold(f32::MIN, f32::max);
+        let max_z_4m = v4.iter().map(|v| v.position[2]).fold(f32::MIN, f32::max);
+        assert!(max_z_4m > max_z_1m + 2.0, "a longer run produces a longer beam, not a stretched cap");
+
+        // A degenerate (zero-length) run is a clean no-op, not a panic or garbage geometry.
+        assert!(extrude_profile("extrusion_2020_tslot", Vec3::ZERO, Vec3::ZERO, Vec3::X, Vec3::Y).is_none());
+        // An unknown profile id is a clean None, not a panic.
+        assert!(extrude_profile("no_such_profile", Vec3::ZERO, Vec3::new(0.0, 0.0, 1.0), Vec3::X, Vec3::Y).is_none());
     }
 }

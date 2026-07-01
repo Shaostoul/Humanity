@@ -754,7 +754,7 @@ fn ceiling_quad(pos: Vec3, dim: Vec3, y: f32) -> (Vec<Vertex>, Vec<u32>) {
 /// (v0.457): the same function builds baseboards, crown, and casing -- only the profile + the
 /// run differ. Double-sided so thin trim reads from any angle; end caps are omitted (runs
 /// butt against walls / each other).
-fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir: Vec3) -> (Vec<Vertex>, Vec<u32>) {
+pub(crate) fn sweep_profile(profile: &[(f32, f32)], a: Vec3, b: Vec3, out_dir: Vec3, up_dir: Vec3) -> (Vec<Vertex>, Vec<u32>) {
     let n = profile.len();
     let mut v = Vec::new();
     let mut idx = Vec::new();
