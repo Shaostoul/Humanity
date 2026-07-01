@@ -1276,7 +1276,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // channels: voice-mic icon, settings cog, then the # name.
                     if !group.collapsed {
                         let is_group_admin = is_group_admin(&group.role);
-                        for ch in group.channels.iter() {
+                        for (ci, ch) in group.channels.iter().enumerate() {
                             let is_active = state.chat_active_channel == ch.id;
                             let accent = Color32::from_rgb(80, 200, 80);
                             let base_bg = if is_active {
@@ -1372,7 +1372,46 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             if response.clicked() {
                                 let click_pos = ui.ctx().input(|i| i.pointer.interact_pos().unwrap_or_default());
                                 if voice_icon_rect.contains(click_pos) && ch.voice_enabled {
-                                    // TODO: wire group voice join/leave through the relay
+                                    // Same voice_room join/leave protocol the server-channel voice
+                                    // icon already uses (see the voice_toggle_idx handling below in
+                                    // this file): the relay tracks voice rooms by an opaque room_id
+                                    // string, so this group channel's own id (already namespaced
+                                    // "group:<id>" by the group_list handler in src/lib.rs) works
+                                    // identically to a server channel's id. `groups` here is a clone
+                                    // (see `let groups = state.chat_groups.clone();` above), so
+                                    // mutating the real `state.chat_groups` directly is safe -- no
+                                    // borrow conflict, matching how this same loop already mutates
+                                    // `state.chat_active_channel` on a plain channel-row click below.
+                                    let joining = !ch.voice_joined;
+                                    if let Some(g) = state.chat_groups.get_mut(gi) {
+                                        if let Some(c) = g.channels.get_mut(ci) {
+                                            c.voice_joined = joining;
+                                        }
+                                    }
+                                    // voice_active_room is the single global "which room am I in"
+                                    // tracker the WebRTC session manager reads (src/lib.rs, the
+                                    // incumbent-dialing "newcomer offers" logic) -- it's genuinely
+                                    // room-type-agnostic (just an opaque room_id string), so a group
+                                    // voice channel needs the exact same bookkeeping the
+                                    // server-channel path already does, or the actual audio session
+                                    // never establishes even though the UI shows "joined."
+                                    if joining {
+                                        state.voice_active_room = Some(ch.id.clone());
+                                        state.voice_incumbents_captured = false;
+                                    } else {
+                                        state.voice_active_room = None;
+                                    }
+                                    let action = if joining { "join" } else { "leave" };
+                                    if let Some(ref client) = state.ws_client {
+                                        if client.is_connected() {
+                                            let msg = serde_json::json!({
+                                                "type": "voice_room",
+                                                "action": action,
+                                                "room_id": ch.id,
+                                            });
+                                            client.send(&msg.to_string());
+                                        }
+                                    }
                                 } else if gear_icon_rect.contains(click_pos) && is_group_admin {
                                     state.show_channel_edit_modal = true;
                                     state.edit_channel_id = ch.id.clone();

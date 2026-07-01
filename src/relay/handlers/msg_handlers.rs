@@ -906,16 +906,41 @@ pub async fn handle_voice_room(
         }
         "join" => {
             if let Some(rid) = room_id {
-                // `rid` is the TEXT channel's string id. Voice is per-channel via
-                // the voice_enabled flag (v0.493), not the legacy voice_channels
-                // table — so validate + name from the channels table.
-                if !state.db.channel_voice_enabled(&rid) {
-                    let private = RelayMessage::Private { to: my_key.to_string(), message: "Voice is not enabled for this channel.".to_string() };
+                // Group voice channels use a synthetic "group:<id>" room_id (see the
+                // group_list handler in src/lib.rs) -- there's no row for these in the
+                // `channels` table, so `channel_voice_enabled` would always reject them.
+                // Group channels are voice-capable by convention (the client always sets
+                // voice_enabled: true for them); the real gate here is GROUP MEMBERSHIP,
+                // not a channels-table lookup, so a non-member can't join by crafting or
+                // guessing another group's id.
+                let (allowed, deny_message, display_name_override) = if let Some(gid) = rid.strip_prefix("group:") {
+                    match state.db.is_group_member(gid, my_key) {
+                        Ok(true) => (true, None, state.db.get_user_groups(my_key).ok()
+                            .and_then(|gs| gs.into_iter().find(|(id, ..)| id == gid))
+                            .map(|(_, name, ..)| name)),
+                        Ok(false) => (false, Some("You are not a member of this group.".to_string()), None),
+                        Err(e) => {
+                            tracing::error!("is_group_member check failed: {e}");
+                            (false, Some("Could not verify group membership.".to_string()), None)
+                        }
+                    }
+                } else {
+                    // `rid` is the TEXT channel's string id. Voice is per-channel via
+                    // the voice_enabled flag (v0.493), not the legacy voice_channels
+                    // table — so validate + name from the channels table.
+                    (state.db.channel_voice_enabled(&rid), Some("Voice is not enabled for this channel.".to_string()), None)
+                };
+                if !allowed {
+                    let private = RelayMessage::Private { to: my_key.to_string(), message: deny_message.unwrap_or_default() };
                     let _ = state.broadcast_tx.send(private);
                 } else {
                     let mut rooms = state.voice_rooms.write().await;
                     let room = rooms.entry(rid.clone()).or_insert_with(|| {
-                        let name = state.db.channel_display_name(&rid)
+                        // `channel_display_name` has no row for a "group:<id>" synthetic id --
+                        // use the group's real name (already resolved above) when this is a
+                        // group room.
+                        let name = display_name_override
+                            .or_else(|| state.db.channel_display_name(&rid))
                             .unwrap_or_else(|| "Voice".to_string());
                         VoiceRoom { name, participants: vec![] }
                     });

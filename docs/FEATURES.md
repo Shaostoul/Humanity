@@ -104,6 +104,23 @@ the same channel id and are interoperable.
 - Web: `web/chat/chat-voice.js`, `web/chat/chat-voice-rooms.js`
 - Server: `src/relay/handlers/msg_handlers.rs` (voice_room join/leave + roster), `src/relay/handlers/broadcast.rs` (voice_room_signal relay)
 
+**P2P group voice** (native, v0.642.0): native's group-channel voice icon was
+previously a `// TODO` no-op. Now wired to the same `voice_room` protocol,
+using the group channel's synthetic `"group:<id>"` id as the room_id. The
+relay's join handler special-cases this prefix and gates it on real GROUP
+MEMBERSHIP (`Storage::is_group_member`) rather than the `channels` table's
+`voice_enabled` flag (which has no row for a group room at all) -- verified
+live against a local relay: a member joins silently, a non-member gets
+"You are not a member of this group." **Known follow-up**: group voice rooms
+don't yet appear in the `voice_channel_list` broadcast
+(`build_voice_channel_list_msg`, `src/relay/handlers/broadcast.rs`, only
+enumerates the `channels` table) -- join/leave and the underlying
+`VoiceRoomSignal` audio signaling both work correctly (your own client's
+`voice_joined` state and the existing-participant dial-in both work), but the
+roster list won't show OTHER participants in a group voice room yet. Real
+fix: extend that function to also report ad-hoc `state.voice_rooms` entries
+with no backing `channels` row.
+
 ### Native Voice (Live Audio, Pure-Rust)
 Full live voice on the desktop app: captures mic → DSP → Opus encode → sends to
 each connected peer; receives peers' Opus → per-peer decode → mix → playback.

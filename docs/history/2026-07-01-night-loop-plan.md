@@ -168,14 +168,26 @@ loopback harness, commit small.
    via `group_list` -- the client `ChatGroup` struct just had no field to
    receive it. Added `role: String`, wired the handler, extracted a
    testable `is_group_admin(role: &str) -> bool` helper with 3 unit tests.
-3. `src/gui/pages/chat.rs:1346` -- `// TODO: wire group voice join/leave
-   through the relay`. Compare against how the 1:1 voice call path already
-   works (`chat-voice-calls.js`/`chat-voice-webrtc.js` on the web side,
-   `src/net/webrtc.rs` on the native side) and extend the same signaling
-   pattern to group voice rooms (`chat-voice-rooms.js` already exists on
-   the web side -- check whether IT already does this correctly and native
-   is just behind, i.e. a dual-UI-parity gap rather than a from-scratch
-   build).
+3. **DONE (v0.643.0, cycle 3)** ~~`src/gui/pages/chat.rs:1346` -- `// TODO:
+   wire group voice join/leave through the relay`.~~ Wired to the existing
+   `voice_room` protocol (same one server-channel voice already uses),
+   using the group channel's `"group:<id>"` synthetic room_id. Found and
+   fixed a REAL server-side gap this surfaced: `handle_voice_room`'s join
+   branch validated room_id against the `channels` table's `voice_enabled`
+   flag, which has no row at all for a group room -- would have silently
+   rejected every group voice join even with the client-side fix alone.
+   Added a `group:` prefix branch gated on real membership
+   (`Storage::is_group_member`, which already existed but had no callers
+   for authorization) instead of skipping validation. Verified LIVE against
+   a local relay with a seeded test group (via `node:sqlite`, since
+   `group_create` requires a verified/admin role a fresh bot lacks): a
+   member joins silently, a non-member gets the correct rejection message.
+   5 new unit tests for `is_group_member` (src/relay/storage/social.rs).
+   **Follow-up logged in FEATURES.md**: group voice rooms don't yet appear
+   in the `voice_channel_list` broadcast (only the `channels` table is
+   enumerated there) -- join/leave and audio signaling work, but you can't
+   yet see OTHER participants in a group voice room's roster. Not blocking,
+   logged as a real, scoped, separate item.
 4. `src/gui/pages/chat.rs:1588` -- `// TODO: implement mute`. Backing store
    doesn't exist yet either (see #6 below) -- these two are one feature.
 5. `src/gui/pages/main_menu.rs:135` -- the onboarding "Connect" button is

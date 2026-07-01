@@ -265,3 +265,74 @@ mod follow_friend_tests {
         assert!(db.are_friends("alice", "bob").unwrap());
     }
 }
+
+#[cfg(test)]
+mod group_membership_tests {
+    //! `is_group_member` is the exact security gate
+    //! `handle_voice_room`'s "join" branch (src/relay/handlers/msg_handlers.rs, v0.642)
+    //! consults for a `"group:<id>"` room_id -- it's what stops a user from joining any
+    //! group's voice channel by crafting/guessing another group's id.
+    use super::*;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_group_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    #[test]
+    fn creator_is_a_member_and_admin() {
+        let db = fresh_db();
+        let (group_id, _invite) = db.create_group("Test Group", "alice").unwrap();
+        assert!(db.is_group_member(&group_id, "alice").unwrap());
+        let members = db.get_group_members(&group_id).unwrap();
+        assert_eq!(members, vec![("alice".to_string(), "admin".to_string())]);
+    }
+
+    #[test]
+    fn a_stranger_is_not_a_member() {
+        let db = fresh_db();
+        let (group_id, _invite) = db.create_group("Test Group", "alice").unwrap();
+        // Bob never joined -- this is the exact case the voice-room join gate
+        // must reject, and the exact case a crafted/guessed group id hits too.
+        assert!(!db.is_group_member(&group_id, "bob").unwrap());
+    }
+
+    #[test]
+    fn joining_by_invite_code_grants_membership() {
+        let db = fresh_db();
+        let (group_id, invite) = db.create_group("Test Group", "alice").unwrap();
+        assert!(!db.is_group_member(&group_id, "bob").unwrap());
+        let joined = db.join_group_by_invite(&invite, "bob").unwrap();
+        assert_eq!(joined, Some((group_id.clone(), "Test Group".to_string())));
+        assert!(db.is_group_member(&group_id, "bob").unwrap(), "bob is a member after joining");
+    }
+
+    #[test]
+    fn leaving_revokes_membership() {
+        let db = fresh_db();
+        let (group_id, invite) = db.create_group("Test Group", "alice").unwrap();
+        db.join_group_by_invite(&invite, "bob").unwrap();
+        assert!(db.is_group_member(&group_id, "bob").unwrap());
+        assert!(db.leave_group(&group_id, "bob").unwrap());
+        assert!(!db.is_group_member(&group_id, "bob").unwrap(), "leaving must revoke the voice-room join gate too");
+    }
+
+    #[test]
+    fn is_group_member_never_matches_a_wrong_group_id() {
+        // Guards the exact vulnerability class this gate exists for: a member of
+        // group A must not be treated as a member of an unrelated group B just
+        // because both ids happen to be non-empty strings.
+        let db = fresh_db();
+        let (group_a, _) = db.create_group("Group A", "alice").unwrap();
+        let (group_b, _) = db.create_group("Group B", "bob").unwrap();
+        assert!(db.is_group_member(&group_a, "alice").unwrap());
+        assert!(!db.is_group_member(&group_b, "alice").unwrap(), "alice is not a member of group B");
+        assert!(db.is_group_member(&group_b, "bob").unwrap());
+        assert!(!db.is_group_member(&group_a, "bob").unwrap(), "bob is not a member of group A");
+    }
+}
