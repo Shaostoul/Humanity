@@ -160,6 +160,85 @@ Two separate concerns living side-by-side in the same binary:
   - In-memory `hecs::World` at runtime
 - The two intersect at the **inventory** and **marketplace** boundaries, your game-mode marketplace listings can carry trust scores from the social layer.
 
+### Is this a "hybrid SQL/NoSQL/object-oriented DBMS"? (evaluated 2026-07-01, answer: no)
+
+The operator asked whether mixing SQLite (relational) with RON/CSV/TOML
+content (which mirrors Rust struct shape) amounts to building a hybrid
+database system. Investigated in depth; the answer is **no** — this is a
+completely standard "one real database + a versioned content layer"
+split, the same pattern any game engine uses for level/item data:
+
+- **SQLite does 100% of the actual database work.** Real `FOREIGN KEY
+  ... REFERENCES ... ON DELETE CASCADE` constraints, 75+ indexes plus an
+  FTS5 full-text index, genuine multi-table ACID transactions (e.g.
+  `channels.rs::rename_channel()`), real `JOIN`s (`list_all_users()`),
+  and a real concurrency model — WAL mode, a single serialized writer
+  `Mutex<Connection>`, and an 8-connection read-only pool enforced at the
+  SQLite layer (`src/relay/storage/pool.rs`, whose own tests assert a
+  write routed to the read pool is rejected).
+- **RON/CSV/TOML content is not a second database engine.** `src/assets/`
+  (`AssetManager`) reads each file once, deserializes it into an ordinary
+  `Vec<T>`/struct via serde, caches it in a `HashMap<String, Box<dyn
+  Any>>`, and callers iterate/filter it with plain Rust (`.iter().find()`,
+  `.filter()`) — no query planner, no index, no join mechanism, no
+  transaction log. It's re-parsed wholesale on file-watcher change
+  (`src/assets/watcher.rs`), which is cache invalidation, not a database
+  write path. Content under `data/` and `schemas/` is essentially never
+  written by a running instance — the only two exceptions found are both
+  single-player editor saves (the Construction editor's Save button
+  writing your own home blueprint back to `data/blueprints/
+  homestead_layout.ron` or `home_structure.ron`), not concurrent
+  multi-user database writes: no locking, no transaction, last-write-wins
+  on one file.
+- Object-shaped serialization (RON mirroring a Rust struct) is a *format*
+  choice, not a database property. The distinguishing feature of any
+  database — relational, document, or otherwise — is accepting arbitrary
+  runtime writes from many actors and answering ad hoc queries against a
+  live, mutating dataset under some consistency guarantee. The content
+  layer does none of that; it's closer to a mod-data folder or a game's
+  item catalog than to a database.
+
+**SurrealDB was also evaluated as a potential unification** (the
+operator recalled the project once had ~133 `.surql` schema files under
+`docs/reference/` — these were confirmed, via git history, to be
+`USE NS project_universe;`-tagged files from the pre-rename era: a
+speculative "encyclopedia of everything" world-knowledge model (being
+biology, generic communications-technology categories, engineering
+fields), never wired to any actual code, and deleted as dead docs in the
+2026-06-30 cleanup — not a prior backend plan for the current relay).
+Verdict: **stay on SQLite for now.** SurrealDB is a genuinely capable
+multi-model database (graph, vector, live queries, all in one engine,
+embeddable in a Rust binary with no separate server process), but for
+HumanityOS specifically:
+- Its license is Business Source License 1.1 (source-available, **not**
+  OSI-approved open source; converts to Apache-2.0 four years after each
+  release) — a real fact worth knowing if the storage layer is ever
+  described as "open source" without qualification, and a VC-backed
+  company can change licensing terms again in the future the way SQLite's
+  public-domain governance never can.
+- The recommended production embedded backend (RocksDB) is a large C++
+  dependency — exactly the class of thing that has already caused
+  Windows MSVC/PDB linker pain in this repo (see CLAUDE.md's gotchas);
+  SurrealDB's own pure-Rust embedded engine (SurrealKV) is explicitly
+  *not yet* recommended by SurrealDB itself for production single-node
+  use.
+- The 3.x line is young (GA'd March 2026, an admitted rearchitecture to
+  fix "150+ bugs" in the prior line) with at least one open, unresolved
+  severe performance-regression issue as of this evaluation.
+- HumanityOS's current schema is fundamentally relational/CRUD-shaped
+  with full-text search — nothing in the current storage schema (see
+  above) demands graph traversal or vector search badly enough to
+  justify the new dependency weight, and the app's WebSocket relay
+  (`src/relay/relay.rs`) already **is** the real-time push mechanism —
+  SurrealDB's `LIVE SELECT` would duplicate that, not add to it.
+
+Revisit if/when a real feature genuinely needs native graph traversal
+(e.g. deep follows/reputation/federation relationship queries), vector
+search (e.g. semantic search over Library/Accord content or AI
+features), or DB-level live-push at a scale beyond what the WS relay
+already handles — and even then, wait for more 3.x stabilization data
+first.
+
 ---
 
 ## Search performance at scale
