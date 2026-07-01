@@ -1,0 +1,138 @@
+// Zone interior filler (v0.638, superstructure M2c -- docs/design/mothership-superstructure.md).
+//
+// A ZONE (zone_types.ron) is today only a coloured wireframe box: no interior content. The operator
+// wants the mothership to "look filled out" cheaply, without hand-authoring content per zone. This
+// registry is the data-driven placeholder-content spec: one entry per zone_types.ron `type_id`,
+// describing a simple repeated primitive (a box "silhouette") tiled across the zone's footprint at
+// build time by `home_structure::generate_zone_filler`.
+//
+// Infinite-of-X: add a district's filler by adding one entry here, no code. A future session swaps
+// `mesh_kind` box fillers for real per-type sub-structures (shop stalls, factory machine arrays, ship
+// cradles, ...) without touching the Zone/HomeStructure struct shape again -- this registry is the
+// seam. `residential` is NOT listed here: it has its own special-cased path (tiling clones of the
+// player's home shell, see generate_zone_filler's residential branch) because the operator specifically
+// asked for home clones there ("clone the home we're building to all the other home slots"); every
+// OTHER type_id uses this generic filler. An unlisted non-residential type_id renders with NO filler
+// (empty interior) until someone adds an entry -- a safe, obvious gap rather than a guessed default.
+//
+// Fields:
+//   type_id       -> zone_types.ron id.
+//   footprint     (width X, depth Z) metres of ONE filler instance's footprint.
+//   height        metres tall (Y) of one filler instance.
+//   spacing       metres of gap between adjacent instance footprints (aisle width).
+//   inset         metres kept clear from the zone's outer wall on all sides (a walkway margin).
+//   mesh_kind     tag for the geometry the renderer builds ("box" today -- a solid silhouette block;
+//                 future kinds -- "rack", "cradle", "stall", "array" -- read the same fields once the
+//                 renderer grows dedicated shapes, no struct change needed).
+//   color_from_zone_type   if true, tint the filler with the zone TYPE's own `color` (zone_types.ron)
+//                          so the district reads as visually distinct; false lets `tint` override it.
+[
+    (
+        type_id: "civic_mall",
+        footprint: (4.0, 4.0),
+        height: 3.0,
+        spacing: 3.0,
+        inset: 3.0,
+        mesh_kind: "stall",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "industrial",
+        footprint: (5.0, 5.0),
+        height: 5.0,
+        spacing: 2.0,
+        inset: 2.0,
+        mesh_kind: "array",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "hangar",
+        footprint: (8.0, 14.0),
+        height: 4.0,
+        spacing: 4.0,
+        inset: 4.0,
+        mesh_kind: "cradle",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "mech_bay",
+        footprint: (4.0, 5.0),
+        height: 4.5,
+        spacing: 2.0,
+        inset: 1.5,
+        mesh_kind: "cradle",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "cargo",
+        footprint: (2.5, 2.5),
+        height: 2.5,
+        spacing: 1.0,
+        inset: 2.0,
+        mesh_kind: "rack",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "storage",
+        footprint: (2.0, 4.0),
+        height: 3.5,
+        spacing: 1.2,
+        inset: 1.5,
+        mesh_kind: "rack",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "agriculture",
+        footprint: (2.0, 2.0),
+        height: 3.0,
+        spacing: 1.0,
+        inset: 2.0,
+        mesh_kind: "array",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "power",
+        footprint: (3.0, 3.0),
+        height: 6.0,
+        spacing: 2.0,
+        inset: 2.0,
+        mesh_kind: "array",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "medical",
+        footprint: (3.0, 4.0),
+        height: 2.6,
+        spacing: 1.5,
+        inset: 1.5,
+        mesh_kind: "stall",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "transit_hub",
+        footprint: (2.0, 2.0),
+        height: 3.0,
+        spacing: 3.0,
+        inset: 3.0,
+        mesh_kind: "rack",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "armory",
+        footprint: (2.0, 3.0),
+        height: 2.4,
+        spacing: 1.0,
+        inset: 1.5,
+        mesh_kind: "rack",
+        color_from_zone_type: true,
+    ),
+    (
+        type_id: "arena",
+        footprint: (3.0, 2.0),
+        height: 1.5,
+        spacing: 1.0,
+        inset: 3.0,
+        mesh_kind: "stall",
+        color_from_zone_type: true,
+    ),
+]

@@ -138,6 +138,61 @@ pub fn zone_type(id: &str) -> Option<&'static ZoneType> {
     zone_types().iter().find(|t| t.id == id)
 }
 
+/// A ZONE FILLER spec (v0.638, superstructure M2c): the generic, data-driven interior-population
+/// recipe for one zone `type_id` -- "so the mothership looks filled out" without hand-authored per-zone
+/// content. `home_structure::generate_zone_filler` tiles a repeated primitive box across a zone's
+/// footprint using these dimensions. `residential` deliberately has NO entry here: it uses its own
+/// home-cloning path instead (see `generate_zone_filler`'s residential branch). Infinite-of-X: add a
+/// district's filler by adding one entry to `zone_filler.ron`, no code. `mesh_kind` is a forward-looking
+/// tag (a future renderer stage can grow dedicated shapes per kind); today every kind renders as a
+/// solid box silhouette.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ZoneFiller {
+    /// -> zone_types.ron id.
+    pub type_id: String,
+    /// (width X, depth Z) metres of one filler instance's footprint.
+    pub footprint: (f32, f32),
+    /// Height (Y) metres of one filler instance.
+    pub height: f32,
+    /// Metres of gap between adjacent instance footprints (an aisle).
+    pub spacing: f32,
+    /// Metres kept clear from the zone's own walls on every side (a walkway margin).
+    pub inset: f32,
+    /// Forward-looking shape tag ("rack" / "stall" / "cradle" / "array" / ...); read by a future
+    /// renderer stage. Every kind renders as a plain box today.
+    pub mesh_kind: String,
+    /// If true, tint filler instances with the zone TYPE's own `color` (zone_types.ron) so each
+    /// district reads as visually distinct. (No override field yet -- always true in the data; the
+    /// flag exists so a future entry can opt out without a struct change.)
+    #[serde(default = "default_true_filler")]
+    pub color_from_zone_type: bool,
+}
+
+fn default_true_filler() -> bool {
+    true
+}
+
+/// The zone-filler registry, parsed once + embedded (same pattern as zone_types).
+pub fn zone_fillers() -> &'static [ZoneFiller] {
+    static REG: std::sync::OnceLock<Vec<ZoneFiller>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        const SRC: &str = include_str!("../../data/blueprints/zone_filler.ron");
+        match ron::from_str::<Vec<ZoneFiller>>(SRC) {
+            Ok(v) => v,
+            Err(e) => {
+                log::error!("zone_filler.ron parse error: {e}");
+                Vec::new()
+            }
+        }
+    })
+}
+
+/// Look up a zone filler spec by zone `type_id` (None if unknown / unlisted -- e.g. "residential",
+/// which uses the home-cloning path instead, or a type nobody has authored filler content for yet).
+pub fn zone_filler(type_id: &str) -> Option<&'static ZoneFiller> {
+    zone_fillers().iter().find(|f| f.type_id == type_id)
+}
+
 /// A ROAD CLASS (v0.585): a named, FIXED top-to-bottom material stack -- "an airplane runway has
 /// different needs than a residential side road" (operator). The stack reuses `SurfaceLayer` (the
 /// same model walls layer with), so road materials teach the same density/strength/cost. Used when a

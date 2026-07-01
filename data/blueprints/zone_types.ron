@@ -82,4 +82,18 @@
         purpose: "Where rail / elevator / teleporter networks meet; moves people between districts.",
         default_size: (24.0, 6.0, 24.0),
     ),
+    (
+        id: "armory",
+        label: "Armory",
+        color: (0.35, 0.38, 0.32),
+        purpose: "Weapons storage + a firing range: racked gear, a controlled-access vault, live-fire lanes.",
+        default_size: (24.0, 5.0, 34.0),
+    ),
+    (
+        id: "arena",
+        label: "Arena",
+        color: (0.80, 0.30, 0.30),
+        purpose: "PvP + sparring: a tiered spectator bowl around an open combat floor.",
+        default_size: (36.0, 10.0, 36.0),
+    ),
 ]

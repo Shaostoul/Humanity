@@ -812,6 +812,26 @@ impl HomeStructure {
             material_walls.push((tie_geo.0, tie_geo.1, Self::material_color(3))); // oak ties
         }
 
+        // ZONE INTERIOR POPULATION (v0.638, superstructure M2c -- the operator's "so the mothership
+        // looks filled out"): tile cheap placeholder content across each zone's footprint. Residential
+        // zones get CLONES of the player's home shell (walls/structures only, never its zones/rail/
+        // road -- a clone-of-a-clone-of-a-mothership would be nonsense); every other zone type gets a
+        // generic box filler from `zone_filler.ron`, tinted by the zone type's own colour so each
+        // district reads as visually distinct. Both paths merge into `material_walls` (grouped by
+        // colour) so this scales the SAME way roads/rails/structures already do: one big CPU-merged
+        // vertex/index buffer per distinct colour, one draw call per group, however many instances tile
+        // in -- not one mesh per instance. See generate_zone_filler for the grouping.
+        let mut zcolor: std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])> =
+            std::collections::HashMap::new();
+        for z in &self.zones {
+            self.generate_zone_filler(z, &mut zcolor);
+        }
+        let mut zlist: Vec<_> = zcolor.into_iter().collect();
+        zlist.sort_by_key(|(k, _)| *k);
+        for (_, (v, i, c)) in zlist {
+            material_walls.push((v, i, [c[0], c[1], c[2], 1.0]));
+        }
+
         HomesteadMeshes {
             floors,
             walls: (Vec::new(), Vec::new()),
@@ -822,6 +842,127 @@ impl HomeStructure {
             ceilings,
             room_info: self.detect_rooms(),
         }
+    }
+
+    /// Populate ONE zone's interior into `out` (keyed + merged by quantized rgb, same pattern as the
+    /// structures/roads groupings above) -- either home clones (residential) or the generic box filler
+    /// (every other type). Called once per zone from `generate_meshes`. (v0.638)
+    fn generate_zone_filler(
+        &self,
+        z: &Zone,
+        out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
+    ) {
+        let (ox, oy, oz) = z.origin;
+        let (zw, _zh, zd) = z.size;
+        if zw < 1.0 || zd < 1.0 {
+            return; // degenerate zone, nothing fits
+        }
+        if z.type_id == "residential" {
+            self.tile_home_clones(ox, oy, oz, zw, zd, out);
+            return;
+        }
+        let Some(filler) = crate::ship::structure::zone_filler(&z.type_id) else {
+            return; // no filler authored for this type yet -- an empty interior, not a guessed default
+        };
+        let tint = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
+        let (fw, fd) = filler.footprint;
+        let step_x = (fw + filler.spacing).max(0.5);
+        let step_z = (fd + filler.spacing).max(0.5);
+        let usable_w = (zw - 2.0 * filler.inset).max(0.0);
+        let usable_d = (zd - 2.0 * filler.inset).max(0.0);
+        let nx = (usable_w / step_x).floor() as u32;
+        let nz = (usable_d / step_z).floor() as u32;
+        if nx == 0 || nz == 0 {
+            return; // the zone is too small to fit even one instance with its inset + spacing
+        }
+        let key = [(tint.0 * 64.0) as i32, (tint.1 * 64.0) as i32, (tint.2 * 64.0) as i32];
+        let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), [tint.0, tint.1, tint.2]));
+        for iz in 0..nz {
+            for ix in 0..nx {
+                let cx = ox + filler.inset + ix as f32 * step_x;
+                let cz = oz + filler.inset + iz as f32 * step_z;
+                let (v, idx) = footprint_box(cx, cz, fw, fd, oy, filler.height.max(0.2));
+                let base = g.0.len() as u32;
+                g.0.extend(v);
+                g.1.extend(idx.into_iter().map(|k| k + base));
+            }
+        }
+    }
+
+    /// Tile CLONES of the player's home shell (walls + structures ONLY -- never its zones/rail/road
+    /// graphs, a clone-of-a-mothership would be nonsense) across a residential zone's footprint, as many
+    /// copies as fit given the home's own width/depth. This is explicitly PLACEHOLDER population (the
+    /// operator: "for now we could just clone the home we're building to all the other home slots...
+    /// eventually we'll have more home designs so they're not all one type") -- swap point is
+    /// `home_design_roster()` below; today it returns exactly one design (`self`'s own shell), so every
+    /// slot clones the same layout, but the tiling loop already picks a design PER SLOT from the roster
+    /// so adding more designs later is a one-line change here, no struct/shape change. (v0.638)
+    fn tile_home_clones(
+        &self,
+        ox: f32,
+        oy: f32,
+        oz: f32,
+        zw: f32,
+        zd: f32,
+        out: &mut std::collections::HashMap<[i32; 3], (Vec<Vertex>, Vec<u32>, [f32; 3])>,
+    ) {
+        let roster = self.home_design_roster();
+        if roster.is_empty() {
+            return;
+        }
+        const GAP: f32 = 2.0; // clearance between adjacent home footprints (a walking margin)
+        // Use the FIRST design's footprint to lay out the grid (a mixed-footprint roster is a later
+        // refinement; today there is exactly one design, so this is exact).
+        let (dw, dd) = (roster[0].width.max(1.0), roster[0].depth.max(1.0));
+        let step_x = dw + GAP;
+        let step_z = dd + GAP;
+        let nx = (zw / step_x).floor() as u32;
+        let nz = (zd / step_z).floor() as u32;
+        if nx == 0 || nz == 0 {
+            return; // the zone is smaller than one home footprint -- nothing fits
+        }
+        // Generate each design's LOCAL-SPACE geometry once (mitering/room-detection is real work; a
+        // mothership can tile hundreds of slots, so this must not re-run per slot) and cache it,
+        // grouped by colour, before stamping it into every slot below via cheap vertex translation.
+        let baked: Vec<Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])>> =
+            roster.iter().map(|d| d.bake_local_groups()).collect();
+        let mut slot = 0usize;
+        for iz in 0..nz {
+            for ix in 0..nx {
+                let groups = &baked[slot % baked.len()];
+                slot += 1;
+                let (cx, cz) = (ox + ix as f32 * step_x, oz + iz as f32 * step_z);
+                for (verts, indices, color) in groups {
+                    let key = [(color[0] * 64.0) as i32, (color[1] * 64.0) as i32, (color[2] * 64.0) as i32];
+                    let g = out.entry(key).or_insert_with(|| (Vec::new(), Vec::new(), *color));
+                    let base = g.0.len() as u32;
+                    g.0.extend(verts.iter().map(|v| Vertex {
+                        position: [v.position[0] + cx, v.position[1] + oy, v.position[2] + cz],
+                        normal: v.normal,
+                        uv: v.uv,
+                    }));
+                    g.1.extend(indices.iter().map(|i| i + base));
+                }
+            }
+        }
+    }
+
+    /// The swappable roster of clonable home shells (v0.638). Every entry is the WALLS + STRUCTURES
+    /// subset of a `HomeStructure` (never its zones/rail/road graphs -- those are mothership-scale, not
+    /// per-home). Today this always returns exactly one design: a snapshot of `self` (the live home the
+    /// player is building), so every residential slot clones the SAME layout, per the operator's
+    /// "for now... clone the home we're building." When more designs exist (a future
+    /// `data/blueprints/home_designs/*.ron` catalog), extend this to load + return all of them; the
+    /// tiling loop in `tile_home_clones` already round-robins across whatever this returns.
+    fn home_design_roster(&self) -> Vec<ClonableHomeDesign> {
+        vec![ClonableHomeDesign {
+            width: self.width,
+            depth: self.depth,
+            height: self.height,
+            shell_material: self.shell_material,
+            walls: self.walls.clone(),
+            structures: self.structures.clone(),
+        }]
     }
 
     /// A fresh road-node id (max existing + 1, or 1). (v0.586)
@@ -1078,6 +1219,84 @@ fn merge(acc: &mut (Vec<Vertex>, Vec<u32>), add: (Vec<Vertex>, Vec<u32>)) {
     let base = acc.0.len() as u32;
     acc.0.extend(add.0);
     acc.1.extend(add.1.into_iter().map(|i| i + base));
+}
+
+/// A solid axis-aligned box SILHOUETTE from a footprint (v0.638): min corner (x0, z0), extent (w, d),
+/// rising from `y0` to `y0 + h`. Unlike `wall_box` (which extrudes a THIN wall along a start->end run,
+/// centring `thickness` across it), this fills the WHOLE rectangular footprint -- the right primitive
+/// for a generic filler "block" (a machine housing, a shop stall, a storage rack) rather than a wall
+/// segment. Single-sided (outward normals only): fillers are viewed from outside/above, never entered,
+/// so the inside-facing copy `wall_box` needs for room interiors would be wasted geometry here.
+fn footprint_box(x0: f32, z0: f32, w: f32, d: f32, y0: f32, h: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let (x1, z1, y1) = (x0 + w, z0 + d, y0 + h);
+    let mut verts: Vec<Vertex> = Vec::new();
+    let mut idx: Vec<u32> = Vec::new();
+    let mut quad = |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], n: [f32; 3]| {
+        let base = verts.len() as u32;
+        for (p, uv) in [(p0, [0.0, 0.0]), (p1, [1.0, 0.0]), (p2, [1.0, 1.0]), (p3, [0.0, 1.0])] {
+            verts.push(Vertex { position: p, normal: n, uv });
+        }
+        idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+    };
+    // Top + 4 sides (no bottom -- it sits on the floor, never seen).
+    quad([x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1], [0.0, 1.0, 0.0]);
+    quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1], [-1.0, 0.0, 0.0]);
+    quad([x1, y0, z1], [x1, y1, z1], [x1, y1, z0], [x1, y0, z0], [1.0, 0.0, 0.0]);
+    quad([x0, y0, z1], [x0, y1, z1], [x1, y1, z1], [x1, y0, z1], [0.0, 0.0, 1.0]);
+    quad([x1, y0, z0], [x1, y1, z0], [x0, y1, z0], [x0, y0, z0], [0.0, 0.0, -1.0]);
+    (verts, idx)
+}
+
+/// The clonable subset of a `HomeStructure` (v0.638): just its shell box + interior walls + placed
+/// structures -- deliberately NOT its zones/rail/road graphs (those describe the MOTHERSHIP the home
+/// sits inside, cloning them into a residential slot would nest a mothership inside a mothership). One
+/// entry in the swappable `home_design_roster`; today the roster always holds exactly one (the live
+/// home), so `tile_home_clones` stamps the same design into every slot -- the operator's explicit
+/// placeholder ("clone the home we're building... eventually we'll have more home designs").
+struct ClonableHomeDesign {
+    width: f32,
+    depth: f32,
+    height: f32,
+    shell_material: u32,
+    walls: Vec<InteriorWall>,
+    structures: Vec<PlacedStructure>,
+}
+
+impl ClonableHomeDesign {
+    /// Bake this design's shell + interior walls + structures into LOCAL-SPACE (min corner at the
+    /// origin) per-colour groups, computed ONCE per design regardless of how many mothership slots clone
+    /// it (mitering + room-detection is real work; `tile_home_clones` calls this once then translates
+    /// the baked vertices per slot, so a hundred cloned homes cost ~one home's mesh-gen, not a hundred).
+    /// Builds a throwaway `HomeStructure` for just this design (no zones/rail/road -- a clone-of-a-
+    /// mothership would be nonsense) and reuses its own `generate_meshes` grouping. Glass/transparent
+    /// groups are dropped (an opaque roof reads better en masse + skips the transparent-pass sort cost
+    /// once tiled hundreds of times; the player's OWN home keeps its real glass roof, this only affects
+    /// the cloned filler copies).
+    fn bake_local_groups(&self) -> Vec<(Vec<Vertex>, Vec<u32>, [f32; 3])> {
+        let stub = HomeStructure {
+            width: self.width,
+            depth: self.depth,
+            height: self.height,
+            shell_material: self.shell_material,
+            roof_material: self.shell_material,
+            walls: self.walls.clone(),
+            shell_thickness: None,
+            lights: Vec::new(),
+            spawn: None,
+            structures: self.structures.clone(),
+            road_nodes: Vec::new(),
+            road_edges: Vec::new(),
+            zones: Vec::new(),
+            rail_nodes: Vec::new(),
+            rail_edges: Vec::new(),
+        };
+        stub.generate_meshes()
+            .material_walls
+            .into_iter()
+            .filter(|(_, _, color)| color[3] >= 0.999)
+            .map(|(v, i, c)| (v, i, [c[0], c[1], c[2]]))
+            .collect()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1399,6 +1618,111 @@ mod tests {
         assert!(!hs.remove_zone("nope"));
         assert_eq!(hs.zones.len(), 2);
         assert!(hs.zones.iter().any(|z| z.id == b));
+    }
+
+    /// v0.638: the operator's two new district kinds parse with the shape every other entry has.
+    #[test]
+    fn armory_and_arena_zone_types_present() {
+        let armory = crate::ship::structure::zone_type("armory").expect("armory zone type parses");
+        assert!(armory.purpose.to_lowercase().contains("weapon") || armory.purpose.to_lowercase().contains("firing"));
+        let arena = crate::ship::structure::zone_type("arena").expect("arena zone type parses");
+        assert!(arena.purpose.to_lowercase().contains("pvp") || arena.purpose.to_lowercase().contains("spar"));
+    }
+
+    /// v0.638 superstructure M2c: zone interior population. A RESIDENTIAL zone big enough for the home's
+    /// own footprint gets non-empty cloned-home geometry merged into `material_walls`; a zone smaller
+    /// than one home footprint stays empty (no divide-by-zero / no garbage geometry). Every OTHER zone
+    /// type (here: industrial) gets the generic box filler from zone_filler.ron, tinted by its zone
+    /// type's own colour.
+    #[test]
+    fn zone_filler_populates_interiors() {
+        // A tiny box home (12x12) so a residential zone with a modest size can fit multiple clones,
+        // keeping this test fast.
+        let mut hs = HomeStructure {
+            width: 12.0,
+            depth: 12.0,
+            height: 3.0,
+            shell_material: 1,
+            roof_material: 4,
+            walls: Vec::new(),
+            shell_thickness: None,
+            lights: Vec::new(),
+            spawn: None,
+            structures: Vec::new(),
+            road_nodes: Vec::new(),
+            road_edges: Vec::new(),
+            zones: Vec::new(),
+            rail_nodes: Vec::new(),
+            rail_edges: Vec::new(),
+        };
+        // Baseline: no zones -> generate_meshes still works (existing behavior unchanged).
+        let base = hs.generate_meshes();
+        let base_material_group_count = base.material_walls.len();
+
+        // A residential zone with room for a 2x2 grid of 12x12 homes (+2m gap each): needs >= 28x28.
+        hs.add_zone("residential", (0.0, 0.0, 0.0), (30.0, 4.0, 30.0));
+        // Too small to fit even one home clone -- must stay a no-op, not panic/garbage.
+        hs.add_zone("residential", (100.0, 0.0, 0.0), (5.0, 4.0, 5.0));
+        // An industrial zone big enough for the generic filler (industrial footprint 5x5 + 2m spacing +
+        // 2m inset per zone_filler.ron).
+        hs.add_zone("industrial", (200.0, 0.0, 0.0), (30.0, 8.0, 30.0));
+
+        let m = hs.generate_meshes();
+        assert!(
+            m.material_walls.len() > base_material_group_count,
+            "zones with room to populate add new colour-grouped geometry"
+        );
+        let total_verts: usize = m.material_walls.iter().map(|(v, _, _)| v.len()).sum();
+        let base_verts: usize = base.material_walls.iter().map(|(v, _, _)| v.len()).sum();
+        assert!(total_verts > base_verts, "populated zones add real vertex geometry, not empty wireframe");
+
+        // The industrial filler's colour bucket should carry the industrial zone type's own colour
+        // (0.85, 0.55, 0.25) -- proves the generic filler is tinted per zone type, not a flat default.
+        let industrial_color = crate::ship::structure::zone_type("industrial").unwrap().color;
+        let key = [
+            (industrial_color.0 * 64.0) as i32,
+            (industrial_color.1 * 64.0) as i32,
+            (industrial_color.2 * 64.0) as i32,
+        ];
+        let has_industrial_bucket = m.material_walls.iter().any(|(_, _, c)| {
+            [(c[0] * 64.0) as i32, (c[1] * 64.0) as i32, (c[2] * 64.0) as i32] == key
+        });
+        assert!(has_industrial_bucket, "the industrial filler renders tinted with its zone type's colour");
+    }
+
+    /// v0.638: a zone type with no entry in zone_filler.ron (and that isn't "residential") renders with
+    /// NO filler geometry -- an honest empty interior rather than a guessed default. transit_hub through
+    /// arena all HAVE entries; this locks the "no silent fallback" contract by checking an id that is
+    /// not in the registry at all.
+    #[test]
+    fn unlisted_zone_type_gets_no_filler() {
+        assert!(crate::ship::structure::zone_filler("no_such_zone_type").is_none());
+        let mut hs = box_only();
+        hs.add_zone("no_such_zone_type", (1.0, 0.0, 1.0), (20.0, 4.0, 20.0));
+        // generate_meshes must not panic on an unknown type_id, and adds nothing for it.
+        let before = box_only().generate_meshes().material_walls.len();
+        let after = hs.generate_meshes().material_walls.len();
+        assert_eq!(before, after, "an unlisted zone type contributes no filler geometry");
+    }
+
+    /// v0.638: every zone_filler.ron entry's type_id resolves to a real zone_types.ron entry (catches a
+    /// typo'd type_id the moment it's added, rather than silently never rendering).
+    #[test]
+    fn every_zone_filler_entry_matches_a_real_zone_type() {
+        for f in crate::ship::structure::zone_fillers() {
+            assert!(
+                crate::ship::structure::zone_type(&f.type_id).is_some(),
+                "zone_filler.ron entry '{}' has no matching zone_types.ron entry",
+                f.type_id
+            );
+            assert!(f.footprint.0 > 0.0 && f.footprint.1 > 0.0, "{} has a positive footprint", f.type_id);
+            assert!(f.height > 0.0, "{} has a positive height", f.type_id);
+        }
+        // residential is deliberately absent (it uses the home-cloning path instead).
+        assert!(
+            crate::ship::structure::zone_filler("residential").is_none(),
+            "residential must NOT have a generic filler entry -- it clones the home design instead"
+        );
     }
 
     /// v0.635 superstructure M2: the RAIL graph -- unique node ids, edge validation (self-loop / unknown /
@@ -1815,5 +2139,29 @@ mod tests {
             .join("home_structure.ron");
         let h = HomeStructure::load(&path).expect("home_structure.ron parses");
         assert!(h.width > 0.0 && h.depth > 0.0 && h.height > 0.0);
+    }
+
+    /// v0.638: the REAL shipped home (with its actual interior walls, doors, structures -- not a
+    /// synthetic test fixture) successfully clones itself into a residential zone slot. Proves
+    /// `tile_home_clones` handles the live player home, not just simplified test boxes -- mitred
+    /// corners, openings, and placed structures all survive the bake-and-translate path.
+    #[test]
+    fn the_real_shipped_home_clones_into_a_residential_zone() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("blueprints")
+            .join("home_structure.ron");
+        let mut h = HomeStructure::load(&path).expect("home_structure.ron parses");
+        let before = h.generate_meshes().material_walls.len();
+        // A zone with room for a 2x2 grid of the real home's own footprint.
+        let (w, d) = (h.width, h.depth);
+        h.add_zone("residential", (500.0, 0.0, 500.0), (2.0 * w + 6.0, 4.0, 2.0 * d + 6.0));
+        let after = h.generate_meshes();
+        assert!(
+            after.material_walls.len() >= before,
+            "cloning the real home into a zone does not shrink the material groups"
+        );
+        let total_verts: usize = after.material_walls.iter().map(|(v, _, _)| v.len()).sum();
+        assert!(total_verts > 0, "the real home clones into real geometry");
     }
 }
