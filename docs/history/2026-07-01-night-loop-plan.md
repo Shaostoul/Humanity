@@ -445,6 +445,50 @@ self-contained scope first; skip ones that need a larger design decision
   actually needed for any of these (unlike SkyRenderer/Mute Server) --
   they're just confirmed-dead, safe to delete whenever convenient.
 
+## Cycle 12: self-improvement pass -- adversarial review before wrapping up
+
+With priorities #1, #2, and #3 all closed out (see above), dispatched an
+independent adversarial-review agent (fresh context, no attachment to the
+code) over the full night's diff (`cb089287..HEAD`) specifically to catch
+anything that shipped wrong before the operator wakes up -- exactly the
+"self-improvement" the operator asked for. Reviewed 7 areas (chat group
+role, group voice membership, main-menu health check, livestream
+viewer_peak, ecs::cosmos AU->meters wiring, food spoilage consequence,
+Cosmos Track toggle).
+
+**Result: found ONE real bug, in this session's own BUG-044 fix.** The
+spoiled-food EAT handler found the eaten item's slot via
+`inv.slots.iter().position(...)` (first match, forward), but
+`Inventory::remove_item` actually consumes from the LAST matching slot
+backward. Whenever the same item_id occupies two slots (a normal state
+once `add_item` splits a stack), the spoilage check and the actual
+consumption could disagree on which slot was eaten -- silently
+defeating the fix. **Fixed (v0.649.0)**: slot search now matches
+`remove_item`'s own order; new regression test
+`spoilage_check_matches_the_slot_remove_item_actually_consumes`,
+confirmed via revert-and-retest. See BUGS.md BUG-044's follow-up entry.
+
+The other 6 areas were confirmed correct with no changes needed --
+including 2 useful negative-space confirmations (main-menu's health
+check has no stale-channel race; livestream `peak_viewers` is read
+correctly everywhere, the 2 remaining `viewer_keys.len()` sites are a
+genuinely different, correctly-live field).
+
+Also found (independently, while cross-referencing STATUS.md against
+lib.rs for the WebRTC verification) a stale v0.283.0-era comment in
+`src/lib.rs` claiming "native has no WebRTC stack" directly above code
+that routes into a real, live WebRTC manager -- native voice actually
+shipped in the v0.485-495 arc. Fixed (v0.650.0, comment-only).
+
+**Lesson for future overnight loops**: an adversarial review pass over
+the night's own diff, dispatched near the end of the window rather than
+skipped for time, is worth the cost -- it caught a real regression this
+session's own earlier cycle introduced, in the exact feature that
+cycle was proudest of shipping (revert-and-retest alone did NOT catch
+it, since the original test only exercised a single-slot scenario --
+the bug required a second, independent set of eyes to construct a
+multi-slot scenario the author didn't think to test).
+
 ## Per-cycle checklist (repeat this loop)
 
 1. Read this file + `docs/PRIORITIES.md` Active Focus +

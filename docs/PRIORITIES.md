@@ -105,7 +105,31 @@
 > in full, plus the entire #3 backlog (both original buckets). Next:
 > if runway remains, look for genuinely new ground (e.g. a web/
 > frontend TODO sweep, since tonight's work was almost entirely
-> Rust-side) rather than re-covering closed backlog.** <<<**
+> Rust-side) rather than re-covering closed backlog.**
+> **Cycle 12 (v0.649.0, v0.650.0): self-improvement pass.** The web/
+> frontend TODO sweep turned up nothing actionable (1 hit total, a
+> Tauri-era dead-code TODO in `shell.js` guarded behind a
+> `window.__TAURI__` check that's never true post-Tauri-deprecation --
+> not worth fixing code that never runs). Instead dispatched an
+> independent adversarial-review agent over the whole night's diff
+> (`cb089287..HEAD`) before wrapping up -- and it found a REAL bug in
+> this session's OWN BUG-044 fix (cycle 8): the spoiled-food slot
+> lookup used forward search (`position`) while `Inventory::remove_item`
+> actually consumes from the LAST matching slot backward, so a
+> fresh+spoiled pair of the same item in different slots could silently
+> defeat the whole fix. Fixed (v0.649.0) with a matching reverse search
+> + a new multi-slot regression test, proven via revert-and-retest. The
+> other 6 reviewed areas were confirmed correct, no changes needed.
+> Also fixed a stale v0.283.0 comment in `lib.rs` claiming native has no
+> WebRTC stack (it does, shipped in the v0.485-495 arc) -- found while
+> cross-referencing STATUS.md (v0.650.0, comment-only). **This is a
+> genuinely good stopping point**: both explicit priorities done, the
+> full stub backlog closed or correctly reclassified, and a
+> self-review pass caught + fixed the one real regression from
+> tonight's own work. Next: write
+> `docs/history/2026-07-01-night-loop-results.md` summarizing the
+> whole night, then stop the loop (~8h target reached; see the
+> timestamps in git log from v0.640.1 onward).** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
