@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Humanity Accord, HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { min-height: 100vh; display: flex; flex-direction: column; }
+    #page-app { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .accord-topbar {
+      display: flex; align-items: center; gap: var(--space-lg);
+      padding: var(--space-md) var(--space-xl);
+      background: var(--bg); border-bottom: 1px solid var(--bg-secondary);
+      flex-shrink: 0; min-height: 42px;
+    }
+    .accord-topbar h1 {
+      font-size: 0.9rem; font-weight: 700; color: var(--text); margin: 0;
+    }
+
+    .accord-main {
+      display: flex; flex: 1; overflow: hidden;
+      height: calc(100vh - 42px - 42px);
+    }
+
+    /* ── Nav (left panel) ── */
+    .accord-nav {
+      width: 260px; min-width: 200px;
+      background: var(--bg); border-right: 1px solid var(--bg-secondary);
+      display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
+      padding: var(--space-md) 0;
+    }
+    .accord-category {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim);
+      padding: var(--space-lg) var(--space-xl) var(--space-xs);
+    }
+    .accord-doc-link {
+      display: block; width: 100%; text-align: left;
+      background: none; border: none; cursor: pointer;
+      padding: var(--space-sm) var(--space-xl);
+      font-size: 0.82rem; color: var(--text-muted);
+      transition: background 0.1s, color 0.1s;
+    }
+    .accord-doc-link:hover { background: var(--bg-secondary); color: var(--text); }
+    .accord-doc-link.active { background: var(--bg-hover); color: var(--text); }
+
+    /* ── Content (right panel) -- reuses files.html's .md-viewer styling ── */
+    .accord-content {
+      flex: 1; display: flex; flex-direction: column; overflow: hidden;
+      background: var(--bg);
+    }
+    .md-viewer {
+      flex: 1; overflow: auto; padding: var(--space-xl) var(--space-2xl);
+      line-height: 1.7; color: var(--text-muted); max-width: 800px;
+    }
+    .md-viewer h1 { font-size: 1.5rem; color: var(--text); margin: var(--space-xl) 0 var(--space-lg); border-bottom: 1px solid var(--bg-secondary); padding-bottom: var(--space-md); }
+    .md-viewer h2 { font-size: 1.2rem; color: var(--text); margin: var(--space-xl) 0 var(--space-md); }
+    .md-viewer h3 { font-size: 1rem; color: var(--text); margin: var(--space-lg) 0 var(--space-sm); }
+    .md-viewer p { margin: var(--space-md) 0; }
+    .md-viewer code {
+      background: var(--bg-secondary); padding: 2px 6px; border-radius: 3px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.85em;
+    }
+    .md-viewer pre {
+      background: var(--bg-secondary); padding: var(--space-lg);
+      border-radius: var(--radius); overflow-x: auto;
+    }
+    .md-viewer pre code { background: none; padding: 0; }
+    .md-viewer a { color: var(--accent); }
+    .md-viewer ul, .md-viewer ol { padding-left: var(--space-2xl); }
+    .md-viewer li { margin: var(--space-xs) 0; }
+    .md-viewer strong { color: var(--text); }
+    .md-viewer blockquote {
+      border-left: 3px solid var(--accent); padding-left: var(--space-lg);
+      color: var(--text-dim); margin: var(--space-lg) 0;
+    }
+
+    .loading, .accord-error {
+      color: var(--text-dim); font-size: 0.85rem; padding: var(--space-xl); text-align: center;
+    }
+
+    @media (max-width: 600px) {
+      .accord-nav { width: 180px; min-width: 140px; }
+      .accord-topbar { padding: var(--space-sm) var(--space-md); }
+    }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+<script src="/shared/markdown.js"></script>
+
+<div id="page-app">
+  <div class="accord-topbar">
+    <h1>Humanity Accord</h1>
+  </div>
+
+  <div class="accord-main">
+    <div class="accord-nav" id="accord-nav">
+      <div class="loading">Loading...</div>
+    </div>
+    <div class="accord-content" id="accord-content">
+      <div class="md-viewer">
+        <p>Select a document to read.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/pages/accord-app.js"></script>
+</body>
+</html>
