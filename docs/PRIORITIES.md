@@ -11,6 +11,32 @@
 
 ## Active focus
 
+> **>>> AFTERNOON LOOP, Phase A of the homestead design SHIPPED (v0.656.1,
+> 2026-07-01): `data/machines/home_solo.ron` -- the one-person self-sufficient
+> homestead from `docs/design/homestead-solo-design.md` (4 solar/2 battery/1
+> wind/1 generator, 1 cistern/pump/purifier/tap, 1 air recycler, 2 composters,
+> 9 nutrition towers + 1 apothecary + 8 potato beds + 3 oilseed + 2 grain
+> trays + 2 mushroom racks + 1 aquaponic tank + 1 grain field + 1 legume
+> field + 1 silo + 1 irrigation -- ~2,078 kcal/day indoors alone, ~94% of one
+> person's need). Discovered `MachineHome::load` was hardcoded to always read
+> `home.ron`, so built the missing selector plumbing too:
+> `AppConfig.home_variant` + `machines::home_ron_path()` + a Settings -> Data
+> -> "Home Design" (Family/Solo) radio-button UI. 2 new regression tests;
+> full verify pass (both cargo checks, 659 lib tests, all 5 lints, doc-links);
+> versioned exe built. **Next up (Phase B per the design doc + the loop plan):
+> author the 4 flagged content gaps in priority order -- (1)
+> `oyster_mushroom`/`shiitake` in `plants.csv` (unblocks `mushroom_rack`'s
+> honesty), (2) `tilapia`/`channel_catfish` in `creatures.csv` (unblocks the
+> aquaponic B12/omega-3 claim), (3) calorie/macro columns on `plants.csv` or a
+> new `data/food/crop_nutrition.ron` (lets the food loop compute from crops
+> instead of hand-typed catalog strings), (4)
+> `data/self_sufficiency/component_outputs.ron` + `location.ron` + a
+> household-size selector data table (turns the design into a computed
+> per-loop score). Then Phase C (grow-light meter + a "what this cannot
+> close" Home-page panel), then the loop's remaining priorities: Studio
+> streaming pipeline, Humanity/Governance/Laws/Donate pass, registering the
+> disconnected systems, economy automation Phase 1, NPC task-AI.** <<<**
+
 > **>>> AFTERNOON LOOP RUNNING (2026-07-01, operator AWAKE and actively
 > testing HumanityOS live -- different from the earlier overnight loop) --
 > see [`docs/history/2026-07-01-afternoon-loop-plan.md`](history/2026-07-01-afternoon-loop-plan.md)
