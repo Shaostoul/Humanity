@@ -218,6 +218,7 @@
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
+    else if (p.startsWith('/laws'))       active = 'laws';
     else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/agents'))     active = 'agents';
     else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
@@ -774,6 +775,7 @@
       mobileLink('/donate',    'Donate') +
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/governance', 'Governance') +
+      mobileLink('/laws',      'Laws') +
       mobileLink('/identity',  'Identity') +
       mobileLink('/recovery',  'Recovery') +
       mobileLink('/projects',  'Projects') +

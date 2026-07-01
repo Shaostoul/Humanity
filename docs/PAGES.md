@@ -56,7 +56,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | ServerSettings | `server_settings.rs` | Server / group admin (USER / MOD / ADMIN tiered, color-coded). Game-world ban management now lives here too as an ADMIN subsection (`game_admin::draw_section`, folded in v0.479, the standalone `GameAdmin` variant was removed). | admin | native-only |
 | Identity | `identity.rs` | DID, Verifiable Credentials, trust score, AI status. | everyone | both |
 | Governance | `governance.rs` | Proposals + votes + tally (local + civilization scope). **Native is fully LIVE as of v0.660**: fetches real proposals/tallies from `/api/v2`, casts Dilithium-signed `vote_v1` votes, and submits `proposal_v1` proposals via an in-page form (built with the in-crate ObjectBuilder the relay verifies with). The WEB page remains read-only (its vote button is still a stub -- real web voting needs canonical-CBOR signing in JS + a cross-language KAT, its own work item). | everyone | both |
-| Laws | `laws.rs` | Location-aware rules + rights, nested Humanity to locality; HumanityOS base set + real-law summaries. Data: `data/laws/laws.json`. | everyone | native (web mirror pending) |
+| Laws | `laws.rs` | Location-aware rules + rights, nested Humanity to locality; HumanityOS base set + real-law summaries. Data: `data/laws/laws.json`. Web mirror `web/pages/laws.html` (shared jurisdiction-chain logic in `web/shared/laws-logic.js`). | everyone | both |
 | Recovery | `recovery.rs` | Social key recovery (Shamir M-of-N), guardian setup. | everyone | both |
 | Cosmos | `cosmos.rs` | Three-mode astronomical map: System (Sol planets), Galactic (nearby stars in ly), Night Sky (Earth-centered celestial sphere with constellations). Added v0.203.0. | everyone | both |
 | Homes | `homes.rs` | Your offline homestead (v0.379): the Fibonacci homestead blueprint as a browsable design, pick a build scale (Solo/Family/Community/Colony), see power/water demand for that scale. | everyone | both |
@@ -141,7 +141,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 counterpart, likely dead weight matching a feature the operator explicitly killed,
 worth a follow-up deletion pass.
 
-## Web pages (`web/pages/*.html`: 38 standalone)
+## Web pages (`web/pages/*.html`: 40 standalone; recounted 2026-07-01 when `laws.html` landed, `accord.html` had also been added since the 38 count)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -162,7 +162,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Audit | `audit.html` | Not present in the 2026-05-03 audit; purpose not re-verified in this pass, flagging as a genuinely new/unaudited page rather than guessing. | unknown | yes |
 | Web | `web.html` | (purpose unclear, TODO audit, carried over unresolved from the last audit) | unknown | yes |
 
-Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `recovery.html`, `agents.html` (orphaned, see native removed-variants note above), `ai-usage.html` (orphaned, same), `settings.html`.
+Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (orphaned, see native removed-variants note above), `ai-usage.html` (orphaned, same), `settings.html`.
 
 **Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape), the merged super-tabs (Real/Platform/Humanity, web keeps the flatter per-page nav instead), the 5 category-Overview landing pages, and the 11 individual Settings sub-pages (web's `settings.html` is presumably a single page covering the same ground; not independently verified this pass).
 
