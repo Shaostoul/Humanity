@@ -485,6 +485,14 @@ impl Theme {
         let mut style = (*ctx.style()).clone();
         style.spacing.item_spacing = Vec2::new(self.spacing_sm, self.spacing_sm);
         style.spacing.button_padding = Vec2::new(self.button_padding_h, self.button_pad_y);
+        // egui defaults `debug.show_unaligned` ON in debug builds, painting an orange
+        // "Unaligned" marker over any Ui whose rect isn't pixel-aligned. That bleeds
+        // into dev runs and the headless UI snapshots (release builds never show it),
+        // so switch it off. The `Style.debug` field only exists under debug_assertions.
+        #[cfg(debug_assertions)]
+        {
+            style.debug.show_unaligned = false;
+        }
         ctx.set_style(style);
     }
 }
