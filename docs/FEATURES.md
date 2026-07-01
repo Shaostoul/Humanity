@@ -549,8 +549,20 @@ Health bar, hotbar, crosshair, compass, day/night indicator, FPS counter.
 - Native: `src/gui/pages/hud.rs`
 
 ### Maps Page
-Multi-scale map with celestial navigation.
-- Native: `src/gui/pages/maps.rs`
+Multi-scale map with celestial navigation (nav label "Maps"; internally the
+`GuiPage::Cosmos`/`GuiPage::Maps` enum variants are aliases that both render
+the same page, since v0.203.2). Real Kepler orbital mechanics (`src/cosmos.rs`,
+one `SolBody` set + one propagator shared by the Maps page, FPS world spawn,
+and the ECS position resolver -- see `src/ecs/cosmos.rs`), a "Focus" button
+(one-shot camera snap-to a body) and a "Track" button (continuous camera
+follow as the body orbits, v0.647.0).
+- Native: `src/gui/pages/cosmos.rs` (the OLDER `src/gui/pages/maps.rs` is dead
+  code as of this fix -- zero callers anywhere; `GuiPage::Maps` has forwarded
+  to `cosmos::draw` since v0.203.2, found + corrected 2026-07-01 during the
+  overnight autonomous-loop broader stub sweep, which had already found this
+  same "superseded file left in place" pattern 3 times this session --
+  `src/renderer/sky.rs`, `src/systems/navigation/orbital.rs`,
+  `src/systems/skills/learning.rs`)
 
 ### Profile Page
 User profile view/edit.

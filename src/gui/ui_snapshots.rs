@@ -624,6 +624,7 @@ macro_rules! page_snapshot {
 page_snapshot!(snapshot_main_menu, "main_menu", main_menu, 1280, 900);
 page_snapshot!(snapshot_humanity, "humanity", humanity, 1280, 900);
 page_snapshot!(snapshot_chat, "chat", chat, 1280, 900);
+page_snapshot!(snapshot_cosmos, "cosmos", cosmos, 1280, 900);
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_inventory() {

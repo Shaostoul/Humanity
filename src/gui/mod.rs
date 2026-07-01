@@ -1982,6 +1982,13 @@ pub struct GuiState {
     /// clears the request. Set by sidebar click or "Focus" button.
     /// v0.205.0 (operator pushback on zoom always centering on Sun).
     pub cosmos_focus_request: Option<String>,
+    /// Body id the camera continuously follows across frames as it moves
+    /// along its orbit, or `None` for no auto-follow. Unlike
+    /// `cosmos_focus_request` (a one-shot snap-to), this re-centers every
+    /// frame. Set by the body detail card's "Track"/"Stop Tracking" action;
+    /// cleared automatically by any other Focus request (see
+    /// `gui/pages/cosmos.rs`'s focus-consumption site).
+    pub cosmos_tracked_body: Option<String>,
     /// 3D camera state for System view (Phase 4, v0.206.0).
     /// Yaw + pitch + distance + look-at target define the camera; mouse
     /// drag rotates, scroll zooms, sidebar click re-centers the target.
@@ -2863,6 +2870,7 @@ impl Default for GuiState {
             cosmos_selected_body: None,
             cosmos_expanded_planets: std::collections::HashSet::new(),
             cosmos_focus_request: None,
+            cosmos_tracked_body: None,
             cosmos_camera_3d: crate::gui::pages::cosmos::Cosmos3DCamera::default(),
             cosmos_sim_time_seconds: 0.0,
             cosmos_sim_speed: 0.0, // Paused by default — operator scrubs / plays.

@@ -868,6 +868,9 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     //    moves the camera target to the body's world position; the user
     //    can adjust distance with scroll. ──
     if let Some(focus_id) = state.cosmos_focus_request.take() {
+        if focus_should_clear_tracking(state.cosmos_tracked_body.as_deref(), &focus_id) {
+            state.cosmos_tracked_body = None;
+        }
         if let Some(body) = find_body(&focus_id) {
             state.cosmos_camera_3d.target_au = body_world_position_3d_au(body, sim_time);
             // For moons (small bodies orbiting close to their parent),
@@ -890,6 +893,16 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
         ui.ctx().request_repaint();
+    }
+
+    // ── Continuous tracking: unlike Focus (a one-shot snap-to), Track keeps
+    //    the camera centered on the body every frame as it moves along its
+    //    orbit. Silently does nothing if the tracked id no longer resolves
+    //    (e.g. stale data) rather than panicking. ──
+    if let Some(tracked_id) = state.cosmos_tracked_body.clone() {
+        if let Some(body) = find_body(&tracked_id) {
+            state.cosmos_camera_3d.target_au = body_world_position_3d_au(body, sim_time);
+        }
     }
 
     // ── Project all bodies, sort by depth for back-to-front draw ──
@@ -2471,9 +2484,10 @@ fn draw_body_info_card_v2(
         Some(body.description.as_str())
     };
 
+    let is_tracking = state.cosmos_tracked_body.as_deref() == Some(body.id.as_str());
     let actions = vec![
         ("Focus".to_string(), true),
-        ("Track".to_string(), false),
+        (if is_tracking { "Stop Tracking".to_string() } else { "Track".to_string() }, true),
     ];
 
     let data = BodyCardData {
@@ -2493,13 +2507,43 @@ fn draw_body_info_card_v2(
                 state.cosmos_focus_request = Some(body.id.clone());
                 state.cosmos_selected_body = Some(body.id.clone());
             }
-            1 => { /* Track stub */ }
+            1 => {
+                // Toggle tracking; starting tracking also snaps the camera
+                // to the body immediately via a Focus request, rather than
+                // waiting for the next frame's drift.
+                state.cosmos_tracked_body = toggle_tracked_body(
+                    state.cosmos_tracked_body.as_deref(),
+                    &body.id,
+                );
+                if state.cosmos_tracked_body.is_some() {
+                    state.cosmos_focus_request = Some(body.id.clone());
+                }
+            }
             _ => {}
         }
     }
 }
 
 // ─────────────────────── Helpers ────────────────────────────────────────────
+
+/// Decide the new tracked-body state after a Track/Stop-Tracking click:
+/// toggles off if the clicked body is already the one being tracked,
+/// otherwise starts tracking it.
+fn toggle_tracked_body(current: Option<&str>, clicked_body_id: &str) -> Option<String> {
+    if current == Some(clicked_body_id) {
+        None
+    } else {
+        Some(clicked_body_id.to_string())
+    }
+}
+
+/// Whether consuming a Focus request should cancel continuous tracking.
+/// A manual Focus elsewhere implies "stop auto-following" -- unless the
+/// focus target IS the currently tracked body (e.g. Track's own initial
+/// snap-to), in which case tracking should continue uninterrupted.
+fn focus_should_clear_tracking(tracked: Option<&str>, focus_id: &str) -> bool {
+    tracked != Some(focus_id)
+}
 
 fn titlecase(s: &str) -> String {
     let mut chars = s.chars();
@@ -2806,6 +2850,39 @@ fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Clicking Track on a body that isn't currently tracked starts
+    /// tracking it.
+    #[test]
+    fn toggle_tracked_body_starts_tracking() {
+        assert_eq!(toggle_tracked_body(None, "earth"), Some("earth".to_string()));
+        assert_eq!(toggle_tracked_body(Some("mars"), "earth"), Some("earth".to_string()));
+    }
+
+    /// Clicking Track again on the body already being tracked stops
+    /// tracking (the "Stop Tracking" toggle-off case).
+    #[test]
+    fn toggle_tracked_body_stops_tracking_the_same_body() {
+        assert_eq!(toggle_tracked_body(Some("earth"), "earth"), None);
+    }
+
+    /// A Focus request for a body OTHER than the tracked one cancels
+    /// tracking -- manually focusing elsewhere means the user wants to
+    /// look away from whatever they were following.
+    #[test]
+    fn focus_on_different_body_clears_tracking() {
+        assert!(focus_should_clear_tracking(Some("earth"), "mars"));
+        assert!(focus_should_clear_tracking(None, "mars"));
+    }
+
+    /// A Focus request for the SAME body currently being tracked does NOT
+    /// cancel tracking -- this is exactly the initial snap-to that
+    /// starting Track itself issues, and re-focusing on what's already
+    /// being followed shouldn't interrupt the follow.
+    #[test]
+    fn focus_on_tracked_body_itself_preserves_tracking() {
+        assert!(!focus_should_clear_tracking(Some("earth"), "earth"));
+    }
 
     /// The sub-SOLAR point's geographic latitude must oscillate between
     /// roughly +23.44° (June solstice, Tropic of Cancer) and −23.44°
