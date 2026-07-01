@@ -552,6 +552,16 @@
         "docs/BUGS.md",
         "docs/FEATURES.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 6: investigated 2 broader-sweep candidates from the plan docs list, found both bigger than estimated, and did NOT force-build either (matching the plan docs own instruction not to invent scope for design-uncertain items). (1) src/renderer/sky.rs SkyRenderer is entirely dead code -- zero references anywhere outside its own file, never instantiated. The mothership sun lighting already uses a real astronomical Earth-Sun vector (more correct for a ship in orbit than a simplified day/night-hour formula). Whether SkyRenderer still has an intended role (ground/planet-surface exploration with a visible sky?) is logged as a genuine open_questions_for_human entry rather than guessed at. (2) src/systems/economy EconomySystem is unregistered, but this is a KNOWN, documented deferral (tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS already lists it: needs market/credits entities + live verification) -- not an oversight, not a quick win, correctly left alone. That investigation led to cross-checking every NOT registered claim in docs/FEATURES.md against the lints real DEFERRED_SYSTEMS list + the real system_runner.register() calls in src/lib.rs, and found 4 stale claims (WeatherSystem, AtmosphereSystem, SkillSystem, QuestSystem are all registered and ticking, some since v0.337-v0.617) plus a stale registered-count header (claimed only 7, real count is 16). docs/STATUS.md was already correct for all four (this exact staleness class bit the project once before -- Atmosphere was already noted there as corrected 2026-06-30). Fixed all 4 FEATURES.md entries + the header. v0.645.1, docs-only, patch bump. Committed + pushed. NEXT: continue the broader sweep with remaining self-contained candidates, or stop if genuinely exhausted.",
+      "scope": "process + docs (night-loop cycle 6)",
+      "files": [
+        "docs/FEATURES.md",
+        "docs/history/2026-07-01-night-loop-plan.md",
+        "data/coordination/orchestrator_state.json"
+      ]
     }
   ],
   "active_scopes_to_avoid": [

@@ -30,9 +30,21 @@
 > proven via revert-and-retest. NOT verified: the WebRTC signaling relay
 > (simple pass-through, read as correct but not live-tested) and the
 > client-side scene-management UI -- logged as a real follow-up in the
-> plan doc if time remains later. Next up: priority #3, the broader
-> stub-completion sweep (see the plan doc's dedicated backlog section for
-> the candidate list).** <<<**
+> plan doc if time remains later. **Priority #3 (broader stub sweep,
+> cycle 6, v0.645.1): two candidates turned out bigger than estimated and
+> were NOT force-built** -- `SkyRenderer` (`src/renderer/sky.rs`) is fully
+> dead code (never instantiated anywhere; the real sun lighting already
+> uses astronomically-real Earth-Sun vectors) and its intended future role
+> is a genuine product question, logged in
+> `orchestrator_state.json::open_questions_for_human`. `EconomySystem`'s
+> deferral is already correctly documented in the lint itself ("needs
+> market/credits entities") -- not a quick win, left alone. That
+> investigation surfaced a real, high-confidence doc-accuracy fix instead:
+> 4 stale "NOT registered, never ticks" claims in FEATURES.md (Weather,
+> Atmosphere, Skills, Quests are all actually registered and ticking;
+> STATUS.md already had it right), fixed. Next: keep working the broader
+> sweep's remaining self-contained candidates (see the plan doc), or stop
+> if the backlog is genuinely exhausted.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
