@@ -540,6 +540,17 @@
         "src/relay/handlers/msg_handlers.rs",
         "docs/BUGS.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "Night-loop cycle 5: shipped v0.645.0, closing out livestreaming backend verification (priority #2). Live-tested the full stream lifecycle against a local relay: stream_start creates the right DB row + broadcast, viewer join/leave, stream_chat send + persistence -- all confirmed correct. Found and fixed a real bug in the process: BUG-043, handle_stream_viewer_leave and handle_stream_stop both persisted the LIVE viewer_keys.len() as viewer_peak, but that count is only ever highest right at a join and decreases from there -- handle_stream_viewer_join never wrote to viewer_peak at all, so by the time a stream actually ends the recorded peak was frequently 0 or far below the true max. Proved live: 2 viewers joined (true peak 2), both left, stream stopped -- old code would have recorded viewer_peak 0. Fixed with an ActiveStream::peak_viewers high-water mark (src/relay/relay.rs) updated via .max() on every join, used instead of the live count when persisting in both the leave and stop handlers. 4 new unit tests (msg_handlers.rs::stream_tests) using the existing fresh_state/block handler-test fixture, proven via a temporary revert-and-retest to actually catch the bug (both regression tests failed against the old code, recording 1 and 0 instead of 2 and 1). NOT verified this cycle: the WebRTC signaling relay (stream_offer/answer/ice -- simple store-and-forward, read as correct but not live-tested with a real peer connection) and the client-side scene-management UI; logged as a real, scoped follow-up in the plan doc. Verified: both cargo checks, 646 lib tests (4 new), 5 lints, 0 broken doc links. Committed + pushed. NEXT: priority #3, the broader stub-completion sweep from the plan docs candidate list.",
+      "scope": "streaming (night-loop cycle 5)",
+      "files": [
+        "src/relay/relay.rs",
+        "src/relay/handlers/msg_handlers.rs",
+        "docs/BUGS.md",
+        "docs/FEATURES.md"
+      ]
     }
   ],
   "active_scopes_to_avoid": [

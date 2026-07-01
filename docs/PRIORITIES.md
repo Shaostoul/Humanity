@@ -16,21 +16,23 @@
 > for the mission, safety rules, and full backlog. Read that file FIRST at the
 > start of every wake-up iteration tonight; it's the durable source of truth
 > across context resets. Priority order: (1) chat feature completeness, DONE
-> as of cycle 4, (2) livestreaming end-to-end verification (now active),
-> (3) a broader stub-completion sweep. Docs sync every cycle. On stop:
-> write `docs/history/2026-07-01-night-loop-results.md`.
-> **Progress: chat backlog fully shipped -- v0.641.0/BUG-041 (fake
-> `is_group_admin` fixed), v0.642.0 (native DM-notification toggle wired to
-> the server; new `scripts/ws-test-client.js` reusable protocol-test
-> harness built + proven), v0.643.0 (group voice join/leave wired, PLUS a
-> real server-side gap found+fixed: group rooms would've been rejected by
-> a channels-table lookup that has no row for them -- now gated on real
-> group membership), v0.644.0/BUG-042 (onboarding "Connect" now does a real
-> reachability check instead of always claiming success). Also found the
-> planned ban/mute backend work was based on a stale doc comment -- both
-> were already fully implemented; fixed the comment, no code needed. Next
-> up: priority #2, livestreaming end-to-end verification (see the plan
-> doc's dedicated backlog section).** <<<**
+> as of cycle 4, (2) livestreaming end-to-end verification, DONE (backend)
+> as of cycle 5, (3) a broader stub-completion sweep (now active). Docs
+> sync every cycle. On stop: write `docs/history/2026-07-01-night-loop-results.md`.
+> **Progress: chat backlog fully shipped (v0.641.0-v0.644.0, see git log /
+> journal for detail). Livestreaming backend verified live end-to-end
+> (cycle 5, v0.645.0) -- start/stop/viewer-join-leave/chat all confirmed
+> correct against a real local relay, EXCEPT a real bug found + fixed:
+> BUG-043, `viewer_peak` was fed the live viewer count at leave/stop time
+> (only ever highest right at a join, decreasing from there) instead of a
+> tracked historical high-water mark -- proved live (2 viewers peak, both
+> leave, stream stops, old code would've recorded 0) and with 4 tests
+> proven via revert-and-retest. NOT verified: the WebRTC signaling relay
+> (simple pass-through, read as correct but not live-tested) and the
+> client-side scene-management UI -- logged as a real follow-up in the
+> plan doc if time remains later. Next up: priority #3, the broader
+> stub-completion sweep (see the plan doc's dedicated backlog section for
+> the candidate list).** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
