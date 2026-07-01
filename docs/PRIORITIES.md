@@ -78,11 +78,23 @@
 > (591 lines) is ALSO fully dead code -- `GuiPage::Maps` has forwarded
 > to `cosmos::draw` since v0.203.2 -- 4th instance this session of
 > "superseded file left in place, docs still point at it." Fixed the
-> stale FEATURES.md/PAGES.md file pointers. This closes out the
-> original plan doc's full self-contained backlog list. Next: either
-> do another fresh full-repo TODO/stub sweep for anything not yet
-> surfaced, or stop if genuinely exhausted -- see the plan doc's
-> updated backlog section for the full accounting.** <<<**
+> stale FEATURES.md/PAGES.md file pointers. **Cycle 10 (v0.648.1,
+> docs-only):** re-checked the plan doc's own "larger/riskier, needs a
+> design decision" bucket (8 files) for external callers instead of
+> taking the original filing at face value -- ALL of them are ALSO
+> zero-caller dead scaffolding (autonomy.rs, blueprint.rs, csg.rs, the
+> whole logistics/ and navigation/ trees, physics/fluid.rs,
+> physics/collision.rs, psychology.rs, input/{mod,bindings}.rs -- 11
+> files, ~250 lines total). None of these needed a design decision at
+> all, unlike SkyRenderer/Mute Server; they're just confirmed-dead, a
+> safe cleanup opportunity for later, left in place tonight (same
+> conservative call made for the other 4 dead-file finds). This closes
+> out the ENTIRE original backlog list, both buckets. Only 2 genuinely
+> open product questions remain (SkyRenderer, Mute Server), both
+> already logged. Next: livestreaming's flagged follow-up (WebRTC
+> signaling relay pass-through -- "read as correct but not live-tested"
+> per the plan doc's priority #2 section) is the next concrete,
+> verifiable target with runway left in the 8h window.** <<<**
 
 > **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
 > incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
