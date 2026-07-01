@@ -1226,6 +1226,20 @@ coordinates. Editable live in the construction editor (place / move / wire / ins
 - Data: `data/machines/home.ron`
 - Editor: `src/gui/pages/construction.rs` (`draw_machine_detail`)
 
+### Household size: Family vs Solo home design (v0.656)
+A second, fully self-sufficient home layout for ONE person alongside the existing 3-person
+`home.ron`: `data/machines/home_solo.ron` (see `docs/design/homestead-solo-design.md` for the
+full sizing derivation -- 4 solar / 2 battery / 1 wind / 1 generator, 1 cistern / pump /
+purifier / household tap, 1 air recycler, 2 composters, 9 nutrition towers + 1 apothecary + 8
+potato beds + 3 oilseed beds + 2 grain trays + 2 mushroom racks + 1 aquaponic tank + 1 grain
+field + 1 legume field + 1 silo + 1 irrigation -- the same 34x34 m garden room that covers
+only ~half the calories for 3 people closes ~94% for 1). Selectable in Settings -> Data ->
+"Home Design" (Family / Solo radio buttons); which file loads is resolved by
+`machines::home_ron_path()` from the persisted `AppConfig.home_variant` at every real
+`MachineHome::load` call site. Takes effect on next world load, not live mid-session.
+- Native: `src/machines.rs` (`home_ron_path`), `src/config.rs` (`AppConfig::home_variant`, `default_home_variant`), `src/gui/mod.rs` (`SettingsState::home_variant`), `src/gui/pages/settings.rs` (`draw_data_content` "Home Design" section)
+- Data: `data/machines/home_solo.ron`
+
 ### Buildability Report (v0.524, v0.605 - v0.606)
 A design-time validator surfaced in the editor with check marks. Checks: Power source (a consumer needs a
 generator/solar), Energy balance (kWh/day generated vs consumed + overnight battery sizing), Wiring (no

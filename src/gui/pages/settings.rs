@@ -1823,6 +1823,33 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
 
 pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
+        // Household size (2026-07-01): which home design data/machines/*.ron loads. Two
+        // real, fully-authored designs exist -- the default family-scale home.ron and a
+        // one-person self-sufficient design (home_solo.ron, see
+        // docs/design/homestead-solo-design.md) sized to real one-person kWh/L/kcal needs.
+        // GUI-first per the project's own rule: this used to be impossible to change at
+        // all (the loader had ONE hardcoded path), now it's a real, discoverable toggle.
+        ui.label(RichText::new("Home Design").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_sm);
+        let mut is_family = state.settings.home_variant != "home_solo";
+        let mut is_solo = state.settings.home_variant == "home_solo";
+        if ui.radio_value(&mut is_family, true, "Family (default) -- 3-person self-sufficient design").changed() && is_family {
+            state.settings.home_variant = "home".to_string();
+            state.settings_dirty = true;
+        }
+        if ui.radio_value(&mut is_solo, true, "Solo -- 1-person self-sufficient design").changed() && is_solo {
+            state.settings.home_variant = "home_solo".to_string();
+            state.settings_dirty = true;
+        }
+
+        ui.add_space(theme.spacing_lg);
+
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
         ui.label(RichText::new("Export your data for backup or migration.").color(theme.text_muted()).size(theme.font_size_small));

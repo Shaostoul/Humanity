@@ -443,6 +443,19 @@ impl BuildabilityReport {
     }
 }
 
+/// Resolve which home design file to load/save, per the operator-configurable
+/// `AppConfig::home_variant` setting (Settings page, "Household size"): `"home_solo"` uses
+/// the one-person self-sufficient design (`docs/design/homestead-solo-design.md`), anything
+/// else -- including an empty/unrecognized/future value -- falls back to the default
+/// family-scale `home.ron` rather than panicking on a bad config value. Reads the config
+/// file fresh at each call (cheap, startup/world-load/save frequency only, never per-frame).
+#[cfg(feature = "native")]
+pub fn home_ron_path(data_dir: &Path) -> std::path::PathBuf {
+    let variant = crate::config::AppConfig::load().home_variant;
+    let filename = if variant == "home_solo" { "home_solo.ron" } else { "home.ron" };
+    data_dir.join("machines").join(filename)
+}
+
 impl MachineHome {
     /// Load from a RON file. Returns `None` (with a warning) on a missing or invalid
     /// file so the caller can fall back gracefully.
@@ -2324,5 +2337,35 @@ mod tests {
         if let Some(conduit) = report.checks.iter().find(|c| c.name == "Conduits") {
             assert_ne!(conduit.status, CheckStatus::Fail, "seed conduits must be sizable: {}", conduit.detail);
         }
+    }
+
+    /// The one-person `home_solo.ron` variant (docs/design/homestead-solo-design.md) parses,
+    /// and every instance's `machine` id resolves against its own catalog -- guards against a
+    /// typo'd machine id silently rendering nothing.
+    #[test]
+    fn home_solo_variant_parses_and_all_instances_resolve() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home_solo.ron");
+        let home = MachineHome::load(&path).expect("home_solo.ron parses");
+        let all = home.all_instances();
+        assert!(!all.is_empty(), "solo home has placed machines");
+        for inst in &all {
+            assert!(
+                home.catalog.contains_key(&inst.machine),
+                "instance '{}' references unknown machine id '{}'",
+                inst.id,
+                inst.machine
+            );
+        }
+    }
+
+    /// The solo home's power network is fully wired (every load traces to generation) -- the
+    /// same "no magic transmission" guarantee the 3-person seed home holds.
+    #[test]
+    fn home_solo_variant_power_circuit_is_connected() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("machines").join("home_solo.ron");
+        let home = MachineHome::load(&path).expect("home_solo.ron parses");
+        let report = home.buildability_report(4.5);
+        let circuit = report.checks.iter().find(|c| c.name == "Power circuit").expect("the solo home has electrical machines");
+        assert_ne!(circuit.status, CheckStatus::Fail, "solo home power must be fully wired: {}", circuit.detail);
     }
 }

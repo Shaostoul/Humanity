@@ -1,0 +1,304 @@
+// The ONE-PERSON self-sufficient homestead (v0.653). Re-derivation of `home.ron` (the
+// 3-person design) down to a single occupant, per the dedicated design pass in
+// docs/design/homestead-solo-design.md (2026-07-01). Every quantity below traces to that
+// doc's sizing math (Wh/day not nameplate watts, kcal/day per catalog stat, storage days =
+// capacity / demand). The point of this file is pedagogical: establish the honest baseline
+// for what ONE human needs to close energy/water/air/nutrients/~94% of food -- and by
+// implication, what is left over (manufacturing, metallurgy, medicine, equipment renewal)
+// that only a larger, trading civilization can supply. See homestead-solo-design.md section
+// 8, "What this homestead cannot close the loop on," for that half of the lesson.
+//
+// Selected via Settings -> Data -> Home Design -> "Solo"; loaded by
+// `crate::machines::home_ron_path()` in place of the default `home.ron`. Same catalog/
+// instance/connection/loop shape as the family home -- just fewer units. Data-driven
+// (infinite-of-X): edit here, no code.
+(
+    catalog: {
+        "solar_panel": (
+            shape: "box", size: (1.1, 0.12, 0.7), color: (0.12, 0.16, 0.45),
+            label: "Solar panel",
+            category: "Power",
+            stats: [(kind: "power", value: "+1.4 kWh/d", status: "ok")],
+            power: Some(Solar(peak_watts: 400.0)),
+        ),
+        "battery_bank": (
+            shape: "box", size: (0.6, 0.9, 0.5), color: (0.20, 0.60, 0.32),
+            label: "Battery bank",
+            category: "Power",
+            stats: [(kind: "storage", value: "~4 kWh", status: "ok"), (kind: "power", value: "charging", status: "ok")],
+            power: Some(Battery(capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0)),
+        ),
+        "wind_turbine_small": (
+            shape: "cylinder", size: (0.1, 2.4, 0.1), color: (0.85, 0.86, 0.90),
+            label: "Wind turbine",
+            category: "Power",
+            stats: [(kind: "power", value: "+0.7 kWh/d", status: "warn")],
+            power: Some(Generator(watts: 150.0)),
+        ),
+        "generator_portable": (
+            shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
+            label: "Generator (backup)",
+            category: "Power",
+            stats: [(kind: "fuel", value: "80%", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
+        ),
+        "water_tank": (
+            shape: "cylinder", size: (0.9, 2.2, 0.9), color: (0.20, 0.45, 0.75),
+            label: "Cistern (8000 L)",
+            category: "Water",
+            stats: [(kind: "storage", value: "100 days", status: "ok"), (kind: "water", value: "rain + well fed", status: "ok")],
+            // One person's net demand is 80 L/day, so the same 8000 L tank the 3-person home
+            // cites as "33 days" gives ONE person ~100 days (over-provisioned buffer is a
+            // feature -- self-sufficiency.md: dry-season storage is the binding constraint).
+            storage: [(utility: Water, capacity: 8000.0)],
+            ports: [(utility: Water, dir: Out, label: "rain catchment", flow_lpm: 0.1)],
+        ),
+        "water_pump": (
+            shape: "box", size: (0.35, 0.35, 0.35), color: (0.30, 0.50, 0.60),
+            label: "Water pump",
+            category: "Water",
+            stats: [(kind: "power", value: "-0.06 kWh/d", status: "ok"), (kind: "water", value: "12 L/min", status: "ok")],
+            power: Some(Consumer(watts: 10.0, priority: 2)),
+            ports: [
+                (utility: Electricity, dir: In, label: "motor", watts: 10.0),
+                (utility: Water, dir: Out, label: "well lift", flow_lpm: 2.0),
+            ],
+        ),
+        "water_purifier": (
+            shape: "cylinder", size: (0.28, 0.7, 0.28), color: (0.35, 0.65, 0.78),
+            label: "Water purifier",
+            category: "Water",
+            stats: [(kind: "water", value: "+240 L/d potable", status: "ok"), (kind: "power", value: "-0.08 kWh/d", status: "ok")],
+            power: Some(Consumer(watts: 13.0, priority: 2)),
+        ),
+        "home_water_use": (
+            shape: "box", size: (0.3, 0.3, 0.3), color: (0.40, 0.60, 0.78),
+            label: "Household water (tap + shower)",
+            category: "Water",
+            stats: [(kind: "water", value: "-80 L/d (drink/wash)", status: "ok")],
+            // One person, ~0.056 L/min (~80 L/day) -- a third of the 3-person home's demand.
+            ports: [(utility: Water, dir: In, label: "taps", flow_lpm: 0.056)],
+        ),
+        "air_recycler": (
+            shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
+            label: "Air recycler (O2/CO2)",
+            category: "Power",
+            stats: [(kind: "power", value: "-0.6 kWh/d", status: "ok"), (kind: "air", value: "scrubs CO2, makes O2", status: "ok")],
+            // Sized for 3 with margin, so one unit vastly over-serves one person -- kept as
+            // the priority-1 shed-last teaching point (cut power -> air suffocates).
+            power: Some(Consumer(watts: 25.0, priority: 1)),
+            ports: [
+                (utility: Electricity, dir: In, label: "blower", watts: 25.0),
+                (utility: Air, dir: Out, label: "fresh air", flow_lpm: 20.0),
+            ],
+        ),
+        "composter": (
+            shape: "box", size: (0.7, 0.55, 0.7), color: (0.35, 0.25, 0.14),
+            label: "Composter",
+            category: "Food",
+            stats: [(kind: "nutrient", value: "+0.6 kg/d", status: "ok"), (kind: "water", value: "+52 L/d greywater", status: "ok")],
+        ),
+        "aeroponic_tower_nutrition": (
+            shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
+            label: "Variety tower",
+            category: "Food",
+            stats: [(kind: "food", value: "+92 kcal/d", status: "warn"), (kind: "nutrient", value: "vitamins + protein", status: "ok"), (kind: "power", value: "sun-lit, -15 W", status: "ok")],
+            ports: [
+                (utility: Electricity, dir: In, label: "pump + light", watts: 15.0),
+            ],
+        ),
+        "aeroponic_tower_apothecary": (
+            shape: "cylinder", size: (0.16, 1.9, 0.16), color: (0.45, 0.55, 0.30),
+            label: "Apothecary tower",
+            category: "Food",
+            stats: [(kind: "food", value: "herbs + teas", status: "ok"), (kind: "power", value: "sun-lit, -12 W", status: "ok")],
+        ),
+        "potato_grow_bed": (
+            shape: "box", size: (2.0, 0.4, 1.0), color: (0.55, 0.42, 0.25),
+            label: "Potato bed",
+            category: "Food",
+            stats: [(kind: "food", value: "+120 kcal/d", status: "ok"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
+        ),
+        "staple_grain_tray": (
+            shape: "box", size: (2.0, 0.3, 1.0), color: (0.78, 0.66, 0.30),
+            label: "Grain tray",
+            category: "Food",
+            stats: [(kind: "food", value: "+20 kcal/d", status: "low"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
+        ),
+        "oilseed_bed": (
+            shape: "box", size: (2.0, 0.4, 1.0), color: (0.80, 0.74, 0.35),
+            label: "Oilseed bed",
+            category: "Food",
+            stats: [(kind: "food", value: "+25 kcal/d (fats)", status: "warn"), (kind: "power", value: "sun-lit, 0 W", status: "ok")],
+        ),
+        "mushroom_rack": (
+            shape: "box", size: (1.2, 1.8, 0.6), color: (0.62, 0.55, 0.45),
+            label: "Mushroom rack",
+            category: "Food",
+            stats: [(kind: "food", value: "+50 kcal/d", status: "ok"), (kind: "power", value: "no light needed", status: "ok")],
+        ),
+        "aquaponic_tank": (
+            shape: "box", size: (1.6, 1.0, 1.6), color: (0.20, 0.45, 0.70),
+            label: "Aquaponic tank",
+            category: "Food",
+            stats: [(kind: "food", value: "+75 kcal/d", status: "ok"), (kind: "nutrient", value: "B12 + omega-3", status: "ok"), (kind: "power", value: "-50 W air pump", status: "ok")],
+        ),
+        "irrigation_system": (
+            shape: "box", size: (0.45, 0.3, 0.45), color: (0.30, 0.55, 0.65),
+            label: "Irrigation",
+            category: "Water",
+            stats: [(kind: "water", value: "20 L/d to plants", status: "ok"), (kind: "power", value: "-0.05 kWh/d", status: "ok")],
+            power: Some(Consumer(watts: 7.0, priority: 3)),
+            ports: [
+                (utility: Electricity, dir: In, label: "pump", watts: 7.0),
+                (utility: Water, dir: In, label: "to garden", flow_lpm: 0.17),
+            ],
+        ),
+        "grain_field": (
+            shape: "box", size: (2.4, 0.18, 2.4), color: (0.78, 0.66, 0.30),
+            label: "Grain field",
+            category: "Food",
+            stats: [(kind: "food", value: "+3100 kcal/d", status: "ok"), (kind: "nutrient", value: "-N -P -K", status: "warn")],
+        ),
+        "legume_field": (
+            shape: "box", size: (2.4, 0.18, 2.4), color: (0.45, 0.62, 0.30),
+            label: "Legume field",
+            category: "Food",
+            stats: [(kind: "food", value: "+700 kcal/d", status: "ok"), (kind: "nutrient", value: "+N (fixing)", status: "ok")],
+        ),
+        "grain_silo": (
+            shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
+            label: "Grain silo",
+            category: "Food",
+            stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
+        ),
+    },
+
+    // Placed instances, one-person BOM from homestead-solo-design.md sections 1-5:
+    // Power: 4 solar / 2 battery / 1 wind / 1 generator (vs 8/8/1/0 for 3 people).
+    // Water: 1 cistern / 1 pump / 1 purifier / 1 household tap.
+    // Air: 1 recycler. Waste: 2 composters (maturation-lag insurance).
+    // Food: 9 nutrition towers + 1 apothecary + 8 potato beds + 3 oilseed + 2 grain trays +
+    // 2 mushroom racks + 1 aquaponic tank + 1 grain field + 1 legume field + 1 silo +
+    // 1 irrigation. `tuber_field`/`oilseed_field` dropped entirely (3-person bulk, not
+    // needed once the garden alone reaches ~94% of one person's calories).
+    //
+    // OFFSETS ARE ABSOLUTE box coordinates, same frame as home.ron (metres from the box min
+    // corner) since this reuses the identical `blueprints/homestead_layout.ron` room shells --
+    // just far fewer instances, so everything sits well inside each room's footprint.
+    instances: [
+        // ── Garage: power + water + air + waste, clustered near the hull-mounted solar ──
+        (id: "solar_1", machine: "solar_panel", room: "garage", offset: (3.0, 0.0, 5.0)),
+        (id: "solar_2", machine: "solar_panel", room: "garage", offset: (5.0, 0.0, 5.0)),
+        (id: "solar_3", machine: "solar_panel", room: "garage", offset: (7.0, 0.0, 5.0)),
+        (id: "solar_4", machine: "solar_panel", room: "garage", offset: (9.0, 0.0, 5.0)),
+        (id: "wind_1", machine: "wind_turbine_small", room: "garage", offset: (13.0, 0.0, 5.0)),
+        (id: "battery_1", machine: "battery_bank", room: "garage", offset: (8.4, 0.0, 25.4)),
+        (id: "battery_2", machine: "battery_bank", room: "garage", offset: (9.2, 0.0, 25.4)),
+        (id: "gen_1", machine: "generator_portable", room: "garage", offset: (10.0, 0.0, 25.8)),
+        (id: "cistern_1", machine: "water_tank", room: "garage", offset: (4.0, 0.0, 30.0)),
+        (id: "pump_1", machine: "water_pump", room: "garage", offset: (7.6, 0.0, 28.4)),
+        (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (8.6, 0.0, 28.4)),
+        (id: "household_1", machine: "home_water_use", room: "garage", offset: (6.6, 0.0, 29.2)),
+        (id: "air_recycler_1", machine: "air_recycler", room: "garage", offset: (10.6, 0.0, 26.8)),
+        (id: "composter_1", machine: "composter", room: "garage", offset: (12.0, 0.0, 28.4)),
+        (id: "composter_2", machine: "composter", room: "garage", offset: (12.0, 0.0, 30.4)),
+
+        // ── Garden (34x34 m): correctly sized for ONE person (homestead-solo-design.md
+        //    section 3 -- the same room that's "the weakest loop, ~half the calories" at 3
+        //    people closes for 1). Support machines + the two single-plant anchors; the bulk
+        //    tower/bed fill lives in the `arrays` block below. ──
+        (id: "irrigation_1", machine: "irrigation_system", room: "garden", offset: (4.5, 0.0, 39.5)),
+        (id: "aqua_1", machine: "aquaponic_tank", room: "garden", offset: (5.2, 0.0, 52.6)),
+        (id: "apoth_1", machine: "aeroponic_tower_apothecary", room: "garden", offset: (21.6, 0.0, 56.0)),
+        (id: "grain_field_1", machine: "grain_field", room: "garden", offset: (27.0, 0.0, 65.0)),
+        (id: "legume_field_1", machine: "legume_field", room: "garden", offset: (27.0, 0.0, 61.5)),
+        (id: "silo_1", machine: "grain_silo", room: "garden", offset: (34.0, 0.0, 63.0)),
+    ],
+
+    // Dense garden fill, infinite-of-X grids (one line per block instead of many hand-typed
+    // instances). Quantities from homestead-solo-design.md section 3's per-crop kcal table:
+    // 8 potato beds (960 kcal), 9 variety towers (828 kcal), 3 oilseed beds (75 kcal),
+    // 2 mushroom racks (100 kcal), 2 grain trays (40 kcal) -> ~2,078 kcal indoors alone,
+    // ~94% of the 2,200 kcal/day one-person target; the single outdoor grain_field above
+    // carries the rest into surplus.
+    arrays: [
+        (machine: "potato_grow_bed",   room: "garden", id_prefix: "potato",    origin: (5.0, 0.0, 37.0),  rows: 2, cols: 4, spacing: (2.7, 2.0)),
+        (machine: "oilseed_bed",       room: "garden", id_prefix: "oilbed",    origin: (21.0, 0.0, 37.0), rows: 1, cols: 3, spacing: (2.7, 2.0)),
+        (machine: "staple_grain_tray", room: "garden", id_prefix: "graintray", origin: (21.0, 0.0, 43.0), rows: 1, cols: 2, spacing: (2.7, 2.0)),
+        (machine: "aeroponic_tower_nutrition", room: "garden", id_prefix: "ntower", origin: (7.0, 0.0, 56.0), rows: 3, cols: 3, spacing: (2.2, 2.2)),
+        (machine: "mushroom_rack",     room: "garden", id_prefix: "mush",      origin: (34.0, 0.0, 46.0), rows: 2, cols: 1, spacing: (0.0, 2.0)),
+    ],
+
+    // Connections mirror home.ron's topology exactly (homestead-solo-design.md: "copy the
+    // connections topology from home.ron -- it's already correct, just fewer instances"),
+    // scaled to 2 batteries instead of 8 and no fuel-refinery link (dropped for solo scope).
+    connections: [
+        // Power: 4 panels + wind feed the 2-bank bus; the generator backstops it.
+        (from: "solar_1", to: "battery_1", kind: "power"),
+        (from: "solar_2", to: "battery_1", kind: "power"),
+        (from: "solar_3", to: "battery_2", kind: "power"),
+        (from: "solar_4", to: "battery_2", kind: "power"),
+        (from: "wind_1", to: "battery_1", kind: "power"),
+        (from: "gen_1", to: "battery_2", kind: "power"),
+        (from: "battery_1", to: "battery_2", kind: "power"),
+        (from: "battery_2", to: "pump_1", kind: "power"),
+        (from: "battery_2", to: "purifier_1", kind: "power"),
+        (from: "battery_1", to: "irrigation_1", kind: "power"),
+        (from: "battery_1", to: "air_recycler_1", kind: "power"),
+
+        // Water: cistern -> pump -> purifier -> irrigation + the household tap, one island.
+        (from: "cistern_1", to: "pump_1", kind: "water"),
+        (from: "pump_1", to: "purifier_1", kind: "water"),
+        (from: "purifier_1", to: "irrigation_1", kind: "water"),
+        (from: "cistern_1", to: "household_1", kind: "water"),
+        (from: "irrigation_1", to: "potato_0", kind: "water"),
+        (from: "aqua_1", to: "ntower_0", kind: "water"),
+        (from: "composter_1", to: "irrigation_1", kind: "water"),
+
+        // Nutrients: compost + fish waste + nitrogen-fixing legumes close the loop.
+        (from: "composter_1", to: "potato_0", kind: "nutrient"),
+        (from: "composter_2", to: "ntower_0", kind: "nutrient"),
+        (from: "composter_1", to: "grain_field_1", kind: "nutrient"),
+        (from: "legume_field_1", to: "grain_field_1", kind: "nutrient"),
+
+        // Food: the field crop banks into the silo (the winter/preservation buffer).
+        (from: "grain_field_1", to: "silo_1", kind: "food"),
+    ],
+
+    // The four coupled loops for ONE person -- see homestead-solo-design.md for the full
+    // sizing derivation behind every figure here.
+    loops: [
+        (
+            name: "Energy",
+            demand: "~4.0 kWh/day (one person, off-grid frugal)",
+            supply: "~5.76 kWh/day: 4 solar panels + wind; 2 batteries = 2 days autonomy; generator backstop",
+            closes: true,
+            weakest: false,
+            note: "4x400 W panels at ~4.5 sun-hours make ~5.76 kWh/d gross, 44% headroom over the 4.0 kWh/day target -- room for cloudy days and a winter derate to ~3.2 kWh/d, which the 2 battery banks (8 kWh, 2 days autonomy) and the backup generator cover. The indoor garden stays sun-lit, not grow-lit: artificial lights to feed one person indoors would cost 10-50 kWh/d, several times this whole budget.",
+        ),
+        (
+            name: "Water",
+            demand: "~80 L/day net (household)",
+            supply: "rain + well + ~52 L/day greywater recycling; 8000 L cistern = 100 days",
+            closes: true,
+            weakest: false,
+            note: "The same 8000 L cistern the 3-person home rides for 33 days gives ONE person 100 days -- over-provisioned on purpose (self-sufficiency.md: dry-season storage, not annual rainfall, is the binding constraint). Greywater recycling covers all irrigation, so net demand is just the household tap.",
+        ),
+        (
+            name: "Food",
+            demand: "~2,200 kcal/day + complete nutrition (1 person)",
+            supply: "indoor sun-lit garden (9 variety towers + 1 apothecary + 8 potato beds + 3 oilseed beds + 2 grain trays + 2 mushroom racks + 1 aquaponic tank): ~2,078 kcal/day, ~94% of demand, ALL veg/herbs/protein/vitamins + B12 + omega-3; one outdoor grain field pushes the remainder into surplus; silo = 750 days",
+            closes: true,
+            weakest: true,
+            note: "The pedagogical payoff: this is the SAME 34x34 m garden room that only covered ~half the calories for 3 people -- correctly sized, it closes for 1. The hard limit is still light, not floor area: one sun, one canopy, no stacked tiers. The single outdoor grain field (dropped tuber/oilseed fields entirely -- 3-person bulk, not needed here) carries the last ~6% into a calorie surplus banked in the silo.",
+        ),
+        (
+            name: "Nutrients",
+            demand: "~13 nutrient-units/day (garden + field, one person's share)",
+            supply: "2 composters (food + crop + human waste) -> fertilizer; legume nitrogen fixing; aquaponic fish waste",
+            closes: true,
+            weakest: false,
+            note: "Compost + the legume field's nitrogen fixing close the nutrient loop the same way the 3-person home's does, just scaled down. The aquaponic tank's fish waste fertilizes the towers -- a closed fish-to-plant nutrient loop even at this small scale.",
+        ),
+    ],
+)

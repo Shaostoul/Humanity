@@ -183,6 +183,15 @@ pub struct AppConfig {
     pub window_mode: WindowMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
+    /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
+    /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
+    /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
+    /// needs -- see `docs/design/homestead-solo-design.md`). Data-driven per the project's
+    /// GUI-first-configurability rule: exposed as a Settings toggle, not a config-file-only
+    /// switch. `#[serde(default)]` (not `default_true`-style) so a bad/unknown value falls
+    /// back to `"home"` at load time (see `MachineHome::load`'s caller), never panics.
+    #[serde(default = "default_home_variant")]
+    pub home_variant: String,
 
     // ── v0.488: native voice input prefs ────────────────────────────────
     // The mic device + speaker device the user picked (empty => system
@@ -355,6 +364,7 @@ fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_true() -> bool { true }
+fn default_home_variant() -> String { "home".to_string() }
 fn default_panel_width() -> f32 { 220.0 }
 // v0.488 voice input prefs: unity gain, "V" push key, a modest activation floor.
 /// Prettify a stored winit-KeyCode name for display, e.g. "KeyV" -> "V",
@@ -589,6 +599,7 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
+            home_variant: state.settings.home_variant.clone(),
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
             voice_input_device: state.audio_input_device.clone(),
             voice_output_device: state.audio_output_device.clone(),
@@ -664,6 +675,7 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
+        state.settings.home_variant = self.home_variant.clone();
         // v0.488 voice input prefs.
         state.audio_input_device = self.voice_input_device.clone();
         state.audio_output_device = self.voice_output_device.clone();

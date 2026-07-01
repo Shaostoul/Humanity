@@ -3618,7 +3618,7 @@ pub struct GardenArea {
 /// type, with its catalog label / food stat / footprint. Resolved via `data_dir` so it
 /// works regardless of the process CWD. Empty if the file is absent.
 pub fn load_garden_areas(data_dir: &std::path::Path) -> Vec<GardenArea> {
-    let path = data_dir.join("machines").join("home.ron");
+    let path = crate::machines::home_ron_path(data_dir);
     let Some(home) = crate::machines::MachineHome::load(&path) else {
         return Vec::new();
     };
@@ -4403,6 +4403,13 @@ pub struct SettingsState {
     pub notify_tasks: bool,
     pub dnd_start: String,
     pub dnd_end: String,
+    // Gameplay
+    /// Which home design loads (2026-07-01): `"home"` (default, family-scale) or
+    /// `"home_solo"` (one-person self-sufficient design, see
+    /// `docs/design/homestead-solo-design.md`). Applied via `crate::machines::
+    /// home_ron_path` at world-load time -- changing this takes effect on next
+    /// world load, not live mid-session (see the Settings UI's own note).
+    pub home_variant: String,
     // Wallet
     pub wallet_network: WalletNetwork,
     pub custom_rpc_url: String,
@@ -4440,6 +4447,7 @@ impl Default for SettingsState {
             notify_tasks: true,
             dnd_start: String::new(),
             dnd_end: String::new(),
+            home_variant: "home".to_string(),
             wallet_network: WalletNetwork::Devnet,
             custom_rpc_url: String::new(),
             profile_visible: true,

@@ -192,7 +192,7 @@ mod native_app {
     /// strings). load_world re-spawns these WITH meshes on Enter World after despawning
     /// every HomeMachine, so there is no double-spawn. Silent no-op if home.ron is absent.
     fn spawn_home_power_entities(world: &mut hecs::World, data_dir: &std::path::Path) {
-        let path = data_dir.join("machines").join("home.ron");
+        let path = crate::machines::home_ron_path(data_dir);
         let Some(home) = crate::machines::MachineHome::load(&path) else {
             return;
         };
@@ -3664,7 +3664,7 @@ mod native_app {
         // connections between them (data/machines/home.ron). Falls back silently if the
         // file is absent (distributed builds); the tower placeholders above still show.
         {
-            let path = state.data_dir.join("machines").join("home.ron");
+            let path = crate::machines::home_ron_path(&state.data_dir);
             if let Some(home) = crate::machines::MachineHome::load(&path) {
                 use std::collections::HashMap;
                 // room id -> (center, floor_y, ceiling_y).
@@ -5034,9 +5034,7 @@ mod native_app {
             // Load the home's machine layout ONCE: both the Home-page self-sufficiency
             // loops AND the construction editor's editable machine layout come from it
             // (v0.519: machine placement). See docs/design/home-design.md.
-            gui_state.home_machines = crate::machines::MachineHome::load(
-                &data_dir.join("machines").join("home.ron"),
-            );
+            gui_state.home_machines = crate::machines::MachineHome::load(&crate::machines::home_ron_path(&data_dir));
             gui_state.homestead_loops = gui_state
                 .home_machines
                 .as_ref()
@@ -6840,9 +6838,9 @@ mod native_app {
                     if state.gui_state.home_machines_save {
                         state.gui_state.home_machines_save = false;
                         if let Some(home) = &state.gui_state.home_machines {
-                            let path = state.data_dir.join("machines").join("home.ron");
+                            let path = crate::machines::home_ron_path(&state.data_dir);
                             match home.save(&path) {
-                                Ok(()) => log::info!("Construction: machine layout saved to home.ron"),
+                                Ok(()) => log::info!("Construction: machine layout saved to {}", path.display()),
                                 Err(e) => log::warn!("Construction: machine save failed: {e}"),
                             }
                         }
