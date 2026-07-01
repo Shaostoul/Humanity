@@ -1,0 +1,67 @@
+// Editable component-output table (v0.663) -- closes gap #4 in
+// docs/design/homestead-solo-design.md section 7 and implements the "editable
+// component-output table (infinite-of-X data)" that docs/design/self-sufficiency.md's
+// "What data we'd add" section calls for. One entry per generation / collection / recycling
+// machine in data/machines/home.ron's catalog: an output figure + its assumptions, so the
+// self-sufficiency score is COMPUTED from a queryable data file instead of parsed out of the
+// hand-typed stat strings baked into home.ron. Every `id` here MUST be a machine in the
+// home.ron catalog (enforced by a unit test). Loaded by src/systems/self_sufficiency.rs.
+// Data-driven (infinite-of-X): tune a number or add a machine here, no code change.
+//
+// FIELDS:
+//   id           - a machine catalog id in data/machines/home.ron (and home_solo.ron).
+//   output_value - the machine's per-unit output in `unit`.
+//   unit         - the output's unit. NOTE the unit is HETEROGENEOUS across rows (kWh/day for
+//                  energy generation, L/day for water collection, kg/day for nutrient
+//                  recycling, kW for a runtime-gated backup, L/day-air for life support). The
+//                  loader's household_energy_balance() sums only the "kWh/day" rows for the
+//                  energy score; a water/nutrient/air score sums its own unit the same way.
+//   assumptions  - the editable, human-readable derivation the operator can tune.
+//
+// AGREEMENT with home.ron / homestead-solo-design.md: every value below was cross-checked
+// against the catalog stat strings + design math and AGREES (e.g. solar 400 W x 4.5 sun-h x
+// 0.80 = 1.44 kWh/day, which the catalog rounds to "+1.4 kWh/d"; 8 x 1.44 + 0.7 wind = 12.2
+// kWh/day, the home.ron Energy-loop supply line). No disagreements were found; see the
+// session report for the one rounding note (1.44 vs the catalog's "+1.4").
+(
+    components: [
+        // ── Energy GENERATION (kWh/day, so household_energy_balance() sums these) ──
+        (
+            id: "solar_panel", output_value: 1.44, unit: "kWh/day",
+            assumptions: "400 W peak x 4.5 sun-hours/day (temperate) x 0.80 system losses (inverter + wiring + charge). Catalog rounds to +1.4 kWh/d.",
+        ),
+        (
+            id: "wind_turbine_small", output_value: 0.7, unit: "kWh/day",
+            assumptions: "150 W rated x ~19% capacity factor (low-wind inland site) ~= 0.7 kWh/day. Matches the catalog +0.7 kWh/d.",
+        ),
+        // ── Backup generation (rated power, NOT a daily energy -- unit differs on purpose;
+        //    excluded from the daily kWh/day supply sum until runtime hours are modeled) ──
+        (
+            id: "generator_portable", output_value: 2.0, unit: "kW",
+            assumptions: "2 kW fuel-burning backup. Rated power, not a daily figure -- daily kWh depends on run-hours, so it is NOT summed into the passive kWh/day supply. Covers the deep no-sun-no-wind tail.",
+        ),
+        // ── Water COLLECTION / treatment (L/day) ──
+        (
+            id: "water_tank", output_value: 144.0, unit: "L/day",
+            assumptions: "Passive rain catchment at 0.1 L/min (home.ron port flow) = 144 L/day, no power. Also stores 8000 L (the dry-season buffer).",
+        ),
+        (
+            id: "water_pump", output_value: 2880.0, unit: "L/day",
+            assumptions: "Powered well lift at 2.0 L/min (home.ron port) = 2880 L/day WHEN RUN. Power-gated: cutting the grid stops the inflow. Runs a fraction of the day in practice.",
+        ),
+        (
+            id: "water_purifier", output_value: 240.0, unit: "L/day",
+            assumptions: "+240 L/day potable throughput (home.ron stat). Polishes water the pump lifted; not a net source, so it is a treatment cap, not new supply.",
+        ),
+        // ── Nutrient / waste RECYCLING (kg/day nutrient; also +greywater) ──
+        (
+            id: "composter", output_value: 1.2, unit: "kg/day",
+            assumptions: "+1.2 kg/day nutrient (fertilizer) from food + crop + human waste, plus +155 L/day greywater back to irrigation (home.ron stats). One person makes ~1.5 kg/day organic.",
+        ),
+        // ── Air GENERATION / life support (L/day of scrubbed fresh air) ──
+        (
+            id: "air_recycler", output_value: 28800.0, unit: "L/day-air",
+            assumptions: "20 L/min O2-making / CO2-scrubbing blower (home.ron Air OUT port) = 28800 L/day. Sized for a ~3-person sealed household with margin; priority-1 (shed last).",
+        ),
+    ],
+)

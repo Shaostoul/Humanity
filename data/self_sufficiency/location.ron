@@ -1,0 +1,32 @@
+// Reference LOCATION record (v0.663) -- the second half of gap #4 in
+// docs/design/homestead-solo-design.md section 7. docs/design/self-sufficiency.md is explicit
+// that self-sufficiency is gated by WHERE you are: "the same design is self-sufficient in one
+// place and fails in another." This is the location the homestead design is scored FOR, the
+// hook the eventual Place lat/long selector will drive. Loaded by
+// src/systems/self_sufficiency.rs. Data-driven (infinite-of-X): a second location is another
+// file / another row; nothing here is hardcoded in Rust.
+//
+// Silverdale, WA (Kitsap County, Puget Sound; ~47.6 N, near Bremerton) -- the operator's own
+// region, so the reference build is honest for a real place rather than an abstract "temperate"
+// average. All figures are regional NOAA/NREL magnitude, rounded; flagged as approximations in
+// the session report (a precise per-parcel value would come from a live weather feed later).
+//
+// FIELDS:
+//   sun_hours_summer/winter - peak-sun-hours/day (kWh/m^2/day equivalent). PNW swings hard by
+//                             season -- this is exactly why energy is sized on the WORST stretch
+//                             (winter), not an annual average. NREL PVWatts Puget Sound: ~6.0
+//                             mid-summer, ~1.3 mid-winter.
+//   annual_rainfall_mm      - ~1400 mm (~55 in). Wet, but heavily WINTER-weighted; the binding
+//                             water constraint is the dry mid-summer stretch (cistern storage),
+//                             not the annual total (self-sufficiency.md).
+//   heating_degree_days     - base 18.3 C (65 F). ~4700 HDD: a real heating load 8+ months/year;
+//                             the envelope (insulation) is the biggest demand-side lever.
+//   cooling_degree_days     - ~80 CDD: cooling is nearly a non-need in this marine climate.
+(
+    name: "Silverdale, WA",
+    sun_hours_summer: 6.0,
+    sun_hours_winter: 1.3,
+    annual_rainfall_mm: 1400.0,
+    heating_degree_days: 4700.0,
+    cooling_degree_days: 80.0,
+)
