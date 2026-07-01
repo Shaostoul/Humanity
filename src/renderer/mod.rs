@@ -96,7 +96,7 @@ pub struct Renderer {
     /// sub-range writes of `set_point_lights`/`set_sun_light`/`set_fill_light` -- so point lights never
     /// lit the interior and the GI toggle did nothing. We now STORE the light state here and inject it
     /// into each home pass via `lit_uniform`, so it survives the full-uniform write.
-    cur_lights: Vec<(Vec3, [f32; 3], f32, f32)>,
+    cur_lights: Vec<light::RoomLight>,
     cur_sun: ([f32; 3], [f32; 3], f32), // (direction, color, intensity)
     cur_fill: ([f32; 3], [f32; 3], f32),
 }
@@ -228,6 +228,8 @@ impl Renderer {
                 view_pos: [0.0; 4],
                 light_positions: [[0.0; 4]; 8],
                 light_colors: [[0.0; 4]; 8],
+                light_spot: [[0.0, -1.0, 0.0, -1.0]; 8],
+                light_cone_inner: [[0.0; 4]; 8],
                 light_count: [0.0; 4],
                 // Default directional lights (match former shader constants)
                 sun_direction: [0.3, 1.0, 0.5, 2.5],
@@ -447,15 +449,19 @@ impl Renderer {
         self.update_material_full(idx, base_color, metallic, roughness, material_type, 0.0);
     }
 
-    /// Set point lights for the next render call. Up to 8 lights supported.
-    /// Each light: (position, color_rgb, intensity, radius).
-    pub fn set_point_lights(&mut self, lights: &[(Vec3, [f32; 3], f32, f32)]) {
+    /// Set room lights for the next render call. Up to 8 supported, each either a point light
+    /// or a spot with a real cone (v0.639, see `light::RoomLight`).
+    pub fn set_point_lights(&mut self, lights: &[light::RoomLight]) {
         let mut light_positions = [[0.0_f32; 4]; 8];
         let mut light_colors = [[0.0_f32; 4]; 8];
+        let mut light_spot = [[0.0_f32, -1.0, 0.0, -1.0]; 8];
+        let mut light_cone_inner = [[0.0_f32; 4]; 8];
         let count = lights.len().min(8);
-        for (i, &(pos, color, intensity, radius)) in lights.iter().take(8).enumerate() {
-            light_positions[i] = [pos.x, pos.y, pos.z, intensity];
-            light_colors[i] = [color[0], color[1], color[2], radius];
+        for (i, l) in lights.iter().take(8).enumerate() {
+            light_positions[i] = [l.pos.x, l.pos.y, l.pos.z, l.intensity];
+            light_colors[i] = [l.color[0], l.color[1], l.color[2], l.range];
+            light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
+            light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
         }
         // Write just the light data portion of the camera uniform buffer.
         // Offset past view_proj (64 bytes) + view_pos (16 bytes) = 80 bytes.
@@ -472,11 +478,23 @@ impl Renderer {
             light_data_offset + 128,
             bytemuck::cast_slice(&light_colors),
         );
-        // light_count: offset 80 + 128 + 128 = 336
-        let light_count = [count as f32, 0.0_f32, 0.0, 0.0];
+        // light_spot: offset 80 + 128 + 128 = 336
         self.queue.write_buffer(
             &self.camera_buffer,
             light_data_offset + 256,
+            bytemuck::cast_slice(&light_spot),
+        );
+        // light_cone_inner: offset 80 + 128 + 128 + 128 = 464
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            light_data_offset + 384,
+            bytemuck::cast_slice(&light_cone_inner),
+        );
+        // light_count: offset 80 + 128 + 128 + 128 + 128 = 592
+        let light_count = [count as f32, 0.0_f32, 0.0, 0.0];
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            light_data_offset + 512,
             bytemuck::cast_slice(&light_count),
         );
         // Store for re-injection by the home passes (the direct writes above get clobbered by the
@@ -484,16 +502,21 @@ impl Renderer {
         self.cur_lights = lights.to_vec();
     }
 
-    /// Inject the live local-light state (point lights + sun + fill) into a base camera uniform
-    /// (v0.571). The home `_onto` passes call this so the full-uniform write at offset 0 carries the
-    /// real lights instead of `camera.uniforms()`'s empty/default set.
+    /// Inject the live local-light state (point/spot lights + sun + fill) into a base camera
+    /// uniform (v0.571, spot cones added v0.639). The home `_onto` passes call this so the
+    /// full-uniform write at offset 0 carries the real lights instead of `camera.uniforms()`'s
+    /// empty/default set.
     fn lit_uniform(&self, mut u: camera::CameraUniforms) -> camera::CameraUniforms {
         let count = self.cur_lights.len().min(8);
         u.light_positions = [[0.0; 4]; 8];
         u.light_colors = [[0.0; 4]; 8];
-        for (i, &(pos, color, intensity, radius)) in self.cur_lights.iter().take(8).enumerate() {
-            u.light_positions[i] = [pos.x, pos.y, pos.z, intensity];
-            u.light_colors[i] = [color[0], color[1], color[2], radius];
+        u.light_spot = [[0.0, -1.0, 0.0, -1.0]; 8];
+        u.light_cone_inner = [[0.0; 4]; 8];
+        for (i, l) in self.cur_lights.iter().take(8).enumerate() {
+            u.light_positions[i] = [l.pos.x, l.pos.y, l.pos.z, l.intensity];
+            u.light_colors[i] = [l.color[0], l.color[1], l.color[2], l.range];
+            u.light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
+            u.light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
         }
         u.light_count = [count as f32, 0.0, 0.0, 0.0];
         let (sd, sc, si) = self.cur_sun;
@@ -509,17 +532,17 @@ impl Renderer {
     /// `direction` points toward the light source (will be normalized in the shader).
     /// `color` is the RGB color, `intensity` is the brightness multiplier.
     pub fn set_sun_light(&mut self, direction: Vec3, color: [f32; 3], intensity: f32) {
-        // sun_direction sits at byte offset 352 (after light_count at 336 + 16)
+        // sun_direction sits at byte offset 608 (after light_cone_inner ends at 592, +light_count's 16)
         let sun_dir = [direction.x, direction.y, direction.z, intensity];
         let sun_col = [color[0], color[1], color[2], 0.0_f32];
         self.queue.write_buffer(
             &self.camera_buffer,
-            352,
+            608,
             bytemuck::cast_slice(&sun_dir),
         );
         self.queue.write_buffer(
             &self.camera_buffer,
-            368,
+            624,
             bytemuck::cast_slice(&sun_col),
         );
         self.cur_sun = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
@@ -529,17 +552,17 @@ impl Renderer {
     /// `direction` points toward the light source (will be normalized in the shader).
     /// `color` is the RGB color, `intensity` is the brightness multiplier.
     pub fn set_fill_light(&mut self, direction: Vec3, color: [f32; 3], intensity: f32) {
-        // fill_direction sits at byte offset 384
+        // fill_direction sits at byte offset 640
         let fill_dir = [direction.x, direction.y, direction.z, intensity];
         let fill_col = [color[0], color[1], color[2], 0.0_f32];
         self.queue.write_buffer(
             &self.camera_buffer,
-            384,
+            640,
             bytemuck::cast_slice(&fill_dir),
         );
         self.queue.write_buffer(
             &self.camera_buffer,
-            400,
+            656,
             bytemuck::cast_slice(&fill_col),
         );
         self.cur_fill = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
@@ -936,15 +959,16 @@ impl Renderer {
             bytemuck::bytes_of(&camera.celestial_uniforms()),
         );
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
-        // stamps the default fake sun [0.3,1,0.5] at offset 352, so re-poke it with
-        // the true Earth->Sun direction. Now the planets' lit hemisphere faces the
-        // visible Sun disc instead of a fixed up-and-right fake light. (The Sun body
-        // itself is emissive, so its own shading is unaffected.)
+        // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
+        // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true
+        // Earth->Sun direction. Now the planets' lit hemisphere faces the visible Sun disc
+        // instead of a fixed up-and-right fake light. (The Sun body itself is emissive, so its
+        // own shading is unaffected.)
         if sun_dir != Vec3::ZERO {
             let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32];
             let sc = [1.0_f32, 0.97, 0.92, 0.0];
-            self.queue.write_buffer(&self.camera_buffer, 352, bytemuck::cast_slice(&sd));
-            self.queue.write_buffer(&self.camera_buffer, 368, bytemuck::cast_slice(&sc));
+            self.queue.write_buffer(&self.camera_buffer, 608, bytemuck::cast_slice(&sd));
+            self.queue.write_buffer(&self.camera_buffer, 624, bytemuck::cast_slice(&sc));
         }
 
         let mut encoder = self

@@ -11,6 +11,8 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{DVec3, Mat4, Quat, Vec3};
 
+use super::light::RoomLight;
+
 /// First-person gravity (m/s^2). Tuned for a snappy game jump rather than realism:
 /// with jump_speed 5.0 it gives a peak height of ~1.0 m.
 const GRAVITY: f32 = 12.0;
@@ -28,6 +30,14 @@ pub struct CameraUniforms {
     pub light_positions: [[f32; 4]; 8],
     /// Point light colors: xyz = color, w = radius.
     pub light_colors: [[f32; 4]; 8],
+    /// Spot cone aim (v0.639): xyz = normalized aim direction in the light-to-fragment sense
+    /// (the direction the fixture points), w = cos(outer cone half-angle). A Point/Bar light
+    /// (no cone) uses the sentinel w = -1.0, which the shader's `spot.w > -1.0` guard skips
+    /// entirely -- zero extra cost, zero behavior change for every pre-existing light.
+    pub light_spot: [[f32; 4]; 8],
+    /// Spot cone inner angle (v0.639): x = cos(inner cone half-angle), yzw = unused padding.
+    /// Only meaningful when the matching `light_spot[i].w > -1.0`.
+    pub light_cone_inner: [[f32; 4]; 8],
     /// x = number of active point lights, yzw = unused.
     pub light_count: [f32; 4],
     /// Directional sun light: xyz = direction (toward light), w = intensity.
@@ -303,6 +313,8 @@ impl Camera {
             view_pos: [pos.x, pos.y, pos.z, 1.0],
             light_positions: [[0.0; 4]; 8],
             light_colors: [[0.0; 4]; 8],
+            light_spot: [[0.0, -1.0, 0.0, -1.0]; 8],
+            light_cone_inner: [[0.0; 4]; 8],
             light_count: [0.0, 0.0, 0.0, 0.0],
             // Default sun: warm sunlight from upper-right (same as former shader constants)
             sun_direction: [0.3, 1.0, 0.5, 2.5],
@@ -324,22 +336,27 @@ impl Camera {
         u
     }
 
-    /// Build GPU uniform data with point lights.
-    /// Each light is (position, color, intensity, radius).
-    pub fn uniforms_with_lights(&self, lights: &[(Vec3, [f32; 3], f32, f32)]) -> CameraUniforms {
+    /// Build GPU uniform data with room lights (v0.639: point OR spot, see `RoomLight`).
+    pub fn uniforms_with_lights(&self, lights: &[RoomLight]) -> CameraUniforms {
         let pos = self.effective_position();
         let mut light_positions = [[0.0_f32; 4]; 8];
         let mut light_colors = [[0.0_f32; 4]; 8];
+        let mut light_spot = [[0.0_f32, -1.0, 0.0, -1.0]; 8];
+        let mut light_cone_inner = [[0.0_f32; 4]; 8];
         let count = lights.len().min(8);
-        for (i, &(ref lpos, color, intensity, radius)) in lights.iter().take(8).enumerate() {
-            light_positions[i] = [lpos.x, lpos.y, lpos.z, intensity];
-            light_colors[i] = [color[0], color[1], color[2], radius];
+        for (i, l) in lights.iter().take(8).enumerate() {
+            light_positions[i] = [l.pos.x, l.pos.y, l.pos.z, l.intensity];
+            light_colors[i] = [l.color[0], l.color[1], l.color[2], l.range];
+            light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
+            light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
         }
         CameraUniforms {
             view_proj: self.view_projection_matrix().to_cols_array_2d(),
             view_pos: [pos.x, pos.y, pos.z, 1.0],
             light_positions,
             light_colors,
+            light_spot,
+            light_cone_inner,
             light_count: [count as f32, 0.0, 0.0, 0.0],
             // Default sun: warm sunlight from upper-right (same as former shader constants)
             sun_direction: [0.3, 1.0, 0.5, 2.5],

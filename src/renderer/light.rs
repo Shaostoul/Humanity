@@ -3,20 +3,24 @@
 //! (`include_str!` + `OnceLock` + lookup-by-id). Pure serde/data -- no GPU types -- so it parses
 //! everywhere.
 //!
-//! The renderer's PBR shader already evaluates up to 8 POINT lights (pos + colour + intensity +
-//! range), plus a directional sun + fill. Stage 1 places lights as DATA and resolves them into that
-//! existing point-light path; `kind` carries Spot/Bar/Emissive for later stages (the shader gains the
-//! cone/length maths then), but today every placed light is uploaded as a point light.
+//! The renderer's PBR shader evaluates up to 8 lights (pos + colour + intensity + range), plus a
+//! directional sun + fill. Stage 1 (v0.571) placed lights as DATA and resolved every kind into the
+//! point-light path; Stage 2 (v0.639) gave `Spot` a REAL cone (aim direction + inner/outer angle,
+//! see `RoomLight` + `spot_cone_attenuation`) evaluated in `pbr_simple.wgsl`. `Bar`/`Emissive` still
+//! resolve as points -- their own shader stages (length falloff, emissive-surface synthesis) are a
+//! later follow-up.
 
+use glam::Vec3;
 use serde::{Deserialize, Serialize};
 
 /// What the light is (a fixed shader capability, so a closed enum -- adding a kind needs shader work,
-/// per infinite-of-X's "closed set with code cost" exception). Stage 1 renders all as Point.
+/// per infinite-of-X's "closed set with code cost" exception). Spot renders a real cone (v0.639);
+/// Bar/Emissive still resolve as a point.
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LightKind {
     #[default]
     Point,
-    /// A cone light (cone_*_deg used). Shader support: a later stage.
+    /// A cone light (cone_*_deg used, real shader cone as of v0.639).
     Spot,
     /// A linear/area light (length_m used). Shader support: a later stage.
     Bar,
@@ -69,6 +73,75 @@ pub fn light_type(id: &str) -> Option<&'static LightType> {
     light_types().iter().find(|t| t.id == id)
 }
 
+/// A light resolved to real GPU-ready values, one per placed (or auto-filled) light (v0.639
+/// spot-cone rebuild). Every light is a point light with an OPTIONAL cone: `cos_outer > -1.0`
+/// marks it spot-shaped; the sentinel `cos_outer == -1.0` means "shine in all directions," and
+/// the shader's cone term is skipped entirely for it -- so every pre-existing Point/Bar light is
+/// bit-for-bit unaffected by this struct's existence.
+#[derive(Debug, Clone, Copy)]
+pub struct RoomLight {
+    pub pos: Vec3,
+    pub color: [f32; 3],
+    pub intensity: f32,
+    pub range: f32,
+    /// Aim direction (light-to-illuminated-area sense). Unused unless `cos_outer > -1.0`.
+    pub dir: Vec3,
+    pub cos_inner: f32,
+    pub cos_outer: f32,
+}
+
+impl RoomLight {
+    /// A plain point light: no cone (the sentinel `cos_outer = -1.0`).
+    pub fn point(pos: Vec3, color: [f32; 3], intensity: f32, range: f32) -> Self {
+        Self { pos, color, intensity, range, dir: Vec3::NEG_Y, cos_inner: -1.0, cos_outer: -1.0 }
+    }
+
+    /// A spot light aimed along `dir` (normalized on construction; a zero-length input falls back
+    /// to straight down so a light with an unset `PlacedLight::dir` still renders instead of NaN-ing
+    /// the cone math), with `cone_inner_deg`/`cone_outer_deg` from the light's `LightType`.
+    pub fn spot(
+        pos: Vec3,
+        color: [f32; 3],
+        intensity: f32,
+        range: f32,
+        dir: Vec3,
+        cone_inner_deg: f32,
+        cone_outer_deg: f32,
+    ) -> Self {
+        let dir = if dir.length_squared() > 1e-6 { dir.normalize() } else { Vec3::NEG_Y };
+        Self {
+            pos,
+            color,
+            intensity,
+            range,
+            dir,
+            cos_inner: cone_inner_deg.to_radians().cos(),
+            cos_outer: cone_outer_deg.to_radians().cos(),
+        }
+    }
+}
+
+/// Cone attenuation factor in [0, 1] for a fragment at direction `light_to_fragment` (normalized,
+/// pointing FROM the light TOWARD the fragment) against a spot aimed along `dir` (same sense).
+/// Pure-Rust mirror of the `pbr_simple.wgsl` fragment-shader cone term -- kept in lockstep so this
+/// is unit-testable without a GPU. `cos_outer <= -1.0` (the Point/Bar sentinel) always returns 1.0,
+/// so a non-spot light is never touched by cone math.
+pub fn spot_cone_attenuation(light_to_fragment: Vec3, dir: Vec3, cos_inner: f32, cos_outer: f32) -> f32 {
+    if cos_outer <= -1.0 {
+        return 1.0;
+    }
+    let cos_angle = dir.normalize_or_zero().dot(light_to_fragment.normalize_or_zero());
+    smoothstep(cos_outer, cos_inner, cos_angle)
+}
+
+/// WGSL-equivalent `smoothstep(edge0, edge1, x)`: 0 at/below `edge0`, 1 at/above `edge1`, smooth
+/// (cubic Hermite) between. `edge0 < edge1` is the caller's job to ensure (cos_outer < cos_inner
+/// holds for any real cone since a wider angle has a smaller cosine).
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,5 +154,74 @@ mod tests {
         assert!(p.intensity > 0.0 && p.range > 0.0, "a usable point light");
         assert!(light_type(&p.id).is_some());
         assert!(light_type("nope").is_none());
+    }
+
+    #[test]
+    fn light_type_registry_has_a_spot_preset_with_a_real_cone() {
+        let types = light_types();
+        let s = types.iter().find(|t| t.kind == LightKind::Spot).expect("a Spot preset exists");
+        assert!(s.cone_outer_deg > s.cone_inner_deg, "outer cone must be wider than inner");
+        assert!(s.cone_inner_deg > 0.0);
+    }
+
+    #[test]
+    fn spot_cone_full_bright_on_axis() {
+        let dir = Vec3::new(0.0, -1.0, 0.0);
+        let cos_inner = 30.0_f32.to_radians().cos();
+        let cos_outer = 45.0_f32.to_radians().cos();
+        // Fragment directly below the fixture: light_to_fragment == dir exactly.
+        let f = spot_cone_attenuation(dir, dir, cos_inner, cos_outer);
+        assert!((f - 1.0).abs() < 1e-4, "on-axis should be full bright, got {f}");
+    }
+
+    #[test]
+    fn spot_cone_cuts_off_past_the_outer_angle() {
+        let dir = Vec3::new(0.0, -1.0, 0.0);
+        let cos_inner = 15.0_f32.to_radians().cos();
+        let cos_outer = 30.0_f32.to_radians().cos();
+        // 90 degrees off-axis: well past the outer cone.
+        let perpendicular = Vec3::new(1.0, 0.0, 0.0);
+        let f = spot_cone_attenuation(perpendicular, dir, cos_inner, cos_outer);
+        assert_eq!(f, 0.0, "90 degrees off-axis must be fully cut off");
+    }
+
+    #[test]
+    fn spot_cone_falls_off_monotonically_between_inner_and_outer() {
+        let dir = Vec3::new(0.0, 0.0, -1.0);
+        let cos_inner = 10.0_f32.to_radians().cos();
+        let cos_outer = 40.0_f32.to_radians().cos();
+        let mut prev = 1.0_f32;
+        for deg in [0.0_f32, 10.0, 20.0, 30.0, 40.0, 50.0] {
+            let rad = deg.to_radians();
+            let sample = Vec3::new(rad.sin(), 0.0, -rad.cos()).normalize();
+            let f = spot_cone_attenuation(sample, dir, cos_inner, cos_outer);
+            assert!(f <= prev + 1e-4, "cone factor must not increase as angle grows ({deg} deg: {f} > {prev})");
+            prev = f;
+        }
+        assert_eq!(prev, 0.0, "well past the outer angle must be fully cut off");
+    }
+
+    #[test]
+    fn spot_cone_sentinel_leaves_point_and_bar_lights_untouched() {
+        // cos_outer == -1.0 is the Point/Bar sentinel: full bright from every direction.
+        let dir = Vec3::new(0.3, -0.9, 0.1);
+        for probe in [Vec3::X, Vec3::Y, Vec3::Z, -Vec3::X, dir] {
+            let f = spot_cone_attenuation(probe, dir, -1.0, -1.0);
+            assert_eq!(f, 1.0, "a non-spot light must never be dimmed by cone math");
+        }
+    }
+
+    #[test]
+    fn room_light_point_and_spot_constructors_produce_expected_sentinels() {
+        let p = RoomLight::point(Vec3::ZERO, [1.0, 1.0, 1.0], 5.0, 3.0);
+        assert_eq!(p.cos_outer, -1.0, "point light must carry the no-cone sentinel");
+
+        let s = RoomLight::spot(Vec3::ZERO, [1.0, 1.0, 1.0], 5.0, 3.0, Vec3::new(0.0, -2.0, 0.0), 20.0, 40.0);
+        assert!((s.dir.length() - 1.0).abs() < 1e-5, "spot direction must be normalized");
+        assert!(s.cos_outer > -1.0 && s.cos_outer < s.cos_inner, "a real cone: outer wider than inner");
+
+        // A zero-length dir must not NaN the light -- falls back to straight down.
+        let degenerate = RoomLight::spot(Vec3::ZERO, [1.0, 1.0, 1.0], 5.0, 3.0, Vec3::ZERO, 20.0, 40.0);
+        assert_eq!(degenerate.dir, Vec3::NEG_Y);
     }
 }

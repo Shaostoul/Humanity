@@ -1053,7 +1053,7 @@ mod native_app {
             let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
             let room_size = r.dimensions.x.max(r.dimensions.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
-            (light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
+            crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
         }).collect();
         // v0.571: a home's PLACED lights override the auto one-per-room synthesis (empty -> auto).
         state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
@@ -1589,10 +1589,11 @@ mod native_app {
     /// is on). With NO placed lights the old behaviour is unchanged (auto fill when GI on, dark when off).
     fn home_lights(
         home: Option<&crate::ship::home_structure::HomeStructure>,
-        auto: Vec<(Vec3, [f32; 3], f32, f32)>,
+        auto: Vec<crate::renderer::light::RoomLight>,
         gi_on: bool,
-    ) -> Vec<(Vec3, [f32; 3], f32, f32)> {
-        let placed: Vec<(Vec3, [f32; 3], f32, f32)> = home
+    ) -> Vec<crate::renderer::light::RoomLight> {
+        use crate::renderer::light::{LightKind, RoomLight};
+        let placed: Vec<RoomLight> = home
             .map(|h| {
                 h.lights
                     .iter()
@@ -1600,12 +1601,16 @@ mod native_app {
                     .filter_map(|l| {
                         let t = crate::renderer::light::light_type(&l.type_id)?;
                         let c = l.color.unwrap_or(t.color);
-                        Some((
-                            Vec3::new(l.pos.0, l.pos.1, l.pos.2),
-                            [c.0, c.1, c.2],
-                            l.intensity.unwrap_or(t.intensity),
-                            l.range.unwrap_or(t.range),
-                        ))
+                        let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2);
+                        let color = [c.0, c.1, c.2];
+                        let intensity = l.intensity.unwrap_or(t.intensity);
+                        let range = l.range.unwrap_or(t.range);
+                        Some(if t.kind == LightKind::Spot {
+                            let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
+                            RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)
+                        } else {
+                            RoomLight::point(pos, color, intensity, range)
+                        })
                     })
                     .collect()
             })
@@ -3469,7 +3474,7 @@ mod native_app {
             let room_size = r.dimensions.x.max(r.dimensions.z);
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
             let radius = room_size * 1.5;
-            (light_pos, [1.0, 0.95, 0.85], intensity, radius)
+            crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, radius)
         }).collect();
         // v0.571: placed lights override the auto synthesis (empty -> auto).
         state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
@@ -4449,7 +4454,7 @@ mod native_app {
         /// Hologram room center (from data-driven layout).
         hologram_room_center: Vec3,
         /// Room ceiling lights: (position, color, intensity, radius).
-        room_lights: Vec<(Vec3, [f32; 3], f32, f32)>,
+        room_lights: Vec<crate::renderer::light::RoomLight>,
         /// Sealed homestead volume AABB (min, max), encompassing all rooms — the
         /// survival environment context: inside = oxygenated/heated, outside =
         /// vacuum/cold. None until the homestead generates.
@@ -10519,12 +10524,14 @@ mod native_app {
                                         let locked = door_locked_now(p, dl.get(i));
                                         let color = if locked { [1.0, 0.25, 0.28] } else { [0.30, 1.0, 0.45] };
                                         let c = p.center;
-                                        lights.push((Vec3::new(c.x, c.y + p.size.y * 0.5, c.z), color, 5.0, 4.5));
+                                        lights.push(crate::renderer::light::RoomLight::point(
+                                            Vec3::new(c.x, c.y + p.size.y * 0.5, c.z), color, 5.0, 4.5,
+                                        ));
                                     }
                                     // Sort by distance to camera, take nearest 8
                                     lights.sort_by(|a, b| {
-                                        let da = (a.0 - cam_pos).length_squared();
-                                        let db = (b.0 - cam_pos).length_squared();
+                                        let da = (a.pos - cam_pos).length_squared();
+                                        let db = (b.pos - cam_pos).length_squared();
                                         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                                     });
                                     lights.truncate(8);

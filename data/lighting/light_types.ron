@@ -1,8 +1,9 @@
 // HumanityOS LIGHT TYPES -- the catalog of placeable lights. `id` is what a placed light stores.
-// The renderer evaluates up to 8 POINT lights at once; Stage 1 uploads every placed light as a point
-// light, so kind Spot/Bar/Emissive render as points for now (the cone/length maths is a later stage).
-// color is linear RGB; intensity is the brightness multiplier; range is the falloff radius in metres.
-// Add a light by adding a line here -- the construction editor lists every entry in its Add picker.
+// The renderer evaluates up to 8 lights at once. A Spot light renders a REAL cone (v0.639, aim it
+// via the construction editor's yaw/pitch control); Bar still uploads as a point for now (the
+// length shading is a later stage). color is linear RGB; intensity is the brightness multiplier;
+// range is the falloff radius in metres. Add a light by adding a line here -- the construction
+// editor lists every entry in its Add picker.
 [
     ( id: "ceiling_panel", name: "Ceiling Panel", kind: Point,
       color: (1.0, 0.95, 0.85), intensity: 9.0, range: 7.0,
@@ -15,7 +16,7 @@
       note: "Cool daylight-white work light." ),
     ( id: "spotlight", name: "Spotlight", kind: Spot,
       color: (1.0, 1.0, 1.0), intensity: 12.0, range: 10.0, cone_inner_deg: 18.0, cone_outer_deg: 28.0,
-      note: "A focused cone (renders as a point until cone shading lands)." ),
+      note: "A focused cone -- aim it with the yaw/pitch control in the light's detail panel." ),
     ( id: "strip", name: "Light Strip", kind: Bar,
       color: (0.9, 0.95, 1.0), intensity: 6.0, range: 5.0, length_m: 2.0,
       note: "A linear strip (renders as a point until bar shading lands)." ),

@@ -26,6 +26,25 @@ struct CameraUniforms {
     light5_color: vec4<f32>,
     light6_color: vec4<f32>,
     light7_color: vec4<f32>,
+    // Spot cone aim (v0.639): xyz = aim direction (light-to-fragment sense), w = cos(outer
+    // cone half-angle). w == -1.0 is the Point/Bar sentinel -- no cone, skipped entirely.
+    light0_spot: vec4<f32>,
+    light1_spot: vec4<f32>,
+    light2_spot: vec4<f32>,
+    light3_spot: vec4<f32>,
+    light4_spot: vec4<f32>,
+    light5_spot: vec4<f32>,
+    light6_spot: vec4<f32>,
+    light7_spot: vec4<f32>,
+    // Spot cone inner angle: x = cos(inner cone half-angle), yzw unused.
+    light0_cone_inner: vec4<f32>,
+    light1_cone_inner: vec4<f32>,
+    light2_cone_inner: vec4<f32>,
+    light3_cone_inner: vec4<f32>,
+    light4_cone_inner: vec4<f32>,
+    light5_cone_inner: vec4<f32>,
+    light6_cone_inner: vec4<f32>,
+    light7_cone_inner: vec4<f32>,
     // x = number of active point lights
     light_count: vec4<f32>,
     // Directional sun light: xyz = direction (toward light), w = intensity
@@ -426,7 +445,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
         normal, view_dir, albedo, metallic, roughness, f0);
 
-    // Point lights
+    // Point + spot lights
     let positions = array<vec4<f32>, 8>(
         camera.light0, camera.light1, camera.light2, camera.light3,
         camera.light4, camera.light5, camera.light6, camera.light7,
@@ -434,6 +453,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let colors = array<vec4<f32>, 8>(
         camera.light0_color, camera.light1_color, camera.light2_color, camera.light3_color,
         camera.light4_color, camera.light5_color, camera.light6_color, camera.light7_color,
+    );
+    let spots = array<vec4<f32>, 8>(
+        camera.light0_spot, camera.light1_spot, camera.light2_spot, camera.light3_spot,
+        camera.light4_spot, camera.light5_spot, camera.light6_spot, camera.light7_spot,
+    );
+    let cone_inners = array<vec4<f32>, 8>(
+        camera.light0_cone_inner, camera.light1_cone_inner, camera.light2_cone_inner, camera.light3_cone_inner,
+        camera.light4_cone_inner, camera.light5_cone_inner, camera.light6_cone_inner, camera.light7_cone_inner,
     );
     let num_lights = i32(camera.light_count.x);
     for (var i = 0; i < 8; i = i + 1) {
@@ -448,7 +475,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let light_dir = to_light / max(dist, 0.001);
 
         // Attenuation: inverse square with radius falloff
-        let attenuation = intensity / (1.0 + dist * dist) * max(1.0 - dist / max(radius, 0.001), 0.0);
+        var attenuation = intensity / (1.0 + dist * dist) * max(1.0 - dist / max(radius, 0.001), 0.0);
+
+        // Spot cone (v0.639): cos_outer == -1.0 is the Point/Bar sentinel, so this only narrows
+        // an actual spot light -- zero extra cost/behavior change for every other light.
+        let spot = spots[i];
+        let cos_outer = spot.w;
+        if (cos_outer > -1.0) {
+            let cos_inner = cone_inners[i].x;
+            // spot.xyz is the aim direction in the light-to-fragment sense; -light_dir (which
+            // points fragment-to-light) flips to the same sense for the dot product.
+            let cos_angle = dot(normalize(spot.xyz), -light_dir);
+            attenuation = attenuation * smoothstep(cos_outer, cos_inner, cos_angle);
+        }
 
         if (attenuation > 0.001) {
             lo = lo + evaluate_light(light_dir, light_color, attenuation, normal, view_dir, albedo, metallic, roughness, f0);

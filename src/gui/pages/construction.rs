@@ -1193,6 +1193,27 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 changed = true;
             }
         });
+        // Aim (v0.639): only a Spot light has a cone to point, so this is invisible for
+        // Point/Bar/Emissive -- the same yaw/pitch convention the free camera uses (see
+        // Camera::forward), so "yaw 0, pitch -90" reads intuitively as "straight down."
+        if t.map(|t| t.kind) == Some(crate::renderer::light::LightKind::Spot) {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("aim").size(theme.font_size_small).color(theme.text_muted()));
+                let d = glam::Vec3::new(light.dir.0, light.dir.1, light.dir.2);
+                let d = if d.length_squared() > 1e-6 { d.normalize() } else { glam::Vec3::new(0.0, -1.0, 0.0) };
+                let mut pitch_deg = d.y.clamp(-1.0, 1.0).asin().to_degrees();
+                let mut yaw_deg = d.x.atan2(-d.z).to_degrees();
+                let mut aim_changed = false;
+                aim_changed |= ui.add(egui::DragValue::new(&mut yaw_deg).speed(1.0).prefix("yaw ").suffix(" deg")).changed();
+                aim_changed |= ui.add(egui::DragValue::new(&mut pitch_deg).speed(1.0).range(-89.0..=89.0).prefix("pitch ").suffix(" deg")).changed();
+                if aim_changed {
+                    let yaw = yaw_deg.to_radians();
+                    let pitch = pitch_deg.to_radians();
+                    light.dir = (yaw.sin() * pitch.cos(), pitch.sin(), -yaw.cos() * pitch.cos());
+                    changed = true;
+                }
+            });
+        }
     }
     ui.add_space(theme.spacing_md);
     ui.horizontal(|ui| {
