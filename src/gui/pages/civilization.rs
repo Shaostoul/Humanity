@@ -153,7 +153,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 }
 
 /// Draw a stat card with large number, trend arrow, and optional progress bar.
-fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, trend: &str, progress: f32) {
+/// pub(crate): the Humanity Mission Dashboard reuses it for its scoreboard
+/// (v0.662) so the two pages' stat tiles stay one visual language.
+pub(crate) fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, trend: &str, progress: f32) {
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(180.0);
         ui.label(

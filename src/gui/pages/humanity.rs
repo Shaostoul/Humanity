@@ -149,14 +149,26 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
 /// The mission of our civilization. The landing the H button deserves.
 fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // Hero
-    ui.add_space(theme.spacing_lg);
-    ui.label(
-        RichText::new("HumanityOS")
-            .size(theme.font_size_title * 1.3)
-            .strong()
-            .color(theme.text_primary()),
-    );
+    // Hero: an accent top rule + a heart icon badge next to the title (visual
+    // pass, v0.662 -- the page read as "slapped together" with 9 identical grey
+    // cards and a bare text hero).
+    ui.add_space(theme.spacing_sm);
+    let rule_w = ui.available_width();
+    let (rule, _) = ui.allocate_exact_size(egui::Vec2::new(rule_w, 3.0), egui::Sense::hover());
+    ui.painter().rect_filled(rule, Rounding::same(2), theme.accent());
+    ui.add_space(theme.spacing_md);
+    ui.horizontal(|ui| {
+        let (badge, _) = ui.allocate_exact_size(egui::Vec2::splat(36.0), egui::Sense::hover());
+        ui.painter().rect_filled(badge, Rounding::same(8), theme.accent());
+        widgets::icons::paint_heart(ui.painter(), badge.shrink(8.0), theme.text_on_accent());
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new("HumanityOS")
+                .size(theme.font_size_title * 1.3)
+                .strong()
+                .color(theme.text_primary()),
+        );
+    });
     ui.add_space(theme.spacing_xs);
     ui.label(
         RichText::new("End poverty. Unite humanity.")
@@ -185,7 +197,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
 
     // Start here: the first action a newcomer can take, right under the hero, so
     // the page leads with "what do I do" before the deeper manifesto below.
-    widgets::card_with_header(ui, theme, "Start here", |ui| {
+    accent_card_with_header(ui, theme, "Start here", |ui| {
         ui.label(
             RichText::new("New here? Pick a place to begin, then read as much or as little below as you like.")
                 .size(theme.font_size_small)
@@ -211,7 +223,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_md);
 
     // Why this exists (the personal "why" that grounds the grand mission)
-    widgets::card_with_header(ui, theme, "Why this exists", |ui| {
+    quiet_card_with_header(ui, theme, "Why this exists", |ui| {
         ui.label(
             RichText::new("HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.")
                 .size(theme.font_size_body)
@@ -231,7 +243,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     // real users is how it gets fixed; no small team can test everything). Sits
     // high, right after the personal why, so it frames the capability claims that
     // follow (which themselves flag anything not ready as "in progress").
-    widgets::card_with_header(ui, theme, "Early days, built in the open", |ui| {
+    quiet_card_with_header(ui, theme, "Early days, built in the open", |ui| {
         ui.label(
             RichText::new("HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.")
                 .size(theme.font_size_body)
@@ -247,7 +259,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_md);
 
     // The mission
-    widgets::card_with_header(ui, theme, "Our mission", |ui| {
+    quiet_card_with_header(ui, theme, "Our mission", |ui| {
         ui.label(
             RichText::new("We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.")
                 .size(theme.font_size_body)
@@ -354,7 +366,7 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     ui.add_space(theme.spacing_md);
 
     // How we get there (three scopes)
-    widgets::card_with_header(ui, theme, "How we get there", |ui| {
+    quiet_card_with_header(ui, theme, "How we get there", |ui| {
         scope_block(
             ui,
             theme,
@@ -388,9 +400,12 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             // chat_users is real (people connected to this server now). Platform
             // wide totals (humans/AI onboarded, donations, federation) need a
             // relay fetch, wired next; honestly framed for now, never faked.
-            metric(ui, theme, &state.chat_users.len().to_string(), "People online now");
-            metric(ui, theme, "Yes", "AI building alongside us");
-            metric(ui, theme, "Forming", "Federated communities");
+            // Stat cards reuse civilization.rs's draw_stat_card (v0.662) so the
+            // two dashboards share one visual language; trend/progress stay
+            // empty until real platform-wide numbers exist (never fabricated).
+            super::civilization::draw_stat_card(ui, theme, "People online now", &state.chat_users.len().to_string(), "", 0.0);
+            super::civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
+            super::civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
         });
     });
     ui.add_space(theme.spacing_md);
@@ -422,6 +437,54 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             .color(theme.text_secondary()),
     );
     ui.add_space(theme.spacing_lg);
+}
+
+/// Emphasized card: accent-stroked, for the page's primary call to action
+/// ("Start here"). Part of the v0.662 visual-weight pass: the CTA pops, the
+/// long-form essays recede, instead of nine identical grey cards.
+fn accent_card_with_header(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .stroke(Stroke::new(1.5, theme.accent()))
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new(title)
+                    .size(theme.font_size_heading)
+                    .color(theme.accent()),
+            );
+            ui.add_space(theme.spacing_sm);
+            add_contents(ui);
+        });
+}
+
+/// Quiet card: borderless, for long-form essay/manifesto sections that should
+/// read as prose blocks rather than compete with the calls to action.
+fn quiet_card_with_header(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    Frame::none()
+        .fill(theme.bg_card())
+        .rounding(Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new(title)
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary()),
+            );
+            ui.add_space(theme.spacing_sm);
+            add_contents(ui);
+        });
 }
 
 /// A chip naming one of the five things the mission ends.
@@ -458,26 +521,6 @@ fn scope_block(ui: &mut egui::Ui, theme: &Theme, title: &str, body: &str) {
     ui.add_space(theme.spacing_xs);
 }
 
-/// A scoreboard tile: a big value over a small label.
-fn metric(ui: &mut egui::Ui, theme: &Theme, value: &str, label: &str) {
-    Frame::none()
-        .fill(theme.bg_card())
-        .rounding(Rounding::same(6))
-        .inner_margin(Margin::symmetric(14, 10))
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(value)
-                        .size(theme.font_size_title)
-                        .strong()
-                        .color(theme.accent()),
-                );
-                ui.label(
-                    RichText::new(label)
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-            });
-        });
-    ui.add_space(8.0);
-}
+// The old local `metric` tile was replaced by civilization.rs's shared
+// `draw_stat_card` (v0.662) so the Mission Dashboard and Civilization pages
+// share one stat-tile visual language.
