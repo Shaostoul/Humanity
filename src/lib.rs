@@ -9220,6 +9220,45 @@ mod native_app {
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
                                         state.gui_state.server_connected = true;
+                                        // Fetch this server's real donation info (GET /api/server-info's
+                                        // `funding` field) so the Donate page shows the connected server's
+                                        // actual addresses instead of relying on the user (or a self-hosting
+                                        // operator) having hand-typed them into Settings -- native previously
+                                        // never fetched this at all (only the web client did). Donation info
+                                        // is money-routing data, so (adversarial review 2026-07-01): funding
+                                        // carried over from a DIFFERENT server is cleared immediately, and an
+                                        // in-flight fetch aimed at a different server is replaced (dropping
+                                        // its receiver -- the late send fails harmlessly) rather than left to
+                                        // land its result under the wrong server.
+                                        {
+                                            let url = state.gui_state.server_url.trim_end_matches('/').to_string();
+                                            if state.gui_state.donate_funding_server != url {
+                                                state.gui_state.donate_funding_server.clear();
+                                                state.gui_state.donate_addresses_server.clear();
+                                                state.gui_state.donate_funding_goal = None;
+                                            }
+                                            let already_fetching = state
+                                                .gui_state
+                                                .donate_info_rx
+                                                .as_ref()
+                                                .map_or(false, |(u, _)| *u == url);
+                                            if !already_fetching {
+                                                let api = format!("{}/api/server-info", url);
+                                                let (tx, rx) = std::sync::mpsc::channel();
+                                                std::thread::spawn(move || {
+                                                    let result = (|| -> Result<crate::gui::ServerInfo, String> {
+                                                        let resp = ureq::get(&api)
+                                                            .timeout(std::time::Duration::from_secs(10))
+                                                            .call()
+                                                            .map_err(|e| e.to_string())?;
+                                                        let body = resp.into_string().map_err(|e| e.to_string())?;
+                                                        serde_json::from_str::<crate::gui::ServerInfo>(&body).map_err(|e| e.to_string())
+                                                    })();
+                                                    let _ = tx.send(result);
+                                                });
+                                                state.gui_state.donate_info_rx = Some((url, rx));
+                                            }
+                                        }
                                         // Request tasks from server on connect
                                         if let Some(ref ws_client) = state.gui_state.ws_client {
                                             let get_tasks = serde_json::json!({"type": "task_list"});
@@ -11131,6 +11170,32 @@ mod native_app {
                             // authority, so no `cursor_free` desync. (v0.460)
                             let _ = page_before_frame;
                             reconcile_cursor(state);
+
+                            // Land the connect-time donation-info fetch (spawned in the
+                            // `peer_list` WS handler) whenever it finishes -- polled here
+                            // rather than in the Donate page's own draw fn so it lands even
+                            // if the user is elsewhere in the app when it completes.
+                            if let Some((from_url, rx)) = &state.gui_state.donate_info_rx {
+                                match rx.try_recv() {
+                                    Ok(res) => {
+                                        let from_url = from_url.clone();
+                                        state.gui_state.donate_info_rx = None;
+                                        if let Ok(info) = res {
+                                            // apply_server_funding discards a result tagged with a
+                                            // server we've since switched away from, and clears the
+                                            // fields when this server reports no funding -- both the
+                                            // adversarial review's findings. Fetch errors leave the
+                                            // fields as the connect handler set them (cleared unless
+                                            // still on the same server).
+                                            state.gui_state.apply_server_funding(&from_url, info.funding.as_ref());
+                                        }
+                                    }
+                                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                        state.gui_state.donate_info_rx = None;
+                                    }
+                                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                                }
+                            }
 
                             // ── Apply settings changes from GUI to engine ──
                             if state.gui_state.settings_dirty {

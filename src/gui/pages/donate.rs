@@ -53,12 +53,19 @@ fn network_abbrev(name: &str) -> String {
 }
 
 /// Build donation sources from the dynamic addresses in GuiState.
+/// Preference order: the CONNECTED server's funding list (fetched from
+/// /api/server-info on connect, v0.659) > the locally-configured Settings list
+/// (a self-hosting operator's own) > the legacy hardcoded fallback.
 fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
     let mut sources = Vec::new();
 
-    // Use dynamic addresses if available
-    if !state.donate_addresses.is_empty() {
-        for addr in &state.donate_addresses {
+    let dynamic = if !state.donate_addresses_server.is_empty() {
+        &state.donate_addresses_server
+    } else {
+        &state.donate_addresses
+    };
+    if !dynamic.is_empty() {
+        for addr in dynamic {
             let abbrev = network_abbrev(&addr.network);
             let color = network_color(&addr.network);
             sources.push(DonationSource {
@@ -172,44 +179,38 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
                 ui.add_space(theme.spacing_lg);
 
-                // Funding goal progress bar
-                widgets::card(ui, theme, |ui| {
-                    ui.horizontal(|ui| {
+                // Funding goal -- the CONNECTED server's real goal from
+                // /api/server-info `funding.goal_usd`/`goal_label` (v0.659). Only
+                // renders when a real goal exists; the old card showed a hardcoded
+                // fake "$350 / $1000 -- 35% funded" progress bar regardless of
+                // reality (same honesty bug class as Studio's fake bitrate). No
+                // progress fraction is drawn because nothing tracks "raised so
+                // far" yet -- a bar would just be a fabricated number again.
+                if let Some((goal_usd, goal_label)) = &state.donate_funding_goal {
+                    widgets::card(ui, theme, |ui| {
                         ui.label(
-                            RichText::new("Monthly Funding Goal")
+                            RichText::new("Funding Goal")
                                 .size(theme.font_size_heading)
                                 .color(theme.text_primary()),
                         );
-                    });
-                    ui.add_space(theme.spacing_sm);
-
-                    let current = 350.0_f32;
-                    let target = 1000.0_f32;
-                    let progress = current / target;
-
-                    let bar = egui::ProgressBar::new(progress.clamp(0.0, 1.0))
-                        .fill(theme.accent())
-                        .text(format!("${:.0} / ${:.0}", current, target));
-                    ui.add(bar);
-
-                    ui.add_space(theme.spacing_xs);
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new(format!("{:.0}% funded", progress * 100.0))
-                                .size(theme.font_size_body)
-                                .color(theme.accent()),
-                        );
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.add_space(theme.spacing_sm);
+                        ui.horizontal(|ui| {
                             ui.label(
-                                RichText::new("Covers server hosting, domain, and dev tools")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
+                                RichText::new(format!("${:.0}", goal_usd))
+                                    .size(theme.title_size)
+                                    .color(theme.accent()),
                             );
+                            if !goal_label.is_empty() {
+                                ui.label(
+                                    RichText::new(goal_label.as_str())
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_secondary()),
+                                );
+                            }
                         });
                     });
-                });
-
-                ui.add_space(theme.spacing_lg);
+                    ui.add_space(theme.spacing_lg);
+                }
 
                 // Donation method cards
                 ui.label(

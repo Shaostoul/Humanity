@@ -634,8 +634,18 @@ Bug reporting/tracking.
 - Native: `src/gui/pages/bugs.rs`
 
 ### Donate Page
-Donation page with admin address management.
-- Native: `src/gui/pages/donate.rs`
+Donation page. As of v0.659 native fetches the CONNECTED server's real funding info
+(GET /api/server-info `funding.addresses` + `goal_usd`/`goal_label`) on connect --
+previously only the web client did this and native's list stayed empty unless a
+self-hosting operator hand-typed addresses into Settings. Server-fetched funding
+lives in `donate_addresses_server` (never persisted, so it can't clobber the
+operator's local Settings list), is cleared/discarded whenever the connected server
+changes (money-routing data: server A's addresses must never display as server B's
+-- `GuiState::apply_server_funding` + tests), and the old hardcoded fake
+"$350 / $1000" progress bar is replaced by a card showing the server's REAL goal
+only when one exists. Preference order on the page: server list > local Settings
+list > legacy fallback.
+- Native: `src/gui/pages/donate.rs` (`build_donation_sources`), `src/gui/mod.rs` (`ServerInfo.funding`, `DonateAddress::from_funding_json`, `GuiState::apply_server_funding`), `src/lib.rs` (connect-time fetch in the `peer_list` handler + per-frame drain)
 
 ---
 

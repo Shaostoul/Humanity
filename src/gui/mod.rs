@@ -57,6 +57,135 @@ pub struct DonateAddress {
     pub label: String,
 }
 
+#[cfg(feature = "native")]
+impl DonateAddress {
+    /// Parse the server's `/api/server-info` `funding` object into address entries.
+    /// Entries with an empty `value` are skipped (the shipped server-config.json
+    /// leaves placeholder rows blank until the operator fills them in), so an
+    /// unconfigured network never renders as a dead button on the Donate page.
+    pub fn from_funding_json(funding: &serde_json::Value) -> Vec<Self> {
+        let Some(addrs) = funding.get("addresses").and_then(|v| v.as_array()) else {
+            return Vec::new();
+        };
+        addrs
+            .iter()
+            .filter_map(|a| {
+                let value = a.get("value").and_then(|v| v.as_str()).unwrap_or("");
+                if value.is_empty() {
+                    return None;
+                }
+                Some(Self {
+                    network: a.get("network").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    addr_type: a.get("type").and_then(|v| v.as_str()).unwrap_or("address").to_string(),
+                    value: value.to_string(),
+                    label: a.get("label").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                })
+            })
+            .collect()
+    }
+}
+
+#[cfg(feature = "native")]
+impl GuiState {
+    /// Land a finished connect-time /api/server-info fetch into the Donate page's
+    /// server-funding fields. `from_url` is the trimmed server URL the fetch was
+    /// sent to; a result from a server we are no longer connected to is DISCARDED
+    /// (donation info is money-routing data -- showing server A's addresses while
+    /// connected to server B sends a donor's money to the wrong operator). A
+    /// matching result always REPLACES both fields, so a server whose funding is
+    /// disabled/absent clears any previously-shown list instead of inheriting it.
+    pub fn apply_server_funding(&mut self, from_url: &str, funding: Option<&serde_json::Value>) {
+        if from_url != self.server_url.trim_end_matches('/') {
+            return;
+        }
+        self.donate_funding_server = from_url.to_string();
+        self.donate_addresses_server = funding.map(DonateAddress::from_funding_json).unwrap_or_default();
+        self.donate_funding_goal = funding.and_then(|f| {
+            f.get("goal_usd").and_then(|v| v.as_f64()).filter(|g| *g > 0.0).map(|goal| {
+                let label = f.get("goal_label").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                (goal, label)
+            })
+        });
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod donate_funding_tests {
+    use super::{DonateAddress, GuiState};
+
+    #[test]
+    fn funding_result_from_the_connected_server_lands_and_absent_funding_clears() {
+        let mut state = GuiState::default();
+        state.server_url = "https://united-humanity.us/".to_string();
+        let funding = serde_json::json!({
+            "goal_usd": 100000.0, "goal_label": "Full-time development",
+            "addresses": [{"network": "GitHub Sponsors", "type": "url",
+                           "value": "https://github.com/sponsors/Shaostoul", "label": "x"}]
+        });
+        state.apply_server_funding("https://united-humanity.us", Some(&funding));
+        assert_eq!(state.donate_addresses_server.len(), 1);
+        assert_eq!(state.donate_funding_goal, Some((100000.0, "Full-time development".to_string())));
+
+        // Reconnect-to-a-server-without-funding: the SAME url reporting no funding
+        // must CLEAR the fields, not leave the old list showing (the adversarial
+        // review's major finding: stale addresses = money to the wrong operator).
+        state.apply_server_funding("https://united-humanity.us", None);
+        assert!(state.donate_addresses_server.is_empty(), "absent funding clears the list");
+        assert!(state.donate_funding_goal.is_none(), "absent funding clears the goal");
+    }
+
+    #[test]
+    fn late_result_from_a_previous_server_is_discarded() {
+        let mut state = GuiState::default();
+        state.server_url = "https://server-b.example".to_string();
+        let funding_a = serde_json::json!({
+            "addresses": [{"network": "Bitcoin (BTC)", "type": "address", "value": "bc1qA", "label": ""}]
+        });
+        // A stale fetch tagged with server A's url lands while connected to B.
+        state.apply_server_funding("https://server-a.example", Some(&funding_a));
+        assert!(state.donate_addresses_server.is_empty(), "server A's addresses must not display on server B");
+        assert!(state.donate_funding_server.is_empty());
+    }
+
+    #[test]
+    fn parses_filled_entries_and_skips_blank_placeholders() {
+        // Mirrors the real shipped server-config.json shape: GitHub Sponsors is
+        // filled in, the crypto rows are blank placeholders awaiting the operator.
+        let funding = serde_json::json!({
+            "enabled": true,
+            "goal_usd": 100000,
+            "addresses": [
+                {"network": "GitHub Sponsors", "type": "url",
+                 "value": "https://github.com/sponsors/Shaostoul", "label": "Recurring or one-time"},
+                {"network": "Solana (SOL)", "type": "address", "value": "", "label": "Send SOL"},
+                {"network": "Bitcoin (BTC)", "type": "address", "value": "", "label": "Send BTC"},
+            ]
+        });
+        let parsed = DonateAddress::from_funding_json(&funding);
+        assert_eq!(parsed.len(), 1, "blank-value placeholder rows are dropped");
+        assert_eq!(parsed[0].network, "GitHub Sponsors");
+        assert_eq!(parsed[0].addr_type, "url");
+        assert_eq!(parsed[0].value, "https://github.com/sponsors/Shaostoul");
+        assert_eq!(parsed[0].label, "Recurring or one-time");
+    }
+
+    #[test]
+    fn missing_or_malformed_addresses_yield_empty_not_panic() {
+        assert!(DonateAddress::from_funding_json(&serde_json::json!({"enabled": true})).is_empty());
+        assert!(DonateAddress::from_funding_json(&serde_json::json!({"addresses": "oops"})).is_empty());
+        assert!(DonateAddress::from_funding_json(&serde_json::json!(null)).is_empty());
+    }
+
+    #[test]
+    fn missing_type_defaults_to_address() {
+        let funding = serde_json::json!({"addresses": [{"network": "X", "value": "abc123"}]});
+        let parsed = DonateAddress::from_funding_json(&funding);
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].addr_type, "address");
+        assert_eq!(parsed[0].label, "");
+    }
+}
+
 /// What the passphrase / PIN prompt is for.
 ///
 /// The first three (SetNew, Unlock, Change) gate the BIP39-derived passphrase
@@ -107,6 +236,11 @@ pub struct ServerInfo {
     pub channels: Vec<String>,
     #[serde(default)]
     pub owner_key: String,
+    /// Donation config, present only when the server has `funding.enabled: true`
+    /// in its `server-config.json` (the relay omits the field entirely otherwise).
+    /// Shape: `{"enabled":true,"goal_usd":...,"addresses":[{"network","type","value","label"}]}`.
+    #[serde(default)]
+    pub funding: Option<serde_json::Value>,
 }
 
 /// Which kind of thing the unified launcher (the showroom in character-select
@@ -1821,8 +1955,37 @@ pub struct GuiState {
     pub donate_solana_address: String,
     /// Admin-configurable Bitcoin donation address (legacy).
     pub donate_btc_address: String,
-    /// Dynamic donation addresses fetched from server config.
+    /// Dynamic donation addresses configured LOCALLY in Settings (persisted to
+    /// AppConfig -- this is a self-hosting operator's own list).
     pub donate_addresses: Vec<DonateAddress>,
+    /// Donation addresses fetched from the CONNECTED server's GET /api/server-info
+    /// `funding.addresses` (v0.659). Kept separate from `donate_addresses` on
+    /// purpose: this list is never persisted (AppConfig ignores it), so a server's
+    /// funding info can never clobber an operator's hand-configured local list,
+    /// and it refreshes from the server on every connect. The Donate page prefers
+    /// this list when non-empty. Previously only the web client fetched this;
+    /// native's Donate page stayed empty for everyone except a self-hosting
+    /// operator who had manually filled in Settings.
+    pub donate_addresses_server: Vec<DonateAddress>,
+    /// The connected server's funding goal, from `funding.goal_usd` +
+    /// `funding.goal_label` (v0.659). Replaces the Donate page's old hardcoded
+    /// fake "$350 / $1000" progress bar -- the card only renders when a real
+    /// goal exists.
+    pub donate_funding_goal: Option<(f64, String)>,
+    /// Which server (trimmed URL) the two fields above came from. Donation info is
+    /// MONEY-ROUTING data: server A's addresses must never be displayed while
+    /// connected to server B (adversarial review, 2026-07-01), so the connect
+    /// handler clears the fields whenever this doesn't match the new server, and
+    /// `apply_server_funding` discards results that arrive tagged with a URL we
+    /// are no longer connected to.
+    pub donate_funding_server: String,
+    /// In-flight GET {url}/api/server-info fetch spawned on connect (the
+    /// `peer_list` handler in lib.rs), tagged with the trimmed server URL it was
+    /// sent to (same style as `server_info_loader`); drained once per frame in
+    /// the render loop via `apply_server_funding`. Replaced (old receiver
+    /// dropped, its late send fails harmlessly) when a connect targets a
+    /// different server, so a stalled fetch can't block future ones.
+    pub donate_info_rx: Option<(String, std::sync::mpsc::Receiver<Result<ServerInfo, String>>)>,
     /// Temp fields for the "Add Address" form in settings.
     pub donate_new_network: String,
     /// Temp type for new address ("address" or "url").
@@ -2809,6 +2972,10 @@ impl Default for GuiState {
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
+            donate_addresses_server: Vec::new(),
+            donate_funding_goal: None,
+            donate_funding_server: String::new(),
+            donate_info_rx: None,
             donate_new_network: String::new(),
             donate_new_type: "address".into(),
             donate_new_value: String::new(),
