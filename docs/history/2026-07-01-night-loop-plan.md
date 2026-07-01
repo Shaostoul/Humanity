@@ -277,8 +277,19 @@ self-contained scope first; skip ones that need a larger design decision
   confirmed via revert-and-retest. See docs/BUGS.md BUG-044.
 - `src/systems/economy/mod.rs:86` -- passive income credit application,
   self-contained if the wallet/credit system already exists (check first).
-- `src/systems/skills/learning.rs:29` -- learning-curve CSV threshold
-  check, self-contained if the CSV schema already has the needed columns.
+- **DONE (cycle 9)** -- `src/systems/skills/learning.rs:29`'s
+  practice-hours `Skill::add_practice` stub is DEAD CODE: zero
+  references anywhere outside the file itself (grepped the whole
+  tree). The REAL, live skill-progression system is
+  `src/systems/skills/mod.rs`'s `SkillDef`/`SkillProgress`/
+  `SkillRegistry`/`SkillSystem` (XP-based leveling via `xp_for_level`,
+  registered and ticking -- confirmed live in cycle 6's FEATURES.md
+  fix), an entirely different design (XP thresholds, not practice
+  hours) that superseded this file. `learning.rs` stays declared
+  (`pub mod learning;` in `mod.rs`) so it still compiles, but nothing
+  constructs a `learning::Skill` or calls `add_practice`. Left in
+  place, unreferenced but harmless -- same pattern as
+  `orbital.rs` (cycle 7).
 - **DONE (cycle 7)** -- `src/systems/navigation/orbital.rs:27`'s
   `OrbitalElements::position_at` Kepler stub turned out to be DEAD CODE
   (grepped the whole tree: zero references anywhere outside the file
@@ -333,14 +344,93 @@ self-contained scope first; skip ones that need a larger design decision
   than guessing at scope or force-wiring something that might conflict
   with the already-working astronomical sun. See
   `open_questions_for_human` in `data/coordination/orchestrator_state.json`.
-- Larger/riskier, defer or log as a question rather than guessing at scope:
-  `src/physics/fluid.rs`, `src/systems/ai/autonomy.rs`,
-  `src/systems/construction/{blueprint,csg}.rs`, `src/systems/logistics/mod.rs`,
-  `src/systems/navigation/mod.rs`, `src/systems/psychology.rs`,
-  `src/input/bindings.rs`, `src/input/mod.rs` -- these read like they need
-  real design decisions (data model shape, what "done" means) rather than
-  a mechanical fill-in. Don't invent scope for these unsupervised; note
-  them for the operator instead.
+- **Cycle 9 findings (v0.647.0-v0.648.0):** a fresh full-repo TODO/stub grep
+  (not just the original list) turned up 2 more items:
+  - **RECLASSIFIED to open_questions_for_human** -- `src/gui/pages/chat.rs`'s
+    "Mute Server" button (server cog menu) is a TODO stub. Investigated: NOT
+    self-contained. There is no OS-level desktop notification system (no
+    toast/sound) anywhere in the native client yet, and no per-channel/
+    per-server unread tracking either (only per-DM `ChatDm.unread` exists).
+    Wiring "mute" to a bare flag with nothing to consume it would look
+    functional while doing nothing -- worse than the visible TODO. Logged as
+    a real product question (what should mute suppress, and should
+    notification infra be its own feature first) rather than building a
+    hollow flag.
+  - **DONE** -- while confirming nothing depended on it, found
+    `src/gui/pages/cosmos.rs:2496`'s "Track" card-action was ALSO a stub
+    (rendered but *disabled*, `("Track".to_string(), false)` -- the click
+    arm was unreachable in practice). Unlike Mute Server, this WAS
+    self-contained: the underlying math (continuous body position over
+    time) already exists from cycle 7's `body_world_position_3d_au` fix, and
+    the existing "Focus" button (one-shot camera snap-to) already showed the
+    exact pattern to extend. Implemented: Track toggles a new
+    `GuiState::cosmos_tracked_body: Option<String>`; each frame, if set, the
+    camera's `target_au` re-centers on that body's current orbital position
+    (vs Focus's one-shot snap); a manual Focus elsewhere cancels tracking
+    (extracted as 2 pure, tested helpers: `toggle_tracked_body`,
+    `focus_should_clear_tracking`). 4 new tests, proven via
+    revert-and-retest. Also added `snapshot_cosmos` to
+    `src/gui/ui_snapshots.rs` (the Cosmos/Maps page had NO headless
+    screenshot coverage before this -- closing that gap while touching the
+    file), verified visually via `just snapshot cosmos`.
+  - **Bonus finding**: investigating Track's "Focus" sibling led to
+    discovering `src/gui/pages/maps.rs` (591 lines) is ALSO fully dead code
+    -- `GuiPage::Maps` has forwarded to `cosmos::draw` since v0.203.2, and
+    `maps::draw` has zero callers anywhere. This is the 4th instance this
+    session of "superseded file left in place, still compiles, docs still
+    point at it" (after `sky.rs`, `orbital.rs`, `learning.rs`). Fixed the
+    stale doc pointers in `docs/FEATURES.md` (Maps Page entry) and
+    `docs/PAGES.md` (Maps row's File column) to point at `cosmos.rs`
+    instead; left `maps.rs` itself in place per the same conservative
+    not-mid-sweep-deletion pattern as the other 3.
+- **RE-INVESTIGATED (cycle 10) -- ALL confirmed dead, not "needs a design
+  decision" as originally filed.** The plan doc originally filed this whole
+  bucket as "needs real design decisions, don't invent scope." Given the
+  night's pattern hit 4-for-4 on "stub file superseded by a real
+  implementation elsewhere" (sky.rs, orbital.rs, learning.rs, maps.rs),
+  re-checked every file in this bucket for external callers instead of
+  taking the original filing at face value -- and EVERY SINGLE ONE is
+  ALSO zero-caller dead scaffolding, not a live gap awaiting a decision:
+  - `src/systems/ai/autonomy.rs` (`AutonomySimulator`) -- 0 callers.
+  - `src/systems/construction/blueprint.rs` (`Blueprint`) -- 0 callers.
+    Superseded by `construction/mod.rs`'s OWN, different, real
+    `Blueprint`/`BlueprintRegistry` (same name, different module,
+    genuinely the live one -- used for the shipped save/load blueprint
+    feature).
+  - `src/systems/construction/csg.rs` (`CsgBrush`/`CsgOp`) -- 0 callers.
+  - `src/systems/logistics/{mod,shipping,cargo}.rs`
+    (`LogisticsSystem`/`Shipment`/`ShipmentStatus`/`CargoContainer`) -- 0
+    callers, all three files.
+  - `src/systems/navigation/{mod,galaxy,system,surface}.rs`
+    (`NavigationSystem`/`Star`/`CelestialBody`/`BodyType`/`SurfacePoint`,
+    `orbital.rs` already confirmed cycle 7) -- 0 callers, all four files.
+    Entirely superseded by the REAL, live `src/cosmos.rs` +
+    `gui/pages/cosmos.rs` (System/Galactic/Night Sky modes -- the exact
+    "galaxy, solar system, orbital, surface" scope this module's own doc
+    comment describes) plus `src/terrain/` for actual surface/biome
+    rendering.
+  - `src/physics/fluid.rs` (`FluidSimulation`) -- 0 callers.
+  - `src/physics/collision.rs` (`CollisionHandler`) -- 0 callers.
+  - `src/systems/psychology.rs` (`PsychologySystem`/`NeedsState`, 144
+    lines, more substantial than the others) -- 0 callers. Its own TODO
+    ("Add a Needs component... so needs live on the entity itself") is
+    EXACTLY what `Vitals` (`src/ecs/components.rs`, driven live by
+    `FoodSystem`) already does today -- hunger/thirst/energy/oxygen/
+    body-temp/waste are all real, ticking Needs, just under a different
+    name in a different module.
+  - `src/input/{mod,bindings}.rs` (`InputManager`/`BindingConfig`) -- 0
+    callers. Real input handling happens elsewhere (inline via
+    winit/egui event polling), this planned abstraction layer was never
+    adopted.
+  Left ALL of these in place (same conservative not-mid-sweep-deletion
+  call made 4 times already tonight) -- this is a real, safe, low-risk
+  CLEANUP opportunity for a future dedicated pass (11 files, ~250 lines
+  of zero-caller scaffolding total), but deleting 11 files across 6
+  subsystems in one unattended sweep is a bigger, more visible single
+  action than anything else done tonight, so it's documented here for
+  the operator rather than executed unilaterally. No design decision is
+  actually needed for any of these (unlike SkyRenderer/Mute Server) --
+  they're just confirmed-dead, safe to delete whenever convenient.
 
 ## Per-cycle checklist (repeat this loop)
 
