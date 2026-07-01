@@ -99,6 +99,10 @@ pub struct Renderer {
     cur_lights: Vec<light::RoomLight>,
     cur_sun: ([f32; 3], [f32; 3], f32), // (direction, color, intensity)
     cur_fill: ([f32; 3], [f32; 3], f32),
+    /// Whether the swapchain surface was configured with `COPY_SRC` (v0.639, live screenshot
+    /// command). Most backends support it; a backend that doesn't gets a clean
+    /// `capture_current_frame` error instead of a validation panic.
+    supports_frame_capture: bool,
 }
 
 impl Renderer {
@@ -189,8 +193,17 @@ impl Renderer {
             .copied()
             .unwrap_or(surface_caps.formats[0]);
 
+        // Live screenshot command (v0.639): request COPY_SRC on the swapchain surface so the
+        // rendered frame can be read back to a PNG. Most backends support this alongside
+        // RENDER_ATTACHMENT; check first rather than assuming, so a backend that doesn't just
+        // gets a clean `capture_current_frame` error instead of a wgpu validation panic.
+        let supports_frame_capture = surface_caps.usages.contains(wgpu::TextureUsages::COPY_SRC);
+        let mut surface_usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
+        if supports_frame_capture {
+            surface_usage |= wgpu::TextureUsages::COPY_SRC;
+        }
         let config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: surface_usage,
             format: surface_format,
             width,
             height,
@@ -297,6 +310,7 @@ impl Renderer {
             cur_lights: Vec::new(),
             cur_sun: ([0.3, 1.0, 0.5], [1.0, 0.95, 0.9], 2.5),
             cur_fill: ([-0.5, 0.3, -0.3], [0.4, 0.5, 0.7], 0.6),
+            supports_frame_capture,
         }
     }
 
@@ -566,6 +580,89 @@ impl Renderer {
             bytemuck::cast_slice(&fill_col),
         );
         self.cur_fill = ([direction.x, direction.y, direction.z], color, intensity); // v0.571
+    }
+
+    /// Whether the swapchain surface was configured with `COPY_SRC`, i.e. whether
+    /// `capture_current_frame` can succeed on this backend. (v0.639)
+    pub fn supports_frame_capture(&self) -> bool {
+        self.supports_frame_capture
+    }
+
+    /// Capture `texture` (the swapchain texture of the frame just rendered, BEFORE
+    /// `present()`) to a PNG at `path` (v0.639, the live in-game screenshot command). Reuses the
+    /// copy-texture-to-buffer-to-PNG technique `ui_snapshots.rs::render_page_png` already uses
+    /// for offscreen snapshots, adapted for the live swapchain: the surface format is not
+    /// necessarily `Rgba8*` (Windows/DX12 commonly configures `Bgra8UnormSrgb`), so a BGRA
+    /// surface has its R/B channels swapped back before the `image` crate (which expects RGBA)
+    /// writes the file. Returns a plain error string (not a panic) if this backend's swapchain
+    /// doesn't support `COPY_SRC` -- checked once at `init` via `supports_frame_capture`.
+    pub fn capture_current_frame(&self, texture: &wgpu::Texture, path: &std::path::Path) -> Result<(), String> {
+        if !self.supports_frame_capture {
+            return Err("swapchain surface has no COPY_SRC usage on this backend -- frame capture unavailable".to_string());
+        }
+        let (w, h) = (self.config.width, self.config.height);
+        if w == 0 || h == 0 {
+            return Err("zero-sized surface -- nothing to capture".to_string());
+        }
+        let bytes_per_row = ((w * 4 + 255) / 256) * 256;
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frame_capture_readback"),
+            size: (bytes_per_row * h) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("frame_capture_encoder"),
+        });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(h),
+                },
+            },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+        self.queue.submit([encoder.finish()]);
+
+        let slice = buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        let _ = self.device.poll(wgpu::Maintain::Wait);
+        let data = slice.get_mapped_range();
+        let bgra = matches!(
+            self.config.format,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+        );
+        let mut pixels = Vec::with_capacity((w * h * 4) as usize);
+        for row in 0..h {
+            let start = (row * bytes_per_row) as usize;
+            let row_bytes = &data[start..start + (w * 4) as usize];
+            if bgra {
+                for px in row_bytes.chunks_exact(4) {
+                    pixels.extend_from_slice(&[px[2], px[1], px[0], px[3]]);
+                }
+            } else {
+                pixels.extend_from_slice(row_bytes);
+            }
+        }
+        drop(data);
+        buffer.unmap();
+
+        let img = image::RgbaImage::from_raw(w, h, pixels)
+            .ok_or_else(|| "captured pixel buffer size mismatch".to_string())?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        img.save(path).map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     /// Render a frame with the given camera and objects.

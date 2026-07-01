@@ -98,7 +98,11 @@ just launch           # launch latest build (no compile)
 just build-relay      # headless server build (no GPU)
 just status           # git + CI + live API health
 just logs             # tail server logs
+just snapshots        # headless: render all 26 egui pages to tests/snapshots/*.png (no GPU)
+just snapshot <name>  # headless: render just one page, e.g. `just snapshot construction`
 ```
+
+**Seeing the live 3D game (not just egui pages).** `just snapshots`/`just snapshot <name>` above render 2D egui UI headlessly — useful for pages, but they can't show the actual running 3D scene (lighting, placed geometry, the mothership). For that, drop `debug/screenshot_request.json` (any content) into the repo root while `HumanityOS` is running; the render loop notices it within one frame, writes a real capture of the current viewport to `debug/screenshot_N.png` (N monotonic per session), deletes the request file, and writes `debug/screenshot_done.json` as `{"ok":true,"path":...}` or `{"ok":false,"error":...}` if the backend's swapchain doesn't support the capture. Read the PNG with the Read tool like any other image. (v0.639)
 
 ## Architecture
 

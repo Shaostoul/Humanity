@@ -1625,6 +1625,75 @@ mod native_app {
         }
     }
 
+    /// Live in-game screenshot command (v0.639): an AI session (or anyone else with no eyes on the
+    /// running game) drops `debug/screenshot_request.json` and gets back a real capture of the
+    /// current 3D viewport -- no separate offscreen render, just the frame that was ALREADY drawn
+    /// this tick, captured right before it hits the screen. Checked once per frame via a plain
+    /// existence check (cheap on the common absent path -- no read/parse happens unless the file
+    /// is actually there). The request file is consumed (deleted) whether the capture succeeds or
+    /// fails, so a failure can never spin retrying forever with no request file and no done file.
+    fn poll_screenshot_request(state: &mut EngineState, frame_texture: &wgpu::Texture) {
+        const REQUEST_PATH: &str = "debug/screenshot_request.json";
+        const DONE_PATH: &str = "debug/screenshot_done.json";
+        if !std::path::Path::new(REQUEST_PATH).exists() {
+            return;
+        }
+        state.screenshot_counter += 1;
+        let out_path = screenshot_output_path(state.screenshot_counter);
+        let result = state.renderer.capture_current_frame(frame_texture, std::path::Path::new(&out_path));
+        // Consumed either way: a failed capture must not leave the request file in place, or the
+        // next frame (and every frame after) would just retry forever.
+        let _ = std::fs::remove_file(REQUEST_PATH);
+        let done = screenshot_done_json(&result, &out_path);
+        let _ = std::fs::create_dir_all("debug");
+        let _ = std::fs::write(DONE_PATH, done.to_string());
+    }
+
+    /// Monotonic-per-session output path for a captured screenshot. Pulled out of
+    /// `poll_screenshot_request` so the naming is directly testable without a GPU.
+    fn screenshot_output_path(counter: u32) -> String {
+        format!("debug/screenshot_{counter}.png")
+    }
+
+    /// The `debug/screenshot_done.json` body for a capture attempt: `{"ok":true,"path":...}` on
+    /// success, `{"ok":false,"error":...}` on failure. Pulled out of `poll_screenshot_request` so
+    /// the shape is directly testable without a GPU.
+    fn screenshot_done_json(result: &Result<(), String>, path: &str) -> serde_json::Value {
+        match result {
+            Ok(()) => serde_json::json!({"ok": true, "path": path}),
+            Err(e) => serde_json::json!({"ok": false, "error": e}),
+        }
+    }
+
+    #[cfg(test)]
+    mod screenshot_command_tests {
+        use super::{screenshot_done_json, screenshot_output_path};
+
+        #[test]
+        fn output_path_is_monotonic_and_collision_free() {
+            assert_eq!(screenshot_output_path(1), "debug/screenshot_1.png");
+            assert_eq!(screenshot_output_path(2), "debug/screenshot_2.png");
+            assert_ne!(screenshot_output_path(1), screenshot_output_path(2));
+        }
+
+        #[test]
+        fn done_json_success_shape_carries_the_real_path() {
+            let v = screenshot_done_json(&Ok(()), "debug/screenshot_3.png");
+            assert_eq!(v["ok"], true);
+            assert_eq!(v["path"], "debug/screenshot_3.png");
+            assert!(v.get("error").is_none(), "a success body must not carry an error key");
+        }
+
+        #[test]
+        fn done_json_failure_shape_carries_the_real_error_not_a_path() {
+            let err = "swapchain surface has no COPY_SRC usage on this backend -- frame capture unavailable".to_string();
+            let v = screenshot_done_json(&Err(err.clone()), "debug/screenshot_4.png");
+            assert_eq!(v["ok"], false);
+            assert_eq!(v["error"], err);
+            assert!(v.get("path").is_none(), "a failure body must not carry a path key");
+        }
+    }
+
     /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
     /// approaches (by its data-driven style via systems::door_anim); a window is a fixed glass pane.
     /// Reuses one cached unit-box mesh + a slab + a glass material (scaled/rotated/animated per frame),
@@ -4453,12 +4522,15 @@ mod native_app {
         targeted_planet: Option<String>,
         /// Hologram room center (from data-driven layout).
         hologram_room_center: Vec3,
-        /// Room ceiling lights: (position, color, intensity, radius).
+        /// Room lights currently lit (point or spot, see `RoomLight`).
         room_lights: Vec<crate::renderer::light::RoomLight>,
         /// Sealed homestead volume AABB (min, max), encompassing all rooms — the
         /// survival environment context: inside = oxygenated/heated, outside =
         /// vacuum/cold. None until the homestead generates.
         homestead_bounds: Option<(Vec3, Vec3)>,
+        /// Live screenshot command counter (v0.639): monotonic per session, names
+        /// `debug/screenshot_N.png` so repeated requests never collide.
+        screenshot_counter: u32,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
         start_time: Instant,
@@ -5074,6 +5146,7 @@ mod native_app {
                 hologram_room_center: Vec3::new(-0.5, 1.0, 2.5),
                 room_lights: Vec::new(),
                 homestead_bounds: None,
+                screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
@@ -10913,6 +10986,8 @@ mod native_app {
                             for id in &full_output.textures_delta.free {
                                 state.egui_renderer.free_texture(id);
                             }
+
+                            poll_screenshot_request(state, &surface_texture.texture);
 
                             surface_texture.present();
 
