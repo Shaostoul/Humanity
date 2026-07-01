@@ -2475,6 +2475,45 @@ pub struct GuiState {
     pub identity_lookup_pending: bool,
     /// Active scope tab on the Governance page (0=All, 1=Local, 2=Civilization).
     pub governance_scope_tab: usize,
+    // ── Governance live data (v0.660) ──
+    /// Proposals joined from GET /api/v2/proposals + each object's payload +
+    /// tally, loaded on a background thread (see pages/governance.rs).
+    pub governance_proposals: Vec<crate::gui::pages::governance::ProposalView>,
+    /// In-flight proposal fetch, tagged with the server URL it targets so a
+    /// late result from a previous server is discarded (same staleness rule as
+    /// `donate_info_rx`).
+    pub governance_rx: Option<(String, std::sync::mpsc::Receiver<Result<Vec<crate::gui::pages::governance::ProposalView>, String>>)>,
+    /// Which server URL `governance_proposals` BELONGS TO (the data-origin tag,
+    /// same rule as `donate_funding_server`): when it doesn't match the current
+    /// server, the page clears the list immediately -- another server's
+    /// proposals must never render or take votes.
+    pub governance_fetched_for: String,
+    /// Set to request a refetch (Refresh button; after a vote/proposal lands so
+    /// the tally updates). Cleared ONLY when a fetch spawns, never by a fetch
+    /// completing -- so an invalidation raised while a fetch was already in
+    /// flight still triggers its own refetch instead of being clobbered.
+    pub governance_refresh: bool,
+    /// Last proposal-list fetch error, shown on the page.
+    pub governance_error: String,
+    /// Votes cast THIS SESSION: proposal_id -> choice. Server-side votes are
+    /// final (INSERT OR IGNORE on (proposal, voter DID)), so this only needs to
+    /// stop double-submits and relabel the row; it intentionally doesn't try to
+    /// reconstruct votes from earlier sessions.
+    pub governance_my_votes: std::collections::HashMap<String, String>,
+    /// In-flight vote submission; Ok carries (proposal_id, choice) back.
+    pub governance_vote_rx: Option<std::sync::mpsc::Receiver<Result<(String, String), String>>>,
+    /// Status line for the last vote/proposal submission.
+    pub governance_vote_status: String,
+    /// In-flight proposal submission.
+    pub governance_propose_rx: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    /// Whether the new-proposal form is open.
+    pub governance_show_propose: bool,
+    /// New-proposal form fields.
+    pub governance_new_title: String,
+    pub governance_new_body: String,
+    pub governance_new_type_idx: usize,
+    pub governance_new_scope_idx: usize,
+    pub governance_new_days: f32,
     // ── Laws page (v0.496) ──
     /// Selected jurisdiction id ("silverdale", "usa", ...). Empty => default to
     /// the most-local jurisdiction in the data on first draw.
@@ -2526,6 +2565,13 @@ impl GuiState {
                 self.ws_manually_disconnected = false;
                 self.ws_reconnect_timer = 0.0;
                 self.ws_reconnect_attempts = 0;
+                // Governance vote tracking is PER IDENTITY (adversarial review
+                // 2026-07-01): a different seed is a different voter DID, so the
+                // previous identity's session votes must not label rows or
+                // suppress vote buttons for this one.
+                self.governance_my_votes.clear();
+                self.governance_vote_rx = None;
+                self.governance_vote_status.clear();
                 let kp = &self.profile_public_key[..16.min(self.profile_public_key.len())];
                 log::info!("PQ identity applied (Dilithium {kp}…); reconnecting to advertise Kyber");
             }
@@ -3160,6 +3206,21 @@ impl Default for GuiState {
             identity_lookup_did: String::new(),
             identity_lookup_pending: false,
             governance_scope_tab: 0,
+            governance_proposals: Vec::new(),
+            governance_rx: None,
+            governance_fetched_for: String::new(),
+            governance_refresh: false,
+            governance_error: String::new(),
+            governance_my_votes: std::collections::HashMap::new(),
+            governance_vote_rx: None,
+            governance_vote_status: String::new(),
+            governance_propose_rx: None,
+            governance_show_propose: false,
+            governance_new_title: String::new(),
+            governance_new_body: String::new(),
+            governance_new_type_idx: 0,
+            governance_new_scope_idx: 0,
+            governance_new_days: 7.0,
             laws_location: String::new(),
             laws_search: String::new(),
             laws_filter_tab: 0,

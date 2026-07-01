@@ -55,6 +55,26 @@ W3C-style VCs over the signed-object substrate. 12 indexed schemas. Issuer-auth-
 - API: `/api/v2/proposals`, `/api/v2/proposals/{id}`, `/api/v2/proposals/{id}/tally` in `src/relay/api_v2_governance.rs`
 - Types: `data/governance/proposal_types.ron`
 
+### Native Governance page: live feed + signed voting + proposal form (v0.660)
+The native Governance page went from static instructional text to fully live: background
+fetch joins GET /api/v2/proposals with each proposal object's CBOR payload (title/body) and
+its weighted tally; proposals render as expandable rows (OPEN/CLOSED chip, scope, voting
+window, tally bars for yes/no/abstain weights); voting and proposal creation build
+`vote_v1`/`proposal_v1` signed objects with the SAME in-crate `ObjectBuilder` +
+`DilithiumKeypair` the relay verifies with (zero cross-language canonicalization risk) and
+POST them as `SignedObjectSubmission` JSON. Hardened by adversarial review pre-commit:
+proposals from a previously-connected server are cleared before rendering (a vote must
+never reference server A's proposal while POSTing to server B); the feed and vote buttons
+gate on `server_connected`; an in-flight fetch aimed at an old server is replaced, not
+awaited; a consecutive-failure circuit breaker bounds the per-proposal join against a
+hung server; vote-success wording is honest about the server keeping the FIRST vote per
+identity (INSERT OR IGNORE, votes are final); session vote-tracking resets on identity
+switch. 7 regression tests, including a full round-trip through the real relay storage and
+a wire-struct deserialization lock. Web's vote button remains a stub (real web voting
+needs canonical-CBOR signing in JS + a cross-language KAT -- tracked as its own item).
+- Native: `src/gui/pages/governance.rs` (fetch/build/post/draw + tests), `src/gui/mod.rs` (`governance_*` GuiState fields; `apply_pq_identity` clears per-identity vote tracking)
+- Snapshot: `src/gui/ui_snapshots.rs::snapshot_governance` (state-injected feed render)
+
 ### Laws (location-aware rules and rights) (v0.496)
 Nested jurisdiction tree (Humanity -> Earth -> country -> state -> county -> locality); pick where you live and see the rules that apply, broadest first. Two kinds: HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source, not legal advice). Condense, do not ingest.
 - Native: `src/gui/pages/laws.rs` (`GuiPage::Laws`, reached from the Humanity hub "Laws" section), loader `src/gui/laws.rs`

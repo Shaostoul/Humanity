@@ -606,6 +606,67 @@ fn settings_panel(
     });
 }
 
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_governance() {
+    render_page_png("governance", 1400, 1400, |ctx, theme, state| {
+        // Inject a representative feed: the page loads live data on a background
+        // thread from the connected server, which a snapshot doesn't have, so
+        // seed two proposals (one open with a tally, one closed + already voted)
+        // and open the new-proposal form. Setting governance_fetched_for to the
+        // current server suppresses the auto-fetch.
+        if state.governance_proposals.is_empty() {
+            use crate::gui::pages::governance::{ProposalView, TallyView};
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0);
+            state.server_connected = true;
+            state.governance_fetched_for = state.server_url.trim_end_matches('/').to_string();
+            state.governance_show_propose = true;
+            state.governance_filter_tab = 1; // "All" so the closed one shows too
+            state.governance_proposals = vec![
+                ProposalView {
+                    id: "prop_open".to_string(),
+                    proposer_did: "did:hum:ExampleProposer".to_string(),
+                    proposal_type: "local_rule".to_string(),
+                    scope: "local".to_string(),
+                    opens_at: now - 86_400_000,
+                    closes_at: now + 5 * 86_400_000,
+                    title: "Quiet hours in the shared workshop".to_string(),
+                    body: "Between 22:00 and 06:00, powered tools in the shared workshop stay off so the adjacent bunks can sleep.".to_string(),
+                    tally: Some(TallyView {
+                        yes_weight: 2.35,
+                        no_weight: 0.80,
+                        abstain_weight: 0.10,
+                        total_weight: 3.25,
+                        vote_count: 5,
+                    }),
+                },
+                ProposalView {
+                    id: "prop_closed".to_string(),
+                    proposer_did: "did:hum:AnotherMember".to_string(),
+                    proposal_type: "parameter_change".to_string(),
+                    scope: "civilization".to_string(),
+                    opens_at: now - 10 * 86_400_000,
+                    closes_at: now - 2 * 86_400_000,
+                    title: "Raise the default upload cap to 32 MB".to_string(),
+                    body: String::new(),
+                    tally: Some(TallyView {
+                        yes_weight: 1.20,
+                        no_weight: 2.90,
+                        abstain_weight: 0.00,
+                        total_weight: 4.10,
+                        vote_count: 6,
+                    }),
+                },
+            ];
+            state.governance_my_votes.insert("prop_closed".to_string(), "no".to_string());
+        }
+        crate::gui::pages::governance::draw(ctx, theme, state);
+    });
+}
+
 // Whole-page reviews. Each is its own test so a panic in one (a page that needs
 // state the default GuiState lacks) does not stop the others; run with
 // `--no-fail-fast`. Use `just snapshots` then open tests/snapshots/*.png.
@@ -742,7 +803,8 @@ page_snapshot!(snapshot_market, "market", market, 1280, 900);
 page_snapshot!(snapshot_profile, "profile", profile, 1280, 900);
 page_snapshot!(snapshot_crafting, "crafting", crafting, 1280, 900);
 page_snapshot!(snapshot_library, "library", library, 1280, 900);
-page_snapshot!(snapshot_governance, "governance", governance, 1280, 900);
+// snapshot_governance is a hand-written test above (needs injected proposal
+// state to show the real feed; the bare macro version rendered an empty page).
 page_snapshot!(snapshot_identity, "identity", identity, 1280, 900);
 page_snapshot!(snapshot_wallet, "wallet", wallet, 1280, 900);
 page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
