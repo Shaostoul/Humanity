@@ -11,6 +11,31 @@
 
 ## Active focus
 
+> **SONNET 5 SESSION CONTINUED (2026-07-01) -- recovered from a repeat clean-worktrees
+> incident, shipped all 3 previously-lost features.** `just clean-worktrees` destroyed
+> ALL THREE in-flight diffs a second time mid-review (spotlight-cone rendering, the web
+> Accord doc browser, and the live screenshot command), this time simultaneously, because
+> the first fix was doc-only (a CLAUDE.md warning) and a subagent told to "read CLAUDE.md
+> first" read Step 0 literally and ran the destructive cleanup itself. Real fix this time:
+> `scripts/clean-worktrees.sh` now structurally refuses to remove a worktree/branch with
+> uncommitted changes or commits not merged into main, even under `--yes`; only an explicit
+> `--force-unmerged` can destroy real work. All 3 features were rebuilt and SHIPPED: **v0.639.0**
+> spot-light cone rendering (real cones, not the point-light placeholder -- `RoomLight`
+> carries an optional cone, `CameraUniforms` grew to 672 bytes, every hardcoded buffer
+> offset recomputed, verified via a real release-build launch confirming every shader
+> compiles clean). **v0.640.0** live in-game screenshot command (drop
+> `debug/screenshot_request.json`, get `debug/screenshot_N.png` back within a frame --
+> verified end-to-end with a real capture of the live chat UI). **v0.640.0** Humanity Accord
+> in-app doc browser (17 governance docs, fixed-allowlist backend verified against 6
+> malicious-shaped slug attacks with a real running relay, two-pane web browser at
+> `/accord`, the 3 dead GitHub-blob links repointed) -- this one survived a mid-session
+> internet outage that killed the harness process; the hardened script protected its
+> worktree through the resume, and its solid partial backend work was completed rather
+> than redone from scratch. Full verification suite green on the merged result: both
+> cargo checks, 624 lib tests, 5 lints, 0 broken doc links. See
+> `data/coordination/orchestrator_state.json` recent_decisions for the full incident
+> writeup and the CLAUDE.md "known gotchas" entry for the script's new safety model.
+
 > **FIRST SONNET 5 SESSION (2026-06-30) -- docs cleanup + M2c zone population shipped.**
 > The three construction forks below are STILL open and unresolved, nothing about them
 > changed today. What did happen: (1) a 13-agent reacquaintance assessment; (2) a large

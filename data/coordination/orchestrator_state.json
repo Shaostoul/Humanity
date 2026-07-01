@@ -464,6 +464,28 @@
         "scripts/clean-worktrees.sh",
         "CLAUDE.md"
       ]
+    },
+    {
+      "date": "2026-07-01",
+      "decision": "RECOVERED from the repeat clean-worktrees incident and shipped all 3 previously-lost features. Spotlight-cone rendering (v0.639.0) rebuilt directly on main with immediate commit + full verification (both cargo checks, 612 lib tests, 5 lints, and a real release-build launch confirming every shader compiles clean via Naga with no wgpu validation errors). Live in-game screenshot command (v0.640.0) rebuilt directly on main: poll_screenshot_request in lib.rs, Renderer::capture_current_frame in renderer/mod.rs with a COPY_SRC surface-capability check + BGRA/RGBA channel swizzle, verified end-to-end on a real release build (dropped a real screenshot_request.json, got back a real 1.3MB PNG of the live chat UI with correct color). Web Accord doc browser (v0.640.0) recovered from an interrupted background agent (the harness process was killed by an internet outage mid-task) -- the hardened clean-worktrees script correctly protected its worktree through a session resume, and its partial-but-solid backend work (docs_accord.rs fixed allowlist + 2 routes, fully tested) was completed with the frontend half (markdown.js extraction, accord.html/accord-app.js, 3 link repoints) and verified live against a real running relay with curl (real slug + list endpoint work; 6 malicious-shaped slugs all cleanly 404). All 3 merged into main (spotlight-cone and screenshot-command via direct commits, Accord via a clean merge --no-ff of its worktree branch since it touched a fully disjoint file set), pushed to origin + forge. Full verification suite green on the merged result: both cargo checks, 624 lib tests, 5 lints, 0 broken doc links. Operator note: mid-cleanup, a stray cd into the Accord worktree persisted across several tool calls and caused a just build-game run + a journal commit attempt to land there instead of main -- harmless (nothing pushed from that branch), cleaned up by redoing the journal entry on main and leaving the worktree for ordinary disposal.",
+      "scope": "construction/rendering + web/accord + tooling",
+      "files": [
+        "src/renderer/camera.rs",
+        "src/renderer/light.rs",
+        "src/renderer/mod.rs",
+        "src/renderer/stars.rs",
+        "src/renderer/line.rs",
+        "assets/shaders/pbr_simple.wgsl",
+        "assets/shaders/stars.wgsl",
+        "src/lib.rs",
+        "src/gui/pages/construction.rs",
+        "src/relay/storage/docs_accord.rs",
+        "src/relay/api.rs",
+        "src/relay/mod.rs",
+        "web/pages/accord.html",
+        "web/pages/accord-app.js",
+        "web/shared/markdown.js"
+      ]
     }
   ],
   "active_scopes_to_avoid": [
