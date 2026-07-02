@@ -386,12 +386,22 @@ Honest gaps to author, following the schema patterns in the files above —
    `household_size` selector and wiring the tables into a live computed
    per-loop score with autonomy days.
 
-5. **Grow-light energy meter (flagged in the doc, not built).**
-   self-sufficiency.md's "Next" item: a live "grow-light draw vs power
-   budget" meter that turns red the instant any LED is added past
-   free-pump headroom. `electrical.ron` has `grow_light` (100 W) as a
-   consumer, so the data exists — the missing piece is the **meter
-   logic/data wiring**, not a data entry.
+5. ~~**Grow-light energy meter (flagged in the doc, not built).**~~
+   **CLOSED (v0.664, 2026-07-01).** `MachineHome::grow_light_report`
+   (src/machines.rs) computes the placed grow lights' draw (fixture watts
+   x `GROW_LIGHT_DUTY_HOURS` = 14 h/day, the mid-range of the 12-16 h crop
+   photoperiod) against the home's free headroom (generation minus all
+   non-grow-light demand) and verdicts it green (within headroom) / amber
+   (eating battery reserves daily) / red (the lights alone outdraw the
+   whole home's generation). Rendered as a dedicated meter row in the
+   construction editor's Buildability panel the moment at least one light
+   is placed, with the red-state teaching note "this is why the garden
+   uses the sun." A placeable `grow_light` catalog entry (100 W, matching
+   `electrical.ron`, priority 5 = shed first) was added to BOTH
+   `home.ron` and `home_solo.ron`; neither seed design places one (the
+   reference gardens are sun-lit -- that is the lesson). Regression
+   tests: `machines::tests::grow_light_meter_green_amber_red_thresholds`
+   + `shipped_catalogs_offer_a_placeable_grow_light`.
 
 ---
 

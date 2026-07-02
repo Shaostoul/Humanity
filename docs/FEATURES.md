@@ -1051,6 +1051,20 @@ so every existing home parses unchanged) and persist with Save. Data model only 
 graphs (M2), the civic mall (M3), industrial+cargo (M4), hangar/mech (M5) build on it.
 - Native: `src/ship/structure.rs` (`ZoneType` + `zone_types()`), `src/ship/home_structure.rs` (`Zone` + `zones` + `add_zone`/`remove_zone`), `data/blueprints/zone_types.ron`, `src/gui/pages/construction.rs` (`draw_zones_editor`), `src/lib.rs` (zone wireframe render)
 
+### Grow-light power meter (v0.664, homestead gap #5)
+The honest teaching artifact docs/design/self-sufficiency.md called for ("turns red the instant any LED
+is added past the free pump headroom"). A `grow_light` machine (100 W LED panel, matching
+`data/electrical.ron`) is placeable from the construction palette in both home designs; the moment one
+is placed, the Buildability panel grows a dedicated "Grow-light power meter" row: GREEN while the lights'
+draw (watts x a documented 14 h/day crop photoperiod, `GROW_LIGHT_DUTY_HOURS`) fits inside the home's
+free headroom (generation minus all non-grow-light demand), AMBER when the home starts eating its battery
+reserves every day, RED when the lights ALONE outdraw everything the home generates -- with the plain-
+language note "this is why the garden uses the sun." Pure + world-free (`MachineHome::grow_light_report`),
+so an AI can read it before committing a design. Neither seed design places a light (the reference gardens
+are sun-lit; discovering the meter is the lesson). Same release also fixed `utility_meters` counting each
+battery bank's bus terminal as 48 kWh/day of phantom demand.
+- Native: `src/machines.rs` (`GrowLightReport`, `GrowLightVerdict`, `grow_light_report`, `GROW_LIGHT_DUTY_HOURS`), `src/gui/pages/construction.rs` (`draw_buildability` grow-light section), `data/machines/home.ron` + `home_solo.ron` (`grow_light` catalog entry)
+
 ### Usage meters + home self-sufficiency (grid S2, v0.630)
 The Buildability panel now shows per-utility USAGE METERS: for power (kWh/day), water (L/day), and data
 (Mbps) it reports the home's daily GENERATION vs DEMAND and a self-sufficiency fraction. Framed to TEACH,

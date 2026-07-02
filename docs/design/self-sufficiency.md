@@ -100,8 +100,11 @@ worked out for the in-game 34x34x6 m garden (v0.433) and the numbers generalize:
   gaps no plant can fill. Calories (~half) and fats (~a fifth) are the honest shortfall
   the outdoor fields carry. The tradeoff (free single-canopy sunlight is area-limited;
   grow-light staples are energetically negative) IS the lesson, so we show it, never hide
-  it. **Next:** a live "grow-light draw vs power budget" meter that turns red the instant
-  any LED is added past the free pump headroom (the single most honest teaching artifact).
+  it. **Built (v0.664):** the live "grow-light draw vs power budget" meter (the single most
+  honest teaching artifact) -- `MachineHome::grow_light_report` + a construction-editor
+  Buildability row that appears when a grow light is placed and turns red the instant the
+  lights alone outdraw the home's whole generation. Duty assumption: 14 h/day
+  (`GROW_LIGHT_DUTY_HOURS`). See homestead-solo-design.md gap #5 (closed).
 
 ### 4. Waste / nutrient cycling (the loop-closer)
 - Organic waste + manure -> **compost** or **biogas** (energy + digestate fertilizer)

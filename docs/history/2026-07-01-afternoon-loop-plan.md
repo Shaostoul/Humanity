@@ -134,13 +134,19 @@ specific, in priority order, only after Phase A ships and is verified):**
 
 **Phase C -- the honest teaching artifacts (the operator's actual
 stated goal, do this once A+B are solid):**
-1. A live "grow-light draw vs power-budget meter" that turns red the
-   instant an LED grow-light is added past the free-sun headroom --
-   self-sufficiency.md itself already calls this out as "the single
-   most honest teaching artifact." The data already exists
-   (`electrical.ron`'s `grow_light`, 100 W); this is meter/wiring logic,
-   not new data.
-2. **DONE (2026-07-01, fleet agent).** A "what this cannot close the
+1. **DONE (v0.668.0, fleet agent).** The live "grow-light draw vs
+   power-budget meter": `MachineHome::grow_light_report` (pure,
+   tested green/amber/red thresholds) + a dedicated Buildability-panel
+   row that appears the moment a grow light is placed, red the instant
+   the lights alone outdraw the home's whole generation ("this is why
+   the garden uses the sun"). A placeable 100 W `grow_light` catalog
+   entry was added to both home.ron and home_solo.ron (neither seed
+   places one -- sun-lit by design). Duty assumption: 14 h/day
+   (`GROW_LIGHT_DUTY_HOURS`, mid-range of the 12-16 h crop photoperiod).
+   Bonus fix: `utility_meters` no longer counts each battery bank's bus
+   terminal as 48 kWh/day of phantom power demand. Gap #5 marked closed
+   in homestead-solo-design.md.
+2. **DONE (v0.667.0, fleet agent).** A "what this cannot close the
    loop on" panel on the Home page, surfacing the design's own section 8
    findings: electronics/semiconductor manufacturing, metal/alloy
    production at ore scale, medicine synthesis,
