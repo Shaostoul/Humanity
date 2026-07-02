@@ -35,6 +35,17 @@ const RIGHT_PANEL_WIDTH: f32 = 220.0;
 // Live/REC indicator colors come from theme.success() / theme.danger() so they
 // stay in sync with the rest of the UI's semantic palette.
 // Panel + preview backgrounds use theme.bg_card() / theme.bg_panel() / theme.bg_sidebar_dark().
+// Source-type fills + outline/label/AFK/meter colors come from the theme's
+// studio_* tokens (v0.670 migration off hardcoded literals) so the Settings
+// color editor can restyle the whole page.
+
+/// Apply a runtime alpha to a theme token color. The token stores the RGB;
+/// the alpha comes from runtime state (a source's opacity slider, selection
+/// tint strength). Computed from a token, not hardcoded, so theme_token_lint
+/// sees no literal here.
+fn with_alpha(c: Color32, alpha: u8) -> Color32 {
+    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
+}
 
 // Platform/resolution/fps/position picker options live in
 // data/studio/streaming_config.json — load them via state.studio_streaming_config.
@@ -92,11 +103,9 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let in_program = i == program_idx;
             let in_preview = i == preview_idx;
             let bg = if in_preview {
-                let a = theme.accent();
-                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 40)
+                with_alpha(theme.accent(), 40)
             } else if in_program {
-                let s = theme.success();
-                Color32::from_rgba_unmultiplied(s.r(), s.g(), s.b(), 25)
+                with_alpha(theme.success(), 25)
             } else {
                 Color32::TRANSPARENT
             };
@@ -199,8 +208,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             let src = &state.studio.sources[i];
             let is_selected = selected == Some(i);
             let bg = if is_selected {
-                let a = theme.accent();
-                Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 25)
+                with_alpha(theme.accent(), 25)
             } else {
                 Color32::TRANSPARENT
             };
@@ -319,16 +327,19 @@ fn draw_scene_canvas(
                 );
 
                 let alpha = (src.opacity * 255.0) as u8;
+                // Semantic per-source-type fills from the theme's studio_*
+                // tokens; the source's opacity slider caps the alpha so
+                // overlapping rectangles stay readable.
                 let fill_color = match &src.source_type {
-                    crate::gui::StudioSourceType::Camera(_) => Color32::from_rgba_unmultiplied(46, 134, 193, alpha.min(60)),
-                    crate::gui::StudioSourceType::Screen(_) => Color32::from_rgba_unmultiplied(142, 68, 173, alpha.min(60)),
-                    crate::gui::StudioSourceType::Microphone(_) => Color32::from_rgba_unmultiplied(231, 76, 60, alpha.min(40)),
-                    crate::gui::StudioSourceType::ChatOverlay => Color32::from_rgba_unmultiplied(46, 204, 113, alpha.min(50)),
-                    crate::gui::StudioSourceType::Image(_) => Color32::from_rgba_unmultiplied(241, 196, 15, alpha.min(50)),
-                    crate::gui::StudioSourceType::Text(_) => Color32::from_rgba_unmultiplied(236, 240, 241, alpha.min(40)),
-                    crate::gui::StudioSourceType::Timer => Color32::from_rgba_unmultiplied(230, 126, 34, alpha.min(50)),
+                    crate::gui::StudioSourceType::Camera(_) => with_alpha(theme.studio_source_camera(), alpha.min(60)),
+                    crate::gui::StudioSourceType::Screen(_) => with_alpha(theme.studio_source_screen(), alpha.min(60)),
+                    crate::gui::StudioSourceType::Microphone(_) => with_alpha(theme.studio_source_microphone(), alpha.min(40)),
+                    crate::gui::StudioSourceType::ChatOverlay => with_alpha(theme.studio_source_chat(), alpha.min(50)),
+                    crate::gui::StudioSourceType::Image(_) => with_alpha(theme.studio_source_image(), alpha.min(50)),
+                    crate::gui::StudioSourceType::Text(_) => with_alpha(theme.studio_source_text(), alpha.min(40)),
+                    crate::gui::StudioSourceType::Timer => with_alpha(theme.studio_source_timer(), alpha.min(50)),
                 };
-                let border_color = Color32::from_rgba_unmultiplied(255, 255, 255, alpha.min(80));
+                let border_color = with_alpha(theme.studio_source_border(), alpha.min(80));
 
                 painter.rect_filled(src_rect, 2.0, fill_color);
                 painter.rect_stroke(src_rect, 2.0, Stroke::new(1.0, border_color), egui::StrokeKind::Outside);
@@ -339,7 +350,7 @@ fn draw_scene_canvas(
                     egui::Align2::CENTER_CENTER,
                     &src.name,
                     egui::FontId::proportional(11.0),
-                    Color32::from_rgba_unmultiplied(255, 255, 255, alpha),
+                    with_alpha(theme.studio_source_label(), alpha),
                 );
             }
 
@@ -619,7 +630,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(
                 RichText::new(format!("Away: {}:{:02}:{:02}", h, m, s))
                     .size(theme.font_size_small)
-                    .color(Color32::from_rgb(155, 89, 182)),
+                    .color(theme.studio_afk()),
             );
             ui.ctx().request_repaint(); // keep timer updating
         }
@@ -636,7 +647,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new("Audio:").size(theme.font_size_small).color(theme.text_muted()));
         let (meter_rect, _) = ui.allocate_exact_size(Vec2::new(80.0, 12.0), egui::Sense::hover());
         let painter = ui.painter_at(meter_rect);
-        painter.rect_filled(meter_rect, 2.0, Color32::from_rgb(30, 30, 40));
+        painter.rect_filled(meter_rect, 2.0, theme.studio_meter_bg());
         let level = crate::net::voice::mic_level();
         if crate::net::voice::mic_test_running() || crate::net::voice::voice_session_running() {
             ui.ctx().request_repaint();
