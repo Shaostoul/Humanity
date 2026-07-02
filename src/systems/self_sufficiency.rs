@@ -209,10 +209,10 @@ mod tests {
     }
 
     /// Every `crop_nutrition` plant_id is a REAL row in `data/plants.csv` (a typo = a dead
-    /// entry). Reads the CSV's id column directly (not `PlantRegistry`, which silently drops a
-    /// few rows whose fractional yield_min -- e.g. saffron's 0.3 -- won't parse as its `u32`
-    /// yield field; that's a pre-existing farming-parser quirk, but the CSV row genuinely
-    /// exists, so this test cross-checks the source data, not the lossy registry).
+    /// entry). Reads the CSV's id column directly, cross-checking the SOURCE data rather
+    /// than a derived registry. (Historical note: `PlantRegistry` used to silently drop
+    /// fractional-yield rows like saffron's 0.3 because its yield fields were `u32`; fixed
+    /// 2026-07-01 -- yields are f32 now and farming's zero-drop test guards the registry.)
     #[test]
     fn every_crop_nutrition_id_exists_in_plants_csv() {
         let text = std::fs::read_to_string(data_dir().join("plants.csv")).expect("data/plants.csv reads");

@@ -140,7 +140,7 @@ construction RON files. Solar system data and ship layouts require a game restar
 | ph_min, ph_max | float | Preferred soil pH range |
 | temp_min_c, temp_max_c | int | Growing temperature range |
 | humidity_min, humidity_max | float | Preferred humidity range (0-1) |
-| yield_min, yield_max | int | Harvest yield range per plant |
+| yield_min, yield_max | float | Harvest yield range per plant (fractional allowed -- saffron yields 0.3-1 units; the harvest roll converts to whole items probabilistically) |
 | growth_stages | string | Colon-separated stage names |
 | seasons | string | Preferred growing seasons |
 | companion_plants | string | Beneficial neighbors (IDs) |

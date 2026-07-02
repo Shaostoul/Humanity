@@ -33,9 +33,14 @@ pub struct PlantDef {
     /// Loaded from plants.csv `growth_stages` column (colon-separated).
     /// Falls back to DEFAULT_GROWTH_STAGES when empty.
     pub growth_stages: Vec<String>,
-    /// Harvest yield range (units of produce per fully-grown plant).
-    pub yield_min: u32,
-    pub yield_max: u32,
+    /// Harvest yield range (units of produce per fully-grown plant). f32 because real
+    /// crops can yield LESS than one unit per plant per harvest (saffron: 0.3 -- a few
+    /// stigma threads); the harvest roll converts the continuous roll to whole inventory
+    /// items by probabilistic rounding, preserving the expected value. Was u32, which made
+    /// serde reject (and the registry silently drop) any plants.csv row with a fractional
+    /// yield -- saffron was un-plantable for months before the 2026-07-01 fix.
+    pub yield_min: f32,
+    pub yield_max: f32,
     /// Relative nutrient demand fractions (N, P, K) from plants.csv. Shown per
     /// crop in the Garden table; feed the future shared-reservoir mix math.
     pub nutrient_n: f32,
@@ -169,9 +174,9 @@ struct PlantRow {
     #[serde(default)]
     seasons: String,
     #[serde(default)]
-    yield_min: u32,
+    yield_min: f32,
     #[serde(default)]
-    yield_max: u32,
+    yield_max: f32,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -220,7 +225,49 @@ mod plant_registry_csv_tests {
         assert!((t.ph_max - 6.8).abs() < 1e-6, "ph_max");
         assert!((t.humidity_min - 0.50).abs() < 1e-6, "humidity_min");
         assert!((t.humidity_max - 0.80).abs() < 1e-6, "humidity_max");
-        assert_eq!(t.yield_max, 8, "yield still parses past the new columns");
+        assert!((t.yield_max - 8.0).abs() < 1e-6, "yield still parses past the new columns");
+    }
+
+    /// ZERO-DROP GUARD: every data row in the shipped `data/plants.csv` must survive
+    /// `PlantRegistry::from_csv` -- registry size == raw data-row count. The shared CSV
+    /// loader is row-resilient (a row that fails serde is skipped with only a log::warn),
+    /// which silently ate `saffron` for months: its fractional yield_min (0.3) failed the
+    /// old `u32` yield field, so the registry never contained it and it was un-plantable
+    /// in-game. Any future schema drift that starts eating rows fails HERE, loudly.
+    #[test]
+    fn shipped_plants_csv_parses_with_zero_dropped_rows() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("plants.csv");
+        let text = std::fs::read_to_string(&path).expect("data/plants.csv reads");
+        // Raw data-row count: non-comment, non-blank lines, minus the header line.
+        let data_rows = text
+            .lines()
+            .filter(|l| {
+                let t = l.trim();
+                !t.is_empty() && !t.starts_with('#')
+            })
+            .count()
+            - 1;
+        let reg = PlantRegistry::from_csv(text.as_bytes()).expect("data/plants.csv parses");
+        assert_eq!(
+            reg.plants.len(),
+            data_rows,
+            "PlantRegistry dropped {} of {} plants.csv rows (row-resilient parsing silently \
+             ate them -- check the loader warn log for which rows failed serde)",
+            data_rows - reg.plants.len().min(data_rows),
+            data_rows
+        );
+        // The row that exposed the bug: saffron's fractional yield survives as-is.
+        let saffron = reg.get("saffron").expect("saffron present (fractional-yield row)");
+        assert!(
+            (saffron.yield_min - 0.3).abs() < 1e-6,
+            "saffron yield_min survives as 0.3, got {}",
+            saffron.yield_min
+        );
+        assert!(
+            (saffron.yield_max - 1.0).abs() < 1e-6,
+            "saffron yield_max survives as 1.0, got {}",
+            saffron.yield_max
+        );
     }
 
     /// The shipped `data/plants.csv` carries real edible mushroom crops (added 2026-07-01 to
@@ -627,15 +674,27 @@ impl System for FarmingSystem {
                 });
                 if let Some(plant_id) = plant_id {
                     if let Some(yield_item) = harvest_item_for(&plant_id, item_registry) {
+                        // Yield range from the plant def. Yields are FRACTIONAL (f32):
+                        // saffron's 0.3 means less than one unit per plant per harvest.
+                        // Sanitize the window (min >= 0, max >= min); unknown plants
+                        // fall back to exactly 1 unit as before.
                         let (ymin, ymax) = plant_registry
                             .and_then(|reg| reg.get(&plant_id))
-                            .map(|d| (d.yield_min.max(1), d.yield_max.max(d.yield_min).max(1)))
-                            .unwrap_or((1, 1));
-                        let qty = if ymax > ymin {
-                            ymin + (rand::random::<u32>() % (ymax - ymin + 1))
-                        } else {
-                            ymin
-                        };
+                            .map(|d| {
+                                let lo = d.yield_min.max(0.0);
+                                (lo, d.yield_max.max(lo))
+                            })
+                            .unwrap_or((1.0, 1.0));
+                        // Roll a continuous yield in [ymin, ymax], then convert to a
+                        // whole item count by PROBABILISTIC ROUNDING (floor + Bernoulli
+                        // on the fraction): a 0.3 roll yields 1 item 30% of the time and
+                        // 0 items 70%, so the expected value equals the roll. Fractional
+                        // crops average their real output over repeated harvests instead
+                        // of being silently rounded up to a full unit (3x inflation for
+                        // saffron) or floored to permanent zero.
+                        let rolled = ymin + rand::random::<f32>() * (ymax - ymin);
+                        let qty = rolled.floor() as u32
+                            + u32::from(rand::random::<f32>() < rolled.fract());
                         let max_stack =
                             item_registry.map(|r| r.max_stack_for(&yield_item)).unwrap_or(99);
                         for (_e, (inv, _ctrl)) in world.query_mut::<(
