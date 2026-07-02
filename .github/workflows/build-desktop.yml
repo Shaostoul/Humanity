@@ -80,8 +80,18 @@ jobs:
           cp -r assets/shaders/ dist/HumanityOS/assets/shaders/
           # Remove large audio placeholders if they exist
           rm -rf dist/HumanityOS/data/audio/sfx/* dist/HumanityOS/data/audio/music/* dist/HumanityOS/data/audio/ambient/* 2>/dev/null || true
-          # Create the bundle archive (binary + data + assets) for fresh installs
+          # Create the bundle archives (binary + data + assets) for fresh installs.
+          # BOTH formats: .zip opens natively on every OS (Windows Explorer, macOS
+          # Finder, Linux file managers -- the no-friction choice for regular
+          # people); .tar.gz stays for scripts/servers and existing tooling.
+          # (.rar was considered and rejected: creating RAR requires proprietary
+          # software our open CI can't use, and Windows 10 can't open it natively.)
           cd dist && tar czf HumanityOS-${{ matrix.label }}.tar.gz HumanityOS/
+          if command -v 7z >/dev/null 2>&1; then
+            7z a -tzip HumanityOS-${{ matrix.label }}.zip HumanityOS/ >/dev/null
+          else
+            zip -qr HumanityOS-${{ matrix.label }}.zip HumanityOS/
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -89,6 +99,7 @@ jobs:
           name: humanity-${{ matrix.label }}
           path: |
             dist/HumanityOS-${{ matrix.label }}.tar.gz
+            dist/HumanityOS-${{ matrix.label }}.zip
             dist/${{ matrix.asset_name }}
 
       - name: Publish to Release
@@ -99,6 +110,7 @@ jobs:
           generate_release_notes: false
           files: |
             dist/HumanityOS-${{ matrix.label }}.tar.gz
+            dist/HumanityOS-${{ matrix.label }}.zip
             dist/${{ matrix.asset_name }}
 
   # Mirror every platform's binaries to the VPS release archive in one batch

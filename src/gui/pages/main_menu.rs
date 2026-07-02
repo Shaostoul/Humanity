@@ -306,8 +306,8 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new("Your Identity").size(24.0).color(theme.accent()));
         ui.add_space(8.0);
         ui.label(RichText::new(
-            "Choose a display name. Your post-quantum cryptographic\n\
-             identity (Dilithium3 key) is generated automatically."
+            "Pick the name people will see. There is no account and no\n\
+             password: the app creates a secret key that stays on your device."
         ).size(13.0).color(theme.text_secondary()));
         ui.add_space(16.0);
     });
@@ -341,8 +341,12 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.private_key_bytes = Some(seed);
                 state.apply_pq_identity(); // derive Dilithium+Kyber + connect
                 state.identity_recovered = true;
+                // Show the 24 recovery words RIGHT HERE (below) instead of
+                // sending a brand-new user hunting through Settings for the
+                // only backup of their account (first-run friction pass).
+                state.settings.seed_phrase_visible = true;
                 state.settings.seed_phrase_recovery_status =
-                    "Identity created. Back up your 24-word seed phrase in Settings → Identity now, it is the ONLY way to restore this account.".to_string();
+                    "Identity created. Your 24 recovery words are below -- write them down before you continue.".to_string();
                 state.passphrase_needed = true;
                 state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
             }
@@ -350,9 +354,71 @@ fn draw_step_identity(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             ui.add_space(40.0);
-            ui.label(RichText::new("Creates a fresh 24-word seed (your only backup). Or recover an existing one below.").size(11.0).color(theme.text_secondary()));
+            ui.label(RichText::new("Creates a fresh 24-word recovery phrase (your only backup). Or recover an existing one below.").size(11.0).color(theme.text_secondary()));
         });
         ui.add_space(8.0);
+    }
+
+    // ── First-run seed backup, shown IN PLACE (the 24-word moment is the
+    // scariest step in the whole funnel for a non-technical person -- the
+    // words appear here with plain instructions the moment the identity is
+    // created, not behind a Settings page they have never opened) ──
+    if state.settings.seed_phrase_visible {
+        if let Some(words) = state
+            .private_key_bytes
+            .as_ref()
+            .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
+        {
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.add_space(40.0);
+                ui.label(
+                    RichText::new("Write these 24 words on paper, in this order. They ARE your account.")
+                        .size(13.0)
+                        .strong()
+                        .color(theme.warning()),
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.add_space(40.0);
+                ui.label(
+                    RichText::new(
+                        "Anyone who has them can be you, and if you lose them nobody can reset or \
+                         recover your account -- not even us. Paper beats a screenshot: photos get \
+                         synced, hacked, and lost.",
+                    )
+                    .size(11.0)
+                    .color(theme.text_secondary()),
+                );
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.add_space(40.0);
+                egui::Grid::new("onboarding_seed_words").num_columns(4).spacing([18.0, 4.0]).show(ui, |ui| {
+                    for (i, w) in words.split_whitespace().enumerate() {
+                        ui.label(
+                            RichText::new(format!("{:>2}. {w}", i + 1))
+                                .monospace()
+                                .size(13.0)
+                                .color(theme.text_primary()),
+                        );
+                        if (i + 1) % 4 == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
+            });
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.add_space(40.0);
+                if widgets::secondary_button(ui, theme, "I wrote them down -- hide the words") {
+                    state.settings.seed_phrase_visible = false;
+                    state.settings.seed_phrase_recovery_status =
+                        "Good. Keep that paper somewhere safe -- you can see the words again any time in Settings -> Identity.".to_string();
+                }
+            });
+            ui.add_space(8.0);
+        }
     }
 
     // ── Recover from Seed Phrase ──
