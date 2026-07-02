@@ -197,11 +197,16 @@ Concrete follow-ups, roughly in order of value/effort:
    voice-chat mic test uses). Reads 0 unless a mic test or a live voice
    session is actually capturing -- honest, consistent with the page's
    existing "rehearsal only" framing, not a fake-but-moving bar.
-2. Program/Preview split -- the single biggest OBS-workflow gap (can't
-   stage a scene change before it's "live"). Needs a second canvas/state
-   for "what's staged" vs "what's shown," a real design decision on layout,
-   not a one-line fix -- scope carefully, this alone could be a full cycle.
-   **STILL OPEN.**
+2. **DONE (v0.664, worktree agent).** Program/Preview split, OBS-style:
+   `StudioState` gained `program_scene_index` + `preview_scene_index` +
+   `program_sources` (frozen snapshot taken at cut). Scene clicks stage into
+   PREVIEW only; a "Cut to Program" button (with a new
+   `studio-program-preview` help topic) pushes preview live. Source editing
+   always targets preview, so the live layout stays put mid-rearrange. Center
+   canvas renders both panes side by side when >= 660px wide (Program left,
+   labeled LIVE while "live"; Preview right), one pane + Program/Preview
+   toggle when narrow. AFK's BRB switch now stages + cuts in one click. 7 new
+   `studio_state_tests` unit tests; new `just snapshot studio` snapshot.
 3. Wire Go Live to actually call `create_stream`/relay stream lifecycle +
    `net::webrtc`/`net::voice` for real transport. This is the "weeks each"
    item `docs/STATUS.md` already tracks -- don't force the WHOLE thing in

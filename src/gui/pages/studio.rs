@@ -1,7 +1,18 @@
 //! Broadcasting Studio page — simplified OBS-like streaming control UI.
 //!
-//! Layout: left panel (scenes + sources), center (preview + controls), right panel (properties + settings).
-//! UI only; no actual WebRTC/streaming implementation yet.
+//! Layout: left panel (scenes + sources), center (Program/Preview canvases + controls),
+//! right panel (properties + settings). UI only; no actual WebRTC/streaming
+//! implementation yet.
+//!
+//! PROGRAM/PREVIEW SPLIT (v0.664, OBS-style): clicking a scene stages it into
+//! PREVIEW only; the PROGRAM side (what would be broadcast) does not change until
+//! the "Cut to Program" button deliberately pushes preview live. Source editing
+//! (position/size/visibility/add/remove) always operates on the preview working
+//! set, so a streamer can rearrange safely mid-broadcast. When the center panel is
+//! wide enough the two canvases render side by side (Program left, Preview right);
+//! narrow windows fall back to one canvas with a Program/Preview toggle. State
+//! model + transition logic live in `GuiState.studio` (`StudioState` methods
+//! `select_preview_scene` / `cut_to_program`, unit-tested in gui/mod.rs).
 //!
 //! PERSISTENCE (operator 2026-06-07: "chat and studio should always persist load
 //! ... even if I switch away from studio my stream doesn't die so I can keep playing
@@ -68,25 +79,39 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         });
         ui.add_space(theme.section_gap);
 
-        let active_scene = state.studio.active_scene_index;
+        // Program = live output (success-colored), Preview = staged/editing (accent).
+        // Clicking a scene only STAGES it into preview; "Cut to Program" in the
+        // center panel is what makes it live. A scene can be both at once.
+        let program_idx = state.studio.program_scene_index;
+        let preview_idx = state.studio.preview_scene_index;
+        let is_live = state.studio.is_live;
         let mut clicked_scene: Option<usize> = None;
         let mut delete_scene: Option<usize> = None;
 
         for (i, scene) in state.studio.scenes.iter().enumerate() {
-            let is_active = i == active_scene;
-            let bg = if is_active {
+            let in_program = i == program_idx;
+            let in_preview = i == preview_idx;
+            let bg = if in_preview {
                 let a = theme.accent();
                 Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 40)
+            } else if in_program {
+                let s = theme.success();
+                Color32::from_rgba_unmultiplied(s.r(), s.g(), s.b(), 25)
             } else {
                 Color32::TRANSPARENT
             };
-            let border = if is_active {
+            // Program's live border outranks preview's accent when a scene is both.
+            let border = if in_program {
+                Stroke::new(1.0, theme.success())
+            } else if in_preview {
                 Stroke::new(1.0, theme.accent())
             } else {
                 Stroke::NONE
             };
-            let text_color = if is_active {
+            let text_color = if in_preview {
                 theme.accent()
+            } else if in_program {
+                theme.text_primary()
             } else {
                 theme.text_secondary()
             };
@@ -98,53 +123,55 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .inner_margin(Vec2::new(6.0, 3.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        let resp = ui.selectable_label(false,
-                            RichText::new(&scene.name).size(theme.font_size_body).color(text_color),
-                        );
+                        let resp = ui
+                            .selectable_label(false,
+                                RichText::new(&scene.name).size(theme.font_size_body).color(text_color),
+                            )
+                            .on_hover_text(
+                                "Click to stage this scene in Preview. What is live does not \
+                                 change until you press Cut to Program.",
+                            );
                         if resp.clicked() {
                             clicked_scene = Some(i);
                         }
-                        // Delete button for custom scenes
-                        if !scene.is_default {
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            // Delete button for custom scenes
+                            if !scene.is_default {
                                 if ui.small_button(RichText::new("x").color(theme.text_muted())).clicked() {
                                     delete_scene = Some(i);
                                 }
-                            });
-                        }
+                            }
+                            if in_program {
+                                let tag_color = if is_live { theme.success() } else { theme.text_muted() };
+                                ui.label(
+                                    RichText::new("PGM").size(theme.font_size_small).color(tag_color).strong(),
+                                )
+                                .on_hover_text("In Program: the live output side (what would be broadcast)");
+                            }
+                            if in_preview {
+                                ui.label(
+                                    RichText::new("PRE").size(theme.font_size_small).color(theme.accent()),
+                                )
+                                .on_hover_text("In Preview: staged for editing, viewers would not see it");
+                            }
+                        });
                     });
                 });
         }
 
         if let Some(idx) = clicked_scene {
-            state.studio.active_scene_index = idx;
-            // Apply scene source visibility
-            let scene_vis = state.studio.scenes[idx].source_visibility.clone();
-            for (j, src) in state.studio.sources.iter_mut().enumerate() {
-                if let Some(&vis) = scene_vis.get(j) {
-                    src.visible = vis;
-                }
-            }
+            // Stage into PREVIEW (applies the scene's source visibility to the
+            // preview working set); program is untouched by design.
+            state.studio.select_preview_scene(idx);
         }
 
         if let Some(idx) = delete_scene {
-            if !state.studio.scenes[idx].is_default {
-                state.studio.scenes.remove(idx);
-                if state.studio.active_scene_index >= state.studio.scenes.len() {
-                    state.studio.active_scene_index = 0;
-                }
-            }
+            state.studio.delete_scene(idx);
         }
 
         ui.add_space(theme.section_gap);
         if widgets::secondary_button(ui, theme, "+ New Scene") {
-            let idx = state.studio.scenes.len();
-            let vis = state.studio.sources.iter().map(|s| s.visible).collect();
-            state.studio.scenes.push(crate::gui::StudioScene {
-                name: format!("Custom {}", idx + 1),
-                is_default: false,
-                source_visibility: vis,
-            });
+            state.studio.add_custom_scene();
         }
 
         ui.add_space(theme.card_padding);
@@ -156,6 +183,12 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             RichText::new("Sources")
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
+        );
+        // The whole point of the split: source edits stage in preview, never live.
+        ui.label(
+            RichText::new("Edits apply to the Preview scene")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
         );
         ui.add_space(theme.section_gap);
 
@@ -251,53 +284,28 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 // ── Center Panel ────────────────────────────────────────────────────────────
 
-fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let avail = ui.available_size();
-
-    // ── Preview/Live header ──
-    ui.horizontal(|ui| {
-        let preview_text = if state.studio.is_live {
-            RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong()
-        } else {
-            RichText::new("PREVIEW").size(theme.font_size_body).color(theme.text_secondary())
-        };
-        ui.label(preview_text);
-
-        if state.studio.is_live {
-            // Elapsed time indicator
-            let elapsed = ui.ctx().input(|i| i.time) - state.studio.live_start_time;
-            let secs = elapsed as u64;
-            let h = secs / 3600;
-            let m = (secs % 3600) / 60;
-            let s = secs % 60;
-            ui.label(
-                RichText::new(format!("{}:{:02}:{:02}", h, m, s))
-                    .size(theme.font_size_small)
-                    .color(theme.success()),
-            );
-        }
-    });
-    ui.add_space(theme.section_gap);
-
-    // ── Preview area ──
-    let controls_height = 80.0;
-    let preview_height = (avail.y - controls_height - 20.0).max(100.0);
-    let preview_width = avail.x;
-
+/// Render one scene canvas (each visible source as a labeled rectangle) into a
+/// `size`-sized dark frame. Pure rendering over a source SLICE so the same fn
+/// draws both the frozen program snapshot and the live preview working set.
+/// `live_glow` adds the green live border (program pane while "live").
+fn draw_scene_canvas(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    sources: &[crate::gui::StudioSource],
+    size: Vec2,
+    live_glow: bool,
+    empty_msg: &str,
+) {
     Frame::none()
         .fill(theme.bg_sidebar_dark())
         .rounding(Rounding::same(4))
         .stroke(Stroke::new(1.0, theme.border()))
         .show(ui, |ui| {
-            let (rect, _) = ui.allocate_exact_size(
-                Vec2::new(preview_width, preview_height),
-                egui::Sense::hover(),
-            );
-
+            let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
             let painter = ui.painter_at(rect);
 
             // Draw visible sources as labeled rectangles
-            for src in &state.studio.sources {
+            for src in sources {
                 if !src.visible {
                     continue;
                 }
@@ -335,19 +343,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
             }
 
-            // "No sources visible" message if all hidden
-            if state.studio.sources.iter().all(|s| !s.visible) {
+            // Placeholder message if nothing is visible in this pane
+            if sources.iter().all(|s| !s.visible) {
                 painter.text(
                     rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    "No visible sources",
+                    empty_msg,
                     egui::FontId::proportional(14.0),
                     theme.text_muted(),
                 );
             }
 
             // Live border glow
-            if state.studio.is_live {
+            if live_glow {
                 painter.rect_stroke(
                     rect, 4.0,
                     Stroke::new(2.0, theme.success()),
@@ -355,12 +363,178 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 );
             }
         });
+}
+
+/// Label row above a canvas pane: PROGRAM (or LIVE while live) / PREVIEW plus the
+/// scene name currently on that side.
+fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: bool) {
+    ui.horizontal(|ui| {
+        if program_side {
+            if state.studio.is_live {
+                ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong());
+            } else {
+                ui.label(
+                    RichText::new("PROGRAM").size(theme.font_size_body).color(theme.text_secondary()).strong(),
+                );
+            }
+            let scene_name = state
+                .studio
+                .scenes
+                .get(state.studio.program_scene_index)
+                .map(|s| s.name.as_str())
+                .unwrap_or("");
+            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()));
+        } else {
+            ui.label(RichText::new("PREVIEW").size(theme.font_size_body).color(theme.accent()).strong());
+            let scene_name = state
+                .studio
+                .scenes
+                .get(state.studio.preview_scene_index)
+                .map(|s| s.name.as_str())
+                .unwrap_or("");
+            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()));
+        }
+    });
+}
+
+/// Minimum center-panel width for the side-by-side Program/Preview canvases;
+/// below this the panel falls back to one canvas with a pane toggle.
+const SPLIT_MIN_WIDTH: f32 = 660.0;
+
+fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // ── Stream status header ──
+    ui.horizontal(|ui| {
+        if state.studio.is_live {
+            ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong());
+            // Elapsed time indicator
+            let elapsed = ui.ctx().input(|i| i.time) - state.studio.live_start_time;
+            let secs = elapsed as u64;
+            let h = secs / 3600;
+            let m = (secs % 3600) / 60;
+            let s = secs % 60;
+            ui.label(
+                RichText::new(format!("{}:{:02}:{:02}", h, m, s))
+                    .size(theme.font_size_small)
+                    .color(theme.success()),
+            );
+        } else {
+            ui.label(
+                RichText::new("Offline").size(theme.font_size_body).color(theme.text_secondary()),
+            );
+        }
+    });
+    ui.add_space(theme.section_gap);
+
+    // ── Program/Preview canvases ──
+    let avail = ui.available_size();
+    let controls_height = 80.0;
+    let label_height = 22.0;
+    let canvas_height = (avail.y - controls_height - label_height - 20.0).max(100.0);
+    let program_empty_msg = "Nothing live yet: stage a scene in Preview, then Cut to Program";
+    let preview_empty_msg = "No visible sources";
+
+    if avail.x >= SPLIT_MIN_WIDTH {
+        // Wide: Program (left, the live output) and Preview (right, staged) side by side.
+        let gap = 8.0;
+        let pane_w = ((avail.x - gap) / 2.0).max(100.0);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            ui.vertical(|ui| {
+                ui.set_width(pane_w);
+                pane_label(ui, theme, state, true);
+                draw_scene_canvas(
+                    ui,
+                    theme,
+                    &state.studio.program_sources,
+                    Vec2::new(pane_w, canvas_height),
+                    state.studio.is_live,
+                    program_empty_msg,
+                );
+            });
+            ui.vertical(|ui| {
+                ui.set_width(pane_w);
+                pane_label(ui, theme, state, false);
+                draw_scene_canvas(
+                    ui,
+                    theme,
+                    &state.studio.sources,
+                    Vec2::new(pane_w, canvas_height),
+                    false,
+                    preview_empty_msg,
+                );
+            });
+        });
+    } else {
+        // Narrow: one canvas with a Program/Preview toggle in the label row.
+        ui.horizontal(|ui| {
+            let on_program = state.studio.focused_pane == crate::gui::StudioPane::Program;
+            if ui
+                .selectable_label(
+                    on_program,
+                    RichText::new("Program").size(theme.font_size_small),
+                )
+                .on_hover_text("Show the live output side")
+                .clicked()
+            {
+                state.studio.focused_pane = crate::gui::StudioPane::Program;
+            }
+            if ui
+                .selectable_label(
+                    !on_program,
+                    RichText::new("Preview").size(theme.font_size_small),
+                )
+                .on_hover_text("Show the staged side you are editing")
+                .clicked()
+            {
+                state.studio.focused_pane = crate::gui::StudioPane::Preview;
+            }
+            pane_label(ui, theme, state, state.studio.focused_pane == crate::gui::StudioPane::Program);
+        });
+        let on_program = state.studio.focused_pane == crate::gui::StudioPane::Program;
+        if on_program {
+            draw_scene_canvas(
+                ui,
+                theme,
+                &state.studio.program_sources,
+                Vec2::new(avail.x, canvas_height),
+                state.studio.is_live,
+                program_empty_msg,
+            );
+        } else {
+            draw_scene_canvas(
+                ui,
+                theme,
+                &state.studio.sources,
+                Vec2::new(avail.x, canvas_height),
+                false,
+                preview_empty_msg,
+            );
+        }
+    }
 
     ui.add_space(theme.panel_margin);
 
     // ── Controls bar ──
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
+
+        // Cut to Program — THE deliberate transition. Scene clicks only stage into
+        // preview; nothing changes on the live side until this button pushes the
+        // staged preview to program (a hard cut; fades are a later add).
+        if widgets::Button::primary("Cut to Program")
+            .tooltip(
+                "Make the Preview scene the live Program output. Rehearsal mode: \
+                 no video/audio is actually broadcast yet.",
+            )
+            .show(ui, theme)
+        {
+            state.studio.cut_to_program();
+        }
+        widgets::help_modal::help_button(ui, theme, "studio-program-preview", &mut state.active_help_topic);
+
+        ui.add_space(theme.panel_margin);
+        ui.separator();
+        ui.add_space(theme.panel_margin);
 
         // Go Live / LIVE button — Success variant when live (green), Primary when not.
         // Real capture/encoding/transport isn't built yet (STATUS.md TIER 2 gap) --
@@ -410,7 +584,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 state.studio.afk_start_time = ui.ctx().input(|i| i.time);
                 state.studio.is_paused = true;
                 if let Some(brb_idx) = state.studio.scenes.iter().position(|s| s.name == "BRB") {
-                    state.studio.active_scene_index = brb_idx;
+                    // AFK is itself the deliberate action (OBS-hotkey style): stage
+                    // BRB and cut it straight to program so the audience-facing side
+                    // flips to BRB in the same click.
+                    state.studio.select_preview_scene(brb_idx);
+                    state.studio.cut_to_program();
                 }
             } else {
                 state.studio.is_paused = false;
@@ -530,6 +708,13 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             RichText::new("Source Properties")
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
+        );
+        // These sliders edit the PREVIEW working set; the live program layout only
+        // changes when Cut to Program pushes the staged preview live.
+        ui.label(
+            RichText::new("Edits apply to the Preview scene")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
         );
         ui.add_space(theme.section_gap);
 

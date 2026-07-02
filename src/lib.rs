@@ -5130,6 +5130,10 @@ mod native_app {
                 .iter()
                 .map(crate::gui::studio_scene_from_preset)
                 .collect();
+            // Prime the Program/Preview split: both panes start on scene 0, with
+            // program holding a frozen copy of the just-loaded source arrangement
+            // so the Program pane renders sensibly before the first manual Cut.
+            gui_state.studio.cut_to_program();
             // Default to Earth if present.
             gui_state.map_selected_planet = gui_state
                 .map_planets

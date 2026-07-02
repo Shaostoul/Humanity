@@ -931,12 +931,38 @@ pub struct StudioScene {
     pub source_visibility: Vec<bool>,
 }
 
+/// Which pane the Studio center canvas shows when the window is too narrow for
+/// the side-by-side Program/Preview split.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StudioPane {
+    Program,
+    Preview,
+}
+
 /// All state for the broadcasting studio page.
+///
+/// Program/Preview split (OBS-style, v0.664): `program_scene_index` is the scene
+/// that is LIVE (what WOULD be broadcast once real transport exists) and
+/// `program_sources` is a frozen copy of the source arrangement taken at the last
+/// Cut. `preview_scene_index` + the working `sources` list are the STAGED side:
+/// clicking a scene loads it into preview, and all source editing (position, size,
+/// visibility, add/remove) operates on preview, so the live layout stays put until
+/// `cut_to_program()` deliberately pushes preview to program.
 #[cfg(feature = "native")]
 pub struct StudioState {
     pub scenes: Vec<StudioScene>,
-    pub active_scene_index: usize,
+    /// Scene that is live in PROGRAM (what would be broadcast right now).
+    pub program_scene_index: usize,
+    /// Scene staged in PREVIEW (what you are editing; viewers would not see it).
+    pub preview_scene_index: usize,
+    /// Frozen snapshot of `sources` taken at the last cut; the Program pane renders
+    /// this so preview edits cannot disturb the live layout.
+    pub program_sources: Vec<StudioSource>,
+    /// The PREVIEW working source set (edited by the Sources panel + properties).
     pub sources: Vec<StudioSource>,
+    /// Which pane the single canvas shows in the narrow-window fallback layout.
+    pub focused_pane: StudioPane,
     pub selected_source_index: Option<usize>,
     pub is_live: bool,
     pub is_paused: bool,
@@ -965,8 +991,11 @@ impl Default for StudioState {
         // missing, the studio page renders a blank scene list rather than crashing.
         Self {
             scenes: Vec::new(),
-            active_scene_index: 0,
+            program_scene_index: 0,
+            preview_scene_index: 0,
+            program_sources: Vec::new(),
             sources: Vec::new(),
+            focused_pane: StudioPane::Preview,
             selected_source_index: None,
             is_live: false,
             is_paused: false,
@@ -986,6 +1015,191 @@ impl Default for StudioState {
             chat_overlay_max_messages: 15,
             chat_overlay_bg_opacity: 0.3,
         }
+    }
+}
+
+#[cfg(feature = "native")]
+impl StudioState {
+    /// Stage a scene into PREVIEW: remember the index and apply that scene's
+    /// per-source visibility to the working (preview) source set. PROGRAM is
+    /// deliberately untouched -- that is the whole point of the split: you can
+    /// click through scenes and rearrange sources without changing what is live.
+    pub fn select_preview_scene(&mut self, idx: usize) {
+        if idx >= self.scenes.len() {
+            return;
+        }
+        self.preview_scene_index = idx;
+        let vis = self.scenes[idx].source_visibility.clone();
+        for (j, src) in self.sources.iter_mut().enumerate() {
+            if let Some(&v) = vis.get(j) {
+                src.visible = v;
+            }
+        }
+    }
+
+    /// Cut transition: push the staged PREVIEW to PROGRAM. The program scene index
+    /// takes the preview index and the program pane gets a frozen copy of the
+    /// current working sources, so later preview edits leave program alone.
+    pub fn cut_to_program(&mut self) {
+        self.program_scene_index = self.preview_scene_index;
+        self.program_sources = self.sources.clone();
+    }
+
+    /// Add a new custom (deletable) scene snapshotting the current preview source
+    /// visibility. Returns the new scene's index.
+    pub fn add_custom_scene(&mut self) -> usize {
+        let idx = self.scenes.len();
+        let vis = self.sources.iter().map(|s| s.visible).collect();
+        self.scenes.push(StudioScene {
+            name: format!("Custom {}", idx + 1),
+            is_default: false,
+            source_visibility: vis,
+        });
+        idx
+    }
+
+    /// Delete a non-default scene, keeping BOTH the program and preview indices
+    /// pointing at the same scenes they pointed at before (shift down when a scene
+    /// above them is removed; fall back to scene 0 if the deleted scene itself was
+    /// program or preview). `program_sources` is a frozen copy, so the program
+    /// pane keeps rendering the last-cut layout either way.
+    pub fn delete_scene(&mut self, idx: usize) {
+        if idx >= self.scenes.len() || self.scenes[idx].is_default {
+            return;
+        }
+        self.scenes.remove(idx);
+        for index in [&mut self.preview_scene_index, &mut self.program_scene_index] {
+            if *index == idx {
+                *index = 0;
+            } else if *index > idx {
+                *index -= 1;
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod studio_state_tests {
+    use super::*;
+
+    fn src(name: &str, visible: bool) -> StudioSource {
+        StudioSource {
+            name: name.into(),
+            source_type: StudioSourceType::Text(name.into()),
+            visible,
+            position: (0.1, 0.1),
+            size: (0.3, 0.3),
+            opacity: 1.0,
+            z_order: 0,
+        }
+    }
+
+    fn scene(name: &str, is_default: bool, vis: &[bool]) -> StudioScene {
+        StudioScene {
+            name: name.into(),
+            is_default,
+            source_visibility: vis.to_vec(),
+        }
+    }
+
+    /// Two scenes, two sources, program cut on scene 0.
+    fn demo() -> StudioState {
+        let mut s = StudioState::default();
+        s.sources = vec![src("Camera", true), src("Chat", false)];
+        s.scenes = vec![
+            scene("Main", true, &[true, false]),
+            scene("BRB", true, &[false, true]),
+            scene("Custom", false, &[true, true]),
+        ];
+        s.cut_to_program();
+        s
+    }
+
+    #[test]
+    fn select_into_preview_leaves_program_alone() {
+        let mut s = demo();
+        s.select_preview_scene(1);
+        assert_eq!(s.preview_scene_index, 1, "clicked scene becomes preview");
+        assert_eq!(s.program_scene_index, 0, "program scene must NOT follow a preview click");
+        // Preview working set took scene 1's visibility ...
+        assert!(!s.sources[0].visible);
+        assert!(s.sources[1].visible);
+        // ... while the frozen program snapshot kept the cut-time arrangement.
+        assert!(s.program_sources[0].visible);
+        assert!(!s.program_sources[1].visible);
+    }
+
+    #[test]
+    fn select_out_of_range_is_a_noop() {
+        let mut s = demo();
+        s.select_preview_scene(99);
+        assert_eq!(s.preview_scene_index, 0);
+    }
+
+    #[test]
+    fn cut_copies_preview_to_program() {
+        let mut s = demo();
+        s.select_preview_scene(1);
+        s.cut_to_program();
+        assert_eq!(s.program_scene_index, 1);
+        assert_eq!(s.program_sources.len(), s.sources.len());
+        assert!(!s.program_sources[0].visible);
+        assert!(s.program_sources[1].visible);
+    }
+
+    #[test]
+    fn source_edits_target_preview_not_program() {
+        let mut s = demo();
+        // Rearranging / retitling / hiding sources = the properties-panel edits.
+        s.sources[0].position = (0.7, 0.7);
+        s.sources[0].visible = false;
+        s.sources.push(src("New overlay", true));
+        assert_eq!(
+            s.program_sources[0].position,
+            (0.1, 0.1),
+            "moving a preview source must not move it in program"
+        );
+        assert!(s.program_sources[0].visible, "hiding in preview must not hide in program");
+        assert_eq!(s.program_sources.len(), 2, "adding a preview source must not appear in program");
+    }
+
+    #[test]
+    fn delete_scene_shifts_both_indices() {
+        let mut s = demo();
+        s.select_preview_scene(2);
+        s.cut_to_program(); // program = preview = 2 ("Custom")
+        // Removing a DEFAULT scene is refused.
+        s.delete_scene(0);
+        assert_eq!(s.scenes.len(), 3);
+        // Make a second custom scene above nothing, then delete index 2 while both
+        // indices sit at 2: both fall back to 0.
+        s.delete_scene(2);
+        assert_eq!(s.scenes.len(), 2);
+        assert_eq!(s.preview_scene_index, 0);
+        assert_eq!(s.program_scene_index, 0);
+    }
+
+    #[test]
+    fn delete_scene_below_indices_shifts_them_down() {
+        let mut s = demo();
+        // Insert a custom scene at the front so there is a deletable scene BELOW the others.
+        s.scenes.insert(0, scene("Front custom", false, &[true, true]));
+        s.preview_scene_index = 2;
+        s.program_scene_index = 3;
+        s.delete_scene(0);
+        assert_eq!(s.preview_scene_index, 1, "preview index shifts down past a removed scene");
+        assert_eq!(s.program_scene_index, 2, "program index shifts down past a removed scene");
+    }
+
+    #[test]
+    fn add_custom_scene_snapshots_preview_visibility() {
+        let mut s = demo();
+        s.sources[0].visible = false;
+        s.sources[1].visible = true;
+        let idx = s.add_custom_scene();
+        assert_eq!(idx, 3);
+        assert!(!s.scenes[idx].is_default, "user-added scenes must be deletable");
+        assert_eq!(s.scenes[idx].source_visibility, vec![false, true]);
     }
 }
 

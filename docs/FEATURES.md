@@ -623,8 +623,16 @@ Content creation / streaming rehearsal tools: scenes, sources, resolution/bitrat
 chat overlay. Real mic-level meter (v0.658, `crate::net::voice::mic_level()` -- reads
 0 unless a mic test or live voice session is actually capturing, matching the page's
 "rehearsal only, no real transport yet" honesty fix from v0.652.0). First-ever adoption
-of the built-but-previously-unused help_modal system (3 topics: scenes/sources, stream
-settings, chat overlay) -- see the Help Modal entry below.
+of the built-but-previously-unused help_modal system (4 topics: scenes/sources, stream
+settings, chat overlay, program/preview) -- see the Help Modal entry below.
+OBS-style Program/Preview split (v0.664): clicking a scene stages it into PREVIEW only;
+a "Cut to Program" transition button deliberately pushes it live. Source editing always
+targets the preview working set while PROGRAM renders a frozen snapshot from the last
+cut, so a streamer can rearrange safely mid-broadcast. Center canvas is two panes side
+by side (Program left / Preview right) when wide, one pane + toggle when narrow. Scene
+list marks PGM/PRE. State + transitions live in `GuiState.studio` (`StudioState::
+select_preview_scene` / `cut_to_program`, unit-tested; persists across page switches).
+Headless snapshot: `just snapshot studio`.
 - Native: `src/gui/pages/studio.rs`
 
 ### Civilization Page

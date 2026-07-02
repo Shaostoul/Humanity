@@ -819,3 +819,32 @@ page_snapshot!(snapshot_wallet, "wallet", wallet, 1280, 900);
 page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
+
+// Studio needs the scene/source presets loaded (demo_state leaves them empty) and a
+// staged-vs-live divergence so the Program/Preview split is actually visible: program
+// holds the cut "Main" layout while "Screen Share" sits staged in preview.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_studio() {
+    render_page_png("studio", 1280, 900, |ctx, theme, state| {
+        if state.studio.scenes.is_empty() {
+            let data = std::path::Path::new("data");
+            state.studio.sources = crate::gui::load_studio_sources(data)
+                .iter()
+                .map(crate::gui::studio_source_from_preset)
+                .collect();
+            state.studio.scenes = crate::gui::load_studio_scenes(data)
+                .iter()
+                .map(crate::gui::studio_scene_from_preset)
+                .collect();
+            state.studio_streaming_config = crate::gui::load_studio_streaming_config(data);
+            // Cut "Main" live, then stage a different scene into preview.
+            state.studio.cut_to_program();
+            if let Some(idx) = state.studio.scenes.iter().position(|s| s.name == "Screen Share") {
+                state.studio.select_preview_scene(idx);
+            }
+            state.studio.is_live = true;
+        }
+        crate::gui::pages::studio::draw(ctx, theme, state);
+    });
+}
