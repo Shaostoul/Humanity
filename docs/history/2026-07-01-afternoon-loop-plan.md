@@ -140,18 +140,25 @@ stated goal, do this once A+B are solid):**
    most honest teaching artifact." The data already exists
    (`electrical.ron`'s `grow_light`, 100 W); this is meter/wiring logic,
    not new data.
-2. A "what this cannot close the loop on" panel on the Home page,
-   surfacing the design's own section 8 findings: electronics/
-   semiconductor manufacturing, metal/alloy production at ore scale,
-   medicine synthesis, and equipment-replacement/capital-goods renewal
-   are ALL things this game's own recipe data already abstracts away
-   real industrial infrastructure to make craftable at a workbench --
-   mark these as externally-sourced/traded, visually distinct from the
-   closed survival loops. **This panel is the actual pedagogical payoff
-   the operator asked for** ("people need to see the bare minimum...
-   so they understand the importance of all supporting civilizational
-   infrastructure") -- don't skip it once A+B are done, it's the point,
-   not a nice-to-have.
+2. **DONE (2026-07-01, fleet agent).** A "what this cannot close the
+   loop on" panel on the Home page, surfacing the design's own section 8
+   findings: electronics/semiconductor manufacturing, metal/alloy
+   production at ore scale, medicine synthesis,
+   equipment-replacement/capital-goods renewal, and raw chemistry
+   inputs -- ALL things this game's own recipe data abstracts away real
+   industrial infrastructure to make craftable at a workbench. Shipped
+   as a data-driven panel (`data/self_sufficiency/cannot_close.ron`, 5
+   categories + intro + non-defeatist framing footer) rendered by
+   `src/gui/pages/homes.rs` directly below the closed-loop summary:
+   warning-stroke outlined treatment visually distinct from the green
+   closed loops, one expandable row per category (collapsed = title +
+   "traded" tag; expanded = plain-language body naming the abstracting
+   recipe + a "provided by" trade line). Unit-tested (shipped file
+   parses, 5 category ids present, non-empty copy, em-dash free);
+   verified in the homes snapshot. **This panel is the actual
+   pedagogical payoff the operator asked for** ("people need to see the
+   bare minimum... so they understand the importance of all supporting
+   civilizational infrastructure").
 
 Full design reasoning + exact sizing math for every number above is saved
 permanently at `docs/design/homestead-solo-design.md` -- read that file

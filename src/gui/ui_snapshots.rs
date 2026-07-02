@@ -54,6 +54,15 @@ fn demo_state() -> GuiState {
     s.air_temp_c = 20.0;
     s.air_breathable = true;
     s.tower_configs = crate::gui::load_tower_configs(data);
+    // Loop-closure summary (Home page "Closed-loop self-sufficiency" card) comes from
+    // the home machine layout; load the seed home.ron directly (same as
+    // snapshot_construction) so the closed loops render adjacent to the
+    // "What one home cannot close" panel (which self-loads its own RON).
+    s.homestead_loops = crate::machines::MachineHome::load(
+        &data.join("machines").join("home.ron"),
+    )
+    .map(|h| h.loops)
+    .unwrap_or_default();
     s.equipment_slots = crate::gui::load_equipment_slots(data);
     s.crafting_category_groups = crate::gui::load_crafting_category_groups(data);
     s.craft_recipes = crate::gui::load_crafting_recipes(data);

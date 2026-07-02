@@ -1306,6 +1306,21 @@ only ~half the calories for 3 people closes ~94% for 1). Selectable in Settings 
 - Native: `src/machines.rs` (`home_ron_path`), `src/config.rs` (`AppConfig::home_variant`, `default_home_variant`), `src/gui/mod.rs` (`SettingsState::home_variant`), `src/gui/pages/settings.rs` (`draw_data_content` "Home Design" section)
 - Data: `data/machines/home_solo.ron`
 
+### "What one home cannot close" panel (Home page)
+The pedagogical payoff of the homestead design (operator: "people need to see the bare minimum
+for 100% self-sufficiency so they understand the importance of all supporting civilizational
+infrastructure"). Directly below the closed-loop summary, a visually distinct outlined panel
+(warning stroke, muted treatment -- deliberately NOT the green closed-loop styling) lists the
+five loops no single homestead can close: electronics/semiconductors, metal from raw ore,
+medicine synthesis, equipment replacement, and raw chemistry inputs. Each is an expandable row:
+collapsed shows title + a "traded" tag; expanded gives a plain-language body naming the game
+recipe that abstracts the gap away (manufacture_cpu, smelt_steel, craft_antibiotics, ...) plus
+a "provided by" trade line. Intro + footer carry the non-defeatist framing: these gaps ARE why
+civilization exists. Data-driven (infinite-of-X): categories live in the RON, not code.
+- Native: `src/gui/pages/homes.rs` (`CannotCloseEntry`, `CannotCloseData`, `load_cannot_close`, the panel in `draw_design`)
+- Data: `data/self_sufficiency/cannot_close.ron` (distilled from `docs/design/homestead-solo-design.md` section 8)
+- Tests: `gui::pages::homes::tests::{cannot_close_data_parses_and_is_complete, cannot_close_missing_file_is_empty}`
+
 ### Buildability Report (v0.524, v0.605 - v0.606)
 A design-time validator surfaced in the editor with check marks. Checks: Power source (a consumer needs a
 generator/solar), Energy balance (kWh/day generated vs consumed + overnight battery sizing), Wiring (no

@@ -1,0 +1,50 @@
+// What one homestead CANNOT close the loop on -- the pedagogical payoff.
+//
+// Source of truth: docs/design/homestead-solo-design.md section 8. The operator's
+// core goal: "People need to see the bare minimum for 100% self-sufficiency so they
+// understand the importance of all supporting civilizational infrastructure."
+//
+// Each entry names the game recipe/data that makes something craftable at a bench,
+// then says honestly what real infrastructure that single recipe abstracts away.
+// The framing is NON-DEFEATIST: these gaps are not a failure of the homestead,
+// they are the reason civilization exists. Rendered by the Home page
+// (src/gui/pages/homes.rs, "What one home cannot close" panel).
+//
+// Infinite-of-X: the categories live HERE, not in code. Add/edit entries freely;
+// the panel renders whatever this file carries. No em dashes in copy (operator rule).
+(
+    intro: "The loops above close. These do not -- and that is the point: they are what community and trade are for.",
+    entries: [
+        (
+            id: "electronics",
+            title: "Electronics and semiconductors",
+            body: "The manufacture_cpu recipe turns gold, copper, and glass into a CPU at a bench, and manufacture_solar_cell does the same for solar cells. Real chips need a fabrication plant: silicon purified to 99.9999999 percent, cleanrooms, and photolithography machines that only a handful of factories on Earth can build. When your inverter, battery controller, or well-pump board dies, no one person can make the replacement chip.",
+            provided_by: "Traded from your community's electronics industry.",
+        ),
+        (
+            id: "metal_at_ore_scale",
+            title: "Metal from raw ore",
+            body: "The smelt_steel recipe takes iron ore plus coal at a smelter, and your forge really can shape a nail from scrap. But getting the ore takes mining at scale: the game's own mining_drill draws 75 kW, about 18 times this whole home's daily power budget, and real aluminum needs megawatt electrolytic smelters. One person can recycle metal they already have; nobody mines and refines a tonne of virgin steel alone.",
+            provided_by: "Traded from mines, smelters, and scrap recyclers.",
+        ),
+        (
+            id: "medicine",
+            title: "Medicine synthesis",
+            body: "The craft_antibiotics recipe cultures water, flour, and sugar into antibiotics at a chemistry set. Real antibiotics, insulin, and vaccines need pharmaceutical-grade fermentation, purification, and quality control: an industry, not a kitchen bench. Your apothecary tower grows chamomile and aloe for comfort, and you can stitch a wound, but the medicines that prevent early death come from outside.",
+            provided_by: "Traded from pharmaceutical industry and clinics.",
+        ),
+        (
+            id: "equipment_renewal",
+            title: "Equipment replacement",
+            body: "Solar panels last about 25 years, batteries fade, pump motors burn out, and one day the air recycler's blower fails. The workbench and forge can repair simple parts, but the panel's PV cells, the battery's lithium cells, and every circuit board are made elsewhere. Closing the loop on food and water does not close the loop on the machines themselves.",
+            provided_by: "Traded from manufacturers, and planned for with spares.",
+        ),
+        (
+            id: "raw_chemistry",
+            title: "Raw chemistry inputs",
+            body: "Every smelt recipe quietly consumes coal, the freezer needs coolant, the tower parts list marks its mineral nutrient salts as buy, and the tower columns are plastic. Even a closed nutrient loop leaks a little phosphorus, which is mined from the ground, not made. These inputs feel small and cheap only because somewhere a mine and a chemical plant exist.",
+            provided_by: "Traded from mining and chemical industry.",
+        ),
+    ],
+    footer: "A single person can close the survival loops: energy, water, air, nutrients, and nearly all food. These five gaps are why people specialize and trade. Every new neighbor is a step toward a shared workshop, a clinic, a foundry. The gap is not a failure. It is civilization.",
+)

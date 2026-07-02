@@ -80,6 +80,58 @@ fn humanize(id: &str) -> String {
         .join(" ")
 }
 
+/// One civilizational gap the homestead cannot close alone (electronics, ore-scale
+/// metal, medicine synthesis, equipment renewal, raw chemistry inputs). Data-driven
+/// from data/self_sufficiency/cannot_close.ron (infinite-of-X: the list IS the data),
+/// distilled from docs/design/homestead-solo-design.md section 8.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CannotCloseEntry {
+    pub id: String,
+    pub title: String,
+    /// Plain-language story: what the game recipe abstracts away and why one
+    /// person cannot close this loop.
+    pub body: String,
+    /// Where it really comes from ("Traded from ...").
+    pub provided_by: String,
+}
+
+/// The whole cannot-close data file: intro line + the gap categories + a closing
+/// framing line (the non-defeatist "this gap IS civilization" lesson).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct CannotCloseData {
+    #[serde(default)]
+    pub intro: String,
+    #[serde(default)]
+    pub entries: Vec<CannotCloseEntry>,
+    #[serde(default)]
+    pub footer: String,
+}
+
+/// Pure loader (unit-tested below): parse data/self_sufficiency/cannot_close.ron.
+/// Missing or malformed file yields empty data (the panel hides; the page still works).
+pub fn load_cannot_close(data_dir: &std::path::Path) -> CannotCloseData {
+    let path = data_dir.join("self_sufficiency").join("cannot_close.ron");
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return CannotCloseData::default(),
+    };
+    match ron::from_str::<CannotCloseData>(&text) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("load_cannot_close: failed to parse {}: {e}", path.display());
+            CannotCloseData::default()
+        }
+    }
+}
+
+/// Load-once cache. Same pattern as laws/glossary: `crate::data_dir()` is the
+/// CWD-independent resolved data dir in the installed app, and falls back to
+/// "data" under tests/snapshots (which run from the repo root).
+fn cannot_close() -> &'static CannotCloseData {
+    static CACHE: std::sync::OnceLock<CannotCloseData> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| load_cannot_close(&crate::data_dir()))
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
@@ -405,6 +457,89 @@ fn draw_design(
             ui.add_space(theme.spacing_sm);
         }
 
+        // ── What one home cannot close (the pedagogical payoff) ──
+        // The survival loops above close; these five gaps do NOT, by the design of
+        // reality: the game's own recipes (manufacture_cpu, smelt_steel,
+        // craft_antibiotics, ...) abstract away industrial infrastructure no single
+        // homestead can carry. Marked externally-sourced/traded, in a deliberately
+        // muted OUTLINED treatment (warning stroke on the panel background) so it
+        // reads clearly apart from the green closed-loop rows above. Data:
+        // data/self_sufficiency/cannot_close.ron (homestead-solo-design.md section 8).
+        let cc = cannot_close();
+        if !cc.entries.is_empty() {
+            egui::Frame::none()
+                .fill(theme.bg_panel())
+                .rounding(egui::Rounding::same(theme.border_radius as u8))
+                .inner_margin(theme.card_padding)
+                .stroke(egui::Stroke::new(1.0, theme.warning()))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("What one home cannot close")
+                                .size(theme.font_size_body)
+                                .strong()
+                                .color(theme.warning()),
+                        );
+                        ui.label(
+                            RichText::new(format!("{} traded loops", cc.entries.len()))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    });
+                    if !cc.intro.is_empty() {
+                        ui.label(RichText::new(&cc.intro).size(theme.font_size_small).color(theme.text_muted()));
+                    }
+                    ui.add_space(theme.spacing_xs);
+                    for entry in &cc.entries {
+                        widgets::expandable_row(
+                            ui,
+                            ("cannot_close", entry.id.as_str()),
+                            false,
+                            None,
+                            |ui| {
+                                ui.label(
+                                    RichText::new(&entry.title)
+                                        .size(theme.font_size_small)
+                                        .strong()
+                                        .color(theme.text_primary()),
+                                );
+                                ui.label(
+                                    RichText::new("traded")
+                                        .size(theme.font_size_small)
+                                        .strong()
+                                        .color(theme.warning()),
+                                );
+                            },
+                            |ui| {
+                                ui.label(
+                                    RichText::new(&entry.body)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                                ui.add_space(2.0);
+                                ui.label(
+                                    RichText::new(&entry.provided_by)
+                                        .size(theme.font_size_small)
+                                        .italics()
+                                        .color(theme.text_muted()),
+                                );
+                                ui.add_space(theme.spacing_xs);
+                            },
+                        );
+                    }
+                    if !cc.footer.is_empty() {
+                        ui.add_space(theme.spacing_xs);
+                        ui.label(
+                            RichText::new(&cc.footer)
+                                .size(theme.font_size_small)
+                                .italics()
+                                .color(theme.text_secondary()),
+                        );
+                    }
+                });
+            ui.add_space(theme.spacing_sm);
+        }
+
         // ── Bill of materials ──
         egui::CollapsingHeader::new(
             RichText::new(format!("Bill of materials ({} kinds, {} total)", bom.len(), total_parts))
@@ -700,6 +835,56 @@ fn self_sufficiency_kit(bom: &[(String, u32)]) -> Vec<(&'static str, u32)> {
 
 #[cfg(test)]
 mod tests {
+    /// The shipped cannot-close data parses and is complete: every entry carries a
+    /// non-empty title/body/provided_by, ids are unique, all five design-doc
+    /// categories (homestead-solo-design.md section 8) are present, and the copy is
+    /// em-dash free (operator rule: no em dashes in user-facing copy).
+    #[test]
+    fn cannot_close_data_parses_and_is_complete() {
+        let data = super::load_cannot_close(std::path::Path::new("data"));
+        assert!(
+            data.entries.len() >= 5,
+            "expected the 5 cannot-close categories, got {}",
+            data.entries.len()
+        );
+        assert!(!data.intro.is_empty(), "cannot_close.ron should carry an intro line");
+        assert!(!data.footer.is_empty(), "cannot_close.ron should carry the framing footer");
+        let mut ids: Vec<&str> = data.entries.iter().map(|e| e.id.as_str()).collect();
+        let n = ids.len();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "cannot_close.ron has duplicate entry ids");
+        for e in &data.entries {
+            assert!(!e.id.is_empty(), "entry with empty id");
+            assert!(!e.title.is_empty(), "entry '{}' has empty title", e.id);
+            assert!(!e.body.is_empty(), "entry '{}' has empty body", e.id);
+            assert!(!e.provided_by.is_empty(), "entry '{}' has empty provided_by", e.id);
+            for s in [&e.title, &e.body, &e.provided_by, &data.intro, &data.footer] {
+                assert!(
+                    !s.contains('\u{2014}'),
+                    "em dash in cannot-close copy for '{}' (operator rule: none in user-facing text)",
+                    e.id
+                );
+            }
+        }
+        // The five categories from the design doc, by id.
+        for id in ["electronics", "metal_at_ore_scale", "medicine", "equipment_renewal", "raw_chemistry"] {
+            assert!(
+                data.entries.iter().any(|e| e.id == id),
+                "missing cannot-close category '{}'",
+                id
+            );
+        }
+    }
+
+    /// A missing file degrades to empty data (panel hides), never a panic.
+    #[test]
+    fn cannot_close_missing_file_is_empty() {
+        let data = super::load_cannot_close(std::path::Path::new("data/definitely_not_a_dir"));
+        assert!(data.entries.is_empty());
+        assert!(data.intro.is_empty());
+    }
+
     #[test]
     fn tower_configs_parse_max_variety() {
         // Loads the real data/towers/aeroponic_configs.ron from the crate root.

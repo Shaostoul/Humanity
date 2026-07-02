@@ -397,6 +397,12 @@ Honest gaps to author, following the schema patterns in the files above —
 
 ## 8. WHAT THIS HOMESTEAD CANNOT CLOSE THE LOOP ON (the pedagogical payoff)
 
+> **Surfaced in-app (2026-07-01, Phase C item #2):** the Home page now renders
+> these five categories as the "What one home cannot close" panel, directly
+> below the closed-loop summary -- data-driven from
+> `data/self_sufficiency/cannot_close.ron` (edit the RON, not the code), drawn
+> by `src/gui/pages/homes.rs`. Keep that file in sync when this section changes.
+
 This is the operator's whole point: **the baseline for ONE human is what
 reveals why civilization-scale infrastructure matters.** The game data
 itself proves these gaps — the recipes "exist" but their input chains are
