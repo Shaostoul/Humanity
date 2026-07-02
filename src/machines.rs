@@ -403,6 +403,51 @@ fn make_utility_meter(utility: &str, generation: f32, demand: f32, unit: &str) -
     UtilityMeter { utility: utility.to_string(), generation, demand, self_sufficiency: ss, unit: unit.to_string(), summary }
 }
 
+/// Hours/day a grow light runs -- the duty-cycle assumption behind the grow-light power meter.
+/// Real crops need ~12-16 h of light/day (leafy greens the low end, fruiting crops the high end);
+/// 14 h is the mid-range a real grow-room timer gets set to, so that is what the meter charges:
+/// kWh/day = fixture watts x 14 h / 1000. Documented as a constant so the math is auditable and
+/// the GUI can quote the same number. (v0.664, homestead-solo-design.md gap #5)
+pub const GROW_LIGHT_DUTY_HOURS: f32 = 14.0;
+
+/// Verdict of the grow-light power meter (v0.664): where the placed LED grow lights sit against
+/// the home's real energy budget. docs/design/self-sufficiency.md calls this meter "the single
+/// most honest teaching artifact" -- the sun-lit garden is nearly free to run, but every LED
+/// added draws real watt-hours, and lighting staple crops blows the whole home budget by 2.5x-12x.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GrowLightVerdict {
+    /// Green: the lights fit inside the home's FREE headroom (generation minus everything else),
+    /// so the home still balances every day.
+    WithinHeadroom,
+    /// Amber: the lights exceed the free headroom -- the home now runs a daily energy deficit and
+    /// eats its battery reserves to keep them on.
+    EatingReserves,
+    /// Red: the lights ALONE draw more than the whole home generates in a day. No battery rides
+    /// this out; it is why real self-sufficient homes grow under the sun.
+    ExceedsGeneration,
+}
+
+/// The grow-light power meter (v0.664, homestead-solo-design.md gap #5): total LED grow-light
+/// draw vs the home's free energy headroom, with a green/amber/red verdict. Only produced when
+/// at least one grow light is placed (see `MachineHome::grow_light_report`).
+#[derive(Debug, Clone)]
+pub struct GrowLightReport {
+    /// How many grow-light fixtures are placed.
+    pub count: usize,
+    /// Their combined fixture wattage (W).
+    pub watts: f32,
+    /// Their combined daily draw: watts x `GROW_LIGHT_DUTY_HOURS` (kWh/day).
+    pub draw_kwh_day: f32,
+    /// The home's FREE headroom before the lights: daily generation minus every NON-grow-light
+    /// demand (kWh/day). Negative when the home already runs a deficit without any lights.
+    pub headroom_kwh_day: f32,
+    /// The home's total daily generation (kWh/day): solar at `sun_hours` + steady generators x 24 h.
+    pub generation_kwh_day: f32,
+    pub verdict: GrowLightVerdict,
+    /// Plain-language one-liner for the meter row (no jargon, non-blaming, states the numbers).
+    pub summary: String,
+}
+
 /// The geometry of a room the machine placer needs: the floor-plane center (x, z), and the floor
 /// and ceiling heights (metres). Plain f32 (no glam) so this module stays renderer-free + testable.
 #[derive(Debug, Clone, Copy)]
@@ -758,7 +803,12 @@ impl MachineHome {
                     Some(MachinePower::Generator { watts }) => gen_watts += watts,
                     _ => {}
                 }
-                consumer_watts += def.electrical_load_watts();
+                // A battery is STORAGE, not demand: its inferred bidirectional bus terminal is a
+                // cable RATING (what a feeder must carry), not a daily load -- counting it here
+                // charged each shipped bank 48 kWh/day of phantom demand (fixed v0.664).
+                if !matches!(def.power, Some(MachinePower::Battery { .. })) {
+                    consumer_watts += def.electrical_load_watts();
+                }
                 water_prod += def.water_production_lpm();
                 water_dem += def.water_demand_lpm();
                 data_sup += def.data_supply_mbps();
@@ -783,6 +833,92 @@ impl MachineHome {
             meters.push(make_utility_meter("data", data_sup, data_dem, "Mbps"));
         }
         meters
+    }
+
+    /// The GROW-LIGHT POWER METER (v0.664): the honest teaching artifact from
+    /// docs/design/self-sufficiency.md ("a live grow-light draw vs power budget meter that turns
+    /// red the instant any LED is added past the free pump headroom") and homestead-solo-design.md
+    /// gap #5. Pure + world-free, computed from the placed machines' catalog defs, so it runs in
+    /// the construction editor and an AI can read it before committing a design.
+    ///
+    /// Returns `None` when no grow light is placed (the meter row only appears once one exists).
+    /// A grow light is any placed machine whose catalog id is `grow_light` or starts with
+    /// `grow_light_` (data-driven: add wattage variants to the catalog, no code change).
+    ///
+    /// The math, all in kWh/day like `utility_meters`:
+    /// - lights draw = fixture watts x `GROW_LIGHT_DUTY_HOURS` (14 h -- crops need ~12-16 h of
+    ///   light/day; lights run on a timer, unlike the 24 h worst-case the generic meter charges
+    ///   every consumer).
+    /// - free headroom = generation - every NON-grow-light demand (at 24 h, matching
+    ///   `utility_meters`); batteries are storage, never demand.
+    /// - verdict: lights within headroom (green) / past headroom, eating battery reserves daily
+    ///   (amber) / lights ALONE exceed the whole home's generation (red).
+    pub fn grow_light_report(&self, sun_hours: f32) -> Option<GrowLightReport> {
+        let is_grow_light =
+            |machine: &str| machine == "grow_light" || machine.starts_with("grow_light_");
+        let sun = sun_hours.clamp(0.0, 24.0);
+        let mut count = 0usize;
+        let mut grow_watts = 0.0f32;
+        let (mut solar_peak, mut gen_watts, mut other_watts) = (0.0f32, 0.0f32, 0.0f32);
+        for inst in self.all_instances() {
+            let Some(def) = self.catalog.get(&inst.machine) else { continue };
+            match &def.power {
+                Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
+                Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                _ => {}
+            }
+            if is_grow_light(&inst.machine) {
+                count += 1;
+                grow_watts += def.electrical_load_watts();
+            } else if !matches!(def.power, Some(MachinePower::Battery { .. })) {
+                // Same storage-is-not-demand rule as utility_meters.
+                other_watts += def.electrical_load_watts();
+            }
+        }
+        if count == 0 {
+            return None;
+        }
+        let generation_kwh_day = (solar_peak * sun + gen_watts * 24.0) / 1000.0;
+        let other_demand_kwh_day = other_watts * 24.0 / 1000.0;
+        let headroom_kwh_day = generation_kwh_day - other_demand_kwh_day;
+        let draw_kwh_day = grow_watts * GROW_LIGHT_DUTY_HOURS / 1000.0;
+        let (verdict, tail) = if draw_kwh_day > generation_kwh_day {
+            (
+                GrowLightVerdict::ExceedsGeneration,
+                format!(
+                    "more than the whole home generates ({generation_kwh_day:.1} kWh/day)"
+                ),
+            )
+        } else if draw_kwh_day > headroom_kwh_day {
+            (
+                GrowLightVerdict::EatingReserves,
+                format!(
+                    "past the {:.1} kWh/day of free headroom, so every day eats {:.1} kWh out of the battery reserves",
+                    headroom_kwh_day.max(0.0),
+                    draw_kwh_day - headroom_kwh_day.max(0.0)
+                ),
+            )
+        } else {
+            (
+                GrowLightVerdict::WithinHeadroom,
+                format!(
+                    "inside the {headroom_kwh_day:.1} kWh/day of free headroom the home already makes"
+                ),
+            )
+        };
+        let plural = if count == 1 { "light" } else { "lights" };
+        let summary = format!(
+            "{count} grow {plural} draw {draw_kwh_day:.1} kWh/day ({grow_watts:.0} W x {GROW_LIGHT_DUTY_HOURS:.0} h) -- {tail}"
+        );
+        Some(GrowLightReport {
+            count,
+            watts: grow_watts,
+            draw_kwh_day,
+            headroom_kwh_day,
+            generation_kwh_day,
+            verdict,
+            summary,
+        })
     }
 
     /// A design-time buildability check over the placed machines: is there a power source for the
@@ -1784,6 +1920,109 @@ mod tests {
         let m = make_utility_meter("power", 1.0, 4.0, "kWh/day");
         assert!((m.self_sufficiency - 0.25).abs() < 1e-6);
         assert!(m.summary.contains("imported"), "{}", m.summary);
+    }
+
+    /// v0.664: a battery bank is STORAGE, not demand -- its inferred bidirectional bus terminal
+    /// (a cable rating) must not inflate the power meter's kWh/day demand. Pre-fix, each shipped
+    /// bank added max_discharge_w x 24 h (48 kWh/day of phantom demand per bank).
+    #[test]
+    fn utility_meters_do_not_count_batteries_as_demand() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        let meters = home.utility_meters(4.5);
+        let power = meters.iter().find(|m| m.utility == "power").expect("a power meter exists");
+        // Demand is ONLY the 100 W consumer (2.4 kWh/day) -- not 2.4 + the battery's 48.
+        assert!((power.demand - 2.4).abs() < 1e-3, "battery must not count as demand: {}", power.demand);
+        assert!((power.self_sufficiency - 1.0).abs() < 1e-6, "the home stays self-sufficient");
+    }
+
+    /// v0.664, homestead-solo-design.md gap #5: the grow-light power meter. No grow lights -> no
+    /// report; a light inside the free solar headroom is GREEN; past the headroom is AMBER (the
+    /// home eats battery reserves daily); enough lights that the draw ALONE exceeds the whole
+    /// home's generation is RED. Exact thresholds asserted: a 1000 W panel at 4.5 sun-hours makes
+    /// 4.5 kWh/day; the 100 W base load uses 2.4 (24 h) -> 2.1 kWh/day free headroom; each 100 W
+    /// grow light draws 100 x 14 h = 1.4 kWh/day.
+    #[test]
+    fn grow_light_meter_green_amber_red_thresholds() {
+        let mut catalog = BTreeMap::new();
+        catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
+        catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
+        catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5 })));
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let mut home = MachineHome {
+            catalog,
+            instances: vec![inst("p1", "panel"), inst("l1", "load")],
+            arrays: Vec::new(),
+            connections: Vec::new(),
+            loops: Vec::new(),
+            conduit_nodes: Vec::new(),
+            conduit_edges: Vec::new(),
+        };
+        // Zero grow lights -> no report (the meter row only appears once one is placed).
+        assert!(home.grow_light_report(4.5).is_none(), "no lights -> no report");
+
+        // 1 light: 1.4 kWh/day <= 2.1 headroom -> GREEN.
+        home.instances.push(inst("gl1", "grow_light"));
+        let r = home.grow_light_report(4.5).expect("one light -> a report");
+        assert_eq!(r.count, 1);
+        assert!((r.watts - 100.0).abs() < 1e-3, "watts {}", r.watts);
+        assert!((r.draw_kwh_day - 1.4).abs() < 1e-3, "draw {}", r.draw_kwh_day);
+        assert!((r.headroom_kwh_day - 2.1).abs() < 1e-3, "headroom {}", r.headroom_kwh_day);
+        assert!((r.generation_kwh_day - 4.5).abs() < 1e-3, "gen {}", r.generation_kwh_day);
+        assert_eq!(r.verdict, GrowLightVerdict::WithinHeadroom);
+        assert!(r.summary.contains("inside"), "{}", r.summary);
+
+        // 2 lights: 2.8 > 2.1 headroom but <= 4.5 generated -> AMBER (daily reserve deficit).
+        home.instances.push(inst("gl2", "grow_light"));
+        let r = home.grow_light_report(4.5).expect("a report");
+        assert_eq!(r.count, 2);
+        assert_eq!(r.verdict, GrowLightVerdict::EatingReserves);
+        assert!(r.summary.contains("battery reserves"), "{}", r.summary);
+
+        // 4 lights: 5.6 kWh/day > the whole home's 4.5 generated -> RED.
+        home.instances.push(inst("gl3", "grow_light"));
+        home.instances.push(inst("gl4", "grow_light"));
+        let r = home.grow_light_report(4.5).expect("a report");
+        assert_eq!(r.count, 4);
+        assert!((r.draw_kwh_day - 5.6).abs() < 1e-3, "draw {}", r.draw_kwh_day);
+        assert_eq!(r.verdict, GrowLightVerdict::ExceedsGeneration);
+        assert!(r.summary.contains("more than the whole home generates"), "{}", r.summary);
+    }
+
+    /// v0.664: the shipped catalogs must offer a PLACEABLE grow light (a Consumer in the palette),
+    /// or the grow-light meter is unreachable in-app. Also pins the seed designs to ship with ZERO
+    /// grow lights placed -- the reference homes grow under the sun; the meter is the player's
+    /// discovery when they add one.
+    #[test]
+    fn shipped_catalogs_offer_a_placeable_grow_light() {
+        for file in ["home.ron", "home_solo.ron"] {
+            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("machines")
+                .join(file);
+            let home = MachineHome::load(&path).unwrap_or_else(|| panic!("{file} parses"));
+            let def = home.catalog.get("grow_light").unwrap_or_else(|| panic!("{file} catalogs a grow_light"));
+            assert!(
+                matches!(def.power, Some(MachinePower::Consumer { watts, .. }) if watts > 0.0),
+                "{file}: grow_light is a real electrical consumer"
+            );
+            assert!(
+                home.grow_light_report(4.5).is_none(),
+                "{file}: the seed design places no grow lights (sun-lit by design)"
+            );
+        }
     }
 
     /// v0.524 Stage 3: panel + battery sized for the night + a modest load passes every check.

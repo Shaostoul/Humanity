@@ -97,6 +97,19 @@
             category: "Food",
             stats: [(kind: "nutrient", value: "+0.6 kg/d", status: "ok"), (kind: "water", value: "+52 L/d greywater", status: "ok")],
         ),
+        "grow_light": (
+            shape: "box", size: (1.2, 0.1, 0.6), color: (0.72, 0.30, 0.78),
+            label: "LED grow light",
+            category: "Food",
+            stats: [(kind: "power", value: "-1.4 kWh/d (100 W x 14 h)", status: "warn"), (kind: "food", value: "light past the sun, at a cost", status: "warn")],
+            // The honest teaching machine (v0.664, self-sufficiency.md's "light cap"): the solo
+            // home's whole budget is ~4 kWh/day, and ONE 100 W LED on a 14 h crop photoperiod
+            // eats 1.4 kWh/day of it -- three lights alone rival the entire home. The grow-light
+            // power meter in the construction editor shows exactly that (green -> amber -> red).
+            // NOT placed in the seed design: the solo garden closes on sunlight alone, which is
+            // the lesson. Priority 5 = optional, shed first.
+            power: Some(Consumer(watts: 100.0, priority: 5)),
+        ),
         "aeroponic_tower_nutrition": (
             shape: "cylinder", size: (0.3, 2.4, 0.3), color: (0.30, 0.65, 0.38),
             label: "Variety tower",

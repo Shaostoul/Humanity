@@ -3379,6 +3379,35 @@ fn draw_buildability(ui: &mut egui::Ui, theme: &Theme, home: &crate::machines::M
             });
         }
     }
+    // GROW-LIGHT POWER METER (v0.664, homestead-solo-design.md gap #5; self-sufficiency.md calls it
+    // "the single most honest teaching artifact"). Only appears once at least one grow light is
+    // placed: green = the lights fit inside the free solar headroom; amber = the home now eats its
+    // battery reserves every day to keep them on; red = the lights ALONE outdraw everything the
+    // home generates -- the visceral proof of why the garden grows under the sun, not LEDs.
+    if let Some(gl) = home.grow_light_report(4.5) {
+        use crate::machines::GrowLightVerdict;
+        ui.add_space(theme.spacing_sm);
+        ui.label(RichText::new("Grow-light power meter").strong().color(theme.text_primary()));
+        // Same verdict glyphs as the checks above: ✓ / ⚠ render reliably, "!" (ASCII) for red.
+        let (mark, color) = match gl.verdict {
+            GrowLightVerdict::WithinHeadroom => ("✓", theme.success()),
+            GrowLightVerdict::EatingReserves => ("⚠", theme.warning()),
+            GrowLightVerdict::ExceedsGeneration => ("!", theme.danger()),
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(mark).strong().color(color));
+            ui.label(RichText::new(&gl.summary).size(theme.font_size_small).color(theme.text_muted()));
+        });
+        if gl.verdict == GrowLightVerdict::ExceedsGeneration {
+            ui.label(
+                RichText::new(
+                    "Grow lights now draw more than the whole home generates -- this is why the garden uses the sun.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.danger()),
+            );
+        }
+    }
 }
 
 /// Draw the top-down floor plan: every room as a rectangle seen from above (world X -> right,
