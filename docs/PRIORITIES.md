@@ -11,6 +11,26 @@
 
 ## Active focus
 
+> **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
+> in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +
+> the orchestrator, every branch reviewed/merged/re-verified on main (709
+> lib tests green, up from 659 at loop start). Shipped: economy automation
+> Phase 1 (ONE drone commission becomes a hammer untouched -- the
+> living-ecosystem loop; 5 adversarial-review defects fixed pre-commit);
+> web Laws mirror; homestead data gaps #3-#4 (85-crop nutrition bridge +
+> component-output/location tables + loaders); WEB governance voting REAL
+> (canonical-CBOR JS byte-locked vs Rust via `just vote-kat`); NPC crew
+> chores + the first-ever native crew rendering (crew were NEVER visible
+> before); the cannot-close civilization panel; the grow-light honesty
+> meter (+ real bug fix: batteries counted as 48 kWh/day phantom demand
+> EACH); Studio Program/Preview split. **Remaining non-gated:** snapshot
+> QA sweep findings (agent still rendering), crop-nutrition Home-page
+> integration (compute the food loop from the new data), chore-label
+> nameplates, saffron fractional-yield parser bug, studio.rs 13-literal
+> theme migration, Studio real transport (multi-cycle). **Gated on
+> operator:** Donate payment methods, Mute Server scope, dead-code
+> deletion, economy Phase 2 (truck = Item or Structure?).** <<<**
+
 > **>>> AFTERNOON LOOP continued (2026-07-01 evening, Fable 5): four more
 > releases shipped, each adversarially reviewed pre-commit where substantive.
 > v0.657.0 homestead gaps #1-2 (edible mushrooms in plants.csv, tilapia/
