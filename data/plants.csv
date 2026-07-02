@@ -17,8 +17,8 @@
 #   temp_max_c            - Maximum growing temperature in Celsius
 #   humidity_min          - Minimum relative humidity (0.0-1.0)
 #   humidity_max          - Maximum relative humidity (0.0-1.0)
-#   yield_min             - Minimum harvest yield per plant (units)
-#   yield_max             - Maximum harvest yield per plant (units)
+#   yield_min             - Minimum harvest yield per plant (units; fractional allowed, e.g. saffron 0.3)
+#   yield_max             - Maximum harvest yield per plant (units; fractional allowed)
 #   growth_stages         - Colon-separated growth stage names
 #   seasons               - Preferred growing seasons (colon-separated)
 #   seed_value            - Base trade value of seeds (credits)

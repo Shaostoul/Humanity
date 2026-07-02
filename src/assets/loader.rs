@@ -55,14 +55,27 @@ pub fn parse_csv<T: DeserializeOwned>(data: &[u8]) -> Result<Vec<T>, String> {
         .trim(csv::Trim::All)
         .from_reader(filtered.as_bytes());
 
+    // ROW-RESILIENT: a row that fails serde is skipped, not fatal. That resilience once
+    // silently ate data (plants.csv `saffron` failed a too-narrow u32 field for months),
+    // so every skip is logged per-row AND summarized with a count. Registries that must
+    // be complete should assert count == source-row count (see farming's zero-drop test).
     let mut records = Vec::new();
+    let mut skipped = 0usize;
     for result in reader.deserialize() {
         match result {
             Ok(record) => records.push(record),
             Err(e) => {
+                skipped += 1;
                 log::warn!("CSV parse warning (skipping row): {e}");
             }
         }
+    }
+    if skipped > 0 {
+        log::warn!(
+            "CSV parse: skipped {skipped} malformed row(s) of {} total -- data rows are \
+             being silently dropped; check the schema/struct fields against the file",
+            records.len() + skipped
+        );
     }
     Ok(records)
 }
