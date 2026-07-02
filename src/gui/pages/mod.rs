@@ -21,7 +21,6 @@ pub mod humanity;
 pub mod library;
 pub mod quests;
 pub mod homes;
-pub mod maps;
 pub mod market;
 pub mod calculator;
 pub mod calendar;

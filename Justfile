@@ -535,3 +535,46 @@ new-page name:
     </html>
     EOF
     echo "✓ Created $FILE — add it to shell.js nav if needed"
+
+# ── Release train (added 2026-07-02, operator-approved dev tooling) ──
+# One command for the bump -> commit -> push -> tag -> GitHub-release cycle
+# that was previously ~5 hand-built commands per release (and the reason the
+# git-commit -m footgun existed at all: every message goes through a file).
+# kind = minor (Rust changed) | patch (web/docs/data only).
+# Usage: just release minor "short title" path/to/notes.md
+#        (notes.md body becomes both the commit body and the release notes;
+#        write it first with the Write tool / an editor.)
+release kind title notes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    node scripts/bump-version.js {{kind}}
+    VER=$(node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\"(.+?)\"/m)[1]")
+    # Refresh Cargo.lock's own version stamp so it never ships stale.
+    cargo check --features relay --no-default-features -q 2>/dev/null || cargo check --features relay --no-default-features
+    MSG=$(mktemp)
+    { echo "v${VER} - {{title}}"; echo; cat "{{notes}}"; echo; echo "Co-Authored-By: Claude <noreply@anthropic.com>"; } > "$MSG"
+    # -u: stage tracked changes + deletions ONLY -- never silently scoop
+    # untracked files (git add any genuinely new files BEFORE calling this).
+    git add -u
+    git commit -F "$MSG"
+    git push origin main
+    git tag "v${VER}"
+    git push origin "v${VER}"
+    gh release create "v${VER}" --title "v${VER}" --notes-file "{{notes}}"
+    rm -f "$MSG"
+    echo "RELEASED v${VER}"
+
+# Fleet overview: every worktree + its branch, commits ahead of main, and
+# uncommitted-change count -- the at-a-glance answer to "is any agent work
+# unmerged?" that fleet sessions previously hand-rolled with bash loops.
+fleet-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "main: $(git log --oneline -1)"
+    for p in .claude/worktrees/*/; do
+      [ -d "$p" ] || continue
+      b=$(git -C "$p" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+      ahead=$(git -C "$p" rev-list --count main..HEAD 2>/dev/null || echo "?")
+      dirty=$(git -C "$p" status --porcelain 2>/dev/null | grep -vc "settings.local.json" || true)
+      echo "$(basename $p): branch=$b ahead=$ahead dirty=$dirty"
+    done

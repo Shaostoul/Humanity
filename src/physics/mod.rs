@@ -3,8 +3,6 @@
 //! Wraps the full Rapier3d pipeline: rigid bodies, colliders, joints, raycasting.
 //! Physics config loaded from `config/physics.toml`.
 
-pub mod fluid;
-pub mod collision;
 
 use glam::Vec3;
 use rapier3d::prelude::*;

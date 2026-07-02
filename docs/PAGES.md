@@ -34,7 +34,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Settings | `settings.rs` | Router into the 11 Settings sub-pages below (single-page sidebar layout). | everyone | both |
 | Inventory | `inventory.rs` | Inventory grid + equipment slots + weight + item details. From `data/inventory/equipment_slots.json`. | everyone | both |
 | Tasks | `tasks.rs` | Three-column kanban (Todo / In Progress / Done) with project selector. | everyone | both |
-| Maps | `cosmos.rs` (alias) | Solar system orbit view + planet details, sidebar list grouped by type. `GuiPage::Maps` has forwarded to `cosmos::draw` since v0.203.2 -- same rendered page as the Cosmos row below, reached via a different nav label (Reality overview calls it "Maps", Sim overview calls it "Cosmos"). The standalone `src/gui/pages/maps.rs` file is dead code (zero callers), found 2026-07-01. | everyone | both |
+| Maps | `cosmos.rs` (alias) | Solar system orbit view + planet details, sidebar list grouped by type. `GuiPage::Maps` has forwarded to `cosmos::draw` since v0.203.2 -- same rendered page as the Cosmos row below, reached via a different nav label (Reality overview calls it "Maps", Sim overview calls it "Cosmos"). The standalone maps.rs file was dead code (zero callers, found 2026-07-01) and was DELETED in the 2026-07-02 sweep. | everyone | both |
 | Market | `market.rs` | Marketplace: browse, search, create listings. Sidebar category filter, card grid. | everyone | both |
 | Profile | `profile.rs` | Player profile with privacy-tiered sidebar sections. | everyone | both |
 | Civilization | `civilization.rs` | Community/colony stats: 3-col grid, trends, charts, timeline. | everyone | both |

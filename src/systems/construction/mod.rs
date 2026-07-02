@@ -3,8 +3,6 @@
 //! Blueprints define buildable structures loaded from RON files.
 //! Construction progresses over time and consumes inventory materials.
 
-pub mod csg;
-pub mod blueprint;
 pub mod structural;
 pub mod routing;
 pub mod solver;

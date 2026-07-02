@@ -54,7 +54,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // sim: solar scales by time of day, electrical sums supply/demand + battery SoC),
     // so they are intentionally NOT deferred — the lint detects their path-qualified
     // register() calls directly.
-    ("PsychologySystem", "scaffold/partial; needs agent-psychology state wired"),
+    // PsychologySystem entry removed 2026-07-02: the whole psychology.rs scaffold
+    // was deleted in the dead-code sweep (operator-approved; zero callers).
     // Self-loading scaffolds (new(data_dir)) — real data, thin behaviour; register
     // each when its entity layer + consumers exist.
     ("AgingSystem", "scaffold; needs living entities with age"),

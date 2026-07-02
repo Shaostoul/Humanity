@@ -10,7 +10,6 @@
 
 pub mod behavior;
 pub mod flow_field;
-pub mod autonomy;
 
 use glam::Vec3;
 use rand::Rng;

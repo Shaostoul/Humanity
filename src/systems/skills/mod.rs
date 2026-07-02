@@ -2,7 +2,6 @@
 //!
 //! Skill definitions loaded from `data/skills/skills.csv`.
 
-pub mod learning;
 
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
