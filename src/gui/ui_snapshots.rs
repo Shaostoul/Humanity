@@ -617,6 +617,21 @@ fn settings_panel(
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_onboarding_identity() {
+    render_page_png("onboarding_identity", 1280, 900, |ctx, theme, state| {
+        // First-run identity step WITH the in-place 24-word backup card
+        // (v0.673): a fixed seed makes the rendered words deterministic.
+        state.onboarding_complete = false;
+        state.onboarding_step = 2;
+        state.user_name = "Explorer".to_string();
+        state.private_key_bytes = Some(vec![7u8; 32]);
+        state.settings.seed_phrase_visible = true;
+        crate::gui::pages::main_menu::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_governance() {
     render_page_png("governance", 1400, 1400, |ctx, theme, state| {
         // Inject a representative feed: the page loads live data on a background
