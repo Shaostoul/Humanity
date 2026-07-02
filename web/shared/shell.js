@@ -219,6 +219,7 @@
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
     else if (p.startsWith('/laws'))       active = 'laws';
+    else if (p.startsWith('/shared-files')) active = 'shared-files';
     else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/agents'))     active = 'agents';
     else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
@@ -776,6 +777,7 @@
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/governance', 'Governance') +
       mobileLink('/laws',      'Laws') +
+      mobileLink('/shared-files', 'Shared Files') +
       mobileLink('/identity',  'Identity') +
       mobileLink('/recovery',  'Recovery') +
       mobileLink('/projects',  'Projects') +
@@ -1354,7 +1356,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.674.1';
+    var CURRENT_VERSION = '0.675.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

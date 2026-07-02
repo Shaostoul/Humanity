@@ -20,7 +20,7 @@
 
 - **Adding a page**: append a row to the relevant table below, plus update `src/gui/mod.rs::GuiPage` (native) or place the file under `web/pages/` (web).
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
-- **Audit drift**: run `cargo test --test theme_editor_coverage` to confirm no orphan pages and no enum variants without files. There is still no `tests/page_registry_coverage.rs` to mechanically verify this file against the filesystem (tracked since 2026-05-03, still not built), which is exactly how this file went stale, don't assume it's still accurate two months from now without re-checking.
+- **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
 ## Native pages (52 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
@@ -141,7 +141,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 counterpart, likely dead weight matching a feature the operator explicitly killed,
 worth a follow-up deletion pass.
 
-## Web pages (`web/pages/*.html`: 40 standalone; recounted 2026-07-01 when `laws.html` landed, `accord.html` had also been added since the 38 count)
+## Web pages (`web/pages/*.html`: 41 standalone; `shared-files.html` added 2026-07-02)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -159,6 +159,8 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Data | `data.html` | Data management UI (saves, backups, sync, USB). | dev | yes |
 | Ops | `ops.html` | Operations / monitoring. | admin | yes |
 | Admin | `admin.html` | Admin dashboard. **Read-only** (`admin-app.js` has exactly one `fetch()` call, a GET; no service control, no alert-channel editing, no backup trigger, mutating admin actions require the native exe or SSH). | admin | yes |
+| Accord | `accord.html` | The Humanity Accord rendered as a navigable web page (built 2026-07-01 during the fleet redo of the destroyed Accord-page work; registry row added 2026-07-02 when page_registry_lint caught the omission). | everyone | web (native Library page shows the same documents) |
+| Shared Files | `shared-files.html` | The public file library (v0.675): browse/search files people shared (3D-printable parts, models). Backed by GET /api/uploads; files enter it by attaching a 3D/model format in chat (`?share=1` on upload). Chat photos stay unlisted. | everyone | web-only (native follow-up: needs a download-manager UX; links open in browser meanwhile) |
 | Audit | `audit.html` | Not present in the 2026-05-03 audit; purpose not re-verified in this pass, flagging as a genuinely new/unaudited page rather than guessing. | unknown | yes |
 | Web | `web.html` | (purpose unclear, TODO audit, carried over unresolved from the last audit) | unknown | yes |
 
@@ -182,7 +184,7 @@ Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps
 
 - **Welcome page**, replace the welcome system channel (deleted in v0.126); HOS-managed page with editable content.
 - **Rules page**, same shape as Welcome, replaces deleted rules channel.
-- **Accord page**, Humanity Accord rendered as a navigable page (currently linked as a doc; the native Library page already surfaces it as a document tree, so this may already be partially satisfied, not re-verified).
+- ~~Accord page~~ BUILT: `web/pages/accord.html` exists (see the standalone table above).
 - **Features page**, auto-generated from a data file; landing page audit recommended this to substantiate the "150+ features" claim.
 - **Releases / Changelog page**, public version history.
 - **Federation page**, peer server browser + admin (Phase 1 of `docs/design/federation-activation.md`, still unbuilt as of 2026-06-30).

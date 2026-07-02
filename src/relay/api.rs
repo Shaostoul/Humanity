@@ -223,6 +223,47 @@ pub struct UploadQuery {
     pub key: Option<String>,
     /// Per-session upload token (M-4: required for uploads).
     pub token: Option<String>,
+    /// Shared-file library (v0.675): `?share=1` publishes this upload in the
+    /// public GET /api/uploads listing AND exempts it from the per-user media
+    /// FIFO. Default absent/0 = ordinary chat media (reachable by URL only,
+    /// unlisted, FIFO-pruned as before).
+    pub share: Option<u8>,
+}
+
+/// Query params for GET /api/uploads (the shared-file library listing).
+#[derive(Debug, Deserialize)]
+pub struct SharedUploadsQuery {
+    /// Case-insensitive name filter.
+    pub q: Option<String>,
+    /// Max rows (clamped 1..=500 server-side; default 200).
+    pub limit: Option<i64>,
+}
+
+/// GET /api/uploads — the public shared-file library (v0.675): files uploaded
+/// with `?share=1` (e.g. 3D-printable models attached in chat). Unshared chat
+/// media is NOT listed here and never was discoverable.
+pub async fn list_shared_uploads(
+    State(state): State<Arc<RelayState>>,
+    Query(q): Query<SharedUploadsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let rows = state
+        .db
+        .list_shared_uploads(q.limit.unwrap_or(200), q.q.as_deref())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}")))?;
+    let files: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|u| {
+            serde_json::json!({
+                "url": format!("/uploads/{}", u.filename),
+                "name": if u.original_name.is_empty() { u.filename.clone() } else { u.original_name.clone() },
+                "size_bytes": u.size_bytes,
+                "uploaded_at": u.uploaded_at,
+                "uploader_key": u.uploader_key,
+                "uploader_name": u.uploader_name,
+            })
+        })
+        .collect();
+    Ok(Json(serde_json::json!({ "files": files })))
 }
 
 /// Calculate total size of all files in a directory (non-recursive).
@@ -474,6 +515,12 @@ pub async fn upload_file(
         let state_fs = state.clone();
         let public_key_fs = public_key.clone();
         let unique_name_fs = unique_name.clone();
+        // Shared-file library (v0.675): ?share=1 publishes this upload in the
+        // GET /api/uploads listing and exempts it from the media FIFO. The
+        // original filename travels along so the library shows a human name
+        // instead of the timestamp-mangled stored one.
+        let share_fs = query.share.unwrap_or(0) == 1;
+        let original_name_fs = filename.clone();
         let fs_result = tokio::task::spawn_blocking(move || -> Result<(), (StatusCode, String)> {
             // Store in data/uploads/.
             let upload_dir = std::path::Path::new("data/uploads");
@@ -498,8 +545,16 @@ pub async fn upload_file(
             })?;
 
             // Track upload per user (FIFO — retention count from server
-            // settings, was a hardcoded 4 before v0.237).
-            match state_fs.db.record_upload(&public_key_fs, &unique_name_fs, max_uploads_per_user) {
+            // settings, was a hardcoded 4 before v0.237; shared files are
+            // exempt and enter the public library instead, v0.675).
+            match state_fs.db.record_upload(
+                &public_key_fs,
+                &unique_name_fs,
+                max_uploads_per_user,
+                share_fs,
+                &original_name_fs,
+                data_len as i64,
+            ) {
                 Ok(old_files) => {
                     // Delete old files from disk.
                     for old_file in &old_files {

@@ -200,6 +200,18 @@ Full-text search across channels.
 Upload images and files to chat (10MB limit).
 - Server: `src/relay/api.rs` (`POST /api/upload`), `src/relay/storage/uploads.rs`
 
+### Shared-File Library (v0.675)
+Public library of real, useful files (3D-printable parts, models, designs) shared by
+people on the server. Uploads sent with `share=1` are publicly listed via
+`GET /api/uploads` (search + limit params) and EXEMPT from the per-user media FIFO,
+so a shared .blend never vanishes because its uploader later posted chat photos.
+Chat auto-shares only 3D/model formats (`.blend .stl .obj .gltf .glb`) -- attaching
+one signals intent to publish; photos and other chat media stay unlisted/private.
+Original filename is preserved for display (stored name is timestamp-mangled).
+- Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload), `src/relay/storage/uploads.rs` (`list_shared_uploads`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
+- Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
+- Native: follow-up (browse in Library or Files page) -- tracked in `docs/PAGES.md`
+
 ### Threads
 Reply threads on messages.
 - Server: `src/relay/storage/messages.rs` (thread_parent_id, reply_count)

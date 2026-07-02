@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Files — HumanityOS</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; padding-bottom: 60px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+    .sf-hero { text-align: center; padding: 40px 0 12px; }
+    .sf-hero h1 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; margin-bottom: 8px; }
+    .sf-hero h1 em { font-style: normal; color: var(--accent); }
+    .sf-hero p { color: var(--text-muted); font-size: 0.95rem; max-width: 620px; margin: 0 auto 6px; }
+
+    .sf-how {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 18px; margin: 18px 0 24px;
+      font-size: 0.85rem; color: var(--text-muted);
+    }
+    .sf-how strong { color: var(--text); }
+    .sf-how a { color: var(--accent); text-decoration: none; }
+    .sf-how a:hover { text-decoration: underline; }
+
+    .sf-search { display: flex; gap: 10px; margin-bottom: 18px; }
+    .sf-search input {
+      flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 10px 14px; color: var(--text);
+      font-size: 0.9rem;
+    }
+    .sf-search input:focus { outline: none; border-color: var(--accent); }
+
+    .sf-list { display: flex; flex-direction: column; gap: 10px; }
+    .sf-row {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px;
+    }
+    .sf-row:hover { border-color: rgba(255,136,17,0.4); }
+    .sf-icon {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: var(--radius);
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      font-size: 0.62rem; font-weight: 700; color: var(--accent);
+      border: 1px solid var(--border); letter-spacing: 0.03em;
+    }
+    .sf-meta { flex: 1; min-width: 0; }
+    .sf-name { font-weight: 700; font-size: 0.95rem; color: var(--text); word-break: break-all; }
+    .sf-sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+    .sf-dl {
+      flex-shrink: 0; background: var(--accent); color: #000; font-weight: 700;
+      font-size: 0.8rem; padding: 8px 16px; border-radius: var(--radius);
+      text-decoration: none; transition: all 0.15s;
+    }
+    .sf-dl:hover { background: var(--accent-hover); }
+
+    .sf-empty {
+      text-align: center; color: var(--text-muted); padding: 40px 0;
+      font-size: 0.9rem;
+    }
+    @media (max-width: 560px) {
+      .sf-row { flex-wrap: wrap; }
+      .sf-dl { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js" data-active="shared-files"></script>
+  <script src="/shared/settings.js"></script>
+
+  <div class="container">
+    <div class="sf-hero">
+      <h1>Shared <em>Files</em></h1>
+      <p>Real, useful files shared by people on this server: 3D-printable parts, models, and designs. Download them, print them, improve them, share them back.</p>
+    </div>
+
+    <div class="sf-how">
+      <strong>How to share your own:</strong> open the <a href="/chat">chat</a>, click the attach button, and pick your file. 3D and model files (<code>.blend</code>, <code>.stl</code>, <code>.obj</code>, <code>.gltf</code>, <code>.glb</code>) are listed here automatically; photos and other chat attachments stay private to the people you send them to. Sharing requires a verified account (ask an admin in chat).
+    </div>
+
+    <div class="sf-search">
+      <input id="sf-q" type="search" placeholder="Search files by name (phone case, bushing, bracket...)" autocomplete="off">
+    </div>
+
+    <div class="sf-list" id="sf-list">
+      <div class="sf-empty">Loading the library...</div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var listEl = document.getElementById('sf-list');
+      var qEl = document.getElementById('sf-q');
+      var allFiles = [];
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      function fmtSize(bytes) {
+        if (!bytes || bytes <= 0) return '';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+      }
+
+      function fmtDate(ms) {
+        if (!ms) return '';
+        try { return new Date(ms).toLocaleDateString(); } catch (e) { return ''; }
+      }
+
+      function extBadge(name) {
+        var ext = (name.split('.').pop() || '').toUpperCase();
+        return ext.length <= 5 ? ext : 'FILE';
+      }
+
+      function render(files) {
+        if (!files.length) {
+          listEl.innerHTML = '<div class="sf-empty">' +
+            (allFiles.length
+              ? 'No files match that search.'
+              : 'Nothing shared yet. Be the first: attach a 3D or model file in the chat and it will appear here.') +
+            '</div>';
+          return;
+        }
+        listEl.innerHTML = files.map(function (f) {
+          var by = f.uploader_name ? 'by ' + escapeHtml(f.uploader_name) + ' · ' : '';
+          var size = fmtSize(f.size_bytes);
+          var date = fmtDate(f.uploaded_at);
+          var sub = by + [size, date].filter(Boolean).join(' · ');
+          return '<div class="sf-row">' +
+            '<div class="sf-icon">' + escapeHtml(extBadge(f.name)) + '</div>' +
+            '<div class="sf-meta">' +
+              '<div class="sf-name">' + escapeHtml(f.name) + '</div>' +
+              '<div class="sf-sub">' + sub + '</div>' +
+            '</div>' +
+            '<a class="sf-dl" href="' + escapeHtml(f.url) + '" download>Download</a>' +
+          '</div>';
+        }).join('');
+      }
+
+      function applyFilter() {
+        var q = (qEl.value || '').trim().toLowerCase();
+        if (!q) { render(allFiles); return; }
+        render(allFiles.filter(function (f) {
+          return (f.name || '').toLowerCase().indexOf(q) !== -1 ||
+                 (f.uploader_name || '').toLowerCase().indexOf(q) !== -1;
+        }));
+      }
+
+      fetch('/api/uploads?limit=500')
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (d) {
+          allFiles = (d && d.files) || [];
+          render(allFiles);
+        })
+        .catch(function () {
+          listEl.innerHTML = '<div class="sf-empty">Could not reach the file library. ' +
+            'If you are hosting your own server, make sure it is running; ' +
+            'otherwise try again in a moment.</div>';
+        });
+
+      qEl.addEventListener('input', applyFilter);
+    })();
+  </script>
+</body>
+</html>

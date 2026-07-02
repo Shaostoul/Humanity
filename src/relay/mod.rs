@@ -558,6 +558,8 @@ pub async fn run_relay() {
         .route("/api/reactions", get(api::get_reactions))
         .route("/api/pins", get(api::get_pins))
         .route("/api/upload", post(api::upload_file))
+        // Shared-file library (v0.675): public listing of ?share=1 uploads.
+        .route("/api/uploads", get(api::list_shared_uploads))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))

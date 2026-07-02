@@ -409,8 +409,15 @@ async function uploadImage(file) {
     const formData = new FormData();
     formData.append('file', file);
 
-    const uploadUrl = myUploadToken ? `/api/upload?token=${encodeURIComponent(myUploadToken)}` : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload');
-    const resp = await fetch(uploadUrl, { method: 'POST', body: formData });
+    // Shared-file library (v0.675): attaching a 3D/model file in chat is an
+    // act of publishing (you are handing people a printable/openable design),
+    // so those formats are also listed in the public library page. Ordinary
+    // chat media (photos, clips, docs) stays unlisted, exactly as before.
+    const SHARE_EXTENSIONS = ['blend', 'stl', 'obj', 'gltf', 'glb'];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const shareParam = SHARE_EXTENSIONS.includes(ext) ? '&share=1' : '';
+    const uploadBase = myUploadToken ? `/api/upload?token=${encodeURIComponent(myUploadToken)}` : (myKey ? `/api/upload?key=${encodeURIComponent(myKey)}` : '/api/upload?_=1');
+    const resp = await fetch(uploadBase + shareParam, { method: 'POST', body: formData });
     if (!resp.ok) {
       const text = await resp.text();
       // Make error messages more user-friendly

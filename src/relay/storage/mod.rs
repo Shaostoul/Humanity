@@ -575,11 +575,21 @@ impl Storage {
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 public_key  TEXT NOT NULL,
                 filename    TEXT NOT NULL,
-                uploaded_at INTEGER NOT NULL
+                uploaded_at INTEGER NOT NULL,
+                -- Shared-file library (v0.675): shared=1 files are publicly
+                -- LISTED via GET /api/uploads and exempt from the per-user
+                -- media FIFO (a shared .blend must not vanish because its
+                -- uploader posted four chat photos). original_name keeps the
+                -- human filename (the stored name is timestamp-mangled).
+                shared        INTEGER NOT NULL DEFAULT 0,
+                original_name TEXT NOT NULL DEFAULT '',
+                size_bytes    INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
                 ON user_uploads(public_key, id);
+            CREATE INDEX IF NOT EXISTS idx_user_uploads_shared
+                ON user_uploads(shared, id);
 
             CREATE TABLE IF NOT EXISTS reports (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -766,6 +776,10 @@ impl Storage {
             "ALTER TABLE profiles ADD COLUMN website     TEXT NOT NULL DEFAULT ''",
             // privacy is a JSON map: {"location":"private", ...}  — default = all public.
             "ALTER TABLE profiles ADD COLUMN privacy     TEXT NOT NULL DEFAULT '{}'",
+            // Shared-file library columns (v0.675) for DBs created before them.
+            "ALTER TABLE user_uploads ADD COLUMN shared        INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE user_uploads ADD COLUMN original_name TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE user_uploads ADD COLUMN size_bytes    INTEGER NOT NULL DEFAULT 0",
         ] {
             let _ = conn.execute(alter, []);
         }
