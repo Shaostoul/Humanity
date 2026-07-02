@@ -3534,6 +3534,26 @@ mod native_app {
                     state.net_sync.queue_messages(vec![NetMessage::PlayerLeft { player_id: id as u32 }]);
                 }
             }
+            // Crew chore AI (v0.663): a relay-side crew NPC moved or changed
+            // chores. net_sync spawns/moves RemoteNpc entities the render pass
+            // draws; `chore_label` rides along for the future nameplate pass.
+            Some("game_npc_update") => {
+                if let (Some(id), Some(pos)) = (
+                    v.get("entity_id").and_then(|x| x.as_u64()),
+                    v.get("position").and_then(&arr3),
+                ) {
+                    let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("Crew").to_string();
+                    let activity = v.get("chore_label").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                    let working = v.get("chore_state").and_then(|x| x.as_str()) == Some("working");
+                    state.net_sync.queue_messages(vec![NetMessage::NpcUpdate {
+                        entity_id: id,
+                        name,
+                        position: pos,
+                        activity,
+                        working,
+                    }]);
+                }
+            }
             // Game admin (v0.474): the relay's private reply to a
             // game_banned_list_request. Admin-only by construction (targeted at
             // the requesting admin). Populates the Game Admin page list.
@@ -4613,6 +4633,8 @@ mod native_app {
         game_pos_timer: f32,
         /// Cached (body_mesh, head_mesh, material) for the remote-player avatar marker, built once.
         remote_avatar: Option<(usize, usize, usize)>,
+        /// Cached (body_mesh, head_mesh, material) for crew NPC markers (chore AI, v0.663), built once.
+        remote_npc_avatar: Option<(usize, usize, usize)>,
         /// Solar system hologram bodies (mesh_idx, material_idx, local_position, name).
         hologram_objects: Vec<(usize, usize, Vec3, String)>,
         /// Hologram orbit rings (mesh_idx, material_idx).
@@ -5257,6 +5279,7 @@ mod native_app {
                 game_joined: false,
                 game_pos_timer: 0.0,
                 remote_avatar: None,
+                remote_npc_avatar: None,
                 hologram_objects: Vec::new(),
                 hologram_orbits: Vec::new(),
                 hologram_pins: Vec::new(),
@@ -6606,6 +6629,18 @@ mod native_app {
                                 .map(|(e, _)| e)
                                 .collect();
                             for e in remotes {
+                                let _ = state.game_world.world.despawn(e);
+                            }
+                            // Crew NPCs are relay-driven too; clear them alongside
+                            // remote players so a rejoin starts from fresh updates.
+                            let crew: Vec<hecs::Entity> = state
+                                .game_world
+                                .world
+                                .query::<&crate::net::sync::RemoteNpc>()
+                                .iter()
+                                .map(|(e, _)| e)
+                                .collect();
+                            for e in crew {
                                 let _ = state.game_world.world.despawn(e);
                             }
                         }
@@ -8237,6 +8272,48 @@ mod native_app {
                                 });
                                 all_objects.push(RenderObject {
                                     position: t.position + Vec3::new(0.0, 0.05, 0.0),
+                                    rotation: t.rotation,
+                                    scale: Vec3::ONE,
+                                    mesh: head,
+                                    material: mat,
+                                });
+                            }
+                        }
+                        // ── Crew NPCs (relay chore AI, v0.663) ──
+                        // Same humanoid marker, amber instead of teal, at each crew
+                        // member's interpolated position while they walk between chores
+                        // and dwell at chore sites. Relay positions are standing height
+                        // (floor + 1.0), so the body sits centered on that and the head
+                        // above. Their name + current chore label live on the RemoteNpc
+                        // component for the future nameplate pass (hud.rs machine-label
+                        // pattern).
+                        if state.remote_npc_avatar.is_none() {
+                            let body = state.renderer.add_mesh(
+                                Mesh::box_xyz(&state.renderer.device, 0.42, 1.4, 0.26));
+                            let head = state.renderer.add_mesh(
+                                Mesh::sphere(&state.renderer.device, 0.17, 12, 14));
+                            // Amber, slightly emissive, so crew read distinctly from
+                            // the teal remote players at a glance.
+                            let mat = state.renderer.add_material_full(
+                                [0.92, 0.62, 0.18, 1.0], 0.0, 0.55, 1.0, 0.22);
+                            state.remote_npc_avatar = Some((body, head, mat));
+                        }
+                        if let Some((body, head, mat)) = state.remote_npc_avatar {
+                            for (_e, (t, _n)) in state
+                                .game_world
+                                .world
+                                .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
+                                .iter()
+                            {
+                                all_objects.push(RenderObject {
+                                    position: t.position - Vec3::new(0.0, 0.3, 0.0),
+                                    rotation: t.rotation,
+                                    scale: Vec3::ONE,
+                                    mesh: body,
+                                    material: mat,
+                                });
+                                all_objects.push(RenderObject {
+                                    position: t.position + Vec3::new(0.0, 0.55, 0.0),
                                     rotation: t.rotation,
                                     scale: Vec3::ONE,
                                     mesh: head,

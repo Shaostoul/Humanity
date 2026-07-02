@@ -1,0 +1,141 @@
+// HumanityOS Crew Chore Definitions
+// Data-driven task list for the relay's ambient crew NPCs (infinite-of-X:
+// chores are data, not code). Loaded by the relay's GameWorld at startup
+// (src/relay/handlers/game_state.rs::load_chores).
+//
+// Each crew NPC works through the chores its role is allowed to do, in a
+// deterministic rotation: walk to the chore's room (straight line -- the
+// engine has no pathfinding yet, an accepted first-step limitation), stand
+// there "working" for duration_secs, then pick the next chore. The current
+// chore label is synced to clients via the `game_npc_update` message and the
+// NPC's `activity` component so UIs can show "Botanist Yara: Inspecting the
+// hydroponic racks".
+//
+// Fields:
+//   id            unique snake_case slug
+//   label         human-readable present-tense activity, shown to players
+//   room_id       ship room the chore happens in; MUST resolve against
+//                 data/ships/starter_fleet.ron room ids
+//                 (bridge, quarters, medbay, cargo, engineering, hydroponics)
+//   duration_secs how long the NPC dwells at the site "doing" the chore
+//   roles         which crew roles may do this chore; empty list = anyone.
+//                 Current crew roles: navigator, medical_officer,
+//                 chief_engineer, maintenance, botanist, off_duty
+//
+// Design note: every role's allowed set spans MORE than one room on purpose,
+// so crew visibly walk across the ship between tasks instead of pacing one
+// room forever.
+
+[
+    // ── Navigator (Helm Officer Vex) ──
+    (
+        id: "helm_diagnostics",
+        label: "Running helm diagnostics",
+        room_id: "bridge",
+        duration_secs: 30.0,
+        roles: ["navigator"],
+    ),
+    (
+        id: "nav_sensor_calibration",
+        label: "Calibrating the nav sensors",
+        room_id: "engineering",
+        duration_secs: 25.0,
+        roles: ["navigator"],
+    ),
+
+    // ── Medical officer (Dr. Kel) ──
+    (
+        id: "medbay_inventory",
+        label: "Counting medical supplies",
+        room_id: "medbay",
+        duration_secs: 25.0,
+        roles: ["medical_officer"],
+    ),
+    (
+        id: "crew_checkups",
+        label: "Doing crew health checks",
+        room_id: "quarters",
+        duration_secs: 20.0,
+        roles: ["medical_officer"],
+    ),
+
+    // ── Chief engineer (Chief Tan) ──
+    (
+        id: "reactor_readings",
+        label: "Taking reactor readings",
+        room_id: "engineering",
+        duration_secs: 30.0,
+        roles: ["chief_engineer"],
+    ),
+    (
+        id: "bridge_console_service",
+        label: "Servicing the bridge consoles",
+        room_id: "bridge",
+        duration_secs: 20.0,
+        roles: ["chief_engineer"],
+    ),
+
+    // ── Maintenance (CB-7) ──
+    (
+        id: "cargo_manifest",
+        label: "Reconciling the cargo manifest",
+        room_id: "cargo",
+        duration_secs: 25.0,
+        roles: ["maintenance"],
+    ),
+    (
+        id: "spore_filter_cleaning",
+        label: "Cleaning the spore filter",
+        room_id: "hydroponics",
+        duration_secs: 15.0,
+        roles: ["maintenance", "chief_engineer"],
+    ),
+
+    // ── Botanist (Botanist Yara) ──
+    (
+        id: "rack_inspection",
+        label: "Inspecting the hydroponic racks",
+        room_id: "hydroponics",
+        duration_secs: 25.0,
+        roles: ["botanist"],
+    ),
+    (
+        id: "water_samples",
+        label: "Collecting water samples",
+        room_id: "engineering",
+        duration_secs: 20.0,
+        roles: ["botanist"],
+    ),
+    (
+        id: "produce_delivery",
+        label: "Delivering fresh produce",
+        room_id: "quarters",
+        duration_secs: 15.0,
+        roles: ["botanist"],
+    ),
+
+    // ── Off duty (Crewmate Nia) ──
+    (
+        id: "meal_from_stores",
+        label: "Grabbing a meal from stores",
+        room_id: "cargo",
+        duration_secs: 15.0,
+        roles: ["off_duty"],
+    ),
+    (
+        id: "earth_watching",
+        label: "Watching Earth from the bridge",
+        room_id: "bridge",
+        duration_secs: 25.0,
+        roles: ["off_duty"],
+    ),
+
+    // ── Anyone ──
+    (
+        id: "tidy_common_areas",
+        label: "Tidying the common areas",
+        room_id: "quarters",
+        duration_secs: 15.0,
+        roles: [],
+    ),
+]

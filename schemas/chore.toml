@@ -1,0 +1,58 @@
+# HumanityOS Crew Chore Schema
+# Defines a chore an ambient crew NPC can perform: a labeled task at a ship
+# location with a dwell duration. The relay's GameWorld walks each crew NPC
+# through its role's allowed chores in a deterministic rotation, so crew are
+# visibly "completing tasks instead of walking an endless loop".
+#
+# File format: RON (data/npc/chores.ron, a single top-level list)
+# Hot-reloadable: No (loaded once at relay startup)
+# Referenced by: src/relay/handlers/game_state.rs (load_chores, tick)
+# References: ship room ids from data/ships/starter_fleet.ron, NPC roles
+#             assigned in game_state.rs::populate_ship_entities
+
+# ---------------------------------------------------------------------------
+# FIELD DEFINITIONS
+# ---------------------------------------------------------------------------
+
+[fields.id]
+type = "string"
+required = true
+description = "Unique identifier for this chore, used in sync payloads and logs."
+constraints = "snake_case, unique across all chores"
+examples = ["rack_inspection", "reactor_readings", "cargo_manifest"]
+
+[fields.label]
+type = "string"
+required = true
+description = """
+Human-readable, present-tense activity line shown to players and AI agents
+while the NPC performs the chore (nameplates, perception responses)."""
+constraints = "Under 60 characters, present tense, no trailing punctuation"
+examples = ["Inspecting the hydroponic racks", "Taking reactor readings"]
+
+[fields.room_id]
+type = "string"
+required = true
+description = """
+The ship room where the chore happens. The NPC walks (straight line, no
+pathfinding yet) to this room's center and dwells there while working."""
+constraints = "Must match a room id in the loaded ship layout (data/ships/*.ron)"
+examples = ["bridge", "hydroponics", "engineering"]
+
+[fields.duration_secs]
+type = "float"
+required = true
+description = "How long the NPC dwells at the chore site in the 'working' state."
+constraints = "> 0.0; keep within 10-60 so rotations stay visibly dynamic"
+examples = [15.0, 25.0, 30.0]
+
+[fields.roles]
+type = "array of strings"
+required = true
+description = """
+Crew roles allowed to perform this chore. An empty list means any crew NPC
+may do it. Roles come from the NPC spawn table in game_state.rs
+(navigator, medical_officer, chief_engineer, maintenance, botanist,
+off_duty)."""
+constraints = "Each entry should match at least one spawned crew role"
+examples = [["botanist"], ["maintenance", "chief_engineer"], []]

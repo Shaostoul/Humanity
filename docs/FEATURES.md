@@ -502,6 +502,12 @@ Signature-verified webhook for CI/CD integration.
 Server-side game world with entity management, position validation, player sync. Loads `data/ships/starter_fleet.ron` at startup; populates 6 Pioneer rooms with equipment + windows. Spatial queries (room_for_position, entities_near, room_by_id) for AI perception.
 - Server: `src/relay/handlers/game_state.rs`
 
+### Crew Chore AI (v0.663)
+Relay-side crew NPCs work through a data-driven chore rotation instead of the old Brownian wander: walk (straight line, no pathfinding yet) to a chore's room, dwell there "working" for its duration, rotate to the next chore allowed for their role. Deterministic rotation staggered per crew member; chore state + the human-readable label live in the entity's components (`chore`, `activity`, `chores_done`) so world snapshots / AI perception carry them automatically. State transitions plus 2 Hz travel positions broadcast as `game_npc_update` while at least one player is in the world. Native client spawns/interpolates `RemoteNpc` entities and renders amber humanoid markers for them (name + chore label ride on the component for the future nameplate pass; see the machine-label pattern in `src/gui/pages/hud.rs`).
+- Server: `src/relay/handlers/game_state.rs` (ChoreDef, tick, tick_chore_agent, next_chore_index, step_toward), `src/relay/mod.rs` (broadcast loop)
+- Native: `src/net/protocol.rs` (NetMessage::NpcUpdate), `src/net/sync.rs` (RemoteNpc), `src/lib.rs` (route_game_message + render pass)
+- Data: `data/npc/chores.ron` (14 chores across 6 rooms), `schemas/chore.toml`
+
 ### AI Perception API (v0.131.0)
 Headless gameplay protocol, AI agents perceive and act in the game world via structured JSON instead of rendered frames. Validates distance for interactions (5m), perception range (20m).
 - WebSocket messages: `game_perceive` (room + nearby + environment), `game_interact` (action on entity), `game_query_inventory`, `game_query_entity`
@@ -1527,8 +1533,8 @@ Data definitions for natural science simulation. **⚠️ The consuming systems 
 - Data: `data/geology.ron`, `data/oceanography.ron`, `data/astronomy_tools.ron`, `data/genetics.ron`, `data/manufacturing.ron`, `data/waste_management.ron`
 
 ### Data Schemas (v0.90.0)
-22 TOML schema files documenting all data formats for modding and validation.
-- Data: `schemas/*.toml` (item, material, component, creature, spell, structure, status_effect, enchantment, recipe, quest, biome, celestial_body, faction, npc, skill, sound, vehicle, weather, economy, offline_agent, equipment_slot, container)
+24 TOML schema files documenting all data formats for modding and validation. (Count corrected 2026-07-01: the old "22" omitted room; chore added with the crew chore AI.)
+- Data: `schemas/*.toml` (item, material, component, creature, spell, structure, status_effect, enchantment, recipe, quest, biome, celestial_body, faction, npc, chore, room, skill, sound, vehicle, weather, economy, offline_agent, equipment_slot, container)
 
 ### Platform Brand SVGs
 Platform detection icons (Steam, Epic, GOG, PlayStation, Xbox) as inline SVGs.
