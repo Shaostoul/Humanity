@@ -11077,6 +11077,31 @@ mod native_app {
                                     &mut state.gui_state,
                                 );
 
+                                // Crew NPC nameplates (v0.667): rebuild every frame from the
+                                // live RemoteNpc components so the name + current chore label
+                                // float over each crew member (the amber figures from the
+                                // v0.663 crew chore AI). Anchor just above the head sphere
+                                // (head center at +0.55, radius 0.17 -- see the crew render
+                                // pass). clear() also empties the HUD when crew despawn on
+                                // leaving the world; a query on an empty world is free.
+                                state.gui_state.crew_labels.clear();
+                                for (_e, (t, npc)) in state
+                                    .game_world
+                                    .world
+                                    .query::<(
+                                        &crate::ecs::components::Transform,
+                                        &crate::net::sync::RemoteNpc,
+                                    )>()
+                                    .iter()
+                                {
+                                    state.gui_state.crew_labels.push(crate::gui::CrewLabel {
+                                        pos: t.position + Vec3::new(0.0, 1.0, 0.0),
+                                        name: npc.name.clone(),
+                                        activity: npc.activity.clone(),
+                                        working: npc.working,
+                                    });
+                                }
+
                                 // Draw HUD when in-game. SKIP it during the showroom AND the
                                 // construction editor: the HUD allocates a full-screen Area
                                 // (hud.rs) which sits OVER an in-world side panel and eats its

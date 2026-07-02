@@ -243,6 +243,28 @@ pub fn draw(
                     text_shadowed(painter, sp + Vec2::new(8.0, 0.0), Align2::LEFT_CENTER, &label.name, 12.0, Color32::WHITE);
                 }
             }
+            // ── Crew NPC nameplates (v0.667): name + live chore over each crew member ──
+            // Same world_to_screen + text_shadowed path as machine labels. The name shows
+            // within CREW_NAME_DIST; the activity line joins within CREW_ACTIVITY_DIST so
+            // the HUD stays quiet at range. No room occlusion on purpose: crew WALK between
+            // rooms (a room filter would blink the plate at every doorway), and the amber
+            // figure itself is the far-range marker, so no dot LOD either.
+            for label in &state.crew_labels {
+                let cam_dist = (label.pos - cam_pos).length();
+                let Some((name, activity)) = crew_label_lines(&label.name, &label.activity, cam_dist) else {
+                    continue;
+                };
+                let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
+                // Name above the anchor, activity below it: the pair stays centered on the
+                // head no matter how long the chore text is.
+                text_shadowed(painter, sp, Align2::CENTER_BOTTOM, &name, 12.0, Color32::WHITE);
+                if let Some(act) = activity {
+                    // Accent while actively working at the chore site; muted while walking
+                    // to it, so the state reads at a glance.
+                    let col = if label.working { theme.accent() } else { theme.text_secondary() };
+                    text_shadowed(painter, sp + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, &act, 10.0, col);
+                }
+            }
             // Walk-up interaction prompt at the crosshair (v0.431): looking at a machine
             // within reach shows [E] open/close.
             if let Some(i) = state.targeted_machine {
@@ -350,6 +372,41 @@ fn normalize_angle(a: f32) -> f32 {
     if a > std::f32::consts::PI { a -= 2.0 * std::f32::consts::PI; }
     if a < -std::f32::consts::PI { a += 2.0 * std::f32::consts::PI; }
     a
+}
+
+/// Crew nameplate visibility (v0.667). The NAME shows out to this range; beyond it the
+/// amber figure alone marks the crew member (no dot LOD -- the figure IS the marker).
+const CREW_NAME_DIST: f32 = 40.0;
+/// The chore ACTIVITY line joins the name within this range, so chore text only appears
+/// once you are close enough to plausibly care what they are doing.
+const CREW_ACTIVITY_DIST: f32 = 15.0;
+/// Longest activity line drawn before truncation, in characters. Chore labels from
+/// data/npc/chores.ron run ~20-35 chars today; this only guards pathological data.
+const CREW_ACTIVITY_MAX_CHARS: usize = 48;
+
+/// Which nameplate lines a crew member shows at `cam_dist` meters.
+/// `None` = nothing (out of range, or a nameless NPC). Otherwise the name plus,
+/// within CREW_ACTIVITY_DIST, the (truncated) activity line.
+fn crew_label_lines(name: &str, activity: &str, cam_dist: f32) -> Option<(String, Option<String>)> {
+    if name.is_empty() || !cam_dist.is_finite() || cam_dist > CREW_NAME_DIST {
+        return None;
+    }
+    let activity_line = if cam_dist <= CREW_ACTIVITY_DIST && !activity.is_empty() {
+        Some(truncate_chars(activity, CREW_ACTIVITY_MAX_CHARS))
+    } else {
+        None
+    };
+    Some((name.to_string(), activity_line))
+}
+
+/// Truncate to at most `max` characters, replacing the tail with "..." when cut.
+/// Counts CHARS (not bytes) so multibyte text never splits a codepoint.
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let kept: String = s.chars().take(max.saturating_sub(3)).collect();
+    format!("{}...", kept.trim_end())
 }
 
 /// Project a world point to screen pixels (wgpu NDC: x,y in [-1,1] y-up, z in [0,1]).
@@ -606,5 +663,74 @@ fn paint_stat_icon(painter: &egui::Painter, rect: Rect, kind: &str, color: Color
         _ => {
             painter.circle_filled(rect.center(), rect.width() * 0.22, color);
         }
+    }
+}
+
+#[cfg(test)]
+mod crew_label_tests {
+    use super::*;
+
+    #[test]
+    fn close_range_shows_name_and_activity() {
+        let got = crew_label_lines("Vex", "Taking reactor readings", 3.0);
+        assert_eq!(
+            got,
+            Some(("Vex".to_string(), Some("Taking reactor readings".to_string())))
+        );
+    }
+
+    #[test]
+    fn mid_range_shows_name_only() {
+        // Just past the activity radius: the chore line drops, the name stays.
+        let got = crew_label_lines("Vex", "Taking reactor readings", CREW_ACTIVITY_DIST + 0.1);
+        assert_eq!(got, Some(("Vex".to_string(), None)));
+    }
+
+    #[test]
+    fn activity_boundary_is_inclusive() {
+        let got = crew_label_lines("Vex", "Cleaning", CREW_ACTIVITY_DIST);
+        assert_eq!(got, Some(("Vex".to_string(), Some("Cleaning".to_string()))));
+    }
+
+    #[test]
+    fn beyond_name_range_shows_nothing() {
+        assert_eq!(crew_label_lines("Vex", "Cleaning", CREW_NAME_DIST + 0.1), None);
+        assert_eq!(crew_label_lines("Vex", "Cleaning", f32::NAN), None);
+    }
+
+    #[test]
+    fn empty_name_or_activity_degrade_gracefully() {
+        // Nameless NPC: no plate at all (never a floating activity with no owner).
+        assert_eq!(crew_label_lines("", "Cleaning", 3.0), None);
+        // Empty activity close up: name only, no blank second line.
+        assert_eq!(crew_label_lines("Vex", "", 3.0), Some(("Vex".to_string(), None)));
+    }
+
+    #[test]
+    fn long_activity_is_truncated_with_ellipsis() {
+        let long = "Recalibrating the atmospheric scrubber intake manifold assembly unit";
+        let (_, act) = crew_label_lines("Vex", long, 3.0).unwrap();
+        let act = act.unwrap();
+        assert!(act.ends_with("..."), "cut text must signal the cut: {act}");
+        assert!(
+            act.chars().count() <= CREW_ACTIVITY_MAX_CHARS,
+            "stays within the cap: {} chars",
+            act.chars().count()
+        );
+    }
+
+    #[test]
+    fn truncation_counts_chars_not_bytes() {
+        // 60 multibyte chars (3 bytes each in UTF-8): byte-indexed slicing would panic
+        // or split a codepoint; char-based truncation must stay well-formed.
+        let s: String = std::iter::repeat('日').take(60).collect();
+        let out = truncate_chars(&s, CREW_ACTIVITY_MAX_CHARS);
+        assert!(out.ends_with("..."));
+        assert!(out.chars().count() <= CREW_ACTIVITY_MAX_CHARS);
+    }
+
+    #[test]
+    fn short_activity_is_untouched() {
+        assert_eq!(truncate_chars("Watering the crops", 48), "Watering the crops");
     }
 }

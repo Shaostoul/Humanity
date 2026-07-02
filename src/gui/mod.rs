@@ -1217,6 +1217,22 @@ pub struct MachineLabel {
     pub room: String,
 }
 
+/// A crew NPC's floating nameplate: name + live chore label ("Vex -- Taking reactor
+/// readings"). Rebuilt EVERY frame in lib.rs from the relay-driven `RemoteNpc`
+/// components (crew walk, so a cached position would lag), drawn by the in-game HUD
+/// through the same world_to_screen + text_shadowed path as machine labels. (v0.667)
+#[cfg(feature = "native")]
+#[derive(Clone)]
+pub struct CrewLabel {
+    /// World anchor, just above the NPC's head.
+    pub pos: glam::Vec3,
+    pub name: String,
+    /// Human-readable current chore label from data/npc/chores.ron.
+    pub activity: String,
+    /// True while the NPC dwells at its chore site (vs walking to it).
+    pub working: bool,
+}
+
 /// An axis-aligned room volume, used by the HUD to tell which room the camera is in
 /// (for label occlusion). Populated by load_world from the homestead room info.
 #[cfg(feature = "native")]
@@ -1529,6 +1545,10 @@ pub struct GuiState {
     pub machine_label_name_dist: f32,
     /// Distance (meters) at which the full stat CARD appears (closest). Hold Tab x3 all.
     pub machine_label_card_dist: f32,
+    /// Crew NPC nameplates (v0.667): name + live chore label floating over each
+    /// relay-driven crew member. Rebuilt every frame from the RemoteNpc components
+    /// (lib.rs, just before hud::draw), so it is always in sync with the amber figures.
+    pub crew_labels: Vec<CrewLabel>,
     /// Transient confirmation shown after a "Save to server" click.
     pub profile_network_saved_note: String,
     // Interests
@@ -2954,6 +2974,7 @@ impl Default for GuiState {
             machine_label_dot_dist: 21.0,
             machine_label_name_dist: 13.0,
             machine_label_card_dist: 8.0,
+            crew_labels: Vec::new(),
             profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),
