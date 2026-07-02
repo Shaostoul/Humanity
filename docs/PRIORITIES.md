@@ -20,7 +20,13 @@
 > stay private); `original_name` preserved for display. NEW web page
 > `shared-files.html` (browse/search/download, in the nav). Smoke-tested
 > against a live local relay. page_registry_lint earned its keep on day 2:
-> caught `accord.html` missing from PAGES.md. **Native follow-up tracked in
+> caught `accord.html` missing from PAGES.md. **v0.676.0 HOTFIX rode right
+> behind (BUG-046):** v0.675.0's relay crashed at startup on the LIVE DB --
+> the new index sat in the schema batch, before the ALTER block adds the
+> `shared` column on pre-existing tables; fresh-DB tests/smoke structurally
+> can't see this. Fixed + regression-locked with a pre-migration-shape
+> `Storage::open` test; ~25 min relay downtime; `/api/uploads` verified
+> live on united-humanity.us. **Native follow-up tracked in
 > PAGES.md:** in-app shared-files browsing + native chat file-attach parity.
 > **Next up (operator's staged vehicle-pipeline decision, logged 2026-07-01):**
 > economy Phase 2 -- purchased vehicle arrives as a kit ITEM first (fast to

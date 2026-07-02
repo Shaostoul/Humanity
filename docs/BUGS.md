@@ -4,6 +4,14 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Resolved Bugs
 
+### BUG-046: v0.675.0 relay crashed at startup on the LIVE database -- new index in the schema batch referenced a column only added later by the ALTER migration block
+- **Status**: Fixed
+- **Version Fixed**: v0.676.0 (v0.675.0 was the broken deploy; ~25 min relay downtime until the hotfix deploy went green)
+- **Reported**: caught by watching the Deploy-to-VPS run for v0.675.0 (build succeeded on the VPS, then "activating" -> "Process exited with status 3"), not operator-reported.
+- **Root cause**: the shared-file library added `CREATE INDEX idx_user_uploads_shared ON user_uploads(shared, id)` inside the main schema `execute_batch` in `src/relay/storage/mod.rs`. That batch runs BEFORE the ALTER-TABLE migration block that adds the `shared` column to pre-existing tables. On a FRESH database (every unit test + the pre-release local smoke test) `CREATE TABLE IF NOT EXISTS` brings the column with it, so everything passed. On the LIVE database the table already existed without the column, the index statement errored ("no such column"), the `?` on the batch propagated, `Storage::open` returned Err, and the relay exited with status 3 on every systemd restart attempt.
+- **Fix**: the index is created in its own statement AFTER the ALTER block, where the column exists on both fresh and migrated databases. Regression test `opens_a_pre_v0675_database_and_migrates_it` (`src/relay/storage/uploads.rs`) builds the OLD table shape with a seeded row and requires `Storage::open` to succeed + the migrated row to behave -- the exact production sequence.
+- **Lesson (applies to ALL future schema work)**: any index (or trigger/view) over a column added via the ALTER migration block must be created after that block, never in the main schema batch. Fresh-DB tests and fresh-DB smoke tests structurally CANNOT catch live-DB migration ordering -- if a change touches an existing table's shape, add a pre-migration-shape `Storage::open` test like the one above.
+
 ### BUG-045: Cloned/mirrored homes in a residential zone rendered walls only -- no floor, ceiling, or trim
 - **Status**: Fixed
 - **Version Fixed**: v0.654.0

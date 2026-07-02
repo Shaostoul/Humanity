@@ -388,6 +388,11 @@
       "date": "2026-07-02",
       "decision": "v0.675.0 shared-file library SHIPPED end-to-end",
       "why": "Operator directive: share personal files (blend phone case, car bushings) from local PC via the relay. Design: uploads with ?share=1 are publicly listed via GET /api/uploads and EXEMPT from the per-user media FIFO (a shared .blend must not vanish because its uploader posted chat photos later); chat auto-shares ONLY 3D/model formats (.blend .stl .obj .gltf .glb) so photos stay private; original_name preserved for display. Server: user_uploads +shared/original_name/size_bytes cols + ALTER migration, list_shared_uploads (search+limit, LEFT JOIN server_members) + 2 storage tests. Web: shared-files.html browse/search/download page wired into nav; chat-messages.js auto-share. Smoke-tested LIVE: temp relay on :3299, GET /api/uploads returned {files:[]} + health 200, killed by PID. page_registry_lint caught accord.html missing from PAGES.md on its first real run (fixed, count stays 41). Native browse + native chat attach parity = tracked follow-up in PAGES.md."
+    },
+    {
+      "date": "2026-07-02",
+      "decision": "v0.676.0 HOTFIX: v0.675.0 relay startup crash on the live DB (BUG-046)",
+      "why": "The v0.675.0 VPS deploy built but the relay died on activation (exit 3): the new (shared,id) index sat in the main schema batch, which runs before the ALTER block adds the shared column on a pre-existing user_uploads table. Fresh-DB tests + the local smoke test structurally cannot catch this. Fix: index created after the ALTER block. Regression test opens_a_pre_v0675_database_and_migrates_it replays the exact production sequence. Roughly 25 min relay downtime; v0.676.0 deploy green; GET /api/uploads verified live on united-humanity.us ({files:[]}) and /shared-files serves 200. Lesson written into BUGS.md BUG-046: any index over an ALTER-added column goes after the ALTER block, and schema changes to existing tables need a pre-migration-shape Storage::open test."
     }
   ],
   "active_scopes_to_avoid": [
