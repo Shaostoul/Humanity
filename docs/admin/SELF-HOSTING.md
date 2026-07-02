@@ -2,34 +2,65 @@
 
 Run your own Humanity Network server in under 10 minutes. Single binary, zero external dependencies, SQLite built-in.
 
+## What you get (in plain words)
+
+Running a server means **your computer hosts its own copy of the HumanityOS
+website and chat network** -- the same thing you see at united-humanity.us,
+but yours. Your friends and family connect to YOUR address, your messages
+live on YOUR machine, and nobody can take it away from you. "Relay" and
+"server" mean the same thing in these docs: the program that stays on and
+passes messages between people.
+
+You do NOT need to be a programmer. If you can download a file and paste a
+few commands, you can run a server.
+
 ---
 
 ## Requirements
 
 - **OS:** Linux (Debian/Ubuntu recommended), macOS, or Windows
-- **Rust:** 1.75+ (install via [rustup.rs](https://rustup.rs))
 - **RAM:** 256MB minimum
 - **Disk:** 1GB+ (grows with messages and uploads)
-- **Domain + TLS:** Required for production (Let's Encrypt is free)
+- **Domain + TLS:** Required for production (Let's Encrypt is free); NOT
+  needed to try it out on your own machine first
+- **Rust compiler:** only if you choose to build from source (Option B
+  below) -- the normal path is a ready-made download, no compiler needed
 
 ---
 
 ## Quick Start
 
+### Option A: download the ready-made program (recommended)
+
+Every release ships prebuilt binaries -- no compiler, no build step.
+
 ```bash
-# Clone the repo
+# Linux (x64): download, make it runnable, run it
+wget https://github.com/Shaostoul/Humanity/releases/latest/download/HumanityOS-linux-x64
+chmod +x HumanityOS-linux-x64
+./HumanityOS-linux-x64 --headless
+```
+
+On **Windows**, download `HumanityOS-windows-x64.exe` from the
+[releases page](https://github.com/Shaostoul/Humanity/releases/latest),
+then in a terminal run `HumanityOS-windows-x64.exe --headless`.
+On **macOS**, download `HumanityOS-macos-arm64` (Apple Silicon) or
+`HumanityOS-macos-x64` (Intel), `chmod +x` it, and run it with
+`--headless` the same way.
+
+### Option B: build from source (for developers)
+
+```bash
 git clone https://github.com/Shaostoul/Humanity.git
 cd Humanity
-
-# Build the relay (headless mode - no GPU dependencies)
 cargo build --release --features relay --no-default-features
-
-# Run it
 ./target/release/HumanityOS --headless
 ```
 
-That's it. The relay starts on `http://localhost:3210` with:
-- Web client at `/`
+Either way, that's it. The relay starts on `http://localhost:3210` --
+open that address in your browser and you are looking at **your own copy
+of the website**, served by your machine:
+- Web client (the whole site) at `/`
 - WebSocket at `/ws`
 - Bot API at `/api/`
 - SQLite database auto-created at `data/relay.db`
@@ -221,6 +252,22 @@ Do NOT expose port 3210, nginx handles all public traffic.
 
 ## Federation
 
+### What federation means (in plain words)
+
+Federation is servers agreeing to talk to each other. Without it, your
+server is a private island: only people who connect directly to your
+address can see each other. With it, your server and another server
+exchange **signed profiles** (so people on both servers can recognise each
+other) and discover one another's existence. Your messages and data STAY
+on your server -- federation shares identities and server discovery, not
+your chat history.
+
+You do not need federation to use your server. A family server that never
+federates works fine forever. Federate when you want your community to be
+visible to the wider network.
+
+### The technical part
+
 Your server automatically generates a Dilithium3 / ML-DSA-65 keypair on first run (federation object signing and profile gossip are Dilithium3). Other servers can discover yours via:
 
 ```
@@ -229,10 +276,22 @@ GET https://your-domain.com/api/server-info
 
 ### Joining the Federation
 
-1. Run your server publicly with a domain and TLS
-2. Contact the admin of another Humanity server
-3. They run `/server-add https://your-domain.com` to discover your server
-4. Trust tiers are assigned based on verification and Accord adoption:
+1. Run your server publicly with a domain and TLS (the Production Setup
+   section above).
+2. Ask an existing server's admin to add you. **The easiest first partner
+   is united-humanity.us itself**: join its chat at
+   [united-humanity.us/chat](https://united-humanity.us/chat), say hello
+   in `#general`, and ask Shaostoul (the operator) to federate with your
+   domain. There is no application form and it costs nothing.
+3. They run `/server-add https://your-domain.com` on their side. You can
+   also add THEM from your side the same way -- federation links are
+   per-direction.
+4. **Check that it worked:** open
+   `https://your-domain.com/api/federation/servers` in a browser -- the
+   other server should be listed. On theirs, yours should appear the same
+   way. Profile gossip then flows automatically; there is nothing else to
+   switch on.
+5. Trust tiers are assigned based on verification and Accord adoption:
    - **Tier 3 (🟢):** Verified identity + publicly adopted the Humanity Accord
    - **Tier 2 (🟡):** Verified identity only
    - **Tier 1 (🔵):** Unverified + Accord adopted
