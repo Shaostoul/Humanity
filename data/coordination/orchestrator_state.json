@@ -11,6 +11,12 @@
   "recent_decisions": [
     {
       "date": "2026-07-02",
+      "decision": "OPERATOR DECIDED economy Phase 2 vehicle pipeline: BOTH models, staged. Stage 1: big end-products craft as an oversized \"kit\" ITEM (lives in home stock, not backpack; tradeable through the existing market) that deploys to spawn the real Vehicle entity -- reuses the whole existing crafting/storage/market chain for easy testing. Stage 2: factories gain the ability to SPAWN the physical vehicle in the world when a job finishes (finished-goods pad). Stage 3: TRANSPORT -- a purchased tank/mecha/spaceship physically travels from where it was built (factory/fleet) to the buyer, and the player can FOLLOW or TAKE OVER driving/piloting the transport.",
+      "why": "Operator 2026-07-02: \"I like the idea of having both... The in inventory idea allows us to test a lot of things real easily. The spawning the vehicle gives us the ability to spawn physical objects in the world after a job finishes. Then add in the transport. It would be cool if the player could follow or take over the transport of whatever they bought.\" Long-term vision logged same message: the line between game objects and real buildable objects blurs -- an in-game house/car/spaceship should eventually correspond to real, buildable, working designs.",
+      "outcome": "Unblocks economy Phase 2 as staged, well-scoped work. Stage 1 is implementable against existing systems (new oversized-item flag + deploy action + vehicle blueprint RON)."
+    },
+    {
+      "date": "2026-07-02",
       "decision": "Declined the operator's .rar preference for release archives; shipped .zip alongside .tar.gz instead, with exe-first for Windows.",
       "why": "RAR is proprietary: no open-source tool can CREATE it (CI cannot legally produce it) and Windows 10 (our stated minimum) cannot open it natively -- both directly against the no-corporations/no-catch ethos and the friction goal. Zip opens natively everywhere and WinRAR (the operator's preference) handles zip fine, so the operator personally loses nothing.",
       "outcome": "Operator accepted the reasoning implicitly by the work proceeding; build-desktop.yml produces .zip from v0.673.0 tags onward; the Download page prefers zip with tar.gz fallback for older releases."

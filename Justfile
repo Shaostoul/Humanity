@@ -290,7 +290,7 @@ verify:
 # native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
 # One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
 lints:
-    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
 # Render ALL 27 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after. For just
@@ -578,3 +578,10 @@ fleet-status:
       dirty=$(git -C "$p" status --porcelain 2>/dev/null | grep -vc "settings.local.json" || true)
       echo "$(basename $p): branch=$b ahead=$ahead dirty=$dirty"
     done
+
+# Regenerate ALL page snapshots, then mechanically report which pages CHANGED
+# versus the committed PNGs (with PSNR scores when ffmpeg exists: inf = byte
+# noise, < ~45 dB = go look). The "did I break a page I didn't touch?" check.
+snapshot-check:
+    just snapshots
+    node scripts/snapshot-diff.js
