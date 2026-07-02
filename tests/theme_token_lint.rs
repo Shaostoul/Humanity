@@ -73,7 +73,9 @@ const LEGACY_OFFENDERS: &[&str] = &[
     "src/gui/pages/profile.rs",
     "src/gui/pages/settings.rs",
     "src/gui/pages/server_settings.rs",
-    "src/gui/pages/studio.rs",
+    // studio.rs migrated to theme tokens 2026-07-02 (v0.672) and REMOVED from
+    // this list -- the first shrink since enforcement began. Its one remaining
+    // literal call is an alpha-composite of a token, inline theme-exempt.
     "src/gui/pages/wallet.rs",
     // theme.rs is the authoritative source; literal calls in `c32` and
     // accessor implementations are by design. Always allowed.

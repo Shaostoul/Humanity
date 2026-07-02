@@ -44,7 +44,7 @@ const RIGHT_PANEL_WIDTH: f32 = 220.0;
 /// tint strength). Computed from a token, not hardcoded, so theme_token_lint
 /// sees no literal here.
 fn with_alpha(c: Color32, alpha: u8) -> Color32 {
-    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha)
+    Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), alpha) // theme-exempt: alpha-composited from a theme token, no literal RGB
 }
 
 // Platform/resolution/fps/position picker options live in
