@@ -192,4 +192,45 @@ mod shared_library_tests {
         assert_eq!(hits[0].original_name, "Car_Bushing_v2.stl");
         assert_eq!(hits[0].uploader_key, "bob");
     }
+
+    /// Startup must survive a LIVE (pre-v0.675) database where user_uploads
+    /// already exists without the shared/original_name/size_bytes columns.
+    /// This is exactly what killed the v0.675.0 deploy: the (shared, id) index
+    /// sat in the main schema batch, which runs BEFORE the ALTER block adds the
+    /// column on an existing DB, so the whole batch aborted and the relay died
+    /// with exit status 3. Fresh-DB tests (all the ones above) cannot see this.
+    #[test]
+    fn opens_a_pre_v0675_database_and_migrates_it() {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_uploads_mig_{pid}_{nanos}.db"));
+
+        // Build the OLD table shape + a pre-existing row, like the live DB.
+        {
+            let conn = rusqlite::Connection::open(&path).expect("raw open");
+            conn.execute_batch(
+                "CREATE TABLE user_uploads (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    public_key  TEXT NOT NULL,
+                    filename    TEXT NOT NULL,
+                    uploaded_at INTEGER NOT NULL
+                );
+                INSERT INTO user_uploads (public_key, filename, uploaded_at)
+                    VALUES ('carol', 'old_photo.png', 1);",
+            )
+            .expect("seed old-shape table");
+        }
+
+        // The line that crashed in production:
+        let db = Storage::open(&path).expect("startup must survive a pre-v0.675 DB");
+
+        // Old row is intact, defaulted unshared, and the new paths work on it.
+        assert_eq!(db.get_upload_count("carol").unwrap(), 1);
+        assert!(db.list_shared_uploads(50, None).unwrap().is_empty());
+        db.record_upload("carol", "1_case.blend", 4, true, "case.blend", 42).unwrap();
+        assert_eq!(db.list_shared_uploads(50, None).unwrap().len(), 1);
+    }
 }

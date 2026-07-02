@@ -588,8 +588,6 @@ impl Storage {
 
             CREATE INDEX IF NOT EXISTS idx_user_uploads_key
                 ON user_uploads(public_key, id);
-            CREATE INDEX IF NOT EXISTS idx_user_uploads_shared
-                ON user_uploads(shared, id);
 
             CREATE TABLE IF NOT EXISTS reports (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -783,6 +781,16 @@ impl Storage {
         ] {
             let _ = conn.execute(alter, []);
         }
+
+        // v0.675.1: this index MUST be created after the ALTER block above, not in
+        // the main schema batch -- on a pre-v0.675 live DB the user_uploads table
+        // already exists WITHOUT the shared column when the batch runs, so indexing
+        // (shared, id) there aborts the whole batch and the relay dies at startup
+        // (took down the v0.675.0 deploy; a fresh-DB smoke test can't catch this).
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_user_uploads_shared
+                 ON user_uploads(shared, id);"
+        )?;
 
         // Channel categories for Discord-like grouping.
         conn.execute_batch(
