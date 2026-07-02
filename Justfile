@@ -286,7 +286,7 @@ verify:
 lints:
     export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
-# Render ALL 26 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
+# Render ALL 27 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after. For just
 # ONE page, use `just snapshot <name>` instead (much faster).
 snapshots:
@@ -298,9 +298,9 @@ snapshots:
 # Full list: main_menu, humanity, chat, homes, tasks, market, profile, crafting,
 # library, governance, identity, wallet, quests, calendar, notes, audio_settings,
 # graphics_settings, controls_settings, laws_page, inventory, inventory_transfer,
-# garden_modal_soil, mining_modal, mining_map, garden_modal_tower, construction. This
-# is 26 of the app's 52 native pages, the rest have no snapshot test yet, check
-# docs/PAGES.md for the full page registry.
+# garden_modal_soil, mining_modal, mining_map, garden_modal_tower, construction,
+# studio. This is 27 of the app's 52 native pages, the rest have no snapshot test
+# yet, check docs/PAGES.md for the full page registry.
 snapshot name:
     cargo test --features native --lib snapshot_{{name}} -- --ignored --nocapture
     @echo "Wrote tests/snapshots/{{name}}.png"
