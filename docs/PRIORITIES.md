@@ -11,6 +11,23 @@
 
 ## Active focus
 
+> **>>> SHARED-FILE LIBRARY SHIPPED (v0.675.0, 2026-07-02, Fable 5): the
+> operator's "share my .blend phone case / car bushings from my PC" request,
+> end to end. `POST /api/upload?share=1` publishes; NEW `GET /api/uploads`
+> lists (search + limit); shared files are EXEMPT from the per-user media
+> FIFO so a shared .blend never vanishes under later chat photos; chat
+> auto-shares ONLY 3D/model formats (.blend .stl .obj .gltf .glb -- photos
+> stay private); `original_name` preserved for display. NEW web page
+> `shared-files.html` (browse/search/download, in the nav). Smoke-tested
+> against a live local relay. page_registry_lint earned its keep on day 2:
+> caught `accord.html` missing from PAGES.md. **Native follow-up tracked in
+> PAGES.md:** in-app shared-files browsing + native chat file-attach parity.
+> **Next up (operator's staged vehicle-pipeline decision, logged 2026-07-01):**
+> economy Phase 2 -- purchased vehicle arrives as a kit ITEM first (fast to
+> test), then factory world-SPAWN after a job finishes, then physical
+> transport the player can follow or take over. Before that, the smaller
+> remaining threads below are fair game. <<<**
+
 > **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
 > in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +
 > the orchestrator, every branch reviewed/merged/re-verified on main (709
