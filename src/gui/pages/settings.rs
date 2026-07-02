@@ -963,6 +963,54 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
             });
 
             ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Studio source colors")
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new("Fill colors for each source type on the Broadcasting Studio's Program/Preview canvases, plus the source outline/label, AFK timer, and audio-meter trough.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add_space(theme.spacing_sm);
+
+            ui.columns(2, |cols| {
+                let labels_left = [
+                    ("Studio: camera source",     &mut theme.studio_source_camera as *mut _),
+                    ("Studio: screen source",     &mut theme.studio_source_screen as *mut _),
+                    ("Studio: microphone source", &mut theme.studio_source_microphone as *mut _),
+                    ("Studio: chat overlay",      &mut theme.studio_source_chat as *mut _),
+                    ("Studio: image source",      &mut theme.studio_source_image as *mut _),
+                    ("Studio: text source",       &mut theme.studio_source_text as *mut _),
+                ];
+                for (label, ptr) in labels_left {
+                    let ui_l = &mut cols[0];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_l, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+                let labels_right = [
+                    ("Studio: timer source",  &mut theme.studio_source_timer as *mut _),
+                    ("Studio: source outline", &mut theme.studio_source_border as *mut _),
+                    ("Studio: source label",  &mut theme.studio_source_label as *mut _),
+                    ("Studio: AFK timer",     &mut theme.studio_afk as *mut _),
+                    ("Studio: meter trough",  &mut theme.studio_meter_bg as *mut _),
+                ];
+                for (label, ptr) in labels_right {
+                    let ui_r = &mut cols[1];
+                    let color_tuple = unsafe { &mut *ptr };
+                    if color_row(ui_r, label, color_tuple, label_color) {
+                        any_color_changed = true;
+                    }
+                }
+            });
+
+            ui.add_space(theme.spacing_md);
             ui.horizontal(|ui| {
                 if widgets::Button::primary("Save Theme").show(ui, theme) {
                     theme.save();

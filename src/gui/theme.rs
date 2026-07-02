@@ -188,6 +188,41 @@ pub struct Theme {
     #[serde(default = "default_server_row_hover")]
     pub server_row_hover: C,
 
+    // ── Studio source-type palette (v0.670) ──
+    // Broadcasting Studio canvas colors: each source kind (camera, screen
+    // share, mic, chat overlay, image, text, timer) gets a semantic fill so
+    // the Program/Preview canvases stay readable at a glance. The source's
+    // own opacity slider is applied at draw time on top of these RGB tokens
+    // (see studio.rs `with_alpha`), so only the base colors live here.
+    // Migrated from hardcoded Color32 literals in pages/studio.rs.
+    #[serde(default = "default_studio_source_camera")]
+    pub studio_source_camera: C,
+    #[serde(default = "default_studio_source_screen")]
+    pub studio_source_screen: C,
+    #[serde(default = "default_studio_source_microphone")]
+    pub studio_source_microphone: C,
+    #[serde(default = "default_studio_source_chat")]
+    pub studio_source_chat: C,
+    #[serde(default = "default_studio_source_image")]
+    pub studio_source_image: C,
+    #[serde(default = "default_studio_source_text")]
+    pub studio_source_text: C,
+    #[serde(default = "default_studio_source_timer")]
+    pub studio_source_timer: C,
+    /// Outline stroke around each source rectangle on the studio canvases.
+    #[serde(default = "default_studio_source_border")]
+    pub studio_source_border: C,
+    /// Source-name label text painted at the center of each source rectangle.
+    #[serde(default = "default_studio_source_label")]
+    pub studio_source_label: C,
+    /// The "Away: h:mm:ss" AFK timer text in the studio controls bar.
+    #[serde(default = "default_studio_afk")]
+    pub studio_afk: C,
+    /// Background trough of the studio audio-level meter (the fill on top
+    /// uses success/warning/danger by level).
+    #[serde(default = "default_studio_meter_bg")]
+    pub studio_meter_bg: C,
+
     // Chat buffer size
     #[serde(default = "default_max_messages")]
     pub max_messages: usize,
@@ -345,6 +380,19 @@ impl Theme {
     pub fn server_bg(&self) -> Color32 { Self::c32(&self.server_bg) }
     pub fn server_row_bg(&self) -> Color32 { Self::c32(&self.server_row_bg) }
     pub fn server_row_hover(&self) -> Color32 { Self::c32(&self.server_row_hover) }
+
+    // Studio source-type palette (v0.670) — see field docs above.
+    pub fn studio_source_camera(&self) -> Color32 { Self::c32(&self.studio_source_camera) }
+    pub fn studio_source_screen(&self) -> Color32 { Self::c32(&self.studio_source_screen) }
+    pub fn studio_source_microphone(&self) -> Color32 { Self::c32(&self.studio_source_microphone) }
+    pub fn studio_source_chat(&self) -> Color32 { Self::c32(&self.studio_source_chat) }
+    pub fn studio_source_image(&self) -> Color32 { Self::c32(&self.studio_source_image) }
+    pub fn studio_source_text(&self) -> Color32 { Self::c32(&self.studio_source_text) }
+    pub fn studio_source_timer(&self) -> Color32 { Self::c32(&self.studio_source_timer) }
+    pub fn studio_source_border(&self) -> Color32 { Self::c32(&self.studio_source_border) }
+    pub fn studio_source_label(&self) -> Color32 { Self::c32(&self.studio_source_label) }
+    pub fn studio_afk(&self) -> Color32 { Self::c32(&self.studio_afk) }
+    pub fn studio_meter_bg(&self) -> Color32 { Self::c32(&self.studio_meter_bg) }
 
     /// Icon circle radius (half icon_size minus border padding).
     pub fn icon_radius(&self) -> f32 { self.icon_size / 2.0 - 2.0 }
@@ -569,6 +617,21 @@ fn default_server_row_bg() -> C { (0.078, 0.078, 0.216, 1.0) }
 fn default_server_row_hover() -> C { (0.098, 0.098, 0.275, 1.0) }
 fn default_max_messages() -> usize { 200 }
 
+// Studio source-type palette defaults (v0.670). Same RGB values as the
+// pre-migration hardcoded literals in pages/studio.rs so existing themes
+// look identical post-migration.
+fn default_studio_source_camera()     -> C { (0.18039216, 0.52549020, 0.75686275, 1.0) } // #2E86C1 — blue
+fn default_studio_source_screen()     -> C { (0.55686275, 0.26666667, 0.67843137, 1.0) } // #8E44AD — purple
+fn default_studio_source_microphone() -> C { (0.90588235, 0.29803922, 0.23529412, 1.0) } // #E74C3C — red
+fn default_studio_source_chat()       -> C { (0.18039216, 0.80000000, 0.44313725, 1.0) } // #2ECC71 — green
+fn default_studio_source_image()      -> C { (0.94509804, 0.76862745, 0.05882353, 1.0) } // #F1C40F — yellow
+fn default_studio_source_text()       -> C { (0.92549020, 0.94117647, 0.94509804, 1.0) } // #ECF0F1 — near-white
+fn default_studio_source_timer()      -> C { (0.90196078, 0.49411765, 0.13333334, 1.0) } // #E67E22 — orange
+fn default_studio_source_border()     -> C { (1.0, 1.0, 1.0, 1.0) }                      // white
+fn default_studio_source_label()      -> C { (1.0, 1.0, 1.0, 1.0) }                      // white
+fn default_studio_afk()               -> C { (0.60784314, 0.34901961, 0.71372549, 1.0) } // #9B59B6 — purple
+fn default_studio_meter_bg()          -> C { (0.11764706, 0.11764706, 0.15686275, 1.0) } // #1E1E28 — dark trough
+
 // Nav category colors (v0.175.0). Matches the original constants from
 // escape_menu.rs so existing themes look identical post-migration.
 fn default_nav_reality()  -> C { (0.906, 0.298, 0.235, 1.0) } // #E74C3C — red
@@ -688,6 +751,18 @@ fn default_theme() -> Theme {
         server_bg: default_server_bg(),
         server_row_bg: default_server_row_bg(),
         server_row_hover: default_server_row_hover(),
+        // Studio source-type palette (v0.670)
+        studio_source_camera: default_studio_source_camera(),
+        studio_source_screen: default_studio_source_screen(),
+        studio_source_microphone: default_studio_source_microphone(),
+        studio_source_chat: default_studio_source_chat(),
+        studio_source_image: default_studio_source_image(),
+        studio_source_text: default_studio_source_text(),
+        studio_source_timer: default_studio_source_timer(),
+        studio_source_border: default_studio_source_border(),
+        studio_source_label: default_studio_source_label(),
+        studio_afk: default_studio_afk(),
+        studio_meter_bg: default_studio_meter_bg(),
         max_messages: default_max_messages(),
         // Nav tokens (v0.175.0) — see default_nav_* helpers above.
         nav_reality: default_nav_reality(),
