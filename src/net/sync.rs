@@ -28,6 +28,10 @@ pub struct RemotePlayer {
 /// needs ("Botanist Yara -- Inspecting the hydroponic racks"); a future
 /// nameplate pass should read them from this component (see the machine-label
 /// pattern in src/gui/pages/hud.rs for the world_to_screen text path).
+/// Where a crew NPC STANDS on this client (floor 0 + 1.0 m body center),
+/// regardless of the relay-side deck height its chore site reports.
+const NPC_LOCAL_STANDING_Y: f32 = 1.0;
+
 pub struct RemoteNpc {
     pub entity_id: u64,
     pub name: String,
@@ -206,7 +210,15 @@ impl System for NetSyncSystem {
                     // Update-or-spawn the crew NPC. Updates arrive at ~2 Hz
                     // while traveling (plus on every chore state change), so
                     // interpolation below smooths movement between them.
-                    let pos = Vec3::from_array(position);
+                    //
+                    // GROUND the Y to the local floor (v0.681, operator screenshot
+                    // 2026-07-03): the relay simulates chores on ITS multi-deck ship
+                    // layout, so upper-deck room sites carry high Y values -- but this
+                    // client renders the flat homestead, so crew showed up floating
+                    // mid-sky. Keep the relay X/Z walk, override Y with the local
+                    // standing height until relay/client layout alignment lands
+                    // (tracked in PRIORITIES).
+                    let pos = Vec3::new(position[0], NPC_LOCAL_STANDING_Y, position[2]);
                     let mut found = false;
                     for (_e, (transform, npc)) in
                         world.query_mut::<(&mut Transform, &mut RemoteNpc)>()

@@ -1773,6 +1773,10 @@ pub struct GuiState {
     /// GUI -> ECS: summon this vehicle (entity bits) to drive itself to the
     /// player; bridged into the "summon_vehicle" channel.
     pub pending_summon_vehicle: Option<u64>,
+    /// Live production status lines (v0.681), one per auto machine, synced from
+    /// CraftingSystem's "auto_craft_status" channel each frame -- e.g.
+    /// "Assemble Rover — 42%" or "Smelt Iron — waiting for Iron Ore x2".
+    pub factory_status: Vec<String>,
 
     // ── Skills / progression state ──
     /// Player skills (live level + XP), synced from the ECS PlayerSkills each
@@ -3114,6 +3118,7 @@ impl Default for GuiState {
             drones: Vec::new(),
             vehicles: Vec::new(),
             pending_summon_vehicle: None,
+            factory_status: Vec::new(),
             skills: Vec::new(),
             pending_dev_max_skills: false,
             quests: Vec::new(),

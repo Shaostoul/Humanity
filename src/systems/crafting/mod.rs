@@ -643,32 +643,63 @@ impl System for CraftingSystem {
         // - A batch only starts when its OUTPUTS also fit (`outputs_fit`):
         //   otherwise a full inventory became an unattended grinder, consuming
         //   inputs forever and overflow-discarding every output.
+        // Live production status (v0.681, operator feedback: "assembling" with
+        // no percentage or reason is useless): one honest line per auto machine,
+        // published to the "auto_craft_status" channel for the GUI.
+        let mut statuses: Vec<String> = Vec::new();
         if let (Some(recipes), Some(player_e)) = (recipe_registry, player) {
             let mut auto_starts: Vec<(hecs::Entity, String)> = Vec::new();
             for (machine, auto) in world
                 .query::<&crate::ecs::components::AutoRefine>()
                 .iter()
             {
-                if self.active_crafts.iter().any(|c| c.crafter == machine) {
-                    continue; // this machine is mid-batch
+                if let Some(craft) = self.active_crafts.iter().find(|c| c.crafter == machine) {
+                    // Mid-batch: report real progress.
+                    if let Some(r) = recipes.recipes.get(&craft.recipe_id) {
+                        let pct = if r.craft_time > 0.0 {
+                            ((1.0 - craft.time_remaining / r.craft_time) * 100.0).clamp(0.0, 99.0)
+                        } else {
+                            99.0
+                        };
+                        statuses.push(format!("{} — {pct:.0}%", r.name));
+                    }
+                    continue;
                 }
                 if recipes.recipes.contains_key(&auto.recipe_id) {
                     auto_starts.push((machine, auto.recipe_id.clone()));
+                } else {
+                    statuses.push(format!("Unknown recipe '{}'", auto.recipe_id));
                 }
             }
             for (machine, recipe_id) in auto_starts {
                 let recipe = recipes.recipes.get(&recipe_id).cloned();
                 let Some(recipe) = recipe else { continue };
                 // Authoritative check at consume time (not a stale snapshot):
-                // inputs present AND output space available.
-                let ready = match world.get::<&Inventory>(player_e) {
+                // inputs present AND output space available. Failures report WHY.
+                let blocked: Option<String> = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
-                        Self::can_craft(&inv, &recipe)
-                            && Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits)
+                        // First missing input, by name, with the shortfall.
+                        let missing = recipe.inputs.iter().find_map(|(id, qty)| {
+                            let have = inv.count_item(id);
+                            (have < *qty).then(|| {
+                                let name = item_registry
+                                    .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
+                                    .unwrap_or_else(|| id.clone());
+                                format!("waiting for {name} x{}", qty - have)
+                            })
+                        });
+                        if let Some(m) = missing {
+                            Some(m)
+                        } else if !Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits) {
+                            Some("inventory full".to_string())
+                        } else {
+                            None
+                        }
                     }
-                    Err(_) => false,
+                    Err(_) => Some("no home inventory".to_string()),
                 };
-                if !ready {
+                if let Some(why) = blocked {
+                    statuses.push(format!("{} — {why}", recipe.name));
                     continue;
                 }
                 // The machine's pose IS the factory pad for vehicle outputs;
@@ -685,12 +716,14 @@ impl System for CraftingSystem {
                 if Self::has_vehicle_output(&recipe, vehicle_kits) {
                     let (base, rot) = pad.unwrap_or((glam::Vec3::ZERO, glam::Quat::IDENTITY));
                     if Self::free_pad_lane(world, base, rot).is_none() {
+                        statuses.push(format!("{} — pad full, line paused", recipe.name));
                         continue;
                     }
                 }
                 if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
                     Self::consume_inputs(&mut inv, &recipe);
                 }
+                statuses.push(format!("{} — starting", recipe.name));
                 self.active_crafts.push(ActiveCraft {
                     recipe_id,
                     time_remaining: recipe.craft_time.max(0.01),
@@ -698,6 +731,11 @@ impl System for CraftingSystem {
                     auto: true,
                     pad,
                 });
+            }
+        }
+        if let Some(slot) = data.get::<std::sync::Mutex<Vec<String>>>("auto_craft_status") {
+            if let Ok(mut s) = slot.lock() {
+                *s = statuses;
             }
         }
 
@@ -1573,6 +1611,54 @@ mod vehicle_factory_tests {
         assert!(
             (v[0].1 - player_pos).length() <= PAD_OFFSET_M + 1e-3,
             "rover rolled out next to the player"
+        );
+    }
+
+
+    /// Live production status (v0.681, operator feedback): an idle assembler
+    /// says exactly WHY ("waiting for Steel Ingot x6"), and a running batch
+    /// reports a live percentage instead of an authored "assembling" string.
+    #[test]
+    fn production_status_reports_why_idle_and_live_progress() {
+        let mut data = factory_data();
+        data.insert("auto_craft_status", std::sync::Mutex::new(Vec::<String>::new()));
+        let mut world = hecs::World::new();
+        // Empty stock: the line must WAIT and say what for.
+        world.spawn((Inventory::new(16), Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data);
+        let status = data
+            .get::<std::sync::Mutex<Vec<String>>>("auto_craft_status")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(status.len(), 1);
+        assert!(
+            status[0].contains("waiting for Steel Ingot x6"),
+            "idle line names the first missing input: {status:?}"
+        );
+
+        // Stock the materials: the next ticks report starting, then a percent.
+        for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &Controllable)>() {
+            rover_materials(inv);
+        }
+        sys.tick(&mut world, 1.0, &data); // starts
+        for _ in 0..59 {
+            sys.tick(&mut world, 1.0, &data); // ~60s into the 120s batch
+        }
+        let status = data
+            .get::<std::sync::Mutex<Vec<String>>>("auto_craft_status")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(status.len(), 1);
+        assert!(
+            status[0].contains('%'),
+            "mid-batch line reports live progress: {status:?}"
         );
     }
 

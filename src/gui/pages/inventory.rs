@@ -1979,10 +1979,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // ── Vehicles (collapsible, Stage 3 v0.680) — every vehicle standing
                 //    in the world: deploy/factory output. Summon one and it DRIVES
                 //    itself to you; watch it come or walk alongside. ──
-                if !state.vehicles.is_empty() {
+                if !state.vehicles.is_empty() || !state.factory_status.is_empty() {
                     widgets::rgb_section_divider(ui, theme);
                     if widgets::section_disclosure(ui, theme, ("inv_sec", "vehicles"), "Vehicles", tree_force) {
                         ui.add_space(theme.spacing_xs);
+                        // Live production lines (v0.681): what every auto machine is
+                        // doing RIGHT NOW and, when idle, exactly why ("waiting for
+                        // Steel Ingot x6") -- the operator's "no idea on percentages
+                        // or stages" feedback (2026-07-03).
+                        for line in &state.factory_status {
+                            ui.label(
+                                RichText::new(line)
+                                    .size(theme.font_size_small)
+                                    .color(if line.contains('%') || line.ends_with("starting") {
+                                        theme.accent()
+                                    } else {
+                                        theme.text_secondary()
+                                    }),
+                            );
+                        }
+                        if !state.factory_status.is_empty() {
+                            ui.add_space(theme.spacing_xs);
+                        }
                         ui.label(
                             RichText::new("Your vehicles in the world. Summon one and it drives itself to you.")
                                 .size(theme.font_size_small)

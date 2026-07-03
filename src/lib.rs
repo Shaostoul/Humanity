@@ -4961,6 +4961,10 @@ mod native_app {
                 "summon_vehicle",
                 std::sync::Mutex::new(Option::<u64>::None),
             );
+            // Live production status (v0.681): CraftingSystem writes one honest
+            // line per auto machine each tick ("Assemble Rover — 42%", "waiting
+            // for Steel Ingot x6", "pad full, line paused"); the GUI shows them.
+            data_store.insert("auto_craft_status", std::sync::Mutex::new(Vec::<String>::new()));
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -9147,6 +9151,14 @@ mod native_app {
                                 distance: (tf.position - cam_pos).length(),
                                 in_transit: route.is_some(),
                             });
+                        }
+                        // Live production status lines (v0.681) for the same section.
+                        if let Some(status) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Vec<String>>>("auto_craft_status")
+                            .and_then(|m| m.lock().ok().map(|s| s.clone()))
+                        {
+                            state.gui_state.factory_status = status;
                         }
                     }
                     // Mining drone, DOCKED at the hangar (v0.639): the operator's "the homestead
