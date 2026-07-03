@@ -418,6 +418,11 @@
       "at": "2026-07-03",
       "decision": "v0.681.0 SHIPPED field-test fixes: grounded crew NPCs + live factory status",
       "why": "Operator played v0.680.1 live and reported: (1) crew floating mid-sky -- root cause: relay simulates chores on ITS multi-deck ship layout (room.position.y+1.0 per deck) while the client renders the flat homestead; client-side fix grounds NPC Y at the sync source (NpcUpdate arm, keeps relay X/Z); REAL fix = relay/client layout alignment, tracked. (2) assembler said static authored assembling with no %/reason and produced nothing (no rubber in stock, nothing said so) -- CraftingSystem now publishes one status line per auto machine per tick to auto_craft_status (live %, first missing input by name+shortfall, inventory full, pad full), shown in the Inventory Vehicles section (which now also shows when only status exists). (3) drone dock pops on launch/return -- docking/undocking sequence logged for the polish pass, not fixed. Test production_status_reports_why_idle_and_live_progress; full verify green."
+    },
+    {
+      "at": "2026-07-03",
+      "decision": "v0.682.0 SHIPPED drone docking sequence (lift-off/settle, no pop) + assembler label neutralized",
+      "why": "Operator field-test item 3: dock visual popped with drone_active. New drone_dock_anim scalar (1=settled, 0=away) eased toward drone_active each frame; launch lifts the model ~2s ease-out to +4m before it vanishes, return settles it down. Same showroom/declutter gates. home.ron assembler authored stat -> auto-assembly line (the live % status shipped v0.681.0). Light-dev cadence per operator (23% budget): ship small, often."
     }
   ],
   "active_scopes_to_avoid": [
