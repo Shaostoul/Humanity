@@ -58,6 +58,14 @@ pub struct VehicleKitDef {
     pub cabin_offset_x: f32,
     /// Wheel radius in meters (4 wheels at the body corners).
     pub wheel_radius_m: f32,
+    /// Self-drive transit speed in m/s (Stage 3 summon/delivery). serde-default
+    /// so kit entries without it drive at a sane homestead pace.
+    #[serde(default = "default_speed_mps")]
+    pub speed_mps: f32,
+}
+
+fn default_speed_mps() -> f32 {
+    6.0
 }
 
 /// All deployable kits, keyed both ways: by kit item (deploy consumes) and by
@@ -188,6 +196,12 @@ impl System for VehicleSystem {
         // ── 0. Deploy a vehicle kit (economy Phase 2 Stage 1) ────────
         self.handle_deploy(world, data);
 
+        // ── 0b. Summon a parked vehicle to the player (Stage 3) ──────
+        self.handle_summon(world, data);
+
+        // ── 0c. Advance vehicles in transit (Stage 3) ─────────────────
+        Self::tick_routes(world, dt, data);
+
         // ── 1. Handle enter vehicle commands ────────────────────────
         if let Some(cmd) = data.get::<EnterVehicleCommand>("enter_vehicle") {
             self.handle_enter(world, cmd);
@@ -293,6 +307,71 @@ impl VehicleSystem {
             return (tf.position + Vec3::new(DEPLOY_DISTANCE, 0.0, 0.0), 0.0);
         }
         (Vec3::ZERO, 0.0)
+    }
+
+    /// Summon a parked vehicle to the player (economy Phase 2 Stage 3): drain
+    /// the one-shot "summon_vehicle" channel (entity bits from the GUI's
+    /// Vehicles section), validate it IS a vehicle and not already in transit,
+    /// and attach a VehicleRoute to the player's ground position. The vehicle
+    /// then drives itself over -- the "watch your purchase arrive" seed the
+    /// operator asked for; follow/take-over build on this transit state.
+    fn handle_summon(&mut self, world: &mut hecs::World, data: &DataStore) {
+        let Some(bits) = data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()))
+        else {
+            return;
+        };
+        let Some(entity) = hecs::Entity::from_bits(bits) else { return };
+        let Ok(veh) = world.get::<&Vehicle>(entity).map(|v| v.item_id.clone()) else {
+            log::warn!("summon_vehicle: entity {bits:#x} is not a vehicle");
+            return;
+        };
+        if world.get::<&crate::ecs::components::VehicleRoute>(entity).is_ok() {
+            return; // already in transit
+        }
+        let speed = data
+            .get::<VehicleKitRegistry>("vehicle_kit_registry")
+            .and_then(|r| r.get_vehicle(&veh))
+            .map(|d| d.speed_mps)
+            .unwrap_or(default_speed_mps());
+        let (dest, _yaw) = Self::deploy_pose(world, data); // player's ground spot
+        let _ = world.insert_one(
+            entity,
+            crate::ecs::components::VehicleRoute {
+                dest,
+                speed_mps: speed.max(0.5),
+                arrive_radius: 4.0,
+            },
+        );
+        log::info!("Vehicle {veh} summoned to {dest}");
+    }
+
+    /// Advance every vehicle in transit on GAME time: straight-line travel
+    /// toward dest, yawing to face the direction of motion (the render body's
+    /// long axis is +X, and Quat::from_rotation_y maps +X to (cos, 0, -sin)).
+    /// Arrival (within arrive_radius) removes the route -- the vehicle parks.
+    fn tick_routes(world: &mut hecs::World, dt: f32, data: &DataStore) {
+        let sdt = crate::systems::time::scaled_dt(dt, data);
+        let mut arrived: Vec<hecs::Entity> = Vec::new();
+        for (e, (tf, route)) in world
+            .query_mut::<(&mut Transform, &crate::ecs::components::VehicleRoute)>()
+        {
+            let to = route.dest - tf.position;
+            let dist = to.length();
+            let step = route.speed_mps * sdt;
+            if dist <= route.arrive_radius.max(step) {
+                arrived.push(e);
+                continue;
+            }
+            let dir = to / dist;
+            tf.position += dir * step;
+            tf.rotation = Quat::from_rotation_y((-dir.z).atan2(dir.x));
+        }
+        for e in arrived {
+            let _ = world.remove_one::<crate::ecs::components::VehicleRoute>(e);
+            log::info!("Vehicle arrived and parked");
+        }
     }
 
     /// Transfer `Controllable` from player to vehicle, seat the player.
@@ -647,6 +726,156 @@ mod deploy_tests {
             assert!(
                 items.contains(&format!("{},", def.vehicle_item)),
                 "vehicle item {} missing from items.csv",
+                def.vehicle_item
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod transit_tests {
+    use super::*;
+    use crate::ecs::components::{Name, Vehicle, VehicleRoute};
+    use crate::systems::inventory::Inventory;
+
+    const KITS_RON: &str = r#"[
+        (
+            kit_item: "rover_kit_0",
+            vehicle_item: "rover_0",
+            display_name: "Rover",
+            body_m: (3.2, 0.8, 1.9),
+            cabin_m: (1.5, 0.65, 1.7),
+            cabin_offset_x: 0.2,
+            wheel_radius_m: 0.5,
+            speed_mps: 6.0,
+        ),
+    ]"#;
+
+    fn make_store() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert(
+            "vehicle_kit_registry",
+            VehicleKitRegistry::from_ron(KITS_RON.as_bytes()).expect("kits ron parses"),
+        );
+        data.insert("summon_vehicle", std::sync::Mutex::new(Option::<u64>::None));
+        data.insert("camera_position", Vec3::new(50.0, 1.7, 0.0));
+        data.insert("camera_forward", Vec3::new(1.0, 0.0, 0.0));
+        data.insert("camera_yaw", 0.0_f32);
+        data
+    }
+
+    fn parked_rover(world: &mut hecs::World, pos: Vec3) -> hecs::Entity {
+        world.spawn((
+            Vehicle { item_id: "rover_0".to_string() },
+            Transform { position: pos, rotation: Quat::IDENTITY, scale: Vec3::ONE },
+            Velocity::default(),
+            VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+            Name("Rover".to_string()),
+        ))
+    }
+
+    /// THE STAGE 3 HEADLINE: summon a parked rover and it DRIVES itself across
+    /// the world to the player -- moving each tick, facing its travel direction,
+    /// and parking (route removed) once it pulls up nearby.
+    #[test]
+    fn summoned_vehicle_drives_to_the_player_and_parks() {
+        let mut world = hecs::World::new();
+        let data = make_store();
+        // Player entity (deploy_pose fallback target; camera keys take priority).
+        world.spawn((Controllable, Inventory::new(4), Transform::default()));
+        let rover = parked_rover(&mut world, Vec3::ZERO);
+
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(rover.to_bits().into());
+
+        let mut sys = VehicleSystem::new();
+        sys.tick(&mut world, 1.0, &data); // summon consumed; route attached; first step
+        {
+            let route = world.get::<&VehicleRoute>(rover);
+            assert!(route.is_ok(), "route attached on summon");
+        }
+        let after_1s = world.get::<&Transform>(rover).unwrap().position;
+        assert!(
+            (after_1s.x - 6.0).abs() < 1e-3,
+            "moved 6 m (speed_mps) toward the player in 1 s, got {after_1s}"
+        );
+        // Faces travel direction (+X): rotated X axis points along +X.
+        let fwd = world.get::<&Transform>(rover).unwrap().rotation * Vec3::X;
+        assert!(fwd.x > 0.99, "yawed to face its travel direction");
+
+        // Drive the rest of the way: dest is the camera ground spot 6 m past
+        // the camera (deploy_pose = cam + fwd*6), ~56 m total.
+        for _ in 0..12 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let parked = world.get::<&Transform>(rover).unwrap().position;
+        let dest = Vec3::new(50.0 + 6.0, 0.0, 0.0);
+        assert!(
+            (parked - dest).length() <= 4.0 + 1e-3,
+            "pulled up within arrive_radius of the player spot (at {parked})"
+        );
+        assert!(
+            world.get::<&VehicleRoute>(rover).is_err(),
+            "route removed on arrival -- the rover is parked again"
+        );
+    }
+
+    /// Summoning garbage bits or a non-vehicle entity is refused without a
+    /// crash, and summoning a vehicle already in transit doesn't reset it.
+    #[test]
+    fn summon_validates_its_target() {
+        let mut world = hecs::World::new();
+        let mut data = make_store();
+        world.spawn((Controllable, Inventory::new(4), Transform::default()));
+        let not_a_vehicle = world.spawn((Transform::default(),));
+
+        let mut sys = VehicleSystem::new();
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(not_a_vehicle.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+        assert!(
+            world.get::<&VehicleRoute>(not_a_vehicle).is_err(),
+            "non-vehicle entities cannot be summoned"
+        );
+
+        // In-transit re-summon keeps the existing route (dest unchanged).
+        let rover = parked_rover(&mut world, Vec3::ZERO);
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(rover.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+        let dest_before = world.get::<&VehicleRoute>(rover).unwrap().dest;
+        data.insert("camera_position", Vec3::new(-100.0, 1.7, 0.0)); // player moved
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(rover.to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+        let dest_after = world.get::<&VehicleRoute>(rover).unwrap().dest;
+        assert_eq!(dest_before, dest_after, "re-summon mid-transit is a no-op");
+    }
+
+    /// The shipped kits.ron carries a real transit speed for every vehicle.
+    #[test]
+    fn shipped_kits_have_transit_speeds() {
+        let reg = VehicleKitRegistry::from_ron(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/vehicles/kits.ron"
+        )))
+        .expect("kits.ron parses");
+        for def in reg.by_kit.values() {
+            assert!(
+                def.speed_mps > 0.0,
+                "{} has a positive transit speed",
                 def.vehicle_item
             );
         }

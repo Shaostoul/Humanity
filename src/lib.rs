@@ -4955,6 +4955,12 @@ mod native_app {
                 "deploy_kit_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            // Vehicles: summon a parked vehicle (by entity bits) to drive itself
+            // to the player (Stage 3 transit). One-shot; VehicleSystem take()s it.
+            data_store.insert(
+                "summon_vehicle",
+                std::sync::Mutex::new(Option::<u64>::None),
+            );
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -6435,6 +6441,17 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(kit_id);
+                            }
+                        }
+                    }
+                    // Vehicles: bridge the Vehicles section's Summon action (Stage 3).
+                    if let Some(bits) = state.gui_state.pending_summon_vehicle.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<u64>>>("summon_vehicle")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(bits);
                             }
                         }
                     }
@@ -9109,6 +9126,28 @@ mod native_app {
                         // One drone per player: the panel shows the active drone +
                         // disables Launch while one is in flight.
                         state.gui_state.drone_active = !state.gui_state.drones.is_empty();
+                        // World vehicles (Stage 3, v0.680): name + distance from the
+                        // player + transit state, for the Inventory Vehicles section.
+                        state.gui_state.vehicles.clear();
+                        let cam_pos = state.camera.position;
+                        for (e, (_v, tf, name, route)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Vehicle,
+                                &crate::ecs::components::Transform,
+                                Option<&crate::ecs::components::Name>,
+                                Option<&crate::ecs::components::VehicleRoute>,
+                            )>()
+                            .iter()
+                        {
+                            state.gui_state.vehicles.push(crate::gui::GuiVehicle {
+                                bits: e.to_bits().into(),
+                                name: name.map(|n| n.0.clone()).unwrap_or_else(|| "Vehicle".into()),
+                                distance: (tf.position - cam_pos).length(),
+                                in_transit: route.is_some(),
+                            });
+                        }
                     }
                     // Mining drone, DOCKED at the hangar (v0.639): the operator's "the homestead
                     // should feel like a homestead" ask. `DroneSystem` (systems::mining) is pure

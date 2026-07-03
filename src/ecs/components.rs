@@ -317,6 +317,19 @@ pub struct Vehicle {
     pub item_id: String,
 }
 
+/// A vehicle in TRANSIT (economy Phase 2 Stage 3, v0.680): drives itself in a
+/// straight line toward `dest` at `speed_mps` on game time, yawing to face its
+/// travel direction; VehicleSystem removes this on arrival (within
+/// `arrive_radius` so a summoned vehicle pulls up NEXT to you, not onto you).
+/// Deliberately NOT persisted: a save mid-transit restores the vehicle parked
+/// where it was -- transit is ephemeral motion, not owned state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleRoute {
+    pub dest: Vec3,
+    pub speed_mps: f32,
+    pub arrive_radius: f32,
+}
+
 /// A seat in a vehicle/mech that a player can occupy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleSeat {

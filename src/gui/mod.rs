@@ -653,6 +653,20 @@ pub struct GuiAsteroid {
     pub distance: f32,
 }
 
+/// One world vehicle for the Inventory page's Vehicles section (Stage 3, v0.680):
+/// what it is, where it stands, and whether it is currently driving itself.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiVehicle {
+    /// Entity bits — the Summon action's handle back into the ECS.
+    pub bits: u64,
+    pub name: String,
+    /// Straight-line distance from the player (camera), meters.
+    pub distance: f32,
+    /// True while a VehicleRoute is attached (driving itself somewhere).
+    pub in_transit: bool,
+}
+
 /// An active mining drone for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -1753,6 +1767,12 @@ pub struct GuiState {
     pub asteroids: Vec<GuiAsteroid>,
     /// Active mining drones (ore / phase / cargo), synced from the ECS.
     pub drones: Vec<GuiDrone>,
+    /// World vehicles (Stage 3, v0.680), synced from the ECS each frame for the
+    /// Inventory page's Vehicles section.
+    pub vehicles: Vec<GuiVehicle>,
+    /// GUI -> ECS: summon this vehicle (entity bits) to drive itself to the
+    /// player; bridged into the "summon_vehicle" channel.
+    pub pending_summon_vehicle: Option<u64>,
 
     // ── Skills / progression state ──
     /// Player skills (live level + XP), synced from the ECS PlayerSkills each
@@ -3092,6 +3112,8 @@ impl Default for GuiState {
             drone_active: false,
             asteroids: Vec::new(),
             drones: Vec::new(),
+            vehicles: Vec::new(),
+            pending_summon_vehicle: None,
             skills: Vec::new(),
             pending_dev_max_skills: false,
             quests: Vec::new(),

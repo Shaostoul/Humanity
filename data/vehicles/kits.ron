@@ -16,6 +16,7 @@
         cabin_m: (1.7, 0.75, 1.75),
         cabin_offset_x: 0.55,
         wheel_radius_m: 0.42,
+        speed_mps: 8.0,
     ),
     (
         kit_item: "rover_kit_0",
@@ -25,5 +26,6 @@
         cabin_m: (1.5, 0.65, 1.7),
         cabin_offset_x: 0.2,
         wheel_radius_m: 0.5,
+        speed_mps: 6.0,
     ),
 ]

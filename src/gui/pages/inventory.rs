@@ -1089,6 +1089,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops, set by
     // the Garden "Plant a tower" buttons, applied to GuiState after the panel.
     let mut action_plant_tower: Option<(String, Vec<String>)> = None;
+    // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
+    // set by the Vehicles section's Summon button; applied after the panel.
+    let mut action_summon_vehicle: Option<u64> = None;
     let mut action_rest = false;
     let mut action_compost = false;
     let mut action_fertilize_crop: Option<u64> = None;
@@ -1972,6 +1975,59 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
                 }
                 } // ── end Mining ──
+
+                // ── Vehicles (collapsible, Stage 3 v0.680) — every vehicle standing
+                //    in the world: deploy/factory output. Summon one and it DRIVES
+                //    itself to you; watch it come or walk alongside. ──
+                if !state.vehicles.is_empty() {
+                    widgets::rgb_section_divider(ui, theme);
+                    if widgets::section_disclosure(ui, theme, ("inv_sec", "vehicles"), "Vehicles", tree_force) {
+                        ui.add_space(theme.spacing_xs);
+                        ui.label(
+                            RichText::new("Your vehicles in the world. Summon one and it drives itself to you.")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                        ui.add_space(theme.spacing_xs);
+                        let vehicles = state.vehicles.clone();
+                        for v in &vehicles {
+                            ui.horizontal(|ui| {
+                                widgets::row_cell(ui, theme.cell_name_width, |ui| {
+                                    ui.label(
+                                        RichText::new(&v.name)
+                                            .size(theme.font_size_small)
+                                            .strong()
+                                            .color(theme.text_primary()),
+                                    );
+                                });
+                                widgets::row_cell(ui, theme.cell_short_width, |ui| {
+                                    ui.label(
+                                        RichText::new(format!("{:.0} m", v.distance))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_secondary()),
+                                    );
+                                });
+                                if v.in_transit {
+                                    ui.label(
+                                        RichText::new("En route to you...")
+                                            .size(theme.font_size_small)
+                                            .color(theme.accent()),
+                                    );
+                                } else if v.distance > 6.0 {
+                                    if widgets::compact_button(ui, theme, "Summon", widgets::ButtonVariant::Primary) {
+                                        action_summon_vehicle = Some(v.bits);
+                                    }
+                                } else {
+                                    ui.label(
+                                        RichText::new("Parked here")
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                }
+                            });
+                        }
+                    }
+                } // ── end Vehicles ──
         }); // close the single-panel ScrollArea
         }); // close the single CentralPanel
 
@@ -2014,6 +2070,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(kit_id) = item_acts.deploy {
         state.pending_deploy_kit = Some(kit_id);
+    }
+    if let Some(bits) = action_summon_vehicle {
+        state.pending_summon_vehicle = Some(bits);
     }
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
