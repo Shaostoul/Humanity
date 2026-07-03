@@ -14,7 +14,7 @@
 //
 // Crypto is INJECTED (sign + blake3) so this module stays pure + unit-testable
 // and doesn't hard-bind to a CDN vs vendored bundle. The chat client wires the
-// real Dilithium sign (window.pqSignMessage / HumOS.pq.pqSign) + blake3.
+// real Dilithium sign (window.pqSignMessage) + blake3.
 
 import { encodeObjectCanonical, cborText, cborBytes, cborMap, cborUint, cborArray, decodeCanonicalCbor } from './canonical-cbor.js';
 

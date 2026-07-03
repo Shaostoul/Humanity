@@ -269,17 +269,10 @@
     return _ml_dsa65.keygen(seedBytes32);
   }
 
-  /** Sign a message with a Dilithium3 secretKey. Returns 3309-byte signature. */
-  async function pqSign(secretKey, message) {
-    await _loadNoble();
-    return _ml_dsa65.sign(secretKey, message);
-  }
-
-  /** Verify a Dilithium3 signature. Returns true/false. */
-  async function pqVerify(publicKey, message, signature) {
-    await _loadNoble();
-    return _ml_dsa65.verify(publicKey, message, signature);
-  }
+  // The legacy pqSign/pqVerify wrappers were deleted 2026-07-03: zero callers
+  // anywhere in web/ (grep-verified) -- all live code signs via pqSignMessage /
+  // pqSignChatMessage and verifies via pqVerifyMessage, or receives a verify fn
+  // by injection (pq-object.js deps).
 
   /**
    * Generate a Kyber768 keypair from a 64-byte seed.
@@ -367,8 +360,6 @@
     deriveDilithiumSeed,
     deriveKyberSeed,
     pqKeygenFromSeed,
-    pqSign,
-    pqVerify,
     pqKemKeygenFromSeed,
     pqKemEncapsulate,
     pqKemDecapsulate,
