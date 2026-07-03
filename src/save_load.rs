@@ -144,31 +144,30 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         *outfit = save.outfit.clone();
         break;
     }
-    // Respawn deployed vehicles (economy Phase 2 Stage 1, v0.677). Idempotence
-    // guard: this fn is documented as called once at startup, but if a vehicle
-    // with the same pose already exists (e.g. a future second call), don't stack
-    // a duplicate on top of it.
+    // Deployed vehicles (economy Phase 2 Stage 1): the save is AUTHORITATIVE,
+    // exactly like inventory above (clear every slot, then rebuild). Despawn
+    // every existing Vehicle, then respawn the saved set. This matters because
+    // this fn is NOT startup-only: the launcher's character select (lib.rs
+    // "launcher_pending_load") re-applies a save onto the live world, so an
+    // add-without-clear here would leak vehicles across saves, and the earlier
+    // same-pose skip guard silently collapsed two identically-parked vehicles
+    // (deploy twice without moving) into one on reload (v0.678 review fix).
+    let existing: Vec<hecs::Entity> = world
+        .query_mut::<&crate::ecs::components::Vehicle>()
+        .into_iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in existing {
+        let _ = world.despawn(e);
+    }
     for vs in &save.deployed_vehicles {
-        let pos = glam::Vec3::from_array(vs.position);
-        let already_there = world
-            .query_mut::<(
-                &crate::ecs::components::Vehicle,
-                &crate::ecs::components::Transform,
-            )>()
-            .into_iter()
-            .any(|(_e, (v, t))| {
-                v.item_id == vs.item_id && (t.position - pos).length_squared() < 0.01
-            });
-        if already_there {
-            continue;
-        }
         // Same tuple VehicleSystem::handle_deploy spawns, minus Name (the display
         // name lives in the kit registry, which this fn deliberately has no access
         // to; nothing reads a vehicle's Name yet — revisit when nameplates land).
         world.spawn((
             crate::ecs::components::Vehicle { item_id: vs.item_id.clone() },
             crate::ecs::components::Transform {
-                position: pos,
+                position: glam::Vec3::from_array(vs.position),
                 rotation: glam::Quat::from_rotation_y(vs.yaw),
                 scale: glam::Vec3::ONE,
             },
@@ -367,6 +366,60 @@ mod tests {
         let n = fresh.query_mut::<&Vehicle>().into_iter().count();
         assert_eq!(n, 1, "idempotent re-apply");
 
+        // The save is authoritative (v0.678 review fix): applying a DIFFERENT
+        // save clears vehicles that aren't in it — the launcher's character
+        // switch must not leak one character's trucks into another's world.
+        let empty = WorldSave::new_offline("Other", "fibonacci");
+        apply_save_to_world(&mut fresh, &empty);
+        let n = fresh.query_mut::<&Vehicle>().into_iter().count();
+        assert_eq!(n, 0, "vehicles absent from the applied save are despawned");
+    }
+
+    /// Two vehicles deployed at the IDENTICAL pose (deploy twice without moving)
+    /// must both come back after a restart. The v0.677 same-pose skip guard
+    /// collapsed them to one — two kits paid, one truck restored (review fix).
+    #[test]
+    fn two_identically_parked_vehicles_both_survive_reload() {
+        use crate::ecs::components::{Transform, Vehicle, VehicleSeat, Velocity};
+        let mut world = hecs::World::new();
+        world.spawn((
+            Controllable,
+            Inventory::new(36),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("Driver".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        let pose = Transform {
+            position: glam::Vec3::new(3.0, 0.0, 9.0),
+            rotation: glam::Quat::from_rotation_y(0.4),
+            scale: glam::Vec3::ONE,
+        };
+        for _ in 0..2 {
+            world.spawn((
+                Vehicle { item_id: "rover_0".to_string() },
+                pose.clone(),
+                Velocity::default(),
+                VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+            ));
+        }
+
+        let save = extract_world_save(&world);
+        assert_eq!(save.deployed_vehicles.len(), 2);
+
+        let mut fresh = hecs::World::new();
+        fresh.spawn((
+            Controllable,
+            Inventory::new(36),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("X".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        apply_save_to_world(&mut fresh, &save);
+        let n = fresh.query_mut::<&Vehicle>().into_iter().count();
+        assert_eq!(n, 2, "both identically-parked rovers restore");
+
         // And an old save without the field loads with none (serde default).
         let old_json = r#"{"name":"Old","timestamp":0,"game_time":0.0,
             "player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],
@@ -374,6 +427,63 @@ mod tests {
             "weather_state":"clear"}"#;
         let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
         assert!(old.deployed_vehicles.is_empty());
+    }
+
+    /// Regression lock (v0.678, found by the pre-commit review): re-applying a
+    /// STALE disk save after a deploy must rewind the WHOLE world consistently —
+    /// the kit comes back to the inventory AND the truck despawns. The pre-fix
+    /// additive vehicle loop let both exist at once (save-scum duplication).
+    #[test]
+    fn stale_reapply_rewinds_instead_of_duplicating() {
+        use crate::ecs::components::{Transform, Vehicle, VehicleSeat, Velocity};
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(36);
+        inv.add_item("truck_pickup_kit_0", 1, 1);
+        world.spawn((
+            Controllable,
+            inv,
+            PlayerSkills::new(),
+            crate::ecs::components::Name("Driver".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        // T0: periodic save fires while the kit is still in the backpack.
+        let stale_disk_save = extract_world_save(&world);
+        assert_eq!(stale_disk_save.deployed_vehicles.len(), 0);
+        assert!(stale_disk_save.inventory.iter().any(|(id, _)| id == "truck_pickup_kit_0"));
+
+        // T1: player deploys the kit (what handle_deploy does: consume + spawn).
+        for (_e, (inv, _c)) in world.query_mut::<(&mut Inventory, &Controllable)>() {
+            inv.remove_item("truck_pickup_kit_0", 1);
+        }
+        world.spawn((
+            Vehicle { item_id: "truck_pickup_0".to_string() },
+            Transform { position: glam::Vec3::new(3.0, 0.0, -6.0), rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+            Velocity::default(),
+            VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+        ));
+
+        // T2: player clicks their character in the launcher (lib.rs
+        // launcher_pending_load) -> apply_save_to_world with the STALE disk
+        // save. Pre-v0.678 this DUPLICATED value: the inventory rebuild
+        // resurrected the kit while the additive vehicle loop left the truck
+        // standing — one kit became kit + truck via save-scumming. The save is
+        // now authoritative for vehicles exactly as it is for inventory, so the
+        // whole world rewinds consistently: kit back, truck gone.
+        apply_save_to_world(&mut world, &stale_disk_save);
+
+        let kit_count: u32 = world
+            .query_mut::<(&Inventory, &Controllable)>()
+            .into_iter()
+            .map(|(_e, (inv, _c))| inv.count_item("truck_pickup_kit_0"))
+            .sum();
+        let truck_count = world.query_mut::<&Vehicle>().into_iter().count();
+        assert_eq!(kit_count, 1, "kit restored from the stale save");
+        assert_eq!(
+            truck_count, 0,
+            "the truck is NOT in the stale save — a consistent rewind removes it; \
+             kit + truck coexisting was the save-scum duplication"
+        );
     }
 
     /// Organize-layer container contents survive a save serde round-trip, and a
