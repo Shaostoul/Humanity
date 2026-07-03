@@ -204,7 +204,7 @@ mod native_app {
             let Some(def) = home.catalog.get(&inst.machine) else {
                 continue;
             };
-            spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands);
+            spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None);
         }
         spawn_home_air_space(world);
     }
@@ -233,6 +233,12 @@ mod native_app {
         def: &crate::machines::MachineDef,
         power_islands: &std::collections::HashMap<String, u32>,
         water_islands: &std::collections::HashMap<String, u32>,
+        // The machine's RESOLVED world position where the caller has one
+        // (load_world's placement pass); None falls back to the instance's raw
+        // offset, which IS absolute world coords in the HomeStructure box model
+        // (menu mode has no resolve pass; corrected on Enter World when machines
+        // despawn + respawn with resolved positions).
+        world_pos: Option<Vec3>,
     ) {
         use crate::ecs::components::{
             Battery, HomeMachine, PlumbingCircuit, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel,
@@ -256,6 +262,19 @@ mod native_app {
             return;
         }
         let e = world.spawn((HomeMachine,));
+        // Every machine entity carries its world pose (economy Phase 2 Stage 2,
+        // v0.679): CraftingSystem captures it as the FACTORY PAD where a
+        // vehicle-class craft output rolls out, and it anchors any future
+        // per-machine spatial behavior.
+        let _ = world.insert_one(
+            e,
+            crate::ecs::components::Transform {
+                position: world_pos
+                    .unwrap_or_else(|| Vec3::new(inst.offset.0, inst.offset.1, inst.offset.2)),
+                rotation: Quat::from_rotation_y(inst.rotation.to_radians()),
+                scale: Vec3::ONE,
+            },
+        );
         if let Some(power) = &def.power {
             let _ = world.insert_one(e, PowerCircuit { island: power_islands.get(&inst.id).copied().unwrap_or(0) });
             match power {
@@ -3815,6 +3834,7 @@ mod native_app {
                         def,
                         &power_islands,
                         &water_islands,
+                        Some(pos),
                     );
                     placed += 1;
                 }
@@ -4935,6 +4955,11 @@ mod native_app {
                 "deploy_kit_request",
                 std::sync::Mutex::new(Option::<String>::None),
             );
+            // World rewind signal (v0.679 review fix): raised right after
+            // apply_save_to_world rewinds the live world (launcher character
+            // pick); CraftingSystem drops its in-flight batches so a rewound
+            // inventory can't ALSO receive the batch's outputs (duplication).
+            data_store.insert("abort_active_crafts", std::sync::Mutex::new(false));
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
@@ -10962,6 +10987,18 @@ mod native_app {
                                                 &mut state.game_world.world,
                                                 &save,
                                             );
+                                            // The world just REWOUND to the save:
+                                            // drop in-flight craft batches or their
+                                            // outputs would deliver on top of the
+                                            // restored materials (v0.679 review fix).
+                                            if let Some(flag) = state
+                                                .data_store
+                                                .get::<std::sync::Mutex<bool>>("abort_active_crafts")
+                                            {
+                                                if let Ok(mut f) = flag.lock() {
+                                                    *f = true;
+                                                }
+                                            }
                                             // Sync the editing copies + rebuild the avatar.
                                             state.gui_state.appearance = save.appearance.clone();
                                             state.gui_state.outfit = save.outfit.clone();

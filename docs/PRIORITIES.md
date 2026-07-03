@@ -46,10 +46,22 @@
 > (+ recipe). 8 tests incl. one-kit-cannot-become-two-vehicles + save
 > round-trip. Adversarially reviewed pre-commit (2-lens + verifier).
 > Operator visual check pending next play session (3D primitives).
-> **NEXT: Stage 2** -- factory job finishes -> world-spawn the vehicle at
-> the factory (ManufacturingSystem completion loop is the hook, needs a
-> ProductionFacility spawner + machine Transform). Then Stage 3 transport
-> (follow / take over). <<<**
+> **STAGE 2 SHIPPED (v0.679.0, 2026-07-03):** factory world-spawn. The new
+> Vehicle Assembler machine (build palette) auto-runs assemble_rover: home
+> stock ingots + rubber become a REAL rover on the pad 3 m in front of the
+> machine -- drone -> smelter -> assembler = mine-ore-to-vehicle untouched.
+> Vehicle-class recipe outputs world-spawn via CraftingSystem::
+> deliver_outputs (shared timed+instant path); full backpack can't stall
+> the line; mid-batch machine despawn still delivers at the captured pad;
+> machines now carry a Transform (their world pose). NOT the
+> ManufacturingSystem route -- one job engine (CraftingSystem) with the
+> Phase 1 hardening beats activating a second parallel one. 5 tests +
+> data lint. **NEXT: Stage 3 transport** -- the produced/purchased vehicle
+> physically travels factory -> buyer (DroneSystem phase-machine is the
+> template, camera tp_target for follow, VehicleSystem enter/exit for
+> take-over). Also queued: operator visual check of Stage 1+2 primitives;
+> the buy-side (market Buy -> factory job) needs the wallet/currency
+> decision. <<<**
 
 > **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
 > in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +

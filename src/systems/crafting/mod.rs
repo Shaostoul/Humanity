@@ -342,7 +342,24 @@ pub struct ActiveCraft {
     /// (load_world despawns + respawns every HomeMachine), and the batch's
     /// already-consumed inputs must still come back as outputs.
     pub auto: bool,
+    /// The crafter's world pose captured when the batch STARTED (economy Phase 2
+    /// Stage 2, v0.679): the factory pad where vehicle-class outputs roll out.
+    /// Captured at start for the same reason `auto` exists -- the machine may be
+    /// despawned mid-batch, and the vehicle must still appear at its pad. None
+    /// when the crafter had no Transform (pre-v0.679 menu-only machines).
+    pub pad: Option<(glam::Vec3, glam::Quat)>,
 }
+
+/// How far in front of the crafter (machine or player) a finished vehicle rolls
+/// out, and the spacing between pad lanes.
+const PAD_OFFSET_M: f32 = 3.0;
+const PAD_SPACING_M: f32 = 3.5;
+/// How many pad lanes a factory has before the assembly line PAUSES (review fix,
+/// v0.679): without an occupancy model every completion spawned at the identical
+/// point, piling coincident permanent vehicles forever. When every lane holds a
+/// vehicle, the auto arm refuses to START the next batch (inputs unconsumed) --
+/// the same never-grind guarantee outputs_fit gives item recipes.
+const MAX_PAD_LANES: u32 = 12;
 
 /// Request to start crafting — queued for the system to validate and begin.
 #[derive(Debug, Clone)]
@@ -399,9 +416,16 @@ impl CraftingSystem {
         inventory: &Inventory,
         recipe: &Recipe,
         item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
     ) -> bool {
         let mut free_slots = inventory.slots.iter().filter(|s| s.is_none()).count() as u32;
         for (item_id, qty) in &recipe.outputs {
+            // Vehicle-class outputs (economy Phase 2 Stage 2) roll out onto the
+            // factory pad as world entities -- they never need an inventory slot,
+            // so a full backpack must not stall the assembly line.
+            if vehicle_kits.is_some_and(|k| k.get_vehicle(item_id).is_some()) {
+                continue;
+            }
             let max_stack = item_registry.map(|r| r.max_stack_for(item_id)).unwrap_or(99);
             let headroom: u32 = inventory
                 .slots
@@ -493,12 +517,36 @@ impl System for CraftingSystem {
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         let recipe_registry = data.get::<RecipeRegistry>("recipe_registry");
         let item_registry = data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+        // Vehicle-class outputs (economy Phase 2 Stage 2): any output item the kit
+        // registry resolves as an ASSEMBLED vehicle rolls out onto the factory pad
+        // as a real world entity instead of landing in an inventory slot.
+        let vehicle_kits =
+            data.get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry");
         // Creative mode (default ON in early dev): crafting skips the input
         // requirement + consumption. Absent flag (tests) = survival = consume.
         let creative = data
             .get::<std::sync::Mutex<bool>>("creative_mode")
             .and_then(|m| m.lock().ok().map(|g| *g))
             .unwrap_or(false);
+
+        // World rewind (review fix, v0.679): applying a save mid-batch rewinds
+        // the inventory (materials restored) and despawns every Vehicle -- an
+        // in-flight batch completing AFTER that would deliver on top of the
+        // restored materials (duplication: the routine character-pick flow made
+        // one batch of inputs into inputs + a rover). When the main loop applies
+        // a save it raises this flag; dropping in-flight batches makes a rewind
+        // behave exactly like an app restart (which never preserved them).
+        let rewound = data
+            .get::<std::sync::Mutex<bool>>("abort_active_crafts")
+            .and_then(|m| m.lock().ok().map(|mut s| std::mem::replace(&mut *s, false)))
+            .unwrap_or(false);
+        if rewound && !self.active_crafts.is_empty() {
+            log::info!(
+                "World rewound: dropping {} in-flight craft batch(es) (save is authoritative)",
+                self.active_crafts.len()
+            );
+            self.active_crafts.clear();
+        }
 
         // ── GUI / dev command channels (written by the main loop from GuiState). ──
         // Drain the command flags first — these read `data`, never `world`, so they
@@ -616,12 +664,29 @@ impl System for CraftingSystem {
                 let ready = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
                         Self::can_craft(&inv, &recipe)
-                            && Self::outputs_fit(&inv, &recipe, item_registry)
+                            && Self::outputs_fit(&inv, &recipe, item_registry, vehicle_kits)
                     }
                     Err(_) => false,
                 };
                 if !ready {
                     continue;
+                }
+                // The machine's pose IS the factory pad for vehicle outputs;
+                // captured now because the machine may despawn mid-batch.
+                let pad = world
+                    .get::<&crate::ecs::components::Transform>(machine)
+                    .ok()
+                    .map(|t| (t.position, t.rotation));
+                // Vehicle recipes also need a FREE pad lane before consuming
+                // inputs (review fix, v0.679): a full lot pauses the line, the
+                // same way a full inventory pauses an item recipe -- otherwise
+                // the assembler grinds materials into coincident overlapping
+                // vehicles forever.
+                if Self::has_vehicle_output(&recipe, vehicle_kits) {
+                    let (base, rot) = pad.unwrap_or((glam::Vec3::ZERO, glam::Quat::IDENTITY));
+                    if Self::free_pad_lane(world, base, rot).is_none() {
+                        continue;
+                    }
                 }
                 if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
                     Self::consume_inputs(&mut inv, &recipe);
@@ -631,6 +696,7 @@ impl System for CraftingSystem {
                     time_remaining: recipe.craft_time.max(0.01),
                     crafter: machine,
                     auto: true,
+                    pad,
                 });
             }
         }
@@ -685,12 +751,24 @@ impl System for CraftingSystem {
                     }
                 }
 
+                // The crafter's pose is the pad for vehicle outputs (a manual
+                // vehicle craft rolls out in front of the PLAYER).
+                let pad = world
+                    .get::<&crate::ecs::components::Transform>(request.crafter)
+                    .ok()
+                    .map(|t| (t.position, t.rotation));
+
                 // If instant craft (time <= 0), produce outputs immediately
                 if recipe.craft_time <= 0.0 {
-                    if let Ok(mut inv) = world.get::<&mut Inventory>(request.crafter) {
-                        Self::produce_outputs(&mut inv, &recipe, item_registry);
-                    }
-                    Self::on_craft_complete(data, &recipe);
+                    Self::deliver_outputs(
+                        world,
+                        data,
+                        &recipe,
+                        request.crafter,
+                        pad,
+                        item_registry,
+                        vehicle_kits,
+                    );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
                     // Queue as active craft with timer
@@ -699,6 +777,7 @@ impl System for CraftingSystem {
                         time_remaining: recipe.craft_time,
                         crafter: request.crafter,
                         auto: false,
+                        pad,
                     });
                     log::debug!(
                         "Started crafting {} ({:.1}s)",
@@ -741,20 +820,152 @@ impl System for CraftingSystem {
                     // must still come back as outputs (v0.663 review fix).
                     let target = if craft.auto { player } else { Some(craft.crafter) };
                     if let Some(target) = target {
-                        if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
-                            Self::produce_outputs(&mut inv, recipe, item_registry);
-                            Self::on_craft_complete(data, recipe);
-                            log::debug!("Craft complete: {}", recipe.id);
-                        } else {
-                            log::warn!(
-                                "Craft complete but entity lost Inventory: {}",
-                                craft.recipe_id
-                            );
-                        }
+                        Self::deliver_outputs(
+                            world,
+                            data,
+                            recipe,
+                            target,
+                            craft.pad,
+                            item_registry,
+                            vehicle_kits,
+                        );
+                        log::debug!("Craft complete: {}", recipe.id);
                     }
                 }
             }
         }
+    }
+}
+
+impl CraftingSystem {
+    /// Does this recipe produce at least one vehicle-class output?
+    fn has_vehicle_output(
+        recipe: &Recipe,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+    ) -> bool {
+        vehicle_kits.is_some_and(|k| {
+            recipe.outputs.iter().any(|(id, _)| k.get_vehicle(id).is_some())
+        })
+    }
+
+    /// The world position of pad lane `lane` for a factory at `base`/`rot`.
+    fn pad_lane_pos(base: glam::Vec3, rot: glam::Quat, lane: u32) -> glam::Vec3 {
+        base + rot * glam::Vec3::new(0.0, 0.0, PAD_OFFSET_M + lane as f32 * PAD_SPACING_M)
+    }
+
+    /// First free pad lane at this factory: the lowest lane index whose slot has
+    /// no existing Vehicle parked within half a lane's spacing. Occupancy-aware
+    /// by QUERYING the world (review fix, v0.679) rather than counting spawns --
+    /// it survives restarts for free and reuses lanes that empty out when Stage 3
+    /// lets vehicles drive away. None = every lane full (the line should pause).
+    fn free_pad_lane(world: &hecs::World, base: glam::Vec3, rot: glam::Quat) -> Option<u32> {
+        let clearance_sq = (PAD_SPACING_M * 0.45) * (PAD_SPACING_M * 0.45);
+        'lanes: for lane in 0..MAX_PAD_LANES {
+            let slot = Self::pad_lane_pos(base, rot, lane);
+            for (_e, (_v, t)) in world
+                .query::<(&crate::ecs::components::Vehicle, &crate::ecs::components::Transform)>()
+                .iter()
+            {
+                if (t.position - slot).length_squared() < clearance_sq {
+                    continue 'lanes;
+                }
+            }
+            return Some(lane);
+        }
+        None
+    }
+
+    /// Deliver a completed recipe's outputs (economy Phase 2 Stage 2, v0.679):
+    /// vehicle-class outputs -- item ids the kit registry resolves as ASSEMBLED
+    /// vehicles -- spawn as real Vehicle entities at the factory pad; every other
+    /// output lands in `target`'s inventory exactly as before. Fires the XP +
+    /// quest-event hooks once per completion, matching the old behavior.
+    ///
+    /// Pad resolution: the pose captured at batch START (survives a machine
+    /// despawned mid-batch; machines don't move), else the crafter/target's
+    /// CURRENT Transform (manual crafts follow the player), else the origin.
+    #[allow(clippy::too_many_arguments)]
+    fn deliver_outputs(
+        world: &mut hecs::World,
+        data: &DataStore,
+        recipe: &Recipe,
+        target: hecs::Entity,
+        pad: Option<(glam::Vec3, glam::Quat)>,
+        item_registry: Option<&crate::systems::inventory::ItemRegistry>,
+        vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+    ) {
+        // Split out the vehicle-class outputs (usually none).
+        let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
+            Some(kits) => recipe
+                .outputs
+                .iter()
+                .filter(|(id, _)| kits.get_vehicle(id).is_some())
+                .cloned()
+                .collect(),
+            None => Vec::new(),
+        };
+
+        if !vehicle_outputs.is_empty() {
+            let (base, rot) = pad
+                .or_else(|| {
+                    world
+                        .get::<&crate::ecs::components::Transform>(target)
+                        .ok()
+                        .map(|t| (t.position, t.rotation))
+                })
+                .unwrap_or((glam::Vec3::ZERO, glam::Quat::IDENTITY));
+            let kits = vehicle_kits.expect("vehicle_outputs non-empty implies registry");
+            for (item_id, qty) in &vehicle_outputs {
+                let Some(def) = kits.get_vehicle(item_id) else { continue };
+                for _ in 0..*qty {
+                    // Occupancy-aware lane pick (review fix, v0.679): querying
+                    // the world each time means consecutive BATCHES advance down
+                    // the line too, not just multiple units of one completion.
+                    // The auto arm refuses to start when no lane is free, so a
+                    // full pad here means a MANUAL craft on a full line -- the
+                    // human clicked, so deliver anyway at lane 0 with a warning
+                    // (same lossy-with-warning contract manual item crafts have).
+                    let lane = Self::free_pad_lane(world, base, rot).unwrap_or_else(|| {
+                        log::warn!(
+                            "Factory pad full ({MAX_PAD_LANES} lanes): {} overlaps lane 0",
+                            def.display_name
+                        );
+                        0
+                    });
+                    let pos = Self::pad_lane_pos(base, rot, lane);
+                    world.spawn((
+                        crate::ecs::components::Vehicle { item_id: item_id.clone() },
+                        crate::ecs::components::Transform {
+                            position: pos,
+                            rotation: rot,
+                            scale: glam::Vec3::ONE,
+                        },
+                        crate::ecs::components::Velocity::default(),
+                        crate::ecs::components::VehicleSeat {
+                            occupant_key: None,
+                            seat_type: "pilot".to_string(),
+                        },
+                        crate::ecs::components::Name(def.display_name.clone()),
+                    ));
+                    log::info!("Factory pad: {} rolled out at {pos}", def.display_name);
+                }
+            }
+        }
+
+        // Non-vehicle outputs land in the inventory exactly as before.
+        if vehicle_outputs.len() < recipe.outputs.len() {
+            let mut inv_recipe = recipe.clone();
+            inv_recipe
+                .outputs
+                .retain(|(id, _)| !vehicle_outputs.iter().any(|(vid, _)| vid == id));
+            if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
+                Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
+            } else {
+                log::warn!("Craft complete but entity lost Inventory: {}", recipe.id);
+            }
+        }
+
+        Self::on_craft_complete(data, recipe);
     }
 }
 
@@ -1173,5 +1384,428 @@ mod auto_refine_tests {
             inv.has_item("iron_ingot_0", 1),
             "at 10x time scale the 10s smelt completes within 3 real seconds"
         );
+    }
+}
+
+#[cfg(test)]
+mod vehicle_factory_tests {
+    use super::*;
+    use crate::ecs::components::{AutoRefine, Controllable, Name, Transform, Vehicle};
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use crate::systems::vehicles::VehicleKitRegistry;
+
+    /// Real data files: recipes (incl. assemble_rover), items, and the vehicle
+    /// kit registry -- the factory branch resolves vehicle outputs through it.
+    fn factory_data() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert(
+            "recipe_registry",
+            RecipeRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/recipes.csv"
+            )))
+            .expect("recipes.csv"),
+        );
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/items.csv"
+            )))
+            .expect("items.csv"),
+        );
+        data.insert(
+            "vehicle_kit_registry",
+            VehicleKitRegistry::from_ron(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/vehicles/kits.ron"
+            )))
+            .expect("kits.ron"),
+        );
+        data
+    }
+
+    fn rover_materials(inv: &mut Inventory) {
+        inv.add_item("steel_ingot_0", 6, 20);
+        inv.add_item("iron_ingot_0", 4, 20);
+        inv.add_item("rubber_sheet_0", 4, 10);
+    }
+
+    fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
+        world.spawn((
+            AutoRefine { recipe_id: "assemble_rover".to_string() },
+            Transform { position: pos, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+        ))
+    }
+
+    fn vehicles(world: &mut hecs::World) -> Vec<(String, glam::Vec3)> {
+        world
+            .query_mut::<(&Vehicle, &Transform)>()
+            .into_iter()
+            .map(|(_e, (v, t))| (v.item_id.clone(), t.position))
+            .collect()
+    }
+
+    /// THE STAGE 2 HEADLINE: an assembler machine with materials in the home
+    /// stock rolls a REAL rover onto the pad in front of it, untouched -- the
+    /// vehicle is a world entity, NOT an inventory item.
+    #[test]
+    fn auto_assembler_rolls_a_rover_onto_the_pad() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        rover_materials(&mut inv);
+        let player = world.spawn((inv, Controllable));
+        let machine_pos = glam::Vec3::new(10.0, 0.0, -4.0);
+        assembler_at(&mut world, machine_pos);
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..125 {
+            sys.tick(&mut world, 1.0, &data); // assemble_rover is a 120s recipe
+        }
+
+        let v = vehicles(&mut world);
+        assert_eq!(v.len(), 1, "one rover rolled out");
+        assert_eq!(v[0].0, "rover_0");
+        let expected = machine_pos + glam::Vec3::new(0.0, 0.0, PAD_OFFSET_M);
+        assert!(
+            (v[0].1 - expected).length() < 1e-3,
+            "rover at the pad in front of the machine (got {:?}, want {expected:?})",
+            v[0].1
+        );
+        // The spawned entity is a full vehicle (seat + name), same tuple Stage 1 deploys.
+        assert_eq!(
+            world.query_mut::<(&Vehicle, &Name)>().into_iter().count(),
+            1,
+            "vehicle carries a Name"
+        );
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("rover_0"), 0, "the rover is NOT an inventory item");
+        assert_eq!(inv.count_item("steel_ingot_0"), 0, "steel consumed");
+        assert_eq!(inv.count_item("iron_ingot_0"), 0, "iron consumed");
+        assert_eq!(inv.count_item("rubber_sheet_0"), 0, "rubber consumed");
+    }
+
+    /// A FULL backpack must not stall the assembly line: the vehicle output
+    /// needs no inventory slot (outputs_fit skips vehicle-class outputs), so
+    /// production proceeds where a normal recipe would be blocked.
+    #[test]
+    fn full_inventory_does_not_block_the_assembly_line() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        // Exactly 4 slots: 3 hold the materials, 1 holds junk. ZERO free slots
+        // and no stack headroom for anything new.
+        let mut inv = Inventory::new(4);
+        rover_materials(&mut inv);
+        inv.add_item("hammer_0", 1, 1);
+        assert_eq!(inv.slots.iter().filter(|s| s.is_none()).count(), 0, "no free slot");
+        world.spawn((inv, Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..125 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert_eq!(vehicles(&mut world).len(), 1, "rover produced despite a full backpack");
+    }
+
+    /// The machine despawning mid-batch (load_world respawns every HomeMachine)
+    /// must not lose the vehicle: it rolls out at the pad captured at START.
+    #[test]
+    fn machine_despawned_mid_batch_still_rolls_out_at_the_pad() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        rover_materials(&mut inv);
+        world.spawn((inv, Controllable));
+        let machine_pos = glam::Vec3::new(-7.0, 0.0, 2.0);
+        let machine = assembler_at(&mut world, machine_pos);
+
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data); // batch starts, pad captured
+        world.despawn(machine).expect("despawn machine mid-batch");
+        for _ in 0..125 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let v = vehicles(&mut world);
+        assert_eq!(v.len(), 1, "the batch's consumed inputs still became a vehicle");
+        let expected = machine_pos + glam::Vec3::new(0.0, 0.0, PAD_OFFSET_M);
+        assert!(
+            (v[0].1 - expected).length() < 1e-3,
+            "vehicle at the CAPTURED pad (got {:?}, want {expected:?})",
+            v[0].1
+        );
+    }
+
+    /// A MANUAL vehicle craft (the player clicks Assemble Rover at the station)
+    /// rolls the rover out in front of the PLAYER, not into the inventory.
+    #[test]
+    fn manual_vehicle_craft_spawns_at_the_crafter_not_in_inventory() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        rover_materials(&mut inv);
+        // assemble_rover requires metalworking level 2 (gating starts at 2).
+        let mut skills = crate::systems::skills::PlayerSkills::new();
+        skills.skills.insert(
+            "metalworking".to_string(),
+            crate::systems::skills::SkillProgress { level: 2, xp: 0 },
+        );
+        let player_pos = glam::Vec3::new(1.0, 0.0, 1.0);
+        let player = world.spawn((
+            inv,
+            Controllable,
+            skills,
+            Transform { position: player_pos, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+        ));
+
+        let mut sys = CraftingSystem::new();
+        sys.request_craft("assemble_rover".to_string(), player);
+        for _ in 0..125 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let v = vehicles(&mut world);
+        assert_eq!(v.len(), 1, "manual craft produced the rover");
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(inv.count_item("rover_0"), 0, "not an inventory item");
+        assert!(
+            (v[0].1 - player_pos).length() <= PAD_OFFSET_M + 1e-3,
+            "rover rolled out next to the player"
+        );
+    }
+
+    /// Data wiring lint: the assembler recipes exist in the REAL recipes.csv,
+    /// their outputs resolve as vehicles in the REAL kits.ron, and the REAL
+    /// home.ron catalog ships the vehicle_assembler machine driving them.
+    #[test]
+    fn assembler_data_is_wired() {
+        let recipes = RecipeRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/recipes.csv"
+        )))
+        .expect("recipes.csv");
+        let kits = VehicleKitRegistry::from_ron(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/vehicles/kits.ron"
+        )))
+        .expect("kits.ron");
+        for (recipe_id, vehicle_item) in
+            [("assemble_rover", "rover_0"), ("assemble_truck", "truck_pickup_0")]
+        {
+            let r = recipes
+                .recipes
+                .get(recipe_id)
+                .unwrap_or_else(|| panic!("{recipe_id} in recipes.csv"));
+            assert!(
+                r.outputs.iter().any(|(id, _)| id == vehicle_item),
+                "{recipe_id} outputs {vehicle_item}"
+            );
+            assert!(
+                kits.get_vehicle(vehicle_item).is_some(),
+                "{vehicle_item} resolves as a vehicle in kits.ron"
+            );
+        }
+        let home_ron = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/machines/home.ron"
+        ));
+        assert!(
+            home_ron.contains("\"vehicle_assembler\""),
+            "home.ron catalog ships the vehicle_assembler"
+        );
+        assert!(
+            home_ron.contains("Some(\"assemble_rover\")"),
+            "the assembler auto-runs assemble_rover"
+        );
+    }
+}
+
+#[cfg(test)]
+mod factory_review_fix_tests {
+    use super::*;
+    use crate::ecs::components::{AutoRefine, Controllable, Transform, Vehicle, VehicleSeat, Velocity};
+    use crate::systems::inventory::{Inventory, ItemRegistry};
+    use crate::systems::vehicles::VehicleKitRegistry;
+
+    fn factory_data() -> DataStore {
+        let mut data = DataStore::new();
+        data.insert(
+            "recipe_registry",
+            RecipeRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/recipes.csv"
+            )))
+            .expect("recipes.csv"),
+        );
+        data.insert(
+            "item_registry",
+            ItemRegistry::from_csv(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/items.csv"
+            )))
+            .expect("items.csv"),
+        );
+        data.insert(
+            "vehicle_kit_registry",
+            VehicleKitRegistry::from_ron(include_bytes!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/data/vehicles/kits.ron"
+            )))
+            .expect("kits.ron"),
+        );
+        data.insert("abort_active_crafts", std::sync::Mutex::new(false));
+        data
+    }
+
+    fn assembler_at(world: &mut hecs::World, pos: glam::Vec3) -> hecs::Entity {
+        world.spawn((
+            AutoRefine { recipe_id: "assemble_rover".to_string() },
+            Transform { position: pos, rotation: glam::Quat::IDENTITY, scale: glam::Vec3::ONE },
+        ))
+    }
+
+    fn rover_positions(world: &mut hecs::World) -> Vec<glam::Vec3> {
+        world
+            .query_mut::<(&Vehicle, &Transform)>()
+            .into_iter()
+            .map(|(_e, (_v, t))| t.position)
+            .collect()
+    }
+
+    /// Review fix (v0.679): consecutive batches must park in DIFFERENT lanes.
+    /// The pre-fix per-call lane counter reset every completion, so batch after
+    /// batch spawned coincident rovers at the identical pad point.
+    #[test]
+    fn second_batch_parks_in_the_next_lane() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        // Materials for exactly TWO rovers.
+        inv.add_item("steel_ingot_0", 12, 20);
+        inv.add_item("iron_ingot_0", 8, 20);
+        inv.add_item("rubber_sheet_0", 8, 10);
+        world.spawn((inv, Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..250 {
+            sys.tick(&mut world, 1.0, &data); // two back-to-back 120s batches
+        }
+
+        let v = rover_positions(&mut world);
+        assert_eq!(v.len(), 2, "both batches produced");
+        let gap = (v[0] - v[1]).length();
+        assert!(
+            (gap - PAD_SPACING_M).abs() < 1e-3,
+            "the second rover parks one lane down, not inside the first (gap {gap})"
+        );
+    }
+
+    /// Review fix (v0.679): a FULL pad pauses the assembly line -- the batch is
+    /// never started and NO inputs are consumed (the item-recipe grinder guard,
+    /// extended to pad space). Freeing a lane resumes production.
+    #[test]
+    fn assembly_line_pauses_when_the_pad_is_full_and_resumes_when_freed() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("steel_ingot_0", 6, 20);
+        inv.add_item("iron_ingot_0", 4, 20);
+        inv.add_item("rubber_sheet_0", 4, 10);
+        let player = world.spawn((inv, Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+        // Park a vehicle in EVERY lane.
+        let mut parked = Vec::new();
+        for lane in 0..MAX_PAD_LANES {
+            parked.push(world.spawn((
+                Vehicle { item_id: "rover_0".to_string() },
+                Transform {
+                    position: CraftingSystem::pad_lane_pos(
+                        glam::Vec3::ZERO,
+                        glam::Quat::IDENTITY,
+                        lane,
+                    ),
+                    rotation: glam::Quat::IDENTITY,
+                    scale: glam::Vec3::ONE,
+                },
+                Velocity::default(),
+                VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+            )));
+        }
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..130 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(
+                inv.count_item("steel_ingot_0"),
+                6,
+                "full pad: the line PAUSES with inputs unconsumed"
+            );
+        }
+        assert_eq!(
+            rover_positions(&mut world).len() as u32,
+            MAX_PAD_LANES,
+            "no new rover while the pad is full"
+        );
+
+        // Drive one off the lot (Stage 3 someday; despawn stands in for it).
+        world.despawn(parked[3]).unwrap();
+        for _ in 0..130 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        {
+            let inv = world.get::<&Inventory>(player).unwrap();
+            assert_eq!(inv.count_item("steel_ingot_0"), 0, "line resumed once a lane freed");
+        }
+        assert_eq!(
+            rover_positions(&mut world).len() as u32,
+            MAX_PAD_LANES,
+            "the freed lane holds the new rover"
+        );
+    }
+
+    /// Review fix (v0.679): applying a save mid-batch REWINDS the world -- the
+    /// in-flight batch must be dropped (the abort flag the apply site raises),
+    /// exactly like an app restart, or the rewound inventory would ALSO receive
+    /// the batch's rover (materials + vehicle from one batch of inputs).
+    #[test]
+    fn world_rewind_aborts_in_flight_batches() {
+        let data = factory_data();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("steel_ingot_0", 6, 20);
+        inv.add_item("iron_ingot_0", 4, 20);
+        inv.add_item("rubber_sheet_0", 4, 10);
+        world.spawn((inv, Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+
+        let mut sys = CraftingSystem::new();
+        sys.tick(&mut world, 1.0, &data); // batch starts, inputs consumed
+
+        // The launcher applies a save: the main loop raises the abort flag
+        // (the apply itself would also restore inventory + despawn vehicles;
+        // irrelevant here -- we assert the batch side).
+        *data
+            .get::<std::sync::Mutex<bool>>("abort_active_crafts")
+            .unwrap()
+            .lock()
+            .unwrap() = true;
+
+        for _ in 0..130 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(
+            rover_positions(&mut world).is_empty(),
+            "the aborted batch must never deliver its rover"
+        );
+        // NOTE the follow-on: with materials still gone (this test never ran the
+        // actual apply), the machine cannot restart -- matching restart semantics
+        // where an unsaved in-flight batch simply vanishes and the SAVE decides
+        // what materials exist.
     }
 }

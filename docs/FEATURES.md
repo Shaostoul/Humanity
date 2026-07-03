@@ -964,8 +964,28 @@ real, persistent Vehicle entity standing in the world:
   scaled from the registry (build-once meshes, drone-dock pattern), and persisted in
   `WorldSave.deployed_vehicles` so a parked truck survives an app restart.
 Locked by 8 tests incl. one-kit-cannot-become-two-vehicles and the save round-trip.
-Next: Stage 2 (factory job world-spawns the vehicle), Stage 3 (physical transport the
-player can follow or take over).
+Next: Stage 3 (physical transport the player can follow or take over).
+
+### Economy Automation Phase 2, Stage 2: Factory World-Spawn (v0.679)
+Factories now END the production chain in a vehicle standing on the lot, not an item
+on a shelf. The new `vehicle_assembler` machine (data/machines/home.ron, placeable
+from the build palette) auto-runs `assemble_rover`: steel/iron ingots + rubber in the
+home stock become a REAL rover that rolls out onto the pad 3 m in front of the
+machine -- so drone -> smelter -> assembler is now mine-ore-to-vehicle, untouched.
+- **Vehicle-class outputs**: any recipe output the kit registry resolves as an
+  assembled vehicle world-spawns at the factory pad instead of the inventory
+  (`CraftingSystem::deliver_outputs`, shared by timed + instant completion). A full
+  backpack cannot stall the line (`outputs_fit` skips vehicle outputs); a machine
+  despawned mid-batch still delivers at the pad captured at start; a MANUAL
+  assemble craft rolls the vehicle out in front of the player.
+- **Machines have a world pose now**: every home-machine ECS entity carries a
+  Transform (resolved position from load_world; raw offset in menu mode) -- the
+  factory pad, and the anchor for future per-machine spatial behavior.
+- Factory-spawned vehicles are the same persistent Vehicle entities Stage 1 deploys
+  (rendered by the same pass, saved in `WorldSave.deployed_vehicles`).
+Locked by 5 tests incl. the full-backpack line, mid-batch despawn, and a data lint.
+- Native: `src/systems/crafting/mod.rs` (`deliver_outputs`, `ActiveCraft::pad`), `src/lib.rs` (machine Transform)
+- Data: `data/machines/home.ron` (`vehicle_assembler`), `data/recipes.csv` (`assemble_rover`/`assemble_truck`)
 - Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
 - Data: `data/vehicles/kits.ron`, `data/items.csv` (kit rows), `data/recipes.csv` (kit recipes)
 
