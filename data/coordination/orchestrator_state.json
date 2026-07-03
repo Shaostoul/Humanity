@@ -423,6 +423,11 @@
       "at": "2026-07-03",
       "decision": "v0.682.0 SHIPPED drone docking sequence (lift-off/settle, no pop) + assembler label neutralized",
       "why": "Operator field-test item 3: dock visual popped with drone_active. New drone_dock_anim scalar (1=settled, 0=away) eased toward drone_active each frame; launch lifts the model ~2s ease-out to +4m before it vanishes, return settles it down. Same showroom/declutter gates. home.ron assembler authored stat -> auto-assembly line (the live % status shipped v0.681.0). Light-dev cadence per operator (23% budget): ship small, often."
+    },
+    {
+      "at": "2026-07-03",
+      "decision": "LOOP MODE (low-effort, operator-directed until budget cap): v0.682.2 items.csv CR purge, v0.682.3 dead pqSign/pqVerify deletion, v0.683.0 Unaligned-overlay fix rescued from the orphaned clever-moore worktree",
+      "why": "Worktree audit: 9 of 10 agent worktrees are MERGED into main (pure clutter, safe for the operator to clean when ready); ONE held real unmerged work -- the Unaligned overlay fix (task_30ff8cfe) committed 2026-07-01, never merged, never pushed. Cherry-picked the code (theme.rs debug.show_unaligned off, cfg-gated), dropped its 2-day-stale PNGs (4 binary conflicts proved the risk), regenerated all 19 snapshots on current main, spot-checked humanity.png overlay-free. items.csv: 436 embedded CRs (description field, header included, from a past column insert) stripped; 490 rows parse identically. pq-identity.js legacy wrappers: zero callers grep-verified. All shipped + verified individually."
     }
   ],
   "active_scopes_to_avoid": [
