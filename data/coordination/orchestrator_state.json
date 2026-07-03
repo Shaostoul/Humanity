@@ -3,58 +3,53 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "FUNNEL FRICTION PASS COMPLETE (2026-07-02): v0.671.0 crew nameplates + v0.672.0 studio theme (allowlist first shrink) wrapped the WIP branches; then the operator-approved friction suggestions shipped: v0.672.1 social preview banner (1200x630, no more cropped logo) + Download page exe-first fix; v0.672.2 self-hosting/federation docs (download-a-binary first, plain words, named first federation partner, verify step); v0.673.0 zip releases (RAR declined: proprietary, CI cannot create it) + honest Future ideas fold + in-place 24-word seed backup card at first run; v0.673.1 snapshot verification of the card. Remaining known threads: computed food loop (not started), snapshot QA sweep re-run, in-app server setup (long-term, in-app-ops.md), operator-gated items (Donate methods, Mute Server, dead-code deletion, economy Phase 2).",
+  "current_focus": "ECONOMY PHASE 2 vehicle pipeline (2026-07-03): Stage 1 SHIPPED v0.677.0 (craft kit -> Deploy -> persistent Vehicle entity, all data-driven via data/vehicles/kits.ron) + v0.678.0 review fixes (save-authoritative vehicles: no save-scum dup, no cross-save leak, exact-count restore). Operator 3D visual check of the truck/rover primitives pending next play session. NEXT: Stage 2 factory world-spawn (ManufacturingSystem completion loop at src/systems/manufacturing.rs:88-94 is the hook; needs a ProductionFacility spawner + machine Transform), then Stage 3 transport with follow/take-over. Full subsystem map in the 2026-07-02 workflow (tasks/whshkxflu.output).",
   "open_questions_for_human": [
     "Cleanup orphan Ed25519 admin rows: verified 2026-05-20 that 4 pre-PQ Ed25519 admin pubkeys (64-char hex) are still in user_roles. They come from the ADMIN_KEYS env var which the relay startup re-INSERTs on every boot. They can't log in (Inc3b gates them) but they're confusion-bait. Operator should: update ADMIN_KEYS in /opt/Humanity/.env to contain the operator's current Dilithium hex (Shaostoul's key in registered_names), DELETE FROM user_roles WHERE LENGTH(public_key) = 64, systemctl restart humanity-relay, verify only Dilithium-length pubkeys remain.",
     "Chat \"Mute Server\" button (src/gui/pages/chat.rs, server cog menu) is a TODO stub (found night-loop cycle 9, 2026-07-01). Investigated whether it is self-contained: it is NOT. There is currently no OS-level desktop notification system (no toast/sound) anywhere in the native client, and no per-channel/per-server unread-badge tracking either -- only per-DM unread (ChatDm.unread) exists. So there is nothing for \"mute\" to actually silence yet; wiring the button to a bare boolean flag with no consumer would look functional while doing nothing, which is worse than leaving the TODO visible. Question for the operator: what should \"mute\" actually suppress once notification infrastructure exists -- OS toast popups, an in-app sound, the channel-list unread highlight, or some combination -- and should that notification infrastructure be built as its own feature first? Did not force-build a hollow flag or invent the notification system unsupervised."
   ],
   "recent_decisions": [
     {
-      "date": "2026-07-02",
-      "decision": "v0.677.0 SHIPPED economy Phase 2 STAGE 1: vehicle kits (craft -> Deploy -> persistent Vehicle entity)",
-      "why": "Operator staged-pipeline decision. Kit->vehicle mapping is pure data (data/vehicles/kits.ron); VehicleSystem registered FIRST time, deploy arm live (registry-lookup-BEFORE-consume so unknown kit never costs the item; creative deploys free), enter/exit/mech dormant until Stage 3. Render: unit-box+wheel primitives scaled from registry (drone-dock pattern). Persistence: WorldSave.deployed_vehicles + idempotent re-apply. 8 tests incl one-kit-cannot-become-two-vehicles. just verify green (engine_wiring_lint required removing VehicleSystem from DEFERRED). SHIPPED BEFORE the 2-lens adversarial review workflow finished (13% budget left, securing the work won) -- review verdict lands as follow-up; fix criticals as v0.677.x hotfix next session. Operator 3D visual check pending. NEXT: Stage 2 factory world-spawn (ManufacturingSystem completion loop + ProductionFacility spawner + machine Transform), then Stage 3 transport follow/take-over. Prepped subsystem map lives in the workflow result (tasks/whshkxflu.output)."
-    },
-    {
-      "date": "2026-07-02",
       "decision": "OPERATOR DECIDED economy Phase 2 vehicle pipeline: BOTH models, staged. Stage 1: big end-products craft as an oversized \"kit\" ITEM (lives in home stock, not backpack; tradeable through the existing market) that deploys to spawn the real Vehicle entity -- reuses the whole existing crafting/storage/market chain for easy testing. Stage 2: factories gain the ability to SPAWN the physical vehicle in the world when a job finishes (finished-goods pad). Stage 3: TRANSPORT -- a purchased tank/mecha/spaceship physically travels from where it was built (factory/fleet) to the buyer, and the player can FOLLOW or TAKE OVER driving/piloting the transport.",
       "why": "Operator 2026-07-02: \"I like the idea of having both... The in inventory idea allows us to test a lot of things real easily. The spawning the vehicle gives us the ability to spawn physical objects in the world after a job finishes. Then add in the transport. It would be cool if the player could follow or take over the transport of whatever they bought.\" Long-term vision logged same message: the line between game objects and real buildable objects blurs -- an in-game house/car/spaceship should eventually correspond to real, buildable, working designs.",
-      "outcome": "Unblocks economy Phase 2 as staged, well-scoped work. Stage 1 is implementable against existing systems (new oversized-item flag + deploy action + vehicle blueprint RON)."
+      "outcome": "Unblocks economy Phase 2 as staged, well-scoped work. Stage 1 is implementable against existing systems (new oversized-item flag + deploy action + vehicle blueprint RON).",
+      "at": "2026-07-02"
     },
     {
-      "date": "2026-07-02",
       "decision": "Declined the operator's .rar preference for release archives; shipped .zip alongside .tar.gz instead, with exe-first for Windows.",
       "why": "RAR is proprietary: no open-source tool can CREATE it (CI cannot legally produce it) and Windows 10 (our stated minimum) cannot open it natively -- both directly against the no-corporations/no-catch ethos and the friction goal. Zip opens natively everywhere and WinRAR (the operator's preference) handles zip fine, so the operator personally loses nothing.",
-      "outcome": "Operator accepted the reasoning implicitly by the work proceeding; build-desktop.yml produces .zip from v0.673.0 tags onward; the Download page prefers zip with tar.gz fallback for older releases."
+      "outcome": "Operator accepted the reasoning implicitly by the work proceeding; build-desktop.yml produces .zip from v0.673.0 tags onward; the Download page prefers zip with tar.gz fallback for older releases.",
+      "at": "2026-07-02"
     },
     {
-      "date": "2026-07-02",
       "decision": "Session wrap on operator instruction after the spend limit killed wave 3: salvaged all partial agent work as WIP commits pushed to origin branches; completed + shipped the essentially-finished saffron parser fix as v0.670.0 (710 tests); wrote docs/history/2026-07-01-afternoon-loop-results.md as the durable session record.",
       "why": "Operator: \"wrap up what was done and ship so it is saved in case anything happens to this session.\" Durability rule: pushed branches survive anything -- session loss, worktree accidents, machine failure.",
-      "outcome": "Zero work lost. 16 releases on GitHub, 2 resumable WIP branches on origin, 1 results doc, journal synced."
+      "outcome": "Zero work lost. 16 releases on GitHub, 2 resumable WIP branches on origin, 1 results doc, journal synced.",
+      "at": "2026-07-02"
     },
     {
-      "date": "2026-07-02",
       "decision": "Fleet mode complete for waves 1+2: 8 releases shipped in one evening (v0.663.0 through v0.669.0), all agent branches reviewed + merged + re-verified on main before release, every Rust merge re-running the full suite (final: 709 tests).",
       "why": "Operator directive to use the remaining weekly allowance developing the whole app in parallel. Isolated worktrees + commit-to-branch + orchestrator-merges kept the clean-worktrees disaster class impossible while 4+ agents built simultaneously.",
-      "outcome": "The operator can now: watch a drone become a hammer untouched, see six crew members doing real chores on the Pioneer (first time crew ever rendered), vote from the web with KAT-proven crypto, browse Laws on web, stage scenes OBS-style in Studio, see the grow-light honesty meter and the cannot-close civilization panel. Relay redeploying via CI; fresh exe building. Notable agent-found pre-existing bugs fixed en route: battery phantom demand (48 kWh/day/bank), never-rendered crew NPCs; flagged not yet fixed: saffron fractional-yield row drop."
+      "outcome": "The operator can now: watch a drone become a hammer untouched, see six crew members doing real chores on the Pioneer (first time crew ever rendered), vote from the web with KAT-proven crypto, browse Laws on web, stage scenes OBS-style in Studio, see the grow-light honesty meter and the cannot-close civilization panel. Relay redeploying via CI; fresh exe building. Notable agent-found pre-existing bugs fixed en route: battery phantom demand (48 kWh/day/bank), never-rendered crew NPCs; flagged not yet fixed: saffron fractional-yield row drop.",
+      "at": "2026-07-02"
     },
     {
-      "date": "2026-07-01",
       "decision": "Entered fleet mode on operator directive: 4 parallel worktree implementation agents (web governance voting+KAT, web laws mirror, NPC task-AI, homestead data gaps 3-4) with strict file-disjointness from the main tree's uncommitted economy-automation diff. Economy Phase 1 implemented on main: AutoRefine machines (data-driven auto_recipe in home.ron: smelter->smelt_iron, new workbench->craft_hammer) acting on the home inventory, drone standing orders (Keep mining checkbox -> auto_mine_order -> Deliver-arm relaunch), and scaled_dt so all economy timers respect time_scale.",
       "why": "Operator: 92% of the weekly allowance left with ~24h to reset; wants the whole app developed in parallel, explicitly asked for many subagents. Economy Phase 1 is the operator's living-ecosystem vision -- the full_chain_drone_ore_becomes_a_hammer_untouched test proves one drone commission becomes a finished tool with zero interaction.",
-      "outcome": "Wave-1 agents running in isolated worktrees (each verifies with both cargo checks + lib tests + lints and commits to its own branch; orchestrator merges). Economy diff: 677 lib tests green, all lints, review workflow in flight; commits as v0.663.0 once findings are fixed."
+      "outcome": "Wave-1 agents running in isolated worktrees (each verifies with both cargo checks + lib tests + lints and commits to its own branch; orchestrator merges). Economy diff: 677 lib tests green, all lints, review workflow in flight; commits as v0.663.0 once findings are fixed.",
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Shipped v0.658-v0.660 (Studio mic meter + help_modal adoption; Donate real server-funding fetch; native Governance page fully live with Dilithium-signed vote_v1/proposal_v1 submission via the in-crate ObjectBuilder). Adopted a review-before-commit discipline for substantive diffs: a 2-lens adversarial Workflow ran on both the Donate and Governance changes BEFORE committing.",
       "why": "Operator re-enabled Fable 5 + ultracode mid-loop and asked for maximum capability. The review workflows proved their cost immediately: Donate review caught a real money-routing bug (stale server-A donation addresses displayed as server-B's), Governance review caught 6 defects including cross-server stale-proposal voting (an orphan vote stored on the wrong server with a false success message) and a ~17-minute fetch pin. All fixed + regression-locked before the code ever reached main.",
-      "outcome": "672 lib tests green (was 659 at loop start), all 5 lints, doc-links 0 broken, releases v0.657.0/v0.658.0/v0.659.0/v0.660.0 tagged + published, PAGES.md/FEATURES.md synced. Web governance voting deliberately NOT attempted: needs canonical-CBOR signing in JS + a cross-language KAT -- tracked as its own item, not rushed."
+      "outcome": "672 lib tests green (was 659 at loop start), all 5 lints, doc-links 0 broken, releases v0.657.0/v0.658.0/v0.659.0/v0.660.0 tagged + published, PAGES.md/FEATURES.md synced. Web governance voting deliberately NOT attempted: needs canonical-CBOR signing in JS + a cross-language KAT -- tracked as its own item, not rushed.",
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Shipped Phase A of the self-sustaining homestead design (v0.656.0/0.656.1): authored data/machines/home_solo.ron per docs/design/homestead-solo-design.md's exact BOM, and built the home_variant selector (AppConfig field + SettingsState mirror + machines::home_ron_path() touching all 5 real MachineHome::load call sites + a Settings -> Data -> Home Design radio UI) since MachineHome::load was hardcoded to home.ron everywhere with no variant mechanism.",
       "why": "Operator asked for a dedicated homestead design pass (\"designing a fully fledged self-sustaining homestead\") to establish the honest one-person baseline before scaling to infinite. The design doc (produced by a 3-research+1-synthesis Workflow) found ~90% of the BOM already exists as data; implementing it required discovering and fixing the missing loader-variant gap first, otherwise the new file would be inert.",
-      "outcome": "home_solo.ron loads correctly (2 new regression tests pass: parses + all instances resolve, power circuit fully wired). Full verify pass: both cargo check feature sets, 659 lib tests, all 5 standalone lints, doc-links check. Versioned exe built via just build-game. Committed + pushed + tagged + released as v0.656.0 and v0.656.1 (version-stamp)."
+      "outcome": "home_solo.ron loads correctly (2 new regression tests pass: parses + all instances resolve, power circuit fully wired). Full verify pass: both cargo check feature sets, 659 lib tests, all 5 standalone lints, doc-links check. Versioned exe built via just build-game. Committed + pushed + tagged + released as v0.656.0 and v0.656.1 (version-stamp).",
+      "at": "2026-07-01"
     },
     {
       "at": "2026-06-28",
@@ -199,41 +194,40 @@
       "verification": "No code change this iteration -> no build/test needed; docs-only (PRIORITIES.md + this journal). The 9 prior releases were each fully verified at ship time (relay+native compile, lib tests, 5 lints, snapshots). NEXT: operator bulk-tests v0.629-637, gives visual feedback + picks a fork (M1 arch / M3 mall / grid S3); the loop resumes from their steer. Journal ~135 KB (rotate near 150)."
     },
     {
-      "date": "2026-06-30",
       "decision": "Reacquaintance assessment (13 agents) + full docs cleanup (7 agents + direct fixes). Deleted OpenClaw personal-assistant template (root + docs/ai/ + docs/reference/, twice-rejected now removed a third time), 133 dead SurrealDB .surql files, ~50 files describing a never-adopted multi-crate module architecture across docs/contributor/ + docs/game/, and ~16 files describing a fictional network protocol (spaces/session-tokens/Tailscale/CBOR-frames) across docs/network/. Found and fixed a live-site risk: docs/website/knowledge/config-policy.md would have published the operators local OpenClaw filesystem paths publicly via a Jekyll include that deploy-pages.yml actually mirrors at build time. Re-synced ROADMAP.md/STATUS.md/PAGES.md to v0.637 reality (PAGES.md was off by 20 pages, 32 claimed vs 52 real GuiPage variants). Operator confirmed single-crate is final (fixed 00-START-HERE/01-VISION/03-MODULE-MAP/04-CONTRIBUTING to match) and gave a no-backwards-compat-debt directive (added to CLAUDE.md). Captured new infra vision in ROADMAP.md: multi-site hosting, admin-only remote website editing from the exe, relay-hosted torrent sharing, livestreaming, and a game/simulator opt-out toggle (also logged as PRIORITIES.md TIER 2 item 9). Why: operator directed a full docs cleanup after the reacquaintance assessment surfaced how stale the docs had gotten; ultracode was on so multi-agent parallel audit was the right tool for a tree this size. 0 broken links after ~180 files removed/moved/fixed. Full narrative: docs/history/2026-06-30.md.",
-      "scope": "docs"
+      "scope": "docs",
+      "at": "2026-06-30"
     },
     {
-      "date": "2026-06-30",
       "decision": "Three construction/superstructure forks logged 2026-06-29 (M1 zone-editor architecture, M3 civic mall, grid S3 multi-home tiers) remain UNRESOLVED. This session was docs-only, nothing about them changed. Do not assume they were decided.",
-      "scope": "construction"
+      "scope": "construction",
+      "at": "2026-06-30"
     },
     {
-      "date": "2026-06-30",
       "decision": "SHIPPED v0.638.0 -- mothership zone interior population (M2c). Residential zones clone the player home into every slot (swappable roster, one design today); every other zone type gets a generic tiled filler from new data/blueprints/zone_filler.ron, tinted by zone colour; added armory + arena zone types. Built by a subagent in an isolated worktree, reviewed line-by-line before merge, re-verified in the main tree (both cargo checks, full lib test suite, all 5 lints green). Operator rejected the game/simulator toggle idea (too confusing), real direction is a real/fake multi-save flag per house/character with real-life as the default boot state -- logged as PRIORITIES.md TIER 2 item 9, nothing built yet. Operator felt Jekyll (shaostoul.github.io/Humanity) could be retired; found the premise partly false (data/library was stale, now fixed via scripts/build-library.js; web/ has zero doc pages, deploy pipeline does not rsync docs to the nginx root) and did NOT retire it -- recommended building the missing web-side piece first. Why: operator gave real build direction (home first, then mothership population) plus explicit subagent-usage encouragement (unused weekly budget headroom). Honest known gaps carried forward, not hidden: zone population has no 3D viewport visual confirmation yet (only the 2D snapshot harness ran), and renders via CPU-merged buffers, not true GPU instancing (that path is dead code in the renderer) -- will not scale to the 10-billion-occupant stretch goal without a real instancing pass.",
-      "scope": "construction"
+      "scope": "construction",
+      "at": "2026-06-30"
     },
     {
-      "date": "2026-07-01",
       "decision": "Mothership scale research (dispatched after operator feedback that the homestead feels like a tech demo, not lived-in): the Fibonacci design was never a spiral, it is a room-SIZE progression, keep it for home flavor only, the mothership macro layout is the already-shipped Zone/ZoneType hierarchy. Found and reconciled an orphaned lore doc (docs/game/humanity_one.md, a 500km ring-ship vision) into docs/design/mothership-superstructure.md, pulling forward its LOD strategy and district-list alignment while flagging its Ring/Sector addressing and Hub-tab-mapping table as stale. Reframed the 10-billion-occupant goal in ROADMAP.md: only achievable as an aggregate population-capacity number for the resource-flow math (mirrors the utility-trio per-island aggregation one tier up), not literal rendered/simulated individuals (renderer instancing confirmed dead code; one home already forced the draw-call cap up once). Concrete near-term path logged: population:u64 on Zone + zone_resource_profiles.ron + a pure report fn, wired together with grid-hierarchy.md S3 substation tiers as the same mechanism. Individual living-NPCs (Needs/Schedule components, AISystem flip-on) are a small bounded flavor layer on top, not the mechanism computing whether the ship balances. Also root-caused and fixed two live bugs the operator hit testing v0.638.0: (1) zone population was invisible because the live home_structure.ron had zero zones ever placed, seeded 13 real zones; (2) light intensity plateaued because pbr.wgsl used Reinhard tonemapping, swapped to the ACES fit already used in pbr_simple.wgsl. Four more agents in flight (isolated worktrees): spotlight cone rendering + rotation UI, drone hangar dock/undock visual, multi-homestead corridor connectivity, and a web-facing Accord page to unblock Jekyll retirement.",
-      "scope": "construction"
+      "scope": "construction",
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "INCIDENT: ran just clean-worktrees after merging 2 of 4 in-flight subagent tasks, destroying the other 2 (spot-light cone rendering, the web Accord doc-browsing page) with no recovery path (confirmed via 3 independent review agents checking stash/reflog/all branches). Both re-dispatched with the full original plan replayed verbatim plus the one bug the review had already found in the lost spotlight work (render_celestial_onto write raw camera-buffer offsets that were not updated when the uniform struct grew). Added a hard rule to CLAUDE.md: never run clean-worktrees while any dispatched agent this session is still unmerged, committing inside a worktree does not protect it since the script force-deletes branches too.",
-      "scope": "process"
+      "scope": "process",
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "INCIDENT REPEATED (3rd time, same day): after the first clean-worktrees wipe was already fixed with a CLAUDE.md doc-only warning, a SECOND wipe happened mid-review, destroying all 3 remaining in-flight diffs at once (spotlight-cone-redo agent-a3d1cb52b3dc11e66, web-Accord-page-redo agent-a7effdecc72683c98, and the live-screenshot-command feature agent-a6ee2b1dad5ab569c, which had not even been reviewed yet). Root cause confirmed: the doc-only warning was insufficient because multiple review subagents were told to \"read CLAUDE.md first\" as routine context, and Step 0 (\"run just clean-worktrees every session\") reads as a literal instruction to a fresh subagent with no way to know sibling worktrees hold unmerged work. Real fix this time (not just docs): scripts/clean-worktrees.sh rewritten to check every candidate worktree/branch/orphaned-folder for uncommitted changes or unmerged-into-main commits, and skip (not delete) anything unsafe even under --yes; --force-unmerged required to override. CLAUDE.md Step 0 reworded operator/orchestrator-only, explicitly telling subagents to skip it. All 3 lost diffs are being redone directly against main with small immediate commits instead of long-lived parallel worktrees, to shrink the risk window regardless of the script fix.",
       "scope": "process",
       "files": [
         "scripts/clean-worktrees.sh",
         "CLAUDE.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "RECOVERED from the repeat clean-worktrees incident and shipped all 3 previously-lost features. Spotlight-cone rendering (v0.639.0) rebuilt directly on main with immediate commit + full verification (both cargo checks, 612 lib tests, 5 lints, and a real release-build launch confirming every shader compiles clean via Naga with no wgpu validation errors). Live in-game screenshot command (v0.640.0) rebuilt directly on main: poll_screenshot_request in lib.rs, Renderer::capture_current_frame in renderer/mod.rs with a COPY_SRC surface-capability check + BGRA/RGBA channel swizzle, verified end-to-end on a real release build (dropped a real screenshot_request.json, got back a real 1.3MB PNG of the live chat UI with correct color). Web Accord doc browser (v0.640.0) recovered from an interrupted background agent (the harness process was killed by an internet outage mid-task) -- the hardened clean-worktrees script correctly protected its worktree through a session resume, and its partial-but-solid backend work (docs_accord.rs fixed allowlist + 2 routes, fully tested) was completed with the frontend half (markdown.js extraction, accord.html/accord-app.js, 3 link repoints) and verified live against a real running relay with curl (real slug + list endpoint work; 6 malicious-shaped slugs all cleanly 404). All 3 merged into main (spotlight-cone and screenshot-command via direct commits, Accord via a clean merge --no-ff of its worktree branch since it touched a fully disjoint file set), pushed to origin + forge. Full verification suite green on the merged result: both cargo checks, 624 lib tests, 5 lints, 0 broken doc links. Operator note: mid-cleanup, a stray cd into the Accord worktree persisted across several tool calls and caused a just build-game run + a journal commit attempt to land there instead of main -- harmless (nothing pushed from that branch), cleaned up by redoing the journal entry on main and leaving the worktree for ordinary disposal.",
       "scope": "construction/rendering + web/accord + tooling",
       "files": [
@@ -252,19 +246,19 @@
         "web/pages/accord.html",
         "web/pages/accord-app.js",
         "web/shared/markdown.js"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Operator asked to leave the session running autonomously overnight (~8h, asleep, no interactive checkpoints possible) to develop chat completeness + livestreaming verification + a broader stub sweep to full completion. Operator flagged two real risks: (1) a worktree-built exe reaching the real internet could trigger a firewall/permission prompt with nobody to click it (only the main exe has network permission), (2) fear of a careless rewrite silently clobbering a large pre-existing file instead of editing it. Designed a safety model before starting: (a) HUMANITY_DATA_DIR env var already exists in src/config.rs for exactly this -- an isolated identity/config dir separate from the operators real vault; (b) all live verification uses a LOCAL LOOPBACK relay (127.0.0.1) never the real production server, and loopback traffic never crosses the firewall boundary regardless of which exe binds/connects, but as an extra-cautious rule any exe LAUNCH still only ever happens from the main repos own build path, never a worktree, categorically; (c) hard rule written into the plan doc: never Write over an existing file, Edit only; (d) never run clean-worktrees tonight in any form, even the hardened version, since no one can review judgment calls if something surprising happens; (e) no native-GUI interactive testing (no computer-use/input-injection available or appropriate for the native window) -- verification is unit tests + protocol-level WS test scripts against the local headless relay + passive screenshot checks (the exact live in-game screenshot command built earlier tonight) + web-page browser automation via Claude Preview against the static preview server. Did a repo-wide TODO/FIXME scan to build a concrete backlog rather than let the loop guess at scope: chat.rs has a hardcoded fake is_group_admin=true (a real permission bug), missing mute/ban backing tables, unwired DM-notification toggle and group-voice-join, and a dead-looking onboarding Connect button; streaming code (streams.rs, chat-voice-streaming.js) looks structurally complete with no stub markers, so the ask there is functional end-to-end verification, not code-writing. Full backlog + per-cycle checklist + stop conditions written to docs/history/2026-07-01-night-loop-plan.md so it survives context compaction across the night. Invoking the /loop skill (dynamic self-pacing) to actually run this.",
       "scope": "process + chat + streaming",
       "files": [
         "docs/history/2026-07-01-night-loop-plan.md",
         "docs/PRIORITIES.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 1: fixed BUG-041 (v0.641.0) -- src/gui/pages/chat.rs had is_group_admin hardcoded to true for every group member regardless of real role. Investigation found the server already reports a real per-group role (GroupData::role in src/relay/relay.rs, \"admin\" for the groups creator per src/relay/storage/social.rs::create_group, \"member\" otherwise) via the group_list WS message -- the client ChatGroup struct just had no field to receive it, so src/lib.rs group_list handler silently discarded it. Added the role field (defaults to member on malformed input, fail-closed), wired the handler, extracted a small testable is_group_admin(role) helper in chat.rs with 3 unit tests. Verified: both cargo checks, 627 lib tests (3 new), 5 lints, 0 broken doc links. Committed + pushed to origin+forge. This resolves chat backlog item 2 (of 6) from docs/history/2026-07-01-night-loop-plan.md. Next: item 1 (chat.rs:705 DM notification toggle no-op).",
       "scope": "chat (night-loop cycle 1)",
       "files": [
@@ -272,10 +266,10 @@
         "src/gui/pages/chat.rs",
         "src/lib.rs",
         "docs/BUGS.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 2: shipped v0.642.0 -- wired the native DM-notification toggle (src/gui/pages/chat.rs, was a hardcoded no-op) to the relays already-complete notification_prefs system (the web client already had this fully working via web/pages/settings-app.js -- a dual-UI-parity gap, not a from-scratch build). GuiState gained 6 fields tracking dm/mentions/tasks/dnd state + a loaded flag; the popup fetches on first open, the button is a real toggle, update sends all 5 fields together (server requires them together) so mentions/tasks/DND are preserved even though native has no UI for them yet (logged as a follow-up in FEATURES.md). Built scripts/ws-test-client.js: a reusable Node WS test client using the bot_/bot_secret auth fastpath (src/relay/relay.rs) to test relay protocol behavior against a LOCAL relay without the full Dilithium handshake -- used to verify this feature with a REAL round-trip (get defaults -> update -> get again, confirmed persisted) against a locally-run relay, and will be reused for the rest of tonights chat/streaming verification. Verified: both cargo checks, 630 lib tests (3 new), 5 lints, 0 broken doc links. Committed + pushed. Resolves chat backlog item 1 (of 6). Next: item 3 (chat.rs:1346 group voice join/leave -- check if web already does this correctly, i.e. another dual-UI-parity gap).",
       "scope": "chat (night-loop cycle 2)",
       "files": [
@@ -284,10 +278,10 @@
         "src/lib.rs",
         "scripts/ws-test-client.js",
         "docs/FEATURES.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 3: shipped v0.643.0 -- wired group voice channel join/leave (src/gui/pages/chat.rs, was a no-op TODO) to the existing voice_room protocol using the group channels synthetic group:<id> id. Investigating this surfaced a REAL server-side bug that would have broken it even with a correct client fix alone: handle_voice_room (src/relay/handlers/msg_handlers.rs) validated every room_id against the channels tables voice_enabled flag, which has no row for a group room at all -- every group voice join would have silently failed with Voice is not enabled for this channel. Fixed by adding a group: prefix branch gated on Storage::is_group_member (src/relay/storage/social.rs, pre-existing but previously had zero callers using it for authorization) instead of skipping validation, closing what would otherwise be an open join-any-group-by-guessing-its-id hole. Verified LIVE: seeded a test group + one member directly via node:sqlite (group_create needs a verified/admin role a fresh bot lacks) on a local relay, then used scripts/ws-test-client.js to confirm a member joins silently and a non-member gets rejected with the right message. Added 5 unit tests for is_group_member. Logged a real, scoped follow-up in FEATURES.md: group voice rooms dont yet appear in the voice_channel_list broadcast (only the channels table is enumerated), so you cant see OTHER participants in a group voice rooms roster yet, though join/leave + audio signaling both work. Verified: both cargo checks, 635 lib tests (5 new), 5 lints, 0 broken doc links, real protocol test. Committed + pushed. Resolves chat backlog item 3 of 6. Next: item 4 (mute implementation + ban/mute backing tables, chat.rs:1588 + msg_handlers.rs).",
       "scope": "chat (night-loop cycle 3)",
       "files": [
@@ -295,10 +289,10 @@
         "src/relay/handlers/msg_handlers.rs",
         "src/relay/storage/social.rs",
         "docs/FEATURES.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 4: shipped v0.644.0, closing out the entire chat backlog. (1) BUG-042: onboarding Connect button (src/gui/pages/main_menu.rs) always said Connected regardless of reachability -- found the real auto-connect mechanism is intentionally gated on onboarding_complete + a live identity (created one step later), so a full WS handshake genuinely cant happen at this step; fixed with a real GET <server_url>/health check on a background thread (mirrors updater.rs check_now pattern), 7 unit tests, verified live against a real /health endpoint and a closed port. (2) Investigated the planned ban/mute backend work (backlog items 4+6) and found it was based on a STALE DOC COMMENT -- both banned_keys and muted_members are fully implemented, enforced, and already tested; fixed the comment instead of building anything (there was nothing to build). This closes chat backlog priority #1 entirely (started this session, all real gaps found via the repo-wide TODO scan are now resolved or corrected-as-non-issues). Verified: both cargo checks, 642 lib tests (7 new), 5 lints, 0 broken doc links. Committed + pushed. NEXT: moving to priority #2, livestreaming end-to-end verification, per docs/history/2026-07-01-night-loop-plan.md.",
       "scope": "chat (night-loop cycle 4)",
       "files": [
@@ -306,10 +300,10 @@
         "src/gui/pages/main_menu.rs",
         "src/relay/handlers/msg_handlers.rs",
         "docs/BUGS.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 5: shipped v0.645.0, closing out livestreaming backend verification (priority #2). Live-tested the full stream lifecycle against a local relay: stream_start creates the right DB row + broadcast, viewer join/leave, stream_chat send + persistence -- all confirmed correct. Found and fixed a real bug in the process: BUG-043, handle_stream_viewer_leave and handle_stream_stop both persisted the LIVE viewer_keys.len() as viewer_peak, but that count is only ever highest right at a join and decreases from there -- handle_stream_viewer_join never wrote to viewer_peak at all, so by the time a stream actually ends the recorded peak was frequently 0 or far below the true max. Proved live: 2 viewers joined (true peak 2), both left, stream stopped -- old code would have recorded viewer_peak 0. Fixed with an ActiveStream::peak_viewers high-water mark (src/relay/relay.rs) updated via .max() on every join, used instead of the live count when persisting in both the leave and stop handlers. 4 new unit tests (msg_handlers.rs::stream_tests) using the existing fresh_state/block handler-test fixture, proven via a temporary revert-and-retest to actually catch the bug (both regression tests failed against the old code, recording 1 and 0 instead of 2 and 1). NOT verified this cycle: the WebRTC signaling relay (stream_offer/answer/ice -- simple store-and-forward, read as correct but not live-tested with a real peer connection) and the client-side scene-management UI; logged as a real, scoped follow-up in the plan doc. Verified: both cargo checks, 646 lib tests (4 new), 5 lints, 0 broken doc links. Committed + pushed. NEXT: priority #3, the broader stub-completion sweep from the plan docs candidate list.",
       "scope": "streaming (night-loop cycle 5)",
       "files": [
@@ -317,17 +311,18 @@
         "src/relay/handlers/msg_handlers.rs",
         "docs/BUGS.md",
         "docs/FEATURES.md"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
-      "date": "2026-07-01",
       "decision": "Night-loop cycle 6: investigated 2 broader-sweep candidates from the plan docs list, found both bigger than estimated, and did NOT force-build either (matching the plan docs own instruction not to invent scope for design-uncertain items). (1) src/renderer/sky.rs SkyRenderer is entirely dead code -- zero references anywhere outside its own file, never instantiated. The mothership sun lighting already uses a real astronomical Earth-Sun vector (more correct for a ship in orbit than a simplified day/night-hour formula). Whether SkyRenderer still has an intended role (ground/planet-surface exploration with a visible sky?) is logged as a genuine open_questions_for_human entry rather than guessed at. (2) src/systems/economy EconomySystem is unregistered, but this is a KNOWN, documented deferral (tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS already lists it: needs market/credits entities + live verification) -- not an oversight, not a quick win, correctly left alone. That investigation led to cross-checking every NOT registered claim in docs/FEATURES.md against the lints real DEFERRED_SYSTEMS list + the real system_runner.register() calls in src/lib.rs, and found 4 stale claims (WeatherSystem, AtmosphereSystem, SkillSystem, QuestSystem are all registered and ticking, some since v0.337-v0.617) plus a stale registered-count header (claimed only 7, real count is 16). docs/STATUS.md was already correct for all four (this exact staleness class bit the project once before -- Atmosphere was already noted there as corrected 2026-06-30). Fixed all 4 FEATURES.md entries + the header. v0.645.1, docs-only, patch bump. Committed + pushed. NEXT: continue the broader sweep with remaining self-contained candidates, or stop if genuinely exhausted.",
       "scope": "process + docs (night-loop cycle 6)",
       "files": [
         "docs/FEATURES.md",
         "docs/history/2026-07-01-night-loop-plan.md",
         "data/coordination/orchestrator_state.json"
-      ]
+      ],
+      "at": "2026-07-01"
     },
     {
       "timestamp": "2026-07-01T00:00:00Z",
@@ -390,14 +385,24 @@
       "verification": "Research-only, no game code changed this decision (implementation is the afternoon loops next priority-1 work). The design was cross-checked against real data files throughout by the dispatched research agents (data/machines/home.ron, data/plants.csv, data/recipes.csv, data/electrical.ron, data/hvac.ron, data/waste_management.ron, data/structures.csv, data/towers/aeroponic_configs.ron, data/garden/grow_media.ron, docs/design/self-sufficiency.md) -- every machine/crop/recipe id cited was verified to exist, not invented."
     },
     {
-      "date": "2026-07-02",
       "decision": "v0.675.0 shared-file library SHIPPED end-to-end",
-      "why": "Operator directive: share personal files (blend phone case, car bushings) from local PC via the relay. Design: uploads with ?share=1 are publicly listed via GET /api/uploads and EXEMPT from the per-user media FIFO (a shared .blend must not vanish because its uploader posted chat photos later); chat auto-shares ONLY 3D/model formats (.blend .stl .obj .gltf .glb) so photos stay private; original_name preserved for display. Server: user_uploads +shared/original_name/size_bytes cols + ALTER migration, list_shared_uploads (search+limit, LEFT JOIN server_members) + 2 storage tests. Web: shared-files.html browse/search/download page wired into nav; chat-messages.js auto-share. Smoke-tested LIVE: temp relay on :3299, GET /api/uploads returned {files:[]} + health 200, killed by PID. page_registry_lint caught accord.html missing from PAGES.md on its first real run (fixed, count stays 41). Native browse + native chat attach parity = tracked follow-up in PAGES.md."
+      "why": "Operator directive: share personal files (blend phone case, car bushings) from local PC via the relay. Design: uploads with ?share=1 are publicly listed via GET /api/uploads and EXEMPT from the per-user media FIFO (a shared .blend must not vanish because its uploader posted chat photos later); chat auto-shares ONLY 3D/model formats (.blend .stl .obj .gltf .glb) so photos stay private; original_name preserved for display. Server: user_uploads +shared/original_name/size_bytes cols + ALTER migration, list_shared_uploads (search+limit, LEFT JOIN server_members) + 2 storage tests. Web: shared-files.html browse/search/download page wired into nav; chat-messages.js auto-share. Smoke-tested LIVE: temp relay on :3299, GET /api/uploads returned {files:[]} + health 200, killed by PID. page_registry_lint caught accord.html missing from PAGES.md on its first real run (fixed, count stays 41). Native browse + native chat attach parity = tracked follow-up in PAGES.md.",
+      "at": "2026-07-02"
     },
     {
-      "date": "2026-07-02",
       "decision": "v0.676.0 HOTFIX: v0.675.0 relay startup crash on the live DB (BUG-046)",
-      "why": "The v0.675.0 VPS deploy built but the relay died on activation (exit 3): the new (shared,id) index sat in the main schema batch, which runs before the ALTER block adds the shared column on a pre-existing user_uploads table. Fresh-DB tests + the local smoke test structurally cannot catch this. Fix: index created after the ALTER block. Regression test opens_a_pre_v0675_database_and_migrates_it replays the exact production sequence. Roughly 25 min relay downtime; v0.676.0 deploy green; GET /api/uploads verified live on united-humanity.us ({files:[]}) and /shared-files serves 200. Lesson written into BUGS.md BUG-046: any index over an ALTER-added column goes after the ALTER block, and schema changes to existing tables need a pre-migration-shape Storage::open test."
+      "why": "The v0.675.0 VPS deploy built but the relay died on activation (exit 3): the new (shared,id) index sat in the main schema batch, which runs before the ALTER block adds the shared column on a pre-existing user_uploads table. Fresh-DB tests + the local smoke test structurally cannot catch this. Fix: index created after the ALTER block. Regression test opens_a_pre_v0675_database_and_migrates_it replays the exact production sequence. Roughly 25 min relay downtime; v0.676.0 deploy green; GET /api/uploads verified live on united-humanity.us ({files:[]}) and /shared-files serves 200. Lesson written into BUGS.md BUG-046: any index over an ALTER-added column goes after the ALTER block, and schema changes to existing tables need a pre-migration-shape Storage::open test.",
+      "at": "2026-07-02"
+    },
+    {
+      "decision": "v0.677.0 SHIPPED economy Phase 2 STAGE 1: vehicle kits (craft -> Deploy -> persistent Vehicle entity)",
+      "why": "Operator staged-pipeline decision. Kit->vehicle mapping is pure data (data/vehicles/kits.ron); VehicleSystem registered FIRST time, deploy arm live (registry-lookup-BEFORE-consume so unknown kit never costs the item; creative deploys free), enter/exit/mech dormant until Stage 3. Render: unit-box+wheel primitives scaled from registry (drone-dock pattern). Persistence: WorldSave.deployed_vehicles + idempotent re-apply. 8 tests incl one-kit-cannot-become-two-vehicles. just verify green (engine_wiring_lint required removing VehicleSystem from DEFERRED). SHIPPED BEFORE the 2-lens adversarial review workflow finished (13% budget left, securing the work won) -- review verdict lands as follow-up; fix criticals as v0.677.x hotfix next session. Operator 3D visual check pending. NEXT: Stage 2 factory world-spawn (ManufacturingSystem completion loop + ProductionFacility spawner + machine Transform), then Stage 3 transport follow/take-over. Prepped subsystem map lives in the workflow result (tasks/whshkxflu.output).",
+      "at": "2026-07-02"
+    },
+    {
+      "at": "2026-07-03",
+      "decision": "v0.678.0 SHIPPED: vehicle-kit review fixes -- apply_save_to_world made save-AUTHORITATIVE for vehicles (despawn all, respawn saved set)",
+      "why": "The v0.677.0 adversarial review died on the spend limit with 3 findings unverified; adjudicated by hand. ROOT CAUSE both real ones: vehicles were ADDITIVE on apply while inventory is authoritative, and apply_save_to_world is NOT startup-only (the launcher character-select re-applies saves live). Fixed: (1) save-scum duplication (stale re-apply resurrected the kit AND kept the truck -- the dead review agent left a repro test asserting the bug, rewritten as regression lock stale_reapply_rewinds_instead_of_duplicating), (2) cross-save vehicle leakage on character switch, (3) same-pose collapse (two identically-parked vehicles restored as one). Third finding (creative deploys free permanent vehicles) accepted BY DESIGN, same semantics as creative crafting/planting; revisit at the launch creative-default flip. Journal convention normalized this entry onward: newest at BOTTOM (matches _protocol + just brief), field is at: not date:."
     }
   ],
   "active_scopes_to_avoid": [
