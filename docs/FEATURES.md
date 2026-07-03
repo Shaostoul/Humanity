@@ -986,6 +986,28 @@ machine -- so drone -> smelter -> assembler is now mine-ore-to-vehicle, untouche
 Locked by 5 tests incl. the full-backpack line, mid-batch despawn, and a data lint.
 - Native: `src/systems/crafting/mod.rs` (`deliver_outputs`, `ActiveCraft::pad`), `src/lib.rs` (machine Transform)
 - Data: `data/machines/home.ron` (`vehicle_assembler`), `data/recipes.csv` (`assemble_rover`/`assemble_truck`)
+
+### Economy Automation Phase 2, Stage 3 slice 1: Vehicles Move (v0.680-v0.682)
+The first moving vehicles. The Inventory page's **Vehicles section** lists every
+vehicle standing in the world (name, live distance, status); **Summon** a distant
+one and it drives itself to you -- straight-line travel on game time, yawing to
+face its motion, parking within 4 m ("En route to you..." while moving). Stage 2's
+pad lanes automatically reuse the slot a summoned vehicle vacates.
+- `VehicleRoute { dest, speed_mps, arrive_radius }` ticked by VehicleSystem;
+  removed on arrival. Transit is deliberately NOT persisted (a mid-transit save
+  restores the vehicle parked in place, consistent with drone flights).
+- Per-vehicle speeds in `data/vehicles/kits.ron` (truck 8 m/s, rover 6 m/s).
+- **Live production status (v0.681)**: the same section shows one honest line per
+  auto machine each tick -- "Assemble Rover — 42%", "waiting for Steel Ingot x6",
+  "pad full, line paused" -- covering assembler, smelter, and workbench (from the
+  operator's field test: the assembler sat idle with no rubber and nothing said so).
+- **Docking sequence (v0.682)**: the hangar drone lifts off (~2 s to +4 m) before
+  vanishing and settles back down on return, instead of popping.
+- Web parity: none by design -- these are views into the live 3D world, which the
+  web client does not render.
+Remaining Stage 3: follow-cam, take-over driving (VehicleSystem's dormant
+enter/exit arms), the buy-side order flow (gated on the wallet/currency decision).
+- Native: `src/systems/vehicles/mod.rs` (summon + `tick_routes`), `src/systems/crafting/mod.rs` (`auto_craft_status`), `src/gui/pages/inventory.rs` (Vehicles section), `src/net/sync.rs` (crew grounding, v0.681), `src/lib.rs` (sync + bridges + `drone_dock_anim`)
 - Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
 - Data: `data/vehicles/kits.ron`, `data/items.csv` (kit rows), `data/recipes.csv` (kit recipes)
 
