@@ -278,7 +278,7 @@
             shape: "box", size: (2.0, 1.4, 1.2), color: (0.35, 0.42, 0.50),
             label: "Vehicle assembler",
             category: "Production",
-            stats: [(kind: "progress", value: "assembling", status: "ok")],
+            stats: [(kind: "progress", value: "auto-assembly line", status: "ok")],
             // Economy Phase 2 Stage 2 (v0.679): steel/iron ingots + rubber in the
             // home stock auto-assemble into a ROVER that rolls out as a REAL vehicle
             // entity on the pad in front of the machine -- the drone -> smelter

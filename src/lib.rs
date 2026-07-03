@@ -4492,6 +4492,9 @@ mod native_app {
         /// borrowed machine primitive, so it visually reads as "a drone", not "a box".
         drone_dock_meshes: Option<[usize; 3]>, // [body, nose, rotor_pod]
         drone_dock_mats: Option<[usize; 2]>, // [body/nose, rotor]
+        /// Docking sequence state (v0.681.x): 1 = drone settled on the pad, 0 = away.
+        /// Eases toward drone_active each frame so launch/return animate, never pop.
+        drone_dock_anim: f32,
         /// Deployed-vehicle primitives (economy Phase 2 Stage 1, v0.677): one unit box +
         /// one unit wheel cylinder, scaled per vehicle from the kit registry's body
         /// proportions each frame — same build-once pattern as the drone dock above.
@@ -5280,6 +5283,7 @@ mod native_app {
                 vehicle_meshes: None,
                 vehicle_mats: None,
                 drone_dock_mats: None,
+                drone_dock_anim: 1.0,
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
                 connection_mats: std::collections::HashMap::new(),
@@ -9174,7 +9178,23 @@ mod native_app {
                     // stale window on both launch and return, caught in review), so it is in sync
                     // as of the current frame. Hidden in the showroom (avatar-only) and follows the
                     // "Machine" declutter toggle, same as the hangar pad it sits on.
-                    if crate::drone_dock_visible(showroom, hide_machines, state.gui_state.drone_active) {
+                    // Docking/undocking SEQUENCE (v0.681.x, operator field test: "the
+                    // drone did disappear and reappear -- we'll want a proper docking
+                    // sequence"): instead of popping with drone_active, the dock model
+                    // animates -- on launch it lifts off the pad over ~2 s and THEN
+                    // vanishes; on return it appears overhead and settles down onto
+                    // the pad. drone_dock_anim: 1 = settled on the pad, 0 = departed.
+                    {
+                        let target = if state.gui_state.drone_active { 0.0_f32 } else { 1.0_f32 };
+                        let step = dt * 0.5; // full lift/settle takes ~2 s
+                        let a = state.drone_dock_anim;
+                        state.drone_dock_anim = if a < target {
+                            (a + step).min(target)
+                        } else {
+                            (a - step).max(target)
+                        };
+                    }
+                    if crate::drone_dock_visible(showroom, hide_machines, state.drone_dock_anim <= 0.01) {
                         if let Some((hangar_pos, hangar_yaw)) = hangar_placement(state) {
                             if state.drone_dock_meshes.is_none() {
                                 let body = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 0.9, 0.22, 0.55));
@@ -9194,7 +9214,10 @@ mod native_app {
                             // in the hangar's facing direction (the pyramid points +Y by default, so lay
                             // it on its side pointing +X of the hangar's local frame before the yaw).
                             let yaw = Quat::from_rotation_y(hangar_yaw.to_radians());
-                            let deck_y = hangar_pos.y + 0.10; // just above the pad surface
+                            // The lift: settled (anim 1) = on the pad; departing/arriving
+                            // rises to +4 m with an ease-in curve before it blinks out.
+                            let lift = (1.0 - state.drone_dock_anim).powi(2) * 4.0;
+                            let deck_y = hangar_pos.y + 0.10 + lift;
                             let body_pos = Vec3::new(hangar_pos.x, deck_y + 0.11, hangar_pos.z);
                             all_objects.push(RenderObject {
                                 position: body_pos,
