@@ -183,6 +183,11 @@ constitution rather than a promise.
   with every vote signed and tamper-evident.
 - `[planned]` Native trade UI completion (the page exists; the trade events need
   wiring).
+- `[building]` Vehicle pipeline (economy Phase 2, staged): big end-products craft as
+  flat-pack KIT items that deploy into real vehicles standing in the world (Stage 1,
+  shipped v0.677); next a factory job world-spawns the finished vehicle on completion
+  (Stage 2), then purchases physically TRANSPORT from the factory to the buyer and the
+  player can follow or take over driving (Stage 3).
 - `[future]` Learning paths: complete a module, get peer-endorsed, unlock the next.
 - `[future]` Time-Bank: log and exchange hours of help as the on-ramp economy before
   anyone has money, so the poorest can participate from day one with skills and time.

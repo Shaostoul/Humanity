@@ -49,7 +49,9 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // correct no-op today, not deferred.
     ("PlacementSystem", "paired with ConstructionSystem; same build-mode gating"),
     ("EconomySystem", "needs market/credits entities + live verification"),
-    ("VehicleSystem", "needs vehicle entities + control wiring"),
+    // VehicleSystem entry removed 2026-07-02: REGISTERED in src/lib.rs (economy
+    // Phase 2 Stage 1) — its deploy arm drains deploy_kit_request live; the
+    // enter/exit/mech arms stay dormant until Stage 3 publishes their commands.
     // ElectricalSystem + SolarSystem are REGISTERED in src/lib.rs (the live home power
     // sim: solar scales by time of day, electrical sums supply/demand + battery SoC),
     // so they are intentionally NOT deferred — the lint detects their path-qualified

@@ -306,6 +306,17 @@ pub struct CropInstance {
 
 // ── Vehicles & Mechs ─────────────────────────────────────────
 
+/// A deployed vehicle standing in the world (economy Phase 2 Stage 1, v0.677).
+/// Spawned by VehicleSystem's deploy arm when a vehicle KIT item is deployed
+/// from the inventory. `item_id` is the ASSEMBLED vehicle's items.csv id (e.g.
+/// "truck_pickup_0"); the kit registry (data/vehicles/kits.ron) maps it to the
+/// primitive body proportions the renderer draws. Persisted across restarts
+/// via WorldSave.deployed_vehicles.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Vehicle {
+    pub item_id: String,
+}
+
 /// A seat in a vehicle/mech that a player can occupy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VehicleSeat {

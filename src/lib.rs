@@ -4257,6 +4257,22 @@ mod native_app {
                 data_dir.join("blueprints").join("basic.ron").display()
             ),
         }
+        // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
+        // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
+        // deployed-vehicle render pass.
+        match std::fs::read(data_dir.join("vehicles").join("kits.ron")) {
+            Ok(bytes) => match crate::systems::vehicles::VehicleKitRegistry::from_ron(&bytes) {
+                Ok(reg) => {
+                    log::info!("Loaded {} vehicle kits from vehicles/kits.ron", reg.len());
+                    store.insert("vehicle_kit_registry", reg);
+                }
+                Err(e) => log::warn!("Failed to parse vehicles/kits.ron: {e}"),
+            },
+            Err(e) => log::warn!(
+                "Data file {} not found ({e}); vehicle_kit_registry unavailable (kit deploy refused)",
+                data_dir.join("vehicles").join("kits.ron").display()
+            ),
+        }
         // Container types + content-class compatibility (graceful on missing files).
         {
             use crate::systems::inventory::containers::ContainerRegistry;
@@ -4456,6 +4472,11 @@ mod native_app {
         /// borrowed machine primitive, so it visually reads as "a drone", not "a box".
         drone_dock_meshes: Option<[usize; 3]>, // [body, nose, rotor_pod]
         drone_dock_mats: Option<[usize; 2]>, // [body/nose, rotor]
+        /// Deployed-vehicle primitives (economy Phase 2 Stage 1, v0.677): one unit box +
+        /// one unit wheel cylinder, scaled per vehicle from the kit registry's body
+        /// proportions each frame — same build-once pattern as the drone dock above.
+        vehicle_meshes: Option<[usize; 2]>, // [unit_box, wheel_cylinder]
+        vehicle_mats: Option<[usize; 3]>, // [body paint, cabin glass, wheel rubber]
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
         flow_rgb_mats: Vec<usize>,
@@ -4908,6 +4929,12 @@ mod native_app {
                 "auto_mine_order",
                 std::sync::Mutex::new(Option::<(String, Vec<(String, u32)>)>::None),
             );
+            // Vehicles: deploy a vehicle KIT item from the backpack into the world
+            // (economy Phase 2 Stage 1). One-shot; VehicleSystem take()s it.
+            data_store.insert(
+                "deploy_kit_request",
+                std::sync::Mutex::new(Option::<String>::None),
+            );
             // Survival: rest to refill energy (FoodSystem drains it).
             data_store.insert("rest_request", std::sync::Mutex::new(false));
             // Sanitation: compost accumulated waste -> fertilizer (FoodSystem);
@@ -4958,6 +4985,11 @@ mod native_app {
             // DroneSystem: autonomous mining drones (commission → trip → mine a finite
             // asteroid → deliver ore home). Reads commission_drone + item_registry.
             system_runner.register(DroneSystem::new());
+            // VehicleSystem (economy Phase 2 Stage 1, first registration): its deploy
+            // arm drains deploy_kit_request (kit item -> real Vehicle entity in the
+            // world). The enter/exit/mech arms it also carries are dormant until
+            // Stage 3 wires an interaction that publishes their commands.
+            system_runner.register(crate::systems::vehicles::VehicleSystem::new());
             // SkillSystem ticks LAST so it drains the xp_grants the action systems
             // pushed THIS frame (craft → recipe skill, harvest → farming, mine → mining)
             // and applies level-ups before the frame's ECS→GUI sync reads them.
@@ -5210,6 +5242,8 @@ mod native_app {
                 rail_car_mesh: None,
                 rail_car_mat: None,
                 drone_dock_meshes: None,
+                vehicle_meshes: None,
+                vehicle_mats: None,
                 drone_dock_mats: None,
                 flow_rgb_mats: Vec::new(),
                 connection_cyl: None,
@@ -6365,6 +6399,17 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(seed_id);
+                            }
+                        }
+                    }
+                    // Vehicles: bridge the item card's Deploy action to VehicleSystem.
+                    if let Some(kit_id) = state.gui_state.pending_deploy_kit.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<String>>>("deploy_kit_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(kit_id);
                             }
                         }
                     }
@@ -9100,6 +9145,79 @@ mod native_app {
                                     mesh: pod_mesh,
                                     material: rotor_mat,
                                 });
+                            }
+                        }
+                    }
+
+                    // ── Deployed vehicles (economy Phase 2 Stage 1, v0.677) ──
+                    // Every Vehicle entity gets a primitive placeholder body composed
+                    // from ONE cached unit box + ONE cached wheel cylinder, scaled per
+                    // vehicle from the kit registry's proportions (same build-once
+                    // pattern as the drone dock above; real models come later). Hidden
+                    // in the showroom (avatar-only backdrop), visible everywhere else —
+                    // a parked truck is world content, not a machine, so it ignores the
+                    // "Machine" declutter toggle.
+                    if !showroom {
+                        if state.vehicle_meshes.is_none() {
+                            let unit_box = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                            let wheel = state.renderer.add_mesh(Mesh::cylinder_capped(&state.renderer.device, 0.5, 1.0, 14));
+                            state.vehicle_meshes = Some([unit_box, wheel]);
+                        }
+                        if state.vehicle_mats.is_none() {
+                            // theme-exempt: placeholder vehicle paint/glass/rubber, not UI colors.
+                            let paint = state.renderer.add_material_typed([0.68, 0.24, 0.16, 1.0], 0.35, 0.45, 0.0);
+                            let glass = state.renderer.add_material_typed([0.45, 0.62, 0.72, 1.0], 0.85, 0.15, 0.0);
+                            let rubber = state.renderer.add_material_typed([0.10, 0.10, 0.11, 1.0], 0.05, 0.85, 0.0);
+                            state.vehicle_mats = Some([paint, glass, rubber]);
+                        }
+                        let [unit_box, wheel_mesh] = state.vehicle_meshes.unwrap();
+                        let [paint_mat, glass_mat, rubber_mat] = state.vehicle_mats.unwrap();
+                        if let Some(kits) = state
+                            .data_store
+                            .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                        {
+                            for (_e, (veh, tf)) in state
+                                .game_world
+                                .world
+                                .query::<(&crate::ecs::components::Vehicle, &crate::ecs::components::Transform)>()
+                                .iter()
+                            {
+                                let Some(def) = kits.get_vehicle(&veh.item_id) else { continue };
+                                let (bl, bh, bw) = def.body_m;
+                                let (cl, ch, cw) = def.cabin_m;
+                                let r = def.wheel_radius_m;
+                                let rot = tf.rotation;
+                                let base = tf.position;
+                                // Body bed rides at axle height (box_xyz is y-bottom-origin).
+                                all_objects.push(RenderObject {
+                                    position: base + rot * Vec3::new(0.0, r, 0.0),
+                                    rotation: rot,
+                                    scale: Vec3::new(bl, bh, bw),
+                                    mesh: unit_box,
+                                    material: paint_mat,
+                                });
+                                // Cabin on top of the body, offset forward/back per the def.
+                                all_objects.push(RenderObject {
+                                    position: base + rot * Vec3::new(def.cabin_offset_x, r + bh, 0.0),
+                                    rotation: rot,
+                                    scale: Vec3::new(cl, ch, cw),
+                                    mesh: unit_box,
+                                    material: glass_mat,
+                                });
+                                // Four wheels at the body corners, cylinder axis laid to
+                                // the vehicle's lateral (Z) axis.
+                                let wheel_rot = rot * Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+                                let wx = (bl * 0.5 - r * 1.2).max(r);
+                                let wz = bw * 0.5;
+                                for (dx, dz) in [(wx, wz), (wx, -wz), (-wx, wz), (-wx, -wz)] {
+                                    all_objects.push(RenderObject {
+                                        position: base + rot * Vec3::new(dx, r, dz),
+                                        rotation: wheel_rot,
+                                        scale: Vec3::new(r * 2.0, 0.3, r * 2.0),
+                                        mesh: wheel_mesh,
+                                        material: rubber_mat,
+                                    });
+                                }
                             }
                         }
                     }

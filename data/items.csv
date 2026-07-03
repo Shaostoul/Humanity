@@ -315,6 +315,8 @@ hovercraft_0,Hovercraft,vehicle,motorized,fiberglass,600.0,1,400,Air-cushion sur
 sled_0,Sled,vehicle,human_powered,pine,5.0,1,150,Snow-surface sliding vehicle,solid
 raft_0,Raft,vehicle,watercraft,bamboo,20.0,1,100,Simple floating platform,solid
 canoe_0,Canoe,vehicle,watercraft,cedar,25.0,1,200,Narrow paddle-driven boat,solid
+truck_pickup_kit_0,Pickup Truck Kit,vehicle,kit,steel,1400.0,1,500,Flat-packed pickup truck. Deploy it to assemble the real thing on the spot,solid
+rover_kit_0,Rover Kit,vehicle,kit,aluminum,350.0,1,400,Flat-packed all-terrain rover. Deploy it to assemble the real thing on the spot,solid
 #
 # === CONTAINERS / STORAGE ===
 chest_wood_0,Wood Chest,furniture,container,oak,10.0,1,200,Lidded wooden storage box,solid

@@ -89,6 +89,20 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         save.outfit = outfit.clone();
         break;
     }
+    // Deployed vehicles (economy Phase 2 Stage 1, v0.677): every Vehicle entity's
+    // kind + pose, so a parked truck is still there after a restart.
+    save.deployed_vehicles = world
+        .query::<(
+            &crate::ecs::components::Vehicle,
+            &crate::ecs::components::Transform,
+        )>()
+        .iter()
+        .map(|(_e, (v, t))| crate::persistence::VehicleSave {
+            item_id: v.item_id.clone(),
+            position: t.position.to_array(),
+            yaw: t.rotation.to_euler(glam::EulerRot::YXZ).0,
+        })
+        .collect();
     save
 }
 
@@ -129,6 +143,41 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         *appearance = save.appearance.clone();
         *outfit = save.outfit.clone();
         break;
+    }
+    // Respawn deployed vehicles (economy Phase 2 Stage 1, v0.677). Idempotence
+    // guard: this fn is documented as called once at startup, but if a vehicle
+    // with the same pose already exists (e.g. a future second call), don't stack
+    // a duplicate on top of it.
+    for vs in &save.deployed_vehicles {
+        let pos = glam::Vec3::from_array(vs.position);
+        let already_there = world
+            .query_mut::<(
+                &crate::ecs::components::Vehicle,
+                &crate::ecs::components::Transform,
+            )>()
+            .into_iter()
+            .any(|(_e, (v, t))| {
+                v.item_id == vs.item_id && (t.position - pos).length_squared() < 0.01
+            });
+        if already_there {
+            continue;
+        }
+        // Same tuple VehicleSystem::handle_deploy spawns, minus Name (the display
+        // name lives in the kit registry, which this fn deliberately has no access
+        // to; nothing reads a vehicle's Name yet — revisit when nameplates land).
+        world.spawn((
+            crate::ecs::components::Vehicle { item_id: vs.item_id.clone() },
+            crate::ecs::components::Transform {
+                position: pos,
+                rotation: glam::Quat::from_rotation_y(vs.yaw),
+                scale: glam::Vec3::ONE,
+            },
+            crate::ecs::components::Velocity::default(),
+            crate::ecs::components::VehicleSeat {
+                occupant_key: None,
+                seat_type: "pilot".to_string(),
+            },
+        ));
     }
 }
 
@@ -258,6 +307,73 @@ mod tests {
         // Untouched: still the original wood, no injected steel.
         assert!(after.inventory.iter().any(|(id, q)| id == "wood_plank_0" && *q == 5));
         assert!(!after.inventory.iter().any(|(id, _)| id == "steel_ingot_0"));
+    }
+
+    /// A deployed vehicle survives the full extract -> apply round trip (economy
+    /// Phase 2 Stage 1): the truck the player deployed is still parked where they
+    /// left it after a restart, and a second apply doesn't stack a duplicate.
+    #[test]
+    fn deployed_vehicles_survive_the_save_round_trip() {
+        use crate::ecs::components::{Transform, Vehicle, VehicleSeat, Velocity};
+        let mut world = hecs::World::new();
+        world.spawn((
+            Controllable,
+            Inventory::new(36),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("Driver".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        world.spawn((
+            Vehicle { item_id: "truck_pickup_0".to_string() },
+            Transform {
+                position: glam::Vec3::new(12.0, 0.0, -7.5),
+                rotation: glam::Quat::from_rotation_y(1.25),
+                scale: glam::Vec3::ONE,
+            },
+            Velocity::default(),
+            VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+        ));
+
+        let save = extract_world_save(&world);
+        assert_eq!(save.deployed_vehicles.len(), 1);
+        assert_eq!(save.deployed_vehicles[0].item_id, "truck_pickup_0");
+        assert!((save.deployed_vehicles[0].yaw - 1.25).abs() < 1e-4);
+
+        // Serde round trip (what actually hits disk), then apply to a FRESH world.
+        let json = serde_json::to_string(&save).expect("serialize");
+        let loaded: WorldSave = serde_json::from_str(&json).expect("deserialize");
+        let mut fresh = hecs::World::new();
+        fresh.spawn((
+            Controllable,
+            Inventory::new(36),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("X".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        apply_save_to_world(&mut fresh, &loaded);
+        let vehicles: Vec<(String, glam::Vec3)> = fresh
+            .query_mut::<(&Vehicle, &Transform)>()
+            .into_iter()
+            .map(|(_e, (v, t))| (v.item_id.clone(), t.position))
+            .collect();
+        assert_eq!(vehicles.len(), 1, "the parked truck came back");
+        assert_eq!(vehicles[0].0, "truck_pickup_0");
+        assert!((vehicles[0].1 - glam::Vec3::new(12.0, 0.0, -7.5)).length() < 1e-4);
+
+        // Applying the same save again must NOT duplicate the vehicle.
+        apply_save_to_world(&mut fresh, &loaded);
+        let n = fresh.query_mut::<&Vehicle>().into_iter().count();
+        assert_eq!(n, 1, "idempotent re-apply");
+
+        // And an old save without the field loads with none (serde default).
+        let old_json = r#"{"name":"Old","timestamp":0,"game_time":0.0,
+            "player_position":[0.0,0.0,0.0],"player_rotation":[0.0,0.0,0.0,1.0],
+            "player_health":100.0,"inventory":[],"skills":{},"constructions":[],
+            "weather_state":"clear"}"#;
+        let old: WorldSave = serde_json::from_str(old_json).expect("old save loads");
+        assert!(old.deployed_vehicles.is_empty());
     }
 
     /// Organize-layer container contents survive a save serde round-trip, and a

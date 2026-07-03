@@ -430,3 +430,5 @@ craft_fishing_rod,Carve Fishing Rod,crafting,wood_plank_0:1|wire_0:1,fishing_rod
 craft_fishing_net,Weave Fishing Net,textile,cloth_bolt_0:3|rope_0:1,fishing_net_0:1,45,sewing_machine_0,tailoring,2,Weave a weighted mesh fish trap
 craft_compass,Assemble Compass,crafting,copper_ingot_0:1|glass_pane_0:1,compass_0:1,40,workbench_0,woodworking,3,Build a magnetic direction indicator
 craft_binoculars,Assemble Binoculars,crafting,plastic_sheet_0:2|glass_pane_0:2,binoculars_0:1,60,workbench_0,woodworking,3,Build a twin-tube long-range optic
+assemble_truck_kit,Assemble Pickup Truck Kit,crafting,steel_ingot_0:12|iron_ingot_0:6|rubber_sheet_0:4,truck_pickup_kit_0:1,90,workbench_0,metalworking,2,Bolt together a flat-packed pickup truck kit
+assemble_rover_kit,Assemble Rover Kit,crafting,steel_ingot_0:6|iron_ingot_0:4|rubber_sheet_0:4,rover_kit_0:1,60,workbench_0,metalworking,2,Bolt together a flat-packed rover kit

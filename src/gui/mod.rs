@@ -1707,6 +1707,11 @@ pub struct GuiState {
     /// ECS each frame for the HUD / inventory page to display.
     pub vitals: GuiVitals,
 
+    /// Vehicle KIT item id the player clicked "Deploy" on this frame → bridged
+    /// into the "deploy_kit_request" channel for VehicleSystem (economy Phase 2
+    /// Stage 1: the kit unpacks into a real Vehicle entity in front of the player).
+    pub pending_deploy_kit: Option<String>,
+
     // ── Gardening state ──
     /// Seed item id the player clicked "Plant" on this frame → FarmingSystem.
     pub pending_plant_seed: Option<String>,
@@ -3072,6 +3077,7 @@ impl Default for GuiState {
             pending_compost: false,
             pending_fertilize_crop: None,
             vitals: GuiVitals::default(),
+            pending_deploy_kit: None,
             pending_plant_seed: None,
             pending_plant_tower: None,
             pending_stock_seeds: None,

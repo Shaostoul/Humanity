@@ -944,13 +944,35 @@ drone commission -> ore -> auto-smelted ingot -> auto-crafted hammer, untouched.
 - Native: `src/systems/crafting/mod.rs` (AutoRefine arm + completion redirect), `src/systems/mining.rs` (standing order), `src/systems/time.rs` (`scaled_dt`), `src/systems/manufacturing.rs`, `src/ecs/components.rs` (`AutoRefine`), `src/machines.rs` (`MachineDef::auto_recipe`), `src/lib.rs` (spawn + bridge), `src/gui/pages/inventory.rs` ("Keep mining")
 - Data: `data/machines/home.ron` (smelter `auto_recipe` + the new workbench machine)
 
-### Navigation
-Multi-scale navigation (galaxy, system, orbital, surface). **⚠️ Support module, not wired into the runtime.**
-- Native: `src/systems/navigation/`
+### Economy Automation Phase 2, Stage 1: Vehicle Kits (v0.677)
+The operator's staged vehicle pipeline (decision 2026-07-02: BOTH item and world-spawn
+models, staged). Stage 1 makes big end-products CRAFTABLE as an oversized flat-pack
+"kit" ITEM that reuses the whole existing crafting/storage chain, then DEPLOYS into a
+real, persistent Vehicle entity standing in the world:
+- **Kit items + recipes are pure data**: `truck_pickup_kit_0` / `rover_kit_0` rows in
+  `data/items.csv` (category `vehicle`, subcategory `kit`), workbench recipes in
+  `data/recipes.csv` (steel + iron + rubber), and the kit->vehicle mapping with body
+  proportions in `data/vehicles/kits.ron` (`VehicleKitRegistry`). Adding a deployable
+  vehicle is data rows, no code (infinite-of-X).
+- **Deploy action**: the inventory item card shows Deploy for vehicle kits ->
+  `pending_deploy_kit` -> `deploy_kit_request` channel -> `VehicleSystem::handle_deploy`
+  (first registration of VehicleSystem; its enter/exit/mech arms stay dormant until
+  Stage 3). Registry lookup happens BEFORE consume so an unknown kit never costs the
+  item; survival consumes the kit, creative deploys free (same semantics as crafting).
+- **The vehicle is real world content**: spawned 6 m in front of the camera at floor
+  level facing the player's look direction, rendered as body/cabin/4-wheel primitives
+  scaled from the registry (build-once meshes, drone-dock pattern), and persisted in
+  `WorldSave.deployed_vehicles` so a parked truck survives an app restart.
+Locked by 8 tests incl. one-kit-cannot-become-two-vehicles and the save round-trip.
+Next: Stage 2 (factory job world-spawns the vehicle), Stage 3 (physical transport the
+player can follow or take over).
+- Native: `src/systems/vehicles/mod.rs` (registry + deploy arm), `src/ecs/components.rs` (`Vehicle`), `src/lib.rs` (registry load + channel + bridge + render pass), `src/gui/pages/inventory.rs` (Deploy button), `src/persistence.rs` + `src/save_load.rs` (`deployed_vehicles`)
+- Data: `data/vehicles/kits.ron`, `data/items.csv` (kit rows), `data/recipes.csv` (kit recipes)
 
-### Logistics
-Cargo transport and shipping routes. **⚠️ Support module, not wired into the runtime.**
-- Native: `src/systems/logistics/`
+> The old "Navigation" and "Logistics" support-module entries were removed 2026-07-02:
+> `src/systems/navigation/` and `src/systems/logistics/` were deleted in the v0.674.0
+> dead-code sweep (zero callers). `src/systems/transportation.rs` (CargoVehicle routes)
+> still exists unregistered and is the Stage 3 raw material.
 
 ---
 

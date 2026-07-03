@@ -51,6 +51,22 @@ pub struct WorldSave {
     /// with an empty pool (the inventory then re-seeds from data/places/seed.json).
     #[serde(default)]
     pub placed_items: Vec<crate::gui::PlacedItem>,
+    /// Vehicles standing in the world (economy Phase 2 Stage 1, v0.677), deployed
+    /// from kit items. serde-default so older saves load with none. NOTE: the
+    /// separate `constructions` field above is dormant schema (never written or
+    /// read by the live save path) — do not conflate the two.
+    #[serde(default)]
+    pub deployed_vehicles: Vec<VehicleSave>,
+}
+
+/// One deployed vehicle in a save: what it is + where it stands.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VehicleSave {
+    /// The ASSEMBLED vehicle's items.csv id (e.g. "truck_pickup_0").
+    pub item_id: String,
+    pub position: [f32; 3],
+    /// Yaw around +Y in radians (deployed vehicles only ever yaw).
+    pub yaw: f32,
 }
 
 fn default_kind() -> String {
@@ -86,6 +102,7 @@ impl WorldSave {
             appearance: Default::default(),
             outfit: Default::default(),
             placed_items: Vec::new(),
+            deployed_vehicles: Vec::new(),
         }
     }
 }
@@ -252,6 +269,7 @@ mod tests {
             appearance: Default::default(),
             outfit: Default::default(),
             placed_items: Vec::new(),
+            deployed_vehicles: Vec::new(),
         }
     }
 

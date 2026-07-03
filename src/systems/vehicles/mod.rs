@@ -9,9 +9,10 @@ pub mod propulsion;
 
 use std::collections::HashMap;
 
-use glam::Vec3;
+use glam::{Quat, Vec3};
+use serde::Deserialize;
 
-use crate::ecs::components::{Controllable, Transform, Velocity, VehicleSeat};
+use crate::ecs::components::{Controllable, Transform, Vehicle, Velocity, VehicleSeat};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -29,6 +30,73 @@ const JUMP_JET_IMPULSE: f32 = 12.0;
 const MAX_TORSO_YAW: f32 = std::f32::consts::FRAC_PI_2;
 /// Distance from vehicle center to place player on exit (meters).
 const EXIT_OFFSET: f32 = 3.0;
+/// How far in front of the player a deployed kit assembles (meters).
+const DEPLOY_DISTANCE: f32 = 6.0;
+/// The camera IS the player's eye; its ground rest height is floor + 1.7
+/// (CameraController::eye_height). Deploying drops the vehicle to floor level
+/// by subtracting this from the camera's world Y.
+const DEPLOY_EYE_DROP: f32 = 1.7;
+
+// ── Vehicle kit registry (economy Phase 2 Stage 1) ──────────────────────
+
+/// One deployable kit: which inventory item unpacks into which vehicle, and
+/// the primitive body proportions the renderer draws. Loaded from
+/// `data/vehicles/kits.ron` into DataStore["vehicle_kit_registry"].
+#[derive(Debug, Clone, Deserialize)]
+pub struct VehicleKitDef {
+    /// items.csv id of the KIT (the thing in the backpack, e.g. "truck_pickup_kit_0").
+    pub kit_item: String,
+    /// items.csv id of the ASSEMBLED vehicle (e.g. "truck_pickup_0").
+    pub vehicle_item: String,
+    /// Human name for the spawned entity's Name component.
+    pub display_name: String,
+    /// Body box in meters, vehicle-local: (length x, height y, width z).
+    pub body_m: (f32, f32, f32),
+    /// Cabin box in meters, same frame.
+    pub cabin_m: (f32, f32, f32),
+    /// Cabin center offset forward (+x) of the body center, meters.
+    pub cabin_offset_x: f32,
+    /// Wheel radius in meters (4 wheels at the body corners).
+    pub wheel_radius_m: f32,
+}
+
+/// All deployable kits, keyed both ways: by kit item (deploy consumes) and by
+/// vehicle item (the renderer looks up proportions for a spawned Vehicle).
+#[derive(Debug, Clone, Default)]
+pub struct VehicleKitRegistry {
+    by_kit: HashMap<String, VehicleKitDef>,
+}
+
+impl VehicleKitRegistry {
+    /// Parse the RON array shape `data/vehicles/kits.ron` ships.
+    pub fn from_ron(bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+        let kits: Vec<VehicleKitDef> = ron::from_str(text).map_err(|e| e.to_string())?;
+        let mut by_kit = HashMap::new();
+        for k in kits {
+            by_kit.insert(k.kit_item.clone(), k);
+        }
+        Ok(Self { by_kit })
+    }
+
+    pub fn get_kit(&self, kit_item: &str) -> Option<&VehicleKitDef> {
+        self.by_kit.get(kit_item)
+    }
+
+    /// Reverse lookup by the ASSEMBLED vehicle's item id (renderer side; the
+    /// registry is small, a scan is fine).
+    pub fn get_vehicle(&self, vehicle_item: &str) -> Option<&VehicleKitDef> {
+        self.by_kit.values().find(|k| k.vehicle_item == vehicle_item)
+    }
+
+    pub fn len(&self) -> usize {
+        self.by_kit.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.by_kit.is_empty()
+    }
+}
 
 // ── Commands passed via DataStore ───────────────────────────────────────
 
@@ -117,6 +185,9 @@ impl System for VehicleSystem {
     }
 
     fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // ── 0. Deploy a vehicle kit (economy Phase 2 Stage 1) ────────
+        self.handle_deploy(world, data);
+
         // ── 1. Handle enter vehicle commands ────────────────────────
         if let Some(cmd) = data.get::<EnterVehicleCommand>("enter_vehicle") {
             self.handle_enter(world, cmd);
@@ -134,6 +205,96 @@ impl System for VehicleSystem {
 }
 
 impl VehicleSystem {
+    /// Deploy a vehicle KIT from the player's inventory into the world
+    /// (economy Phase 2 Stage 1): drain the one-shot "deploy_kit_request"
+    /// channel, validate the kit against the registry, consume the kit item
+    /// in survival (creative deploys free, same semantics as manual crafting
+    /// and seed planting), then spawn the Vehicle entity in front of the
+    /// player at floor level.
+    ///
+    /// Ordering is deliberate: registry lookup BEFORE consume, so an unknown
+    /// kit id never costs the player the item; and the request is take()n
+    /// exactly once, so a second click while this frame's request is pending
+    /// simply overwrites the same Option — one kit item can never produce two
+    /// vehicles (the same-tick duplication class the Phase 1 review caught).
+    fn handle_deploy(&mut self, world: &mut hecs::World, data: &DataStore) {
+        let Some(kit_id) = data
+            .get::<std::sync::Mutex<Option<String>>>("deploy_kit_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()))
+        else {
+            return;
+        };
+
+        let Some(def) = data
+            .get::<VehicleKitRegistry>("vehicle_kit_registry")
+            .and_then(|r| r.get_kit(&kit_id).cloned())
+        else {
+            log::warn!("deploy_kit_request: '{kit_id}' is not in the vehicle kit registry — refused, nothing consumed");
+            return;
+        };
+
+        // Survival consumes the kit from the player's backpack; creative
+        // deploys without consuming (consistent with crafting/planting).
+        let creative = data
+            .get::<std::sync::Mutex<bool>>("creative_mode")
+            .and_then(|m| m.lock().ok().map(|g| *g))
+            .unwrap_or(false);
+        if !creative {
+            let mut consumed = false;
+            for (_e, (inv, _ctrl)) in world.query_mut::<(
+                &mut crate::systems::inventory::Inventory,
+                &Controllable,
+            )>() {
+                if inv.has_item(&kit_id, 1) {
+                    inv.remove_item(&kit_id, 1);
+                    consumed = true;
+                }
+                break;
+            }
+            if !consumed {
+                log::warn!("deploy_kit_request: no '{kit_id}' in the backpack — refused");
+                return;
+            }
+        }
+
+        let (position, yaw) = Self::deploy_pose(world, data);
+        let name = def.display_name.clone();
+        world.spawn((
+            Vehicle { item_id: def.vehicle_item.clone() },
+            Transform {
+                position,
+                rotation: Quat::from_rotation_y(yaw),
+                scale: Vec3::ONE,
+            },
+            Velocity::default(),
+            VehicleSeat { occupant_key: None, seat_type: "pilot".to_string() },
+            crate::ecs::components::Name(name),
+        ));
+        log::info!(
+            "Deployed {} ({}) from kit {kit_id} at {position}",
+            def.display_name,
+            def.vehicle_item
+        );
+    }
+
+    /// Where a deployed vehicle assembles: DEPLOY_DISTANCE in front of the
+    /// camera at floor level, facing the same way the player looks. Falls back
+    /// to just beside the player's ECS Transform when the camera keys are not
+    /// published (menu mode / headless tests).
+    fn deploy_pose(world: &mut hecs::World, data: &DataStore) -> (Vec3, f32) {
+        if let (Some(cam_pos), Some(cam_fwd)) =
+            (data.get::<Vec3>("camera_position"), data.get::<Vec3>("camera_forward"))
+        {
+            let ground = *cam_pos + *cam_fwd * DEPLOY_DISTANCE - Vec3::new(0.0, DEPLOY_EYE_DROP, 0.0);
+            let yaw = data.get::<f32>("camera_yaw").copied().unwrap_or(0.0);
+            return (ground, yaw);
+        }
+        for (_e, (tf, _ctrl)) in world.query_mut::<(&Transform, &Controllable)>() {
+            return (tf.position + Vec3::new(DEPLOY_DISTANCE, 0.0, 0.0), 0.0);
+        }
+        (Vec3::ZERO, 0.0)
+    }
+
     /// Transfer `Controllable` from player to vehicle, seat the player.
     fn handle_enter(&mut self, world: &mut hecs::World, cmd: &EnterVehicleCommand) {
         let player = match hecs::Entity::from_bits(cmd.player_entity) {
@@ -275,6 +436,219 @@ impl VehicleSystem {
                     vel.linear.y += JUMP_JET_IMPULSE * dt;
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod deploy_tests {
+    use super::*;
+    use crate::ecs::components::Name;
+    use crate::systems::inventory::Inventory;
+
+    /// The registry as data/vehicles/kits.ron ships it (a trimmed copy so the
+    /// test also locks the RON shape the loader expects).
+    const KITS_RON: &str = r#"[
+        (
+            kit_item: "truck_pickup_kit_0",
+            vehicle_item: "truck_pickup_0",
+            display_name: "Pickup Truck",
+            body_m: (4.9, 0.9, 1.9),
+            cabin_m: (1.7, 0.75, 1.75),
+            cabin_offset_x: 0.55,
+            wheel_radius_m: 0.42,
+        ),
+    ]"#;
+
+    fn make_store(creative: bool) -> DataStore {
+        let mut data = DataStore::new();
+        data.insert(
+            "vehicle_kit_registry",
+            VehicleKitRegistry::from_ron(KITS_RON.as_bytes()).expect("kits ron parses"),
+        );
+        data.insert(
+            "deploy_kit_request",
+            std::sync::Mutex::new(Option::<String>::None),
+        );
+        data.insert("creative_mode", std::sync::Mutex::new(creative));
+        data
+    }
+
+    fn request_deploy(data: &DataStore, kit: &str) {
+        *data
+            .get::<std::sync::Mutex<Option<String>>>("deploy_kit_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(kit.to_string());
+    }
+
+    fn spawn_player(world: &mut hecs::World, kits: u32) -> hecs::Entity {
+        let mut inv = Inventory::new(36);
+        if kits > 0 {
+            inv.add_item("truck_pickup_kit_0", kits, 1);
+        }
+        world.spawn((
+            Controllable,
+            inv,
+            Transform::default(),
+            Name("Tester".to_string()),
+        ))
+    }
+
+    fn vehicle_count(world: &mut hecs::World) -> usize {
+        world.query_mut::<&Vehicle>().into_iter().count()
+    }
+
+    fn player_kit_count(world: &mut hecs::World, player: hecs::Entity) -> u32 {
+        world
+            .get::<&Inventory>(player)
+            .map(|inv| inv.count_item("truck_pickup_kit_0"))
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn deploying_a_kit_consumes_it_and_spawns_the_vehicle() {
+        let mut world = hecs::World::new();
+        let data = make_store(false);
+        let player = spawn_player(&mut world, 1);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        assert_eq!(vehicle_count(&mut world), 1, "one vehicle spawned");
+        assert_eq!(player_kit_count(&mut world, player), 0, "the kit was consumed");
+        // The spawned entity carries the full Stage 1 tuple.
+        let (item_id, seat_free, name) = world
+            .query_mut::<(&Vehicle, &VehicleSeat, &Name)>()
+            .into_iter()
+            .map(|(_e, (v, s, n))| (v.item_id.clone(), s.occupant_key.is_none(), n.0.clone()))
+            .next()
+            .expect("vehicle entity present");
+        assert_eq!(item_id, "truck_pickup_0");
+        assert!(seat_free, "pilot seat starts empty");
+        assert_eq!(name, "Pickup Truck");
+    }
+
+    #[test]
+    fn deploy_without_the_kit_in_survival_is_refused() {
+        let mut world = hecs::World::new();
+        let data = make_store(false);
+        spawn_player(&mut world, 0);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        assert_eq!(vehicle_count(&mut world), 0, "no kit, no vehicle");
+    }
+
+    #[test]
+    fn unknown_kit_is_refused_and_nothing_is_consumed() {
+        let mut world = hecs::World::new();
+        let data = make_store(false);
+        let player = spawn_player(&mut world, 1);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "not_a_registered_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        assert_eq!(vehicle_count(&mut world), 0, "unregistered kit spawns nothing");
+        assert_eq!(
+            player_kit_count(&mut world, player),
+            1,
+            "registry lookup happens BEFORE consume — the item must survive"
+        );
+    }
+
+    #[test]
+    fn creative_mode_deploys_without_consuming() {
+        let mut world = hecs::World::new();
+        let data = make_store(true);
+        let player = spawn_player(&mut world, 1);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        assert_eq!(vehicle_count(&mut world), 1);
+        assert_eq!(
+            player_kit_count(&mut world, player),
+            1,
+            "creative deploy is free (same semantics as creative crafting/planting)"
+        );
+    }
+
+    #[test]
+    fn one_kit_cannot_become_two_vehicles_across_repeated_requests() {
+        // The duplication shape the Phase 1 review hunted: fire the deploy
+        // request twice with only one kit in stock. The second must be refused.
+        let mut world = hecs::World::new();
+        let data = make_store(false);
+        let player = spawn_player(&mut world, 1);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        assert_eq!(vehicle_count(&mut world), 1, "one kit -> exactly one vehicle");
+        assert_eq!(player_kit_count(&mut world, player), 0);
+    }
+
+    #[test]
+    fn deploy_lands_in_front_of_the_camera_at_floor_level() {
+        let mut world = hecs::World::new();
+        let mut data = make_store(false);
+        // Player standing at the origin, camera published the way lib.rs does.
+        data.insert("camera_position", Vec3::new(10.0, 1.7, 5.0));
+        data.insert("camera_forward", Vec3::new(0.0, 0.0, -1.0));
+        data.insert("camera_yaw", 0.5_f32);
+        spawn_player(&mut world, 1);
+        let mut sys = VehicleSystem::new();
+
+        request_deploy(&data, "truck_pickup_kit_0");
+        sys.tick(&mut world, 0.016, &data);
+
+        let pos = world
+            .query_mut::<(&Vehicle, &Transform)>()
+            .into_iter()
+            .map(|(_e, (_v, t))| t.position)
+            .next()
+            .expect("vehicle spawned");
+        assert!((pos.x - 10.0).abs() < 1e-4);
+        assert!((pos.z - (5.0 - DEPLOY_DISTANCE)).abs() < 1e-4, "6 m in front of the camera");
+        assert!(pos.y.abs() < 1e-4, "camera eye height dropped to floor level");
+    }
+
+    #[test]
+    fn kit_registry_parses_the_shipped_data_file() {
+        // Lock the REAL data/vehicles/kits.ron: it must parse and every kit +
+        // vehicle id it references must exist in items.csv.
+        let reg = VehicleKitRegistry::from_ron(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/vehicles/kits.ron"
+        )))
+        .expect("shipped kits.ron parses");
+        assert!(!reg.is_empty(), "at least one kit ships");
+        let items = std::str::from_utf8(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .unwrap()
+        .to_string();
+        for def in reg.by_kit.values() {
+            assert!(
+                items.contains(&format!("{},", def.kit_item)),
+                "kit item {} missing from items.csv",
+                def.kit_item
+            );
+            assert!(
+                items.contains(&format!("{},", def.vehicle_item)),
+                "vehicle item {} missing from items.csv",
+                def.vehicle_item
+            );
         }
     }
 }

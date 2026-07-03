@@ -34,6 +34,23 @@
 > transport the player can follow or take over. Before that, the smaller
 > remaining threads below are fair game. <<<**
 
+> **>>> ECONOMY PHASE 2 STAGE 1 SHIPPED (v0.677.0, 2026-07-02, Fable 5):
+> vehicle KITS. Craft a Pickup Truck Kit / Rover Kit at the workbench
+> (steel+iron+rubber, feedable by the Phase 1 drone->smelter chain), click
+> Deploy on the item card, and a real Vehicle entity assembles 6 m in front
+> of you: body/cabin/4-wheel primitives from data/vehicles/kits.ron
+> proportions, persistent across world re-entry AND app restart
+> (WorldSave.deployed_vehicles). VehicleSystem registered for the first
+> time (deploy arm live; enter/exit/mech dormant until Stage 3). All
+> data-driven: a new deployable vehicle = rows in kits.ron + items.csv
+> (+ recipe). 8 tests incl. one-kit-cannot-become-two-vehicles + save
+> round-trip. Adversarially reviewed pre-commit (2-lens + verifier).
+> Operator visual check pending next play session (3D primitives).
+> **NEXT: Stage 2** -- factory job finishes -> world-spawn the vehicle at
+> the factory (ManufacturingSystem completion loop is the hook, needs a
+> ProductionFacility spawner + machine Transform). Then Stage 3 transport
+> (follow / take over). <<<**
+
 > **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
 > in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +
 > the orchestrator, every branch reviewed/merged/re-verified on main (709

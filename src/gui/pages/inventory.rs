@@ -629,6 +629,8 @@ struct ItemCardActions {
     eat: Option<String>,
     drink: Option<String>,
     plant: Option<String>,
+    /// Vehicle KIT item id to deploy into the world (economy Phase 2 Stage 1).
+    deploy: Option<String>,
     equip: bool,
     drop: bool,
 }
@@ -723,7 +725,18 @@ fn draw_item_card(
         let is_food = details.as_ref().map(|d| d.category == "food").unwrap_or(false) && !is_drink;
         let is_seed = details.as_ref().map(|d| d.subcategory == "seed").unwrap_or(false)
             || item.item_id.starts_with("seed_");
-        if is_drink {
+        // A vehicle KIT (category vehicle / subcategory kit) deploys into the world
+        // as a real Vehicle entity. The button is the trigger; VehicleSystem is the
+        // authority (registry lookup + survival consume happen there).
+        let is_vehicle_kit = details
+            .as_ref()
+            .map(|d| d.category == "vehicle" && d.subcategory == "kit")
+            .unwrap_or(false);
+        if is_vehicle_kit {
+            if widgets::compact_button(ui, theme, "Deploy", widgets::ButtonVariant::Primary) {
+                acts.deploy = Some(item.item_id.clone());
+            }
+        } else if is_drink {
             if widgets::compact_button(ui, theme, "Drink", widgets::ButtonVariant::Primary) {
                 acts.drink = Some(item.item_id.clone());
             }
@@ -1998,6 +2011,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(seed_id) = item_acts.plant {
         state.pending_plant_seed = Some(seed_id);
+    }
+    if let Some(kit_id) = item_acts.deploy {
+        state.pending_deploy_kit = Some(kit_id);
     }
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main

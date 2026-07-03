@@ -1,0 +1,29 @@
+// Vehicle kit registry (economy Phase 2 Stage 1, v0.677): which inventory KIT
+// item deploys into which physical vehicle, and the primitive body proportions
+// the renderer gives it until real 3D models land. Pure data per the
+// infinite-of-X rule -- adding a deployable vehicle is a row here plus its two
+// items.csv rows (kit + assembled) and optionally a recipe in recipes.csv.
+//
+// Dimensions are meters in the vehicle's local frame: x = length (forward),
+// y = height, z = width. cabin_offset_x is how far the cabin box sits forward
+// (+) or back (-) of the body center.
+[
+    (
+        kit_item: "truck_pickup_kit_0",
+        vehicle_item: "truck_pickup_0",
+        display_name: "Pickup Truck",
+        body_m: (4.9, 0.9, 1.9),
+        cabin_m: (1.7, 0.75, 1.75),
+        cabin_offset_x: 0.55,
+        wheel_radius_m: 0.42,
+    ),
+    (
+        kit_item: "rover_kit_0",
+        vehicle_item: "rover_0",
+        display_name: "Rover",
+        body_m: (3.2, 0.8, 1.9),
+        cabin_m: (1.5, 0.65, 1.7),
+        cabin_offset_x: 0.2,
+        wheel_radius_m: 0.5,
+    ),
+]
