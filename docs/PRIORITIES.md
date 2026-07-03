@@ -61,7 +61,13 @@
 > template, camera tp_target for follow, VehicleSystem enter/exit for
 > take-over). Also queued: operator visual check of Stage 1+2 primitives;
 > the buy-side (market Buy -> factory job) needs the wallet/currency
-> decision. <<<**
+> decision. **FIELD-TEST FOLLOW-UPS (operator screenshots 2026-07-03,
+> partially fixed v0.681.0):** crew grounded client-side -- the REAL fix
+> is relay/client LAYOUT ALIGNMENT (relay simulates its multi-deck ship;
+> client renders the flat homestead; chore sites need to come from the
+> actual home layout); drone dock POPS on launch/return -- wants a real
+> docking/undocking sequence; machine labels are static authored strings
+> -- consider live label stats fed from auto_craft_status. <<<**
 
 > **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
 > in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +
