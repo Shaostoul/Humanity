@@ -400,9 +400,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 /// rather than all asteroids being lumped together (which made it
 /// confusing why Ryugu showed up between Earth and Mars vs. Vesta out
 /// past the main belt). The cutoffs follow standard convention:
-///   - **Near-Earth Asteroids (NEA)**: semi-major axis < 1.3 AU
-///   - **Main Belt**: 1.3 ≤ a < 4.0 AU (covers Hildas + Trojans too;
-///     we'll split those once we have sample bodies in those regions)
+///   - **Near-Earth Asteroids (NEA)**: PERIHELION q = a(1-e) < 1.3 AU --
+///     the actual IAU/CNEOS definition. v0.686 fix: the earlier semi-major
+///     axis shortcut (a < 1.3) misfiled Eros (a=1.46, q=1.13) and Itokawa
+///     (a=1.32, q=0.95) -- two of the most famous NEAs, both visited by
+///     spacecraft -- into the Main Belt (caught in the snapshot QA sweep).
+///   - **Main Belt**: everything else with a < 4.0 AU (covers Hildas +
+///     Trojans too; we'll split those once we have sample bodies there)
 ///   - **Trans-Neptunian / Outer Belt**: a ≥ 4.0 AU (Kuiper Belt + scattered disk)
 /// Same buckets a planetary scientist would use.
 fn body_regions() -> Vec<(&'static str, Vec<&'static SolBody>)> {
@@ -424,7 +428,11 @@ fn body_regions() -> Vec<(&'static str, Vec<&'static SolBody>)> {
             ("dwarf_planet", _)          => dwarfs.push(b),
             ("asteroid", Some("sun")) => {
                 let a = b.semi_major_axis_au;
-                if a < 1.3 { nea.push(b); }
+                // NEA = perihelion under 1.3 AU (the real definition), not
+                // semi-major axis -- eccentric NEAs like Eros swing far out
+                // but dive near Earth's orbit every revolution.
+                let perihelion = a * (1.0 - b.eccentricity);
+                if perihelion < 1.3 { nea.push(b); }
                 else if a < 4.0 { main_belt.push(b); }
                 else { trans_nep.push(b); }
             }
