@@ -1350,6 +1350,22 @@ fn merge(acc: &mut (Vec<Vertex>, Vec<u32>), add: (Vec<Vertex>, Vec<u32>)) {
     acc.1.extend(add.1.into_iter().map(|i| i + base));
 }
 
+/// World-scaled planar UVs (v0.695): 1 UV unit = 1 metre, projected onto the
+/// face's dominant plane. The old fixed 0-1-per-quad UVs stretched procedural
+/// materials by the face aspect -- an 89 m x 3 m wall smeared isotropic noise
+/// 30:1 into the horizontal/vertical STREAKS the operator screenshotted
+/// (2026-07-04). With metre-true UVs, `tile_scale` means tiles-per-metre and
+/// grain looks the same on every surface size.
+fn planar_uv(p: [f32; 3], n: [f32; 3]) -> [f32; 2] {
+    let an = [n[0].abs(), n[1].abs(), n[2].abs()];
+    if an[1] >= an[0] && an[1] >= an[2] {
+        [p[0], p[2]] // floor / ceiling: XZ plane
+    } else if an[0] >= an[2] {
+        [p[2], p[1]] // X-facing wall: ZY plane
+    } else {
+        [p[0], p[1]] // Z-facing wall: XY plane
+    }
+}
 /// A solid axis-aligned box SILHOUETTE from a footprint (v0.638): min corner (x0, z0), extent (w, d),
 /// rising from `y0` to `y0 + h`. Unlike `wall_box` (which extrudes a THIN wall along a start->end run,
 /// centring `thickness` across it), this fills the WHOLE rectangular footprint -- the right primitive
@@ -1362,8 +1378,8 @@ fn footprint_box(x0: f32, z0: f32, w: f32, d: f32, y0: f32, h: f32) -> (Vec<Vert
     let mut idx: Vec<u32> = Vec::new();
     let mut quad = |p0: [f32; 3], p1: [f32; 3], p2: [f32; 3], p3: [f32; 3], n: [f32; 3]| {
         let base = verts.len() as u32;
-        for (p, uv) in [(p0, [0.0, 0.0]), (p1, [1.0, 0.0]), (p2, [1.0, 1.0]), (p3, [0.0, 1.0])] {
-            verts.push(Vertex { position: p, normal: n, uv });
+        for p in [p0, p1, p2, p3] {
+            verts.push(Vertex { position: p, normal: n, uv: planar_uv(p, n) });
         }
         idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
     };
@@ -1597,8 +1613,8 @@ fn wall_piece(sl: V2, sr: V2, el: V2, er: V2, y0: f32, y1: f32) -> (Vec<Vertex>,
         let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-6);
         let n = [n[0] / len, n[1] / len, n[2] / len];
         let base = verts.len() as u32;
-        for (p, uv) in [(p0, [0.0, 0.0]), (p1, [1.0, 0.0]), (p2, [1.0, 1.0]), (p3, [0.0, 1.0])] {
-            verts.push(Vertex { position: p, normal: n, uv });
+        for p in [p0, p1, p2, p3] {
+            verts.push(Vertex { position: p, normal: n, uv: planar_uv(p, n) });
         }
         idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
     };
@@ -1638,8 +1654,11 @@ fn corner_column(cx: f32, cz: f32, radius: f32, height: f32, segments: u32) -> (
         let ang = (i as f32 / segments as f32) * TAU;
         let (s, c) = ang.sin_cos();
         let u = i as f32 / segments as f32;
-        v.push(Vertex { position: [cx + c * radius, 0.0, cz + s * radius], normal: [c, 0.0, s], uv: [u, 1.0] });
-        v.push(Vertex { position: [cx + c * radius, height, cz + s * radius], normal: [c, 0.0, s], uv: [u, 0.0] });
+        // Metre-true UVs around the shell (v0.695): u spans the real
+        // circumference and v the real height, so grain stays isotropic.
+        let u_m = u * radius * std::f32::consts::TAU;
+        v.push(Vertex { position: [cx + c * radius, 0.0, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, height] });
+        v.push(Vertex { position: [cx + c * radius, height, cz + s * radius], normal: [c, 0.0, s], uv: [u_m, 0.0] });
     }
     for i in 0..segments {
         let o = i * 2;

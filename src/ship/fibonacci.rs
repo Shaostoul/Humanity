@@ -519,10 +519,13 @@ pub(crate) fn floor_quad(pos: Vec3, dim: Vec3) -> (Vec<Vertex>, Vec<u32>) {
     let y = pos.y;
 
     let vertices = vec![
-        Vertex { position: [x0, y, z0], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] },
-        Vertex { position: [x1, y, z0], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] },
-        Vertex { position: [x1, y, z1], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
-        Vertex { position: [x0, y, z1], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
+        // World-scaled UVs (v0.695): metres, not 0-1 across the whole deck --
+        // a 55x89 m floor squeezed into one UV tile smeared the material into
+        // streaks (see planar_uv in home_structure.rs).
+        Vertex { position: [x0, y, z0], normal: [0.0, 1.0, 0.0], uv: [x0, z0] },
+        Vertex { position: [x1, y, z0], normal: [0.0, 1.0, 0.0], uv: [x1, z0] },
+        Vertex { position: [x1, y, z1], normal: [0.0, 1.0, 0.0], uv: [x1, z1] },
+        Vertex { position: [x0, y, z1], normal: [0.0, 1.0, 0.0], uv: [x0, z1] },
     ];
     // Front face points UP (visible from above, standing on floor)
     let indices = vec![0, 2, 1, 0, 3, 2];
