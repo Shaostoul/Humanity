@@ -320,6 +320,11 @@
       "at": "2026-07-04",
       "decision": "v0.689.0 SHIPPED unified map slice 2: clickable asteroid markers -> mining modal",
       "why": "Fan markers hit-tested (10px) at lowest click precedence; pending_open_mining_modal one-shot hands off to the Inventory draw which opens with_mining_edit. See the rock, click it, commission the drone -- the map is the launchpad. v0.688.1 stamp shipped same wake. Battery green."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.690.0 SHIPPED Stage 3 TAKE-OVER DRIVING (fresh-window big swing #2; the v0.680-689 review workflow runs in parallel)",
+      "why": "Walk-up [E] drive prompt (mirrors the machine look-cone), E enters (seat occupied, self-drive route cancelled -- driver wins, incl. re-summon mid-drive), WASD arcade steering (vehicle yaw = camera yaw + 90deg since the render body long axis is +X), camera rides the cab (height from kit dims), E exits beside the cab. CRITICAL architecture call: did NOT use the dormant Controllable-transfer enter/exit arms -- moving Controllable off the player makes extract_world_save find NO player and the periodic save would wipe progress with an empty inventory (latent trap, never fired because nothing called those arms; documented in the release notes + code comment). Driving state = EngineState.driving_vehicle; player Transform synced to the vehicle so saves see the traveler. Known gaps for the field test: no vehicle collision (drives through walls), look-steering only. Battery green."
     }
   ],
   "active_scopes_to_avoid": [
