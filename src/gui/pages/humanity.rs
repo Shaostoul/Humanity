@@ -396,17 +396,23 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
                 .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
-        ui.horizontal_wrapped(|ui| {
-            // chat_users is real (people connected to this server now). Platform
-            // wide totals (humans/AI onboarded, donations, federation) need a
-            // relay fetch, wired next; honestly framed for now, never faked.
-            // Stat cards reuse civilization.rs's draw_stat_card (v0.662) so the
-            // two dashboards share one visual language; trend/progress stay
-            // empty until real platform-wide numbers exist (never fabricated).
-            super::civilization::draw_stat_card(ui, theme, "People online now", &state.chat_users.len().to_string(), "", 0.0);
-            super::civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
-            super::civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
-        });
+        // chat_users is real (people connected to this server now). Platform
+        // wide totals (humans/AI onboarded, donations, federation) need a
+        // relay fetch, wired next; honestly framed for now, never faked.
+        // Stat cards reuse civilization.rs's draw_stat_card (v0.662) AND its
+        // Grid container (v0.684): the earlier horizontal_wrapped layout
+        // stair-stepped the three tiles downward (wrapped rows baseline-drift
+        // as item heights differ -- operator screenshot 2026-07-04); a Grid
+        // top-aligns every cell, matching the Civilization page exactly.
+        egui::Grid::new("humanity_scoreboard_grid")
+            .num_columns(3)
+            .spacing(egui::Vec2::new(theme.spacing_sm, theme.spacing_sm))
+            .show(ui, |ui| {
+                super::civilization::draw_stat_card(ui, theme, "People online now", &state.chat_users.len().to_string(), "", 0.0);
+                super::civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
+                super::civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
+                ui.end_row();
+            });
     });
     ui.add_space(theme.spacing_md);
 

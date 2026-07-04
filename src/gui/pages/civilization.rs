@@ -158,6 +158,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 pub(crate) fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, value: &str, trend: &str, progress: f32) {
     widgets::card(ui, theme, |ui| {
         ui.set_min_width(180.0);
+        // Explicit vertical layout (v0.684): the card INHERITED the parent's
+        // layout direction, so inside a left-to-right container (a Grid cell,
+        // a horizontal row) the label and value landed side by side at drifting
+        // heights -- the stair-stepped scoreboard the operator screenshotted
+        // 2026-07-04. A widget must own its internal layout.
+        ui.vertical(|ui| {
         ui.label(
             RichText::new(label)
                 .size(theme.font_size_small)
@@ -187,6 +193,7 @@ pub(crate) fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, valu
         if progress > 0.0 {
             widgets::progress_bar(ui, theme, progress, None);
         }
+        }); // end ui.vertical
     });
 }
 
