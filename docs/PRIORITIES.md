@@ -11,6 +11,31 @@
 
 ## Active focus
 
+> **>>> OPERATOR FIELD SESSION 3 DIRECTIVES (2026-07-04 late, journaled in
+> full in orchestrator_state):** quick batch SHIPPED v0.693.0 (graphite from
+> C-class asteroids answers coal-in-space; live V badges; friends-list role
+> badges scoped out; P2P test tucked under Dev tools). REMAINING, in rough
+> order: (1) FOLLOW-DIRECTION badges (you-follow / follows-you; needs the
+> relay to expose both directions to the client). (2) STARTER 1975 CHEVY
+> NOVA: the operator's first real-life recreation target; prebuilt in the
+> default home (kits.ron entry + starter-vehicle spawn) so driving needs no
+> factory chain. (3) TEXTURE BUG: surfaces render as colored LINES not
+> splotches/grain -- suspect procedural noise collapsing on one axis;
+> investigate shaders. (4) MACHINE INFO-WINDOW OVERHAUL: every walk-up card
+> shows relevant LIVE info; assembler gets an infinite-of-X vehicle SELECTOR
+> (fixed auto_recipe in RON is an infinite-of-X violation); containers show
+> contents; cistern shows volume. (5) VEHICLE BAY redesign: justify every
+> machine; bay = dedicated standard-vehicle-sized area (gravity-safety
+> justification), select the held vehicle; ties into hangar/mech ZONES;
+> 3D printer more justified than an assembler. (6) VOLUME-BASED CONTAINERS =
+> material-storage Stage A is GO (slots only for bandolier-likes). (7) GLB
+> model pipeline guide (in-app + GitHub) + viewer; GLB for game, STL stays
+> for print. (8) STUDIO CHAT LAYERS: HOS channel view on the Studio page,
+> then merged YouTube/Twitch/Rumble layers, resizable/collapsible. (9) REAL
+> STREAMING PIPELINE: Studio is UI-only today -- capture/encode/RTMP is the
+> gap for relay + multistream. <<<**
+
+
 > **>>> SHARED-FILE LIBRARY SHIPPED (v0.675.0, 2026-07-02, Fable 5): the
 > operator's "share my .blend phone case / car bushings from my PC" request,
 > end to end. `POST /api/upload?share=1` publishes; NEW `GET /api/uploads`
