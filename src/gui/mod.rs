@@ -1773,6 +1773,9 @@ pub struct GuiState {
     /// GUI -> ECS: summon this vehicle (entity bits) to drive itself to the
     /// player; bridged into the "summon_vehicle" channel.
     pub pending_summon_vehicle: Option<u64>,
+    /// Cosmos -> Inventory jump (unified map slice 2): an asteroid id whose
+    /// mining modal should open when the Inventory page next draws.
+    pub pending_open_mining_modal: Option<String>,
     /// Live production status lines (v0.681), one per auto machine, synced from
     /// CraftingSystem's "auto_craft_status" channel each frame -- e.g.
     /// "Assemble Rover — 42%" or "Smelt Iron — waiting for Iron Ore x2".
@@ -3118,6 +3121,7 @@ impl Default for GuiState {
             drones: Vec::new(),
             vehicles: Vec::new(),
             pending_summon_vehicle: None,
+            pending_open_mining_modal: None,
             factory_status: Vec::new(),
             skills: Vec::new(),
             pending_dev_max_skills: false,

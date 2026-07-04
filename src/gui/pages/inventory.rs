@@ -1103,6 +1103,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // The selected item's inline expand-in-place card records its quick action here
     // (Eat/Drink/Plant/Equip/Drop); applied to GuiState after the panel closes (the
     // card only borrows an inventory snapshot, never GuiState mid-render).
+    // Cosmos map jump (unified map slice 2): open the clicked asteroid's
+    // mining modal as this page draws.
+    if let Some(ast_id) = state.pending_open_mining_modal.take() {
+        with_mining_edit(|m| m.open = Some(ast_id));
+    }
+
     let mut item_acts = ItemCardActions::default();
     // Crop actions come from the Garden section in the central panel; applied after.
     let mut action_water_crop: Option<u64> = None;

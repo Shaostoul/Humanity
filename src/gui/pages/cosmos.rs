@@ -1137,6 +1137,9 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     //    scale -- so they render as a labeled fan around the Home marker,
     //    with real distances in the labels keeping the scale honest. The
     //    Inventory page's mining mini-map now links here.
+    // Fan-marker positions, kept for the click chain below (slice 2:
+    // clicking an asteroid marker jumps to its mining modal).
+    let mut asteroid_markers: Vec<(String, Pos2)> = Vec::new();
     if let Some(earth) = projected.iter().find(|p| p.body.id == "earth") {
         let home = earth.screen;
         paint.circle_stroke(home, 9.0, Stroke::new(1.6, theme.accent()));
@@ -1163,6 +1166,7 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 theme.text_secondary(),
             );
             slot_pos.insert(ast.id.clone(), p);
+            asteroid_markers.push((ast.id.clone(), p));
         }
         // Drone in flight: track along the Home <-> target leg by phase.
         for drone in &state.drones {
@@ -1460,6 +1464,16 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Body click (no pill on this body) — select it. Next frame the
         // pill will appear because the body is now selected (forced=true).
         state.cosmos_selected_body = Some(b.id.clone());
+    } else if response.clicked() {
+        // Unified map slice 2 (v0.689): clicking an asteroid fan marker jumps
+        // straight to that asteroid's mining modal on the Inventory page --
+        // see the rock on the map, click it, commission the drone.
+        if let Some(p) = response.interact_pointer_pos() {
+            if let Some((id, _)) = asteroid_markers.iter().find(|(_, mp)| mp.distance(p) < 10.0) {
+                state.pending_open_mining_modal = Some(id.clone());
+                state.active_page = crate::gui::GuiPage::Inventory;
+            }
+        }
     }
 
     // ── Hover tooltip ──
