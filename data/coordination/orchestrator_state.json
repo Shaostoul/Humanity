@@ -428,6 +428,11 @@
       "at": "2026-07-03",
       "decision": "LOOP MODE (low-effort, operator-directed until budget cap): v0.682.2 items.csv CR purge, v0.682.3 dead pqSign/pqVerify deletion, v0.683.0 Unaligned-overlay fix rescued from the orphaned clever-moore worktree",
       "why": "Worktree audit: 9 of 10 agent worktrees are MERGED into main (pure clutter, safe for the operator to clean when ready); ONE held real unmerged work -- the Unaligned overlay fix (task_30ff8cfe) committed 2026-07-01, never merged, never pushed. Cherry-picked the code (theme.rs debug.show_unaligned off, cfg-gated), dropped its 2-day-stale PNGs (4 binary conflicts proved the risk), regenerated all 19 snapshots on current main, spot-checked humanity.png overlay-free. items.csv: 436 embedded CRs (description field, header included, from a past column insert) stripped; 490 rows parse identically. pq-identity.js legacy wrappers: zero callers grep-verified. All shipped + verified individually."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.684.0 SHIPPED stat-card stair-step fix (operator screenshot): widgets must OWN their internal layout",
+      "why": "Operator spotted the Where-we-stand tiles stair-stepping in the humanity snapshot. Two-layer cause: (1) draw_stat_card inherited the parent layout direction, so in left-to-right containers label+value went side-by-side at drifting heights -- fixed with explicit ui.vertical inside the card (general lesson for ALL universal widgets: never inherit the parent layout for internal structure); (2) Humanity used horizontal_wrapped while Civilization used a top-aligned Grid for the same cards -- Humanity now uses the same Grid. humanity.png regenerated + visually verified uniform. Also shipped this wake: the pending v0.683.1 stamp. Loop continues on low-effort items."
     }
   ],
   "active_scopes_to_avoid": [
