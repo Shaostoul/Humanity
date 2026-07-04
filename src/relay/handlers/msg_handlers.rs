@@ -1336,7 +1336,7 @@ pub async fn handle_mod_action(
         return;
     }
     // Admin-only actions.
-    if matches!(action, "ban" | "mod" | "unmod") && !is_admin {
+    if matches!(action, "ban" | "mod" | "unmod" | "verify" | "unverify") && !is_admin {
         let private = RelayMessage::Private {
             to: my_key.to_string(),
             message: format!("'{action}' requires admin privileges."),
@@ -1588,6 +1588,19 @@ pub async fn handle_mod_action(
                 message: format!("✓ Promoted {target_name} to moderator."),
             };
             let _ = state.broadcast_tx.send(private);
+        }
+        // Verified badge (v0.687): the user-profile modal quick action. Same
+        // set_role path the /verify slash command uses -- verified gates uploads
+        // and the shared-file library, so it is admin-only like mod/ban.
+        "verify" => {
+            if let Err(e) = state.db.set_role(target, "verified") {
+                tracing::error!("mod_action set_role verified error: {e}");
+            }
+        }
+        "unverify" => {
+            if let Err(e) = state.db.set_role(target, "member") {
+                tracing::error!("mod_action set_role member (unverify) error: {e}");
+            }
         }
         "unmod" => {
             if let Err(e) = state.db.set_role(target, "member") {

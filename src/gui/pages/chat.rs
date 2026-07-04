@@ -4237,6 +4237,35 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             }
                         }
+
+                        // Verified badge quick action (v0.687, operator field
+                        // report: "I do not see a way of verifying users" -- the
+                        // Verify button lived only on Server Settings; this is
+                        // the same set_role path, one click from the profile).
+                        let target_is_verified = user_role == "verified";
+                        let verify_label = if target_is_verified { "Unverify" } else { "Verify" };
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new(verify_label)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(50, 50, 70)) // theme-exempt: matches the adjacent Mod button literal pending the modal token migration
+                            .min_size(Vec2::new(90.0, 28.0)),
+                        ).clicked() {
+                            if let Some(ref client) = state.ws_client {
+                                if client.is_connected() {
+                                    let action = if target_is_verified { "unverify" } else { "verify" };
+                                    let msg = serde_json::json!({
+                                        "type": "mod_action",
+                                        "action": action,
+                                        "target": key,
+                                        "target_name": name,
+                                    });
+                                    client.send(&msg.to_string());
+                                }
+                            }
+                        }
                     });
 
                     // ── Role assignment dropdown (roles Phase R2) ──

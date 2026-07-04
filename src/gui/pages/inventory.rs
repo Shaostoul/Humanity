@@ -588,25 +588,49 @@ fn draw_container(
             let has_tiles = (is_backpack && inv.iter().any(|s| s.is_some())) || !here.is_empty();
             if has_tiles {
                 ui.add_space(theme.spacing_xs);
-                ui.horizontal_wrapped(|ui| {
-                    if is_backpack {
-                        for (i, slot) in inv.iter().enumerate() {
-                            if let Some(it) = slot {
-                                if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, sel_slot == Some(i)) {
-                                    out.clicked_slot = Some(i);
+                // Wrap within the VISIBLE window, not the tree's unbounded
+                // content width -- a 36-item backpack rendered one endless row
+                // off the right edge with no way to reach the tail (operator
+                // field report 2026-07-04). Clamp the wrap width to what is
+                // actually on screen from this row's left edge.
+                let visible_w = (ui.ctx().screen_rect().width() - ui.min_rect().left() - 24.0)
+                    .max(ITEM_TILE_W * 2.0);
+                // MANUAL row chunking (v0.687): horizontal_wrapped never wrapped
+                // here because the tree content Ui is width-unbounded, so a full
+                // backpack ran one endless row off screen with no way to reach
+                // the tail. Chunk by the visible width instead -- deterministic
+                // regardless of the parent layout.
+                let per_row = ((visible_w / (ITEM_TILE_W + 8.0)).floor() as usize).max(2);
+                if is_backpack {
+                    let occupied: Vec<usize> = inv
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, s)| s.as_ref().map(|_| i))
+                        .collect();
+                    for row in occupied.chunks(per_row) {
+                        ui.horizontal(|ui| {
+                            for &i in row {
+                                if let Some(it) = &inv[i] {
+                                    if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, sel_slot == Some(i)) {
+                                        out.clicked_slot = Some(i);
+                                    }
                                 }
                             }
-                        }
-                    } else {
-                        for &idx in &here {
-                            let pi = &placed[idx];
-                            let sel = sel_placed == Some(idx);
-                            if item_tile(ui, theme, &pi.name, &pi.key, pi.qty, sel) {
-                                out.clicked_placed = Some(idx);
-                            }
-                        }
+                        });
                     }
-                });
+                } else {
+                    for row in here.chunks(per_row) {
+                        ui.horizontal(|ui| {
+                            for &idx in row {
+                                let pi = &placed[idx];
+                                let sel = sel_placed == Some(idx);
+                                if item_tile(ui, theme, &pi.name, &pi.key, pi.qty, sel) {
+                                    out.clicked_placed = Some(idx);
+                                }
+                            }
+                        });
+                    }
+                }
             }
             // Sub-containers (everything that is NOT a leaf item) nest as their own cards.
             for (i, child) in place.children.iter().enumerate() {
@@ -1199,6 +1223,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 } else {
                     theme.text_secondary()
                 };
+                // Health leads the grid (v0.687, operator field report: the HUD
+                // shows a health bar but the inventory Status section did not).
+                let hp_frac = (state.player_health / state.player_health_max.max(1.0)).clamp(0.0, 1.0);
+                tiles.push(("Health", format!("{:.0} / {:.0}", state.player_health, state.player_health_max), hp_frac, color_for(hp_frac)));
                 tiles.push(("Satiation", format!("{:.0} / {:.0}", v.satiation, v.satiation_max), sat_frac, color_for(sat_frac)));
                 tiles.push(("Hydration", format!("{:.0} / {:.0}", v.hydration, v.hydration_max), hyd_frac, color_for(hyd_frac)));
                 tiles.push(("Energy", format!("{:.0} / {:.0}", v.energy, v.energy_max), energy_frac, color_for(energy_frac)));

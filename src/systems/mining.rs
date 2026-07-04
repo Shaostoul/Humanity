@@ -243,7 +243,22 @@ impl System for DroneSystem {
                             let max_stack =
                                 item_registry.map(|r| r.max_stack_for(ore)).unwrap_or(99);
                             if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
-                                inv.add_item(ore, *qty, max_stack);
+                                let overflow = inv.add_item(ore, *qty, max_stack);
+                                if overflow > 0 {
+                                    // A hauled load must NEVER vanish because the
+                                    // backpack is packed (operator field report
+                                    // 2026-07-04: a 36/36 seed-filled backpack
+                                    // silently ate an entire iron haul, starving
+                                    // the smelter). Grow the home stock -- the
+                                    // same ensure_slots the dev-stock path uses --
+                                    // and land the remainder.
+                                    let occupied =
+                                        inv.slots.iter().filter(|s| s.is_some()).count();
+                                    let extra =
+                                        (overflow as usize).div_ceil(max_stack.max(1) as usize);
+                                    inv.ensure_slots(occupied + extra);
+                                    inv.add_item(ore, overflow, max_stack);
+                                }
                                 total += *qty;
                             }
                         }
@@ -537,4 +552,43 @@ mod drone_tests {
         sys.tick(&mut world, 1.0, &data);
         assert_eq!(world.query::<&Drone>().iter().count(), 0, "no drone for a missing target");
     }
+
+    /// A hauled load must never vanish because the home stock is full (operator
+    /// field report 2026-07-04: a 36/36 seed-packed backpack silently ate an
+    /// entire iron haul -- add_item's overflow return was discarded -- so the
+    /// smelter starved while the player watched the drone "deliver"). Delivery
+    /// now grows the inventory (dev-stock's ensure_slots pattern) and lands the
+    /// remainder.
+    #[test]
+    fn delivery_grows_a_full_backpack_instead_of_losing_the_haul() {
+        let data = make_store();
+        let mut world = hecs::World::new();
+        // A 2-slot inventory PACKED full (unstackable junk), like the seed-full backpack.
+        let mut inv = Inventory::new(2);
+        inv.add_item("hammer_0", 1, 1);
+        inv.add_item("bandage_0", 1, 1);
+        assert_eq!(inv.slots.iter().filter(|s| s.is_none()).count(), 0, "no free slot");
+        let player = world.spawn((inv, crate::ecs::components::Controllable));
+        world.spawn((AsteroidBody {
+            id: "rock".to_string(),
+            name: "rock".to_string(),
+            classification: "M".into(),
+            ores: [("iron_ore_0".to_string(), 5.0)].into_iter().collect(),
+            position: [0.0, 0.0, 0.0],
+        },));
+
+        commission(&data, "rock", vec![("iron_ore_0", 5)]);
+        let mut sys = DroneSystem::new();
+        for _ in 0..60 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        let inv = world.get::<&Inventory>(player).unwrap();
+        assert_eq!(
+            inv.count_item("iron_ore_0"),
+            5,
+            "the full haul landed -- the backpack grew instead of eating the ore"
+        );
+    }
+
 }

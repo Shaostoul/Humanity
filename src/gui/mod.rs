@@ -3133,7 +3133,7 @@ impl Default for GuiState {
             guild_new_color: egui::Color32::from_rgb(46, 134, 193),
             guild_next_id: 1,
 
-            player_health: 1.0,
+            player_health: 100.0,
             player_health_max: 100.0,
             inventory_items: Vec::new(),
             inventory_max_slots: 36,
