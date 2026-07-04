@@ -219,9 +219,11 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         ui.add_space(theme.spacing_sm);
 
         kv_row(ui, theme, "Connected server", resolve_server_url(state));
-        // Identity is your Ed25519 public key. Alt+hover "Ed25519" or
-        // "identity" to see what those mean.
-        kv_row_with_definition(ui, theme, "Your identity", "ed25519", short_key(&state.profile_public_key));
+        // Identity is your Dilithium3 (ML-DSA-65) public key -- the post-quantum
+        // chat identity since the full-PQ cutover (v0.262+). The old "ed25519"
+        // label here was crypto doc-drift: the VALUE shown has been the Dilithium
+        // hex since Inc3 (fixed 2026-07-04, snapshot sweep tail).
+        kv_row_with_definition(ui, theme, "Your identity", "dilithium3", short_key(&state.profile_public_key));
         kv_row(ui, theme, "Network status", state.ws_status.clone());
         kv_row(ui, theme, "Your role", role_label(role));
 

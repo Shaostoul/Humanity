@@ -196,8 +196,8 @@ fn demo_state() -> GuiState {
         ChatMessage { sender_name: "Shaostoul".into(), content: "Shipping the Laws page next.".into(), timestamp: "12:35".into(), channel: "general".into(), ..Default::default() },
     ];
     s.chat_users = vec![
-        ChatUser { name: "Shaostoul".into(), public_key: "ed25519:abc".into(), role: "admin".into(), status: "online".into() },
-        ChatUser { name: "Ada".into(), public_key: "ed25519:def".into(), role: "member".into(), status: "online".into() },
+        ChatUser { name: "Shaostoul".into(), public_key: "dlth3:9a41c2abc".into(), role: "admin".into(), status: "online".into() },
+        ChatUser { name: "Ada".into(), public_key: "dlth3:5f77e0def".into(), role: "member".into(), status: "online".into() },
     ];
     s.chat_dms = vec![ChatDm { user_name: "Ada".into(), user_key: "ed25519:def".into(), last_message: "See you at the build".into(), timestamp: "11:02".into(), unread: true }];
     s.chat_servers = vec![ChatServer {

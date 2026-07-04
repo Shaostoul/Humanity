@@ -1129,6 +1129,62 @@ fn draw_system_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         state.cosmos_show_reference_orbits = !state.cosmos_show_reference_orbits;
     }
 
+    // ── UNIFIED MAP slice 1 (v0.688, operator direction 2026-07-04:
+    //    "everything synced to one thing instead of separate systems"): the
+    //    player's HOME marker rides Earth, the mining asteroids cluster
+    //    around it, and an in-flight drone tracks between them. The asteroid
+    //    frame is homestead-LOCAL km (a ~70 km bubble) -- sub-pixel at AU
+    //    scale -- so they render as a labeled fan around the Home marker,
+    //    with real distances in the labels keeping the scale honest. The
+    //    Inventory page's mining mini-map now links here.
+    if let Some(earth) = projected.iter().find(|p| p.body.id == "earth") {
+        let home = earth.screen;
+        paint.circle_stroke(home, 9.0, Stroke::new(1.6, theme.accent()));
+        paint.text(
+            home + egui::vec2(0.0, -14.0),
+            egui::Align2::CENTER_BOTTOM,
+            "You · Home",
+            egui::FontId::proportional(11.0),
+            theme.accent(),
+        );
+        let slots: [(f32, f32); 5] =
+            [(36.0, -0.5), (46.0, 0.55), (40.0, 1.6), (50.0, 2.6), (44.0, 3.7)];
+        let mut slot_pos: std::collections::HashMap<String, Pos2> =
+            std::collections::HashMap::new();
+        for (i, ast) in state.asteroids.iter().take(slots.len()).enumerate() {
+            let (r, ang) = slots[i];
+            let p = home + egui::vec2(ang.cos() * r, ang.sin() * r);
+            paint.circle_filled(p, 3.0, crate::gui::widgets::swatch_color(&ast.classification));
+            paint.text(
+                p + egui::vec2(6.0, 0.0),
+                egui::Align2::LEFT_CENTER,
+                format!("{} · {:.0} km", ast.name, ast.distance),
+                egui::FontId::proportional(9.5),
+                theme.text_secondary(),
+            );
+            slot_pos.insert(ast.id.clone(), p);
+        }
+        // Drone in flight: track along the Home <-> target leg by phase.
+        for drone in &state.drones {
+            if let Some(&target) = slot_pos.get(&drone.target) {
+                let t = drone.phase_progress.clamp(0.0, 1.0);
+                let dp = match drone.phase.as_str() {
+                    "Outbound" => home + (target - home) * t,
+                    "Returning" => target + (home - target) * t,
+                    _ => target, // Mining (and Done, momentarily) sits at the rock
+                };
+                paint.circle_filled(dp, 2.5, theme.info());
+                paint.text(
+                    dp + egui::vec2(5.0, -4.0),
+                    egui::Align2::LEFT_BOTTOM,
+                    "Drone",
+                    egui::FontId::proportional(9.0),
+                    theme.info(),
+                );
+            }
+        }
+    }
+
     // ── Sky events: detect conjunctions + eclipses for the current sim_time ──
     // (Phase 4d-tri, v0.210.0.) Cheap O(n²) over ~11 named bodies — runs every
     // frame; updates live as the user scrubs sim_time.
