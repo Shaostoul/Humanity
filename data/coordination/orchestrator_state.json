@@ -310,6 +310,11 @@
       "at": "2026-07-04",
       "decision": "v0.686.1 README honesty + v0.687.0 field-fix batch (session 2): lost drone hauls root-caused, modal Verify, health tile, reachable backpack",
       "why": "Operator field session 2 findings all addressed: (1) drone haul vanished -- delivery discarded add_item overflow with a full backpack; now grows the stock via ensure_slots + regression test; (2) Verify existed only on ServerSettings (slash path) -- chat profile modal gains Verify/Unverify (new relay mod_action arms, admin-only); (3) Health tile added to inventory Status (default fixed 1.0->100.0); (4) backpack tiles chunk to visible width (egui wrapped layout never wraps in width-unbounded tree content -- manual chunking); (5) README: two-person-team honesty + Bluesky removed. LOGGED as design direction: UNIFIED MAP (player marker + asteroids + drone on the Cosmos page; mining mini-map becomes a shortcut), garden-section design pass. Verify button + relay arms are Rust both sides -> single v0.687.0."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.688.0 SHIPPED unified map slice 1: Home marker + asteroid fan + drone dot on the Cosmos System view; Inventory mini-map links in",
+      "why": "Operator direction executed same-day: You-Home accent ring rides Earth via the existing project_to_screen; mining asteroids (local ~70km frame, sub-pixel at AU scale) render as a labeled fan with real distances; in-flight drone lerps the Home<->asteroid leg by phase from GuiDrone. Inventory mini-map gains Open-the-full-map link (active_page=Cosmos). Sweep tail: server_settings Your-identity chip said ed25519 while showing the Dilithium hex (post-Inc3) -- now dilithium3; snapshot fixtures updated. Next slices logged in the release notes: clickable asteroid markers, summon routes on the map, crew markers after layout alignment. Snapshot-verified."
     }
   ],
   "active_scopes_to_avoid": [
