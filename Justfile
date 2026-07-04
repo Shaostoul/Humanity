@@ -275,6 +275,14 @@ tasks-board:
 check:
     cargo check --features native
 
+# One-shot DATA validation (~0.2 s once built): every data-file loader +
+# data-wiring test in the lib suite -- item/recipe/plant/skill/blueprint/kit
+# registries, RON/CSV parsers, shipped-data lints (recipes reference real items,
+# kits resolve, machines exist). Run after editing anything under data/ for a
+# fast signal without the full verify. The filters are OR'd libtest substrings.
+validate-data:
+    cargo test --features native --lib -- registry parses data_is_wired shipped from_csv from_ron
+
 # Full local verification: both feature builds + lib tests + the GUI lints.
 # Mirrors what CI cares about (the relay build is the one CI deploys with).
 # just aborts the recipe on the first failing line, so this fails fast.

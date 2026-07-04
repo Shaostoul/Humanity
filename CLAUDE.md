@@ -91,7 +91,8 @@ just brief            # ONE-SHOT ORIENT: version drift + CI + signing + journal 
 just ship "message"   # commit + push + force-sync VPS  ← daily driver
 just sync             # force-sync VPS now               ← when CI breaks
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
-just verify           # native+relay checks + lib tests + 5 lints ← before pushing Rust
+just verify           # native+relay checks + lib tests + 6 lints ← before pushing Rust
+just validate-data    # one-shot data-loader check (~0.2s)   ← after editing data/
 just build-game       # bump version, compile, archive versioned exe
 just play             # build-game + launch
 just launch           # launch latest build (no compile)
