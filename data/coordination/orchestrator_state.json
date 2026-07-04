@@ -290,6 +290,11 @@
       "at": "2026-07-04",
       "decision": "v0.684.2 just validate-data + v0.684.3 THEME SPACING SCALE RESTORED (the app-wide cramped look had one data root cause)",
       "why": "Snapshot QA sweep (loop) caught governance rows fusing (OPENlocal...workshopcloses). Layout code was fine; theme.ron spacing tokens were crushed to near-zero (xs 0.0 / sm 0.60 / md 2.27 / lg 3.22 / xl 3.85 / card_padding 1.69 -- slider-drag/scale-mishap shaped). Every add_space(spacing_*) rendered as nothing app-wide; contributes to the stair-step family the operator flagged. Restored dense-but-legible (2/6/10/14/18, card 6), theme.css regenerated, all 29 snapshots re-rendered, governance verified. Taste-adjacent: operator can retune live in Settings. ALSO: Laws category chips found ALREADY SHIPPED (stale queue item, laws.rs:85-99); journal rotated (137->96KB); v0.684.1 stamp; deploy train green."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.684.4 SHIPPED ore reality (snapshot sweep find): gold/silver/aluminum/titanium no longer smelt from iron_ore_0",
+      "why": "Crafting-page snapshot showed all four precious/light-metal smelts consuming iron_ore_0 placeholders. Added real ores (gold_ore_0, silver_ore_0 argentite, bauxite_0, rutile_0 -- real-world primary ores, educational per the operator close-to-reality mandate) + corrected the 4 recipes. Dev-stock enumerates recipe inputs so they are obtainable in dev; asteroid classes gain them with mining depth. Inventory page swept CLEAN under the restored spacing. validate-data + refining tests green."
     }
   ],
   "active_scopes_to_avoid": [
