@@ -1583,6 +1583,7 @@ pub async fn handle_mod_action(
                 tracing::error!("mod_action set_role mod error: {e}");
                 return;
             }
+            crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: format!("✓ Promoted {target_name} to moderator."),
@@ -1630,6 +1631,9 @@ pub async fn handle_mod_action(
                 tracing::error!("mod_action set_role {new_role} error: {e}");
                 return;
             }
+            // Push the fresh role to every client NOW -- without this the V
+            // badge only appeared after a reconnect (range-review follow-up).
+            crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
             let verbed = if action == "verify" { "Verified" } else { "Unverified" };
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
@@ -1642,6 +1646,7 @@ pub async fn handle_mod_action(
                 tracing::error!("mod_action set_role member error: {e}");
                 return;
             }
+            crate::relay::handlers::broadcast::broadcast_full_user_list(state).await;
             let private = RelayMessage::Private {
                 to: my_key.to_string(),
                 message: format!("✓ Demoted {target_name} to member."),

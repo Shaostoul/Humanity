@@ -5099,6 +5099,20 @@ mod native_app {
                 ],
                 position: [-45.0, 8.0, 55.0],
             },));
+            // C-class = carbonaceous: THE answer to "how do I get coal in space"
+            // (operator 2026-07-04). Real asteroid taxonomy -- C-types are the
+            // most common and carbon-rich; graphite mined here feeds the smelter
+            // via the graphite smelt variants (recipes.csv).
+            game_world.world.spawn((crate::ecs::components::AsteroidBody {
+                id: "c3".to_string(),
+                name: "Asteroid C-3 (carbonaceous)".to_string(),
+                classification: "C".to_string(),
+                ores: vec![
+                    ("graphite_0".to_string(), 90.0),
+                    ("iron_ore_0".to_string(), 25.0),
+                ],
+                position: [30.0, -6.0, 70.0],
+            },));
 
             // Live HOME POWER in MENU mode (v0.518): spawn the home's electrical-role
             // entities now (no meshes) so SolarSystem + ElectricalSystem publish a live

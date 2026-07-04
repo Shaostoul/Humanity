@@ -2183,7 +2183,11 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
         let ctx_time = ui.ctx().input(|i| i.time);
         let friends = state.chat_friends.clone();
         for friend in &friends {
-            draw_user_row(ui, theme, &friend.name, &friend.public_key, &friend.role, &friend.status, state, ctx_time);
+            // NO role badge here (v0.693, operator): follows are UNIVERSAL,
+            // admin/mod is server-scoped truth -- a mod of one server is not
+            // a mod of your friends list. Pass an empty role so the shared
+            // row renders name + status only.
+            draw_user_row(ui, theme, &friend.name, &friend.public_key, "", &friend.status, state, ctx_time);
         }
     }
 }
@@ -2258,35 +2262,41 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
             };
 
             ui.add_space(6.0);
-            if let Some((peer_key, peer_name)) = target {
-                let label = format!("P2P test \u{2192} {}", peer_name);
-                if widgets::Button::secondary(&label).full_width().show(ui, theme) {
-                    if let Some(ref webrtc) = state.webrtc {
-                        // Arm the one-shot test send for when the channel opens.
-                        state.webrtc_test_peer = Some(peer_key.clone());
-                        // Offer (honors the offerer rule internally: only the
-                        // larger pubkey actually offers; the smaller side waits
-                        // for the peer's offer — both presses on both machines
-                        // are harmless).
-                        webrtc.offer_to(peer_key.clone());
-                        crate::debug::push_debug(format!(
-                            "WebRTC: P2P test initiated to {}",
-                            if peer_key.len() > 12 { &peer_key[..12] } else { &peer_key }
-                        ));
-                    } else {
-                        crate::debug::push_debug("WebRTC: manager not ready (connect to a server first)");
+            // Dev diagnostic, tucked away (operator 2026-07-04: what is this P2P
+            // test button?): it hole-punches a direct WebRTC channel to a peer to
+            // prove serverless P2P works. Useful when debugging connectivity, not
+            // an everyday control -- collapsed by default.
+            ui.collapsing(RichText::new("Dev tools").size(theme.font_size_small).color(theme.text_muted()), |ui| {
+                if let Some((peer_key, peer_name)) = target {
+                    let label = format!("P2P test \u{2192} {}", peer_name);
+                    if widgets::Button::secondary(&label).full_width().show(ui, theme) {
+                        if let Some(ref webrtc) = state.webrtc {
+                            // Arm the one-shot test send for when the channel opens.
+                            state.webrtc_test_peer = Some(peer_key.clone());
+                            // Offer (honors the offerer rule internally: only the
+                            // larger pubkey actually offers; the smaller side waits
+                            // for the peer's offer — both presses on both machines
+                            // are harmless).
+                            webrtc.offer_to(peer_key.clone());
+                            crate::debug::push_debug(format!(
+                                "WebRTC: P2P test initiated to {}",
+                                if peer_key.len() > 12 { &peer_key[..12] } else { &peer_key }
+                            ));
+                        } else {
+                            crate::debug::push_debug("WebRTC: manager not ready (connect to a server first)");
+                        }
                     }
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.add_space(12.0);
+                        ui.label(
+                            RichText::new("P2P test: no online peer")
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    });
                 }
-            } else {
-                ui.horizontal(|ui| {
-                    ui.add_space(12.0);
-                    ui.label(
-                        RichText::new("P2P test: no online peer")
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                });
-            }
+            });
         }
     }
 }

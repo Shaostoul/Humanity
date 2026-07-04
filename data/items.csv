@@ -225,6 +225,7 @@ titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titaniu
 gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar,solid
 silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar,solid
 coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump,dry_goods
+graphite_0,Graphite,material,fuel,carbon,1.1,30,0,Crystalline carbon from carbonaceous asteroids. Works as a smelting reducing agent like coal,dry_goods
 oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel,flammable
 fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid,flammable
 clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth,dry_goods
