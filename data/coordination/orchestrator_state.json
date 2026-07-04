@@ -345,6 +345,11 @@
       "at": "2026-07-04",
       "decision": "v0.694.0 SHIPPED the 1975 Chevy Nova + data-driven starter vehicles",
       "why": "Operator first real-world recreation target. Real dims/weight in items.csv+kits.ron; kits.ron gains starter:true (infinite-of-X -- starters are data); spawn block gated on no-vehicles-present, placed AFTER load_data_registries (first placement was before the registry loaded -- would have silently never fired; caught by checking call order). Returning fleets never duplicated; pre-vehicle saves get the Nova once. Craftable the long way via car_nova_1975_kit_0. Battery green."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.695.0 SHIPPED metre-true UVs: the texture-streak bug was mesh UVs, not shader math",
+      "why": "Operator suspected matrix math; the noise fns were textbook-correct. Root cause: every homestead quad had fixed 0-1 UVs regardless of face size -- an 89x3m wall stretched noise 30:1 into streaks, the 55x89m deck squeezed into one UV tile. Fix: planar_uv (1 uv unit = 1 metre, dominant-plane projection) in home_structure quad builders + cylinder shells circumference-true + fibonacci floor world-XZ UVs. tile_scale now = tiles per metre. OPERATOR VISUAL VERIFY NEEDED in the live world. Session tally since field session 3: v0.693 (graphite/badges/P2P), v0.694 (Nova + starters), v0.695 (UVs)."
     }
   ],
   "active_scopes_to_avoid": [
