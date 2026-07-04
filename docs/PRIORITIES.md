@@ -69,6 +69,20 @@
 > docking/undocking sequence; machine labels are static authored strings
 > -- consider live label stats fed from auto_craft_status. <<<**
 
+> **>>> OPERATOR DESIGN DIRECTION (2026-07-04 field session 2): UNIFIED MAP.**
+> One map to rule them: the main Maps/Cosmos page should show the PLAYER'S
+> location (marker next to Earth), and located asteroids should appear on
+> that same map -- "everything synced to one thing instead of separate
+> systems" (today the mining mini-map on the Inventory page and the Cosmos
+> page are disjoint). Design sketch: Cosmos System view gains (a) a player/
+> home marker at Earth, (b) the live AsteroidBody entities plotted near it,
+> (c) drone-in-flight dot reusing GuiDrone. The Inventory mini-map then
+> becomes a shortcut INTO the Cosmos page. ALSO from the session: the
+> Garden section of the Inventory page needs a design pass (operator:
+> "improve the garden section" -- unspecified, gather requirements next
+> play session), and the broader inventory-page restructure remains open
+> (nested-container tiles memory has the earlier direction). <<<**
+
 > **>>> FLEET MODE COMPLETE (2026-07-01/02 night, Fable 5): 8 more releases
 > in one evening, v0.663.0 -> v0.669.0, built by parallel worktree agents +
 > the orchestrator, every branch reviewed/merged/re-verified on main (709

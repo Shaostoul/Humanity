@@ -305,6 +305,11 @@
       "at": "2026-07-04",
       "decision": "v0.686.0 SHIPPED NEA perihelion classifier -- SNAPSHOT QA SWEEP COMPLETE (29 pages, 4 wakes, 4 shipped fixes)",
       "why": "Cosmos sidebar used a<1.3AU for near-Earth asteroids; real IAU/CNEOS definition is perihelion q=a(1-e)<1.3. Eros (q=1.13) + Itokawa (q=0.95) -- both spacecraft-visited NEAs -- were misfiled into the Main Belt; fixed + snapshot-verified. SWEEP TALLY: v0.684.3 spacing-scale root cause (crushed theme tokens fused text app-wide), v0.684.4 ore reality (gold/silver/Al/Ti no longer smelt from iron ore; bauxite+rutile added), v0.685.0 Studio 16:9 letterbox + mic-label sliver, v0.686.0 NEA classifier. Swept clean: humanity, governance, inventory, market, tasks, profile, wallet, homes, chat (Thorn reaction icon + arrow = false alarms), quests, laws (category chips confirmed live). Unswept (lowest risk, future pass): settings pages, garden/mining modals, library, construction, mining_map, notes, calendar, identity, main_menu, onboarding. NEXT queued: build-game stamp for v0.686.0, then machine-labels-live-stats or PRIORITIES pull."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.686.1 README honesty + v0.687.0 field-fix batch (session 2): lost drone hauls root-caused, modal Verify, health tile, reachable backpack",
+      "why": "Operator field session 2 findings all addressed: (1) drone haul vanished -- delivery discarded add_item overflow with a full backpack; now grows the stock via ensure_slots + regression test; (2) Verify existed only on ServerSettings (slash path) -- chat profile modal gains Verify/Unverify (new relay mod_action arms, admin-only); (3) Health tile added to inventory Status (default fixed 1.0->100.0); (4) backpack tiles chunk to visible width (egui wrapped layout never wraps in width-unbounded tree content -- manual chunking); (5) README: two-person-team honesty + Bluesky removed. LOGGED as design direction: UNIFIED MAP (player marker + asteroids + drone on the Cosmos page; mining mini-map becomes a shortcut), garden-section design pass. Verify button + relay arms are Rust both sides -> single v0.687.0."
     }
   ],
   "active_scopes_to_avoid": [
