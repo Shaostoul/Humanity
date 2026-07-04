@@ -1779,6 +1779,9 @@ pub struct GuiState {
     /// Cosmos -> Inventory jump (unified map slice 2): an asteroid id whose
     /// mining modal should open when the Inventory page next draws.
     pub pending_open_mining_modal: Option<String>,
+    /// GUI -> engine: chase-cam this vehicle (entity bits) while it self-drives;
+    /// any WASD input or arrival breaks the follow (Stage 3, v0.690).
+    pub pending_follow_vehicle: Option<u64>,
     /// Live production status lines (v0.681), one per auto machine, synced from
     /// CraftingSystem's "auto_craft_status" channel each frame -- e.g.
     /// "Assemble Rover — 42%" or "Smelt Iron — waiting for Iron Ore x2".
@@ -3126,6 +3129,7 @@ impl Default for GuiState {
             vehicles: Vec::new(),
             pending_summon_vehicle: None,
             pending_open_mining_modal: None,
+            pending_follow_vehicle: None,
             factory_status: Vec::new(),
             skills: Vec::new(),
             pending_dev_max_skills: false,

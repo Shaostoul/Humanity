@@ -4504,6 +4504,8 @@ mod native_app {
         /// Controllable-transfer path -- moving Controllable off the player would
         /// make extract_world_save find no player and wipe the periodic save.
         driving_vehicle: Option<hecs::Entity>,
+        /// Chase-cam target while a vehicle self-drives (Stage 3 follow mode).
+        follow_vehicle: Option<hecs::Entity>,
         /// The vehicle the crosshair currently targets (within reach + look cone).
         targeted_vehicle: Option<hecs::Entity>,
         vehicle_mats: Option<[usize; 3]>, // [body paint, cabin glass, wheel rubber]
@@ -5289,6 +5291,7 @@ mod native_app {
                 drone_dock_meshes: None,
                 vehicle_meshes: None,
                 driving_vehicle: None,
+                follow_vehicle: None,
                 targeted_vehicle: None,
                 vehicle_mats: None,
                 drone_dock_mats: None,
@@ -6362,6 +6365,48 @@ mod native_app {
                             }
                         }
                     }
+                    // ── FOLLOW CAM (Stage 3, v0.690): chase a self-driving vehicle.
+                    // Engaged from the Vehicles section; broken by any WASD input
+                    // or by the vehicle arriving (route removed). The camera hangs
+                    // behind-above the vehicle and turns to face it; mouse pitch
+                    // stays yours.
+                    if let Some(bits) = state.gui_state.pending_follow_vehicle.take() {
+                        state.follow_vehicle = hecs::Entity::from_bits(bits);
+                        // Watching, not walking: close the page so the world shows.
+                        state.gui_state.active_page = GuiPage::None;
+                    }
+                    if let Some(veh) = state.follow_vehicle {
+                        let input = state
+                            .data_store
+                            .get::<InputState>("input_state")
+                            .cloned()
+                            .unwrap_or_default();
+                        let moved = input.forward || input.backward || input.left || input.right;
+                        let still_routed = state
+                            .game_world
+                            .world
+                            .get::<&crate::ecs::components::VehicleRoute>(veh)
+                            .is_ok();
+                        if moved || !still_routed || state.driving_vehicle.is_some() {
+                            state.follow_vehicle = None;
+                        } else if let Ok(t) = state
+                            .game_world
+                            .world
+                            .get::<&crate::ecs::components::Transform>(veh)
+                        {
+                            let vpos = t.position;
+                            // Hang behind the direction of travel (vehicle +X).
+                            let back = t.rotation * Vec3::new(-9.0, 0.0, 0.0);
+                            state.camera.position = vpos + back + Vec3::Y * 4.0;
+                            let dir = (vpos - state.camera.position).normalize_or_zero();
+                            if dir.length_squared() > 0.0 {
+                                state.camera.yaw = (-dir.x).atan2(-dir.z);
+                            }
+                        } else {
+                            state.follow_vehicle = None;
+                        }
+                    }
+
 
 
                     // Camera stays in local ship coords (no floating origin reset)

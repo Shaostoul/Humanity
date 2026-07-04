@@ -1122,6 +1122,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
+    let mut action_follow_vehicle: Option<u64> = None;
     let mut action_rest = false;
     let mut action_compost = false;
     let mut action_fertilize_crop: Option<u64> = None;
@@ -2071,6 +2072,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             .size(theme.font_size_small)
                                             .color(theme.accent()),
                                     );
+                                    // Stage 3: watch the delivery -- chase-cam until
+                                    // you move or it arrives.
+                                    if widgets::compact_button(ui, theme, "Follow", widgets::ButtonVariant::Secondary) {
+                                        action_follow_vehicle = Some(v.bits);
+                                    }
                                 } else if v.distance > 6.0 {
                                     if widgets::compact_button(ui, theme, "Summon", widgets::ButtonVariant::Primary) {
                                         action_summon_vehicle = Some(v.bits);
@@ -2131,6 +2137,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(bits) = action_summon_vehicle {
         state.pending_summon_vehicle = Some(bits);
+    }
+    if let Some(bits) = action_follow_vehicle {
+        state.pending_follow_vehicle = Some(bits);
     }
 
     // Apply the Garden actions (set inside the central panel) to GuiState; the main
