@@ -198,20 +198,30 @@ fn grid_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     return su * sv;
 }
 
-// Brushed metal pattern (directional micro-scratches)
+// Brushed metal pattern (directional micro-scratches).
+// v0.696 fix: the old vec2(u * 200.0, 0.0) sampled noise along ONE axis with
+// the other pinned to zero -- mathematically that is unbroken full-length
+// stripes, which is exactly the "horizontal or vertical lines of varied
+// colors" the operator screenshotted. A cross-axis coordinate keeps the
+// brushed DIRECTION while ending each scratch, and a low-frequency 2D breakup
+// varies the field so it reads as metal, not wallpaper.
 fn brushed_metal(world_pos: vec3<f32>, normal: vec3<f32>) -> f32 {
     var u: f32;
+    var v: f32;
     let an = abs(normal);
     if an.y > an.x && an.y > an.z {
         u = world_pos.x;
+        v = world_pos.z;
     } else if an.x > an.z {
         u = world_pos.y;
+        v = world_pos.z;
     } else {
         u = world_pos.x;
+        v = world_pos.y;
     }
-    // Fine horizontal scratches
-    let scratch = value_noise(vec2<f32>(u * 200.0, 0.0));
-    return mix(0.85, 1.0, scratch);
+    let scratch = value_noise(vec2<f32>(u * 200.0, v * 7.0));
+    let breakup = value_noise(vec2<f32>(u * 3.0, v * 3.0));
+    return mix(0.85, 1.0, scratch * 0.7 + breakup * 0.3);
 }
 
 // Concrete texture (rough, speckled surface)
