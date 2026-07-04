@@ -212,6 +212,10 @@ steel_ingot_0,Steel Ingot,material,ingot,steel,3.5,20,0,Forged steel bar,solid
 copper_ore_0,Copper Ore,material,ore,copper,4.2,20,0,Unrefined cupric mineral,solid
 nickel_ore_0,Nickel Ore,material,ore,nickel,4.8,20,0,Unrefined nickel mineral,solid
 platinum_ore_0,Platinum Ore,material,ore,platinum,8.0,20,0,Unrefined platinum-group mineral,solid
+gold_ore_0,Gold Ore,material,ore,gold,7.5,20,0,Gold-bearing mineral rock,solid
+silver_ore_0,Silver Ore,material,ore,silver,6.5,20,0,Argentite silver-bearing mineral,solid
+bauxite_0,Bauxite,material,ore,aluminum,3.8,20,0,The primary aluminum ore worldwide,solid
+rutile_0,Rutile,material,ore,titanium,5.2,20,0,Titanium dioxide mineral and the main titanium ore,solid
 nickel_ingot_0,Nickel Ingot,material,ingot,nickel,3.2,20,0,Smelted nickel bar,solid
 platinum_ingot_0,Platinum Ingot,material,ingot,platinum,6.5,20,0,Refined platinum bar,solid
 stainless_steel_ingot_0,Stainless Steel Ingot,material,ingot,stainless_steel,3.4,20,0,Corrosion-resistant steel alloy bar,solid

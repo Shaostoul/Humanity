@@ -21,10 +21,10 @@ smelt_nickel,Smelt Nickel,smelting,nickel_ore_0:2|coal_0:1,nickel_ingot_0:1,10,s
 smelt_platinum,Smelt Platinum,smelting,platinum_ore_0:2|coal_0:2,platinum_ingot_0:1,18,smelter_0,metalworking,4,Refine platinum-group ore into a platinum ingot
 smelt_stainless,Smelt Stainless Steel,smelting,iron_ingot_0:2|nickel_ingot_0:1|coal_0:1,stainless_steel_ingot_0:1,18,smelter_0,metalworking,3,Alloy iron with nickel into corrosion-resistant stainless steel
 smelt_steel,Smelt Steel,smelting,iron_ingot_0:2|coal_0:2,steel_ingot_0:1,15,smelter_0,metalworking,2,Alloy iron with carbon to form steel
-smelt_aluminum,Smelt Aluminum,smelting,iron_ore_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metalworking,3,Electrolytic reduction of alumina ore
-smelt_titanium,Smelt Titanium,smelting,iron_ore_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metalworking,5,High-temperature titanium extraction
-smelt_gold,Smelt Gold,smelting,iron_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
-smelt_silver,Smelt Silver,smelting,iron_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
+smelt_aluminum,Smelt Aluminum,smelting,bauxite_0:3|coal_0:2,aluminum_ingot_0:1,20,smelter_0,metalworking,3,Electrolytic reduction of alumina ore
+smelt_titanium,Smelt Titanium,smelting,rutile_0:4|coal_0:3,titanium_ingot_0:1,30,smelter_0,metalworking,5,High-temperature titanium extraction
+smelt_gold,Smelt Gold,smelting,gold_ore_0:5,gold_ingot_0:1,25,smelter_0,metalworking,4,Refine gold from raw ore
+smelt_silver,Smelt Silver,smelting,silver_ore_0:4,silver_ingot_0:1,20,smelter_0,metalworking,3,Refine silver from raw ore
 smelt_glass,Smelt Glass,smelting,sand_0:3|coal_0:1,glass_pane_0:2,12,smelter_0,metalworking,2,Melt silica sand into clear glass
 fire_brick,Fire Brick,smelting,clay_raw_0:4|coal_0:1,stone_brick_0:4,15,kiln_0,metalworking,1,Fire clay into durable bricks
 fire_porcelain,Fire Porcelain,smelting,clay_raw_0:2|sand_0:1|coal_0:1,glass_pane_0:1,20,kiln_0,metalworking,3,Fire fine porcelain ceramic
