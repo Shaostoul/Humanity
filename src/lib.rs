@@ -6395,14 +6395,28 @@ mod native_app {
                             } else {
                                 0.0
                             };
+                            // A/D steer the wheel (v0.697, operator request):
+                            // they turn the shared yaw, so keyboard and mouse
+                            // steering work simultaneously -- the mouse looks,
+                            // A/D turn, both move the same heading. D = right =
+                            // +yaw (matches mouse-right). A dedicated steering-
+                            // mode setting (mouse-only / keys-only) is queued.
+                            let steer = (input.right as i32 - input.left as i32) as f32;
+                            if steer != 0.0 {
+                                state.camera.yaw += steer * 1.6 * dt;
+                            }
+                            // v0.697 fix: use the camera's OWN forward -- the old
+                            // recomputed (-sin, -cos) was X-mirrored, so driving
+                            // east/west went the wrong way while north/south was
+                            // fine (operator field report).
+                            let fwd = state.camera.forward_xz();
                             if throttle != 0.0 {
-                                let (ys, yc) = state.camera.yaw.sin_cos();
-                                let fwd = Vec3::new(-ys, 0.0, -yc);
                                 vpos += fwd * speed * throttle * dt;
                             }
-                            // The render body's long axis is +X; camera forward is
-                            // (-sin yaw, 0, -cos yaw) => vehicle yaw = cam yaw + 90 deg.
-                            let vrot = Quat::from_rotation_y(state.camera.yaw + std::f32::consts::FRAC_PI_2);
+                            // Body long axis is +X: derive the body yaw from the
+                            // actual forward vector (same formula the transit
+                            // route tick uses), never from yaw-plus-offset math.
+                            let vrot = Quat::from_rotation_y((-fwd.z).atan2(fwd.x));
                             if let Ok(mut t) = state
                                 .game_world
                                 .world
@@ -6471,8 +6485,12 @@ mod native_app {
 
                     // Sync camera state into DataStore for game systems
                     state.data_store.insert("camera_position", state.camera.position);
-                    let (yaw_sin, yaw_cos) = state.camera.yaw.sin_cos();
-                    let forward = Vec3::new(-yaw_sin, 0.0, -yaw_cos).normalize();
+                    // v0.697 fix: this used to recompute forward as (-sin, -cos),
+                    // X-MIRRORING the camera's real (sin, -cos) convention -- correct
+                    // facing north/south, inverted east/west (the operator's "east/
+                    // west is inverted" drive report; deploy/summon spots too). Use
+                    // the camera's own forward, never a reimplementation.
+                    let forward = state.camera.forward_xz();
                     state.data_store.insert("camera_forward", forward);
                     state.data_store.insert("camera_yaw", state.camera.yaw);
 
