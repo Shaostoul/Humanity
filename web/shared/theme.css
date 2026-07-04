@@ -6,18 +6,6 @@
  * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
  * Regenerate with: node scripts/gen-theme-css.js
  * ========================================================================= */
-/* =========================================================================
- * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
- * Regenerate with: node scripts/gen-theme-css.js
- * ========================================================================= */
-/* =========================================================================
- * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
- * Regenerate with: node scripts/gen-theme-css.js
- * ========================================================================= */
-/* =========================================================================
- * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
- * Regenerate with: node scripts/gen-theme-css.js
- * ========================================================================= */
 :root {
   /* Backgrounds */
   --bg: #000000;
@@ -115,9 +103,6 @@
   --server-row-bg: #141437;
   --server-row-hover: #191946;
 }
-/* ======================== END AUTO-GENERATED ======================== */
-/* ======================== END AUTO-GENERATED ======================== */
-/* ======================== END AUTO-GENERATED ======================== */
 /* ======================== END AUTO-GENERATED ======================== */
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */

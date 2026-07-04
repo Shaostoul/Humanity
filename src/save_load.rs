@@ -129,6 +129,18 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         for slot in inv.slots.iter_mut() {
             *slot = None;
         }
+        // GROW to fit before re-adding (v0.692 review fix): the v0.687 delivery
+        // fix legitimately grows the backpack past its base 36 slots, so a save
+        // can hold more stacks than Inventory::new(36) offers -- and add_item's
+        // discarded overflow here silently ate the excess on the NEXT restart,
+        // undoing the never-lose-a-haul guarantee one launch later. Mirror the
+        // delivery-site pattern: ensure the slots, then land everything.
+        let needed: usize = save
+            .inventory
+            .iter()
+            .map(|(_, q)| (*q as usize).div_ceil(99))
+            .sum();
+        inv.ensure_slots(needed);
         for (item_id, qty) in &save.inventory {
             inv.add_item(item_id, *qty, 99);
         }
@@ -306,6 +318,51 @@ mod tests {
         // Untouched: still the original wood, no injected steel.
         assert!(after.inventory.iter().any(|(id, q)| id == "wood_plank_0" && *q == 5));
         assert!(!after.inventory.iter().any(|(id, _)| id == "steel_ingot_0"));
+    }
+
+
+    /// Range-review fix (v0.692): a GROWN backpack (the v0.687 delivery fix
+    /// legitimately expands past 36 slots) must round-trip the save -- the
+    /// load path used to rebuild into Inventory::new(36) and discard
+    /// add_item's overflow, silently eating the extra stacks one restart
+    /// after the delivery rescued them.
+    #[test]
+    fn grown_backpack_saves_round_trip_without_losing_stacks() {
+        let mut world = hecs::World::new();
+        // 37 DISTINCT unstackable items: one more than the base 36 slots.
+        let mut inv = Inventory::new(36);
+        for i in 0..36 {
+            inv.add_item(&format!("junk_{i}"), 1, 1);
+        }
+        inv.ensure_slots(37);
+        inv.add_item("iron_ore_0", 1, 1); // the rescued haul
+        world.spawn((
+            Controllable,
+            inv,
+            PlayerSkills::new(),
+            crate::ecs::components::Name("Hauler".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+
+        let save = extract_world_save(&world);
+        assert_eq!(save.inventory.len(), 37, "the grown backpack saved all 37 stacks");
+
+        // Fresh world with the BASE 36-slot inventory, like a restart.
+        let mut fresh = hecs::World::new();
+        let player = fresh.spawn((
+            Controllable,
+            Inventory::new(36),
+            PlayerSkills::new(),
+            crate::ecs::components::Name("X".to_string()),
+            crate::ecs::components::Appearance::default(),
+            crate::ecs::components::Outfit::default(),
+        ));
+        apply_save_to_world(&mut fresh, &save);
+        let inv = fresh.get::<&Inventory>(player).unwrap();
+        let stacks = inv.slots.iter().filter(|s| s.is_some()).count();
+        assert_eq!(stacks, 37, "all 37 stacks survived the restart");
+        assert_eq!(inv.count_item("iron_ore_0"), 1, "the rescued haul survived");
     }
 
     /// A deployed vehicle survives the full extract -> apply round trip (economy

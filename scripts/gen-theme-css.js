@@ -223,8 +223,15 @@ function main() {
     css = fs.readFileSync(CSS_PATH, 'utf8');
   }
 
+  // Normalize CRLF before marker matching (v0.692 fix): the BEGIN marker embeds
+  // \n newlines, so once git checked the file out with \r\n the indexOf missed,
+  // the :root fallback matched INSIDE the previous generated block, and every
+  // regen nested another banner pair (the file had accumulated four).
+  css = css.replace(/\r\n/g, '\n');
   const beginIdx = css.indexOf(BEGIN);
-  const endIdx = css.indexOf(END);
+  // Collapse first-BEGIN .. LAST-END so pre-fix accumulated duplicates heal on
+  // the next regen instead of persisting.
+  const endIdx = css.lastIndexOf(END);
 
   if (beginIdx !== -1 && endIdx !== -1) {
     // Replace the existing generated block.

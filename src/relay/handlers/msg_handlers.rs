@@ -1589,18 +1589,53 @@ pub async fn handle_mod_action(
             };
             let _ = state.broadcast_tx.send(private);
         }
-        // Verified badge (v0.687): the user-profile modal quick action. Same
-        // set_role path the /verify slash command uses -- verified gates uploads
-        // and the shared-file library, so it is admin-only like mod/ban.
-        "verify" => {
-            if let Err(e) = state.db.set_role(target, "verified") {
-                tracing::error!("mod_action set_role verified error: {e}");
+        // Verified badge (v0.687; hardened v0.692 after the range review). The
+        // single role column makes verify a role REPLACEMENT, so the arm must
+        // never touch elevated targets: the unguarded version let one Verify
+        // click silently demote a moderator, another admin, or the CALLER
+        // THEMSELVES (a sole-admin lockout recoverable only by DB edit).
+        "verify" | "unverify" => {
+            // An empty key would upsert a bogus role row for "" and silently do
+            // nothing for the real user (the DesktopUser_4000 empty-key case).
+            if target.trim().is_empty() {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!("Can't {action} {target_name}: no registered key."),
+                };
+                let _ = state.broadcast_tx.send(private);
+                return;
             }
-        }
-        "unverify" => {
-            if let Err(e) = state.db.set_role(target, "member") {
-                tracing::error!("mod_action set_role member (unverify) error: {e}");
+            let current = state.db.get_role(target).unwrap_or_default();
+            let ok_to_touch = if action == "verify" {
+                // Only plain members (or role-less users) can be verified.
+                matches!(current.as_str(), "" | "member" | "user" | "unverified")
+            } else {
+                // Only currently-verified users can be unverified.
+                current == "verified"
+            };
+            if !ok_to_touch {
+                let private = RelayMessage::Private {
+                    to: my_key.to_string(),
+                    message: format!(
+                        "Can't {action} {target_name}: their role is '{current}'. \
+                         Use the role controls for mods/admins.",
+                        current = if current.is_empty() { "member" } else { &current }
+                    ),
+                };
+                let _ = state.broadcast_tx.send(private);
+                return;
             }
+            let new_role = if action == "verify" { "verified" } else { "member" };
+            if let Err(e) = state.db.set_role(target, new_role) {
+                tracing::error!("mod_action set_role {new_role} error: {e}");
+                return;
+            }
+            let verbed = if action == "verify" { "Verified" } else { "Unverified" };
+            let private = RelayMessage::Private {
+                to: my_key.to_string(),
+                message: format!("✓ {verbed} {target_name}."),
+            };
+            let _ = state.broadcast_tx.send(private);
         }
         "unmod" => {
             if let Err(e) = state.db.set_role(target, "member") {

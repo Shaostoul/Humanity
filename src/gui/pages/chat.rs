@@ -4243,8 +4243,13 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         // Verify button lived only on Server Settings; this is
                         // the same set_role path, one click from the profile).
                         let target_is_verified = user_role == "verified";
+                        // Only plain members can be verified (the relay refuses
+                        // elevated targets too -- v0.692: an unguarded Verify
+                        // click silently demoted mods/admins via role overwrite).
+                        let verify_applicable = target_is_verified
+                            || matches!(user_role.as_str(), "" | "member" | "user" | "unverified");
                         let verify_label = if target_is_verified { "Unverify" } else { "Verify" };
-                        if ui.add(
+                        if verify_applicable && ui.add(
                             egui::Button::new(
                                 RichText::new(verify_label)
                                     .size(theme.font_size_body)
