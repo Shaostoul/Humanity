@@ -14,6 +14,10 @@
  * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
  * Regenerate with: node scripts/gen-theme-css.js
  * ========================================================================= */
+/* =========================================================================
+ * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
+ * Regenerate with: node scripts/gen-theme-css.js
+ * ========================================================================= */
 :root {
   /* Backgrounds */
   --bg: #000000;
@@ -62,13 +66,13 @@
   --badge-radius: 3px;
 
   /* Spacing (derived from native tokens via x/16 rem conversion) */
-  --space-xs: 0rem;
-  --space-sm: 0.0377rem;
-  --space-md: 0.1418rem;
-  --space-lg: 0.2013rem;
-  --space-xl: 0.2408rem;
-  --space-2xl: 0.3612rem;
-  --space-3xl: 0.4816rem;
+  --space-xs: 0.125rem;
+  --space-sm: 0.375rem;
+  --space-md: 0.625rem;
+  --space-lg: 0.875rem;
+  --space-xl: 1.125rem;
+  --space-2xl: 1.6875rem;
+  --space-3xl: 2.25rem;
 
   /* Typography */
   --text-xs: 0.6814rem;
@@ -111,6 +115,7 @@
   --server-row-bg: #141437;
   --server-row-hover: #191946;
 }
+/* ======================== END AUTO-GENERATED ======================== */
 /* ======================== END AUTO-GENERATED ======================== */
 /* ======================== END AUTO-GENERATED ======================== */
 /* ======================== END AUTO-GENERATED ======================== */
