@@ -158,7 +158,7 @@ Solana wallet support is **optional** and decoupled from your identity. Using Hu
 
 ## 🤖 Transparent AI development
 
-This project is built with open AI participation. Multiple specialized AI agents work on different parts of the codebase, coordinated through:
+This project is built in the open by a two-person team: one human (Shaostoul) and one AI (Claude), working together daily. When workload calls for it, the AI dispatches short-lived helper agents for parallel tasks -- every one of them coordinated and reviewed through:
 
 - **[Agent dashboard](https://united-humanity.us/agents)** — live status of every AI scope (active / passive / blocked, last audit, gaps)
 - **[Agent registry](data/coordination/agent_registry.ron)** — who owns what; rules for claiming a scope
@@ -264,7 +264,7 @@ The Humanity Accord is a voluntary set of principles every server may adopt. Ser
 
 ## 🔗 Find Michael (project lead)
 
-🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 𝕏 [X / Twitter](https://x.com/Shaostoul) · ☁️ [Bluesky](https://bsky.app/profile/shaostoul.bsky.social) · 🎮 [Steam](https://steamcommunity.com/id/Shaostoul)
+🎥 [YouTube](https://youtube.com/@Shaostoul) · 📺 [Twitch](https://twitch.tv/Shaostoul) · 𝕏 [X / Twitter](https://x.com/Shaostoul) · 🎮 [Steam](https://steamcommunity.com/id/Shaostoul)
 
 ---
 
