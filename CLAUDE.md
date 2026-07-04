@@ -38,6 +38,21 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 **No backwards-compatibility debt before launch (operator directive, 2026-06-30).** Nobody is using HumanityOS yet. Don't write compatibility shims, data-migration code for old save/vault/schema formats, deprecated-but-kept fields, or "legacy" fallback branches, unless a specific past migration is already documented as active (e.g. the PBKDF2 100k-to-600k vault migration, or version-tagged blueprint schemas that genuinely need to keep loading old player saves). When you change a format or an API shape, just change it outright; there is no installed base to protect yet, and compat code written now is bloat that will need to be found and removed later anyway. This will change once real users exist, revisit this note before deleting it.
 
+## Usage-budget pacing (operator protocol, 2026-07-04)
+
+The AI CANNOT see the subscription usage meter. The operator calibrates it with
+one-line readings in chat whenever convenient: "usage: 36%, resets 9pm" (5-hour
+window) and occasionally "weekly: 40%". Between readings the AI self-tracks
+roughly: each Workflow run reports subagent tokens back (maps ~1M, adversarial
+reviews 500-800k -- the whales); a solo implement+verify+ship iteration is
+~20-60k. Phased window plan: FRESH window = big swings first (multi-agent
+workflows, fleet waves, reviews, large arcs); ~70% = shift to solo small-ship
+mode; ~85-90% = wind down (journal + PRIORITIES + version stamps + push) so
+NOTHING is uncommitted when the cap hits. A spend-limit error mid-workflow =
+treat every unverified finding as unadjudicated (the v0.677 review died with 3
+unverified findings; 2 were real). Do not default to timid solo loops out of
+cutoff fear -- ask the meter, then spend with intent.
+
 ## Cross-session persistence (perpetual)
 
 Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:
