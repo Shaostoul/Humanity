@@ -285,6 +285,11 @@
       "at": "2026-07-04",
       "decision": "v0.684.0 SHIPPED stat-card stair-step fix (operator screenshot): widgets must OWN their internal layout",
       "why": "Operator spotted the Where-we-stand tiles stair-stepping in the humanity snapshot. Two-layer cause: (1) draw_stat_card inherited the parent layout direction, so in left-to-right containers label+value went side-by-side at drifting heights -- fixed with explicit ui.vertical inside the card (general lesson for ALL universal widgets: never inherit the parent layout for internal structure); (2) Humanity used horizontal_wrapped while Civilization used a top-aligned Grid for the same cards -- Humanity now uses the same Grid. humanity.png regenerated + visually verified uniform. Also shipped this wake: the pending v0.683.1 stamp. Loop continues on low-effort items."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.684.2 just validate-data + v0.684.3 THEME SPACING SCALE RESTORED (the app-wide cramped look had one data root cause)",
+      "why": "Snapshot QA sweep (loop) caught governance rows fusing (OPENlocal...workshopcloses). Layout code was fine; theme.ron spacing tokens were crushed to near-zero (xs 0.0 / sm 0.60 / md 2.27 / lg 3.22 / xl 3.85 / card_padding 1.69 -- slider-drag/scale-mishap shaped). Every add_space(spacing_*) rendered as nothing app-wide; contributes to the stair-step family the operator flagged. Restored dense-but-legible (2/6/10/14/18, card 6), theme.css regenerated, all 29 snapshots re-rendered, governance verified. Taste-adjacent: operator can retune live in Settings. ALSO: Laws category chips found ALREADY SHIPPED (stale queue item, laws.rs:85-99); journal rotated (137->96KB); v0.684.1 stamp; deploy train green."
     }
   ],
   "active_scopes_to_avoid": [
