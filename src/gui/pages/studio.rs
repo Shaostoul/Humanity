@@ -317,6 +317,13 @@ fn draw_scene_canvas(
                 if !src.visible {
                     continue;
                 }
+                // Audio-only / zero-area sources (the Microphone ships at size
+                // 0x0) have no visual footprint -- skip them, or their centered
+                // label paints a stray "...phone" sliver at the canvas origin
+                // (caught in the 2026-07-04 snapshot QA sweep).
+                if src.size.0 <= 0.0 || src.size.1 <= 0.0 {
+                    continue;
+                }
                 let x = rect.min.x + src.position.0 * rect.width();
                 let y = rect.min.y + src.position.1 * rect.height();
                 let w = src.size.0 * rect.width();
@@ -444,10 +451,25 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let program_empty_msg = "Nothing live yet: stage a scene in Preview, then Cut to Program";
     let preview_empty_msg = "No visible sources";
 
+    // A stream canvas IS 16:9 (the 1920x1080 output): LETTERBOX it into the
+    // pane instead of stretching to whatever height is left -- the panes were
+    // rendering portrait, so every scene mock read as a phone stream (caught in
+    // the 2026-07-04 snapshot QA sweep). Width-driven, capped by the available
+    // height (shrink width to keep 16:9 when height-limited).
+    let letterbox_16_9 = |max_w: f32, max_h: f32| -> Vec2 {
+        let ideal_h = max_w * 9.0 / 16.0;
+        if ideal_h <= max_h {
+            Vec2::new(max_w, ideal_h)
+        } else {
+            Vec2::new(max_h * 16.0 / 9.0, max_h)
+        }
+    };
+
     if avail.x >= SPLIT_MIN_WIDTH {
         // Wide: Program (left, the live output) and Preview (right, staged) side by side.
         let gap = 8.0;
         let pane_w = ((avail.x - gap) / 2.0).max(100.0);
+        let canvas_size = letterbox_16_9(pane_w, canvas_height);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             ui.vertical(|ui| {
@@ -457,7 +479,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui,
                     theme,
                     &state.studio.program_sources,
-                    Vec2::new(pane_w, canvas_height),
+                    canvas_size,
                     state.studio.is_live,
                     program_empty_msg,
                 );
@@ -469,7 +491,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui,
                     theme,
                     &state.studio.sources,
-                    Vec2::new(pane_w, canvas_height),
+                    canvas_size,
                     false,
                     preview_empty_msg,
                 );
@@ -507,7 +529,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui,
                 theme,
                 &state.studio.program_sources,
-                Vec2::new(avail.x, canvas_height),
+                letterbox_16_9(avail.x, canvas_height),
                 state.studio.is_live,
                 program_empty_msg,
             );
@@ -516,7 +538,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui,
                 theme,
                 &state.studio.sources,
-                Vec2::new(avail.x, canvas_height),
+                letterbox_16_9(avail.x, canvas_height),
                 false,
                 preview_empty_msg,
             );
