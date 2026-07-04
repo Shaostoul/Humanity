@@ -4499,6 +4499,13 @@ mod native_app {
         /// one unit wheel cylinder, scaled per vehicle from the kit registry's body
         /// proportions each frame — same build-once pattern as the drone dock above.
         vehicle_meshes: Option<[usize; 2]>, // [unit_box, wheel_cylinder]
+        /// Stage 3 take-over (v0.690): the vehicle the player is DRIVING (camera
+        /// glued to the cab, WASD steers the vehicle). Deliberately NOT the
+        /// Controllable-transfer path -- moving Controllable off the player would
+        /// make extract_world_save find no player and wipe the periodic save.
+        driving_vehicle: Option<hecs::Entity>,
+        /// The vehicle the crosshair currently targets (within reach + look cone).
+        targeted_vehicle: Option<hecs::Entity>,
         vehicle_mats: Option<[usize; 3]>, // [body paint, cabin glass, wheel rubber]
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
@@ -5281,6 +5288,8 @@ mod native_app {
                 rail_car_mat: None,
                 drone_dock_meshes: None,
                 vehicle_meshes: None,
+                driving_vehicle: None,
+                targeted_vehicle: None,
                 vehicle_mats: None,
                 drone_dock_mats: None,
                 drone_dock_anim: 1.0,
@@ -5613,7 +5622,45 @@ mod native_app {
                         if key == KeyCode::KeyE && pressed
                             && state.gui_state.active_page == GuiPage::None
                         {
-                            if let Some(cp) = state.gui_state.targeted_control_panel {
+                            // Vehicle take-over (Stage 3, v0.690) -- checked FIRST:
+                            // driving exits; facing a parked vehicle enters. Entering
+                            // cancels any self-drive route (the driver wins).
+                            if let Some(veh) = state.driving_vehicle.take() {
+                                // EXIT: step out beside the vehicle at ground level.
+                                let (pos, rot) = state
+                                    .game_world
+                                    .world
+                                    .get::<&crate::ecs::components::Transform>(veh)
+                                    .map(|t| (t.position, t.rotation))
+                                    .unwrap_or((state.camera.position, Quat::IDENTITY));
+                                if let Ok(mut seat) = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut crate::ecs::components::VehicleSeat>(veh)
+                                {
+                                    seat.occupant_key = None;
+                                }
+                                let side = rot * Vec3::new(0.0, 0.0, 2.2);
+                                state.camera.position =
+                                    Vec3::new(pos.x + side.x, pos.y + 1.7, pos.z + side.z);
+                            } else if let Some(veh) = state.targeted_vehicle {
+                                // ENTER: seat the player, cancel self-drive.
+                                if state.game_world.world.contains(veh) {
+                                    let _ = state
+                                        .game_world
+                                        .world
+                                        .remove_one::<crate::ecs::components::VehicleRoute>(veh);
+                                    if let Ok(mut seat) = state
+                                        .game_world
+                                        .world
+                                        .get::<&mut crate::ecs::components::VehicleSeat>(veh)
+                                    {
+                                        seat.occupant_key = Some("player".to_string());
+                                    }
+                                    state.driving_vehicle = Some(veh);
+                                }
+                            } else
+ if let Some(cp) = state.gui_state.targeted_control_panel {
                                 // Looking at a door control panel (v0.567 + v0.570 locks): if the door
                                 // is LOCKED, E UNLOCKS it (Stage 1 unlocks every lock -- key/code/skill
                                 // enforcement is a follow-up); once unlocked, E opens/closes a manual
@@ -6236,6 +6283,86 @@ mod native_app {
                         );
                         state.camera.position = resolved;
                     }
+                    // ── DRIVING (Stage 3 take-over, v0.690) ──
+                    // While driving: WASD throttles/steers the VEHICLE (arcade: it
+                    // goes where you look), the camera rides the cab, and the ECS
+                    // player Transform travels along so saves + systems see the
+                    // player where the vehicle is. Runs AFTER the walk/collision
+                    // resolve above and simply overrides the camera -- walking
+                    // input becomes throttle input for free via InputState.
+                    if let Some(veh) = state.driving_vehicle {
+                        if !state.game_world.world.contains(veh) {
+                            state.driving_vehicle = None; // despawned under us
+                        } else {
+                            // Driver wins over any self-drive route re-attached mid-drive.
+                            let _ = state
+                                .game_world
+                                .world
+                                .remove_one::<crate::ecs::components::VehicleRoute>(veh);
+                            let (mut vpos, item_id) = {
+                                let t = state
+                                    .game_world
+                                    .world
+                                    .get::<&crate::ecs::components::Transform>(veh)
+                                    .map(|t| t.position)
+                                    .unwrap_or(state.camera.position);
+                                let id = state
+                                    .game_world
+                                    .world
+                                    .get::<&crate::ecs::components::Vehicle>(veh)
+                                    .map(|v| v.item_id.clone())
+                                    .unwrap_or_default();
+                                (t, id)
+                            };
+                            let def = state
+                                .data_store
+                                .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                                .and_then(|r| r.get_vehicle(&item_id).cloned());
+                            let speed = def.as_ref().map(|d| d.speed_mps).unwrap_or(6.0);
+                            let cab_h = def
+                                .as_ref()
+                                .map(|d| d.wheel_radius_m + d.body_m.1 + d.cabin_m.1 + 0.35)
+                                .unwrap_or(2.2);
+                            let input = state
+                                .data_store
+                                .get::<InputState>("input_state")
+                                .cloned()
+                                .unwrap_or_default();
+                            let throttle = if input.forward {
+                                1.0
+                            } else if input.backward {
+                                -0.45
+                            } else {
+                                0.0
+                            };
+                            if throttle != 0.0 {
+                                let (ys, yc) = state.camera.yaw.sin_cos();
+                                let fwd = Vec3::new(-ys, 0.0, -yc);
+                                vpos += fwd * speed * throttle * dt;
+                            }
+                            // The render body's long axis is +X; camera forward is
+                            // (-sin yaw, 0, -cos yaw) => vehicle yaw = cam yaw + 90 deg.
+                            let vrot = Quat::from_rotation_y(state.camera.yaw + std::f32::consts::FRAC_PI_2);
+                            if let Ok(mut t) = state
+                                .game_world
+                                .world
+                                .get::<&mut crate::ecs::components::Transform>(veh)
+                            {
+                                t.position = vpos;
+                                t.rotation = vrot;
+                            }
+                            // Camera rides the cab; player entity travels along.
+                            state.camera.position = vpos + Vec3::Y * cab_h;
+                            for (_e, (tf, _c)) in state.game_world.world.query_mut::<(
+                                &mut crate::ecs::components::Transform,
+                                &crate::ecs::components::Controllable,
+                            )>() {
+                                tf.position = vpos;
+                                break;
+                            }
+                        }
+                    }
+
 
                     // Camera stays in local ship coords (no floating origin reset)
                     // Floating origin is only used for rendering distant bodies
@@ -6267,6 +6394,49 @@ mod native_app {
                             }
                         }
                         state.gui_state.targeted_machine = best.map(|b| b.0);
+                    }
+
+                    // Walk-up to a VEHICLE (Stage 3 take-over, v0.690): the nearest
+                    // Vehicle entity within reach inside the look cone. Drives the
+                    // "[E] drive X" prompt; E enters, E again exits. While driving,
+                    // the prompt is a constant "[E] exit vehicle".
+                    {
+                        if state.driving_vehicle.is_some() {
+                            state.targeted_vehicle = None;
+                            state.gui_state.vehicle_prompt = "[E] exit vehicle".to_string();
+                        } else {
+                            let cp = state.camera.position;
+                            let cf = state.camera.forward();
+                            let mut best: Option<(hecs::Entity, f32, String)> = None;
+                            for (e, (_v, tf, name)) in state
+                                .game_world
+                                .world
+                                .query::<(
+                                    &crate::ecs::components::Vehicle,
+                                    &crate::ecs::components::Transform,
+                                    Option<&crate::ecs::components::Name>,
+                                )>()
+                                .iter()
+                            {
+                                let to = tf.position + Vec3::Y * 1.0 - cp;
+                                let dist = to.length();
+                                if !(0.5..=6.0).contains(&dist) {
+                                    continue;
+                                }
+                                if (to / dist).dot(cf) < 0.85 {
+                                    continue;
+                                }
+                                if best.as_ref().map_or(true, |b| dist < b.1) {
+                                    let label = name.map(|n| n.0.clone()).unwrap_or_else(|| "vehicle".into());
+                                    best = Some((e, dist, label));
+                                }
+                            }
+                            state.targeted_vehicle = best.as_ref().map(|b| b.0);
+                            state.gui_state.vehicle_prompt = match &best {
+                                Some((_, _, label)) => format!("[E] drive {label}"),
+                                None => String::new(),
+                            };
+                        }
                     }
 
                     // Walk-up to a door you can interact with (v0.567 control panel + v0.570 locks): the

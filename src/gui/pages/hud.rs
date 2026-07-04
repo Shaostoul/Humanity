@@ -292,6 +292,18 @@ pub fn draw(
                     theme.accent(),
                 );
             }
+            // Vehicle prompt (Stage 3 take-over, v0.690): "[E] drive X" at the
+            // crosshair, or "[E] exit vehicle" while driving.
+            if !state.vehicle_prompt.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 38.0),
+                    Align2::CENTER_TOP,
+                    &state.vehicle_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
             // Pinned (E-opened) machine card: fixed top-left, stays until E again.
             if let Some(i) = state.selected_machine {
                 if let Some(label) = state.machine_labels.get(i) {

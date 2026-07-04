@@ -1538,6 +1538,9 @@ pub struct GuiState {
     /// Index into machine_labels of the machine the player is currently looking at
     /// within interact range (walk-up interaction, v0.431). Recomputed each frame.
     pub targeted_machine: Option<usize>,
+    /// Crosshair prompt for the vehicle the player faces ("[E] drive Rover") or
+    /// "[E] exit vehicle" while driving. Precomputed in lib.rs like the door prompt.
+    pub vehicle_prompt: String,
     /// Index into `door_panels` of the door CONTROL PANEL the player is looking at within
     /// arm's reach (v0.567). Drives the "[E] open/close door" prompt; E toggles the door.
     /// Recomputed each frame in first person. Mirrors `targeted_machine`.
@@ -2998,6 +3001,7 @@ impl Default for GuiState {
             profile_directory_listed: true,
             machine_labels: Vec::new(),
             targeted_machine: None,
+            vehicle_prompt: String::new(),
             targeted_control_panel: None,
             control_panel_prompt: String::new(),
             selected_machine: None,
