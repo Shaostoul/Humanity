@@ -62,6 +62,10 @@ pub struct VehicleKitDef {
     /// so kit entries without it drive at a sane homestead pace.
     #[serde(default = "default_speed_mps")]
     pub speed_mps: f32,
+    /// Starter vehicle (v0.694): spawned pre-built in a brand-new home (no
+    /// save, no vehicles) so driving needs no factory chain on day one.
+    #[serde(default)]
+    pub starter: bool,
 }
 
 fn default_speed_mps() -> f32 {
@@ -103,6 +107,11 @@ impl VehicleKitRegistry {
 
     pub fn is_empty(&self) -> bool {
         self.by_kit.is_empty()
+    }
+
+    /// Kits flagged as starter vehicles (pre-built in a fresh home).
+    pub fn starters(&self) -> impl Iterator<Item = &VehicleKitDef> {
+        self.by_kit.values().filter(|k| k.starter)
     }
 }
 

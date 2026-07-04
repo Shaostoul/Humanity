@@ -322,6 +322,8 @@ raft_0,Raft,vehicle,watercraft,bamboo,20.0,1,100,Simple floating platform,solid
 canoe_0,Canoe,vehicle,watercraft,cedar,25.0,1,200,Narrow paddle-driven boat,solid
 truck_pickup_kit_0,Pickup Truck Kit,vehicle,kit,steel,1400.0,1,500,Flat-packed pickup truck. Deploy it to assemble the real thing on the spot,solid
 rover_kit_0,Rover Kit,vehicle,kit,aluminum,350.0,1,400,Flat-packed all-terrain rover. Deploy it to assemble the real thing on the spot,solid
+car_nova_1975_0,1975 Chevy Nova,vehicle,motorized,steel,1497.0,1,500,Third-generation Chevrolet Nova coupe. The first real-world vehicle recreated in HumanityOS,solid
+car_nova_1975_kit_0,1975 Chevy Nova Kit,vehicle,kit,steel,1100.0,1,500,Flat-packed 1975 Chevy Nova restoration kit. Deploy to assemble,solid
 #
 # === CONTAINERS / STORAGE ===
 chest_wood_0,Wood Chest,furniture,container,oak,10.0,1,200,Lidded wooden storage box,solid

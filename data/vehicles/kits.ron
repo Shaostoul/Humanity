@@ -28,4 +28,18 @@
         wheel_radius_m: 0.5,
         speed_mps: 6.0,
     ),
+    (
+        kit_item: "car_nova_1975_kit_0",
+        vehicle_item: "car_nova_1975_0",
+        display_name: "1975 Chevy Nova",
+        // Real third-gen Nova footprint: 4.85 m long, 1.83 m wide; sill-to-
+        // beltline ~0.75 m, greenhouse ~0.6 m. The operator's own car -- the
+        // first real-world vehicle recreated in HumanityOS.
+        body_m: (4.85, 0.75, 1.83),
+        cabin_m: (2.1, 0.6, 1.7),
+        cabin_offset_x: -0.2,
+        wheel_radius_m: 0.33,
+        speed_mps: 12.0,
+        starter: true,
+    ),
 ]

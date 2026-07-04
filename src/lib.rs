@@ -5199,6 +5199,49 @@ mod native_app {
             // ids, no recipes, empty skills + the quest shown by id. (load_world
             // re-loads them; idempotent.)
             load_data_registries(&mut data_store, &data_dir);
+            // STARTER VEHICLES (v0.694, operator: "update the player home to have
+            // a prebuilt vehicle so I don't have to assemble the factory, mine
+            // resources, etc." -- headlined by their 1975 Chevy Nova, the first
+            // real-world vehicle recreated in HumanityOS). Data-driven per
+            // infinite-of-X: any kits.ron entry with `starter: true` spawns
+            // pre-built in a BRAND-NEW home only (the save had no vehicles and
+            // none exist -- an owned fleet is never duplicated or resurrected).
+            {
+                let has_vehicles = game_world
+                    .world
+                    .query::<&crate::ecs::components::Vehicle>()
+                    .iter()
+                    .next()
+                    .is_some();
+                if !has_vehicles {
+                    if let Some(kits) = data_store
+                        .get::<crate::systems::vehicles::VehicleKitRegistry>("vehicle_kit_registry")
+                    {
+                        let starters: Vec<_> = kits.starters().cloned().collect();
+                        for (i, def) in starters.iter().enumerate() {
+                            // Park along the homestead frontage, one lane apart.
+                            let pos = Vec3::new(14.0 + i as f32 * 6.0, 0.0, 10.0);
+                            game_world.world.spawn((
+                                crate::ecs::components::Vehicle {
+                                    item_id: def.vehicle_item.clone(),
+                                },
+                                crate::ecs::components::Transform {
+                                    position: pos,
+                                    rotation: Quat::from_rotation_y(0.0),
+                                    scale: Vec3::ONE,
+                                },
+                                crate::ecs::components::Velocity::default(),
+                                crate::ecs::components::VehicleSeat {
+                                    occupant_key: None,
+                                    seat_type: "pilot".to_string(),
+                                },
+                                crate::ecs::components::Name(def.display_name.clone()),
+                            ));
+                            log::info!("Starter vehicle parked: {}", def.display_name);
+                        }
+                    }
+                }
+            }
             gui_state.market_categories = crate::gui::load_market_categories(&data_dir);
             gui_state.studio_scene_presets = crate::gui::load_studio_scenes(&data_dir);
             gui_state.studio_source_presets = crate::gui::load_studio_sources(&data_dir);
