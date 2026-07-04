@@ -295,6 +295,11 @@
       "at": "2026-07-04",
       "decision": "v0.684.4 SHIPPED ore reality (snapshot sweep find): gold/silver/aluminum/titanium no longer smelt from iron_ore_0",
       "why": "Crafting-page snapshot showed all four precious/light-metal smelts consuming iron_ore_0 placeholders. Added real ores (gold_ore_0, silver_ore_0 argentite, bauxite_0, rutile_0 -- real-world primary ores, educational per the operator close-to-reality mandate) + corrected the 4 recipes. Dev-stock enumerates recipe inputs so they are obtainable in dev; asteroid classes gain them with mining depth. Inventory page swept CLEAN under the restored spacing. validate-data + refining tests green."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.685.0 SHIPPED Studio 16:9 letterbox + zero-area source skip (snapshot sweep wake 3)",
+      "why": "Studio canvases stretched to fill leftover height -> portrait scene mocks; now letterboxed 16:9 both layouts. Microphone source (size 0x0, audio-only) painted a clipped ...phone label sliver at canvas origin; zero-area sources skipped. Market + tasks swept clean under the restored spacing. Rust release -> build-game stamp next wake."
     }
   ],
   "active_scopes_to_avoid": [
