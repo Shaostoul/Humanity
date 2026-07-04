@@ -355,6 +355,11 @@
       "at": "2026-07-04",
       "decision": "v0.696.0 SHIPPED the ACTUAL texture fix: brushed_metal sampled noise as vec2(u*200, 0.0) -- 1D = unbroken stripes. Honest correction: v0.695 mesh UVs were not the visible fix (live shader is world-pos triplanar).",
       "why": "Operator reported v0.695.1 changed nothing -- correct: procedural material shaders (granite_tile etc.) are UNWIRED files; the live pbr_simple.wgsl ignores mesh UVs. Traced the active dispatch: floors carry data-driven material_type; the deck is type 1 brushed metal whose scratch fn pinned the second noise axis to zero. Fixed with cross-axis + 2D breakup. Wood/concrete already 2D. Lessons: (a) verify the RENDER PATH before fixing meshes, (b) the unwired granite/plank/drywall shader library is future material-pipeline work (mesh UVs now metre-true for it). Operator visual verify = acceptance."
+    },
+    {
+      "at": "2026-07-04",
+      "decision": "v0.697.0 SHIPPED driving E/W inversion root-cause + A/D steering (operator field report)",
+      "why": "Symptom N/S-fine-E/W-inverted = X-mirrored forward recomputation. TWO sites used (-sin,-cos) vs the camera true (sin,-cos): the v0.690 drive update AND the per-frame camera_forward DataStore sync (so deploy spots + summon destinations were mirrored E/W too, unnoticed). Both now use camera.forward_xz(); body yaw derives from the forward VECTOR (atan2, transit formula). A/D turn the shared heading (D=right matches mouse-right) so mouse+keyboard steer simultaneously; steering-mode setting queued. Rule journaled: never reimplement a convention the camera exposes."
     }
   ],
   "active_scopes_to_avoid": [

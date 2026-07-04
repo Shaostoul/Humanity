@@ -33,7 +33,9 @@
 > for print. (8) STUDIO CHAT LAYERS: HOS channel view on the Studio page,
 > then merged YouTube/Twitch/Rumble layers, resizable/collapsible. (9) REAL
 > STREAMING PIPELINE: Studio is UI-only today -- capture/encode/RTMP is the
-> gap for relay + multistream. <<<**
+> gap for relay + multistream. (10) STEERING-MODE
+> setting: mouse-look / keys-only / hybrid toggle for driving (v0.697 ships
+> hybrid: mouse looks, A/D turn the same heading). <<<**
 
 
 > **>>> SHARED-FILE LIBRARY SHIPPED (v0.675.0, 2026-07-02, Fable 5): the
