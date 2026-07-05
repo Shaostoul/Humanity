@@ -34,6 +34,22 @@ use crate::relay::relay::RelayState;
 pub struct OverrideRequest {
     pub scope_id: String,
     pub status: String,
+    /// Dilithium3 pubkey hex of the caller (admin auth, v0.698.0).
+    pub key: String,
+    /// Unix millis; must be within 5 minutes of server time.
+    pub timestamp: u64,
+    /// Dilithium3 signature hex over `agent_override\n{timestamp}`.
+    pub sig: String,
+}
+
+/// Scope ids come from agent_registry.ron and are written back into
+/// overrides.ron AND echoed into #announcements, so an arbitrary string here
+/// would be both a RON-injection and an announcement-spam vector. Registry
+/// ids are short kebab/snake tokens; enforce exactly that shape.
+fn valid_scope_id(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 /// `GET /api/v2/agents/status` — one-shot aggregate for the dashboard.
@@ -96,6 +112,53 @@ pub async fn set_agent_override(
     State(state): State<Arc<RelayState>>,
     Json(req): Json<OverrideRequest>,
 ) -> impl IntoResponse {
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+
+    // Admin-only (v0.698.0). This endpoint WRITES a coordination file and
+    // posts to #announcements; it shipped unauthenticated at v0.118.0 and
+    // was caught in the 2026-07-04 page-access audit. Same key/timestamp/sig
+    // scheme as /api/admin/stats.
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(req.timestamp) > 5 * 60 * 1000 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Timestamp too old."})),
+        )
+            .into_response();
+    }
+    let vk = req.key.clone();
+    let vsig = req.sig.clone();
+    let vts = req.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "agent_override", vts, &vsig)
+    })
+    .await
+    .unwrap_or(false);
+    if !sig_ok {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Signature verification failed."})),
+        )
+            .into_response();
+    }
+    if state.db.get_role(&req.key).unwrap_or_default() != "admin" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "Admin role required."})),
+        )
+            .into_response();
+    }
+
+    if !valid_scope_id(&req.scope_id) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "scope_id must be 1-64 chars of [a-zA-Z0-9_-]"})),
+        )
+            .into_response();
+    }
     if !["active", "passive", "blocked", "off"].contains(&req.status.as_str()) {
         return (
             StatusCode::BAD_REQUEST,
@@ -327,6 +390,17 @@ mod tests {
         assert_eq!(scopes[0].id, "a");
         assert_eq!(scopes[1].id, "b");
         assert_eq!(scopes[1].owns, vec!["y", "z"]);
+    }
+
+    #[test]
+    fn scope_id_validation_blocks_injection_shapes() {
+        assert!(valid_scope_id("elements"));
+        assert!(valid_scope_id("web-chat_v2"));
+        assert!(!valid_scope_id("")); // empty
+        assert!(!valid_scope_id(&"x".repeat(65))); // too long
+        assert!(!valid_scope_id("a\"), status: \"off")); // RON injection
+        assert!(!valid_scope_id("spam text with spaces")); // announcement spam
+        assert!(!valid_scope_id("a\nb")); // newline
     }
 
     #[test]

@@ -100,7 +100,7 @@
    *   server-side `format!("{}\n{}", content, timestamp)` preimage
    *   in `verify_dilithium_signature`. Known values today:
    *   "vault_sync", "admin_stats", "review", "review_delete",
-   *   "trade_order", "cancel_order", "fill_order".
+   *   "trade_order", "cancel_order", "fill_order", "agent_override".
    * @returns {Promise<{key:string,timestamp:number,sig:string}|null>}
    *   `key` is the 3904-char Dilithium pubkey hex (NOT the Ed25519
    *   pubkey at localStorage['humanity_key'] — the relay keys

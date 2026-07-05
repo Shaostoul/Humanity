@@ -53,6 +53,16 @@ treat every unverified finding as unadjudicated (the v0.677 review died with 3
 unverified findings; 2 were real). Do not default to timid solo loops out of
 cutoff fear -- ask the meter, then spend with intent.
 
+**Efficiency recalibration (operator, 2026-07-04, after a 51-agent audit workflow
+burned a full 5-hour window in ~5 minutes):** plan upgraded to Max $200 (~4x
+headroom), but the directive is anti-waste, not more-spending. Concretely: cap
+fan-out waves at ~5 subagents (chunks of 5, not 50); verify SELECTIVELY (adjudicate
+the load-bearing claims, not all of them); NEVER re-run a test battery that already
+passed on unchanged code; never relaunch a whale workflow when its data is already
+on disk (read the output file instead). Time, money, water, electricity, and the
+operator's effort all count. Big-swings-first still applies, but a "big swing" is
+one well-scoped wave with a clear question, not maximal parallelism.
+
 ## Cross-session persistence (perpetual)
 
 Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:

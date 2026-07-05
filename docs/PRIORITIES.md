@@ -37,6 +37,48 @@
 > setting: mouse-look / keys-only / hybrid toggle for driving (v0.697 ships
 > hybrid: mouse looks, A/D turn the same heading). <<<**
 
+> **>>> PAGE-ACCESS + CHAT AUDIT RESULTS (2026-07-04, 6-auditor workflow; the
+> operator's "hidden pages" hunch CONFIRMED). SHIPPED v0.698.0: POST
+> /api/v2/agents/override was ANONYMOUS since v0.118.0 (any visitor could rewrite
+> data/coordination/overrides.ron + spam #announcements via unrestricted scope_id);
+> now Dilithium-admin-signed (same scheme as /api/admin/stats) + scope_id validation.
+> NEW TIER-0, ranked: (A) WEB CHAT DM ATTACHMENT PRIVACY BUG -- file attach /
+> clipboard paste / drag-drop while viewing a DM or group posts the upload as a
+> PUBLIC channel message (chat-messages.js:446-521; openDmConversation never clears
+> activeChannel) while the local echo lands in the DM pane. Fix before launch.
+> (B) /download SERVES A STALE FORK: nginx humanity.conf:164 points at
+> web/activities/download.html (frozen at v0.36 "Launcher" framing) while
+> bump-version.js maintains web/pages/download.html -- point nginx at the pages copy
+> + delete the fork (repo conf + VPS conf + sync). (C) NAV EXPOSURE: 11 web pages
+> fully orphaned (trade, guilds, files, calculator, web are WORKING code nobody can
+> click to; admin, agents, ai-usage, dashboard, activities-hub, gardening the rest);
+> 10 more pages are mobile-drawer-only, invisible on desktop (civilization,
+> shared-files, recovery, projects, roadmap, audit, calendar, data, bugs, dev) --
+> simplest fix: show the drawer on desktop too; needs operator taste call on what
+> deserves nav slots vs deletion. (D) NATIVE DEAD WEIGHT: 22/53 GuiPage variants
+> unreachable (5 Overview* landings, 12 Settings* sub-page variants orphaned by the
+> v0.196 nav rewrite, + Calculator/Guilds/Trade/Files/Civilization); also the
+> Humanity "Get oriented" button deep-links to a removed section id and
+> theme.nav_dev_visible gates nothing. Wire or delete. (E) NATIVE CHAT PARITY,
+> ranked by impact: markdown/links/link-preview rendering (help modal already
+> advertises markdown!); file attach beyond clipboard images; 1:1 voice-call answer
+> (a web caller rings a native user FOREVER -- native discards voice_call); threads
+> panel; Go Live / Watch Stream are placeholder-only; Add Server stub renders
+> unclickable saved servers; scratchpad labeled local-only but posts to the relay.
+> (F) WEB CHAT CLEANUP: 6 command-palette commands nothing handles (/redeem /bio
+> /social /mypin /search /profile-with-arg) + relay /help advertises unhandled
+> commands; voice moderation buttons stubbed-disabled; ~180KB dead weight
+> (chat-voice.js 2663-line unloaded monolith + unloaded style.css); app/web/
+> offline bundle frozen at v0.414 (~284 releases stale) -- regenerate or untrack.
+> (G) SMALLER: data.html calls removed Tauri commands (stub -- rebuild or delete);
+> audit.html shows hardcoded seed data (fails its transparency purpose);
+> /api/server-info reports accord_compliant:false (investigate why); nginx /landing
+> route 404s; preview-server.js lacks the pages-flattening + $uri.html fallback so
+> local preview 404s every standalone page; PAGES.md lists a web chat.html mirror
+> that does not exist. Chat verdicts: WEB substantially finished for daily use
+> (~12k LOC, zero TODOs, all handlers real, E2EE DMs fail-closed, voice
+> calls/rooms/PTT real) EXCEPT (A); NATIVE solid B+ core loop with (E) gaps. <<<**
+
 
 > **>>> SHARED-FILE LIBRARY SHIPPED (v0.675.0, 2026-07-02, Fable 5): the
 > operator's "share my .blend phone case / car bushings from my PC" request,

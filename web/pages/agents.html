@@ -105,6 +105,10 @@
   <script src="/shared/events.js?v=1"></script>
   <script src="/shared/shell.js"></script>
   <script src="/shared/pq-identity.js"></script>
+  <!-- Override auth (v0.698.0): pq.js provides pqDeriveIdentity/pqSignMessage,
+       pq-relay-auth.js wraps them as getPqSignedAuth -- same as admin.html. -->
+  <script src="/chat/pq.js?v=1"></script>
+  <script src="/shared/pq-relay-auth.js?v=1"></script>
 
   <div class="container">
     <header class="ag-hero">
@@ -276,10 +280,19 @@
           const status = sel.value;
           if (!status) return;  // 'no override' = no-op
           try {
+            // Admin-signed as of v0.698.0 (the endpoint was anonymous
+            // before; caught in the 2026-07-04 audit). Same flow as
+            // admin-app.js: Dilithium sig over `agent_override\n{ts}`.
+            const auth = window.getPqSignedAuth
+              ? await window.getPqSignedAuth('agent_override')
+              : null;
+            if (!auth) {
+              throw new Error('Admin sign-in required. Open Chat once in this browser to unlock your identity, then retry.');
+            }
             const res = await fetch('/api/v2/agents/override', {
               method: 'POST',
               headers: {'Content-Type': 'application/json'},
-              body: JSON.stringify({ scope_id: scope, status }),
+              body: JSON.stringify({ scope_id: scope, status, key: auth.key, timestamp: auth.timestamp, sig: auth.sig }),
             });
             if (!res.ok) throw new Error(await res.text());
             await loadAgents();
