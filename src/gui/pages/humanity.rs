@@ -206,8 +206,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
         ui.add_space(theme.spacing_sm);
         ui.horizontal_wrapped(|ui| {
             if widgets::Button::primary("Get oriented").show(ui, theme) {
-                state.active_page = crate::gui::GuiPage::Real;
-                state.active_real_section = "quests".to_string();
+                // Quests is its own top-level page now (not a Real-tab section);
+                // the old `active_real_section = "quests"` was an unknown id that
+                // silently fell through to Profile > Body & Measurements (v0.699 fix).
+                state.active_page = crate::gui::GuiPage::Quests;
             }
             if widgets::Button::secondary("See your Laws").show(ui, theme) {
                 state.active_humanity_section = "laws".to_string();
@@ -422,8 +424,10 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
             if widgets::Button::primary("Get oriented").show(ui, theme) {
                 // Onboarding was retired into the unified Quests (Real tab) on
                 // 2026-06-06; "Get oriented" now jumps straight to the quests.
-                state.active_page = crate::gui::GuiPage::Real;
-                state.active_real_section = "quests".to_string();
+                // Quests is its own top-level page now (not a Real-tab section);
+                // the old `active_real_section = "quests"` was an unknown id that
+                // silently fell through to Profile > Body & Measurements (v0.699 fix).
+                state.active_page = crate::gui::GuiPage::Quests;
             }
             if widgets::Button::secondary("Fund the work").show(ui, theme) {
                 state.active_humanity_section = "donate".to_string();

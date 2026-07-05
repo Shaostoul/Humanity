@@ -69,11 +69,20 @@
 > 10 more pages are mobile-drawer-only, invisible on desktop (civilization,
 > shared-files, recovery, projects, roadmap, audit, calendar, data, bugs, dev) --
 > simplest fix: show the drawer on desktop too; needs operator taste call on what
-> deserves nav slots vs deletion. (D) NATIVE DEAD WEIGHT: 22/53 GuiPage variants
-> unreachable (5 Overview* landings, 12 Settings* sub-page variants orphaned by the
-> v0.196 nav rewrite, + Calculator/Guilds/Trade/Files/Civilization); also the
-> Humanity "Get oriented" button deep-links to a removed section id and
-> theme.nav_dev_visible gates nothing. Wire or delete. (E) NATIVE CHAT PARITY,
+> deserves nav slots vs deletion. (D) NATIVE DEAD WEIGHT -- DONE v0.699.0: deleted
+> the 17 unreachable variants (5 Overview* landings + 12 Settings* sub-pages) and
+> their whole category-browse subsystem (category_overview + settings_pages modules,
+> escape_menu's top_categories/sub_pages_for/category_pages/category_meta); rehomed
+> the stranded working pages -- Calculator + Files into the Platform tab, Trade +
+> Guilds into the Real tab; fixed the "Get oriented" deep-link (was an unknown Real
+> section id -> silently landed on Body & Measurements; now opens GuiPage::Quests).
+> 36 variants remain (was 53). REMAINING D-tail: (1) GuiPage::Civilization is still
+> unreached -- its stats page overlaps the Humanity tab's Mission Dashboard, so it's
+> a page-uniqueness call: wire civilization.rs as a distinct "Community Stats" Humanity
+> section, OR retire it and fold anything unique into the dashboard. (2)
+> theme.nav_dev_visible still gates nothing reachable (Testing/Bugs ship inside
+> Platform ungated; Files now in Platform too) -- decide if the dev-visibility toggle
+> should hide those or be removed. (E) NATIVE CHAT PARITY,
 > ranked by impact: markdown/links/link-preview rendering (help modal already
 > advertises markdown!); file attach beyond clipboard images; 1:1 voice-call answer
 > (a web caller rings a native user FOREVER -- native discards voice_call); threads

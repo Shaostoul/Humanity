@@ -560,123 +560,15 @@ fn separator_dot(ui: &mut egui::Ui, color: Color32) {
 // (e.g. spending real crypto when they meant in-game tokens).
 // ─────────────────────────────────────────────────────────────────────────
 
-// Top-tier category color palette moved to theme.ron in v0.175.0.
-// Read via `theme.nav_reality()`, `theme.nav_sim()`, etc.
+// v0.699.0: removed TopCategory + top_categories() + category_meta() +
+// category_pages() + sub_pages_for(). These fed the category-overview landing
+// pages (the two-tier-nav-era "browse this category" grid), which were deleted
+// this release as unreachable dead pages. The single-row nav (built directly
+// from NavItem lists above) never used them.
 
-struct TopCategory {
-    id: &'static str,
-    label: &'static str,
-    color: Color32,
-}
-
-/// All possible top categories. Dev is filtered out at render time when
-/// `theme.nav_dev_visible` is false (planned for v1.0; on by default
-/// during the development period). Returns a Vec rather than a fixed
-/// array because the Dev slot is conditional.
-fn top_categories(theme: &Theme) -> Vec<TopCategory> {
-    let mut cats = vec![
-        TopCategory { id: "reality",  label: "Reality",  color: theme.nav_reality() },
-        TopCategory { id: "sim",      label: "Sim",      color: theme.nav_sim() },
-        TopCategory { id: "tools",    label: "Tools",    color: theme.nav_tools() },
-        TopCategory { id: "settings", label: "Settings", color: theme.nav_settings() },
-    ];
-    if theme.nav_dev_visible {
-        cats.push(TopCategory { id: "dev", label: "Dev", color: theme.nav_dev() });
-    }
-    cats
-}
-
-/// Sub-pages for a given top category. Source of truth for nav grouping
-/// is `docs/PAGES.md` "Natural groupings" table — keep in sync.
-///
-/// Reality = identity, communication, civic life (works in both Real and
-/// Sim contexts; the page itself disambiguates if needed).
-/// Sim = in-game / character-bound activities.
-/// Tools = utility apps that aren't bound to game state.
-/// Settings = personal config + server admin.
-/// Dev = developer / QA / inspection (visibility-gated).
-/// Public view of `sub_pages_for` for the category-overview pages.
-/// Returns (label, page, description) tuples so callers don't depend on
-/// the private NavItem type. Empty Vec for unknown categories.
-pub fn category_pages(category: &str) -> Vec<(&'static str, GuiPage, &'static str)> {
-    sub_pages_for(category)
-        .into_iter()
-        .map(|n| (n.label, n.page, n.description))
-        .collect()
-}
-
-/// Top category metadata for overview pages: id, label, color, description.
-pub fn category_meta(category: &str, theme: &Theme) -> Option<(&'static str, Color32, &'static str)> {
-    match category {
-        "reality"  => Some(("Reality",  theme.nav_reality(),  "Identity, communication, civic life, the real you, your real money, your real community.")),
-        "sim"      => Some(("Sim",      theme.nav_sim(),      "In-game / character-bound activities. Simulated economies, crafted items, ship interiors.")),
-        "tools"    => Some(("Tools",    theme.nav_tools(),    "Utility apps that aren't bound to game state. Calculator, calendar, notes, browser.")),
-        "settings" => Some(("Settings", theme.nav_settings(), "Personal preferences and server administration.")),
-        "dev"      => Some(("Dev",      theme.nav_dev(),      "Developer / QA / inspection. Hidden by default at v1.0; on during the dev period.")),
-        _ => None,
-    }
-}
-
-fn sub_pages_for(category: &str) -> Vec<NavItem> {
-    match category {
-        "reality" => vec![
-            NavItem { label: "Profile",      page: GuiPage::Profile,      description: "Public-facing identity, bio, socials, avatar." },
-            NavItem { label: "Chat",         page: GuiPage::Chat,         description: "Cooperative messaging across servers and DMs." },
-            NavItem { label: "Wallet",       page: GuiPage::Wallet,       description: "Self-custodied crypto wallet (Solana SOL + tokens)." },
-            NavItem { label: "Donate",       page: GuiPage::Donate,       description: "Support development via crypto / GitHub Sponsors." },
-            NavItem { label: "Tasks",        page: GuiPage::Tasks,        description: "Personal + shared kanban with project grouping." },
-            NavItem { label: "Market",       page: GuiPage::Market,       description: "P2P marketplace: browse, list, message sellers." },
-            NavItem { label: "Civilization", page: GuiPage::Civilization, description: "Community / colony stats, charts, timeline." },
-            NavItem { label: "Governance",   page: GuiPage::Governance,   description: "Proposals, votes, tally, local + civilization scope." },
-            NavItem { label: "Maps",         page: GuiPage::Maps,         description: "Solar system + planet detail browser." },
-            NavItem { label: "Recovery",     page: GuiPage::Recovery,     description: "Social key recovery (Shamir M-of-N guardians)." },
-            NavItem { label: "Identity",     page: GuiPage::Identity,     description: "DID, Verifiable Credentials, trust score, AI status." },
-        ],
-        "sim" => vec![
-            NavItem { label: "Cosmos",    page: GuiPage::Cosmos,    description: "Solar system + galactic map + night sky with constellations." },
-            NavItem { label: "Inventory", page: GuiPage::Inventory, description: "Item grid, equipment slots, weight tracking." },
-            NavItem { label: "Crafting",  page: GuiPage::Crafting,  description: "Recipes by category with craft queue + progress." },
-            NavItem { label: "Studio",    page: GuiPage::Studio,    description: "OBS-style scene + source manager for streams." },
-            NavItem { label: "Guilds",    page: GuiPage::Guilds,    description: "Guild browser, members, chat, create form." },
-            NavItem { label: "Trade",     page: GuiPage::Trade,     description: "P2P trades with escrow + dual confirmation." },
-        ],
-        "tools" => vec![
-            NavItem { label: "Calculator", page: GuiPage::Calculator, description: "Scientific calculator with history." },
-            NavItem { label: "Calendar",   page: GuiPage::Calendar,   description: "Month view + add events with time and color." },
-            NavItem { label: "Notes",      page: GuiPage::Notes,      description: "Notes app with autosave + word count." },
-            NavItem { label: "Library",    page: GuiPage::Library,    description: "Docs + external resources in one searchable tree." },
-            NavItem { label: "Tools",      page: GuiPage::Tools,      description: "Open-source tools catalog with search + filters." },
-            NavItem { label: "Browser",    page: GuiPage::Browser,    description: "Curated bookmarks; opens in your default browser." },
-        ],
-        "settings" => vec![
-            NavItem { label: "Account",       page: GuiPage::SettingsAccount,       description: "Display name, public key, ECDH DM key, seed-phrase backup." },
-            NavItem { label: "Appearance",    page: GuiPage::SettingsAppearance,    description: "Dark mode, font size, theme colors, nav category colors." },
-            NavItem { label: "Animations",    page: GuiPage::SettingsAnimations,    description: "RGB style + speed + attack indicator picker." },
-            NavItem { label: "Widgets",       page: GuiPage::SettingsWidgets,       description: "Sizing, spacing, fonts, borders, slider + checkbox." },
-            NavItem { label: "Notifications", page: GuiPage::SettingsNotifications, description: "DM, mentions, tasks, do-not-disturb window." },
-            NavItem { label: "Wallet",        page: GuiPage::SettingsWallet,        description: "Solana RPC, network, default tip amounts." },
-            NavItem { label: "Audio",         page: GuiPage::SettingsAudio,         description: "Master / music / SFX volume + voice devices." },
-            NavItem { label: "Graphics",      page: GuiPage::SettingsGraphics,      description: "Fullscreen, vsync, FOV, render distance." },
-            NavItem { label: "Controls",      page: GuiPage::SettingsControls,      description: "Mouse sensitivity, key rebinds, gamepad." },
-            NavItem { label: "Privacy",       page: GuiPage::SettingsPrivacy,       description: "Public profile fields, message visibility, federation opt-ins." },
-            NavItem { label: "Data",          page: GuiPage::SettingsData,          description: "Local storage, vault sync, export, restore." },
-            NavItem { label: "Updates",       page: GuiPage::SettingsUpdates,       description: "Version, check for updates, channel selector." },
-            NavItem { label: "Server Admin",  page: GuiPage::ServerSettings,        description: "Server / group admin (USER / MOD / ADMIN tiered)." },
-        ],
-        "dev" => vec![
-            NavItem { label: "Testing",  page: GuiPage::Testing,   description: "QA checklist; Mark Passed / Report Issue posts to chat." },
-            NavItem { label: "Bugs",     page: GuiPage::BugReport, description: "Submit bug reports with severity + category." },
-            NavItem { label: "Files",    page: GuiPage::Files,     description: "Browse + edit text files in the data/ directory." },
-        ],
-        _ => Vec::new(),
-    }
-}
-
-// v0.196.0: removed `draw_nav_bar_two_tier`. Operator decided the
-// single-row nav is cleaner and we want to reduce total page count
-// rather than add layout layers. `top_categories` and `sub_pages_for`
-// are kept because the category-overview pages (Reality / Sim / Tools /
-// Settings / Dev) still use them via `pub_sub_pages_for`. The
-// `state.nav_two_tier` and `state.nav_top_category` fields stay on
-// GuiState for backwards-compatible config deserialization but the
-// single-row layout ignores them.
+// v0.196.0: removed `draw_nav_bar_two_tier` (single-row nav is cleaner).
+// v0.699.0: removed the category-browse helpers that outlived it
+// (category_pages / category_meta / sub_pages_for) once their only consumer,
+// the category-overview landing pages, was deleted. The `state.nav_two_tier`
+// and `state.nav_top_category` fields stay on GuiState for backwards-compatible
+// config deserialization but the single-row layout ignores them.

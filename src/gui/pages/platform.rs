@@ -10,7 +10,7 @@ use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{recovery, tools, bugs, testing, browser};
+use super::{recovery, tools, bugs, testing, browser, calculator, files};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("platform_section_nav")
@@ -28,6 +28,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let items = [
                 SectionNavItem::new("recovery", "Recovery", c),
                 SectionNavItem::new("tools", "Tools", c),
+                SectionNavItem::new("calculator", "Calculator", c),
+                SectionNavItem::new("files", "Files", c),
                 SectionNavItem::new("bugs", "Bugs", c),
                 SectionNavItem::new("testing", "Testing", c),
                 SectionNavItem::new("browser", "Browser", c),
@@ -46,6 +48,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let section = state.active_platform_section.clone();
     match section.as_str() {
         "tools" => tools::draw(ctx, theme, state),
+        "calculator" => calculator::draw(ctx, theme, state),
+        "files" => files::draw(ctx, theme, state),
         "bugs" => bugs::draw(ctx, theme, state),
         "testing" => testing::draw(ctx, theme, state),
         "browser" => browser::draw(ctx, theme, state),

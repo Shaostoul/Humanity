@@ -16,7 +16,7 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
 use super::profile::{self, PRIVATE_DOT, PERSONAL_DOT, PUBLIC_DOT};
-use super::{wallet, market};
+use super::{wallet, market, trade, guilds};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // ── Unified left section-nav sidebar (the TOC) ──
@@ -46,6 +46,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // top-level tabs (operator 2026-06-07) and Streaming moved into Studio.
                 SectionNavItem::new("wallet", "Wallet", belongings).group("BELONGINGS"),
                 SectionNavItem::new("market", "Market", life).group("LIFE"),
+                // Trade + Guilds rejoined the nav here (v0.699): both are P2P
+                // social/economy surfaces that fit alongside Market, and both
+                // had been stranded (only reachable via the removed category
+                // overview pages) since the v0.196 nav rewrite.
+                SectionNavItem::new("trade", "Trade", life),
+                SectionNavItem::new("guilds", "Guilds", life),
             ];
             // Profile selector at the top (operator 2026-06-07: "add a profile
             // selector. I only want one profile"). One base character today; the
@@ -67,6 +73,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     match section.as_str() {
         "wallet" => wallet::draw(ctx, theme, state),
         "market" => market::draw(ctx, theme, state),
+        "trade" => trade::draw(ctx, theme, state),
+        "guilds" => guilds::draw(ctx, theme, state),
         // Anything else is a Profile section — point Profile at it + render.
         other => {
             state.profile_section = profile::section_from_id(other);

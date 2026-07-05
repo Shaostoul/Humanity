@@ -349,35 +349,17 @@ pub enum GuiPage {
     /// sufficiency summary. The "homes as save profiles" surface, offline-first
     /// (server/real homes come later). See pages/homes.rs + homes-as-profiles.md.
     Homes,
-    /// Top-category overview / landing pages (v0.181.0). Each top-tier
-    /// nav button (Reality / Sim / Tools / Settings / Dev) lands on the
-    /// matching overview, which renders a card grid of every sub-page
-    /// in that category with a one-line description. Sub-page nav items
-    /// remain available for direct navigation; the overview is the
-    /// "browse / discover what's in this category" entry point.
-    OverviewReality,
-    OverviewSim,
-    OverviewTools,
-    OverviewSettings,
-    OverviewDev,
-    /// Settings sub-pages (v0.182.0). Each replaces one section of the
-    /// former single-scroll Settings page. The sub-tier nav lists these
-    /// individually so users navigate straight to a category instead of
-    /// scrolling. The legacy `GuiPage::Settings` variant still works
-    /// (renders the all-in-one view) for backwards compatibility with
-    /// saved deep links, but the nav no longer points to it.
-    SettingsAccount,
-    SettingsAppearance,
-    SettingsAnimations,
-    SettingsWidgets,
-    SettingsNotifications,
-    SettingsWallet,
-    SettingsAudio,
-    SettingsGraphics,
-    SettingsControls,
-    SettingsPrivacy,
-    SettingsData,
-    SettingsUpdates,
+    // v0.699.0: removed the two-tier-nav-era category-browse subsystem --
+    // the 5 Overview* category landing pages (OverviewReality/Sim/Tools/
+    // Settings/Dev) and the 12 Settings* sub-page variants (SettingsAccount
+    // .. SettingsUpdates). All 17 were dead since the v0.196 single-row nav
+    // rewrite: nothing navigated to an Overview page, and the Settings*
+    // variants were only reachable as cards on the (unreachable)
+    // OverviewSettings. Settings content lives in `settings.rs` (its own
+    // internal SettingsCategory router, still fully reachable via the
+    // top-level Settings tab); the stranded working pages Calculator/Files
+    // (now in Platform) and Trade/Guilds (now in Real) were rehomed in the
+    // same release. See the 2026-07-04 page-access audit.
 }
 
 /// Pages that can be selected as the startup boot page.

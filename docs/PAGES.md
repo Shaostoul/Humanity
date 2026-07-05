@@ -6,15 +6,14 @@
 > Pages section in MEMORY.md and CLAUDE.md should defer to this file rather than
 > re-listing.
 >
-> **What changed in this re-audit:** the native page count was wrong (32 claimed, 52
-> actual `GuiPage` variants). The gap is mostly two things that didn't exist in
-> 2026-05-03: (1) Settings was split into 11 sub-pages (`SettingsAccount` ...
-> `SettingsUpdates`) plus the top-level `Settings` router, and (2) 5 category-landing
-> pages (`OverviewReality/Sim/Tools/Settings/Dev`) were added when the two-tier nav bar
-> was removed (v0.196) but its `sub_pages_for()` data was kept and repurposed to drive
-> these landing pages. Also: `Agents`, `AiUsage`, standalone `Onboarding`, and
-> `Resources` were REMOVED as `GuiPage` variants (v0.197.0 / v0.415.0) and no longer
-> exist natively, this doc previously still listed them as "working."
+> **Latest change (v0.699.0, 2026-07-04):** removed 17 dead `GuiPage` variants — the 5
+> category-landing pages (`OverviewReality/Sim/Tools/Settings/Dev`) and the 12
+> `Settings*` sub-page variants — leaving **36** variants (35 pages + the `None`
+> in-game state). All 17 were unreachable since the v0.196 single-row-nav rewrite;
+> Settings content is untouched (it lives in `settings.rs`'s internal router). The same
+> release rehomed Calculator + Files into the Platform tab and Trade + Guilds into the
+> Real tab so they're reachable again. Earlier: `Agents`, `AiUsage`, standalone
+> `Onboarding`, and `Resources` were removed as variants (v0.197.0 / v0.415.0).
 
 ## How to use this file
 
@@ -22,7 +21,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
-## Native pages (52 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
+## Native pages (35 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 
@@ -75,41 +74,29 @@ from many top-level buttons to a handful of tabs.
 | Platform | `platform.rs` | The software-itself tab: Recovery, Tools, Bugs, Testing, Browser. (Settings was pulled back OUT to its own top-level tab per an explicit operator call: "never buried in another menu.") |
 | Humanity | `humanity.rs` | The collective/mission tab: the Mission Dashboard (the real landing content) plus Governance, Identity (as "Directory"), Onboarding, Donate, Library (as "Resources"). |
 
-### Category-landing pages (5, added when the two-tier nav bar was removed)
+### Category-landing pages + Settings sub-page variants — REMOVED v0.699.0
 
-`draw_nav_bar_two_tier` itself was removed at v0.196.0 (single-row nav is cleaner), but
-its underlying `top_categories()` / `sub_pages_for()` data survived and now drives
-these 5 landing pages, one per nav category, each showing a card grid of that
-category's pages:
+The 5 category-landing pages (`OverviewReality/Sim/Tools/Settings/Dev`) and the 12
+`GuiPage::Settings*` sub-page variants (`SettingsAccount` .. `SettingsUpdates`) were
+**deleted in v0.699.0** as dead code. Both were stranded by the v0.196.0 single-row-nav
+rewrite: nothing navigated to an Overview page, and the `Settings*` variants were only
+ever reachable as cards on the (unreachable) `OverviewSettings`. Their supporting
+helpers (the `category_overview` + `settings_pages` modules, and escape_menu's
+`top_categories()` / `sub_pages_for()` / `category_pages()` / `category_meta()`) went
+with them. Found in the 2026-07-04 page-access audit.
 
-| Name | Category | Sub-pages shown |
-|------|----------|------------------|
-| OverviewReality | reality | Profile, Chat, Wallet, Donate, Tasks, Market, Civilization, Governance, Maps, Recovery, Identity |
-| OverviewSim | sim | Cosmos, Inventory, Crafting, Studio, Guilds, Trade |
-| OverviewTools | tools | Calculator, Calendar, Notes, Library, Tools, Browser |
-| OverviewSettings | settings | Account, Appearance, Animations, Widgets, Notifications, Wallet, Audio, Graphics, Controls, Privacy, Data, Updates, Server Admin |
-| OverviewDev | dev | Testing, Bugs, Files |
+The **Settings content is unaffected** — it lives in `settings.rs`, which has its own
+internal `SettingsCategory` router (Account / Appearance / Animations / Widgets /
+Notifications / Wallet / Audio / Graphics / Controls / Privacy / Data / Updates), fully
+reachable via the top-level **Settings** tab. Nothing a user could reach was lost.
 
-Dev-category visibility is gated by `theme.nav_dev_visible` (default `true` during
-development; toggle in Settings -> Animations -> Developer mode). At v1.0 the default
-flips to `false`.
-
-### Settings sub-pages (11, `settings_pages.rs`; split out from one monolithic Settings page)
-
-| Name | Covers |
-|------|--------|
-| SettingsAccount | Display name, public key, ECDH DM key, seed-phrase backup. |
-| SettingsAppearance | Dark mode, font size, theme colors, nav category colors. |
-| SettingsAnimations | RGB style + speed + attack indicator picker. |
-| SettingsWidgets | Sizing, spacing, fonts, borders, slider + checkbox tokens. |
-| SettingsNotifications | DM, mentions, tasks, do-not-disturb window. |
-| SettingsWallet | Solana RPC, network, default tip amounts. |
-| SettingsAudio | Master / music / SFX volume + voice devices. |
-| SettingsGraphics | Fullscreen, vsync, FOV, render distance. |
-| SettingsControls | Mouse sensitivity, key rebinds (`keymap.rs`), gamepad. |
-| SettingsPrivacy | Public profile fields, message visibility, federation opt-ins. |
-| SettingsData | Local storage, vault sync, export, restore. |
-| SettingsUpdates | Version, check for updates, channel selector. |
+Same release **rehomed** the working pages that the Overview deletion would otherwise
+have orphaned: **Calculator** and **Files** joined the **Platform** tab's section-nav
+(alongside Tools / Bugs / Testing / Browser); **Trade** and **Guilds** joined the
+**Real** (Profile) tab alongside Market / Wallet. `Civilization` remains a `GuiPage`
+variant but is currently unreached (its content overlaps the Humanity tab's Mission
+Dashboard — a page-uniqueness decision is pending: wire as a distinct stats view or
+retire).
 
 ### Not `GuiPage` variants (reached by a flag or a direct call, not the page-nav dispatch)
 
@@ -122,12 +109,11 @@ differently:
 | `construction.rs` | The in-app Construction/Build Editor (homestead walls, utilities, mothership superstructure, see `docs/STATUS.md`'s Construction section). Gated by `GuiState.construction_active: bool`, an overlay drawn alongside whatever page is active, not a page of its own. |
 | `showroom.rs` | The character-select/appearance-editor panel. Gated by `GuiState.showroom_active`, drawn directly from `src/lib.rs`'s render loop (`pages::showroom::draw`), not via `GuiPage` dispatch. |
 | `diagnostics.rs` | F-key dev-HUD overlays (F2 performance, F3 network, F4 system), stacked in the corner, shown alongside any page. |
-| `keymap.rs` | Key-rebind data/UI consumed by `SettingsControls`, not a standalone page. |
+| `keymap.rs` | Key-rebind data/UI consumed by the Settings "Controls" section (`settings.rs`), not a standalone page. |
 | `game_admin.rs` | Game-world ban management, folded into `ServerSettings` > ADMIN as a subsection (v0.479; the old standalone `GameAdmin` variant was removed). |
-| `category_overview.rs` | The shared renderer behind all 5 `Overview*` pages above (`category_overview::draw(ctx, theme, state, "reality"\|"sim"\|"tools"\|"settings"\|"dev")`). |
 | `onboarding.rs` | Shared drawing helper (`onboarding::draw_quests`) consumed by `Quests`; not a standalone page since the `Onboarding` variant was removed (v.415.0). |
 | `hud.rs` | In-game HUD (health, hotbar, crosshair, compass, FPS, weather), drawn during gameplay, not a menu page. |
-| `escape_menu.rs` | Shared nav bar (colour-coded by category) rendered across all tool pages; also owns `top_categories()`/`sub_pages_for()`. |
+| `escape_menu.rs` | Shared nav bar (colour-coded by category) rendered across all tool pages. (Its dead `top_categories()`/`sub_pages_for()` category-browse helpers were removed v0.699.0 with the Overview pages.) |
 | `placeholder.rs` | Utility stub for a not-yet-built page. |
 | `mod.rs` | Module root, re-exports. |
 
@@ -166,7 +152,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 
 Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (orphaned, see native removed-variants note above), `ai-usage.html` (orphaned, same), `settings.html`.
 
-**Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape), the merged super-tabs (Real/Platform/Humanity, web keeps the flatter per-page nav instead), the 5 category-Overview landing pages, and the 11 individual Settings sub-pages (web's `settings.html` is presumably a single page covering the same ground; not independently verified this pass).
+**Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Platform/Humanity, web keeps the flatter per-page nav instead). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
 
 ## Web hubs (entry points outside `web/pages/`)
 
