@@ -11,6 +11,40 @@
 
 ## Active focus
 
+> **>>> STRATEGIC DIRECTION (operator, 2026-07-05): ONE COHESIVE END-APP, TRIM
+> THE FLUFF. Guiding rules for all page/UI work from here:**
+> 1. **The NATIVE app is the product; the website MIRRORS it in HTML/CSS.** The
+>    native egui GUI is the source of truth for every UI pattern; the web
+>    version reflects it. Not the other way around. "Just the GUI of the app is
+>    meant to inspire the website." Serve what we can via the web, but native is
+>    the focus.
+> 2. **No tech-demo / fluff pages.** "Any fluff we add now is fat we have to trim
+>    later." Prefer ONE fully-developed thing over two partial ones (the two-
+>    gardening-games lesson). Before adding a web-only page, ask: does it serve
+>    the end app, or is it a demo? DONE 2026-07-05 (v0.699.3): deleted audit,
+>    ai-usage, dashboard, the activities hub, the orphaned gardening game.
+> 3. **WEB-ONLY PAGES STILL ON THE CHOPPING BLOCK (operator to confirm each):**
+>    - `data.html` -- BROKEN (its save/backup/USB actions call removed Tauri
+>      commands; dead since we left Tauri). Strong DELETE, or rebuild later as a
+>      faithful mirror of the native Data settings.
+>    - `projects.html` -- static marketing showcase; the public Roadmap already
+>      covers "what we're building". Trim candidate.
+>    - `dev.html` -- dev-period landing hub; trim at/after launch (gate for now).
+>    - `home.html` -- "logged-in home"; check for redundancy with index.html.
+>    KEEP (essential public/site or functional): index, download, onboarding,
+>    wallet-guide, roadmap, accord, shared-files, ops, admin, agents, + every
+>    native-mirror page (chat, inventory, tasks, ...). The mirrors are the
+>    app-as-website; the work there is FAITHFULNESS to native, not deletion.
+> 4. **ONE web-browsing page = our OWN lightweight browser (NOT Chromium).** The
+>    seed is `web.html` (bookmarks) + the native Browser page. North star: browse
+>    real sites (e.g. Google) inside the game on in-game monitors, without the
+>    bloat of embedding a full browser engine. Avoid Chromium/CEF. This is real
+>    R&D -- non-Chromium web rendering in a Rust/wgpu app (candidates: Servo/Verso,
+>    Blitz, a limited custom renderer for cooperating content, or an OS webview
+>    with the WebKit caveat). Needs a dedicated research + design pass before any
+>    build; consolidate web.html + native Browser into this single surface. <<<**
+
+
 > **>>> OPERATOR FIELD SESSION 3 DIRECTIVES (2026-07-04 late, journaled in
 > full in orchestrator_state):** quick batch SHIPPED v0.693.0 (graphite from
 > C-class asteroids answers coal-in-space; live V badges; friends-list role
