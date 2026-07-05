@@ -42,10 +42,17 @@
 > /api/v2/agents/override was ANONYMOUS since v0.118.0 (any visitor could rewrite
 > data/coordination/overrides.ron + spam #announcements via unrestricted scope_id);
 > now Dilithium-admin-signed (same scheme as /api/admin/stats) + scope_id validation.
-> NEW TIER-0, ranked: (A) WEB CHAT DM ATTACHMENT PRIVACY BUG -- file attach /
-> clipboard paste / drag-drop while viewing a DM or group posts the upload as a
-> PUBLIC channel message (chat-messages.js:446-521; openDmConversation never clears
-> activeChannel) while the local echo lands in the DM pane. Fix before launch.
+> NEW TIER-0, ranked: (A) WEB CHAT DM ATTACHMENT PRIVACY BUG -- FIXED v0.698.2.
+> file attach / clipboard paste / drag-drop while viewing a DM or group used to
+> post the upload as a PUBLIC channel `chat` message while echoing into the DM
+> pane (looked private, was not). Fix: a single routing authority
+> `window.sendComposedContent(content)` in chat-ui.js now handles a typed message
+> AND an attachment URL identically -- group_msg / Kyber-E2EE DM (fail-closed) /
+> public channel -- and sendMessage's DM+group branches now DELEGATE to it, so
+> the seal logic lives ONCE and can't drift from the attachment path again.
+> REMAINING CAVEAT (follow-up, not a launch blocker): a DM image encrypts the
+> URL, but the file BYTES sit in the relay's public upload store fetchable by
+> URL -- true DM-attachment confidentiality needs encrypted blob storage.
 > (B) /download SERVES A STALE FORK: nginx humanity.conf:164 points at
 > web/activities/download.html (frozen at v0.36 "Launcher" framing) while
 > bump-version.js maintains web/pages/download.html -- point nginx at the pages copy

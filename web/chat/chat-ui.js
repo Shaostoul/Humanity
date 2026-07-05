@@ -966,81 +966,89 @@ sendMessage = async function() {
     }
     return;
   }
-  // If in group view, send as group message.
-  if (activeGroupId) {
-    if (val && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'group_msg',
-        group_id: activeGroupId,
-        content: val,
-      }));
-      input.value = '';
-      input.style.height = 'auto';
-    }
-    return;
-  }
-  // If in DM view, send as DM instead of chat.
-  if (activeDmPartner) {
-    // Client-side DM permission pre-check
-    const myRole = (window.myPeerRole || '').toLowerCase();
-    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-      if (myRole !== 'verified' && myRole !== 'donor') {
-        addSystemMessage('🔒 Verify your account to send DMs.');
-        return;
-      }
-      if (!isFriend(activeDmPartner)) {
-        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
-        return;
-      }
-    }
-    if (val && ws && ws.readyState === WebSocket.OPEN) {
-      // The relay only length-limits PLAINTEXT DMs (a PQ ciphertext blob
-      // is opaque and ~9 KB even for a short note), so enforce the
-      // user-visible limit here, before sealing.
-      const DM_PLAINTEXT_MAX = 2000;
-      if (val.length > DM_PLAINTEXT_MAX) {
-        addSystemMessage(`Message too long (${val.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
-        return;
-      }
-      const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub now
-      let dmPayload = {
-        type: 'dm',
-        from: myKey,
-        from_name: myName,
-        to: activeDmPartner,
-        content: val,
-        timestamp: Date.now(),
-      };
-      // Full-PQ E2EE, FAIL CLOSED. A DM is only ever sent sealed. If the
-      // recipient hasn't advertised a Kyber key yet, or our own PQ
-      // identity isn't ready, ABORT, never transmit plaintext to the
-      // relay. The relay is zero-knowledge; friendship is access control,
-      // NOT confidentiality (the operator can read the DB). (Security
-      // review HIGH-1: the old "graceful plaintext fallback" leaked DMs.)
-      if (!peerKyber) {
-        addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
-        return;
-      }
-      const enc = await encryptDmContent(val, peerKyber);
-      if (!enc) {
-        addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
-        return;
-      }
-      dmPayload.content = enc.content;
-      dmPayload.nonce = enc.nonce;
-      dmPayload.encrypted = true;
-      ws.send(JSON.stringify(dmPayload));
-      // Show locally immediately (plaintext) and keep DM list persistent.
-      const sentTs = Date.now();
-      addDmMessage(myName, val, sentTs, myKey, activeDmPartner, false);
-      upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), val, sentTs, false);
-      input.value = '';
-      input.style.height = 'auto';
+  // Group or DM view: route through the single content-routing authority
+  // (sendComposedContent) so a typed message and a file attachment follow
+  // the EXACT same path. The DM/group send logic (incl. Kyber E2EE fail-
+  // closed, friend/verify gating, the 2000-char plaintext cap) lives there,
+  // once, so it can never drift from the attachment path (privacy bug
+  // 2026-07-04). Input is cleared only on a successful send.
+  if (activeGroupId || activeDmPartner) {
+    if (val) {
+      const ok = await sendComposedContent(val);
+      if (ok) { input.value = ''; input.style.height = 'auto'; }
     }
     return;
   }
   await _origSendMessage2();
 };
+
+// Single routing authority for composed content -- a typed message OR an
+// uploaded file URL. Sends to whatever target is in view: group, DM (E2EE,
+// fail-closed), or the public channel. Both sendMessage() and the file
+// attachment handlers (chat-messages.js) go through here, so an attachment
+// can never leak into the public channel while a DM/group is open (privacy
+// bug fixed 2026-07-04: attach/paste/drop used to always post a public
+// `chat` while echoing into the DM pane, so it looked private and was not).
+// Returns true if it sent, false if blocked (permissions, no key, too long).
+async function sendComposedContent(content) {
+  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
+
+  // Group view -> group message (server round-trips the echo, like text).
+  if (activeGroupId) {
+    ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
+    return true;
+  }
+
+  // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
+  // relay and never fall back to a public channel. Mirrors the text-DM path.
+  if (activeDmPartner) {
+    const myRole = (window.myPeerRole || '').toLowerCase();
+    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
+      if (myRole !== 'verified' && myRole !== 'donor') {
+        addSystemMessage('🔒 Verify your account to send DMs.');
+        return false;
+      }
+      if (!isFriend(activeDmPartner)) {
+        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
+        return false;
+      }
+    }
+    const DM_PLAINTEXT_MAX = 2000;
+    if (content.length > DM_PLAINTEXT_MAX) {
+      addSystemMessage(`Message too long (${content.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
+      return false;
+    }
+    const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub
+    if (!peerKyber) {
+      addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
+      return false;
+    }
+    const enc = await encryptDmContent(content, peerKyber);
+    if (!enc) {
+      addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
+      return false;
+    }
+    ws.send(JSON.stringify({
+      type: 'dm', from: myKey, from_name: myName, to: activeDmPartner,
+      content: enc.content, nonce: enc.nonce, encrypted: true, timestamp: Date.now(),
+    }));
+    const sentTs = Date.now();
+    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, false);
+    upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
+    return true;
+  }
+
+  // Channel view -> public Dilithium-signed chat with local echo.
+  const timestamp = Date.now();
+  const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
+  const pqSig = await pqSignChatMessage(content, timestamp);
+  if (pqSig) msg.pq_signature = pqSig;
+  ws.send(JSON.stringify(msg));
+  seenTimestamps.add(myKey + ':' + timestamp);
+  addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
+  return true;
+}
+window.sendComposedContent = sendComposedContent;
 
 // ── Sidebar Tab Navigation ──
 // Federated servers cache (fetched from API).

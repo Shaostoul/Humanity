@@ -449,18 +449,10 @@ async function handleFileAttachment(event) {
   event.target.value = ''; // Reset for re-selection
 
   const url = await uploadImage(file); // Reuse existing upload function
-  if (url && ws && ws.readyState === WebSocket.OPEN) {
-    const timestamp = Date.now();
-    const content = url;
-    const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
-    // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
-    const pqSig = await pqSignChatMessage(content, timestamp);
-    if (pqSig) msg.pq_signature = pqSig;
-    ws.send(JSON.stringify(msg));
-    const key = myKey + ':' + timestamp;
-    seenTimestamps.add(key);
-    addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
-  }
+  // Route through the shared content authority so the attachment goes to
+  // whatever is in view -- channel, DM (E2EE), or group -- instead of always
+  // posting to the public channel (privacy bug fixed 2026-07-04).
+  if (url) await window.sendComposedContent(url);
 }
 
 // Paste image from clipboard → upload and send.
@@ -475,18 +467,9 @@ document.getElementById('msg-input').addEventListener('paste', async (e) => {
       if (!file) return;
 
       const url = await uploadImage(file);
-      if (url && ws && ws.readyState === WebSocket.OPEN) {
-        const timestamp = Date.now();
-        const content = url;
-        const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
-        // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
-        const pqSig = await pqSignChatMessage(content, timestamp);
-        if (pqSig) msg.pq_signature = pqSig;
-        ws.send(JSON.stringify(msg));
-        const key = myKey + ':' + timestamp;
-        seenTimestamps.add(key);
-        addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
-      }
+      // Route to the in-view target (channel / DM E2EE / group), never
+      // unconditionally to the public channel (privacy fix 2026-07-04).
+      if (url) await window.sendComposedContent(url);
       return;
     }
   }
@@ -503,18 +486,9 @@ chatArea.addEventListener('drop', async (e) => {
   for (const file of files) {
     if (file.type.startsWith('image/')) {
       const url = await uploadImage(file);
-      if (url && ws && ws.readyState === WebSocket.OPEN) {
-        const timestamp = Date.now();
-        const content = url;
-        const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp };
-        // Full-PQ: Dilithium3 `pq_signature` only (no Ed25519 chat sig).
-        const pqSig = await pqSignChatMessage(content, timestamp);
-        if (pqSig) msg.pq_signature = pqSig;
-        ws.send(JSON.stringify(msg));
-        const key = myKey + ':' + timestamp;
-        seenTimestamps.add(key);
-        addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
-      }
+      // Route to the in-view target (channel / DM E2EE / group), never
+      // unconditionally to the public channel (privacy fix 2026-07-04).
+      if (url) await window.sendComposedContent(url);
     }
   }
 });
