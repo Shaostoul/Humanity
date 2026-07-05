@@ -132,6 +132,75 @@ fn cannot_close() -> &'static CannotCloseData {
     CACHE.get_or_init(|| load_cannot_close(&crate::data_dir()))
 }
 
+/// One required component of the ideal closed-loop homestead (e.g. 4x
+/// solar_panel). `game_id` is a REAL machine/structure/item id in the game
+/// data (enforced by `outline_game_ids_are_real` below) so the outline stays
+/// an honest requirements list, never wishful copy.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct OutlineRequirement {
+    pub item: String,
+    pub qty: String,
+    pub game_id: String,
+    pub why: String,
+}
+
+/// One survival loop of the ideal homestead (power/water/food/air/nutrients/
+/// shelter): the sized demand, whether it closes, why, and its parts list.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct OutlineLoop {
+    pub id: String,
+    pub name: String,
+    pub demand: String,
+    pub closes: bool,
+    pub closure_note: String,
+    #[serde(default)]
+    pub requirements: Vec<OutlineRequirement>,
+}
+
+/// The ideal closed-loop homestead outline (operator, 2026-07-05: "use Home as
+/// a page for outlining what we need in the perfect ideal 100% closed loop
+/// self-sustaining homestead"). Doubles as the game's requirements list for
+/// the Home feature. Data: data/home_outline.json (top-level so the web deploy
+/// publishes it; web/pages/home.html renders the SAME file -- web mirrors
+/// native). Numbers distilled from docs/design/homestead-solo-design.md.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct HomeOutline {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub subtitle: String,
+    #[serde(default)]
+    pub intro: String,
+    #[serde(default)]
+    pub loops: Vec<OutlineLoop>,
+    #[serde(default)]
+    pub in_game_next: Vec<String>,
+    #[serde(default)]
+    pub footer: String,
+}
+
+/// Pure loader (unit-tested below): parse data/home_outline.json. Missing or
+/// malformed file yields empty data (the panel hides; the page still works).
+pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
+    let path = data_dir.join("home_outline.json");
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return HomeOutline::default(),
+    };
+    match serde_json::from_str::<HomeOutline>(&text) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("load_home_outline: failed to parse {}: {e}", path.display());
+            HomeOutline::default()
+        }
+    }
+}
+
+fn home_outline() -> &'static HomeOutline {
+    static CACHE: std::sync::OnceLock<HomeOutline> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| load_home_outline(&crate::data_dir()))
+}
+
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(16.0))
@@ -452,6 +521,105 @@ fn draw_design(
                     widgets::detail_row(ui, theme, "  supply", &l.supply);
                     ui.label(RichText::new(&l.note).size(theme.font_size_small).color(theme.text_secondary()));
                     ui.add_space(theme.spacing_xs);
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+        }
+
+        // ── The ideal closed loop (the requirements outline) ──
+        // Operator 2026-07-05: Home outlines the perfect ideal closed-loop
+        // homestead; the outline IS the game's requirements list for Home.
+        // Data-driven from data/home_outline.json; web home.html renders the
+        // same file (web mirrors native).
+        let outline = home_outline();
+        if !outline.loops.is_empty() {
+            widgets::card(ui, theme, |ui| {
+                ui.label(
+                    RichText::new(&outline.title)
+                        .size(theme.font_size_body)
+                        .strong()
+                        .color(theme.text_primary()),
+                );
+                if !outline.subtitle.is_empty() {
+                    ui.label(RichText::new(&outline.subtitle).size(theme.font_size_small).color(theme.text_muted()));
+                }
+                if !outline.intro.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(RichText::new(&outline.intro).size(theme.font_size_small).color(theme.text_secondary()));
+                }
+                ui.add_space(theme.spacing_xs);
+                for l in &outline.loops {
+                    let closes_mark = if l.closes { "closes" } else { "open" };
+                    let mark_color = if l.closes { theme.success() } else { theme.warning() };
+                    widgets::expandable_row(
+                        ui,
+                        ("home_outline", l.id.as_str()),
+                        false,
+                        None,
+                        |ui| {
+                            ui.label(
+                                RichText::new(&l.name)
+                                    .size(theme.font_size_small)
+                                    .strong()
+                                    .color(theme.text_primary()),
+                            );
+                            ui.label(
+                                RichText::new(closes_mark)
+                                    .size(theme.font_size_small)
+                                    .strong()
+                                    .color(mark_color),
+                            );
+                            ui.label(
+                                RichText::new(format!("{} parts", l.requirements.len()))
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        },
+                        |ui| {
+                            widgets::detail_row(ui, theme, "demand", &l.demand);
+                            ui.label(
+                                RichText::new(&l.closure_note)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_secondary()),
+                            );
+                            ui.add_space(theme.spacing_xs);
+                            for r in &l.requirements {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(
+                                        RichText::new(format!("{} {}", r.qty, r.item))
+                                            .size(theme.font_size_small)
+                                            .strong()
+                                            .color(theme.text_primary()),
+                                    );
+                                    ui.label(
+                                        RichText::new(&r.why)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                });
+                            }
+                        },
+                    );
+                }
+                if !outline.in_game_next.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(
+                        RichText::new("What the game still needs for Home")
+                            .size(theme.font_size_small)
+                            .strong()
+                            .color(theme.text_primary()),
+                    );
+                    for step in &outline.in_game_next {
+                        ui.label(
+                            RichText::new(format!("- {step}"))
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                    }
+                }
+                if !outline.footer.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(RichText::new(&outline.footer).size(theme.font_size_small).italics().color(theme.text_muted()));
                 }
             });
             ui.add_space(theme.spacing_sm);
@@ -883,6 +1051,75 @@ mod tests {
         let data = super::load_cannot_close(std::path::Path::new("data/definitely_not_a_dir"));
         assert!(data.entries.is_empty());
         assert!(data.intro.is_empty());
+    }
+
+    #[test]
+    fn home_outline_parses_and_is_complete() {
+        let o = super::load_home_outline(std::path::Path::new("data"));
+        assert!(!o.title.is_empty(), "home_outline.json should carry a title");
+        assert!(!o.intro.is_empty(), "home_outline.json should carry an intro");
+        assert!(!o.footer.is_empty(), "home_outline.json should carry a footer");
+        assert!(
+            o.loops.len() >= 6,
+            "expected the 6 survival loops (power/water/food/air/nutrients/shelter), got {}",
+            o.loops.len()
+        );
+        for l in &o.loops {
+            assert!(!l.demand.is_empty(), "loop '{}' has empty demand", l.id);
+            assert!(!l.closure_note.is_empty(), "loop '{}' has empty closure_note", l.id);
+            assert!(!l.requirements.is_empty(), "loop '{}' has no requirements", l.id);
+            for s in [&l.demand, &l.closure_note] {
+                assert!(
+                    !s.contains('\u{2014}'),
+                    "em dash in outline copy for loop '{}' (operator rule: none in user-facing text)",
+                    l.id
+                );
+            }
+        }
+    }
+
+    /// Every game_id in the outline must be a REAL id somewhere in the game
+    /// data, so the outline stays an honest requirements list. Haystack:
+    /// the data files the design doc cross-checked against, plus blueprint
+    /// file stems (fibonacci_homestead names a blueprint file).
+    #[test]
+    fn home_outline_game_ids_are_real() {
+        let o = super::load_home_outline(std::path::Path::new("data"));
+        let mut hay = String::new();
+        for f in [
+            "data/machines/home.ron",
+            "data/waste_management.ron",
+            "data/structures.csv",
+            "data/items.csv",
+            "data/self_sufficiency/component_outputs.ron",
+            "data/towers/aeroponic_configs.ron",
+        ] {
+            hay.push_str(&std::fs::read_to_string(f).unwrap_or_default());
+        }
+        if let Ok(entries) = std::fs::read_dir("data/blueprints") {
+            for e in entries.flatten() {
+                hay.push_str(&e.file_name().to_string_lossy());
+                hay.push('\n');
+            }
+        }
+        for l in &o.loops {
+            for r in &l.requirements {
+                assert!(
+                    hay.contains(&r.game_id),
+                    "outline loop '{}' requirement '{}' cites game_id '{}' which exists nowhere in the game data",
+                    l.id,
+                    r.item,
+                    r.game_id
+                );
+            }
+        }
+    }
+
+    /// Missing outline degrades to empty (panel hides), never a panic.
+    #[test]
+    fn home_outline_missing_file_is_empty() {
+        let o = super::load_home_outline(std::path::Path::new("data/definitely_not_a_dir"));
+        assert!(o.loops.is_empty());
     }
 
     #[test]

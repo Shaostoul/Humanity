@@ -36,12 +36,15 @@
 >    KEEP -- NOT trim candidates (operator 2026-07-05):
 >    - `dev.html` + ALL dev/debug tooling -- PERMANENT (forever-development
 >      directive; never trim debugging/diagnostics/testing as "launch cleanup").
->    - `home.html` -- the WEB "Home" nav page (pairs with native Homes). It's an
->      early real-home tracker (rooms, furniture, garden/aeroponic stats, power/
->      water) -- on-mission (self-sufficiency), works, NOT fluff. Underdeveloped
->      because "Home" needs a real design pass. Direction: build Home native-first
->      (the native Homes/homestead system is the source of truth), then make
->      home.html mirror it, so we don't maintain two divergent Home pages.
+>    - `home.html` -- REBUILT v0.700.0 per the operator's direction: Home now
+>      outlines the perfect ideal closed-loop homestead (one person, six loops,
+>      honestly sized) AND doubles as the game's Home requirements list. One data
+>      file (data/home_outline.json, distilled from homestead-solo-design.md,
+>      every game_id unit-test-verified real) rendered by BOTH the native Home
+>      page panel and the web page -- web mirrors native, zero divergence. The old
+>      localStorage room-decorator is gone. NEXT for Home (in the data file's
+>      in_game_next): play-load the solo home; live balances track YOUR build
+>      against the outline; long-term real-home import.
 >    - Essential public/site + functional: index, download, onboarding,
 >      wallet-guide, roadmap, accord, shared-files, ops, admin, agents, + every
 >      native-mirror page (chat, inventory, tasks, ...). The mirrors ARE the

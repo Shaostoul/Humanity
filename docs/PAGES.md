@@ -134,7 +134,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Name | File | Purpose | Audience | Web-only? |
 |------|------|---------|----------|-----------|
 | Index | `index.html` | Landing page. "Own your tools. Own your life." 3 hero CTAs. | everyone | yes |
-| Home | `home.html` | Logged-in home / dashboard. | everyone | yes |
+| Home | `home.html` | The ideal closed-loop homestead outline (one person, six loops, honestly sized): renders `data/home_outline.json`, the SAME data the native Home page's "ideal closed loop" panel renders -- web mirrors native. Replaced the old localStorage room-decorator (v0.700, operator direction: Home outlines the perfect closed loop AND doubles as the game's Home requirements list). | everyone | both |
 | Onboarding | `onboarding.html` | Web's own onboarding flow (native's standalone Onboarding page was removed v0.415.0 and folded into Quests; web was NOT re-checked for the same fold in this pass). | everyone | web-only in practice |
 | Download | `download.html` | Desktop binary download + module list. | everyone | yes |
 | WalletGuide | `wallet-guide.html` | "?" help page from Wallet. | everyone | yes |
