@@ -214,7 +214,6 @@
     else if (p.startsWith('/chat'))      active = 'chat';
     else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/activities/game')) active = 'games';
-    else if (p.startsWith('/dashboard')) active = 'dashboard';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
@@ -222,7 +221,6 @@
     else if (p.startsWith('/shared-files')) active = 'shared-files';
     else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/agents'))     active = 'agents';
-    else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
     else if (p.startsWith('/onboarding')) active = 'quests';
@@ -241,7 +239,6 @@
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
     else if (p.startsWith('/projects'))  active = 'projects';
-    else if (p.startsWith('/activities/gardening')) active = 'garden';
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
@@ -799,7 +796,6 @@
       mobileLink('/web',       'Bookmarks') +
       mobileLink('/files',     'Files') +
       mobileLink('/data',      'Data') +
-      mobileLink('/audit',     'Audit') +
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
@@ -1369,7 +1365,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.699.2';
+    var CURRENT_VERSION = '0.699.3';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

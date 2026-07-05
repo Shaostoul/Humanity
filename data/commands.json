@@ -84,7 +84,6 @@
       "name": "🧭 Navigate",
       "requires_role": null,
       "items": [
-        { "icon": "📊", "label": "Dashboard", "desc": "Go to /dashboard", "nav_url": "/dashboard" },
         { "icon": "🏠", "label": "Home",      "desc": "Go to /home",      "nav_url": "/home" },
         { "icon": "🧠", "label": "Skills",    "desc": "Go to /skills",    "nav_url": "/skills" },
         { "icon": "🎯", "label": "Tasks",     "desc": "Go to /tasks",     "nav_url": "/tasks" },

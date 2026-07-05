@@ -13,7 +13,6 @@
     { target: 'a[href="/tasks"]', title: 'Tasks', text: 'Track projects with the kanban board. Create tasks, assign them, and organize by project.' },
     { target: 'a[href="/market"]', title: 'Marketplace', text: 'Buy, sell, and trade with other members. Zero middleman fees.' },
     { target: 'a[href="/wallet"]', title: 'Wallet', text: 'Your identity IS your wallet. Send, receive, and manage crypto.' },
-    { target: 'a[href="/activities/gardening"]', title: 'Activities', text: 'Play the gardening game, learn real agriculture, and more activities coming soon.' },
     { target: 'a[href="/settings"]', title: 'Settings', text: 'Customize your experience, manage your identity, and configure notifications.' },
     { target: null, title: 'You\'re all set!', text: 'Start by chatting in the Network tab, or explore at your own pace. Your identity is secured with Ed25519 cryptography \u2014 back up your seed phrase in Settings!' }
   ];

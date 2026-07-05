@@ -122,12 +122,12 @@ differently:
 well as the AI usage." Multi-AI coordination moved to `data/coordination/*` + the relay
 `agent_sessions` table); standalone `Onboarding` and `Resources` (v0.415.0, folded into
 Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSettings); the
-`Play` variant (v0.415.0, unused, Crafting/Studio are top-level tabs now). The orphaned
-`web/pages/agents.html` and `web/pages/ai-usage.html` files still exist with no native
-counterpart, likely dead weight matching a feature the operator explicitly killed,
-worth a follow-up deletion pass.
+`Play` variant (v0.415.0, unused, Crafting/Studio are top-level tabs now). `web/pages/ai-usage.html` was DELETED 2026-07-05 in the fluff-trim pass
+(dead, zero inbound links). `web/pages/agents.html` is KEPT: a live,
+functional agent-coordination dashboard (POST override secured v0.698.0)
+linked from README.
 
-## Web pages (`web/pages/*.html`: 41 standalone; `shared-files.html` added 2026-07-02)
+## Web pages (`web/pages/*.html`: 38 standalone; audit/ai-usage/dashboard removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -138,7 +138,6 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Onboarding | `onboarding.html` | Web's own onboarding flow (native's standalone Onboarding page was removed v0.415.0 and folded into Quests; web was NOT re-checked for the same fold in this pass). | everyone | web-only in practice |
 | Download | `download.html` | Desktop binary download + module list. | everyone | yes |
 | WalletGuide | `wallet-guide.html` | "?" help page from Wallet. | everyone | yes |
-| Dashboard | `dashboard.html` | Games / activities hub. | everyone | yes |
 | Projects | `projects.html` | Project showcase. | everyone | yes |
 | Roadmap | `roadmap.html` | Public roadmap view, rendered from `data/roadmap.json`. | everyone | yes |
 | Dev | `dev.html` | Developer hub. | dev | yes |
@@ -147,10 +146,9 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Admin | `admin.html` | Admin dashboard. **Read-only** (`admin-app.js` has exactly one `fetch()` call, a GET; no service control, no alert-channel editing, no backup trigger, mutating admin actions require the native exe or SSH). | admin | yes |
 | Accord | `accord.html` | The Humanity Accord rendered as a navigable web page (built 2026-07-01 during the fleet redo of the destroyed Accord-page work; registry row added 2026-07-02 when page_registry_lint caught the omission). | everyone | web (native Library page shows the same documents) |
 | Shared Files | `shared-files.html` | The public file library (v0.675): browse/search files people shared (3D-printable parts, models). Backed by GET /api/uploads; files enter it by attaching a 3D/model format in chat (`?share=1` on upload). Chat photos stay unlisted. | everyone | web-only (native follow-up: needs a download-manager UX; links open in browser meanwhile) |
-| Audit | `audit.html` | Not present in the 2026-05-03 audit; purpose not re-verified in this pass, flagging as a genuinely new/unaudited page rather than guessing. | unknown | yes |
 | Web | `web.html` | (purpose unclear, TODO audit, carried over unresolved from the last audit) | unknown | yes |
 
-Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (orphaned, see native removed-variants note above), `ai-usage.html` (orphaned, same), `settings.html`.
+Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (functional agent dashboard, secured v0.698.0, linked from README), `settings.html`.
 
 **Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Platform/Humanity, web keeps the flatter per-page nav instead). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
 
@@ -159,9 +157,7 @@ Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps
 | Name | File | Purpose |
 |------|------|---------|
 | Chat hub | `web/chat/index.html` | Cooperative chat with cryptographic identity. |
-| Activities hub | `web/activities/index.html` | Game / real-world activities directory. |
 | Game | `web/activities/game.html` | "Humanity: The Game" entry. |
-| Gardening | `web/activities/gardening.html` | Garden activity. |
 
 ## Pages mentioned in docs as "needed but not built"
 
