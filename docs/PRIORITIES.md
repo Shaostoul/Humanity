@@ -58,12 +58,17 @@
 > web/activities/download.html (frozen at v0.36 "Launcher") while bump-version.js
 > stamped BOTH copies (hiding the drift). Done in repo: nginx route now
 > `/download.html` (the maintained web/pages/download.html); the fork deleted;
-> bump-version.js legacy block removed; PAGES.md + SYNC.md updated. >>> OPERATOR:
-> the live site still serves the stale fork until you apply the nginx config:
-> copy scripts/nginx/humanity.conf to the VPS, `sudo nginx -t`, `sudo systemctl
-> reload nginx`. (The deploy does NOT auto-apply nginx; the activities rsync has
-> no --delete so the old file lingers harmlessly on the VPS until reload -- no
-> 404 window.) <<< (C) NAV EXPOSURE -- CORE DONE v0.699.2 (web/shared/shell.js):
+> bump-version.js legacy block removed; PAGES.md + SYNC.md updated. LIVE FIX
+> APPLIED 2026-07-05 (AI did it over SSH `humanity-vps`): targeted-edited
+> /etc/nginx/sites-enabled/humanity (/download -> /download.html; removed the
+> dead /landing route), backed up first, `nginx -t` + graceful `systemctl reload
+> nginx`, verified curl /download=200 serving v0.699.2 (was the stale v0.36 fork).
+> Also moved the orphaned /var/www/humanity/landing.html (stale April page, no
+> inbound links) to /root backup so /landing now 404s. FOLLOW-UP: the web deploy's
+> page-copy loop has NO --delete, so every page ever removed from web/pages still
+> lingers on the VPS web root (landing.html, activities/download.html, ...) --
+> worth a --delete or a periodic orphan sweep. And nginx config is still NOT in
+> the deploy pipeline (hand-applied); consider a `just apply-nginx` recipe. <<< (C) NAV EXPOSURE -- CORE DONE v0.699.2 (web/shared/shell.js):
 > the hamburger drawer (which holds every page that doesn't fit the 14-tab
 > app-mirror row) is now a "More" button visible on DESKTOP too, not just <=768px,
 > so the ~17 drawer-only pages (Wallet, Market, Governance, Civilization, Calendar,
