@@ -157,7 +157,12 @@ Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps
 | Name | File | Purpose |
 |------|------|---------|
 | Chat hub | `web/chat/index.html` | Cooperative chat with cryptographic identity. |
-| Game | `web/activities/game.html` | "Humanity: The Game" entry. |
+
+(The whole `web/activities/` directory was removed 2026-07-05: its hub + gardening
+game went in the v0.699.3 trim, and `game.html` -- a redundant "download the app"
+page -- in v0.699.4. The game IS the downloaded native app; the Download page's
+"Humanity: The Game" module card now reads "Included" instead of linking to a
+browser demo.)
 
 ## Pages mentioned in docs as "needed but not built"
 

@@ -23,18 +23,29 @@
 >    gardening-games lesson). Before adding a web-only page, ask: does it serve
 >    the end app, or is it a demo? DONE 2026-07-05 (v0.699.3): deleted audit,
 >    ai-usage, dashboard, the activities hub, the orphaned gardening game.
-> 3. **WEB-ONLY PAGES STILL ON THE CHOPPING BLOCK (operator to confirm each):**
+>    DONE 2026-07-05 (v0.699.4): deleted `game.html` -- it was just another
+>    "download the app" page; the game IS the downloaded native app, so the
+>    Download page's "Humanity: The Game" module card now reads "Included". The
+>    whole `web/activities/` directory is gone.
+> 3. **REMAINING WEB-ONLY CANDIDATES (operator to confirm each):**
 >    - `data.html` -- BROKEN (its save/backup/USB actions call removed Tauri
 >      commands; dead since we left Tauri). Strong DELETE, or rebuild later as a
 >      faithful mirror of the native Data settings.
 >    - `projects.html` -- static marketing showcase; the public Roadmap already
 >      covers "what we're building". Trim candidate.
->    - `dev.html` -- dev-period landing hub; trim at/after launch (gate for now).
->    - `home.html` -- "logged-in home"; check for redundancy with index.html.
->    KEEP (essential public/site or functional): index, download, onboarding,
->    wallet-guide, roadmap, accord, shared-files, ops, admin, agents, + every
->    native-mirror page (chat, inventory, tasks, ...). The mirrors are the
->    app-as-website; the work there is FAITHFULNESS to native, not deletion.
+>    KEEP -- NOT trim candidates (operator 2026-07-05):
+>    - `dev.html` + ALL dev/debug tooling -- PERMANENT (forever-development
+>      directive; never trim debugging/diagnostics/testing as "launch cleanup").
+>    - `home.html` -- the WEB "Home" nav page (pairs with native Homes). It's an
+>      early real-home tracker (rooms, furniture, garden/aeroponic stats, power/
+>      water) -- on-mission (self-sufficiency), works, NOT fluff. Underdeveloped
+>      because "Home" needs a real design pass. Direction: build Home native-first
+>      (the native Homes/homestead system is the source of truth), then make
+>      home.html mirror it, so we don't maintain two divergent Home pages.
+>    - Essential public/site + functional: index, download, onboarding,
+>      wallet-guide, roadmap, accord, shared-files, ops, admin, agents, + every
+>      native-mirror page (chat, inventory, tasks, ...). The mirrors ARE the
+>      app-as-website; the work there is FAITHFULNESS to native, not deletion.
 > 4. **ONE web-browsing page = our OWN lightweight browser (NOT Chromium).** The
 >    seed is `web.html` (bookmarks) + the native Browser page. North star: browse
 >    real sites (e.g. Google) inside the game on in-game monitors, without the
