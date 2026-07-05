@@ -63,13 +63,20 @@
 > copy scripts/nginx/humanity.conf to the VPS, `sudo nginx -t`, `sudo systemctl
 > reload nginx`. (The deploy does NOT auto-apply nginx; the activities rsync has
 > no --delete so the old file lingers harmlessly on the VPS until reload -- no
-> 404 window.) <<< (C) NAV EXPOSURE: 11 web pages
-> fully orphaned (trade, guilds, files, calculator, web are WORKING code nobody can
-> click to; admin, agents, ai-usage, dashboard, activities-hub, gardening the rest);
-> 10 more pages are mobile-drawer-only, invisible on desktop (civilization,
-> shared-files, recovery, projects, roadmap, audit, calendar, data, bugs, dev) --
-> simplest fix: show the drawer on desktop too; needs operator taste call on what
-> deserves nav slots vs deletion. (D) NATIVE DEAD WEIGHT -- DONE v0.699.0: deleted
+> 404 window.) <<< (C) NAV EXPOSURE -- CORE DONE v0.699.2 (web/shared/shell.js):
+> the hamburger drawer (which holds every page that doesn't fit the 14-tab
+> app-mirror row) is now a "More" button visible on DESKTOP too, not just <=768px,
+> so the ~17 drawer-only pages (Wallet, Market, Governance, Civilization, Calendar,
+> Notes, ...) are reachable by click. Added the 6 working pages that weren't even in
+> the drawer: Trade + Guilds (Community group), Calculator + Files + Bookmarks(/web)
+> + Roadmap (Tools/system group). Every WORKING orphaned page is now clickable.
+> REMAINING (operator taste calls, NOT auto-done): (1) the primary 14-tab desktop
+> row is unchanged -- if any drawer page deserves promotion to a real top-nav tab,
+> that's your call. (2) DELETE-CANDIDATES left out of nav pending your decision: the
+> dead stubs dashboard ("Coming Soon"), agents + ai-usage (native twins removed
+> v0.197), and the fully-orphaned legacy web/activities/ hub (~17.5k lines, every
+> tab 301s to modern pages) + its gardening page. Confirm delete and I'll remove
+> them + their nginx routes + commands.json entries. (D) NATIVE DEAD WEIGHT -- DONE v0.699.0: deleted
 > the 17 unreachable variants (5 Overview* landings + 12 Settings* sub-pages) and
 > their whole category-browse subsystem (category_overview + settings_pages modules,
 > escape_menu's top_categories/sub_pages_for/category_pages/category_meta); rehomed

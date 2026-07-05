@@ -452,7 +452,14 @@
 
     /* ── Mobile hamburger, hidden on desktop ── */
     .hub-nav .mobile-menu-btn {
-      display: none;
+      /* v0.699.2: shown on desktop too as a "More" overflow menu. The drawer
+         holds every page that doesn't fit the 14-tab app-mirror row, so on
+         desktop those pages (Trade, Guilds, Wallet, Market, Governance,
+         Calendar, Notes, ...) were unreachable by click -- exactly the
+         "hidden pages I can't access" the 2026-07-04 audit surfaced. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       background: transparent;
       border: 1px solid #2a6;
       color: var(--text);
@@ -731,7 +738,7 @@
       '<div class="spacer"></div>' +
 
       /* Mobile hamburger, only visible on small screens */
-      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
+      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="More pages" title="More pages" data-tip="More pages">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
@@ -773,6 +780,8 @@
     '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
+      mobileLink('/trade',     'Trade') +
+      mobileLink('/guilds',    'Guilds') +
       mobileLink('/donate',    'Donate') +
       mobileLink('/civilization', 'Civilization') +
       mobileLink('/governance', 'Governance') +
@@ -781,12 +790,16 @@
       mobileLink('/identity',  'Identity') +
       mobileLink('/recovery',  'Recovery') +
       mobileLink('/projects',  'Projects') +
+      mobileLink('/roadmap',   'Roadmap') +
     '</div>' +
-    '<div class="mobile-hub-group group-blue"><h4>System and dev</h4>' +
-      mobileLink('/audit',     'Audit') +
+    '<div class="mobile-hub-group group-blue"><h4>Tools, system and dev</h4>' +
+      mobileLink('/calculator','Calculator') +
       mobileLink('/calendar',  'Calendar') +
       mobileLink('/notes',     'Notes') +
+      mobileLink('/web',       'Bookmarks') +
+      mobileLink('/files',     'Files') +
       mobileLink('/data',      'Data') +
+      mobileLink('/audit',     'Audit') +
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
@@ -1356,7 +1369,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.699.1';
+    var CURRENT_VERSION = '0.699.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
