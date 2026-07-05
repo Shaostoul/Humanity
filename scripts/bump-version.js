@@ -80,16 +80,9 @@ if (fs.existsSync(dlPath)) {
   }
 }
 
-// Also check legacy location
-const dlPathLegacy = path.join(ROOT, 'web/activities/download.html');
-if (fs.existsSync(dlPathLegacy)) {
-  let dl = fs.readFileSync(dlPathLegacy, 'utf8');
-  let updated = dl.split(`v${oldVersion}`).join(`v${newVersion}`);
-  updated = updated.split(`'${oldVersion}'`).join(`'${newVersion}'`);
-  if (updated !== dl) {
-    fs.writeFileSync(dlPathLegacy, updated, 'utf8');
-    console.log(`  updated web/activities/download.html`);
-  }
-}
+// (Removed v0.698.3: the web/activities/download.html fork is deleted. It was
+// a stale duplicate that nginx served at /download while this script kept
+// stamping BOTH copies, hiding the drift -- the fork froze at v0.36 framing
+// anyway. /download now points at the maintained web/pages/download.html.)
 
 console.log(`\nVersion bumped: ${oldVersion} -> ${newVersion}`);

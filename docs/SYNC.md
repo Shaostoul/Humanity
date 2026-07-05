@@ -12,8 +12,8 @@ Run `node scripts/bump-version.js patch|minor|major` to update all 6 active loca
 - [ ] `web/shared/shell.js` version string
 - [ ] `web/pages/download.html` version badge
 
-(The script also touches `web/activities/download.html` if it still exists, a
-fallback for the old layout. Don't add new locations without also updating the
+(The old `web/activities/download.html` fork was deleted v0.698.3; the script
+no longer touches it. Don't add new stamp locations without also updating the
 script.)
 
 ## Documentation (manual)

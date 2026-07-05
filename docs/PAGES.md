@@ -176,7 +176,6 @@ Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps
 | Activities hub | `web/activities/index.html` | Game / real-world activities directory. |
 | Game | `web/activities/game.html` | "Humanity: The Game" entry. |
 | Gardening | `web/activities/gardening.html` | Garden activity. |
-| Download (mirror) | `web/activities/download.html` | Mirrors `web/pages/download.html`. |
 
 ## Pages mentioned in docs as "needed but not built"
 

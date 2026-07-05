@@ -53,10 +53,17 @@
 > REMAINING CAVEAT (follow-up, not a launch blocker): a DM image encrypts the
 > URL, but the file BYTES sit in the relay's public upload store fetchable by
 > URL -- true DM-attachment confidentiality needs encrypted blob storage.
-> (B) /download SERVES A STALE FORK: nginx humanity.conf:164 points at
-> web/activities/download.html (frozen at v0.36 "Launcher" framing) while
-> bump-version.js maintains web/pages/download.html -- point nginx at the pages copy
-> + delete the fork (repo conf + VPS conf + sync). (C) NAV EXPOSURE: 11 web pages
+> (B) /download SERVES A STALE FORK -- REPO FIXED v0.698.3, needs ONE operator
+> VPS action to go live. Was: nginx humanity.conf:164 pointed at
+> web/activities/download.html (frozen at v0.36 "Launcher") while bump-version.js
+> stamped BOTH copies (hiding the drift). Done in repo: nginx route now
+> `/download.html` (the maintained web/pages/download.html); the fork deleted;
+> bump-version.js legacy block removed; PAGES.md + SYNC.md updated. >>> OPERATOR:
+> the live site still serves the stale fork until you apply the nginx config:
+> copy scripts/nginx/humanity.conf to the VPS, `sudo nginx -t`, `sudo systemctl
+> reload nginx`. (The deploy does NOT auto-apply nginx; the activities rsync has
+> no --delete so the old file lingers harmlessly on the VPS until reload -- no
+> 404 window.) <<< (C) NAV EXPOSURE: 11 web pages
 > fully orphaned (trade, guilds, files, calculator, web are WORKING code nobody can
 > click to; admin, agents, ai-usage, dashboard, activities-hub, gardening the rest);
 > 10 more pages are mobile-drawer-only, invisible on desktop (civilization,
