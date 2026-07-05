@@ -1,87 +1,115 @@
 {
-  "_comment": "The ideal closed-loop homestead OUTLINE (one person). Operator directive 2026-07-05: 'use Home as a page for outlining what we need in the perfect ideal 100% closed loop self-sustaining homestead... it could also help us clearly outline what we need in the game for the home.' Every number is distilled from docs/design/homestead-solo-design.md (sections 0-9), whose figures were cross-checked against the live game data (home.ron catalog, component_outputs.ron, plants.csv) and AGREE. Every game_id below is a real machine/structure id in the game data. Rendered by BOTH the native Home page (src/gui/pages/homes.rs, 'The ideal closed loop' panel) and the web mirror (web/pages/home.html fetches /data/home_outline.json). Infinite-of-X: edit here, both surfaces update, no code change. Lives at data/ TOP LEVEL because the VPS deploy only syncs top-level data JSON to the public web root (subdirs like data/coordination/ stay private). No em dashes in copy (operator rule).",
+  "_comment": "The ideal closed-loop homestead OUTLINE (one person). Operator directives: 2026-07-05 'use Home as a page for outlining what we need in the perfect ideal 100% closed loop self-sustaining homestead'; same day: dual units 'metric (imperial)' so either background reads it instantly, plus TWO TIERS per loop: bare minimum vs a life of luxury with all the latest tech (assume comfort in space, not austerity). Numbers distilled from docs/design/homestead-solo-design.md (cross-checked against live game data); luxury-tier additions sized with honest engineering estimates. Every requirement carries tier: 'baseline' or 'luxury'. game_id is a REAL id in the game data (unit-test enforced) OR the empty string, which renders as a 'not in game yet' flag: the luxury tier doubles as the game-content gap list, exactly the operator's stated purpose. Rendered by BOTH the native Home page (src/gui/pages/homes.rs) and the web mirror (web/pages/home.html fetches /data/home_outline.json). Infinite-of-X: edit here, both surfaces update. Top-level data/ so the web deploy publishes it. No em dashes in copy (operator rule).",
   "title": "The ideal closed-loop homestead",
-  "subtitle": "One person. Five survival loops that close, five gaps that honestly cannot. This outline is both the real-world recipe and the game's requirements list for Home.",
-  "intro": "100% closure is physically impossible (entropy always leaks), but a single person CAN close the survival loops: energy, water, air, nutrients, and nearly all food. Everything below is sized for one adult from real figures, and every component already exists in the game's data. What one home cannot close is listed last, on purpose: those gaps are why community and trade exist.",
+  "subtitle": "One person, seven loops, two tiers: the bare minimum that keeps you alive, and a life of luxury with all the latest tech. Both honestly sized, in metric and imperial.",
+  "intro": "100% closure is physically impossible (entropy always leaks), but a single person CAN close the survival loops: energy, water, air, climate, nutrients, and nearly all food. Each loop below lists the bare minimum first, then the luxury additions for living WELL, not just surviving; comfort in space is the design target, and anything the game does not have yet is flagged so this page doubles as the game's requirements list. What one home cannot close is listed last, on purpose: those gaps are why community and trade exist.",
   "loops": [
     {
       "id": "power",
       "name": "Power",
-      "demand": "4.0 kWh/day, duty-cycle honest (life support 0.6, water handling 0.17, cooking 1.0, cold storage 0.8, lights and tools the rest)",
+      "demand": "Bare minimum 4.0 kWh/day, duty-cycle honest (life support, water handling, cooking, cold storage, lights). A life of luxury runs about 16 kWh/day: add heating and cooling (about 5), hot water on demand (about 2), full fridge and freezer (about 1.5), washer and dryer (about 1), computers and entertainment (about 1.5), kitchen appliances, the 3D printer, and power tools.",
       "closes": true,
-      "closure_note": "4 panels yield about 5.76 kWh/day real (400 W x 4.5 sun-hours x 0.80 system losses), a 44% headroom over demand. Winter sun can halve; the battery bank plus a backup generator carry the gap. The biodigester can brew that generator's methane from your own waste, closing a slice of the fuel loop too.",
+      "closure_note": "Bare minimum: 4 panels yield about 5.76 kWh/day real (400 W x 4.5 sun-hours x 0.80 system losses), a 44% headroom. Luxury: 14 panels make about 20 kWh/day against the 16 kWh/day budget, with 8 battery banks (32 kWh, about 2 days of autonomy). Winter sun can halve; batteries plus the backup generator carry the gap, and the biodigester brews the generator's methane from your own waste.",
       "requirements": [
-        { "item": "Solar panels", "qty": "4x", "game_id": "solar_panel", "why": "400 W each; 1.44 kWh/day real yield per panel, not nameplate" },
-        { "item": "Battery bank", "qty": "2x", "game_id": "battery_bank", "why": "8 kWh usable, about 2 days of autonomy" },
-        { "item": "Wind turbine", "qty": "1x", "game_id": "wind_turbine_small", "why": "0.7 kWh/day; keeps trickling when the sun does not" },
-        { "item": "Backup generator", "qty": "1x", "game_id": "generator_portable", "why": "covers the winter deficit; burns biodigester methane" }
+        { "item": "Solar panels", "qty": "4x", "tier": "baseline", "game_id": "solar_panel", "why": "400 W each; 1.44 kWh/day real yield per panel, not nameplate" },
+        { "item": "Battery bank", "qty": "2x", "tier": "baseline", "game_id": "battery_bank", "why": "8 kWh usable, about 2 days of bare-minimum autonomy" },
+        { "item": "Wind turbine", "qty": "1x", "tier": "baseline", "game_id": "wind_turbine_small", "why": "0.7 kWh/day; keeps trickling when the sun does not" },
+        { "item": "Backup generator", "qty": "1x", "tier": "baseline", "game_id": "generator_portable", "why": "covers the winter deficit; burns biodigester methane" },
+        { "item": "Solar panels (luxury array)", "qty": "14x total", "tier": "luxury", "game_id": "solar_panel", "why": "about 20 kWh/day real yield to fund the 16 kWh/day comfort budget" },
+        { "item": "Battery banks (luxury bank)", "qty": "8x total", "tier": "luxury", "game_id": "battery_bank", "why": "32 kWh, about 2 days of autonomy at full comfort" }
       ]
     },
     {
       "id": "water",
       "name": "Water",
-      "demand": "80 L/day net household (drink, cook, wash); irrigation is NOT net demand because greywater recycling covers it",
+      "demand": "Bare minimum 80 L/day (21 gal/day) net household: drink, cook, wash. Luxury about 120 L/day (32 gal/day) with long hot showers, a washing machine, and a dishwasher. Irrigation is NOT net demand; greywater recycling covers it.",
       "closes": true,
-      "closure_note": "An 8,000 L cistern holds 100 days of autonomy for one person, and passive rain catchment adds about 144 L/day for free. Dry-season storage is the binding constraint, so the oversized tank is a feature, not waste.",
+      "closure_note": "An 8,000 L (2,100 gal) cistern holds 100 days of bare-minimum autonomy, still 66 days at full luxury use, and passive rain catchment adds about 144 L/day (38 gal/day) for free. Dry-season storage is the binding constraint, so the oversized tank is a feature, not waste.",
       "requirements": [
-        { "item": "Cistern", "qty": "1x", "game_id": "water_tank", "why": "8,000 L storage = 100 dry days; rain catchment included" },
-        { "item": "Well pump", "qty": "1x", "game_id": "water_pump", "why": "2 L/min lift refills a day's use in about 40 minutes" },
-        { "item": "Purifier", "qty": "1x", "game_id": "water_purifier", "why": "240 L/day potable polish, 3x the one-person need" },
-        { "item": "Household plumbing", "qty": "1x", "game_id": "home_water_use", "why": "the tap/shower/sink node; cistern to pump to purifier to taps" }
+        { "item": "Cistern", "qty": "1x", "tier": "baseline", "game_id": "water_tank", "why": "8,000 L (2,100 gal) storage; rain catchment included" },
+        { "item": "Well pump", "qty": "1x", "tier": "baseline", "game_id": "water_pump", "why": "2 L/min (0.5 gal/min) lift refills a day's use in under an hour" },
+        { "item": "Purifier", "qty": "1x", "tier": "baseline", "game_id": "water_purifier", "why": "240 L/day (63 gal/day) potable polish, 3x the one-person need" },
+        { "item": "Household plumbing", "qty": "1x", "tier": "baseline", "game_id": "home_water_use", "why": "the tap/shower/sink node; cistern to pump to purifier to taps" },
+        { "item": "Hot water on demand", "qty": "1x", "tier": "luxury", "game_id": "", "why": "heat-pump water heater, about 2 kWh/day for one person; endless hot showers" },
+        { "item": "Washing machine", "qty": "1x", "tier": "luxury", "game_id": "washing_machine_0", "why": "with a heat-pump dryer, about 1 kWh/day averaged" },
+        { "item": "Dishwasher", "qty": "1x", "tier": "luxury", "game_id": "", "why": "modern units use LESS water than hand washing, about 10 L (2.6 gal) per load" }
       ]
     },
     {
       "id": "food",
       "name": "Food",
-      "demand": "2,200 kcal/day complete nutrition (about 55 g protein), one adult",
+      "demand": "2,200 kcal/day complete nutrition (about 55 g / 2 oz protein), one adult, both tiers; luxury adds variety, spice, and serious preservation, not more calories.",
       "closes": true,
-      "closure_note": "The honest cap is light, not shelf space: free sunlight is a single canopy, so a room's output is bounded by its lit floor area no matter how many towers you stack. About 700 to 1,000 m2 of intensive growing feeds one person; the 34x34 m garden room is 1,156 m2, so the same garden that fell short for three people genuinely closes for one. Indoor alone reaches about 2,078 kcal/day (94%); one outdoor grain field plus one legume field push it into surplus, and the silo banks 750 days of buffer.",
+      "closure_note": "The honest cap is light, not shelf space: free sunlight is a single canopy, so a room's output is bounded by its lit floor area no matter how many hydroponic or aeroponic towers you stack. About 700 to 1,000 m2 (7,500 to 10,800 sq ft) of intensive growing feeds one person; the 34x34 m (112x112 ft) garden room is 1,156 m2 (12,440 sq ft), so the same garden that fell short for three people genuinely closes for one. Indoor alone reaches about 2,078 kcal/day (94%); one outdoor grain field plus one legume field push it into surplus, and the silo banks 750 days of buffer.",
       "requirements": [
-        { "item": "Potato grow beds", "qty": "8x", "game_id": "potato_grow_bed", "why": "960 kcal/day of bulk calories, aeroponic, NASA-real" },
-        { "item": "Variety towers", "qty": "9x", "game_id": "aeroponic_tower_nutrition", "why": "828 kcal/day; all vegetables, vitamins, and plant protein across 32 real crops" },
-        { "item": "Oilseed beds", "qty": "3x", "game_id": "oilseed_bed", "why": "75 kcal/day of fats (sunflower, flax)" },
-        { "item": "Mushroom racks", "qty": "2x", "game_id": "mushroom_rack", "why": "100 kcal/day from dark vertical space; needs no light budget" },
-        { "item": "Aquaponic tank", "qty": "1x", "game_id": "aquaponic_tank", "why": "closes B12 and omega-3, the two nutrients plants cannot give you" },
-        { "item": "Grain trays", "qty": "2x", "game_id": "staple_grain_tray", "why": "token indoor cereal; worst per-m2 crop, kept minimal on purpose" },
-        { "item": "Grain field", "qty": "1x", "game_id": "grain_field", "why": "3,100 kcal/day outdoor surplus, dried and stored" },
-        { "item": "Legume field", "qty": "1x", "game_id": "legume_field", "why": "700 kcal/day protein AND fixes nitrogen for the grain field" },
-        { "item": "Grain silo", "qty": "1x", "game_id": "grain_silo", "why": "750 days stored; the winter and bad-harvest buffer" }
+        { "item": "Potato grow beds", "qty": "8x", "tier": "baseline", "game_id": "potato_grow_bed", "why": "960 kcal/day of bulk calories, aeroponic, NASA-real" },
+        { "item": "Variety towers (aeroponic)", "qty": "9x", "tier": "baseline", "game_id": "aeroponic_tower_nutrition", "why": "828 kcal/day; all vegetables, vitamins, and plant protein across 32 real crops" },
+        { "item": "Oilseed beds", "qty": "3x", "tier": "baseline", "game_id": "oilseed_bed", "why": "75 kcal/day of fats (sunflower, flax)" },
+        { "item": "Mushroom racks", "qty": "2x", "tier": "baseline", "game_id": "mushroom_rack", "why": "100 kcal/day from dark vertical space; needs no light budget" },
+        { "item": "Aquaponic tank", "qty": "1x", "tier": "baseline", "game_id": "aquaponic_tank", "why": "closes B12 and omega-3, the two nutrients plants cannot give you" },
+        { "item": "Grain trays", "qty": "2x", "tier": "baseline", "game_id": "staple_grain_tray", "why": "token indoor cereal; worst per-area indoor crop, kept minimal on purpose" },
+        { "item": "Grain field", "qty": "1x", "tier": "baseline", "game_id": "grain_field", "why": "3,100 kcal/day outdoor surplus, dried and stored" },
+        { "item": "Legume field", "qty": "1x", "tier": "baseline", "game_id": "legume_field", "why": "700 kcal/day protein AND fixes nitrogen for the grain field" },
+        { "item": "Grain silo", "qty": "1x", "tier": "baseline", "game_id": "grain_silo", "why": "750 days stored; the winter and bad-harvest buffer" },
+        { "item": "Fridge and freezer", "qty": "1x each", "tier": "luxury", "game_id": "fridge_0", "why": "about 1.5 kWh/day; fresh food, frozen harvest surplus, ice cream in space" },
+        { "item": "Herb and apothecary tower", "qty": "1x", "tier": "luxury", "game_id": "aeroponic_tower_apothecary", "why": "spices, teas, chamomile, aloe; flavor is a luxury loop worth closing" },
+        { "item": "Grow lights", "qty": "as budgeted", "tier": "luxury", "game_id": "grow_light", "why": "extend the canopy past the sun IF the luxury power budget funds it; the honest teaching meter shows the cost" }
       ]
     },
     {
       "id": "air",
       "name": "Air",
-      "demand": "0.55 kg O2/day plus matching CO2 scrubbing (sealed-habitat sizing; on open Earth this loop is free ventilation)",
+      "demand": "0.55 kg/day (1.2 lb/day) of oxygen plus matching CO2 scrubbing (sealed-habitat sizing; on open Earth this loop is free ventilation), both tiers.",
       "closes": true,
-      "closure_note": "The garden is the primary life support: 1,156 m2 of plant canopy makes far more oxygen than one person needs. The 25 W recycler is the backup, and it is priority 1 on the power bus for a reason: cut power long enough and air is the first loop to fail.",
+      "closure_note": "The garden is the primary life support: 1,156 m2 (12,440 sq ft) of plant canopy makes far more oxygen than one person needs. The 25 W recycler is the backup, and it is priority 1 on the power bus for a reason: cut power long enough and air is the first loop to fail.",
       "requirements": [
-        { "item": "Air recycler", "qty": "1x", "game_id": "air_recycler", "why": "25 W, sized for three people, so one person has deep margin" },
-        { "item": "Garden canopy", "qty": "shared", "game_id": "aeroponic_tower_nutrition", "why": "the food loop IS the oxygen loop; bioregenerative and free" }
+        { "item": "Air recycler", "qty": "1x", "tier": "baseline", "game_id": "air_recycler", "why": "25 W, sized for three people, so one person has deep margin" },
+        { "item": "Garden canopy", "qty": "shared", "tier": "baseline", "game_id": "aeroponic_tower_nutrition", "why": "the food loop IS the oxygen loop; bioregenerative and free" },
+        { "item": "HEPA filtration", "qty": "1x", "tier": "luxury", "game_id": "hepa_filter", "why": "dust, pollen, and particulates out of the sealed air; allergy-free living" }
+      ]
+    },
+    {
+      "id": "climate",
+      "name": "Climate (heating and cooling)",
+      "demand": "Hold about 20 C (68 F) year-round through winter cold and summer heat. A sealed, well-insulated shell shrinks this loop to a fraction of what a normal house burns.",
+      "closes": true,
+      "closure_note": "Insulation is the real machine: the shell does most of the work for free, passive solar gain and thermal mass carry the mild seasons, and a biomass stove burning your own woodlot covers deep winter at the bare minimum. Summer is shading, night ventilation, and the thermal-mass flywheel. The luxury heat pump moves 3 to 4 units of heat per unit of electricity, so even the all-electric path is efficient; its roughly 5 kWh/day seasonal average is the single biggest line in the luxury power budget, which is why it lives in that tier.",
+      "requirements": [
+        { "item": "Insulated shell", "qty": "whole house", "tier": "baseline", "game_id": "insulation", "why": "the highest-return component in the entire homestead; every other climate number scales off it" },
+        { "item": "Biomass stove", "qty": "1x", "tier": "baseline", "game_id": "stove_0", "why": "deep-winter heat from your own woodlot; ash goes to the composter" },
+        { "item": "Passive solar + thermal mass", "qty": "design", "tier": "baseline", "game_id": "window_wall", "why": "south glazing and mass floors store the day's heat for the night, no power at all" },
+        { "item": "Heat pump (heating + cooling)", "qty": "1x", "tier": "luxury", "game_id": "heat_pump", "why": "one machine does winter AND summer at 300-400% efficiency; about 5 kWh/day seasonal average" },
+        { "item": "Air conditioner (spot)", "qty": "1x", "tier": "luxury", "game_id": "air_conditioner", "why": "redundant spot cooling for heat waves or a server/workshop corner" },
+        { "item": "Radiant floors", "qty": "living areas", "tier": "luxury", "game_id": "radiant_floor", "why": "warm feet, silent, runs off the heat pump's low-grade heat" },
+        { "item": "Smart thermostat", "qty": "1x", "tier": "luxury", "game_id": "thermostat", "why": "schedules the whole loop around occupancy and the solar forecast" }
       ]
     },
     {
       "id": "nutrients",
       "name": "Nutrients and waste",
-      "demand": "about 1.5 kg/day of organic waste (food scraps, crop residue, humanure) returned to the soil",
+      "demand": "About 1.5 kg/day (3.3 lb/day) of organic waste (food scraps, crop residue, humanure) returned to the soil, both tiers.",
       "closes": true,
       "closure_note": "This is the loop-closer: recycling waste lowers every other loop's demand. Compost plus urine diversion return 587% of the nitrogen, 533% of the phosphorus, and 197% of the potassium the crops need, so even the tightest nutrient is in surplus. Fish waste feeds the towers; the legume field fixes nitrogen; the biodigester turns the rest into generator fuel.",
       "requirements": [
-        { "item": "Composter", "qty": "1-2x", "game_id": "composter", "why": "1.2 kg/day nutrient plus 155 L/day greywater back to irrigation; the second bin bridges the 60-90 day maturation lag" },
-        { "item": "Biodigester", "qty": "1x optional", "game_id": "biodigester", "why": "methane for the backup generator plus digestate fertilizer" },
-        { "item": "Septic tank", "qty": "1x", "game_id": "septic_tank", "why": "blackwater handling for the wetroom" }
+        { "item": "Composter", "qty": "1-2x", "tier": "baseline", "game_id": "composter", "why": "1.2 kg/day (2.6 lb/day) nutrient plus 155 L/day (41 gal/day) greywater back to irrigation; the second bin bridges the 60-90 day maturation lag" },
+        { "item": "Septic tank", "qty": "1x", "tier": "baseline", "game_id": "septic_tank", "why": "blackwater handling for the wetroom" },
+        { "item": "Biodigester", "qty": "1x", "tier": "luxury", "game_id": "biodigester", "why": "methane for the backup generator plus digestate fertilizer; waste becomes fuel" }
       ]
     },
     {
       "id": "shelter",
-      "name": "Shelter",
-      "demand": "one insulated, walkable home wrapping all of the above: garden room, wetroom, kitchen, workshop, storage, sleep",
+      "name": "Shelter and workshop",
+      "demand": "One insulated, walkable home wrapping every loop: garden room, wetroom, kitchen, workshop, storage, sleep. The luxury tier turns the workshop into a real fabrication bay.",
       "closes": true,
-      "closure_note": "The house is the container that makes every loop's numbers work: insulation shrinks the heat budget, the sealed envelope makes air a real loop, and room layout is the plumbing and power topology. Every wall, fixture, and furniture piece in the design is a real buildable id in the game today.",
+      "closure_note": "The house is the container that makes every loop's numbers work: insulation shrinks the climate budget, the sealed envelope makes air a real loop, and room layout is the plumbing and power topology. The workshop is what keeps every other machine alive; at the luxury tier it also MAKES things: printed spare parts, custom brackets, repaired boards. Every wall, fixture, and furniture piece in the design is a real buildable id in the game today.",
       "requirements": [
-        { "item": "Homestead shell", "qty": "1x", "game_id": "fibonacci_homestead", "why": "the room layout blueprint; the solo build uses fewer rooms of the same shells" },
-        { "item": "Wetroom fixtures", "qty": "1 set", "game_id": "shower_head_0", "why": "sink, shower, toilet from the standard structures catalog" },
-        { "item": "Kitchen and preservation", "qty": "1 set", "game_id": "stove_0", "why": "cook and preserve the harvest; cold storage is the 0.8 kWh/day line in the power budget" },
-        { "item": "Workshop bench", "qty": "1x", "game_id": "workbench", "why": "repairs keep every other loop's machines alive" }
+        { "item": "Homestead shell", "qty": "1x", "tier": "baseline", "game_id": "fibonacci_homestead", "why": "the room layout blueprint; the solo build uses fewer rooms of the same shells" },
+        { "item": "Wetroom fixtures", "qty": "1 set", "tier": "baseline", "game_id": "shower_head_0", "why": "sink, shower, toilet from the standard structures catalog" },
+        { "item": "Kitchen and preservation", "qty": "1 set", "tier": "baseline", "game_id": "stove_0", "why": "cook and preserve the harvest; cold storage is in the power budget" },
+        { "item": "Workshop bench", "qty": "1x", "tier": "baseline", "game_id": "workbench", "why": "repairs keep every other loop's machines alive" },
+        { "item": "3D printer", "qty": "1x", "tier": "luxury", "game_id": "printer_3d_0", "why": "about 0.2 kWh/day averaged; prints the brackets, knobs, and jigs that would otherwise be a supply run" },
+        { "item": "Full power-tool set", "qty": "1 set", "tier": "luxury", "game_id": "drill_electric_0", "why": "about 0.5 kWh/day averaged across saws, drills, welder; hours become minutes" },
+        { "item": "Computers and entertainment", "qty": "1 setup", "tier": "luxury", "game_id": "server_rack", "why": "about 1.5 kWh/day; work, games, movies, and the home's own automation brain" }
       ]
     }
   ],
@@ -92,7 +120,8 @@
   "in_game_next": [
     "Play-load the solo home: walk into this exact build as a playable save (the data for it already exists as the home_solo variant).",
     "Progress persistence: the Home page's live balances should track YOUR home as you build it, loop by loop, against this outline.",
+    "Author the luxury machines flagged 'not in game yet' on this page (on-demand water heater, dishwasher) so the comfort tier is fully buildable.",
     "Real-home import: measure your actual house against the ideal (the long-term homes-as-profiles direction)."
   ],
-  "footer": "Everything in this outline exists in the game's data today. The outline IS the requirements list: when the in-game Home can be built, powered, watered, fed, breathed, and composted to match this page, the Home feature is done enough to teach the real thing."
+  "footer": "Everything in the bare-minimum tier exists in the game's data today, and nearly all of the luxury tier does too. The outline IS the requirements list: when the in-game Home can be built, powered, watered, fed, breathed, climate-held, and composted to match this page at BOTH tiers, the Home feature is done enough to teach the real thing."
 }

@@ -140,8 +140,16 @@ fn cannot_close() -> &'static CannotCloseData {
 pub struct OutlineRequirement {
     pub item: String,
     pub qty: String,
+    /// Empty string = the game has no id for this yet; renders as a
+    /// "not in game yet" flag, making the luxury tier double as the
+    /// game-content gap list (the operator's stated purpose for the page).
     pub game_id: String,
     pub why: String,
+    /// "baseline" (bare minimum) or "luxury" (life of luxury tier,
+    /// operator 2026-07-05: assume comfort in space, not austerity).
+    /// Defaults to baseline for rows that omit it.
+    #[serde(default)]
+    pub tier: String,
 }
 
 /// One survival loop of the ideal homestead (power/water/food/air/nutrients/
@@ -583,20 +591,57 @@ fn draw_design(
                                     .color(theme.text_secondary()),
                             );
                             ui.add_space(theme.spacing_xs);
-                            for r in &l.requirements {
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.label(
-                                        RichText::new(format!("{} {}", r.qty, r.item))
-                                            .size(theme.font_size_small)
-                                            .strong()
-                                            .color(theme.text_primary()),
-                                    );
-                                    ui.label(
-                                        RichText::new(&r.why)
-                                            .size(theme.font_size_small)
-                                            .color(theme.text_muted()),
-                                    );
-                                });
+                            // Two tiers per loop (operator 2026-07-05): the bare
+                            // minimum first, then the life-of-luxury additions.
+                            // Empty game_id = "not in game yet" (the honest gap flag).
+                            for (tier_key, tier_label) in
+                                [("baseline", "Bare minimum"), ("luxury", "Life of luxury")]
+                            {
+                                let rows: Vec<&OutlineRequirement> = l
+                                    .requirements
+                                    .iter()
+                                    .filter(|r| {
+                                        r.tier == tier_key
+                                            || (tier_key == "baseline" && r.tier.is_empty())
+                                    })
+                                    .collect();
+                                if rows.is_empty() {
+                                    continue;
+                                }
+                                ui.label(
+                                    RichText::new(tier_label)
+                                        .size(theme.font_size_small)
+                                        .strong()
+                                        .color(if tier_key == "luxury" {
+                                            theme.info()
+                                        } else {
+                                            theme.text_primary()
+                                        }),
+                                );
+                                for r in rows {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(
+                                            RichText::new(format!("{} {}", r.qty, r.item))
+                                                .size(theme.font_size_small)
+                                                .strong()
+                                                .color(theme.text_primary()),
+                                        );
+                                        if r.game_id.is_empty() {
+                                            ui.label(
+                                                RichText::new("not in game yet")
+                                                    .size(theme.font_size_small)
+                                                    .strong()
+                                                    .color(theme.warning()),
+                                            );
+                                        }
+                                        ui.label(
+                                            RichText::new(&r.why)
+                                                .size(theme.font_size_small)
+                                                .color(theme.text_muted()),
+                                        );
+                                    });
+                                }
+                                ui.add_space(theme.spacing_xs);
                             }
                         },
                     );
@@ -1060,14 +1105,37 @@ mod tests {
         assert!(!o.intro.is_empty(), "home_outline.json should carry an intro");
         assert!(!o.footer.is_empty(), "home_outline.json should carry a footer");
         assert!(
-            o.loops.len() >= 6,
-            "expected the 6 survival loops (power/water/food/air/nutrients/shelter), got {}",
+            o.loops.len() >= 7,
+            "expected the 7 loops (power/water/food/air/climate/nutrients/shelter), got {}",
             o.loops.len()
         );
+        let mut luxury_rows = 0usize;
+        let mut flagged_missing = 0usize;
         for l in &o.loops {
             assert!(!l.demand.is_empty(), "loop '{}' has empty demand", l.id);
             assert!(!l.closure_note.is_empty(), "loop '{}' has empty closure_note", l.id);
             assert!(!l.requirements.is_empty(), "loop '{}' has no requirements", l.id);
+            let baseline = l
+                .requirements
+                .iter()
+                .filter(|r| r.tier == "baseline" || r.tier.is_empty())
+                .count();
+            assert!(baseline > 0, "loop '{}' has no bare-minimum tier rows", l.id);
+            for r in &l.requirements {
+                assert!(
+                    r.tier.is_empty() || r.tier == "baseline" || r.tier == "luxury",
+                    "loop '{}' row '{}' has unknown tier '{}'",
+                    l.id,
+                    r.item,
+                    r.tier
+                );
+                if r.tier == "luxury" {
+                    luxury_rows += 1;
+                }
+                if r.game_id.is_empty() {
+                    flagged_missing += 1;
+                }
+            }
             for s in [&l.demand, &l.closure_note] {
                 assert!(
                     !s.contains('\u{2014}'),
@@ -1076,6 +1144,14 @@ mod tests {
                 );
             }
         }
+        // The life-of-luxury tier is a first-class part of the outline
+        // (operator 2026-07-05), and its not-in-game-yet flags are the
+        // page's game-gap list; both must survive edits.
+        assert!(luxury_rows >= 5, "expected a real luxury tier, got {luxury_rows} rows");
+        assert!(
+            flagged_missing >= 1,
+            "expected at least one 'not in game yet' flag (empty game_id); if the gaps were all authored, update in_game_next too"
+        );
     }
 
     /// Every game_id in the outline must be a REAL id somewhere in the game
@@ -1093,6 +1169,11 @@ mod tests {
             "data/items.csv",
             "data/self_sufficiency/component_outputs.ron",
             "data/towers/aeroponic_configs.ron",
+            "data/hvac.ron",
+            "data/electrical.ron",
+            "data/rooms.ron",
+            "data/blueprints/fibonacci_homestead.ron",
+            "data/blueprints/materials.ron",
         ] {
             hay.push_str(&std::fs::read_to_string(f).unwrap_or_default());
         }
@@ -1104,6 +1185,11 @@ mod tests {
         }
         for l in &o.loops {
             for r in &l.requirements {
+                // Empty game_id is the deliberate "not in game yet" flag;
+                // only non-empty ids must be real.
+                if r.game_id.is_empty() {
+                    continue;
+                }
                 assert!(
                     hay.contains(&r.game_id),
                     "outline loop '{}' requirement '{}' cites game_id '{}' which exists nowhere in the game data",

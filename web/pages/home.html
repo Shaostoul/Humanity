@@ -47,6 +47,10 @@
     .req .qty { flex-shrink: 0; min-width: 130px; font-weight: 600; }
     .req .why { color: var(--text-muted); line-height: 1.55; }
     .req .gid { display: block; font-size: 0.68rem; color: var(--text-muted); opacity: 0.7; font-family: monospace; }
+    .tier-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin: 14px 0 2px; }
+    .tier-label.baseline { color: var(--text); }
+    .tier-label.luxury { color: #48f; }
+    .notgame { display: inline-block; font-size: 0.66rem; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-lg); background: rgba(255,136,17,0.15); color: var(--accent); margin-left: 6px; }
 
     .panel {
       background: var(--bg-card); border: 1px solid var(--border);
@@ -107,13 +111,25 @@
 
   const wrap = document.getElementById('o-loops');
   wrap.innerHTML = (o.loops || []).map(function (l, i) {
-    const reqs = (l.requirements || []).map(function (r) {
+    // Two tiers per loop (operator 2026-07-05): bare minimum first, then the
+    // life-of-luxury additions. Empty game_id renders the honest
+    // "not in game yet" chip, so the luxury tier doubles as the game-gap list.
+    function reqRow(r) {
       return '<div class="req">' +
         '<span class="qty">' + esc(r.qty) + ' ' + esc(r.item) +
-          '<span class="gid">' + esc(r.game_id) + '</span></span>' +
+          (r.game_id
+            ? '<span class="gid">' + esc(r.game_id) + '</span>'
+            : '<span class="notgame">not in game yet</span>') +
+        '</span>' +
         '<span class="why">' + esc(r.why) + '</span>' +
       '</div>';
-    }).join('');
+    }
+    const all = l.requirements || [];
+    const base = all.filter(r => !r.tier || r.tier === 'baseline');
+    const lux = all.filter(r => r.tier === 'luxury');
+    let reqs = '';
+    if (base.length) reqs += '<div class="tier-label baseline">Bare minimum</div>' + base.map(reqRow).join('');
+    if (lux.length) reqs += '<div class="tier-label luxury">Life of luxury</div>' + lux.map(reqRow).join('');
     return '<div class="loop-card' + (i === 0 ? ' open' : '') + '" id="loop-' + esc(l.id) + '">' +
       '<div class="loop-head" data-i="' + i + '">' +
         '<span class="loop-name">' + esc(l.name) + '</span>' +
