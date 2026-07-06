@@ -1404,6 +1404,14 @@ pub struct GuiState {
     pub chat_groups: Vec<ChatGroup>,
     pub chat_servers: Vec<ChatServer>,
     pub chat_friends: Vec<ChatUser>,
+    /// Keys of everyone I follow — RAW from the relay's follow_list, so it
+    /// includes offline people that `chat_friends` (filtered against the
+    /// online `chat_users`) misses. Drives the follow-direction badges. (v0.721)
+    pub chat_following_keys: std::collections::HashSet<String>,
+    /// Keys of everyone who follows ME (follow_list.followers + live
+    /// follow_update). The relay always sent this; native dropped it until
+    /// v0.721 — which is why the "Follows you" badges disappeared.
+    pub chat_followers: std::collections::HashSet<String>,
     pub ws_client: Option<crate::net::ws_client::WsClient>,
     pub ws_status: String,
     /// Native WebRTC DataChannel P2P manager handle (increment 1). Lazily
@@ -2966,6 +2974,8 @@ impl Default for GuiState {
             chat_groups: Vec::new(),
             chat_servers: Vec::new(),
             chat_friends: Vec::new(),
+            chat_following_keys: std::collections::HashSet::new(),
+            chat_followers: std::collections::HashSet::new(),
             ws_client: None,
             ws_status: "Not connected".to_string(),
             #[cfg(feature = "native")]

@@ -10350,7 +10350,50 @@ mod native_app {
                                                 .filter(|u| follow_keys.contains(&u.public_key))
                                                 .cloned()
                                                 .collect();
+                                            // Raw key set too — includes offline people the
+                                            // chat_users filter above drops. (v0.721)
+                                            state.gui_state.chat_following_keys = follow_keys.iter().cloned().collect();
                                             log::info!("Follow list received: {} friends matched from {} keys", state.gui_state.chat_friends.len(), follow_keys.len());
+                                        }
+                                        // Who follows ME. The relay always sent this field;
+                                        // native dropped it until v0.721 — this is what makes
+                                        // the "Follows you" badges possible.
+                                        if let Some(followers) = val.get("followers").and_then(|v| v.as_array()) {
+                                            state.gui_state.chat_followers = followers.iter()
+                                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                                .collect();
+                                            log::info!("Followers received: {}", state.gui_state.chat_followers.len());
+                                        }
+                                    }
+                                    Some("follow_update") => {
+                                        // Live follow/unfollow broadcast. Keep the badge sets
+                                        // current without waiting for a reconnect. (v0.721 —
+                                        // native previously ignored this message entirely.)
+                                        let follower = val.get("follower_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let followed = val.get("followed_key").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("follow");
+                                        let me = state.gui_state.profile_public_key.clone();
+                                        if !follower.is_empty() && followed == me {
+                                            // Someone (un)followed me.
+                                            if action == "follow" {
+                                                state.gui_state.chat_followers.insert(follower);
+                                            } else {
+                                                state.gui_state.chat_followers.remove(&follower);
+                                            }
+                                        } else if follower == me && !followed.is_empty() {
+                                            // My own follow/unfollow echoed back (e.g. from
+                                            // another device) — keep following state in sync.
+                                            if action == "follow" {
+                                                state.gui_state.chat_following_keys.insert(followed.clone());
+                                                if !state.gui_state.chat_friends.iter().any(|f| f.public_key == followed) {
+                                                    if let Some(u) = state.gui_state.chat_users.iter().find(|u| u.public_key == followed).cloned() {
+                                                        state.gui_state.chat_friends.push(u);
+                                                    }
+                                                }
+                                            } else {
+                                                state.gui_state.chat_following_keys.remove(&followed);
+                                                state.gui_state.chat_friends.retain(|f| f.public_key != followed);
+                                            }
                                         }
                                     }
                                     Some("dm_list") => {

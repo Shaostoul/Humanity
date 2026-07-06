@@ -204,6 +204,9 @@ fn demo_state() -> GuiState {
         ChatUser { name: "Ada".into(), public_key: "dlth3:5f77e0def".into(), role: "member".into(), status: "online".into() },
     ];
     s.chat_dms = vec![ChatDm { user_name: "Ada".into(), user_key: "ed25519:def".into(), last_message: "See you at the build".into(), timestamp: "11:02".into(), unread: true }];
+    // Ada follows me but I don't follow back — covers the one-way
+    // follow-direction badge (v0.721) in the members list.
+    s.chat_followers.insert("dlth3:5f77e0def".into());
     // One group with an unread dot so the sidebar's group-unread rendering
     // (v0.717) stays covered by the chat snapshot.
     s.chat_groups = vec![crate::gui::ChatGroup {

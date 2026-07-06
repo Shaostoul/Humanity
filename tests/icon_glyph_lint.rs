@@ -46,6 +46,11 @@ const BROKEN_GLYPHS: &[(char, &str)] = &[
     ('\u{25A4}', "▤ U+25A4 SQUARE WITH HORIZONTAL FILL — confirmed broken"),
     // Misc Symbols & Pictographs (emoji) — egui default font has no coverage:
     ('\u{1F512}', "🔒 U+1F512 LOCK — emoji, tofus in egui (use the word 'encrypted' or paint_lock instead)"),
+    // Arrows block — CLAUDE.md lists it as reliable, but these two tofu'd in
+    // the 2026-07-06 follow-badge snapshot. U+2192 right arrow DOES work
+    // (in wide use). Use icons::paint_arrow_left / paint_arrow_both instead.
+    ('\u{2190}', "U+2190 LEFTWARDS ARROW — snapshot-confirmed tofu (follow badge); paint_arrow_left instead"),
+    ('\u{2194}', "U+2194 LEFT RIGHT ARROW — same risk; paint_arrow_both instead"),
 ];
 
 /// Files scanned. Only UI-rendering trees.

@@ -278,6 +278,36 @@ pub fn paint_arrow_right(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.line_segment([Pos2::new(c.x + s * 0.3, c.y + s * 0.6), Pos2::new(c.x + s, c.y)], stroke);
 }
 
+/// Draw a left-arrow icon inside `rect`. Mirror of `paint_arrow_right` —
+/// added (v0.721) because the U+2190 "←" TEXT glyph renders as tofu in the
+/// app font (screenshot-confirmed on the members-row follow badge).
+pub fn paint_arrow_left(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.35;
+    let stroke = Stroke::new((s * 0.3).max(1.5), color);
+    // Shaft
+    painter.line_segment([Pos2::new(c.x - s, c.y), Pos2::new(c.x + s, c.y)], stroke);
+    // Arrowhead
+    painter.line_segment([Pos2::new(c.x - s * 0.3, c.y - s * 0.6), Pos2::new(c.x - s, c.y)], stroke);
+    painter.line_segment([Pos2::new(c.x - s * 0.3, c.y + s * 0.6), Pos2::new(c.x - s, c.y)], stroke);
+}
+
+/// Draw a double-headed (both-ways) arrow inside `rect` — the "mutual
+/// follow" badge (v0.721). Heads on both ends of one shaft.
+pub fn paint_arrow_both(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let s = rect.width().min(rect.height()) * 0.35;
+    let stroke = Stroke::new((s * 0.3).max(1.5), color);
+    // Shaft
+    painter.line_segment([Pos2::new(c.x - s, c.y), Pos2::new(c.x + s, c.y)], stroke);
+    // Right head
+    painter.line_segment([Pos2::new(c.x + s * 0.3, c.y - s * 0.6), Pos2::new(c.x + s, c.y)], stroke);
+    painter.line_segment([Pos2::new(c.x + s * 0.3, c.y + s * 0.6), Pos2::new(c.x + s, c.y)], stroke);
+    // Left head
+    painter.line_segment([Pos2::new(c.x - s * 0.3, c.y - s * 0.6), Pos2::new(c.x - s, c.y)], stroke);
+    painter.line_segment([Pos2::new(c.x - s * 0.3, c.y + s * 0.6), Pos2::new(c.x - s, c.y)], stroke);
+}
+
 /// Draw a person/user icon inside `rect` (head circle + body arc).
 pub fn paint_person(painter: &egui::Painter, rect: Rect, color: Color32) {
     let c = rect.center();

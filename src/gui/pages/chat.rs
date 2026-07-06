@@ -2329,11 +2329,48 @@ fn draw_user_row(
                 egui::FontId::proportional(9.0),
                 Color32::WHITE,
             );
+            cx += 18.0;
+        }
+
+        // Follow-direction badge (v0.721, mirrors the web peer-list
+        // indicators): both-ways arrow = mutual (friends), right arrow =
+        // I follow them, left arrow = they follow me (not followed back).
+        // Painted shapes, NOT text glyphs — the U+2190 "←" char renders as
+        // tofu in the app font (screenshot-confirmed). No badge on my own row.
+        if public_key != state.profile_public_key {
+            let i_follow = state.chat_following_keys.contains(public_key)
+                || state.chat_friends.iter().any(|f| f.public_key == public_key);
+            let follows_me = state.chat_followers.contains(public_key);
+            let icon_rect = egui::Rect::from_min_size(
+                egui::pos2(cx + 2.0, cy - 6.0),
+                Vec2::splat(12.0),
+            );
+            match (i_follow, follows_me) {
+                (true, true) => crate::gui::widgets::icons::paint_arrow_both(ui.painter(), icon_rect, theme.success()),
+                (true, false) => crate::gui::widgets::icons::paint_arrow_right(ui.painter(), icon_rect, theme.text_muted()),
+                (false, true) => crate::gui::widgets::icons::paint_arrow_left(ui.painter(), icon_rect, theme.warning()),
+                (false, false) => {}
+            }
         }
     }
 
     if response.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        // Explain the follow-direction arrow on hover.
+        let i_follow = state.chat_following_keys.contains(public_key)
+            || state.chat_friends.iter().any(|f| f.public_key == public_key);
+        let follows_me = state.chat_followers.contains(public_key);
+        if public_key != state.profile_public_key && (i_follow || follows_me) {
+            let txt = match (i_follow, follows_me) {
+                (true, true) => "Friends (you follow each other)",
+                (true, false) => "You follow them (not followed back yet)",
+                (false, true) => "Follows you (you don't follow back yet)",
+                (false, false) => "",
+            };
+            if !txt.is_empty() {
+                response.clone().on_hover_text(txt);
+            }
+        }
     }
     if response.clicked() {
         state.chat_user_modal_open = true;
@@ -4244,8 +4281,25 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
             ui.add_space(12.0);
 
-            // Determine relationship state
-            let is_following = state.chat_friends.iter().any(|f| f.public_key == key);
+            // Determine relationship state (both directions, v0.721 —
+            // mirrors the web profile's Friends / Following / Follows you).
+            let is_following = state.chat_following_keys.contains(&key)
+                || state.chat_friends.iter().any(|f| f.public_key == key);
+            let follows_me = state.chat_followers.contains(&key);
+            let relationship = match (is_following, follows_me) {
+                // Plain words, no arrow chars — U+2190 "←" is tofu in the
+                // app font (see the members-row badge note).
+                (true, true) => Some(("Friends (you follow each other)", theme.success())),
+                (true, false) => Some(("You follow them", theme.text_secondary())),
+                (false, true) => Some(("Follows you", theme.warning())),
+                (false, false) => None,
+            };
+            if let Some((txt, color)) = relationship {
+                ui.vertical_centered(|ui| {
+                    ui.label(RichText::new(txt).size(theme.font_size_small).color(color));
+                });
+                ui.add_space(6.0);
+            }
 
             // Check if target user is streaming
             let is_streaming = state.chat_users.iter()
@@ -4360,13 +4414,17 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     client.send(&msg.to_string());
                                 }
                             }
-                            // Remove from local friends list immediately
+                            // Remove from local follow state immediately
                             state.chat_friends.retain(|f| f.public_key != key);
+                            state.chat_following_keys.remove(&key);
                         }
                     } else {
+                        // "Follow back" when they already follow you — makes the
+                        // asymmetry actionable in one glance. (v0.721)
+                        let follow_label = if follows_me { "Follow back" } else { "Follow" };
                         if ui.add(
                             egui::Button::new(
-                                RichText::new("Follow")
+                                RichText::new(follow_label)
                                     .size(theme.font_size_body)
                                     .color(theme.text_on_accent()),
                             )
@@ -4385,6 +4443,14 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         "target_key": key,
                                     });
                                     client.send(&msg.to_string());
+                                }
+                            }
+                            // Reflect locally right away (the relay's
+                            // follow_update echo confirms it).
+                            state.chat_following_keys.insert(key.clone());
+                            if !state.chat_friends.iter().any(|f| f.public_key == key) {
+                                if let Some(u) = state.chat_users.iter().find(|u| u.public_key == key).cloned() {
+                                    state.chat_friends.push(u);
                                 }
                             }
                         }

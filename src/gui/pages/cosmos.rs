@@ -2897,7 +2897,7 @@ fn draw_time_controls(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
             // Rewind toggle: flip the sign of sim_speed.
             if widgets::Button::secondary("Reverse")
-                .tooltip("Flip the simulation direction (forward ↔ backward).")
+                .tooltip("Flip the simulation direction (forward/backward).")
                 .show(ui, theme)
             {
                 state.cosmos_sim_speed = -state.cosmos_sim_speed;
