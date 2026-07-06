@@ -556,95 +556,87 @@ fn draw_design(
                     ui.label(RichText::new(&outline.intro).size(theme.font_size_small).color(theme.text_secondary()));
                 }
                 ui.add_space(theme.spacing_xs);
+                // Fully exposed, no expand/collapse (operator 2026-07-05:
+                // "I'd rather have all the info immediately exposed since
+                // there's not terribly much").
                 for l in &outline.loops {
                     let closes_mark = if l.closes { "closes" } else { "open" };
                     let mark_color = if l.closes { theme.success() } else { theme.warning() };
-                    widgets::expandable_row(
-                        ui,
-                        ("home_outline", l.id.as_str()),
-                        false,
-                        None,
-                        |ui| {
-                            ui.label(
-                                RichText::new(&l.name)
-                                    .size(theme.font_size_small)
-                                    .strong()
-                                    .color(theme.text_primary()),
-                            );
-                            ui.label(
-                                RichText::new(closes_mark)
-                                    .size(theme.font_size_small)
-                                    .strong()
-                                    .color(mark_color),
-                            );
-                            ui.label(
-                                RichText::new(format!("{} parts", l.requirements.len()))
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                        },
-                        |ui| {
-                            widgets::detail_row(ui, theme, "demand", &l.demand);
-                            ui.label(
-                                RichText::new(&l.closure_note)
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_secondary()),
-                            );
-                            ui.add_space(theme.spacing_xs);
-                            // Two tiers per loop (operator 2026-07-05): the bare
-                            // minimum first, then the life-of-luxury additions.
-                            // Empty game_id = "not in game yet" (the honest gap flag).
-                            for (tier_key, tier_label) in
-                                [("baseline", "Bare minimum"), ("luxury", "Life of luxury")]
-                            {
-                                let rows: Vec<&OutlineRequirement> = l
-                                    .requirements
-                                    .iter()
-                                    .filter(|r| {
-                                        r.tier == tier_key
-                                            || (tier_key == "baseline" && r.tier.is_empty())
-                                    })
-                                    .collect();
-                                if rows.is_empty() {
-                                    continue;
-                                }
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(&l.name)
+                                .size(theme.font_size_body)
+                                .strong()
+                                .color(theme.text_primary()),
+                        );
+                        ui.label(
+                            RichText::new(closes_mark)
+                                .size(theme.font_size_small)
+                                .strong()
+                                .color(mark_color),
+                        );
+                    });
+                    widgets::detail_row(ui, theme, "demand", &l.demand);
+                    ui.label(
+                        RichText::new(&l.closure_note)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    // Two tiers per loop (operator 2026-07-05): the bare
+                    // minimum first, then the life-of-luxury additions.
+                    // Empty game_id = "not in game yet" (the honest gap flag).
+                    for (tier_key, tier_label) in
+                        [("baseline", "Bare minimum"), ("luxury", "Life of luxury")]
+                    {
+                        let rows: Vec<&OutlineRequirement> = l
+                            .requirements
+                            .iter()
+                            .filter(|r| {
+                                r.tier == tier_key
+                                    || (tier_key == "baseline" && r.tier.is_empty())
+                            })
+                            .collect();
+                        if rows.is_empty() {
+                            continue;
+                        }
+                        ui.label(
+                            RichText::new(tier_label)
+                                .size(theme.font_size_small)
+                                .strong()
+                                .color(if tier_key == "luxury" {
+                                    theme.info()
+                                } else {
+                                    theme.text_primary()
+                                }),
+                        );
+                        for r in rows {
+                            ui.horizontal_wrapped(|ui| {
                                 ui.label(
-                                    RichText::new(tier_label)
+                                    RichText::new(format!("{} {}", r.qty, r.item))
                                         .size(theme.font_size_small)
                                         .strong()
-                                        .color(if tier_key == "luxury" {
-                                            theme.info()
-                                        } else {
-                                            theme.text_primary()
-                                        }),
+                                        .color(theme.text_primary()),
                                 );
-                                for r in rows {
-                                    ui.horizontal_wrapped(|ui| {
-                                        ui.label(
-                                            RichText::new(format!("{} {}", r.qty, r.item))
-                                                .size(theme.font_size_small)
-                                                .strong()
-                                                .color(theme.text_primary()),
-                                        );
-                                        if r.game_id.is_empty() {
-                                            ui.label(
-                                                RichText::new("not in game yet")
-                                                    .size(theme.font_size_small)
-                                                    .strong()
-                                                    .color(theme.warning()),
-                                            );
-                                        }
-                                        ui.label(
-                                            RichText::new(&r.why)
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_muted()),
-                                        );
-                                    });
+                                if r.game_id.is_empty() {
+                                    ui.label(
+                                        RichText::new("not in game yet")
+                                            .size(theme.font_size_small)
+                                            .strong()
+                                            .color(theme.warning()),
+                                    );
                                 }
-                                ui.add_space(theme.spacing_xs);
-                            }
-                        },
-                    );
+                                ui.label(
+                                    RichText::new(&r.why)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                            });
+                        }
+                        ui.add_space(theme.spacing_xs);
+                    }
+                    ui.separator();
+                    ui.add_space(theme.spacing_xs);
                 }
                 if !outline.in_game_next.is_empty() {
                     ui.add_space(theme.spacing_xs);
@@ -703,42 +695,35 @@ fn draw_design(
                         ui.label(RichText::new(&cc.intro).size(theme.font_size_small).color(theme.text_muted()));
                     }
                     ui.add_space(theme.spacing_xs);
+                    // Fully exposed, no expand/collapse (operator 2026-07-05:
+                    // all Home info immediately visible).
                     for entry in &cc.entries {
-                        widgets::expandable_row(
-                            ui,
-                            ("cannot_close", entry.id.as_str()),
-                            false,
-                            None,
-                            |ui| {
-                                ui.label(
-                                    RichText::new(&entry.title)
-                                        .size(theme.font_size_small)
-                                        .strong()
-                                        .color(theme.text_primary()),
-                                );
-                                ui.label(
-                                    RichText::new("traded")
-                                        .size(theme.font_size_small)
-                                        .strong()
-                                        .color(theme.warning()),
-                                );
-                            },
-                            |ui| {
-                                ui.label(
-                                    RichText::new(&entry.body)
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_secondary()),
-                                );
-                                ui.add_space(2.0);
-                                ui.label(
-                                    RichText::new(&entry.provided_by)
-                                        .size(theme.font_size_small)
-                                        .italics()
-                                        .color(theme.text_muted()),
-                                );
-                                ui.add_space(theme.spacing_xs);
-                            },
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                RichText::new(&entry.title)
+                                    .size(theme.font_size_small)
+                                    .strong()
+                                    .color(theme.text_primary()),
+                            );
+                            ui.label(
+                                RichText::new("traded")
+                                    .size(theme.font_size_small)
+                                    .strong()
+                                    .color(theme.warning()),
+                            );
+                        });
+                        ui.label(
+                            RichText::new(&entry.body)
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
                         );
+                        ui.label(
+                            RichText::new(&entry.provided_by)
+                                .size(theme.font_size_small)
+                                .italics()
+                                .color(theme.text_muted()),
+                        );
+                        ui.add_space(theme.spacing_xs);
                     }
                     if !cc.footer.is_empty() {
                         ui.add_space(theme.spacing_xs);
