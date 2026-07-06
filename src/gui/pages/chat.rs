@@ -1973,17 +1973,92 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                     } // end if !svr_collapsed
                 }
 
-                // Additional servers from chat_servers list
+                // Additional saved servers. Clicking a name SWITCHES to that
+                // server (points server_url there and reconnects with the same
+                // identity) -- the Add Server modal promises this, and before
+                // v0.712 the names were plain labels that did nothing.
+                let current = state.server_url.trim_end_matches('/').to_string();
                 for server in state.chat_servers.clone().iter() {
+                    let is_current = server.url.trim_end_matches('/') == current;
                     ui.add_space(2.0);
                     ui.horizontal(|ui| {
                         ui.add_space(12.0);
-                        ui.label(
-                            RichText::new(&server.name)
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary())
-                                .strong(),
-                        );
+                        let color = if is_current { theme.success() } else { theme.text_primary() };
+                        let resp = ui
+                            .add(
+                                egui::Label::new(
+                                    RichText::new(&server.name)
+                                        .size(theme.font_size_body)
+                                        .color(color)
+                                        .strong(),
+                                )
+                                .sense(egui::Sense::click()),
+                            )
+                            .on_hover_text(if is_current {
+                                "Current server"
+                            } else {
+                                "Click to switch to this server"
+                            });
+                        if is_current {
+                            ui.label(
+                                RichText::new("(current)")
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        } else {
+                            // Forget this saved-server bookmark. Only offered
+                            // for servers you're NOT currently on (removing the
+                            // active one mid-session is confusing); Add Server
+                            // re-adds it. (v0.712)
+                            let rm = ui
+                                .add(
+                                    egui::Button::new(
+                                        RichText::new("x")
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    )
+                                    .frame(false)
+                                    .small(),
+                                )
+                                .on_hover_text("Forget this server");
+                            if rm.clicked() {
+                                let rid = server.id.clone();
+                                state.chat_servers.retain(|s| s.id != rid);
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
+                        }
+                        if resp.clicked() && !is_current {
+                            if state.private_key_bytes.is_some() {
+                                state.server_url = server.url.clone();
+                                let ws_url = derive_ws_url(&server.url);
+                                let uname = state.user_name.clone();
+                                let pubkey = if state.profile_public_key.is_empty() {
+                                    generate_random_hex_key()
+                                } else {
+                                    state.profile_public_key.clone()
+                                };
+                                state.ws_client = Some(
+                                    crate::net::ws_client::WsClient::connect_with_kyber(
+                                        &ws_url,
+                                        &uname,
+                                        &pubkey,
+                                        &state.kyber_public_b64,
+                                    ),
+                                );
+                                state.ws_status = format!("Switching to {}...", server.name);
+                                state.ws_manually_disconnected = false;
+                                state.ws_reconnect_timer = 0.0;
+                                state.ws_reconnect_delay = 5.0;
+                                state.ws_reconnect_attempts = 0;
+                                // Reload the channel view + history from the new server.
+                                state.chat_messages.clear();
+                                state.history_fetched = false;
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            } else {
+                                state.ws_status =
+                                    "Unlock your identity first to connect (Settings).".to_string();
+                            }
+                        }
                     });
                     for ch in &server.channels {
                         ui.horizontal(|ui| {
