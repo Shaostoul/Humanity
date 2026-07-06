@@ -2566,8 +2566,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ui.set_min_width(ui.available_width());
                 let ac = state.chat_active_channel.clone();
                 if ac.starts_with("dm:") {
-                    // DM header: back button + partner name
-                    if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
+                    // DM header: back button + partner name. Plain "Back":
+                    // the U+2190 arrow escape used here tofued (v0.723).
+                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
                     let partner_key = &ac[3..];
@@ -2587,7 +2588,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // right-click menu (kept out of this row so it can't
                     // overflow + clip on a narrow panel — that's why the
                     // operator couldn't reach them before).
-                    if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
+                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
                     let gid = gid.to_string();
@@ -2620,7 +2621,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 } else if ac.starts_with("group:") {
                     // Group header: back button + group name
-                    if widgets::Button::ghost("\u{2190} Back").show(ui, theme) {
+                    if widgets::Button::ghost("Back").tooltip("Return to #general").show(ui, theme) {
                         state.chat_active_channel = "general".to_string();
                     }
                     let group_id = &ac[6..];
@@ -3329,7 +3330,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                 // as a tofu square next to ❤ in fonts that
                                                 // don't honor the emoji presentation hint.
                                                 for emoji in TOP_REACTIONS {
-                                                    let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+                                                    let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
                                                     if ui.add(
                                                         egui::Button::new(RichText::new(&clean).size(theme.font_size_body))
                                                             .min_size(Vec2::new(26.0, 22.0))
@@ -3356,7 +3357,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                         ui.set_min_width(280.0);
                                                         ui.horizontal_wrapped(|ui| {
                                                             for emoji in ALL_REACTIONS {
-                                                                let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+                                                                let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
                                                                 if ui.button(&clean).clicked() {
                                                                     pending_reactions.push((target_from.clone(), target_ts, clean.clone()));
                                                                     ui.memory_mut(|m| m.close_popup());
@@ -3907,25 +3908,30 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         && ui.input(|i| i.key_pressed(egui::Key::Enter));
 
                     // Search button — opens the message search modal.
-                    if widgets::Button::ghost("🔍").show(ui, theme) {
+                    if widgets::Button::ghost("🔍").tooltip("Search messages in this channel").show(ui, theme) {
                         state.chat_search_open = true;
                     }
 
                     // Pins button — shows pin count + opens the pins modal.
                     let pin_count = state.chat_pins.get(&state.chat_active_channel).map(|p| p.len()).unwrap_or(0);
                     let pin_label = if pin_count > 0 { format!("📌 {}", pin_count) } else { "📌".to_string() };
-                    if widgets::Button::ghost(&pin_label).show(ui, theme) {
+                    if widgets::Button::ghost(&pin_label).tooltip("Pinned messages in this channel").show(ui, theme) {
                         state.chat_pins_open = true;
                     }
 
                     // Help button (?) - opens slash commands reference
-                    if widgets::Button::ghost("?").show(ui, theme) {
+                    if widgets::Button::ghost("?").tooltip("Slash-command reference and formatting tips").show(ui, theme) {
                         state.show_help_modal = !state.show_help_modal;
                     }
 
                     // In-app file attach (v0.708, all-in-one direction: our
                     // OWN browser widget, not an OS dialog).
-                    if widgets::Button::secondary("Attach").show(ui, theme) {
+                    if widgets::Button::secondary("Attach")
+                        .tooltip("Attach a file from your computer (images, documents, \
+                                  3D models — up to 6 MB). 3D files are also published \
+                                  to the server's Shared Files library.")
+                        .show(ui, theme)
+                    {
                         state.chat_attach_picker = Some(
                             crate::gui::widgets::file_browser::FilePickerState::new(
                                 ATTACH_EXTS,
@@ -3933,7 +3939,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             ),
                         );
                     }
-                    let send_clicked = widgets::Button::primary("Send").show(ui, theme);
+                    let send_clicked = widgets::Button::primary("Send")
+                        .tooltip("Send the message (or press Enter)")
+                        .show(ui, theme);
 
                     if (enter_pressed || send_clicked) && !state.chat_input.trim().is_empty() {
                         let content = state.chat_input.trim().to_string();
@@ -6201,7 +6209,7 @@ fn compute_pill_width(
             if keys.is_empty() { continue; }
             // Match paint_timestamp_pill — strip FE0F before measuring so
             // the badge width estimate matches the rendered width.
-            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
             let label = format!("{}{}", display_emoji, keys.len());
             let label_w = ctx.fonts(|f| {
                 f.layout_no_wrap(
@@ -6331,7 +6339,7 @@ fn paint_timestamp_pill(
             // Strip U+FE0F variation selector from any pre-existing reaction
             // (older clients may have stored "❤️" with the selector — render
             // path now uses bare codepoint to avoid the trailing tofu square).
-            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+            let display_emoji: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
             let i_reacted = keys.contains(&my_key.to_string());
             let label = format!("{}{}", display_emoji, count);
             let label_galley = ui.fonts(|f| {

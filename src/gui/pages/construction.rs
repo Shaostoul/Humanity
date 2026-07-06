@@ -1305,13 +1305,15 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 /// One human-readable line for a machine port: direction arrow + utility + label + the load/flow.
-/// Arrows (U+2190..U+21FF) are confirmed-rendering glyphs in our font (icon_glyph_lint).
+/// ASCII direction markers: U+2190 (left) and U+2194 (both) tofu in the app
+/// font (snapshot-proof 2026-07-06, BROKEN_GLYPHS). Only U+2192 renders, and
+/// mixing one real arrow with ASCII fallbacks reads worse than all-ASCII.
 fn port_line(p: &crate::utilities::Port) -> String {
     use crate::utilities::{PortDir, Utility};
     let arrow = match p.dir {
-        PortDir::In => "\u{2190}",            // <- consumes
-        PortDir::Out => "\u{2192}",           // -> supplies
-        PortDir::Bidirectional => "\u{2194}", // <-> either way
+        PortDir::In => "<-",            // consumes
+        PortDir::Out => "->",           // supplies
+        PortDir::Bidirectional => "<->", // either way
     };
     let detail = if p.utility == Utility::Electricity {
         if p.watts > 0.0 { format!(" {:.0} W", p.watts) } else { String::new() }

@@ -16,8 +16,10 @@
 //! // Destructive
 //! if Button::danger("Delete").icon("\u{1F5D1}").show(ui, theme) { /* clicked */ }
 //!
-//! // Ghost (transparent — used in nav backs, inline links)
-//! if Button::ghost("\u{2190} Back").show(ui, theme) { /* clicked */ }
+//! // Ghost (transparent — used in nav backs, inline links).
+//! // NOTE: don't prepend "\u{2190}" — the left-arrow glyph tofus in the
+//! // app font (BROKEN_GLYPHS); plain "Back" or icons::paint_arrow_left.
+//! if Button::ghost("Back").show(ui, theme) { /* clicked */ }
 //!
 //! // Icon-only with tooltip
 //! if Button::icon_only("\u{2699}").tooltip("Settings").show(ui, theme) { /* clicked */ }
@@ -380,7 +382,7 @@ mod tests {
         let _ = Button::primary("OK").icon("\u{2713}").full_width();
         let _ = Button::secondary("Cancel").size(ButtonSize::Small);
         let _ = Button::danger("Delete").icon("\u{1F5D1}").disabled(true);
-        let _ = Button::ghost("\u{2190} Back");
+        let _ = Button::ghost("Back");
         let _ = Button::icon_only("\u{2699}").tooltip("Settings");
         let _ = Button::success("Confirm").icon_trailing("\u{2192}");
     }

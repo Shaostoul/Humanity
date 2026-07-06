@@ -83,7 +83,17 @@ fn no_known_broken_unicode_glyphs_in_ui() {
                     continue;
                 }
                 for (bad_char, reason) in BROKEN_GLYPHS {
-                    if line.contains(*bad_char) {
+                    // Match BOTH the raw character AND its `\u{XXXX}` escape
+                    // form — three "\u{2190} Back" buttons shipped tofu for
+                    // months because the lint only looked for the raw char
+                    // (found 2026-07-06). Uppercase + lowercase hex, no pad.
+                    let code = *bad_char as u32;
+                    let esc_upper = format!("\\u{{{:X}}}", code);
+                    let esc_lower = format!("\\u{{{:x}}}", code);
+                    if line.contains(*bad_char)
+                        || line.contains(&esc_upper)
+                        || line.contains(&esc_lower)
+                    {
                         let rel = file.strip_prefix(&project_root).unwrap_or(&file);
                         violations.push(format!(
                             "  {}:{} — contains {} ({})\n      line: {}",
@@ -107,7 +117,7 @@ fn no_known_broken_unicode_glyphs_in_ui() {
              egui font. Replace with one of:\n\
              - Plain text labels (e.g. \"Edit\" instead of ✎)\n\
              - A confirmed-working glyph from the same family\n\
-               (Latin / Latin-1 / Arrows U+2190..U+21FF / ❤ ⭐ ∞ ✓ ⚠)\n\
+               (Latin / Latin-1 / ↩ → / ❤ ⭐ ∞ ✓ ⚠ — NOT ← or ↔, they tofu)\n\
              - A SVG-style painter call (painter.circle_filled, etc.)\n\
              \n\
              Or, if you're sure the glyph renders in the loaded font (you\n\
