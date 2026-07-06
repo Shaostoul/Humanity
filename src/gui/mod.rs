@@ -895,6 +895,22 @@ pub struct ChatServer {
     pub connected: bool,
 }
 
+/// One snapshot of the connected server's health, from its public /health +
+/// /api/stats endpoints (Server Settings → System health, v0.720). Read-only
+/// in-app ops: replaces SSHing the VPS just to ask "is it up, what's running".
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct SystemHealth {
+    /// "ok" from /health, or whatever the server reported.
+    pub status: String,
+    /// Deployed build: "<git short sha>-<epoch>" from /api/stats `version`.
+    pub version: String,
+    /// Relay process uptime in seconds (from /health).
+    pub uptime_seconds: u64,
+    pub total_messages: u64,
+    pub connected_peers: u64,
+}
+
 /// Studio source type variants.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -2633,6 +2649,14 @@ pub struct GuiState {
     pub server_settings_invite_code: String,
     /// Last action result message (success or error feedback).
     pub server_settings_status: String,
+    /// Live server health snapshot (Server Settings → System health, v0.720).
+    /// Read-only: /health + /api/stats of the connected server, fetched on a
+    /// worker thread. In-app ops slice 1 native parity (docs/design/in-app-ops.md).
+    pub system_health: Option<SystemHealth>,
+    /// System-health fetch status line ("Loading…", error text, or empty).
+    pub system_health_status: String,
+    /// In-flight system-health fetch (worker thread → per-frame drain).
+    pub system_health_rx: Option<std::sync::mpsc::Receiver<Result<SystemHealth, String>>>,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -3459,6 +3483,9 @@ impl Default for GuiState {
             server_settings_channel_name: String::new(),
             server_settings_invite_code: String::new(),
             server_settings_status: String::new(),
+            system_health: None,
+            system_health_status: String::new(),
+            system_health_rx: None,
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,

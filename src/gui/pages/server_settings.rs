@@ -410,6 +410,159 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
+// ── System health (v0.720) ──────────────────────────────────────────────────
+
+/// Kick off a background fetch of the connected server's /health + /api/stats.
+/// Worker thread + mpsc, same pattern as the Files page's shared-files fetch —
+/// never blocks the UI thread.
+fn spawn_system_health_fetch(state: &mut GuiState) {
+    let base = state.server_url.trim_end_matches('/').to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    state.system_health_rx = Some(rx);
+    state.system_health_status = "Loading...".to_string();
+    std::thread::spawn(move || {
+        let fetch = || -> Result<crate::gui::SystemHealth, String> {
+            let h_body = ureq::get(&format!("{base}/health"))
+                .call()
+                .map_err(|e| format!("/health failed: {e}"))?
+                .into_string()
+                .map_err(|e| format!("/health read: {e}"))?;
+            let h: serde_json::Value = serde_json::from_str(&h_body)
+                .map_err(|e| format!("/health parse: {e}"))?;
+            let s_body = ureq::get(&format!("{base}/api/stats"))
+                .call()
+                .map_err(|e| format!("/api/stats failed: {e}"))?
+                .into_string()
+                .map_err(|e| format!("/api/stats read: {e}"))?;
+            let s: serde_json::Value = serde_json::from_str(&s_body)
+                .map_err(|e| format!("/api/stats parse: {e}"))?;
+            Ok(crate::gui::SystemHealth {
+                status: h.get("status").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                version: s.get("version").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                uptime_seconds: h.get("uptime_seconds").and_then(|v| v.as_u64()).unwrap_or(0),
+                total_messages: s.get("total_messages").and_then(|v| v.as_u64()).unwrap_or(0),
+                connected_peers: s.get("connected_peers").and_then(|v| v.as_u64()).unwrap_or(0),
+            })
+        };
+        let _ = tx.send(fetch());
+    });
+}
+
+/// "3d 4h 12m" style humanized uptime.
+fn humanize_uptime(secs: u64) -> String {
+    let d = secs / 86_400;
+    let h = (secs % 86_400) / 3_600;
+    let m = (secs % 3_600) / 60;
+    if d > 0 {
+        format!("{d}d {h}h {m}m")
+    } else if h > 0 {
+        format!("{h}h {m}m")
+    } else {
+        format!("{m}m {}s", secs % 60)
+    }
+}
+
+/// Read-only live health snapshot of the connected server — in-app ops
+/// slice 1 native parity (docs/design/in-app-ops.md: "Health/system view",
+/// the lowest-risk slice). Replaces SSHing the VPS to ask "is it up, which
+/// build is it running". Auto-fetches on first view; Refresh re-polls.
+fn draw_system_health_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Drain a finished fetch.
+    if let Some(rx) = &state.system_health_rx {
+        match rx.try_recv() {
+            Ok(Ok(health)) => {
+                state.system_health = Some(health);
+                state.system_health_status.clear();
+                state.system_health_rx = None;
+            }
+            Ok(Err(e)) => {
+                state.system_health_status = e;
+                state.system_health_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                // Keep frames coming while the worker runs.
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.system_health_status = "Fetch thread died.".to_string();
+                state.system_health_rx = None;
+            }
+        }
+    }
+    // First view: fetch automatically — but only while actually connected,
+    // so opening Settings offline doesn't spawn a doomed request (Refresh
+    // still works manually any time).
+    let ws_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    if ws_connected
+        && state.system_health.is_none()
+        && state.system_health_rx.is_none()
+        && state.system_health_status.is_empty()
+    {
+        spawn_system_health_fetch(state);
+    }
+
+    widgets::subsection_label(ui, theme, "System health");
+    widgets::body_hint(
+        ui, theme,
+        &format!(
+            "Live read-only snapshot of {} (its public /health + /api/stats). \
+             The version is the deployed build's git commit — compare it against \
+             the newest release to spot a stale deploy.",
+            state.server_url.trim_end_matches('/')
+        ),
+    );
+    ui.add_space(theme.spacing_xs);
+
+    if let Some(h) = state.system_health.clone() {
+        egui::Grid::new("system_health_grid")
+            .num_columns(2)
+            .spacing([theme.spacing_xl, theme.spacing_xs])
+            .show(ui, |ui| {
+                let label = |ui: &mut egui::Ui, t: &str| {
+                    ui.label(RichText::new(t).size(theme.font_size_small).color(theme.text_secondary()));
+                };
+                let value = |ui: &mut egui::Ui, t: &str, c: egui::Color32| {
+                    ui.label(RichText::new(t).size(theme.font_size_body).color(c));
+                };
+                label(ui, "Status");
+                let (status_txt, status_color) = if h.status == "ok" {
+                    ("ok".to_string(), theme.success())
+                } else {
+                    (h.status.clone(), theme.danger())
+                };
+                value(ui, &status_txt, status_color);
+                ui.end_row();
+                label(ui, "Deployed build");
+                value(ui, &h.version, theme.text_primary());
+                ui.end_row();
+                label(ui, "Relay uptime");
+                value(ui, &humanize_uptime(h.uptime_seconds), theme.text_primary());
+                ui.end_row();
+                label(ui, "Messages stored");
+                value(ui, &h.total_messages.to_string(), theme.text_primary());
+                ui.end_row();
+                label(ui, "Connected now");
+                value(ui, &h.connected_peers.to_string(), theme.text_primary());
+                ui.end_row();
+            });
+        ui.add_space(theme.spacing_xs);
+    }
+    if !state.system_health_status.is_empty() {
+        ui.label(
+            RichText::new(&state.system_health_status)
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_xs);
+    }
+    if widgets::Button::secondary("Refresh")
+        .tooltip("Re-poll the server's /health and /api/stats right now.")
+        .show(ui, theme)
+    {
+        spawn_system_health_fetch(state);
+    }
+}
+
 // ── Admin Section ───────────────────────────────────────────────────────────
 
 fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -419,6 +572,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             "Admin-only controls: who can join, what channels exist, and which users get \
              elevated roles or banned.",
         );
+        ui.add_space(theme.spacing_sm);
+
+        // ── System health (v0.720): read-only live snapshot ──
+        draw_system_health_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
         ui.add_space(theme.spacing_sm);
 
         // ── Registration ──
