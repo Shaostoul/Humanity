@@ -243,6 +243,11 @@ impl System for DroneSystem {
                             let max_stack =
                                 item_registry.map(|r| r.max_stack_for(ore)).unwrap_or(99);
                             if let Ok(mut inv) = world.get::<&mut Inventory>(home_e) {
+                                // Deliberately NOT volume-gated (Stage A slice 2):
+                                // the operator ruling below (never vanish a haul)
+                                // predates and outranks the volume gate here — the
+                                // home stock behaves as base storage. Revisit when
+                                // home storage gets its own Container volumes.
                                 let overflow = inv.add_item(ore, *qty, max_stack);
                                 if overflow > 0 {
                                     // A hauled load must NEVER vanish because the

@@ -393,7 +393,15 @@ impl System for FoodSystem {
             for (_e, (inv, vitals)) in world.query_mut::<(&mut Inventory, &mut Vitals)>() {
                 let units = (vitals.waste / WASTE_PER_FERTILIZER).floor() as u32;
                 if units > 0 {
-                    inv.add_item("fertilizer_0", units, max_stack);
+                    // Volume-gated (Stage A slice 2): a full pack loses the
+                    // surplus fertilizer — logged, never silent.
+                    let unit_vol = item_registry
+                        .map(|r| r.volume_for("fertilizer_0"))
+                        .unwrap_or(0.0);
+                    let lost = inv.add_item_volume_gated("fertilizer_0", units, max_stack, unit_vol);
+                    if lost > 0 {
+                        log::warn!("[Sanitation] pack full: {lost}x fertilizer_0 lost");
+                    }
                     log::info!("[Sanitation] composted waste -> {units}x fertilizer_0");
                 }
                 vitals.waste = 0.0;

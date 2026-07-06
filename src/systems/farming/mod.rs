@@ -701,7 +701,14 @@ impl System for FarmingSystem {
                             &mut crate::systems::inventory::Inventory,
                             &crate::ecs::components::Controllable,
                         )>() {
-                            inv.add_item(&yield_item, qty, max_stack);
+                            // Volume-gated (Stage A slice 2): a full pack loses
+                            // the surplus — logged so it never vanishes silently.
+                            let unit_vol =
+                                item_registry.map(|r| r.volume_for(&yield_item)).unwrap_or(0.0);
+                            let lost = inv.add_item_volume_gated(&yield_item, qty, max_stack, unit_vol);
+                            if lost > 0 {
+                                log::warn!("[Farming] pack full: {lost}x {yield_item} lost at harvest");
+                            }
                             // Saved-seed loop (operator's "harvest yields seeds"):
                             // a SURVIVAL harvest returns a few seeds of this plant, so
                             // the garden is self-sustaining (plant 1 -> harvest -> get 2
@@ -711,7 +718,9 @@ impl System for FarmingSystem {
                                 let seed_id = format!("seed_{plant_id}_0");
                                 let seed_stack =
                                     item_registry.map(|r| r.max_stack_for(&seed_id)).unwrap_or(99);
-                                inv.add_item(&seed_id, 2, seed_stack);
+                                let seed_vol =
+                                    item_registry.map(|r| r.volume_for(&seed_id)).unwrap_or(0.0);
+                                inv.add_item_volume_gated(&seed_id, 2, seed_stack, seed_vol);
                             }
                             log::info!("[Farming] harvested {qty}x {yield_item} from {plant_id}");
                             // Harvesting trains Farming (scales lightly with yield).

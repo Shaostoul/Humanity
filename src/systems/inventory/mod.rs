@@ -101,6 +101,37 @@ impl Inventory {
         }
     }
 
+    /// Volume-gated add (material-storage Stage A slice 2, v0.727): caps the
+    /// accepted quantity by the inventory's remaining VOLUME before the slot
+    /// pass — "the real limit of a container is its volume". Tracks
+    /// `volume_current_l` incrementally so several adds within one tick can't
+    /// overshoot (the per-tick recalc trues it up afterwards).
+    ///
+    /// `unit_volume_l <= 0.0` (unknown/legacy item) skips the volume gate and
+    /// behaves exactly like `add_item` — which also remains the right primitive
+    /// for bandolier-like BY-COUNT holders and for restore paths (loading a
+    /// save must never drop items).
+    ///
+    /// Returns the number NOT added (volume overflow + slot overflow).
+    pub fn add_item_volume_gated(
+        &mut self,
+        item_id: &str,
+        quantity: u32,
+        max_stack: u32,
+        unit_volume_l: f32,
+    ) -> u32 {
+        if unit_volume_l <= 0.0 {
+            return self.add_item(item_id, quantity, max_stack);
+        }
+        let remaining_l = (self.volume_capacity_l - self.volume_current_l).max(0.0);
+        let fits = (remaining_l / unit_volume_l).floor() as u32;
+        let accepted = quantity.min(fits);
+        let slot_overflow = self.add_item(item_id, accepted, max_stack);
+        let added = accepted - slot_overflow;
+        self.volume_current_l += added as f32 * unit_volume_l;
+        (quantity - accepted) + slot_overflow
+    }
+
     /// Add items to the inventory, stacking where possible.
     /// Returns the number of items that could NOT be added (overflow).
     pub fn add_item(&mut self, item_id: &str, mut quantity: u32, max_stack: u32) -> u32 {
@@ -352,6 +383,65 @@ mod item_registry_csv_tests {
         assert_eq!(sword.max_stack, 1);
         assert!(!sword.stackable, "stack_size 1 is not stackable");
     }
+
+    #[test]
+    fn from_csv_parses_volume_and_defaults_to_zero() {
+        // Stage A (v0.726): volume_l is parsed when present; absent column
+        // (older/modded CSVs) defaults to 0 = no volume gate.
+        let with = b"id,name,weight_kg,stack_size,volume_l\niron_ore_0,Iron Ore,4.5,20,0.95\n";
+        let reg = ItemRegistry::from_csv(with).expect("parse");
+        assert!((reg.volume_for("iron_ore_0") - 0.95).abs() < 1e-6);
+        let without = b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,4.5,20\n";
+        let reg2 = ItemRegistry::from_csv(without).expect("parse");
+        assert_eq!(reg2.volume_for("iron_ore_0"), 0.0);
+        assert_eq!(reg2.volume_for("nonexistent"), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod volume_gate_tests {
+    use super::*;
+
+    /// Stage A slice 2 (v0.727): the volume gate caps an add at the remaining
+    /// litres and reports the rest as overflow; the raw add_item stays
+    /// ungated (bandolier-likes + save restore).
+    #[test]
+    fn volume_gate_caps_adds_and_reports_overflow() {
+        let mut inv = Inventory::new(16);
+        inv.volume_capacity_l = 10.0;
+        // 2 L per unit -> only 5 fit by volume even though slots allow more.
+        let overflow = inv.add_item_volume_gated("crate_0", 8, 99, 2.0);
+        assert_eq!(overflow, 3, "3 of 8 must not fit in 10 L at 2 L each");
+        assert_eq!(inv.count_item("crate_0"), 5);
+        assert!((inv.volume_current_l - 10.0).abs() < 1e-6);
+        // Full by volume: nothing more fits, even with free slots.
+        let overflow2 = inv.add_item_volume_gated("crate_0", 1, 99, 2.0);
+        assert_eq!(overflow2, 1);
+        assert_eq!(inv.count_item("crate_0"), 5);
+    }
+
+    #[test]
+    fn zero_volume_items_bypass_the_gate() {
+        let mut inv = Inventory::new(4);
+        inv.volume_capacity_l = 1.0;
+        // unit_volume 0 (unknown/legacy or by-count holder) = pure slot logic.
+        let overflow = inv.add_item_volume_gated("chip_0", 10, 10, 0.0);
+        assert_eq!(overflow, 0);
+        assert_eq!(inv.count_item("chip_0"), 10);
+        assert_eq!(inv.volume_current_l, 0.0, "no volume accrues for 0-vol items");
+    }
+
+    #[test]
+    fn slot_overflow_does_not_charge_volume() {
+        // Slots bind before volume: only what actually lands charges litres.
+        let mut inv = Inventory::new(1);
+        inv.volume_capacity_l = 100.0;
+        // One slot, stack of 5 -> only 5 of 9 land; volume charged for 5.
+        let overflow = inv.add_item_volume_gated("box_0", 9, 5, 1.0);
+        assert_eq!(overflow, 4);
+        assert_eq!(inv.count_item("box_0"), 5);
+        assert!((inv.volume_current_l - 5.0).abs() < 1e-6);
+    }
 }
 
 #[cfg(test)]
@@ -467,7 +557,10 @@ impl System for InventorySystem {
                         if is_add {
                             let max_stack =
                                 registry.map(|r| r.max_stack_for(&item_id)).unwrap_or(DEFAULT_MAX_STACK);
-                            inv.add_item(&item_id, quantity, max_stack);
+                            // Volume-gated (Stage A slice 2): a full backpack
+                            // refuses the transfer instead of over-filling.
+                            let unit_vol = registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
+                            inv.add_item_volume_gated(&item_id, quantity, max_stack, unit_vol);
                         } else {
                             inv.remove_item(&item_id, quantity);
                         }

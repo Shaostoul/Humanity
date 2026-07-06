@@ -418,6 +418,24 @@ impl CraftingSystem {
         item_registry: Option<&crate::systems::inventory::ItemRegistry>,
         vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
     ) -> bool {
+        // Volume headroom (Stage A slice 2, v0.727): a batch only starts when
+        // its outputs also fit by VOLUME, else an unattended auto-machine
+        // becomes a grinder that consumes inputs and volume-overflows every
+        // output. Inputs are consumed at start (freeing volume), but checking
+        // outputs against CURRENT volume is the conservative, simple bound.
+        let out_volume: f32 = recipe
+            .outputs
+            .iter()
+            .filter(|(id, _)| !vehicle_kits.is_some_and(|k| k.get_vehicle(id).is_some()))
+            .map(|(id, qty)| {
+                item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0) * *qty as f32
+            })
+            .sum();
+        if out_volume > 0.0
+            && inventory.volume_current_l + out_volume > inventory.volume_capacity_l
+        {
+            return false;
+        }
         let mut free_slots = inventory.slots.iter().filter(|s| s.is_none()).count() as u32;
         for (item_id, qty) in &recipe.outputs {
             // Vehicle-class outputs (economy Phase 2 Stage 2) roll out onto the
@@ -454,7 +472,10 @@ impl CraftingSystem {
             let max_stack = item_registry
                 .map(|r| r.max_stack_for(item_id))
                 .unwrap_or(99);
-            let overflow = inventory.add_item(item_id, *qty, max_stack);
+            // Volume-gated (Stage A slice 2) — outputs_fit pre-checks volume
+            // at batch start, so overflow here means the pack filled mid-batch.
+            let unit_vol = item_registry.map(|r| r.volume_for(item_id)).unwrap_or(0.0);
+            let overflow = inventory.add_item_volume_gated(item_id, *qty, max_stack, unit_vol);
             if overflow > 0 {
                 log::warn!(
                     "Crafting output overflow: {} of {} lost (inventory full)",
