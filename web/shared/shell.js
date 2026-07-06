@@ -237,9 +237,7 @@
     else if (p.startsWith('/download'))  active = 'play';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
-    else if (p.startsWith('/projects'))  active = 'projects';
     else if (p.startsWith('/donate'))    active = 'donate';
-    else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
     else if (p.startsWith('/resources')) active = 'library';
@@ -785,7 +783,6 @@
       mobileLink('/shared-files', 'Shared Files') +
       mobileLink('/identity',  'Identity') +
       mobileLink('/recovery',  'Recovery') +
-      mobileLink('/projects',  'Projects') +
       mobileLink('/roadmap',   'Roadmap') +
     '</div>' +
     '<div class="mobile-hub-group group-blue"><h4>Tools, system and dev</h4>' +
@@ -794,7 +791,6 @@
       mobileLink('/notes',     'Notes') +
       mobileLink('/web',       'Bookmarks') +
       mobileLink('/files',     'Files') +
-      mobileLink('/data',      'Data') +
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
@@ -1364,7 +1360,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.701.1';
+    var CURRENT_VERSION = '0.701.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

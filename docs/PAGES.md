@@ -127,7 +127,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 38 standalone; audit/ai-usage/dashboard removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 36 standalone; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -138,10 +138,8 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Onboarding | `onboarding.html` | Web's own onboarding flow (native's standalone Onboarding page was removed v0.415.0 and folded into Quests; web was NOT re-checked for the same fold in this pass). | everyone | web-only in practice |
 | Download | `download.html` | Desktop binary download + module list. | everyone | yes |
 | WalletGuide | `wallet-guide.html` | "?" help page from Wallet. | everyone | yes |
-| Projects | `projects.html` | Project showcase. | everyone | yes |
 | Roadmap | `roadmap.html` | Public roadmap view, rendered from `data/roadmap.json`. | everyone | yes |
 | Dev | `dev.html` | Developer hub. | dev | yes |
-| Data | `data.html` | Data management UI (saves, backups, sync, USB). | dev | yes |
 | Ops | `ops.html` | Operations / monitoring. | admin | yes |
 | Admin | `admin.html` | Admin dashboard. **Read-only** (`admin-app.js` has exactly one `fetch()` call, a GET; no service control, no alert-channel editing, no backup trigger, mutating admin actions require the native exe or SSH). | admin | yes |
 | Accord | `accord.html` | The Humanity Accord rendered as a navigable web page (built 2026-07-01 during the fleet redo of the destroyed Accord-page work; registry row added 2026-07-02 when page_registry_lint caught the omission). | everyone | web (native Library page shows the same documents) |
