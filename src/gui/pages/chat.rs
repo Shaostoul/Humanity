@@ -1846,14 +1846,22 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // single cog to manage every channel + role +
                             // member in one place.)
 
+                            // 2. Unread dot (same look as the DM/group rows). (v0.718)
+                            if ch.unread {
+                                let dot_r = theme.status_dot_size * 0.375;
+                                ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                                cx += dot_r * 2.0 + 3.0;
+                            }
+
                             // 3. # Channel name
                             let name_str = format!("# {}", ch.name);
+                            let name_color = if ch.unread && !is_active { theme.text_primary() } else { text_color };
                             ui.painter().text(
                                 egui::pos2(cx + 2.0, cy),
                                 egui::Align2::LEFT_CENTER,
                                 &name_str,
                                 egui::FontId::proportional(theme.body_size),
-                                text_color,
+                                name_color,
                             );
                             // Status icons after the name: eye = read-only,
                             // node-graph = federated (v0.244; uses the
@@ -1903,6 +1911,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 state.chat_active_channel = ch.id.clone();
                                 state.chat_messages.clear();
                                 state.history_fetched = false;
+                                // Opening the channel clears its unread dot. (v0.718)
+                                if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == ch.id) {
+                                    c.unread = false;
+                                }
                             }
                         }
                         // Right-click: copy channel link

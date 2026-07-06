@@ -9851,6 +9851,16 @@ mod native_app {
                                                 timestamp_ms: ts,
                                             })
                                         });
+                                        // Sidebar unread dot: flag the channel when the message
+                                        // isn't ours and that channel isn't the open one. Same
+                                        // pattern as the DM/group handlers. (v0.718)
+                                        if sender_key != state.gui_state.profile_public_key
+                                            && channel != state.gui_state.chat_active_channel
+                                        {
+                                            if let Some(c) = state.gui_state.chat_channels.iter_mut().find(|c| c.id == channel) {
+                                                c.unread = true;
+                                            }
+                                        }
                                         state.gui_state.chat_messages.push(
                                             crate::gui::ChatMessage {
                                                 sender_name,
@@ -9991,6 +10001,16 @@ mod native_app {
                                     }
                                     Some("channel_list") => {
                                         if let Some(channels) = val.get("channels").and_then(|v| v.as_array()) {
+                                            // Preserve unread marks across rebuilds — channel_list
+                                            // re-arrives on any channel admin change and would
+                                            // otherwise clear every dot. (v0.718)
+                                            let unread_ids: std::collections::HashSet<String> = state
+                                                .gui_state
+                                                .chat_channels
+                                                .iter()
+                                                .filter(|c| c.unread)
+                                                .map(|c| c.id.clone())
+                                                .collect();
                                             state.gui_state.chat_channels.clear();
                                             for ch in channels {
                                                 let id = ch.get("id")
@@ -10024,6 +10044,7 @@ mod native_app {
                                                 let federated = ch.get("federated")
                                                     .and_then(|v| v.as_bool())
                                                     .unwrap_or(false);
+                                                let unread = unread_ids.contains(&id);
                                                 state.gui_state.chat_channels.push(
                                                     crate::gui::ChatChannel {
                                                         id,
@@ -10035,6 +10056,7 @@ mod native_app {
                                                         read_only,
                                                         federated,
                                                         voice_participants: Vec::new(),
+                                                        unread,
                                                     },
                                                 );
                                             }
@@ -10258,6 +10280,7 @@ mod native_app {
                                                             read_only: false,
                                                             federated: false,
                                                             voice_participants: roster,
+                                                            unread: false,
                                                         },
                                                     );
                                                 }
@@ -10410,6 +10433,9 @@ mod native_app {
                                                         read_only: false,
                                                         federated: false,
                                                         voice_participants: Vec::new(),
+                                                        // Group-level unread lives on ChatGroup.unread;
+                                                        // per-channel dots activate with multi-channel.
+                                                        unread: false,
                                                     }],
                                                     collapsed: false,
                                                     role,

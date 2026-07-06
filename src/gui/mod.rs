@@ -824,6 +824,9 @@ pub struct ChatChannel {
     /// from the relay's voice_channel_list broadcast (v0.481). Empty when no one
     /// is connected to voice here. Not persisted; refreshed on every broadcast.
     pub voice_participants: Vec<(String, String)>,
+    /// A message arrived here while another channel was open — drives the
+    /// sidebar unread dot, same pattern as ChatDm/ChatGroup. (v0.718)
+    pub unread: bool,
 }
 
 /// In-flight edit state for one row of the Server Settings → Channels

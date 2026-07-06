@@ -184,12 +184,16 @@ fn demo_state() -> GuiState {
         read_only: ro,
         federated: true,
         voice_participants: vec![],
+        unread: false,
     };
     s.chat_channels = vec![
         mk_channel("general", "general", true, false),
         mk_channel("announcements", "announcements", false, true),
         mk_channel("garden", "garden", true, false),
     ];
+    // One unread channel so the sidebar's channel-unread dot (v0.718) stays
+    // covered by the chat snapshot.
+    s.chat_channels[2].unread = true;
     s.chat_messages = vec![
         ChatMessage { sender_name: "Shaostoul".into(), content: "Welcome to HumanityOS!".into(), timestamp: "12:30".into(), channel: "general".into(), ..Default::default() },
         ChatMessage { sender_name: "Ada".into(), content: "The garden towers are looking great today.".into(), timestamp: "12:32".into(), channel: "general".into(), ..Default::default() },
