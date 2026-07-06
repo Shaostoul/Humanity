@@ -352,8 +352,15 @@ fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         );
         ui.add_space(theme.spacing_sm);
 
+        // Mods/admins get a per-pin Unpin button (v0.722 commands-to-buttons
+        // pass — /unpin <N> previously had no clickable path).
+        let can_unpin = {
+            let vr = viewer_role(state);
+            vr == "admin" || vr == "moderator" || vr == "mod"
+        };
+        let mut unpin_index: Option<usize> = None;
         ScrollArea::vertical().max_height(380.0).show(ui, |ui| {
-            for p in &pins {
+            for (pi, p) in pins.iter().enumerate() {
                 widgets::card(ui, theme, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
@@ -368,6 +375,12 @@ fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .color(theme.text_muted()),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if can_unpin {
+                                if widgets::Button::ghost("Unpin").show(ui, theme) {
+                                    // The relay's /unpin is 1-based.
+                                    unpin_index = Some(pi + 1);
+                                }
+                            }
                             ui.label(
                                 RichText::new(format!("pinned by {}", p.pinned_by))
                                     .size(theme.font_size_small)
@@ -384,6 +397,9 @@ fn draw_pins_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.add_space(theme.spacing_xs);
             }
         });
+        if let Some(n) = unpin_index {
+            send_slash_command(state, &format!("/unpin {}", n));
+        }
     });
     if !open {
         state.chat_pins_open = false;

@@ -911,6 +911,20 @@ pub struct SystemHealth {
     pub connected_peers: u64,
 }
 
+/// One federated-server row from GET /api/federation/servers (Server
+/// Settings → Federation panel, v0.722 — federation-activation Phase 1 UI).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct FederationServerRow {
+    pub server_id: String,
+    pub name: String,
+    pub url: String,
+    /// 0 = untrusted .. 3 = fully trusted (relay's trust tiers).
+    pub trust_tier: i32,
+    pub status: String,
+    pub accord_compliant: bool,
+}
+
 /// Studio source type variants.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -2655,6 +2669,10 @@ pub struct GuiState {
     pub server_settings_channel_name: String,
     /// Last-generated invite code (shown after admin clicks "Generate invite").
     pub server_settings_invite_code: String,
+    /// Draft input for "Redeem friend code" (Server Settings → User). (v0.722)
+    pub redeem_code_draft: String,
+    /// Draft input for "Revoke a device" key prefix (Server Settings → User). (v0.722)
+    pub revoke_key_draft: String,
     /// Last action result message (success or error feedback).
     pub server_settings_status: String,
     /// Live server health snapshot (Server Settings → System health, v0.720).
@@ -2665,6 +2683,15 @@ pub struct GuiState {
     pub system_health_status: String,
     /// In-flight system-health fetch (worker thread → per-frame drain).
     pub system_health_rx: Option<std::sync::mpsc::Receiver<Result<SystemHealth, String>>>,
+    /// Federated-server list (Server Settings → Federation, v0.722).
+    pub federation_servers: Vec<FederationServerRow>,
+    /// Federation panel status line ("Loading…", error text, or empty).
+    pub federation_status: String,
+    /// In-flight federation-list fetch (worker thread → per-frame drain).
+    pub federation_rx: Option<std::sync::mpsc::Receiver<Result<Vec<FederationServerRow>, String>>>,
+    /// Draft inputs for the Federation "Add server" row.
+    pub federation_add_url_draft: String,
+    pub federation_add_name_draft: String,
     /// Whether the danger-zone confirm-delete prompt is showing.
     pub server_settings_confirm_action: Option<String>,
 
@@ -3492,10 +3519,17 @@ impl Default for GuiState {
             server_settings_target_user: String::new(),
             server_settings_channel_name: String::new(),
             server_settings_invite_code: String::new(),
+            redeem_code_draft: String::new(),
+            revoke_key_draft: String::new(),
             server_settings_status: String::new(),
             system_health: None,
             system_health_status: String::new(),
             system_health_rx: None,
+            federation_servers: Vec::new(),
+            federation_status: String::new(),
+            federation_rx: None,
+            federation_add_url_draft: String::new(),
+            federation_add_name_draft: String::new(),
             server_settings_confirm_action: None,
             show_help_modal: false,
             debug_console_visible: false,

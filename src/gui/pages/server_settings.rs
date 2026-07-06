@@ -274,6 +274,94 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Device & friend codes (v0.722 commands-to-buttons pass) ──
+        // /link, /revoke, /friend-code and /redeem only existed as typed
+        // commands. The relay replies privately in the active chat channel.
+        widgets::subsection_label(ui, theme, "Device & friend codes");
+        widgets::body_hint(
+            ui, theme,
+            "Link code: one-time code (5 min) to sign this identity in on another \
+             device. Friend code: shareable code that makes you and the redeemer \
+             follow each other. Results appear as private messages in Chat.",
+        );
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            if widgets::Button::secondary("Generate device link code")
+                .tooltip("Create a one-time code (expires in 5 minutes) to add another \
+                          device to this identity. The code appears privately in Chat.")
+                .show(ui, theme)
+            {
+                send_slash(state, "/link");
+                state.server_settings_status = "Sent: /link — the code appears privately in Chat.".into();
+            }
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Generate friend code")
+                .tooltip("Create a shareable code. When someone redeems it, you both \
+                          follow each other automatically. Appears privately in Chat.")
+                .show(ui, theme)
+            {
+                send_slash(state, "/friend-code");
+                state.server_settings_status = "Sent: /friend-code — the code appears privately in Chat.".into();
+            }
+        });
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Redeem friend code:")
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut state.redeem_code_draft)
+                    .desired_width(120.0)
+                    .hint_text("8-char code"),
+            );
+            let code_ok = !state.redeem_code_draft.trim().is_empty();
+            ui.add_enabled_ui(code_ok, |ui| {
+                if widgets::Button::secondary("Redeem")
+                    .tooltip("Redeem a friend code someone shared with you — you'll \
+                              follow each other automatically.")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/redeem {}", state.redeem_code_draft.trim());
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {} — result appears in Chat.", cmd);
+                    state.redeem_code_draft.clear();
+                }
+            });
+        });
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Revoke a device:")
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut state.revoke_key_draft)
+                    .desired_width(160.0)
+                    .hint_text("key prefix (8+ chars)"),
+            );
+            let key_ok = state.revoke_key_draft.trim().len() >= 4;
+            ui.add_enabled_ui(key_ok, |ui| {
+                if widgets::Button::danger("Revoke")
+                    .tooltip("Remove a stolen or lost device from your name. Paste the \
+                              first characters of that device's public key (from /users \
+                              or your other device's Settings).")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/revoke {}", state.revoke_key_draft.trim());
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {} — result appears in Chat.", cmd);
+                    state.revoke_key_draft.clear();
+                }
+            });
+        });
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // Disconnect (was the old "danger zone" action — leaves it in user scope
         // because anyone can disconnect themselves).
         let (disconnect_label, group_id) = match resolve_group(state) {
@@ -406,7 +494,252 @@ fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 send_slash(state, "/reports");
                 state.server_settings_status = "Sent: /reports, check the active channel for results.".into();
             }
+            ui.add_space(theme.spacing_sm);
+            // /reports-clear had no button anywhere (v0.722 commands-to-buttons
+            // pass). Admin-only server-side; the relay rejects others politely.
+            if state.server_settings_confirm_action.as_deref() == Some("/reports-clear") {
+                if widgets::Button::danger("Really clear ALL reports?")
+                    .tooltip("Click to confirm. This empties the whole report queue.")
+                    .show(ui, theme)
+                {
+                    send_slash(state, "/reports-clear");
+                    state.server_settings_status = "Sent: /reports-clear".into();
+                    state.server_settings_confirm_action = None;
+                }
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.server_settings_confirm_action = None;
+                }
+            } else if widgets::Button::secondary("Clear all reports")
+                .tooltip("Empty the report queue (admin only). Asks to confirm.")
+                .show(ui, theme)
+            {
+                state.server_settings_confirm_action = Some("/reports-clear".to_string());
+            }
         });
+    });
+}
+
+// ── Federation panel (v0.722) ───────────────────────────────────────────────
+
+/// Background fetch of GET /api/federation/servers (public read endpoint).
+/// Same worker-thread + mpsc pattern as the System health panel.
+fn spawn_federation_fetch(state: &mut GuiState) {
+    let base = state.server_url.trim_end_matches('/').to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    state.federation_rx = Some(rx);
+    state.federation_status = "Loading...".to_string();
+    std::thread::spawn(move || {
+        let fetch = || -> Result<Vec<crate::gui::FederationServerRow>, String> {
+            let body = ureq::get(&format!("{base}/api/federation/servers"))
+                .call()
+                .map_err(|e| format!("list failed: {e}"))?
+                .into_string()
+                .map_err(|e| format!("read: {e}"))?;
+            let val: serde_json::Value =
+                serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
+            let arr = val.as_array().cloned().unwrap_or_default();
+            Ok(arr
+                .into_iter()
+                .map(|s| crate::gui::FederationServerRow {
+                    server_id: s.get("server_id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    name: s.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    url: s.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    trust_tier: s.get("trust_tier").and_then(|v| v.as_i64()).unwrap_or(0) as i32,
+                    status: s.get("status").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                    accord_compliant: s.get("accord_compliant").and_then(|v| v.as_bool()).unwrap_or(false),
+                })
+                .collect())
+        };
+        let _ = tx.send(fetch());
+    });
+}
+
+/// Federation admin panel — the GUI for the /server-* commands, which
+/// previously existed ONLY as typed commands (and /server-add was outright
+/// unreachable before the v0.716 dot-gate fix). List / add / trust-tier /
+/// remove / connect-all. Actions go through the same slash commands the
+/// relay already enforces role checks on; the list reads the public REST
+/// endpoint. Federation-activation Phase 1 UI (docs/design/federation-activation.md).
+fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // Drain a finished fetch.
+    if let Some(rx) = &state.federation_rx {
+        match rx.try_recv() {
+            Ok(Ok(rows)) => {
+                state.federation_servers = rows;
+                state.federation_status.clear();
+                state.federation_rx = None;
+            }
+            Ok(Err(e)) => {
+                state.federation_status = e;
+                state.federation_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.federation_status = "Fetch thread died.".to_string();
+                state.federation_rx = None;
+            }
+        }
+    }
+    // First view while connected: fetch automatically.
+    let ws_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    if ws_connected
+        && state.federation_servers.is_empty()
+        && state.federation_rx.is_none()
+        && state.federation_status.is_empty()
+    {
+        spawn_federation_fetch(state);
+    }
+
+    widgets::subsection_label(ui, theme, "Federation");
+    widgets::body_hint(
+        ui, theme,
+        "Peer servers this relay federates with. Trust tiers: 0 = untrusted, \
+         1 = basic, 2 = trusted, 3 = fully trusted. Command results appear \
+         privately in Chat; click Refresh afterwards to see the updated list.",
+    );
+    ui.add_space(theme.spacing_xs);
+
+    if state.federation_servers.is_empty() && state.federation_status.is_empty() {
+        widgets::body_hint(ui, theme, "No federated servers yet — add one below.");
+    }
+    if !state.federation_status.is_empty() {
+        ui.label(
+            RichText::new(&state.federation_status)
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_xs);
+    }
+
+    let rows = state.federation_servers.clone();
+    for row in &rows {
+        ui.horizontal(|ui| {
+            let status_color = if row.status == "connected" || row.status == "verified" {
+                theme.success()
+            } else {
+                theme.text_muted()
+            };
+            ui.label(
+                RichText::new(&row.name)
+                    .size(theme.font_size_body)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(&row.url)
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            ui.label(
+                RichText::new(&row.status)
+                    .size(theme.font_size_small)
+                    .color(status_color),
+            );
+            if row.accord_compliant {
+                ui.label(
+                    RichText::new("accord")
+                        .size(theme.font_size_small)
+                        .color(theme.success()),
+                );
+            }
+            // Trust tier selector — sends /server-trust on change.
+            let mut tier = row.trust_tier;
+            egui::ComboBox::from_id_salt(format!("fed_trust_{}", row.server_id))
+                .selected_text(format!("trust {}", tier))
+                .width(80.0)
+                .show_ui(ui, |ui| {
+                    for t in 0..=3 {
+                        ui.selectable_value(&mut tier, t, format!("{} - {}", t, match t {
+                            0 => "untrusted",
+                            1 => "basic",
+                            2 => "trusted",
+                            _ => "full",
+                        }));
+                    }
+                });
+            if tier != row.trust_tier {
+                let cmd = format!("/server-trust {} {}", row.server_id, tier);
+                send_slash(state, &cmd);
+                state.server_settings_status = format!("Sent: {} — Refresh to confirm.", cmd);
+            }
+            // Remove (confirm per row via the shared confirm slot).
+            let confirm_key = format!("/server-remove {}", row.server_id);
+            if state.server_settings_confirm_action.as_deref() == Some(confirm_key.as_str()) {
+                if widgets::Button::danger("Really remove?").show(ui, theme) {
+                    send_slash(state, &confirm_key);
+                    state.server_settings_status = format!("Sent: {} — Refresh to confirm.", confirm_key);
+                    state.server_settings_confirm_action = None;
+                }
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.server_settings_confirm_action = None;
+                }
+            } else if widgets::Button::ghost("Remove")
+                .tooltip("Stop federating with this server. Asks to confirm.")
+                .show(ui, theme)
+            {
+                state.server_settings_confirm_action = Some(confirm_key);
+            }
+        });
+        ui.add_space(theme.spacing_xs);
+    }
+
+    // Add-server row.
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new("Add:")
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.add(
+            egui::TextEdit::singleline(&mut state.federation_add_url_draft)
+                .desired_width(200.0)
+                .hint_text("https://server.example.com"),
+        );
+        ui.add(
+            egui::TextEdit::singleline(&mut state.federation_add_name_draft)
+                .desired_width(110.0)
+                .hint_text("name (optional)"),
+        );
+        let url = state.federation_add_url_draft.trim().to_string();
+        let url_ok = url.starts_with("http://") || url.starts_with("https://");
+        ui.add_enabled_ui(url_ok, |ui| {
+            if widgets::Button::primary("Add server")
+                .tooltip("Federate with another HumanityOS relay. The relay auto-discovers \
+                          its details via /api/server-info.")
+                .show(ui, theme)
+            {
+                let name = state.federation_add_name_draft.trim().to_string();
+                let cmd = if name.is_empty() {
+                    format!("/server-add {}", url)
+                } else {
+                    format!("/server-add {} {}", url, name)
+                };
+                send_slash(state, &cmd);
+                state.server_settings_status = format!("Sent: {} — Refresh to see it listed.", cmd);
+                state.federation_add_url_draft.clear();
+                state.federation_add_name_draft.clear();
+            }
+        });
+    });
+    ui.add_space(theme.spacing_xs);
+    ui.horizontal(|ui| {
+        if widgets::Button::secondary("Refresh")
+            .tooltip("Re-fetch the federated-server list.")
+            .show(ui, theme)
+        {
+            spawn_federation_fetch(state);
+        }
+        ui.add_space(theme.spacing_sm);
+        if widgets::Button::secondary("Connect to all verified")
+            .tooltip("Open federation connections to every verified peer server \
+                      (/server-connect). Result appears privately in Chat.")
+            .show(ui, theme)
+        {
+            send_slash(state, "/server-connect");
+            state.server_settings_status = "Sent: /server-connect — result appears in Chat.".into();
+        }
     });
 }
 
@@ -693,6 +1026,63 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.server_settings_status = format!("Sent: {}", cmd);
                 }
             });
+            // Second row (v0.722 commands-to-buttons pass): the reversals +
+            // donor mark had slash commands but no buttons.
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                if widgets::Button::secondary("Remove verified")
+                    .tooltip("Take the verified badge away (resets the user to the plain \
+                              member role).")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/unverify {}", state.server_settings_target_user.trim());
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {}", cmd);
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Remove mod")
+                    .tooltip("Demote the user from moderator back to a regular member.")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/unmod {}", state.server_settings_target_user.trim());
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {}", cmd);
+                }
+                ui.add_space(theme.spacing_sm);
+                if widgets::Button::secondary("Mark as donor")
+                    .tooltip("Give the user the donor badge as a thank-you for supporting \
+                              the server.")
+                    .show(ui, theme)
+                {
+                    let cmd = format!("/donor {}", state.server_settings_target_user.trim());
+                    send_slash(state, &cmd);
+                    state.server_settings_status = format!("Sent: {}", cmd);
+                }
+                ui.add_space(theme.spacing_sm);
+                // /name-release deletes EVERY key association for the name —
+                // account recovery / squatter cleanup. Destructive, so confirm.
+                if state.server_settings_confirm_action.as_deref() == Some("/name-release") {
+                    if widgets::Button::danger("Really release the name?")
+                        .tooltip("Click to confirm. Every device key registered to this name \
+                                  is unlinked; the name becomes claimable again.")
+                        .show(ui, theme)
+                    {
+                        let cmd = format!("/name-release {}", state.server_settings_target_user.trim());
+                        send_slash(state, &cmd);
+                        state.server_settings_status = format!("Sent: {}", cmd);
+                        state.server_settings_confirm_action = None;
+                    }
+                    if widgets::Button::secondary("Cancel").show(ui, theme) {
+                        state.server_settings_confirm_action = None;
+                    }
+                } else if widgets::Button::danger("Release name")
+                    .tooltip("Unlink every device key from this name so it can be registered \
+                              fresh (account recovery / squatted-name cleanup). Asks to confirm.")
+                    .show(ui, theme)
+                {
+                    state.server_settings_confirm_action = Some("/name-release".to_string());
+                }
+            });
         });
 
         ui.add_space(theme.spacing_md);
@@ -701,6 +1091,83 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // ── Banned users (v0.245): list + per-row Unban ──
         draw_banned_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Server maintenance (v0.722 commands-to-buttons pass): /wipe,
+        // /wipe-all and /gc had no clickable path. All three echo their
+        // result privately in chat; the destructive two confirm first.
+        widgets::subsection_label(ui, theme, "Server maintenance");
+        widgets::body_hint(
+            ui, theme,
+            &format!(
+                "History wipes are permanent. \"Wipe active channel\" clears the channel \
+                 you currently have open in Chat ({}); \"Wipe ALL channels\" clears every \
+                 channel's history. \"Clean up names\" releases names inactive for 90+ days.",
+                if state.chat_active_channel.is_empty() { "general" } else { state.chat_active_channel.as_str() }
+            ),
+        );
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            if state.server_settings_confirm_action.as_deref() == Some("/wipe") {
+                if widgets::Button::danger("Really wipe this channel?")
+                    .tooltip("Click to confirm. The active channel's message history is \
+                              permanently deleted.")
+                    .show(ui, theme)
+                {
+                    send_slash(state, "/wipe");
+                    state.server_settings_status = "Sent: /wipe (active channel history cleared).".into();
+                    state.server_settings_confirm_action = None;
+                }
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.server_settings_confirm_action = None;
+                }
+            } else if widgets::Button::danger("Wipe active channel")
+                .tooltip("Permanently clear the open channel's message history. Asks to confirm.")
+                .show(ui, theme)
+            {
+                state.server_settings_confirm_action = Some("/wipe".to_string());
+            }
+            ui.add_space(theme.spacing_sm);
+            if state.server_settings_confirm_action.as_deref() == Some("/wipe-all") {
+                if widgets::Button::danger("Really wipe EVERY channel?")
+                    .tooltip("Click to confirm. ALL channels' message history is permanently \
+                              deleted server-wide.")
+                    .show(ui, theme)
+                {
+                    send_slash(state, "/wipe-all");
+                    state.server_settings_status = "Sent: /wipe-all (all channel history cleared).".into();
+                    state.server_settings_confirm_action = None;
+                }
+                if widgets::Button::secondary("Cancel").show(ui, theme) {
+                    state.server_settings_confirm_action = None;
+                }
+            } else if widgets::Button::danger("Wipe ALL channels")
+                .tooltip("Permanently clear every channel's history server-wide. Asks to confirm.")
+                .show(ui, theme)
+            {
+                state.server_settings_confirm_action = Some("/wipe-all".to_string());
+            }
+            ui.add_space(theme.spacing_sm);
+            if widgets::Button::secondary("Clean up names")
+                .tooltip("Garbage-collect registered names that have been inactive for \
+                          90+ days, freeing them for new users. Non-destructive to \
+                          active members.")
+                .show(ui, theme)
+            {
+                send_slash(state, "/gc");
+                state.server_settings_status = "Sent: /gc (inactive-name cleanup requested).".into();
+            }
+        });
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Federation (v0.722): the /server-* commands had no GUI at all ──
+        draw_federation_admin(ui, theme, state);
 
         ui.add_space(theme.spacing_md);
         ui.separator();
@@ -1034,8 +1501,11 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let channels = state.chat_channels.clone();
     let mut delete_id: Option<String> = None;
     let mut save_id: Option<String> = None;
+    // (name, target_position) for /channel-reorder — the up/down buttons
+    // send the row's display index ± 1 as the absolute position. (v0.722)
+    let mut reorder: Option<(String, i32)> = None;
 
-    for ch in &channels {
+    for (ci, ch) in channels.iter().enumerate() {
         // Pull or seed the draft for this channel.
         let draft = state.server_settings_channel_drafts
             .entry(ch.id.clone())
@@ -1080,8 +1550,31 @@ fn draw_channels_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 ),
                 || { delete_id = Some(ch.id.clone()); },
             );
+            // Reorder (v0.722 commands-to-buttons pass — /channel-reorder had
+            // no GUI). Up/down sends the row's index ± 1 as the new position.
+            if ci > 0 {
+                if widgets::Button::ghost("Up")
+                    .tooltip("Move this channel up in the sidebar order.")
+                    .show(ui, theme)
+                {
+                    reorder = Some((ch.name.clone(), ci as i32 - 1));
+                }
+            }
+            if ci + 1 < channels.len() {
+                if widgets::Button::ghost("Down")
+                    .tooltip("Move this channel down in the sidebar order.")
+                    .show(ui, theme)
+                {
+                    reorder = Some((ch.name.clone(), ci as i32 + 1));
+                }
+            }
         });
         let _ = row_changed; // visual cue could go here; keep minimal for v1
+    }
+    if let Some((name, pos)) = reorder {
+        let cmd = format!("/channel-reorder {} {}", name, pos);
+        send_slash(state, &cmd);
+        state.server_settings_status = format!("Sent: {}", cmd);
     }
 
     ui.add_space(theme.spacing_sm);

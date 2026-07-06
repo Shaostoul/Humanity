@@ -11050,9 +11050,15 @@ mod native_app {
                                     Some("pin_removed") => {
                                         let channel = val.get("channel").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let index = val.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                                        // The relay's PinRemoved index is 1-BASED (it echoes the
+                                        // /unpin <N> argument; storage does ids[index-1]). This
+                                        // handler treated it as 0-based, so unpinning pin #1
+                                        // locally removed the SECOND pin and unpinning the last
+                                        // pin removed nothing. Off-by-one fixed v0.722.
                                         if let Some(pins) = state.gui_state.chat_pins.get_mut(&channel) {
-                                            if index < pins.len() {
-                                                pins.remove(index);
+                                            let i = index.saturating_sub(1);
+                                            if index >= 1 && i < pins.len() {
+                                                pins.remove(i);
                                             }
                                         }
                                     }
