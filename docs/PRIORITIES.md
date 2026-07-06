@@ -53,7 +53,12 @@
 >    Container system in containers.rs has ZERO runtime spawns — decide which
 >    home.ron machines are containers + how MachineDef declares container_type,
 >    then the "containers show contents" card stat), vehicle BAY redesign,
->    texture bug (colored-lines noise collapse), GLB pipeline + viewer.
+>    texture bug (INVESTIGATED 2026-07-06: a scout's "noise interpolation
+>    axis-collapse in 11 shaders" claim was ADJUDICATED AND REFUTED — the
+>    shaders are canonical bilinear noise, do NOT change the mix() factors;
+>    real hypotheses + repro plan in orchestrator_state decision #89, lead
+>    suspect = f32 precision collapse on world-space UVs far from origin),
+>    GLB pipeline + viewer.
 > FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
 > (running journal, newest at bottom), this file (top of TIER 0 = next up), and
 > CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.712 shipped economy phase
