@@ -265,6 +265,12 @@ mod native_app {
             return;
         }
         let e = world.spawn((HomeMachine,));
+        // Instance id on the entity so the walk-up cards can look up THIS
+        // machine's live component state per frame. (v0.724)
+        let _ = world.insert_one(
+            e,
+            crate::ecs::components::MachineInstanceId(inst.id.clone()),
+        );
         // Every machine entity carries its world pose (economy Phase 2 Stage 2,
         // v0.679): CraftingSystem captures it as the FACTORY PAD where a
         // vehicle-class craft output rolls out, and it anchors any future
@@ -1260,6 +1266,7 @@ mod native_app {
                 name: p.label.clone(),
                 stats: p.stats.clone(),
                 room: p.room.clone(),
+                machine_id: p.id.clone(),
             });
             // Pick volume for viewport selection: a sphere covering the machine body. Center at its
             // mid-height; radius the larger of half-height / half-width plus a click margin.
@@ -3774,6 +3781,7 @@ mod native_app {
                         name,
                         stats: def.stats.clone(),
                         room: inst.room.clone(),
+                        machine_id: inst.id.clone(),
                     });
                     // Spawn the machine's electrical + water roles as a LIVE ECS entity so the
                     // SolarSystem + ElectricalSystem + PlumbingSystem tick against the real home
@@ -9679,6 +9687,80 @@ mod native_app {
                         state.gui_state.air_pressure_atm = asr.pressure_atm;
                         state.gui_state.air_temp_c = asr.temp_c;
                         state.gui_state.air_breathable = asr.breathable;
+                    }
+
+                    // ── Live machine walk-up card stats (v0.724, machine
+                    // info-window overhaul): patch each label's stat rows
+                    // from its entity's live components, replacing the
+                    // static RON placeholders (the cistern's hardcoded
+                    // "33 days", the battery's "~4 kWh"). Cheap: a few
+                    // dozen machines, one small hashmap per frame.
+                    if !state.gui_state.machine_labels.is_empty() {
+                        use crate::ecs::components::{Battery, MachineInstanceId, WaterTank};
+                        // Patch (or append) the first stat row whose kind is in
+                        // `kinds`; keeps the RON author's icon choice when a row
+                        // already exists.
+                        fn patch_stat(
+                            stats: &mut Vec<crate::machines::MachineStat>,
+                            kinds: &[&str],
+                            new_kind: &str,
+                            value: String,
+                            status: &str,
+                        ) {
+                            if let Some(row) = stats.iter_mut().find(|s| kinds.contains(&s.kind.as_str())) {
+                                row.value = value;
+                                row.status = status.to_string();
+                            } else {
+                                stats.push(crate::machines::MachineStat {
+                                    kind: new_kind.to_string(),
+                                    value,
+                                    status: status.to_string(),
+                                });
+                            }
+                        }
+                        let mut live: std::collections::HashMap<String, (Option<(f32, f32)>, Option<(f32, f32)>)> =
+                            std::collections::HashMap::new();
+                        for (_e, (mid, tank, bat)) in state
+                            .game_world
+                            .world
+                            .query::<(&MachineInstanceId, Option<&WaterTank>, Option<&Battery>)>()
+                            .iter()
+                        {
+                            if tank.is_some() || bat.is_some() {
+                                live.insert(
+                                    mid.0.clone(),
+                                    (
+                                        tank.map(|t| (t.liters, t.capacity_l)),
+                                        bat.map(|b| (b.charge_wh, b.capacity_wh)),
+                                    ),
+                                );
+                            }
+                        }
+                        for label in &mut state.gui_state.machine_labels {
+                            let Some((tank, bat)) = live.get(&label.machine_id) else { continue };
+                            if let Some((liters, cap)) = tank {
+                                let frac = if *cap > 0.0 { liters / cap } else { 0.0 };
+                                let status = if frac < 0.15 { "low" } else { "ok" };
+                                patch_stat(
+                                    &mut label.stats,
+                                    &["water", "storage"],
+                                    "water",
+                                    format!("{:.0} / {:.0} L", liters, cap),
+                                    status,
+                                );
+                            }
+                            if let Some((wh, cap)) = bat {
+                                let frac = if *cap > 0.0 { wh / cap } else { 0.0 };
+                                let status = if frac < 0.15 { "low" } else { "ok" };
+                                patch_stat(
+                                    &mut label.stats,
+                                    &["power", "storage"],
+                                    "power",
+                                    format!("{:.1} / {:.1} kWh", wh / 1000.0, cap / 1000.0),
+                                    status,
+                                );
+                            }
+                        }
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

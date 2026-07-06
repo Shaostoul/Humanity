@@ -1247,6 +1247,10 @@ pub struct MachineLabel {
     /// The room this machine sits in (for room-based occlusion: a label only shows by
     /// default when you are in its room; hold Tab to see across rooms).
     pub room: String,
+    /// The machine's instance id (home.ron `id`) — links this label to its ECS
+    /// entity so the per-frame refresh can patch LIVE stats (cistern fill,
+    /// battery charge) over the static RON placeholders. (v0.724)
+    pub machine_id: String,
 }
 
 /// A crew NPC's floating nameplate: name + live chore label ("Vex -- Taking reactor

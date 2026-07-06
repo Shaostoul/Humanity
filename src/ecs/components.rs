@@ -620,6 +620,13 @@ pub struct Battery {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct HomeMachine;
 
+/// The placed machine's instance id (`data/machines/home.ron` `id`) carried on
+/// its ECS entity, so per-frame UI (the walk-up cards) can find THIS machine's
+/// live state — WaterTank fill, Battery charge — instead of the static RON
+/// placeholder stats. (v0.724, machine info-window overhaul)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MachineInstanceId(pub String);
+
 /// A home machine that CONTINUOUSLY runs one recipe against the HOME inventory
 /// (economy automation Phase 1, v0.663): whenever the recipe's inputs are
 /// present in the player/home stock and this machine has no craft already in
