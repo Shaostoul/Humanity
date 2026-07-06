@@ -11,6 +11,28 @@
 
 ## Active focus
 
+> **>>> MODEL HANDOFF: FABLE -> OPUS (operator, 2026-07-06). Fable 5 access ends
+> ~July 7; then Opus for weeks/months with less compute headroom. Use the
+> remaining Fable time to FINISH the launch-critical, everyday-use features and
+> leave gameplay for Opus. Operator priority order:**
+> 1. CHAT finished for daily use: direct messages, groups, and connecting to a
+>    server all working smoothly on the native app.
+> 2. The operator can point his native PC app at his live server (the VPS relay
+>    at united-humanity.us) and use it; the mod/admin controls should feel
+>    complete.
+> 3. Universal widgets reviewed for consistency + theme use.
+> 4. FILES page lets the operator add and remove files on the server so others
+>    can download them (a native shared-files manager + a remove/delete path).
+> 5. HOLD gameplay (machine info-windows + vehicle selector, volume containers)
+>    for Opus.
+> FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
+> (running journal, newest at bottom), this file (top of TIER 0 = next up), and
+> CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.708 shipped economy phase
+> 2, the page-access + fresh-install reviews, the first-boot storage chooser +
+> portable mode, chat markdown/links + 1:1 voice call answer/place + mute, and
+> the in-app file browser. <<<**
+
+
 > **>>> ALL-IN-ONE APP + FRESH-INSTALL ACCESSIBILITY (operator, 2026-07-06). Two
 > directives:**
 > **(A) ALL-IN-ONE APP.** Embed as MANY tools as possible directly into the native

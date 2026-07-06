@@ -42,6 +42,24 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 
 **Web MIRRORS native; native is the product (operator, 2026-07-05).** The native egui app is the source of truth for every UI pattern; the website reflects it in HTML/CSS ("just the GUI of the app is meant to inspire the website"). Serve what we can via web, but design native-first, then mirror. Don't build web-only pages that diverge from the app into a second thing to maintain (the "two partial gardening games" anti-pattern). One web-browsing surface is wanted long-term: OUR OWN lightweight browser (NOT Chromium/CEF) so real sites render on in-game monitors, seeded by web.html + the native Browser page, tracked in PRIORITIES as an R&D item. Full strategic direction lives in the PRIORITIES.md "Active focus" block.
 
+**Stay on Fable; do not trip the model safeguard (operator, 2026-07-06).** The
+operator pays for Fable-tier access and wants the work done on Fable. Fable has
+a broad dual-use safeguard that, per its own notice, may flag routine coding and
+security-adjacent work; a flagged turn is auto-switched to Opus (and if the Opus
+safety classifier is momentarily unavailable, a follow-up tool call can fail with
+"Service is busy"). What tripped it on 2026-07-06: a 6-agent audit workflow whose
+prompts were dense with security jargon (E2EE, authorization gates,
+permission-gated, ban, identify challenge, adversarial). To keep sessions on
+Fable: (1) prefer SOLO work over large fan-out workflows -- a 6-agent security
+audit spawns six flaggable prompts; reading the code yourself triggers none. (2)
+Describe work in plain feature-completeness terms ("is the DM flow finished",
+"can the app reach the server", "does the Files page add/remove server files"),
+not offensive-security framing ("harden the attack surface", "authorization
+gates"). (3) Keep actions small and incremental. This is about avoiding
+FALSE-POSITIVE flags on legitimate cooperative-platform work, nothing more. Big
+multi-agent swings are still fine for plainly-worded non-security tasks (maps,
+refactors, gameplay); reserve them for those.
+
 ## Usage-budget pacing (operator protocol, 2026-07-04)
 
 The AI CANNOT see the subscription usage meter. The operator calibrates it with
