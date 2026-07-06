@@ -3673,8 +3673,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
 
                                 // Handle slash commands (but not paths like /uploads/...).
+                                // Only the COMMAND WORD may not contain a dot — checking the
+                                // whole message made every dotted-argument command unreachable
+                                // (`/server-add https://example.com`, `/report bob spam.`):
+                                // the text fell through and posted as PUBLIC chat instead.
                                 let trimmed = content.trim();
-                                if trimmed.starts_with('/') && !trimmed.starts_with("/uploads/") && !trimmed.contains('.') {
+                                let first_word = trimmed.split_whitespace().next().unwrap_or("");
+                                if trimmed.starts_with('/') && !trimmed.starts_with("/uploads/") && !first_word.contains('.') {
                                     let cmd = trimmed.split_whitespace().next().unwrap_or("").to_lowercase();
                                     match cmd.as_str() {
                                         "/link" => {
@@ -3704,7 +3709,6 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 "  /revoke <key_prefix> — Remove a stolen/lost device from your name".to_string(),
                                                 "  /users — List all registered users (online/offline)".to_string(),
                                                 "  /report <name> [reason] — Report a user".to_string(),
-                                                "  /dm <name> <message> — Send a direct message".to_string(),
                                                 "  /dms — List your DM conversations".to_string(),
                                                 "  /edit <text> — Edit your last message".to_string(),
                                                 "  /pins — List pinned messages".to_string(),
@@ -4406,6 +4410,21 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                         "/dms" => {
                                             // List DM conversations.
                                             send_dm_list_update(&state_clone, &my_key_for_recv);
+                                        }
+                                        "/friend-code" => {
+                                            // Text form of FriendCodeRequest — both clients'
+                                            // help docs promised this command but only the
+                                            // enum message path existed. Same handler.
+                                            handle_friend_code_request(&state_clone, &my_key_for_recv).await;
+                                        }
+                                        "/redeem" => {
+                                            let code = trimmed.split_whitespace().nth(1).unwrap_or("").to_string();
+                                            if code.is_empty() {
+                                                let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: "Usage: /redeem <code>".to_string() };
+                                                let _ = state_clone.broadcast_tx.send(private);
+                                            } else {
+                                                handle_friend_code_redeem(&state_clone, &my_key_for_recv, code).await;
+                                            }
                                         }
                                         "/pin" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();

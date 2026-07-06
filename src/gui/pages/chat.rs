@@ -6640,7 +6640,8 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         ("/revoke <key_prefix>", "Remove a stolen/lost device"),
                         ("/users", "List all registered users"),
                         ("/report <name> [reason]", "Report a user"),
-                        ("/dm <name> <message>", "Send a direct message"),
+                        // NOTE: /dm was removed server-side in v0.279 (it stored
+                        // plaintext) — DMs go through the DM panel, which encrypts.
                         ("/dms", "List your DM conversations"),
                         ("/edit <text>", "Edit your last message"),
                         ("/pins", "List pinned messages"),
