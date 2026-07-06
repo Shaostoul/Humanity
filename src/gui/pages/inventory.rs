@@ -21,6 +21,10 @@ struct InventoryPageState {
     carry_weight: f32,
     /// Max carry weight.
     max_carry_weight: f32,
+    /// Current carried storage volume in liters (v0.726, Stage A).
+    carry_volume_l: f32,
+    /// Max backpack volume in liters (matches Inventory::volume_capacity_l).
+    max_carry_volume_l: f32,
     /// Whether we have initialized sample data.
     initialized: bool,
 }
@@ -32,6 +36,8 @@ impl Default for InventoryPageState {
             equipped: Vec::new(),
             carry_weight: 0.0,
             max_carry_weight: 50.0,
+            carry_volume_l: 0.0,
+            max_carry_volume_l: 65.0,
             initialized: false,
         }
     }
@@ -375,6 +381,9 @@ fn lookup_item_details(item_id: &str) -> Option<ItemDetails> {
                 stack_size: fields[6].parse().unwrap_or(1),
                 durability: fields[7].parse().unwrap_or(0),
                 description: fields[8].to_string(),
+                // Column 10 (volume_l) added v0.726 (material-storage Stage A);
+                // 0.0 when a modded CSV lacks it.
+                volume_l: fields.get(10).and_then(|v| v.parse().ok()).unwrap_or(0.0),
             });
         }
     }
@@ -391,6 +400,8 @@ struct ItemDetails {
     stack_size: u32,
     durability: u32,
     description: String,
+    /// Storage volume per unit in liters (v0.726).
+    volume_l: f32,
 }
 
 /// Colour for a place/entity node by its `kind` — drives the tree swatches so the
@@ -715,6 +726,10 @@ fn draw_item_card(
             widgets::detail_row(ui, theme, "Category", &d.category);
             widgets::detail_row(ui, theme, "Subcategory", &d.subcategory);
             widgets::detail_row(ui, theme, "Weight", &format!("{:.2} kg", d.weight_kg));
+            if d.volume_l > 0.0 {
+                // Storage volume (v0.726, material-storage Stage A).
+                widgets::detail_row(ui, theme, "Volume", &format!("{:.2} L", d.volume_l));
+            }
             widgets::detail_row(ui, theme, "Stack Size", &d.stack_size.to_string());
             widgets::detail_row(ui, theme, "Material", &d.base_material);
             if d.durability > 0 {
@@ -1088,14 +1103,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
         if !ps.initialized {
             let mut weight = 0.0f32;
+            let mut volume = 0.0f32;
             for slot in &state.inventory_items {
                 if let Some(item) = slot {
                     if let Some(details) = lookup_item_details(&item.item_id) {
                         weight += details.weight_kg * item.quantity as f32;
+                        volume += details.volume_l * item.quantity as f32;
                     }
                 }
             }
             ps.carry_weight = weight;
+            ps.carry_volume_l = volume;
             ps.initialized = true;
         }
     });
@@ -1212,6 +1230,24 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 format!("{:.1} / {:.1} kg", carry_weight, max_weight),
                 weight_frac,
                 weight_color,
+            ));
+            // Volume tile (v0.726, material-storage Stage A): "the real limit
+            // of a container is its volume" — shown beside weight. Same
+            // fills-up-is-bad colouring as weight.
+            let (carry_vol, max_vol) = with_state(|ps| (ps.carry_volume_l, ps.max_carry_volume_l));
+            let vol_frac = if max_vol > 0.0 { (carry_vol / max_vol).clamp(0.0, 1.0) } else { 0.0 };
+            let vol_color = if vol_frac > 0.9 {
+                theme.danger()
+            } else if vol_frac > 0.7 {
+                theme.warning()
+            } else {
+                theme.accent()
+            };
+            tiles.push((
+                "Volume",
+                format!("{:.1} / {:.0} L", carry_vol, max_vol),
+                vol_frac,
+                vol_color,
             ));
             let effects = state.vitals.effects.clone();
             let has_vitals = state.vitals.satiation_max > 0.0;
