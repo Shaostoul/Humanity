@@ -7,12 +7,7 @@
 pub mod button;
 pub mod row;
 pub mod icons;
-pub mod data_table;
 pub mod search_bar;
-pub mod item_list;
-pub mod stat_display;
-pub mod modal;
-pub mod toolbar;
 pub mod help_modal;
 pub mod passphrase_modal;
 pub mod image_cache;
