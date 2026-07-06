@@ -12,6 +12,11 @@
 // guessing if a data row's column count is unexpected.
 //
 // Run: node scripts/gen-item-volumes.js
+//
+// After ADDING a density to materials.csv for a material that previously fell
+// back, recompute just that material's rows (hand-tuned rows for OTHER
+// materials stay untouched):
+//   RECOMPUTE_MATS=carbon,stone node scripts/gen-item-volumes.js
 
 const fs = require('fs');
 
@@ -85,7 +90,10 @@ for (const line of lines) {
     console.error(`ABORT: row has ${cols.length} cols (expected ${headerCols.length}): ${t.slice(0, 80)}`);
     process.exit(1);
   }
-  if (cols.length === volIdx + 1 && cols[volIdx] !== '') { out.push(line); kept++; continue; }
+  const recomputeMats = new Set((process.env.RECOMPUTE_MATS || '').split(',').map(s => s.trim()).filter(Boolean));
+  const rowMat = (cols[mIdx] || '').trim();
+  const forceRecompute = recomputeMats.has(rowMat);
+  if (cols.length === volIdx + 1 && cols[volIdx] !== '' && !forceRecompute) { out.push(line); kept++; continue; }
   const w = parseFloat(cols[wIdx]) || 0;
   const mat = (cols[mIdx] || '').trim();
   const cat = (cols[cIdx] || '').trim();

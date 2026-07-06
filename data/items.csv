@@ -225,7 +225,7 @@ titanium_ingot_0,Titanium Ingot,material,ingot,titanium,2.0,10,0,Smelted titaniu
 gold_ingot_0,Gold Ingot,material,ingot,gold,5.0,10,0,Refined gold bar,solid,0.43
 silver_ingot_0,Silver Ingot,material,ingot,silver,3.0,10,0,Refined silver bar,solid,0.48
 coal_0,Coal,material,fuel,charcoal,1.3,30,0,Combustible carbon lump,dry_goods,5.42
-graphite_0,Graphite,material,fuel,carbon,1.1,30,0,Crystalline carbon from carbonaceous asteroids. Works as a smelting reducing agent like coal,dry_goods,1.83
+graphite_0,Graphite,material,fuel,carbon,1.1,30,0,Crystalline carbon from carbonaceous asteroids. Works as a smelting reducing agent like coal,dry_goods,0.87
 oil_crude_0,Crude Oil,material,fuel,tar,0.9,10,0,Unrefined petroleum barrel,flammable,1.25
 fuel_refined_0,Refined Fuel,material,fuel,tar,0.8,10,0,Processed combustible liquid,flammable,1.11
 clay_raw_0,Raw Clay,material,raw_stone,clay,1.8,20,0,Moldable wet mineral earth,dry_goods,1.67
@@ -386,23 +386,23 @@ railcar_tanker_0,Tanker Car,vehicle,rail,steel,25000.0,1,900,Liquid transport ra
 rail_segment_0,Rail Segment,vehicle,rail,steel,50.0,10,2000,10m track section,solid,25.5
 #
 # === MEDICAL (expanded) ===
-defibrillator_0,Defibrillator,medical,equipment,plastic,3.5,1,200,Cardiac rhythm restoration device,solid,11.7
+defibrillator_0,Defibrillator,medical,equipment,plastic,3.5,1,200,Cardiac rhythm restoration device,solid,12.3
 painkillers_0,Painkillers,medical,medicine,plastic,0.02,50,1,Oral pain relief tablets,solid,0.07
 antibiotics_0,Antibiotics,medical,medicine,plastic,0.02,30,1,Bacterial infection treatment,solid,0.07
 antivenom_0,Antivenom,medical,medicine,glass,0.05,10,1,Venom neutralization serum,solid,0.07
-blood_bag_0,Blood Bag,medical,supplies,plastic,0.5,10,1,Stored transfusion blood,solid,1.67
-stim_pack_0,Stim Pack,medical,combat_med,plastic,0.1,20,1,Fast-acting combat stimulant,solid,0.33
+blood_bag_0,Blood Bag,medical,supplies,plastic,0.5,10,1,Stored transfusion blood,solid,1.75
+stim_pack_0,Stim Pack,medical,combat_med,plastic,0.1,20,1,Fast-acting combat stimulant,solid,0.35
 #
 # === ELECTRONICS ===
-circuit_board_0,Circuit Board,electronics,computing,silicon,0.1,20,50,Printed circuit assembly,solid,0.33
-battery_small_0,Small Battery,electronics,power,lithium,0.3,10,100,Rechargeable power cell,solid,1.00
-battery_large_0,Large Battery,electronics,power,lithium,5.0,1,200,High-capacity energy storage,solid,16.7
-solar_cell_0,Solar Cell,electronics,power,silicon,1.0,5,150,Photovoltaic energy converter,solid,3.33
+circuit_board_0,Circuit Board,electronics,computing,silicon,0.1,20,50,Printed circuit assembly,solid,0.14
+battery_small_0,Small Battery,electronics,power,lithium,0.3,10,100,Rechargeable power cell,solid,1.87
+battery_large_0,Large Battery,electronics,power,lithium,5.0,1,200,High-capacity energy storage,solid,31.2
+solar_cell_0,Solar Cell,electronics,power,silicon,1.0,5,150,Photovoltaic energy converter,solid,1.43
 antenna_0,Antenna,electronics,communication,aluminum,0.5,5,100,Radio signal transceiver,solid,0.62
-sensor_module_0,Sensor Module,electronics,detection,silicon,0.2,10,80,Multi-spectrum detector,solid,0.67
-cpu_0,CPU,electronics,computing,silicon,0.05,20,100,Central processing unit,solid,0.17
+sensor_module_0,Sensor Module,electronics,detection,silicon,0.2,10,80,Multi-spectrum detector,solid,0.29
+cpu_0,CPU,electronics,computing,silicon,0.05,20,100,Central processing unit,solid,0.07
 servo_motor_0,Servo Motor,electronics,actuator,steel,0.8,5,150,Precision rotary actuator,solid,0.34
-led_panel_0,LED Panel,electronics,display,plastic,0.3,10,200,Programmable light display,solid,1.00
+led_panel_0,LED Panel,electronics,display,plastic,0.3,10,200,Programmable light display,solid,1.05
 #
 # === CONTAINERS (expanded) ===
 chest_metal_0,Metal Chest,container,storage,steel,15.0,1,400,Reinforced lockable container,solid,12.7
@@ -411,11 +411,11 @@ backpack_large_0,Large Backpack,container,personal,canvas,1.2,1,120,65-liter exp
 #
 # === DECORATIONS ===
 painting_0,Painting,decoration,wall_art,canvas,1.0,1,50,Framed canvas artwork,solid,1.62
-statue_small_0,Small Statue,decoration,sculpture,stone,10.0,1,500,Carved decorative figure,solid,25.0
+statue_small_0,Small Statue,decoration,sculpture,stone,10.0,1,500,Carved decorative figure,solid,9.62
 statue_large_0,Large Statue,decoration,sculpture,marble,200.0,1,1000,Monumental carved figure,solid,185.2
 flag_0,Flag,decoration,banner,cotton,0.3,5,30,Cloth standard on a pole,solid,0.49
-fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display,solid,375.0
-planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container,solid,12.5
+fountain_0,Fountain,decoration,water_feature,stone,150.0,1,500,Ornamental water display,solid,144.2
+planter_0,Planter,decoration,garden,ceramic,5.0,1,100,Ornamental plant container,solid,5.21
 trophy_0,Trophy,decoration,display,gold,0.5,1,100,Achievement award display,solid,0.06
 #
 # === JEWELRY ===
@@ -466,7 +466,7 @@ chisel_set_carving_0,Carving Chisel Set,tool,art,steel,1.2,1,200,Assorted woodca
 sketchbook_0,Sketchbook,tool,art,plant_fiber,0.4,5,40,Bound drawing paper book,solid,0.95
 #
 # === LIGHTING ===
-candle_0,Candle,decoration,lighting,wax,0.1,20,30,Wax taper with cotton wick,solid,0.25
+candle_0,Candle,decoration,lighting,wax,0.1,20,30,Wax taper with cotton wick,solid,0.28
 candle_holder_0,Candle Holder,decoration,lighting,brass,0.5,5,100,Stable taper-supporting base,solid,0.15
 torch_handheld_0,Handheld Torch,decoration,lighting,oak,0.6,5,40,Pitch-soaked stick light,solid,2.00
 lantern_oil_0,Oil Lantern,decoration,lighting,brass,1.0,5,150,Wick-fed glass-shielded oil lamp,solid,0.29
@@ -504,8 +504,8 @@ compass_0,Compass,tool,navigation,brass,0.1,5,200,Magnetic direction indicator,s
 pipe_metal_0,Metal Pipe,material,plumbing,steel,3.0,20,0,Threaded steel pipe segment,solid,0.64
 pipe_pvc_0,PVC Pipe,material,plumbing,pvc,0.8,20,0,Plastic water pipe segment,solid,0.95
 faucet_0,Faucet,furniture,plumbing,brass,0.6,5,150,Threaded water tap with handles,solid,0.59
-toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank,solid,333.3
-sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin,solid,150.0
+toilet_0,Toilet,furniture,plumbing,ceramic,40.0,1,400,Porcelain waste fixture with tank,solid,138.9
+sink_0,Sink,furniture,plumbing,ceramic,18.0,1,300,Wall or counter-mounted basin,solid,62.5
 shower_head_0,Shower Head,furniture,plumbing,brass,0.4,5,200,Wall-mounted spray nozzle,solid,0.39
 soap_bar_0,Soap Bar,tool,hygiene,plant_fiber,0.1,20,30,Pressed cleaning lather bar,solid,0.24
 shampoo_bottle_0,Shampoo,tool,hygiene,hdpe,0.4,10,30,Liquid hair cleaning bottle,liquid,1.19

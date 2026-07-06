@@ -117,3 +117,10 @@ sand,Sand,natural,1600,0,0.25,6.0,0.01,0,false,Loose silica grain aggregate
 gravel,Gravel,natural,1800,0,0.70,5.0,0.01,0,false,Coarse rock fragment mix
 ice,Ice,natural,917,1,2.20,1.5,0.01,0,true,Frozen water solid
 snow,Snow,natural,200,0,0.10,0.5,0.30,0,true,Crystalline ice precipitation
+carbon,Carbon,natural,2100,20,120.0,7.0,0.01,4,false,Graphitic elemental carbon solid
+ceramic,Ceramic,ceramic,2400,35,1.50,8.5,0.01,3,false,Fired kiln-hardened clay body
+lithium,Lithium,metal,534,15,85.0,0.6,0.10,60,false,Lightest solid alkali metal
+plastic,Plastic,polymer,950,40,0.20,2.0,0.40,2,false,Generic thermoplastic resin
+silicon,Silicon,metal,2330,110,150.0,6.5,0.01,8,false,Semiconductor-grade crystalline silicon
+stone,Stone,natural,2600,10,2.50,6.0,0.01,0,false,Common quarried rock
+wax,Wax,natural,900,2,0.25,0.3,0.60,3,true,Moldable paraffin or beeswax solid
