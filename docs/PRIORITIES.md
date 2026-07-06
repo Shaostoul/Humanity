@@ -62,7 +62,15 @@
 > **>>> OPERATOR FIELD SESSION 3 DIRECTIVES (2026-07-04 late, journaled in
 > full in orchestrator_state):** quick batch SHIPPED v0.693.0 (graphite from
 > C-class asteroids answers coal-in-space; live V badges; friends-list role
-> badges scoped out; P2P test tucked under Dev tools). REMAINING, in rough
+> badges scoped out; P2P test tucked under Dev tools). v0.703.0 shipped the worst cross-client bug: native now ANSWERS 1:1 voice
+> calls (web callers used to ring forever). Ring anywhere (modal overlays every
+> page, not just Chat), Accept/Decline, in-call bar with Hang up, busy auto-
+> reject; audio rides the proven voice-room str0m path (a reserved __call__
+> pseudo-room whose signaling wears the web webrtc_signal envelope). CALL
+> FOLLOW-UPS: native-initiated calls (Call button in the user modal), mute
+> button on the call bar, ring sound, and the known edge where a live P2P
+> DataChannel to the same peer refuses their call offer (fix = renegotiate a
+> voice m-line onto the existing Rtc). REMAINING, in rough
 > order: (1) FOLLOW-DIRECTION badges (you-follow / follows-you; needs the
 > relay to expose both directions to the client). (2) STARTER 1975 CHEVY
 > NOVA: the operator's first real-life recreation target; prebuilt in the

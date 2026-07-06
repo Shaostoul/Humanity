@@ -221,6 +221,14 @@ const TURN_REFRESH_SLACK: Duration = Duration::from_secs(60);
 /// for the DCEP handshake. We keep a stable, descriptive name.
 const CHANNEL_LABEL: &str = "hum-data";
 
+/// Reserved pseudo-room id for 1:1 voice CALLS (v0.703). A call reuses the
+/// whole voice-room audio path (str0m Opus m-line, the VoiceConnected /
+/// VoiceFrame events, the mic pump), but its signaling must ride the web
+/// caller's plain `webrtc_signal` envelope instead of `voice_room_signal` —
+/// `emit_voice_signal` branches on this id. Never a real room id (rooms come
+/// from the relay's voice_channel_list; this name is ours alone).
+pub const CALL_ROOM_ID: &str = "__call__";
+
 /// An event surfaced from the WebRTC thread up to the GUI. The GUI drains these
 /// via `WebrtcHandle::poll_events()` each frame and turns them into debug lines
 /// / chat messages.
@@ -263,6 +271,10 @@ enum Command {
     /// Inbound voice-room signaling (Phase C): an offer/answer/ice/new_participant
     /// the relay forwarded to us, with `data` as a JSON object (the browser shape).
     VoiceSignal { from: String, room_id: String, signal_type: String, data: Value },
+    /// Drop the connection to `peer` immediately (1:1 call hangup, v0.703).
+    /// Without this a hung-up call's Rtc stays alive until ICE times out and
+    /// its is_alive() guard would refuse the peer's NEXT call offer.
+    ClosePeer { peer: String },
 }
 
 /// Handle the GUI holds to talk to the WebRTC thread. All methods are
@@ -319,6 +331,11 @@ impl WebrtcHandle {
     /// the manager (Phase C). `data` is the browser-shaped JSON object.
     pub fn submit_voice_signal(&self, from: String, room_id: String, signal_type: String, data: Value) {
         let _ = self.tx_cmd.send(Command::VoiceSignal { from, room_id, signal_type, data });
+    }
+
+    /// Drop the connection to `peer` now (1:1 call hangup/reject, v0.703).
+    pub fn close_peer(&self, peer: String) {
+        let _ = self.tx_cmd.send(Command::ClosePeer { peer });
     }
 
     /// Send one encoded Opus frame to `peer` over its voice m-line (Phase B).
@@ -1005,6 +1022,14 @@ impl WebrtcManager {
             Command::VoiceSignal { from, room_id, signal_type, data } => {
                 self.cmd_voice_signal(from, room_id, signal_type, data)
             }
+            Command::ClosePeer { peer } => {
+                // Dropping the PeerConn drops its Rtc; we never touch it again,
+                // so str0m's drain invariant is not violated.
+                if self.peers.remove(&peer).is_some() {
+                    log::info!("WebRTC: closed peer {} (call hangup)", short(&peer));
+                    let _ = self.tx_event.send(WebrtcEvent::Closed { peer });
+                }
+            }
             Command::Signal { from, signal_type, data } => {
                 self.cmd_signal(from, signal_type, data)
             }
@@ -1433,6 +1458,11 @@ impl WebrtcManager {
         if from == self.my_pubkey_hex {
             return;
         }
+        // KNOWN EDGE (v0.703): a live P2P DataChannel connection to this peer
+        // also trips this guard and would silently refuse their 1:1 call offer.
+        // Rare today (native DC is a manual dev tool); the right fix is
+        // renegotiating a voice m-line onto the existing Rtc. Tracked in
+        // PRIORITIES with the call follow-ups.
         // If we already have a live connection to this peer, keep it (avoids a
         // glare overwrite). The web guards the same way (one PC per peer).
         if self.peers.get(&from).map(|p| p.rtc.is_alive()).unwrap_or(false) {
@@ -1547,15 +1577,31 @@ impl WebrtcManager {
     /// Build a `voice_room_signal` envelope and queue it for the GUI to relay.
     /// `data` is a JSON OBJECT (the browser RTCSessionDescription / candidate
     /// shape), NOT a string — this is the key difference from `emit_signal`.
+    ///
+    /// 1:1 CALL exception (v0.703): when `room_id` is [`CALL_ROOM_ID`], this is
+    /// a direct call, not a room, and the web caller expects the plain
+    /// `webrtc_signal` envelope (`signal_type` "offer"/"answer"/"ice", object
+    /// `data`, NO room_id) — see web/chat/chat-voice-calls.js. Same audio
+    /// machinery, different signaling dress.
     fn emit_voice_signal(&self, to: &str, room_id: &str, signal_type: &str, data: Value) {
-        let msg = serde_json::json!({
-            "type": "voice_room_signal",
-            "from": self.my_pubkey_hex,
-            "to": to,
-            "room_id": room_id,
-            "signal_type": signal_type,
-            "data": data,
-        });
+        let msg = if room_id == CALL_ROOM_ID {
+            serde_json::json!({
+                "type": "webrtc_signal",
+                "from": self.my_pubkey_hex,
+                "to": to,
+                "signal_type": signal_type,
+                "data": data,
+            })
+        } else {
+            serde_json::json!({
+                "type": "voice_room_signal",
+                "from": self.my_pubkey_hex,
+                "to": to,
+                "room_id": room_id,
+                "signal_type": signal_type,
+                "data": data,
+            })
+        };
         let _ = self.tx_outbound.send(msg.to_string());
     }
 

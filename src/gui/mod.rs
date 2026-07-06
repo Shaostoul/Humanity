@@ -2213,6 +2213,15 @@ pub struct GuiState {
     /// Previous "joined to a voice room" state, so lib.rs starts/stops the live
     /// voice session only on the edge. (Phase D, v0.494.)
     pub voice_session_prev: bool,
+    /// Incoming 1:1 voice call ringing: `(peer pubkey hex, display name)`.
+    /// Set when a `voice_call ring` arrives; the chat page renders the
+    /// Accept / Decline modal from this. (v0.703 — closes the parity bug
+    /// where a web caller rang a native user forever.)
+    pub call_incoming: Option<(String, String)>,
+    /// Active 1:1 call: `(peer pubkey hex, display name)`. While set, the
+    /// live voice session runs (same pump as voice rooms) and the chat page
+    /// shows the in-call bar with Hang up.
+    pub call_active: Option<(String, String)>,
 
     // ── Donation address config ──
 
@@ -3295,6 +3304,8 @@ impl Default for GuiState {
             voice_incumbents_captured: false,
             voice_connected_peers: std::collections::HashSet::new(),
             voice_session_prev: false,
+            call_incoming: None,
+            call_active: None,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),

@@ -9120,7 +9120,11 @@ mod native_app {
                     // voice room (capture + encode + decode/play), and pump captured
                     // Opus to every connected peer. Edge-triggered start/stop.
                     {
-                        let want_session = state.gui_state.voice_active_room.is_some();
+                        // Voice rooms AND 1:1 calls run the same live session +
+                        // Opus pump; a call peer lands in voice_connected_peers
+                        // via the same VoiceConnected event as room peers (v0.703).
+                        let want_session = state.gui_state.voice_active_room.is_some()
+                            || state.gui_state.call_active.is_some();
                         if want_session && !state.gui_state.voice_session_prev {
                             crate::net::voice::start_voice_session(
                                 state.gui_state.audio_input_device.clone(),
@@ -10687,23 +10691,119 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    Some("voice_call") | Some("voice_room") | Some("voice_room_update") => {
+                                    #[cfg(feature = "native")]
+                                    Some("voice_call") => {
+                                        // 1:1 call control plane (v0.703 — before this, native
+                                        // silently discarded voice_call and a web caller rang
+                                        // FOREVER, the worst cross-client bug in the 2026-07-04
+                                        // parity audit). Protocol matches chat-voice-calls.js:
+                                        // ring / accept / reject / hangup; the relay stamps
+                                        // from + from_name with the authenticated sender.
+                                        let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                        let from_name = val
+                                            .get("from_name")
+                                            .and_then(|v| v.as_str())
+                                            .filter(|s| !s.is_empty())
+                                            .map(|s| s.to_string())
+                                            .or_else(|| {
+                                                state.gui_state.chat_users.iter()
+                                                    .find(|u| u.public_key == from)
+                                                    .map(|u| u.name.clone())
+                                            })
+                                            .unwrap_or_else(|| {
+                                                let n = from.len().min(8);
+                                                format!("{}...", &from[..n])
+                                            });
+                                        let action = val.get("action").and_then(|v| v.as_str()).unwrap_or("");
+                                        if !from.is_empty() {
+                                            match action {
+                                                "ring" => {
+                                                    let busy = state.gui_state.call_active.is_some()
+                                                        || state.gui_state.call_incoming.is_some()
+                                                        || state.gui_state.voice_active_room.is_some();
+                                                    if busy {
+                                                        // Auto-reject like the web does when
+                                                        // already in a call / ringing / a room.
+                                                        if let Some(ref client) = state.gui_state.ws_client {
+                                                            let _ = client.send(&serde_json::json!({
+                                                                "type": "voice_call",
+                                                                "from": state.gui_state.profile_public_key,
+                                                                "to": from,
+                                                                "action": "reject",
+                                                            }).to_string());
+                                                        }
+                                                    } else {
+                                                        state.gui_state.call_incoming =
+                                                            Some((from, from_name));
+                                                    }
+                                                }
+                                                "hangup" | "reject" => {
+                                                    // Peer ended it (either side of any state).
+                                                    let matches_incoming = state.gui_state.call_incoming
+                                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                                                    let matches_active = state.gui_state.call_active
+                                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                                                    if matches_incoming {
+                                                        state.gui_state.call_incoming = None;
+                                                    }
+                                                    if matches_active {
+                                                        state.gui_state.call_active = None;
+                                                        state.gui_state.voice_connected_peers.remove(&from);
+                                                        // Drop the transport now so this peer's
+                                                        // NEXT call isn't refused by the stale
+                                                        // connection's is_alive guard.
+                                                        if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                            webrtc.close_peer(from.clone());
+                                                        }
+                                                    }
+                                                }
+                                                // "accept" matters when NATIVE is the caller —
+                                                // outbound calls are the next increment; the
+                                                // web caller creates the offer on accept, so
+                                                // nothing to do here yet.
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                    Some("voice_room") | Some("voice_room_update") => {
                                         // Control/legacy voice messages: not consumed by the
                                         // native client (join/leave are outbound; the roster
                                         // arrives via voice_channel_list).
                                     }
                                     #[cfg(feature = "native")]
                                     Some("webrtc_signal") => {
-                                        // P2P DataChannel signaling (offer/answer/ICE) from a
-                                        // peer, relayed to us. Route it into the WebRTC
-                                        // manager (lazily started after WS connect, just
-                                        // below). The relay set `from` to the authenticated
-                                        // sender key; `data` is a JSON string per contract.
+                                        // Two protocols share this envelope (mirroring the web):
+                                        // dc_* = P2P DataChannel signaling (data is a JSON
+                                        // STRING) -> submit_signal. Bare offer/answer/ice =
+                                        // 1:1 VOICE CALL signaling from a browser caller
+                                        // (data is a JSON OBJECT) -> the voice path under the
+                                        // reserved CALL_ROOM_ID, but ONLY from the peer whose
+                                        // call we accepted — never auto-answer an unsolicited
+                                        // media offer (v0.703).
                                         let from = val.get("from").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let signal_type = val.get("signal_type").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let data = val.get("data").cloned().unwrap_or(serde_json::Value::Null);
                                         if !from.is_empty() && !signal_type.is_empty() {
-                                            if let Some(ref webrtc) = state.gui_state.webrtc {
+                                            let is_call_signal = matches!(
+                                                signal_type.as_str(),
+                                                "offer" | "answer" | "ice"
+                                            );
+                                            if is_call_signal {
+                                                let call_peer_ok = state.gui_state.call_active
+                                                    .as_ref()
+                                                    .map(|(k, _)| *k == from)
+                                                    .unwrap_or(false);
+                                                if call_peer_ok {
+                                                    if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                        webrtc.submit_voice_signal(
+                                                            from,
+                                                            crate::net::webrtc::CALL_ROOM_ID.to_string(),
+                                                            signal_type,
+                                                            data,
+                                                        );
+                                                    }
+                                                }
+                                            } else if let Some(ref webrtc) = state.gui_state.webrtc {
                                                 webrtc.submit_signal(from, signal_type, data);
                                             }
                                         }
@@ -11199,6 +11299,16 @@ mod native_app {
                                     }
                                     crate::net::webrtc::WebrtcEvent::Closed { peer } => {
                                         state.gui_state.voice_connected_peers.remove(&peer);
+                                        // If this peer was our 1:1 call, the call is over
+                                        // (covers the web side closing its RTCPeerConnection
+                                        // without us seeing a hangup message, e.g. tab close).
+                                        if state.gui_state.call_active
+                                            .as_ref()
+                                            .map(|(k, _)| *k == peer)
+                                            .unwrap_or(false)
+                                        {
+                                            state.gui_state.call_active = None;
+                                        }
                                         crate::debug::push_debug(format!(
                                             "WebRTC: channel CLOSED with {}", short(&peer)
                                         ));
@@ -11651,6 +11761,21 @@ mod native_app {
                                     && state.gui_state.showroom_active
                                 {
                                     crate::gui::pages::showroom::draw(ctx, &state.theme, &mut state.gui_state);
+                                }
+
+                                // 1:1 voice-call surfaces ring EVERYWHERE, not just on the
+                                // Chat page (v0.703): the web caller gives up after 30 s, so
+                                // a ring must be answerable while driving, building, or on
+                                // any other page. Chat's own draw already renders these when
+                                // it's the active page; drawing the same-titled egui Windows
+                                // twice in one frame is fine (same ID, one instance), but we
+                                // gate anyway to keep a single draw path per frame.
+                                if state.gui_state.active_page != GuiPage::Chat
+                                    && (state.gui_state.call_incoming.is_some()
+                                        || state.gui_state.call_active.is_some())
+                                {
+                                    crate::gui::pages::chat::draw_incoming_call_modal(ctx, &state.theme, &mut state.gui_state);
+                                    crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // Construction editor panel (v0.455): per-wall kinds + height,

@@ -197,6 +197,11 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // confirm "Send unencrypted" or cancel — no silent plaintext fallback.
     draw_unencrypted_dm_modal(ctx, theme, state);
 
+    // 1:1 voice call surfaces (v0.703): the incoming-call Accept/Decline
+    // modal + the in-call bar with Hang up.
+    draw_incoming_call_modal(ctx, theme, state);
+    draw_call_bar(ctx, theme, state);
+
     // ── CREATE CHANNEL MODAL ──
     if state.show_create_channel_modal {
         draw_create_channel_modal(ctx, theme, state);
@@ -6527,6 +6532,122 @@ fn try_encrypt_dm(
 /// Pops up when the user clicked Send on a DM that we couldn't encrypt
 /// (B3 fix). User must explicitly confirm "Send unencrypted" or cancel
 /// — no silent plaintext fallback. Call from chat::draw.
+/// Incoming 1:1 voice call — Accept / Decline (v0.703). Mirrors the web's
+/// incoming-call overlay; the control protocol is chat-voice-calls.js's
+/// `voice_call` ring/accept/reject/hangup. Before this, native silently
+/// discarded the ring and a web caller rang forever.
+pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let (peer_key, peer_name) = match state.call_incoming.clone() {
+        Some(p) => p,
+        None => return,
+    };
+    let mut accept = false;
+    let mut decline = false;
+    egui::Window::new("Incoming call")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(egui::Vec2::new(340.0, 0.0))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        .show(ctx, |ui| {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new(&peer_name)
+                    .size(theme.font_size_heading)
+                    .color(theme.text_primary())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new("is calling you (voice)")
+                    .size(theme.font_size_body)
+                    .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                if widgets::Button::primary("Accept").show(ui, theme) {
+                    accept = true;
+                }
+                if widgets::Button::danger("Decline").show(ui, theme) {
+                    decline = true;
+                }
+            });
+            ui.add_space(theme.spacing_xs);
+        });
+    if accept || decline {
+        let action = if accept { "accept" } else { "reject" };
+        if let Some(ref client) = state.ws_client {
+            let _ = client.send(&serde_json::json!({
+                "type": "voice_call",
+                "from": state.profile_public_key,
+                "to": peer_key,
+                "action": action,
+            }).to_string());
+        }
+        state.call_incoming = None;
+        if accept {
+            // The web caller now creates the WebRTC offer; it arrives as a
+            // bare `webrtc_signal offer` which lib.rs routes into the voice
+            // path (gated on this exact peer). The shared voice session +
+            // Opus pump start from `call_active` on the next frame.
+            state.call_active = Some((peer_key, peer_name));
+        }
+    }
+}
+
+/// The in-call bar for an active 1:1 call (v0.703): who, connection state,
+/// Hang up. Anchored top-center so it stays visible over the chat.
+pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let (peer_key, peer_name) = match state.call_active.clone() {
+        Some(p) => p,
+        None => return,
+    };
+    let connected = state.voice_connected_peers.contains(&peer_key);
+    let mut hangup = false;
+    egui::Window::new("call_bar")
+        .title_bar(false)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_TOP, [0.0, 8.0])
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new(format!("In call with {}", peer_name))
+                        .size(theme.font_size_body)
+                        .color(theme.text_primary())
+                        .strong(),
+                );
+                let (status, color) = if connected {
+                    ("connected", theme.success())
+                } else {
+                    ("connecting...", theme.warning())
+                };
+                ui.label(RichText::new(status).size(theme.font_size_small).color(color));
+                if widgets::Button::danger("Hang up").show(ui, theme) {
+                    hangup = true;
+                }
+            });
+        });
+    if hangup {
+        if let Some(ref client) = state.ws_client {
+            let _ = client.send(&serde_json::json!({
+                "type": "voice_call",
+                "from": state.profile_public_key,
+                "to": peer_key,
+                "action": "hangup",
+            }).to_string());
+        }
+        state.call_active = None;
+        state.voice_connected_peers.remove(&peer_key);
+        // Drop the str0m connection NOW; leaving it to ICE timeout would
+        // make on_voice_offer's already-connected guard refuse this peer's
+        // next call for ~30s.
+        if let Some(ref webrtc) = state.webrtc {
+            webrtc.close_peer(peer_key);
+        }
+    }
+}
+
 pub(crate) fn draw_unencrypted_dm_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let pending = match state.dm_unencrypted_confirm.clone() {
         Some(p) => p,
