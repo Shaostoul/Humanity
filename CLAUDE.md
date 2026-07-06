@@ -420,6 +420,8 @@ OS-standard data dir (`%APPDATA%\HumanityOS\` on Windows) with:
 
 **Never delete/re-tag** — always increment to next version number.
 
+**`just build-game` auto-bumps the PATCH version at its START (it runs `just bump` before `cargo build`).** So the moment you launch build-game, the working tree already has Cargo.toml + the 6 stamp files bumped to the next patch. The version-stamp commit after it must therefore just `git add` the already-bumped files and commit/tag — do NOT run `bump-version` again (that double-bumps). And do NOT inject a separate patch-bumped change (another `just release`/`bump-version`) while a build-game bump is still uncommitted in the tree: commit the build-game stamp FIRST, then do the next change. Getting this wrong strands local ahead of GitHub with a mislabeled tag (happened v0.705.1: a dead-code patch ran while build-game's 0.705.1 bump was pending, landing Cargo.toml at 0.705.2 under a v0.705.1 tag; reconciled by tagging HEAD v0.705.2 forward per the never-retag rule).
+
 ## Deploy pipeline
 
 Push to `main` → GitHub Actions → SSH to VPS → `cargo build --features relay --no-default-features` → rsync + copy → restart relay
