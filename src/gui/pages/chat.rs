@@ -6209,7 +6209,7 @@ fn upload_image_png_blocking(
 /// public Shared Files library, matching the web client). Returns the URL
 /// from the JSON response. Runs on a worker thread at every call site, so
 /// blocking here never freezes a frame. nginx caps the body at 6 MB.
-fn upload_file_blocking(
+pub(crate) fn upload_file_blocking(
     server_url: &str,
     public_key: &str,
     filename: &str,
