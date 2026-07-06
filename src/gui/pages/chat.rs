@@ -2050,6 +2050,10 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                 state.ws_reconnect_timer = 0.0;
                                 state.ws_reconnect_delay = 5.0;
                                 state.ws_reconnect_attempts = 0;
+                                // Land on "general" (every relay seeds it) so we
+                                // don't show an empty view if the previous active
+                                // channel / DM / group doesn't exist on this server.
+                                state.chat_active_channel = "general".to_string();
                                 // Reload the channel view + history from the new server.
                                 state.chat_messages.clear();
                                 state.history_fetched = false;
