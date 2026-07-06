@@ -16,15 +16,21 @@
 > remaining Fable time to FINISH the launch-critical, everyday-use features and
 > leave gameplay for Opus. Operator priority order + current state:**
 > 1. CHAT for daily use: direct messages, groups, and connecting to a server all
->    smooth on native. PARTIAL. Saved servers now switch on click + can be
->    forgotten (v0.712); connect/reconnect/Kyber-DM/group paths already work.
->    STILL WANTS FIELD TESTING by the operator against the live VPS relay, and
->    a daily-driver pass on the DM + group panels (compose, roster, unread).
+>    smooth on native. DONE in code, wants the operator field test. Saved
+>    servers: add (bare host OK, v0.714) -> switch on click (v0.712, lands on
+>    general v0.713) -> forget. Unread across the whole sidebar: DM previews +
+>    unread (v0.715), group dots (v0.717), channel dots (v0.718); P2P-group
+>    unread correctly WAITS for native P2P push (closed groups only poll their
+>    list, there is no message event to flag).
 > 2. The operator can point his native PC app at his live server (the VPS relay
 >    at united-humanity.us) and use it; mod/admin controls should feel complete.
->    Switching servers is the entry point (done); the mod/admin command surface
->    (/kick /ban /mod /pin etc. via chat commands) exists -- Opus should audit it
->    for completeness + consider surfacing it as buttons, not just slash commands.
+>    VERIFIED + AUDITED (2026-07-06): all 40+ documented commands have working
+>    relay handlers (scout-mapped); 3 defects fixed in v0.716 (the dot-gate bug
+>    that made /server-add + dotted /report post PUBLICLY, missing /friend-code
+>    + /redeem text handlers, stale /dm docs); operator IS admin on the VPS
+>    (ADMIN_KEYS, journaled 2026-05-21). Remaining idea for Opus: surface
+>    mod/admin actions as BUTTONS (user context menu / server settings), not
+>    just slash commands.
 > 3. Universal widgets reviewed for consistency + theme use. DONE (v0.711: 5 dead
 >    widgets removed; the ~17 in use are theme-token compliant + editable in
 >    Settings, enforced by theme_token_lint + theme_editor_coverage).
