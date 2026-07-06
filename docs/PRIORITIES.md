@@ -11,6 +11,31 @@
 
 ## Active focus
 
+> **>>> LOOP MODE OUTPUT (2026-07-05 -> 2026-07-06, operator engaged loop mode:
+> "focus on obvious stuff you dont need me to decide"). SHIPPED the no-decision
+> items: v0.704 Home fully-exposed (no expandables), v0.705.0 native-INITIATED
+> 1:1 calls + mute (completes voice-call parity both directions), v0.705.1 dead
+> web-chat code removed (chat-voice.js monolith + style.css, 5642 lines, verified
+> unloaded). Loop WOUND DOWN because every remaining backlog item carries a
+> decision that is genuinely yours, not obvious:
+> - NATIVE FILE ATTACH beyond clipboard images: needs a new dependency (rfd, the
+>   standard cross-platform file picker; egui has none built in). Your call on
+>   adding the crate vs an in-app file browser. Web has ~20-type attach today.
+> - STALE app/web/ BUNDLE (294 tracked files, frozen v0.414): it is the output of
+>   scripts/bundle-web.js, an in-app OFFLINE web bundle that is currently consumed
+>   by nothing. Decision = do you still want the offline-bundle feature (then
+>   regenerate + wire it) or drop it (git rm + gitignore)? Not obvious cleanup
+>   because it is a half-built feature artifact, not junk.
+> - INCOMING-CALL RING SOUND: needs a ring audio asset (assets/audio/ is empty)
+>   AND the GUI audio path wired (AudioManager::play_sound exists but is not
+>   reached from the chat/render loop). Small arc, but a binary asset + wiring,
+>   not a one-liner.
+> Other parity tail still open (each a real increment, not loop-obvious): native
+> threads panel, presence status picker, friend-code UI, the Add Server stub
+> (saved servers render unclickable). And the gameplay arcs (machine info-windows
+> + vehicle selector, volume containers) wait for a directed session. <<<**
+
+
 > **>>> STRATEGIC DIRECTION (operator, 2026-07-05): ONE COHESIVE END-APP, TRIM
 > THE FLUFF. Guiding rules for all page/UI work from here:**
 > 1. **The NATIVE app is the product; the website MIRRORS it in HTML/CSS.** The
