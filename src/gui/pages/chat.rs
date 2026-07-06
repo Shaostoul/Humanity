@@ -820,8 +820,14 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     let dm_channel = format!("dm:{}", dm.user_key);
                     let is_active = state.chat_active_channel == dm_channel;
 
-                    // Channel-row style DM entry
-                    let row_height = theme.row_height;
+                    // Channel-row style DM entry. When we have a last-message
+                    // preview the row grows a second line for it (v0.715).
+                    let has_preview = !dm.last_message.trim().is_empty();
+                    let row_height = if has_preview {
+                        theme.row_height + theme.font_size_small + 4.0
+                    } else {
+                        theme.row_height
+                    };
                     let (full_rect, response) = ui.allocate_exact_size(
                         Vec2::new(ui.available_width(), row_height),
                         egui::Sense::click(),
@@ -842,7 +848,13 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
 
                         let mut cursor_x = full_rect.left() + theme.item_padding + 2.0;
-                        let cy = full_rect.center().y;
+                        // With a preview, the name sits on the upper line and
+                        // the preview on the lower; without, name is centered.
+                        let cy = if has_preview {
+                            full_rect.top() + theme.row_height * 0.5
+                        } else {
+                            full_rect.center().y
+                        };
 
                         // Unread dot
                         if dm.unread {
@@ -860,12 +872,45 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             egui::FontId::proportional(theme.body_size),
                             name_color,
                         );
+
+                        // Last-message preview line: muted, single line,
+                        // elided to fit the row width. Newlines flattened.
+                        if has_preview {
+                            let avail_w = full_rect.width() - (theme.item_padding + 2.0) - 10.0;
+                            // Cheap width heuristic: proportional glyphs
+                            // average ~0.55em; egui has no single-line elide.
+                            let max_chars = ((avail_w / (theme.font_size_small * 0.55)).max(4.0)) as usize;
+                            let flat: String = dm
+                                .last_message
+                                .chars()
+                                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                                .collect();
+                            let flat = flat.trim();
+                            let preview: String = if flat.chars().count() > max_chars {
+                                let cut: String = flat.chars().take(max_chars.saturating_sub(3)).collect();
+                                format!("{}...", cut.trim_end())
+                            } else {
+                                flat.to_string()
+                            };
+                            let preview_color = if dm.unread { theme.text_secondary() } else { theme.text_muted() };
+                            ui.painter().text(
+                                egui::pos2(full_rect.left() + theme.item_padding + 2.0, full_rect.top() + theme.row_height + theme.font_size_small * 0.5),
+                                egui::Align2::LEFT_CENTER,
+                                &preview,
+                                egui::FontId::proportional(theme.font_size_small),
+                                preview_color,
+                            );
+                        }
                     }
 
                     if response.clicked() && state.chat_active_channel != dm_channel {
-                        state.chat_active_channel = dm_channel;
+                        state.chat_active_channel = dm_channel.clone();
                         state.chat_messages.clear();
                         state.history_fetched = false;
+                        // Opening the conversation clears its unread mark.
+                        if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == dm.user_key) {
+                            d.unread = false;
+                        }
                         // Request DM history from server
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
@@ -3981,6 +4026,14 @@ fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
         "You".to_string()
     };
     let local_reply_to = state.chat_reply_to.clone();
+    // Keep the DM sidebar preview current for our own sends (v0.715).
+    if let Some(pk) = channel.strip_prefix("dm:") {
+        if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == pk) {
+            d.last_message = format!("You: {}", content);
+            d.timestamp = now.clone();
+            d.unread = false;
+        }
+    }
     state.chat_messages.push(ChatMessage {
         sender_name: local_name,
         sender_key: state.profile_public_key.clone(),

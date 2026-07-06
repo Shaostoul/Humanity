@@ -10441,6 +10441,41 @@ mod native_app {
                                             &raw_content, encrypted, &nonce, &partner, &state.gui_state,
                                         );
                                         let dm_channel = format!("dm:{}", partner);
+                                        // Sidebar conversation entry: keep the DM list's
+                                        // preview + unread mark current (v0.715). Done
+                                        // before the push below moves content/from_name.
+                                        let dm_is_open = state.gui_state.chat_active_channel == dm_channel;
+                                        let preview = if is_from_me {
+                                            format!("You: {}", content)
+                                        } else {
+                                            content.clone()
+                                        };
+                                        let ts_str = crate::gui::pages::chat::format_timestamp(ts);
+                                        if let Some(d) = state.gui_state.chat_dms.iter_mut().find(|d| d.user_key == partner) {
+                                            d.last_message = preview;
+                                            d.timestamp = ts_str;
+                                            if !is_from_me && !dm_is_open {
+                                                d.unread = true;
+                                            }
+                                        } else if !partner.is_empty() {
+                                            // First message from a new partner: create the
+                                            // sidebar entry. When the DM is our own echo
+                                            // (another device), we only know the partner's
+                                            // key — use a short prefix until dm_list or a
+                                            // reply supplies the real name.
+                                            let display = if is_from_me {
+                                                partner.chars().take(8).collect::<String>()
+                                            } else {
+                                                from_name.clone()
+                                            };
+                                            state.gui_state.chat_dms.push(crate::gui::ChatDm {
+                                                user_name: display,
+                                                user_key: partner.clone(),
+                                                last_message: preview,
+                                                timestamp: ts_str,
+                                                unread: !is_from_me && !dm_is_open,
+                                            });
+                                        }
                                         state.gui_state.chat_messages.push(crate::gui::ChatMessage {
                                             sender_name: from_name,
                                             sender_key: from_key,
