@@ -14,23 +14,36 @@
 > **>>> MODEL HANDOFF: FABLE -> OPUS (operator, 2026-07-06). Fable 5 access ends
 > ~July 7; then Opus for weeks/months with less compute headroom. Use the
 > remaining Fable time to FINISH the launch-critical, everyday-use features and
-> leave gameplay for Opus. Operator priority order:**
-> 1. CHAT finished for daily use: direct messages, groups, and connecting to a
->    server all working smoothly on the native app.
+> leave gameplay for Opus. Operator priority order + current state:**
+> 1. CHAT for daily use: direct messages, groups, and connecting to a server all
+>    smooth on native. PARTIAL. Saved servers now switch on click + can be
+>    forgotten (v0.712); connect/reconnect/Kyber-DM/group paths already work.
+>    STILL WANTS FIELD TESTING by the operator against the live VPS relay, and
+>    a daily-driver pass on the DM + group panels (compose, roster, unread).
 > 2. The operator can point his native PC app at his live server (the VPS relay
->    at united-humanity.us) and use it; the mod/admin controls should feel
->    complete.
-> 3. Universal widgets reviewed for consistency + theme use.
-> 4. FILES page lets the operator add and remove files on the server so others
->    can download them (a native shared-files manager + a remove/delete path).
+>    at united-humanity.us) and use it; mod/admin controls should feel complete.
+>    Switching servers is the entry point (done); the mod/admin command surface
+>    (/kick /ban /mod /pin etc. via chat commands) exists -- Opus should audit it
+>    for completeness + consider surfacing it as buttons, not just slash commands.
+> 3. Universal widgets reviewed for consistency + theme use. DONE (v0.711: 5 dead
+>    widgets removed; the ~17 in use are theme-token compliant + editable in
+>    Settings, enforced by theme_token_lint + theme_editor_coverage).
+> 4. FILES page add/remove files on the server for others to download. DONE
+>    (v0.709 signed delete endpoint owner-or-admin + v0.710 native shared-files
+>    manager: list/upload/remove on the Files page via the in-app file browser).
 > 5. HOLD gameplay (machine info-windows + vehicle selector, volume containers)
 >    for Opus.
 > FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
 > (running journal, newest at bottom), this file (top of TIER 0 = next up), and
-> CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.708 shipped economy phase
+> CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.712 shipped economy phase
 > 2, the page-access + fresh-install reviews, the first-boot storage chooser +
-> portable mode, chat markdown/links + 1:1 voice call answer/place + mute, and
-> the in-app file browser. <<<**
+> portable mode, chat markdown/links + 1:1 voice call answer/place + mute, the
+> in-app file browser + native shared-files manager (Files add/remove), the
+> widget review, and saved-server switch/forget. FIELD TESTS the operator still
+> owes: storage chooser (fresh + USB), voice calls (two clients), chat attach +
+> shared-files upload/remove, saved-server switching against the live VPS.
+> RELEASE SIGNING BACKLOG (operator-only): v0.678 -> v0.712 are unsigned; run
+> `just sign-release vX.Y.Z` so desktop auto-update offers them. <<<**
 
 
 > **>>> ALL-IN-ONE APP + FRESH-INSTALL ACCESSIBILITY (operator, 2026-07-06). Two
