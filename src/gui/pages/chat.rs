@@ -2567,6 +2567,21 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     } else {
                         crate::gui::widgets::image_cache::strip_image_urls(&msg.content)
                     };
+                    // Inline markdown + link detection (v0.702, parity with web:
+                    // the help modal has advertised markdown all along). Markers
+                    // are stripped HERE so the mention detection below and the
+                    // row's char-indexed ranges all see the same display text.
+                    let (display_text, format_spans) =
+                        crate::gui::widgets::msg_format::parse(&display_text);
+                    let link_targets: Vec<String> = format_spans
+                        .iter()
+                        .filter_map(|sp| match &sp.kind {
+                            crate::gui::widgets::msg_format::SpanKind::Link(url) => {
+                                Some(url.clone())
+                            }
+                            _ => None,
+                        })
+                        .collect();
 
                     // ── Reply-to context (if this is a reply) ──
                     if let Some(ref reply) = msg.reply_to {
@@ -2701,6 +2716,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             ctx_time,
                             pill_width,
                             &mention_ranges,
+                            &format_spans,
                         );
                         // Click on a highlighted @mention → open that user's
                         // modal (same as clicking them in the user list).
@@ -2709,6 +2725,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 state.chat_user_modal_open = true;
                                 state.chat_user_modal_name = nm.clone();
                                 state.chat_user_modal_key = key.clone();
+                            }
+                        }
+                        // Click on a link → OS default browser (same pattern
+                        // as the Browser page's bookmarks). v0.702.
+                        if let Some(idx) = row_resp.clicked_link {
+                            if let Some(url) = link_targets.get(idx) {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
                             }
                         }
                         row_was_hovered = row_resp.response.hovered();
@@ -3691,10 +3714,18 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             send_aborted = true;
                         }
 
+                        // The scratchpad is LOCAL-ONLY, as its label promises.
+                        // It used to fall through the normal-channel branch and
+                        // post `channel: "scratchpad"` to the relay whenever
+                        // connected -- the same looks-private-but-is-not class
+                        // of bug as the web DM-attachment leak (2026-07-04
+                        // audit). Local echo only; nothing leaves the machine.
+                        let is_scratchpad = channel == "scratchpad";
+
                         // Send via WebSocket if connected (channels, DMs, legacy
                         // groups). Skipped for P2P groups — those went via HTTP
-                        // just above.
-                        if !is_p2p_group {
+                        // just above — and for the local-only scratchpad.
+                        if !is_p2p_group && !is_scratchpad {
                         if let Some(ref client) = state.ws_client {
                             if client.is_connected() {
 

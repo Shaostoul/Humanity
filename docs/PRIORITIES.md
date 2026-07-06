@@ -142,7 +142,12 @@
 > section, OR retire it and fold anything unique into the dashboard. (2)
 > theme.nav_dev_visible still gates nothing reachable (Testing/Bugs ship inside
 > Platform ungated; Files now in Platform too) -- decide if the dev-visibility toggle
-> should hide those or be removed. (E) NATIVE CHAT PARITY,
+> should hide those or be removed. (E) NATIVE CHAT PARITY -- STARTED (v0.702.0 shipped the top item: markdown
+> **bold** *italic* `code` ~~strike~~ + clickable http(s) links render in native
+> chat via widgets::msg_format (10-unit-test pure parser) + message_row styled
+> spans; links open the OS browser like the Browser page. ALSO fixed: the
+> scratchpad was labeled local-only but posted channel:"scratchpad" to the relay
+> when connected -- WS send now gated, truly local). REMAINING,
 > ranked by impact: markdown/links/link-preview rendering (help modal already
 > advertises markdown!); file attach beyond clipboard images; 1:1 voice-call answer
 > (a web caller rings a native user FOREVER -- native discards voice_call); threads

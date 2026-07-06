@@ -16,7 +16,7 @@
 //! All sizing and fonts come from `Theme` so changes in theme.ron restyle
 //! the whole chat at once.
 
-use egui::{Color32, Rect, Rounding, Sense, Vec2};
+use egui::{Color32, Rect, Rounding, Sense, Stroke, Vec2};
 use egui::epaint::StrokeKind;
 use crate::gui::theme::Theme;
 
@@ -72,6 +72,12 @@ pub fn message_row(
     // which user; `message_row` just colors them + reports which one
     // was clicked via `MessageRowResponse.clicked_mention`. v0.236.
     mention_ranges: &[(usize, usize)],
+    // Inline formatting spans from `widgets::msg_format::parse` (v0.702):
+    // bold/italic/code/strike styling + clickable links. Char-indexed into
+    // `content` (the caller passes the already-stripped display text).
+    // Links report clicks via `MessageRowResponse.clicked_link` (an index
+    // into the Link spans, counted in order of appearance).
+    format_spans: &[crate::gui::widgets::msg_format::FormatSpan],
 ) -> MessageRowResponse {
     let full_width = ui.available_width();
     let border_color = theme.border();
@@ -171,42 +177,83 @@ pub fn message_row(
         );
         prefix_chars += n;
     }
-    // Append `content`, splitting at mention ranges so each @mention is
-    // colored with the accent. `mention_ranges` is (char_start, char_len)
-    // relative to content; assume the caller passes them sorted &
-    // non-overlapping (chat.rs builds them left-to-right).
+    // Append `content` with per-char styling merged from BOTH the mention
+    // ranges and the msg_format spans (v0.702: bold/italic/code/strike +
+    // links). Build a per-char style mask, then append runs of identical
+    // style. Mentions and links win the color; the loaded font has no bold
+    // face, so Bold renders WHITE (the same convention as the header name).
     {
+        use crate::gui::widgets::msg_format::SpanKind;
         let chars: Vec<char> = content.chars().collect();
-        let mut pos: usize = 0;
-        let normal_fmt = egui::TextFormat {
-            font_id: egui::FontId::proportional(body_font),
-            color: text_color,
-            ..Default::default()
-        };
-        let mention_fmt = egui::TextFormat {
-            font_id: egui::FontId::proportional(body_font),
-            color: theme.accent(),
-            ..Default::default()
-        };
-        let slice = |a: usize, b: usize| -> String {
-            chars.get(a..b).map(|s| s.iter().collect()).unwrap_or_default()
-        };
+        const M_MENTION: u8 = 1;
+        const M_BOLD: u8 = 2;
+        const M_ITALIC: u8 = 4;
+        const M_CODE: u8 = 8;
+        const M_STRIKE: u8 = 16;
+        const M_LINK: u8 = 32;
+        let mut mask = vec![0u8; chars.len()];
         for &(start, len) in mention_ranges {
-            let start = start.min(chars.len());
-            let end = (start + len).min(chars.len());
-            if start > pos {
-                job.append(&slice(pos, start), 0.0, normal_fmt.clone());
+            for m in mask.iter_mut().skip(start).take(len) {
+                *m |= M_MENTION;
             }
-            if end > start {
-                job.append(&slice(start, end), 0.0, mention_fmt.clone());
-            }
-            pos = end.max(pos);
         }
-        // Trailing text after the last mention (or the ENTIRE content
-        // when mention_ranges is empty, since the loop didn't run and
-        // pos is still 0 — the common no-mentions fast path).
-        if pos < chars.len() {
-            job.append(&slice(pos, chars.len()), 0.0, normal_fmt.clone());
+        for sp in format_spans {
+            let bit = match sp.kind {
+                SpanKind::Bold => M_BOLD,
+                SpanKind::Italic => M_ITALIC,
+                SpanKind::Code => M_CODE,
+                SpanKind::Strike => M_STRIKE,
+                SpanKind::Link(_) => M_LINK,
+            };
+            for m in mask.iter_mut().skip(sp.start).take(sp.len) {
+                *m |= bit;
+            }
+        }
+        let fmt_for = |m: u8| -> egui::TextFormat {
+            let family = if m & M_CODE != 0 {
+                egui::FontFamily::Monospace
+            } else {
+                egui::FontFamily::Proportional
+            };
+            let color = if m & M_MENTION != 0 || m & M_LINK != 0 {
+                theme.accent()
+            } else if m & M_BOLD != 0 {
+                Color32::WHITE
+            } else {
+                text_color
+            };
+            egui::TextFormat {
+                font_id: egui::FontId::new(body_font, family),
+                color,
+                italics: m & M_ITALIC != 0,
+                underline: if m & M_LINK != 0 {
+                    Stroke::new(1.0, theme.accent())
+                } else {
+                    Stroke::NONE
+                },
+                strikethrough: if m & M_STRIKE != 0 {
+                    Stroke::new(1.0, text_color)
+                } else {
+                    Stroke::NONE
+                },
+                background: if m & M_CODE != 0 {
+                    theme.bg_card()
+                } else {
+                    Color32::TRANSPARENT
+                },
+                ..Default::default()
+            }
+        };
+        let mut run_start = 0usize;
+        while run_start < chars.len() {
+            let m = mask[run_start];
+            let mut run_end = run_start + 1;
+            while run_end < chars.len() && mask[run_end] == m {
+                run_end += 1;
+            }
+            let text: String = chars[run_start..run_end].iter().collect();
+            job.append(&text, 0.0, fmt_for(m));
+            run_start = run_end;
         }
     }
 
@@ -269,6 +316,7 @@ pub fn message_row(
             pill_rect: Rect::NOTHING,
             deferred_avatar: None,
             clicked_mention: None,
+            clicked_link: None,
         };
     }
 
@@ -308,11 +356,15 @@ pub fn message_row(
     let content_x = hx + content_left_offset;
     let content_y = hy + 2.0;
 
-    // Mention click hit-test — must run BEFORE painter.galley consumes
+    // Mention + link click hit-test — must run BEFORE painter.galley consumes
     // the galley. Map the click position → galley char index → content
-    // char index (subtract prefix_chars) → which mention range, if any.
+    // char index (subtract prefix_chars) → which mention range / Link span.
     let mut clicked_mention: Option<usize> = None;
-    if response.clicked() && !mention_ranges.is_empty() {
+    let mut clicked_link: Option<usize> = None;
+    let any_links = format_spans
+        .iter()
+        .any(|sp| matches!(sp.kind, crate::gui::widgets::msg_format::SpanKind::Link(_)));
+    if response.clicked() && (!mention_ranges.is_empty() || any_links) {
         if let Some(click_pos) = response.interact_pointer_pos() {
             let galley_origin = egui::pos2(content_x, content_y);
             let local = click_pos - galley_origin;
@@ -324,6 +376,21 @@ pub fn message_row(
                     if ci >= start && ci < start + len {
                         clicked_mention = Some(idx);
                         break;
+                    }
+                }
+                if clicked_mention.is_none() {
+                    // clicked_link indexes into the LINK spans only, in
+                    // order of appearance (the caller keeps a parallel
+                    // Vec of URLs built the same way).
+                    let mut link_idx = 0usize;
+                    for sp in format_spans {
+                        if matches!(sp.kind, crate::gui::widgets::msg_format::SpanKind::Link(_)) {
+                            if ci >= sp.start && ci < sp.start + sp.len {
+                                clicked_link = Some(link_idx);
+                                break;
+                            }
+                            link_idx += 1;
+                        }
                     }
                 }
             }
@@ -351,6 +418,7 @@ pub fn message_row(
         pill_rect,
         deferred_avatar,
         clicked_mention,
+        clicked_link,
     }
 }
 
@@ -368,6 +436,9 @@ pub struct MessageRowResponse {
     /// (avatars are 32×32 but rows can now be as short as a single
     /// text line; the avatar overflows but post-pass paint covers it).
     pub deferred_avatar: Option<DeferredAvatar>,
+    /// Index into the LINK spans (order of appearance) that was clicked,
+    /// if any. The caller resolves it against its parallel URL list. v0.702.
+    pub clicked_link: Option<usize>,
     /// Index into the `mention_ranges` slice that was clicked this
     /// frame, if any. The caller maps it back to a username and opens
     /// the user modal. v0.236.

@@ -1418,6 +1418,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     0.0,
                     0.0, // pill_width = 0 → preview keeps inline timestamp
                     &[], // no mention highlighting in the theme preview
+                &[], // no markdown/link spans in the theme preview
                 );
                 ui.add_space(theme.section_gap);
                 // Continuation row
@@ -1435,6 +1436,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     0.0,
                     0.0, // pill_width = 0
                     &[], // no mention highlighting in the theme preview
+                &[], // no markdown/link spans in the theme preview
                 );
 
                 ui.add_space(spacing_md);
