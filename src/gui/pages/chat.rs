@@ -4666,7 +4666,21 @@ fn draw_add_server_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         // Validation: URL must be non-empty and parse-able with http/https
         // scheme. Doesn't reach the server here — the connect attempt
         // happens later when the user clicks the new server's row.
-        let url = state.add_server_url_draft.trim();
+        // Be forgiving: if the user typed a bare host with no scheme (e.g.
+        // "server1.example.com"), assume https:// so the Add button doesn't
+        // just grey out with no explanation. (v0.714)
+        let raw = state.add_server_url_draft.trim();
+        let url_owned = if !raw.is_empty()
+            && !raw.starts_with("http://")
+            && !raw.starts_with("https://")
+            && raw.contains('.')
+            && !raw.contains(' ')
+        {
+            format!("https://{raw}")
+        } else {
+            raw.to_string()
+        };
+        let url = url_owned.as_str();
         let url_valid = !url.is_empty()
             && (url.starts_with("https://") || url.starts_with("http://"))
             && url.len() > 8;
