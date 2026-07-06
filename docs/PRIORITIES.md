@@ -11,6 +11,33 @@
 
 ## Active focus
 
+> **>>> ALL-IN-ONE APP + FRESH-INSTALL ACCESSIBILITY (operator, 2026-07-06). Two
+> directives:**
+> **(A) ALL-IN-ONE APP.** Embed as MANY tools as possible directly into the native
+> app so nobody needs external programs: file browsing, file uploads/downloads,
+> modding/dev tooling, and whatever else we can. This is WHY maps, notes, tasks,
+> calendar, calculator, chat, market, etc. are already in-app. It is also why the
+> non-negotiables matter and are universal: infinite-of-X (tools are data, not
+> hardcode), ONE theme source, universal widgets + gizmos -- they are what make an
+> ever-growing tool suite maintainable. The 3D GAME WORLD is the TECH DEMO showcasing
+> the engine; the accessible all-in-one app is the product everyone gets. DECISION
+> resolved: native file attach = an IN-APP file browser (NOT the rfd OS dialog),
+> extending the existing Files page (files.rs) concept into a real file picker that
+> feeds chat upload + downloads. Same in-app browser serves modding/dev.
+> **(B) FRESH-INSTALL ACCESSIBILITY (must work for EVERYONE, not just the operator
+> PC).** Under investigation via the 2026-07-06 fresh-install-audit workflow:
+>   1. BLANK WORLD ON ESC: a fresh user in Chat pressed Esc to go in-game and got a
+>      blank skybox + no world, because world/skybox init is gated behind clicking
+>      Play or Characters first. Fix: initialize the scene regardless of entry path.
+>   2. CWD FILE LITTER: running the exe from the wrong folder (not a dedicated dir)
+>      dumps a pile of writable files into that folder. Fix: force ALL writable state
+>      to the OS data dir (%APPDATA%HumanityOS) regardless of CWD; keep read-only
+>      game-data loading working. Open Q for operator: also an installer step?
+>   3. FIRST-BOOT COMPLETENESS: what only works because of state on the operator PC
+>      that a fresh user lacks (identity, data/, assets, config defaults).
+> Fixes land as their own releases once the audit + adversarial verify return. <<<**
+
+
 > **>>> LOOP MODE OUTPUT (2026-07-05 -> 2026-07-06, operator engaged loop mode:
 > "focus on obvious stuff you dont need me to decide"). SHIPPED the no-decision
 > items: v0.704 Home fully-exposed (no expandables), v0.705.0 native-INITIATED
