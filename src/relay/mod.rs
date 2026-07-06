@@ -560,6 +560,8 @@ pub async fn run_relay() {
         .route("/api/upload", post(api::upload_file))
         // Shared-file library (v0.675): public listing of ?share=1 uploads.
         .route("/api/uploads", get(api::list_shared_uploads))
+        // Remove a shared file (owner or admin), v0.709.
+        .route("/api/uploads/delete", post(api::delete_shared_upload))
         .route("/api/github-webhook", post(api::github_webhook))
         .route("/api/tasks", get(api::get_tasks).post(api::create_task))
         .route("/api/tasks/{id}", patch(api::update_task).delete(api::delete_task))

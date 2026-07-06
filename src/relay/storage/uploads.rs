@@ -96,6 +96,44 @@ impl Storage {
     /// server_members where known. Only `shared = 1` rows are visible --
     /// ordinary chat media stays unlisted (reachable only by whoever was given
     /// its URL, exactly as before this feature).
+    /// Remove a shared upload by its stored `filename`. Allowed when the
+    /// requester OWNS the upload, or `is_admin` is true (the server owner
+    /// curating the public library -- the operator's stated need to add AND
+    /// remove files people can download). Returns:
+    ///   Ok(Some(filename)) -> row deleted; caller unlinks the disk file.
+    ///   Ok(None)           -> no such shared upload, or not the owner and
+    ///                         not admin (caller returns 404/403 accordingly
+    ///                         via `shared_upload_owner`).
+    /// v0.709.
+    pub fn delete_shared_upload(
+        &self,
+        filename: &str,
+        requester_key: &str,
+        is_admin: bool,
+    ) -> Result<Option<String>, rusqlite::Error> {
+        self.with_conn(|conn| {
+            let owner: Option<String> = conn
+                .query_row(
+                    "SELECT public_key FROM user_uploads WHERE filename = ?1 AND shared = 1",
+                    params![filename],
+                    |row| row.get(0),
+                )
+                .ok();
+            let owner = match owner {
+                Some(o) => o,
+                None => return Ok(None), // not a known shared upload
+            };
+            if !is_admin && owner != requester_key {
+                return Ok(None); // not authorized to remove someone else's file
+            }
+            conn.execute(
+                "DELETE FROM user_uploads WHERE filename = ?1",
+                params![filename],
+            )?;
+            Ok(Some(filename.to_string()))
+        })
+    }
+
     pub fn list_shared_uploads(
         &self,
         limit: i64,
@@ -232,5 +270,36 @@ mod shared_library_tests {
         assert!(db.list_shared_uploads(50, None).unwrap().is_empty());
         db.record_upload("carol", "1_case.blend", 4, true, "case.blend", 42).unwrap();
         assert_eq!(db.list_shared_uploads(50, None).unwrap().len(), 1);
+    }
+
+    /// Removing a shared file: the owner can remove their own; a non-owner
+    /// cannot; an admin can remove anyone's; a missing file yields None.
+    #[test]
+    fn delete_shared_upload_owner_and_admin_rules() {
+        let db = make_test_storage();
+        db.record_upload("alice", "1_a.blend", 2, true, "a.blend", 10).unwrap();
+        db.record_upload("bob", "2_b.stl", 2, true, "b.stl", 10).unwrap();
+        assert_eq!(db.list_shared_uploads(50, None).unwrap().len(), 2);
+
+        // A non-owner, non-admin cannot remove alice's file.
+        assert_eq!(db.delete_shared_upload("1_a.blend", "mallory", false).unwrap(), None);
+        assert_eq!(db.list_shared_uploads(50, None).unwrap().len(), 2);
+
+        // The owner removes their own.
+        assert_eq!(
+            db.delete_shared_upload("1_a.blend", "alice", false).unwrap(),
+            Some("1_a.blend".to_string())
+        );
+        assert_eq!(db.list_shared_uploads(50, None).unwrap().len(), 1);
+
+        // An admin removes bob's file even though not the owner.
+        assert_eq!(
+            db.delete_shared_upload("2_b.stl", "operator", true).unwrap(),
+            Some("2_b.stl".to_string())
+        );
+        assert!(db.list_shared_uploads(50, None).unwrap().is_empty());
+
+        // A file that does not exist yields None (caller -> 403/404).
+        assert_eq!(db.delete_shared_upload("3_ghost.obj", "operator", true).unwrap(), None);
     }
 }

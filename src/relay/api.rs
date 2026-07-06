@@ -239,6 +239,73 @@ pub struct SharedUploadsQuery {
     pub limit: Option<i64>,
 }
 
+/// Body for POST /api/uploads/delete — remove a file from the shared library.
+/// Signed like the other authenticated endpoints (Dilithium over
+/// `delete_upload\n{timestamp}`). Allowed for the file's own uploader or an
+/// admin (the server owner curating the public library). v0.709.
+#[derive(Debug, Deserialize)]
+pub struct DeleteUploadBody {
+    /// The stored filename (the last path segment of the `/uploads/...` URL).
+    pub filename: String,
+    pub key: String,
+    pub timestamp: u64,
+    pub sig: String,
+}
+
+/// POST /api/uploads/delete — remove a shared file (owner or admin). This is
+/// the "remove" half of the operator's add/remove-files-on-the-server need;
+/// the disk file is unlinked and its library row deleted. v0.709.
+pub async fn delete_shared_upload(
+    State(state): State<Arc<RelayState>>,
+    Json(body): Json<DeleteUploadBody>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    use crate::relay::handlers::broadcast::verify_dilithium_signature;
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    if now_ms.saturating_sub(body.timestamp) > 5 * 60 * 1000 {
+        return Err((StatusCode::BAD_REQUEST, "Timestamp too old.".into()));
+    }
+    let vk = body.key.clone();
+    let vsig = body.sig.clone();
+    let vts = body.timestamp;
+    let sig_ok = tokio::task::spawn_blocking(move || {
+        verify_dilithium_signature(&vk, "delete_upload", vts, &vsig)
+    })
+    .await
+    .unwrap_or(false);
+    if !sig_ok {
+        return Err((StatusCode::UNAUTHORIZED, "Signature verification failed.".into()));
+    }
+
+    // Reject path tricks: the stored filename is a bare basename.
+    let filename = body.filename.trim();
+    if filename.is_empty()
+        || filename.contains('/')
+        || filename.contains('\\')
+        || filename.contains("..")
+    {
+        return Err((StatusCode::BAD_REQUEST, "Bad filename.".into()));
+    }
+
+    let is_admin = state.db.get_role(&body.key).unwrap_or_default() == "admin";
+    match state.db.delete_shared_upload(filename, &body.key, is_admin) {
+        Ok(Some(fname)) => {
+            // Unlink the on-disk file (best-effort; the row is already gone).
+            let path = std::path::Path::new("data/uploads").join(&fname);
+            let _ = std::fs::remove_file(&path);
+            Ok(Json(serde_json::json!({ "ok": true, "removed": fname })))
+        }
+        Ok(None) => Err((
+            StatusCode::FORBIDDEN,
+            "No such shared file, or you are not its owner.".into(),
+        )),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("storage: {e}"))),
+    }
+}
+
 /// GET /api/uploads — the public shared-file library (v0.675): files uploaded
 /// with `?share=1` (e.g. 3D-printable models attached in chat). Unshared chat
 /// media is NOT listed here and never was discoverable.
