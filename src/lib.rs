@@ -9763,6 +9763,61 @@ mod native_app {
                         }
                     }
 
+                    // ── Pinned-card auto-recipe selector (v0.725, info-window
+                    // overhaul part 2): publish the E-opened machine's
+                    // AutoRefine recipe + its same-station alternatives to the
+                    // GUI, and apply the player's dropdown pick back onto the
+                    // entity. Infinite-of-X: the options are recipes.csv rows
+                    // sharing the machine's station (the fixed auto_recipe in
+                    // home.ron is now just the DEFAULT, not the only choice).
+                    {
+                        use crate::ecs::components::{AutoRefine, MachineInstanceId};
+                        let mut current: Option<String> = None;
+                        let mut options: Vec<(String, String)> = Vec::new();
+                        let sel_mid = state
+                            .gui_state
+                            .selected_machine
+                            .and_then(|i| state.gui_state.machine_labels.get(i))
+                            .map(|l| l.machine_id.clone());
+                        if let Some(mid) = sel_mid {
+                            let pending = state.gui_state.machine_card_recipe_pending.take();
+                            for (_e, (id, auto)) in state
+                                .game_world
+                                .world
+                                .query_mut::<(&MachineInstanceId, &mut AutoRefine)>()
+                            {
+                                if id.0 != mid {
+                                    continue;
+                                }
+                                if let Some(p) = &pending {
+                                    auto.recipe_id = p.clone();
+                                }
+                                current = Some(auto.recipe_id.clone());
+                                break;
+                            }
+                            if let Some(cur) = &current {
+                                if let Some(reg) = state
+                                    .data_store
+                                    .get::<crate::systems::crafting::RecipeRegistry>("recipe_registry")
+                                {
+                                    if let Some(station) =
+                                        reg.recipes.get(cur).and_then(|r| r.required_station.clone())
+                                    {
+                                        let mut opts: Vec<(String, String)> = reg
+                                            .recipes_for_station(&station)
+                                            .iter()
+                                            .map(|r| (r.id.clone(), r.name.clone()))
+                                            .collect();
+                                        opts.sort_by(|a, b| a.1.cmp(&b.1));
+                                        options = opts;
+                                    }
+                                }
+                            }
+                        }
+                        state.gui_state.machine_card_recipe = current;
+                        state.gui_state.machine_card_recipe_options = options;
+                    }
+
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must
                     // NOT auto-connect with an encrypted/locked seed. A locked
@@ -11978,6 +12033,14 @@ mod native_app {
                                         state.camera.yaw,
                                         state.camera.view_projection_matrix(),
                                         state.camera.position,
+                                    );
+                                    // Interactive auto-recipe dropdown under the pinned
+                                    // machine card (v0.725) — separate from the paint-only
+                                    // HUD layer because it needs clicks + &mut state.
+                                    hud::draw_machine_recipe_selector(
+                                        ctx,
+                                        &state.theme,
+                                        &mut state.gui_state,
                                     );
                                 }
                                 // Build-mode CAD dimension overlay (v0.545): wall lengths, corner

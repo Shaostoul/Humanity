@@ -653,6 +653,56 @@ fn draw_machine_card_body(painter: &egui::Painter, theme: &Theme, card: Rect, la
     }
 }
 
+/// Interactive auto-recipe dropdown under the pinned machine card (v0.725,
+/// info-window overhaul part 2 — the assembler's infinite-of-X vehicle
+/// selector). SEPARATE from the paint-only HUD layer: that Area is
+/// `.interactable(false)` and takes `&GuiState`, so this selector is its own
+/// interactable Area with `&mut` — the pick lands in
+/// `machine_card_recipe_pending`, which lib.rs applies to the machine
+/// entity's AutoRefine next frame. Options are same-station recipes.csv rows
+/// (published per frame by lib.rs); only shows when there's a real choice.
+pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let Some(i) = state.selected_machine else { return };
+    if state.machine_card_recipe_options.len() < 2 {
+        return;
+    }
+    // Card height computed the same way the pinned card draws it, so the
+    // selector sits right underneath (below the "[E] close" footer line).
+    let Some(card_h) = state.machine_labels.get(i).map(|l| machine_card_size(l).y) else { return };
+    let cur_id = state.machine_card_recipe.clone().unwrap_or_default();
+    let cur_name = state
+        .machine_card_recipe_options
+        .iter()
+        .find(|(id, _)| *id == cur_id)
+        .map(|(_, n)| n.clone())
+        .unwrap_or_else(|| cur_id.clone());
+    Area::new(egui::Id::new("machine_recipe_selector"))
+        .fixed_pos(Pos2::new(16.0, 56.0 + card_h + 20.0))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Auto-build:")
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    let mut picked = cur_id.clone();
+                    egui::ComboBox::from_id_salt("machine_recipe_combo")
+                        .selected_text(cur_name)
+                        .width(170.0)
+                        .show_ui(ui, |ui| {
+                            for (id, name) in &state.machine_card_recipe_options {
+                                ui.selectable_value(&mut picked, id.clone(), name);
+                            }
+                        });
+                    if picked != cur_id {
+                        state.machine_card_recipe_pending = Some(picked);
+                    }
+                });
+            });
+        });
+}
+
 /// Floating card next to a machine's screen dot.
 fn draw_machine_card(painter: &egui::Painter, theme: &Theme, anchor: Pos2, label: &crate::gui::MachineLabel) {
     let size = machine_card_size(label);

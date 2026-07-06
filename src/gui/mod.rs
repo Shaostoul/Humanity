@@ -1253,6 +1253,11 @@ pub struct MachineLabel {
     pub machine_id: String,
 }
 
+// NOTE (v0.725): the pinned machine card's auto-recipe selector state lives on
+// GuiState (machine_card_recipe / _options / _pending) — published per frame
+// by lib.rs from the selected machine's AutoRefine + the recipe registry, and
+// applied back to the ECS entity when the player picks a different recipe.
+
 /// A crew NPC's floating nameplate: name + live chore label ("Vex -- Taking reactor
 /// readings"). Rebuilt EVERY frame in lib.rs from the relay-driven `RemoteNpc`
 /// components (crew walk, so a cached position would lag), drawn by the in-game HUD
@@ -1581,6 +1586,16 @@ pub struct GuiState {
     /// Index of the machine whose card is pinned open (toggled with E). Stays until E
     /// again or it is cleared. Survives walking away (it is the "opened station").
     pub selected_machine: Option<usize>,
+    /// Pinned machine's current auto-recipe id (None when the selected machine
+    /// has no AutoRefine). Published per frame by lib.rs. (v0.725)
+    pub machine_card_recipe: Option<String>,
+    /// Selectable same-station recipes for the pinned machine: (id, display
+    /// name), sorted by name. Infinite-of-X: rows come from recipes.csv via
+    /// the registry, never hardcoded. Empty when no selector applies. (v0.725)
+    pub machine_card_recipe_options: Vec<(String, String)>,
+    /// The player's pick from the card's recipe dropdown; lib.rs applies it to
+    /// the machine entity's AutoRefine next frame and clears it. (v0.725)
+    pub machine_card_recipe_pending: Option<String>,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
     pub room_bounds: Vec<RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
@@ -3084,6 +3099,9 @@ impl Default for GuiState {
             targeted_control_panel: None,
             control_panel_prompt: String::new(),
             selected_machine: None,
+            machine_card_recipe: None,
+            machine_card_recipe_options: Vec::new(),
+            machine_card_recipe_pending: None,
             room_bounds: Vec::new(),
             reveal_held: false,
             machine_label_dot_dist: 21.0,
