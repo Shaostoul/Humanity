@@ -37,8 +37,19 @@
 > 4. FILES page add/remove files on the server for others to download. DONE
 >    (v0.709 signed delete endpoint owner-or-admin + v0.710 native shared-files
 >    manager: list/upload/remove on the Files page via the in-app file browser).
-> 5. HOLD gameplay (machine info-windows + vehicle selector, volume containers)
->    for Opus.
+> 5. GAMEPLAY HOLD LIFTED (operator, 2026-07-06 afternoon: "focus on non-game
+>    stuff first and then move forward with game stuff"). Shipped same day:
+>    machine info-windows DONE (live walk-up cards v0.724: cistern litres +
+>    battery kWh from the running sims; assembler infinite-of-X vehicle
+>    selector + buildable Nova v0.725), material-storage Stage A slice 1 DONE
+>    (v0.726: volume_l on all 496 items via scripts/gen-item-volumes.js +
+>    Inventory volume tracking + Inventory-page Volume tile). REMAINING game
+>    queue: Stage A slice 2 = volume ENFORCEMENT (add_item + crafting
+>    outputs_fit gate on volume_capacity_l; slots demoted to bandolier-likes;
+>    the tests pinning slot-only behavior need updating — fresh-session sized),
+>    container-contents card stat (find where Container entities spawn + link
+>    MachineInstanceId), 7 missing material densities in materials.csv, then
+>    the bigger arcs (vehicle BAY redesign, texture bug, GLB pipeline).
 > FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
 > (running journal, newest at bottom), this file (top of TIER 0 = next up), and
 > CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.712 shipped economy phase
