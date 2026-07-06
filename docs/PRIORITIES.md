@@ -56,7 +56,17 @@
 > first (harmless for distributed since candidates coincide; in a dev repo run it
 > overwrites the tracked theme.ron). INSTALLER: a dedicated-folder installer is a
 > good COMPLEMENT but no longer required to prevent litter -- the app is now
-> CWD-independent for writes. All-in-one FILE BROWSER for chat attach still queued.
+> CWD-independent for writes. v0.707.0 ANSWERED the external-drive question with
+> the operator-designed FIRST-BOOT STORAGE CHOOSER + full portable mode: a fresh
+> machine picks "My user folder (recommended)" (APPDATA) or "Next to the app
+> (portable)" (portable.txt marker; data + saves + config incl. identity + logs
+> ALL beside the exe, USB-drive friendly) BEFORE identity creation; existing
+> installs auto-detect (LegacyBesideExe keeps the dads setup byte-identical;
+> deleting portable.txt reverts to per-user). Storage-mode logic lives in
+> src/storage.rs (4 unit tests). FOLLOW-UPS: an in-app "move my files" tool
+> (Settings > Data) for switching modes later; surface the current mode +
+> open-folder buttons on the Data settings page. All-in-one FILE BROWSER for
+> chat attach still queued (next arc).
 > <<<**
 
 

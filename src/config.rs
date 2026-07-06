@@ -518,6 +518,12 @@ impl AppConfig {
                 return dir.join("config.json");
             }
         }
+        // Portable mode (v0.707): the whole install, INCLUDING the encrypted
+        // identity in config.json, lives beside the exe so an external-drive
+        // folder travels between machines as one unit.
+        if let Some(p) = crate::storage::portable_config_path() {
+            return p;
+        }
         // Use %APPDATA%/HumanityOS/config.json for a stable location
         // that doesn't change when the exe moves between versioned binaries.
         #[cfg(target_os = "windows")]

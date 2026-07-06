@@ -16,11 +16,84 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let painter = ctx.layer_painter(egui::LayerId::background());
     painter.rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(bg.r(), bg.g(), bg.b(), 240));
 
+    // First-boot storage chooser (v0.707, operator design): on a truly fresh
+    // machine (nothing beside the exe, nothing in the OS dir) the user picks
+    // WHERE HumanityOS keeps their files BEFORE anything is written -- ahead
+    // of identity creation, so the encrypted identity lands in the chosen
+    // place. Existing installs never see this (they detect Installed /
+    // LegacyBesideExe / Portable from what's already on disk).
+    if crate::storage::mode() == crate::storage::StorageMode::Undecided
+        && !state.onboarding_complete
+    {
+        draw_storage_chooser(ctx, theme);
+        return;
+    }
+
     if !state.onboarding_complete {
         draw_onboarding(ctx, theme, state);
     } else {
         draw_hub(ctx, theme, state);
     }
+}
+
+/// The first-boot "where should HumanityOS keep your files?" step. Two clear
+/// choices; nothing is written to disk until one is made. GUI-first rule:
+/// this is an in-app step, never an installer-only or CLI decision.
+fn draw_storage_chooser(ctx: &egui::Context, theme: &Theme) {
+    egui::Window::new("storage_chooser")
+        .title_bar(false)
+        .resizable(false)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .fixed_size(Vec2::new(520.0, 0.0))
+        .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+        .show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(24.0);
+                ui.label(RichText::new("Welcome to").size(16.0).color(theme.text_secondary()));
+                ui.label(RichText::new("HumanityOS").size(32.0).color(theme.accent()));
+                ui.add_space(18.0);
+                ui.label(
+                    RichText::new("Where should HumanityOS keep your files?")
+                        .size(17.0)
+                        .strong()
+                        .color(theme.text_primary()),
+                );
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new("Saves, settings, your identity, and editable game data.")
+                        .size(13.0)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(18.0);
+
+                if widgets::Button::primary("My user folder (recommended)").show(ui, theme) {
+                    crate::storage::choose_installed();
+                }
+                ui.label(
+                    RichText::new(
+                        "Kept safe in your user profile. The app can be moved,\n\
+                         updated, or deleted without losing anything.",
+                    )
+                    .size(12.5)
+                    .color(theme.text_secondary()),
+                );
+                ui.add_space(14.0);
+
+                if widgets::Button::secondary("Next to the app (portable)").show(ui, theme) {
+                    crate::storage::choose_portable();
+                }
+                ui.label(
+                    RichText::new(
+                        "Everything stays in this folder, so a USB or external\n\
+                         drive carries the whole thing between computers.\n\
+                         Best if the app is in its own folder.",
+                    )
+                    .size(12.5)
+                    .color(theme.text_secondary()),
+                );
+                ui.add_space(22.0);
+            });
+        });
 }
 
 /// First-run onboarding flow.

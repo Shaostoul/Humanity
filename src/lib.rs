@@ -56,6 +56,9 @@ pub mod systems;
 
 #[cfg(feature = "native")]
 pub mod persistence;
+
+#[cfg(feature = "native")]
+pub mod storage;
 // save_load consumes persistence (the offline-home save is the local player's,
 // not the relay's), so it carries the same native gate — an ungated save_load
 // broke every relay/CI build from v0.381 to v0.414 (E0432 on persistence).
@@ -382,7 +385,7 @@ mod native_app {
         // distributed build now extracts editable modding data + the editor saves
         // (v0.706, keeps files out of the exe folder). Not a repo dir, so dev runs
         // still prefer the live repo data below; distributed builds resolve here.
-        if let Some(user_data) = os_data_dir() {
+        if let Some(user_data) = crate::storage::writable_data_dir() {
             if user_data.exists() && user_data.is_dir() && !candidates.contains(&user_data) {
                 candidates.push(user_data);
             }
@@ -450,114 +453,7 @@ mod native_app {
         PathBuf::from("data")
     }
 
-    /// Extract embedded data files to disk on first run.
-    /// If the data directory already exists, this is a no-op.
-    /// This enables modding: users can edit the extracted files.
-    /// The per-user WRITABLE game-data directory (`%APPDATA%\HumanityOS\data` on
-    /// Windows; XDG / Application Support elsewhere). A distributed build extracts
-    /// editable modding data here and the construction editor saves here, so it is
-    /// NEVER placed beside the exe. Before v0.706 the data extracted into the exe's
-    /// own folder, so a user who ran HumanityOS.exe straight from Downloads got ~70
-    /// files dumped into Downloads (operator report 2026-07-06). Mirrors
-    /// `persistence::saves_dir()`. Returns None only on an unknown platform / when
-    /// the env var is unset (then we simply skip extraction and read from embedded).
-    fn os_data_dir() -> Option<std::path::PathBuf> {
-        #[cfg(target_os = "windows")]
-        {
-            return std::env::var("APPDATA").ok().map(|a| {
-                std::path::PathBuf::from(a).join("HumanityOS").join("data")
-            });
-        }
-        #[cfg(target_os = "macos")]
-        {
-            return std::env::var("HOME").ok().map(|h| {
-                std::path::PathBuf::from(h)
-                    .join("Library").join("Application Support")
-                    .join("HumanityOS").join("data")
-            });
-        }
-        #[cfg(target_os = "linux")]
-        {
-            if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-                return Some(std::path::PathBuf::from(xdg).join("HumanityOS").join("data"));
-            }
-            return std::env::var("HOME").ok().map(|h| {
-                std::path::PathBuf::from(h)
-                    .join(".local").join("share").join("HumanityOS").join("data")
-            });
-        }
-        #[allow(unreachable_code)]
-        None
-    }
 
-    fn extract_data_if_needed() {
-        // Extract to the per-user OS data dir, NOT beside the exe (v0.706 fix for
-        // the Downloads-litter report). If no per-user dir resolves, skip entirely
-        // and rely on the embedded-data fallback in AssetManager (every extracted
-        // file is embedded, so reads still work with zero files on disk).
-        let data_dir = match os_data_dir() {
-            Some(d) => d,
-            None => return,
-        };
-        if data_dir.exists() {
-            return;
-        }
-
-        log::info!("First run: extracting editable game data to {:?}", data_dir);
-
-        // All embedded files with their relative paths
-        let files: &[&str] = &[
-            "items.csv", "recipes.csv", "materials.csv", "components.csv",
-            "plants.csv", "game.csv", "skills/skills.csv",
-            "chemistry/elements.csv", "chemistry/alloys.csv",
-            "chemistry/compounds.csv", "chemistry/gases.csv", "chemistry/toxins.csv",
-            "asteroids/types.csv",
-            "glossary.json", "solar_system/bodies.json", "solar-system.json",
-            "tools/catalog.json", "cities.json", "coastlines.json",
-            "constellations.json", "milky-way.json", "stars-catalog.json",
-            "stars-nearby.json",
-            "config.toml", "calendar.toml", "input.toml", "player.toml",
-            "gui/theme.ron",
-            "planets/earth.ron", "planets/mars.ron", "planets/moon.ron",
-            "solar_system/earth.ron", "solar_system/mars.ron", "solar_system/sun.ron",
-            "ships/bridge.ron", "ships/layout_medium.ron", "ships/reactor.ron",
-            "ships/starter_fleet.ron",
-            // NOTE: this hand-maintained list has drifted from the full data set
-            // (e.g. status_effects.csv, containers/, food_system.ron are loaded at
-            // runtime but not listed here) — distributed-build completeness is
-            // tracked as a follow-up to derive this list from embedded_data's keys.
-            // Dev runs are unaffected (find_data_dir prefers the live repo data).
-            "quests/construction.ron", "quests/exploration.ron",
-            "quests/farming.ron", "quests/tutorial.ron", "quests/getting_started.ron",
-            "blueprints/basic.ron", "blueprints/construction.ron",
-            "blueprints/habitat.ron", "blueprints/materials.ron",
-            "blueprints/objects.ron",
-            "entities/human/human_001.ron", "entities/plants/plant_001.ron",
-            "entities/plants/tomato.ron", "entities/substrates/loam_basic.ron",
-            "entities/substrates/substrate_001.ron",
-            "plots/plot_001.ron",
-            "world/solar_system.ron", "world/spawn.ron", "world/player.ron",
-            "resources/fertilizer_basic.ron", "resources/water_clean.ron",
-            "i18n/en.json", "i18n/es.json", "i18n/fr.json",
-            "i18n/ja.json", "i18n/zh.json",
-            "language/acronyms.json", "language/dictionary.json",
-            "language/parts_of_speech.json",
-        ];
-
-        for relative_path in files {
-            if let Some(content) = crate::embedded_data::get_embedded(relative_path) {
-                let file_path = data_dir.join(relative_path);
-                if let Some(parent) = file_path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                if let Err(e) = std::fs::write(&file_path, content) {
-                    log::warn!("Failed to extract {}: {e}", relative_path);
-                }
-            }
-        }
-
-        log::info!("Data extraction complete");
-    }
 
     /// Tee writer (v0.601): env_logger pipes every log line here; we write it to the crash-safe log
     /// FILE (flushed each line so nothing is lost on a hard crash) AND stderr (visible in a dev/console
@@ -585,6 +481,10 @@ mod native_app {
     /// The logs directory: `%APPDATA%/HumanityOS/logs` on Windows (stable, always writable, findable
     /// no matter where the exe runs from), `~/.local/share/...` on unix, else the temp dir. (v0.601)
     fn log_dir() -> std::path::PathBuf {
+        // Portable mode (v0.707): logs travel beside the exe too.
+        if let Some(p) = crate::storage::portable_logs_dir() {
+            return p;
+        }
         if let Ok(appdata) = std::env::var("APPDATA") {
             std::path::PathBuf::from(appdata).join("HumanityOS").join("logs")
         } else if let Ok(home) = std::env::var("HOME") {
@@ -4837,7 +4737,7 @@ mod native_app {
             }
 
             // Extract embedded data files on first run (enables modding)
-            extract_data_if_needed();
+            crate::storage::extract_data_if_needed();
 
             // Boot MAXIMIZED with decorations = "windowed fullscreen" (title bar + taskbar
             // still visible), the operator's preferred default (v0.454). The loaded
@@ -9237,6 +9137,16 @@ mod native_app {
                                 }
                             }
                         }
+                    }
+
+                    // v0.707: a fresh machine resolves data_dir to the CWD
+                    // fallback while the storage mode is still Undecided. Once
+                    // the first-boot chooser picks a home (and extraction runs),
+                    // re-resolve so reads + editor saves target the chosen dir.
+                    if state.data_dir == std::path::Path::new("data")
+                        && crate::storage::mode() != crate::storage::StorageMode::Undecided
+                    {
+                        state.data_dir = find_data_dir();
                     }
 
                     // Poll updater for background thread results

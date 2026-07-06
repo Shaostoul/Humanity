@@ -120,6 +120,10 @@ pub struct ConstructionSave {
 ///
 /// Falls back to `./saves/` if the platform data directory cannot be determined.
 pub fn saves_dir() -> PathBuf {
+    // Portable mode (v0.707): saves travel beside the exe.
+    if let Some(p) = crate::storage::portable_saves_dir() {
+        return p;
+    }
     // Try standard platform data dirs without adding a dependency.
     #[cfg(target_os = "windows")]
     {
