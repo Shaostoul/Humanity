@@ -2233,6 +2233,9 @@ pub struct GuiState {
     /// Mic muted during a 1:1 call: the voice pump skips sending our Opus
     /// while true (the peer still reaches us; we just stop transmitting).
     pub call_muted: bool,
+    /// Open file-attach picker modal (v0.708, in-app file browser).
+    /// Some = the chat attach picker is open.
+    pub chat_attach_picker: Option<crate::gui::widgets::file_browser::FilePickerState>,
 
     // ── Donation address config ──
 
@@ -3320,6 +3323,7 @@ impl Default for GuiState {
             call_outgoing: None,
             call_outgoing_deadline: None,
             call_muted: false,
+            chat_attach_picker: None,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),

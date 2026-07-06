@@ -24,6 +24,7 @@ pub mod tree;
 pub mod body_pill;
 pub mod markdown;
 pub mod msg_format;
+pub mod file_browser;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

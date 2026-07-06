@@ -34,6 +34,58 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // want it uploaded to the active channel (same as Discord/Slack).
     // Text-only clipboards return None from try_grab_clipboard_image_as_png
     // so egui's TextEdit handles regular text paste normally.
+    // File-attach picker modal (v0.708). On pick: validate, read, and upload
+    // on a worker thread; the finished upload drains through the same
+    // clipboard_upload receiver below and routes via send_composed_content.
+    if let Some(mut picker) = state.chat_attach_picker.take() {
+        use crate::gui::widgets::file_browser::{file_picker_modal, FilePickerResult};
+        match file_picker_modal(ctx, theme, &mut picker, "Attach a file") {
+            FilePickerResult::Open => {
+                state.chat_attach_picker = Some(picker);
+            }
+            FilePickerResult::Cancelled => {}
+            FilePickerResult::Picked(path) => {
+                let filename = path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("file")
+                    .to_string();
+                match std::fs::read(&path) {
+                    Ok(bytes) if (bytes.len() as u64) <= ATTACH_MAX_BYTES => {
+                        let share = crate::gui::widgets::file_browser::name_matches_ext(
+                            &filename,
+                            SHARE_EXTS,
+                        );
+                        let mime = mime_for_filename(&filename).to_string();
+                        let server = state.server_url.clone();
+                        let pk = state.profile_public_key.clone();
+                        let (tx, rx) = std::sync::mpsc::channel();
+                        std::thread::spawn(move || {
+                            let result = upload_file_blocking(
+                                &server, &pk, &filename, &mime, bytes, share,
+                            )
+                            .map_err(|e| e.to_string());
+                            let _ = tx.send(result);
+                        });
+                        state.clipboard_upload =
+                            Some((state.chat_active_channel.clone(), rx));
+                    }
+                    Ok(bytes) => {
+                        log::warn!(
+                            "Attach rejected: {} is {} bytes (max {})",
+                            filename,
+                            bytes.len(),
+                            ATTACH_MAX_BYTES
+                        );
+                    }
+                    Err(e) => {
+                        log::warn!("Attach read failed for {filename}: {e}");
+                    }
+                }
+            }
+        }
+    }
+
     let ctrl_v_pressed = std::mem::take(&mut state.pending_clipboard_paste);
     if ctrl_v_pressed {
         if let Some(png_bytes) = try_grab_clipboard_image_as_png() {
@@ -61,33 +113,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if let Some((channel, rx)) = state.clipboard_upload.as_ref() {
         match rx.try_recv() {
             Ok(Ok(url)) => {
-                let channel = channel.clone();
                 state.clipboard_upload = None;
-                if let Some(ref client) = state.ws_client {
-                    if client.is_connected() {
-                        let ts = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis() as u64;
-                        let mut m = serde_json::json!({
-                            "type": "chat",
-                            "from": state.profile_public_key,
-                            "from_name": state.user_name,
-                            "content": url,
-                            "timestamp": ts,
-                            "channel": channel,
-                        });
-                        // Inc2.MED-1: sign with Dilithium3 over `content\ntimestamp`
-                        // (relay requires pq_signature for non-bot chat).
-                        if let Some(seed) = state.private_key_bytes.as_ref() {
-                            m["pq_signature"] = serde_json::Value::String(
-                                crate::net::identity::pq_sign_chat(seed, &url, ts),
-                            );
-                        }
-                        client.send(&m.to_string());
-                        log::info!("Clipboard image uploaded and sent to {}", channel);
-                    }
-                }
+                // Route through the single content authority (v0.708): the
+                // old code sent a raw chat message with the captured channel,
+                // which BYPASSED DM encryption and the scratchpad's local-only
+                // promise -- the same privacy-leak class the web client fixed
+                // in v0.698.2. Sends to the CURRENT view, like the web.
+                let sent = send_composed_content(state, &url);
+                log::info!("Upload finished; routed send (sent={sent}): {url}");
             }
             Ok(Err(e)) => {
                 state.clipboard_upload = None;
@@ -3689,210 +3722,32 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         state.show_help_modal = !state.show_help_modal;
                     }
 
+                    // In-app file attach (v0.708, all-in-one direction: our
+                    // OWN browser widget, not an OS dialog).
+                    if widgets::Button::secondary("Attach").show(ui, theme) {
+                        state.chat_attach_picker = Some(
+                            crate::gui::widgets::file_browser::FilePickerState::new(
+                                ATTACH_EXTS,
+                                ATTACH_MAX_BYTES,
+                            ),
+                        );
+                    }
                     let send_clicked = widgets::Button::primary("Send").show(ui, theme);
 
                     if (enter_pressed || send_clicked) && !state.chat_input.trim().is_empty() {
                         let content = state.chat_input.trim().to_string();
-                        let channel = state.chat_active_channel.clone();
-                        // Single timestamp used for both the WS send and the local echo
-                        // so reaction-targeting (which keys on sender + ts) matches.
-                        let ts = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_millis() as u64;
-
-                        // B3 fix (v0.199.0): track whether the WS send was
-                        // aborted (DM unencryptable, awaiting modal confirm).
-                        // If aborted we ALSO skip the local message push so
-                        // the user doesn't see their own message echo for a
-                        // message that didn't actually send.
-                        let mut send_aborted = false;
-
-                        // P2P groups send over HTTP (signed objects), not the
-                        // WS relay. Intercept here: encrypt under the cached
-                        // epoch key + POST group_msg_v1. On success the shared
-                        // echo block below shows the message immediately and
-                        // the 4s poll reconciles with the relay's stored copy;
-                        // on failure we abort so no phantom echo appears.
-                        let is_p2p_group = channel.starts_with("p2pgroup:");
-                        if is_p2p_group && !send_p2p_group_message(state, &channel, &content) {
-                            send_aborted = true;
+                        // ALL content routing (P2P group / scratchpad / E2EE
+                        // DM / group / channel + the local echo) lives in
+                        // send_composed_content -- the single authority
+                        // shared with the clipboard-paste and file-attach
+                        // flows so the three paths can never drift. (The web
+                        // client had exactly that drift as the DM-attachment
+                        // privacy leak, fixed v0.698.2; native's clipboard
+                        // flow had the same class of bug until v0.708.)
+                        if send_composed_content(state, &content) {
+                            state.chat_input.clear();
+                            response.request_focus();
                         }
-
-                        // The scratchpad is LOCAL-ONLY, as its label promises.
-                        // It used to fall through the normal-channel branch and
-                        // post `channel: "scratchpad"` to the relay whenever
-                        // connected -- the same looks-private-but-is-not class
-                        // of bug as the web DM-attachment leak (2026-07-04
-                        // audit). Local echo only; nothing leaves the machine.
-                        let is_scratchpad = channel == "scratchpad";
-
-                        // Send via WebSocket if connected (channels, DMs, legacy
-                        // groups). Skipped for P2P groups — those went via HTTP
-                        // just above — and for the local-only scratchpad.
-                        if !is_p2p_group && !is_scratchpad {
-                        if let Some(ref client) = state.ws_client {
-                            if client.is_connected() {
-
-                                // Resolve display name: prefer user_name, fall back to peer list, then "Anonymous"
-                                let display_name = if !state.user_name.is_empty() {
-                                    state.user_name.clone()
-                                } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
-                                    if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "Anonymous".to_string() }
-                                } else {
-                                    "Anonymous".to_string()
-                                };
-
-                                // v0.199.0 (B3 fix): build the WS payload as Option<String>
-                                // so the DM branch can SKIP the send if encryption isn't
-                                // possible. Previously the DM code silently fell back to
-                                // plaintext with only a log line — that's a downgrade
-                                // attack vector. Now we stash the unencryptable message
-                                // in state.dm_unencrypted_confirm and a modal asks the
-                                // user to explicitly confirm "Send unencrypted anyway"
-                                // or cancel.
-                                let json_str_opt: Option<String> = if channel.starts_with("dm:") {
-                                    let partner_key = &channel[3..];
-                                    // Try to encrypt. Fail-reason strings line up with
-                                    // PendingUnencryptedDm::reason values in mod.rs.
-                                    let encrypt_outcome: Result<(String, String), &'static str> =
-                                        try_encrypt_dm(state, partner_key, &content);
-                                    match encrypt_outcome {
-                                        Ok((content_b64, nonce_b64)) => {
-                                            // Encrypted — build the DM JSON normally.
-                                            let dm_obj = serde_json::json!({
-                                                "type": "dm",
-                                                "from": state.profile_public_key,
-                                                "from_name": display_name,
-                                                "to": partner_key,
-                                                "content": content_b64,
-                                                "nonce": nonce_b64,
-                                                "encrypted": true,
-                                                "timestamp": ts,
-                                            });
-                                            Some(dm_obj.to_string())
-                                        }
-                                        Err(reason) => {
-                                            // B3: refuse the silent plaintext fallback.
-                                            // Stash for the confirmation modal. The
-                                            // pending DM holds the original plaintext
-                                            // + ts so the user's choice is preserved if
-                                            // they confirm later.
-                                            let partner_name = state.chat_dms.iter()
-                                                .find(|d| d.user_key == partner_key)
-                                                .map(|d| d.user_name.clone())
-                                                .unwrap_or_else(|| {
-                                                    let take = 8.min(partner_key.len());
-                                                    partner_key[..take].to_string()
-                                                });
-                                            log::warn!(
-                                                "DM to {} ({}) cannot be encrypted ({}). Asking user to confirm plaintext.",
-                                                partner_name, partner_key, reason
-                                            );
-                                            state.dm_unencrypted_confirm = Some(crate::gui::PendingUnencryptedDm {
-                                                partner_key: partner_key.to_string(),
-                                                partner_name,
-                                                content: content.clone(),
-                                                timestamp_ms: ts,
-                                                reason: reason.to_string(),
-                                            });
-                                            None
-                                        }
-                                    }
-                                } else if channel.starts_with("group:") {
-                                    // Group: send as type "group_msg"
-                                    let group_id = &channel[6..];
-                                    Some(serde_json::json!({
-                                        "type": "group_msg",
-                                        "group_id": group_id,
-                                        "content": content,
-                                    }).to_string())
-                                } else {
-                                    // Normal channel chat. Include reply_to if a thread context is active.
-                                    let mut chat_obj = serde_json::json!({
-                                        "type": "chat",
-                                        "from": state.profile_public_key,
-                                        "from_name": display_name,
-                                        "content": content,
-                                        "timestamp": ts,
-                                        "channel": channel,
-                                    });
-                                    if let Some(ref r) = state.chat_reply_to {
-                                        chat_obj["reply_to"] = serde_json::json!({
-                                            "from": r.sender_key,
-                                            "from_name": r.sender_name,
-                                            "content": r.preview,
-                                            "timestamp": r.timestamp_ms,
-                                        });
-                                    }
-                                    // Inc2.MED-1: Dilithium chat signature
-                                    // over `content\ntimestamp` (the relay
-                                    // now rejects non-bot chat without it).
-                                    if let Some(seed) = state.private_key_bytes.as_ref() {
-                                        chat_obj["pq_signature"] = serde_json::Value::String(
-                                            crate::net::identity::pq_sign_chat(seed, &content, ts)
-                                        );
-                                    }
-                                    Some(chat_obj.to_string())
-                                };
-                                if let Some(json_str) = json_str_opt {
-                                    crate::debug::push_debug(format!("WS >>> {}", json_str));
-                                    client.send(&json_str);
-
-                                    // Track timestamp for dedup when server echoes it back
-                                    state.chat_sent_timestamps.push(ts);
-                                    // Keep only last 20 timestamps
-                                    if state.chat_sent_timestamps.len() > 20 {
-                                        state.chat_sent_timestamps.remove(0);
-                                    }
-                                } else {
-                                    // B3: send was aborted because DM is unencryptable.
-                                    // Skip the local message push too — modal will
-                                    // handle resend after user confirms.
-                                    send_aborted = true;
-                                }
-                            }
-                        }
-                        } // end of `if !is_p2p_group` (WS send path)
-
-                        if send_aborted {
-                            // Don't add the local echo or clear input — the
-                            // pending DM is in state.dm_unencrypted_confirm.
-                            // Modal will deal with it on the next frame.
-                            // Returning the closure (early-out via continue
-                            // analog: just skip the rest of the if-block).
-                        } else {
-
-                        // Store locally so user sees their own message immediately
-                        let now = chrono_now_str();
-                        let local_name = if !state.user_name.is_empty() {
-                            state.user_name.clone()
-                        } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
-                            if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "You".to_string() }
-                        } else {
-                            "You".to_string()
-                        };
-                        let local_reply_to = state.chat_reply_to.clone();
-                        state.chat_messages.push(ChatMessage {
-                            sender_name: local_name,
-                            sender_key: state.profile_public_key.clone(),
-                            content,
-                            timestamp: now,
-                            timestamp_ms: ts,
-                            channel,
-                            reply_to: local_reply_to,
-                            ..Default::default()
-                        });
-                        // Clear reply context — the reply has been sent.
-                        state.chat_reply_to = None;
-
-                        while state.chat_messages.len() > 200 {
-                            state.chat_messages.remove(0);
-                        }
-
-                        state.chat_input.clear();
-                        response.request_focus();
-                        } // end of `else` branch added by B3 fix (send_aborted == false)
                     }
 
                     if enter_pressed {
@@ -3902,6 +3757,205 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             });
     });
+}
+
+/// THE single content-routing authority for native chat (v0.708), mirroring
+/// the web's `sendComposedContent` (v0.698.2): a typed message, a pasted
+/// image URL, and an attached file URL all flow through HERE, so the
+/// P2P-group / scratchpad / E2EE-DM (fail-closed) / group / channel routing
+/// and the local echo can never drift between input paths. Returns true when
+/// the content was sent (or locally echoed for the scratchpad); false when
+/// the send was aborted (unencryptable DM stashed for the confirm modal, or
+/// a failed P2P-group send) -- the composer keeps its input in that case.
+fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
+    let channel = state.chat_active_channel.clone();
+    // Single timestamp for both the WS send and the local echo so
+    // reaction-targeting (which keys on sender + ts) matches.
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let mut send_aborted = false;
+
+    // P2P groups send over HTTP (signed objects), not the WS relay.
+    let is_p2p_group = channel.starts_with("p2pgroup:");
+    if is_p2p_group && !send_p2p_group_message(state, &channel, content) {
+        send_aborted = true;
+    }
+
+    // The scratchpad is LOCAL-ONLY, as its label promises (v0.702 fix).
+    let is_scratchpad = channel == "scratchpad";
+
+    if !is_p2p_group && !is_scratchpad {
+        if let Some(ref client) = state.ws_client {
+            if client.is_connected() {
+                let display_name = if !state.user_name.is_empty() {
+                    state.user_name.clone()
+                } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
+                    if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "Anonymous".to_string() }
+                } else {
+                    "Anonymous".to_string()
+                };
+
+                // DM: E2EE, FAIL CLOSED (B3, v0.199.0). Unencryptable DMs are
+                // stashed for the explicit confirm modal, never silently sent
+                // as plaintext.
+                let json_str_opt: Option<String> = if channel.starts_with("dm:") {
+                    let partner_key = &channel[3..];
+                    let encrypt_outcome: Result<(String, String), &'static str> =
+                        try_encrypt_dm(state, partner_key, content);
+                    match encrypt_outcome {
+                        Ok((content_b64, nonce_b64)) => {
+                            let dm_obj = serde_json::json!({
+                                "type": "dm",
+                                "from": state.profile_public_key,
+                                "from_name": display_name,
+                                "to": partner_key,
+                                "content": content_b64,
+                                "nonce": nonce_b64,
+                                "encrypted": true,
+                                "timestamp": ts,
+                            });
+                            Some(dm_obj.to_string())
+                        }
+                        Err(reason) => {
+                            let partner_name = state.chat_dms.iter()
+                                .find(|d| d.user_key == partner_key)
+                                .map(|d| d.user_name.clone())
+                                .unwrap_or_else(|| {
+                                    let take = 8.min(partner_key.len());
+                                    partner_key[..take].to_string()
+                                });
+                            log::warn!(
+                                "DM to {} ({}) cannot be encrypted ({}). Asking user to confirm plaintext.",
+                                partner_name, partner_key, reason
+                            );
+                            state.dm_unencrypted_confirm = Some(crate::gui::PendingUnencryptedDm {
+                                partner_key: partner_key.to_string(),
+                                partner_name,
+                                content: content.to_string(),
+                                timestamp_ms: ts,
+                                reason: reason.to_string(),
+                            });
+                            None
+                        }
+                    }
+                } else if channel.starts_with("group:") {
+                    let group_id = &channel[6..];
+                    Some(serde_json::json!({
+                        "type": "group_msg",
+                        "group_id": group_id,
+                        "content": content,
+                    }).to_string())
+                } else {
+                    // Normal channel chat, Dilithium-signed; carries reply_to
+                    // when a reply context is active.
+                    let mut chat_obj = serde_json::json!({
+                        "type": "chat",
+                        "from": state.profile_public_key,
+                        "from_name": display_name,
+                        "content": content,
+                        "timestamp": ts,
+                        "channel": channel,
+                    });
+                    if let Some(ref r) = state.chat_reply_to {
+                        chat_obj["reply_to"] = serde_json::json!({
+                            "from": r.sender_key,
+                            "from_name": r.sender_name,
+                            "content": r.preview,
+                            "timestamp": r.timestamp_ms,
+                        });
+                    }
+                    if let Some(seed) = state.private_key_bytes.as_ref() {
+                        chat_obj["pq_signature"] = serde_json::Value::String(
+                            crate::net::identity::pq_sign_chat(seed, content, ts)
+                        );
+                    }
+                    Some(chat_obj.to_string())
+                };
+                if let Some(json_str) = json_str_opt {
+                    crate::debug::push_debug(format!("WS >>> {}", json_str));
+                    client.send(&json_str);
+                    state.chat_sent_timestamps.push(ts);
+                    if state.chat_sent_timestamps.len() > 20 {
+                        state.chat_sent_timestamps.remove(0);
+                    }
+                } else {
+                    send_aborted = true;
+                }
+            }
+        }
+    }
+
+    if send_aborted {
+        return false;
+    }
+
+    // Local echo so the sender sees their message immediately.
+    let now = chrono_now_str();
+    let local_name = if !state.user_name.is_empty() {
+        state.user_name.clone()
+    } else if let Some(me) = state.chat_users.iter().find(|u| u.public_key == state.profile_public_key) {
+        if !me.name.is_empty() && me.name != "Anonymous" { me.name.clone() } else { "You".to_string() }
+    } else {
+        "You".to_string()
+    };
+    let local_reply_to = state.chat_reply_to.clone();
+    state.chat_messages.push(ChatMessage {
+        sender_name: local_name,
+        sender_key: state.profile_public_key.clone(),
+        content: content.to_string(),
+        timestamp: now,
+        timestamp_ms: ts,
+        channel,
+        reply_to: local_reply_to,
+        ..Default::default()
+    });
+    state.chat_reply_to = None;
+    while state.chat_messages.len() > 200 {
+        state.chat_messages.remove(0);
+    }
+    true
+}
+
+/// File types the chat attach picker offers -- mirrors the web client's
+/// accept list (web/chat/index.html #file-upload-input).
+pub(crate) const ATTACH_EXTS: &[&str] = &[
+    "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "json",
+    "zip", "tar.gz", "mp3", "mp4", "webm", "ogg", "wav",
+    "blend", "stl", "obj", "gltf", "glb",
+];
+
+/// 3D/model formats auto-publish to the public Shared Files library
+/// (upload with ?share=1), exactly like the web client.
+const SHARE_EXTS: &[&str] = &["blend", "stl", "obj", "gltf", "glb"];
+
+/// The real upload ceiling: nginx caps /api/upload bodies at 6 MB
+/// (client_max_body_size 6m in scripts/nginx/humanity.conf).
+pub(crate) const ATTACH_MAX_BYTES: u64 = 6 * 1024 * 1024;
+
+/// Best-effort MIME from the filename extension (server re-checks anyway).
+fn mime_for_filename(name: &str) -> &'static str {
+    let lower = name.to_lowercase();
+    let ext = lower.rsplit('.').next().unwrap_or("");
+    match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "pdf" => "application/pdf",
+        "txt" | "md" => "text/plain",
+        "json" => "application/json",
+        "zip" => "application/zip",
+        "gz" => "application/gzip",
+        "mp3" => "audio/mpeg",
+        "ogg" => "audio/ogg",
+        "wav" => "audio/wav",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        _ => "application/octet-stream",
+    }
 }
 
 // ─────────────────────────────── User Profile Modal ────────────────────────
@@ -6140,44 +6194,52 @@ fn try_grab_clipboard_image_as_png() -> Option<Vec<u8>> {
     Some(png_bytes)
 }
 
-/// Blocking upload of a PNG to `<server_url>/api/upload?key=<pk>` as a
-/// multipart/form-data body. Returns the resulting URL (parsed from the
-/// JSON response `{"url":"...","filename":"...","size":N,"type":"..."}`).
-/// Mirrors the web client's `uploadImage(file)` flow.
-///
-/// Synchronous (blocks the egui draw frame for the duration of the upload).
-/// For typical print-screen captures (~200-800 KB after PNG encoding) on a
-/// decent network the upload completes in well under a second. If this
-/// becomes annoying we can move it to a background tokio task; the simple
-/// blocking version is the right starting point. v0.232.
+/// Blocking upload of a clipboard PNG -- thin wrapper over
+/// `upload_file_blocking` (kept for the existing paste call sites).
 fn upload_image_png_blocking(
     server_url: &str,
     public_key: &str,
     png_bytes: Vec<u8>,
 ) -> Result<String, String> {
+    upload_file_blocking(server_url, public_key, "clipboard.png", "image/png", png_bytes, false)
+}
+
+/// Blocking multipart upload of any file to `<server_url>/api/upload?key=<pk>`
+/// (v0.708; `share=true` adds `&share=1` so 3D/model files publish to the
+/// public Shared Files library, matching the web client). Returns the URL
+/// from the JSON response. Runs on a worker thread at every call site, so
+/// blocking here never freezes a frame. nginx caps the body at 6 MB.
+fn upload_file_blocking(
+    server_url: &str,
+    public_key: &str,
+    filename: &str,
+    mime: &str,
+    bytes: Vec<u8>,
+    share: bool,
+) -> Result<String, String> {
     let base = server_url.trim_end_matches('/');
-    // public_key is a hex string (64 chars), no URL-encoding needed.
-    let upload_url = format!("{base}/api/upload?key={key}",
-        base = base, key = public_key);
-    // Construct a multipart/form-data body manually — ureq 2 doesn't
-    // include multipart helpers and we don't want to pull in a crate
-    // just for this. Header: `Content-Type: multipart/form-data; boundary=<b>`.
+    let share_q = if share { "&share=1" } else { "" };
+    let upload_url = format!("{base}/api/upload?key={key}{share_q}", base = base, key = public_key);
     let boundary = format!("HumanityOSBoundary{}",
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis()
     );
+    // Sanitize the filename for the multipart header (quotes/CRLF would
+    // corrupt the form-data framing).
+    let safe_name: String = filename
+        .chars()
+        .map(|c| if c == '"' || c == '\r' || c == '\n' { '_' } else { c })
+        .collect();
     let preamble = format!(
-        "--{b}\r\n\
-         Content-Disposition: form-data; name=\"file\"; filename=\"clipboard.png\"\r\n\
-         Content-Type: image/png\r\n\r\n",
-        b = boundary,
+        "--{b}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{f}\"\r\nContent-Type: {m}\r\n\r\n",
+        b = boundary, f = safe_name, m = mime,
     );
     let epilogue = format!("\r\n--{b}--\r\n", b = boundary);
-    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + png_bytes.len() + epilogue.len());
+    let mut body: Vec<u8> = Vec::with_capacity(preamble.len() + bytes.len() + epilogue.len());
     body.extend_from_slice(preamble.as_bytes());
-    body.extend_from_slice(&png_bytes);
+    body.extend_from_slice(&bytes);
     body.extend_from_slice(epilogue.as_bytes());
 
     let resp = ureq::post(&upload_url)

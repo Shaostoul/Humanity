@@ -66,7 +66,16 @@
 > src/storage.rs (4 unit tests). FOLLOW-UPS: an in-app "move my files" tool
 > (Settings > Data) for switching modes later; surface the current mode +
 > open-folder buttons on the Data settings page. All-in-one FILE BROWSER for
-> chat attach still queued (next arc).
+> chat attach SHIPPED v0.708.0: universal widgets/file_browser.rs (in-app, NOT an
+> OS dialog; quick roots Home/Downloads/Documents/Desktop/Game data/App folder;
+> type filter + 6MB cap surfaced in-UI; 5 unit tests) + Attach button in the chat
+> composer -> upload on a worker thread -> routed send. ARCHITECTURE: native now
+> has send_composed_content as THE single content-routing authority (mirrors the
+> web v0.698.2 fix): composer, clipboard paste, and file attach all flow through
+> it -- which FIXED a pre-existing native privacy bug found during wiring: the
+> clipboard-paste flow sent a raw chat message with the active channel, BYPASSING
+> DM encryption and the scratchpad local-only promise. Next file-browser
+> consumers: Files page upgrade, download destinations, the move-my-files tool.
 > <<<**
 
 
