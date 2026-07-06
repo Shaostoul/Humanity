@@ -164,10 +164,15 @@ function renderDmList() {
     const isActive = activeDmPartner === c.partner_key;
     const unread = c.unread_count > 0 ? '<span class="dm-unread"></span>' : '';
     const timeStr = formatTime(c.last_timestamp);
-    // Native parity: the left-panel DM row shows only the name (+ unread dot)
-    // and a right-aligned time, NO message preview. The relay-stored DM body
-    // is an opaque E2EE envelope anyway; any preview belongs in the open
-    // conversation, not the sidebar (operator, 2026-05-27).
+    // Web keeps name-only (+ unread dot) with a right-aligned time, NO
+    // message preview: the relay-stored DM body is an opaque E2EE envelope
+    // here, so a sidebar preview would mostly render the lock placeholder
+    // (original decision: operator, 2026-05-27). NOTE the native app DOES
+    // show a decrypted last-message preview under each DM name as of
+    // v0.715 (operator-approved, 2026-07-06) — it decrypts on arrival, so
+    // its preview is real text. Don't "fix" native back to name-only for
+    // parity; the two clients intentionally differ until web can decrypt
+    // at list-render time.
     return `<div class="dm-item${isActive ? ' active' : ''}" onclick="openDmConversation('${esc(c.partner_key)}', '${esc(c.partner_name)}')">
       <span class="dm-name">${esc(c.partner_name)} ${unread}</span>
       <span class="dm-time">${timeStr}</span>

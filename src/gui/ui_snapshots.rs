@@ -200,6 +200,17 @@ fn demo_state() -> GuiState {
         ChatUser { name: "Ada".into(), public_key: "dlth3:5f77e0def".into(), role: "member".into(), status: "online".into() },
     ];
     s.chat_dms = vec![ChatDm { user_name: "Ada".into(), user_key: "ed25519:def".into(), last_message: "See you at the build".into(), timestamp: "11:02".into(), unread: true }];
+    // One group with an unread dot so the sidebar's group-unread rendering
+    // (v0.717) stays covered by the chat snapshot.
+    s.chat_groups = vec![crate::gui::ChatGroup {
+        name: "Garden Crew".into(),
+        id: "grp_garden".into(),
+        member_count: 3,
+        channels: vec![mk_channel("group:grp_garden", "general", true, false)],
+        collapsed: false,
+        role: "member".into(),
+        unread: true,
+    }];
     s.chat_servers = vec![ChatServer {
         name: "United Humanity".into(),
         channels: s.chat_channels.clone(),
