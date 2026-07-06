@@ -378,6 +378,16 @@ mod native_app {
             candidates.push(beside_exe);
         }
 
+        // 1b. Per-user extracted data (%APPDATA%\HumanityOS\data etc.) — where a
+        // distributed build now extracts editable modding data + the editor saves
+        // (v0.706, keeps files out of the exe folder). Not a repo dir, so dev runs
+        // still prefer the live repo data below; distributed builds resolve here.
+        if let Some(user_data) = os_data_dir() {
+            if user_data.exists() && user_data.is_dir() && !candidates.contains(&user_data) {
+                candidates.push(user_data);
+            }
+        }
+
         // 2. Walk up parents (handles target/release/ -> repo root)
         let mut dir = exe_dir.to_path_buf();
         for _ in 0..6 {
@@ -443,17 +453,57 @@ mod native_app {
     /// Extract embedded data files to disk on first run.
     /// If the data directory already exists, this is a no-op.
     /// This enables modding: users can edit the extracted files.
+    /// The per-user WRITABLE game-data directory (`%APPDATA%\HumanityOS\data` on
+    /// Windows; XDG / Application Support elsewhere). A distributed build extracts
+    /// editable modding data here and the construction editor saves here, so it is
+    /// NEVER placed beside the exe. Before v0.706 the data extracted into the exe's
+    /// own folder, so a user who ran HumanityOS.exe straight from Downloads got ~70
+    /// files dumped into Downloads (operator report 2026-07-06). Mirrors
+    /// `persistence::saves_dir()`. Returns None only on an unknown platform / when
+    /// the env var is unset (then we simply skip extraction and read from embedded).
+    fn os_data_dir() -> Option<std::path::PathBuf> {
+        #[cfg(target_os = "windows")]
+        {
+            return std::env::var("APPDATA").ok().map(|a| {
+                std::path::PathBuf::from(a).join("HumanityOS").join("data")
+            });
+        }
+        #[cfg(target_os = "macos")]
+        {
+            return std::env::var("HOME").ok().map(|h| {
+                std::path::PathBuf::from(h)
+                    .join("Library").join("Application Support")
+                    .join("HumanityOS").join("data")
+            });
+        }
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
+                return Some(std::path::PathBuf::from(xdg).join("HumanityOS").join("data"));
+            }
+            return std::env::var("HOME").ok().map(|h| {
+                std::path::PathBuf::from(h)
+                    .join(".local").join("share").join("HumanityOS").join("data")
+            });
+        }
+        #[allow(unreachable_code)]
+        None
+    }
+
     fn extract_data_if_needed() {
-        let exe_dir = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
-        let data_dir = exe_dir.join("data");
+        // Extract to the per-user OS data dir, NOT beside the exe (v0.706 fix for
+        // the Downloads-litter report). If no per-user dir resolves, skip entirely
+        // and rely on the embedded-data fallback in AssetManager (every extracted
+        // file is embedded, so reads still work with zero files on disk).
+        let data_dir = match os_data_dir() {
+            Some(d) => d,
+            None => return,
+        };
         if data_dir.exists() {
             return;
         }
 
-        log::info!("First run: extracting game data to {:?}", data_dir);
+        log::info!("First run: extracting editable game data to {:?}", data_dir);
 
         // All embedded files with their relative paths
         let files: &[&str] = &[
@@ -4127,7 +4177,19 @@ mod native_app {
         // appearance, then "Enter your home" to emerge into first-person. The avatar is the
         // last thing added to placeholder_objects, so `avatar_obj_start` marks where it
         // begins (the showroom renders + rebuilds only this range).
-        if let Some(r) = room_info.iter().find(|r| r.id == "respawner") {
+        // Place the avatar + showroom assets at the "respawner" room (legacy
+        // fibonacci layout) OR, when that room id does not exist, the spawn room
+        // (v0.706 fix). The default HomeStructure home emits room ids "home" /
+        // "room_N" with `is_spawn_room` set on the largest room, never
+        // "respawner" — so this whole block used to be skipped on EVERY path,
+        // leaving avatar_base at Vec3::ZERO. That made a fresh boot look empty
+        // (no avatar body) and made the Play/Characters showroom orbit an empty
+        // point. Falling back to the spawn room fixes both.
+        if let Some(r) = room_info
+            .iter()
+            .find(|r| r.id == "respawner")
+            .or_else(|| room_info.iter().find(|r| r.is_spawn_room))
+        {
             let floor = r.center.y - r.dimensions.y * 0.5;
             let base = Vec3::new(r.center.x, floor, r.center.z - 0.35);
             let (cname, app, outfit) = state

@@ -35,7 +35,29 @@
 >      game-data loading working. Open Q for operator: also an installer step?
 >   3. FIRST-BOOT COMPLETENESS: what only works because of state on the operator PC
 >      that a fresh user lacks (identity, data/, assets, config defaults).
-> Fixes land as their own releases once the audit + adversarial verify return. <<<**
+> AUDIT DONE + adversarially verified (2026-07-06 fresh-install-audit workflow).
+> Two fixes SHIPPED v0.706.0: (1) exe-litter -- extract_data_if_needed now writes
+> editable modding data to %APPDATA%HumanityOSdata (find_data_dir reads it),
+> NOT beside the exe, so running from Downloads no longer dumps ~70 files there;
+> reads fall back to embedded so a zero-file install still runs. (2) avatar/blank:
+> the avatar + showroom setup was gated on a room id "respawner" the default home
+> never emits, so no avatar body loaded on ANY path and the Play/Characters
+> showroom orbited an empty point; now falls back to the spawn room. FINDINGS that
+> CHANGED the picture: the operators hypothesis (world/skybox gated behind Play)
+> was REFUTED -- load_world fires on ANY Esc-to-None and DOES render world+skybox;
+> the 3D scene is deferred until first Enter World BY DESIGN (chat-first instant
+> startup), and the ECS logic-world IS populated at boot. So the exact "blank
+> skybox on Esc" could not be reproduced from static code (world renders on Esc);
+> most likely the no-avatar impression (now fixed) or a stale build -- OPERATOR:
+> re-verify Esc-from-chat on the v0.706 exe. SECONDARY litter as FOLLOW-UPS (not
+> first-boot, lower impact): debug/home_snapshot.json + debug/screenshot_* write
+> CWD-relative (construction editor / screenshot dev tool -- keep repo/debug for
+> dev, redirect only for distributed); theme.rs save() tries CWD-relative data/gui
+> first (harmless for distributed since candidates coincide; in a dev repo run it
+> overwrites the tracked theme.ron). INSTALLER: a dedicated-folder installer is a
+> good COMPLEMENT but no longer required to prevent litter -- the app is now
+> CWD-independent for writes. All-in-one FILE BROWSER for chat attach still queued.
+> <<<**
 
 
 > **>>> LOOP MODE OUTPUT (2026-07-05 -> 2026-07-06, operator engaged loop mode:
