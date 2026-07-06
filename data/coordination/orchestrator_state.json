@@ -426,6 +426,12 @@
       "decision": "v0.704.0 Home outline fully exposed (operator: get rid of the expandable areas, all info immediately visible). Native homes.rs: outline loops + cannot-close entries render flat (name+mark, demand, note, tier rows, separator) -- no expandable_row. Web home.html: all loop cards always open, toggle JS + cursor removed. Field results logged: markdown/links verified working by operator; Nova drives properly; Home approved.",
       "why": "Direct operator directive; also entered loop mode on obvious-only items per operator.",
       "verification": "759 lib tests + 6 lints pass; homes snapshot renders; home.html inline JS parse-checked, zero toggle leftovers."
+    },
+    {
+      "at": "2026-07-05",
+      "decision": "v0.705.0 (loop mode) NATIVE-INITIATED 1:1 CALLS + MUTE. Call button in the chat user modal (disabled unless idle + not self) sends voice_call ring, sets call_outgoing + a 30s deadline (matches web setTimeout). Inbound accept handler: when the accepter matches call_outgoing, move to call_active and offer_to_voice(peer, CALL_ROOM_ID) -- the caller creates the offer, exactly the web flow. reject/hangup clears call_outgoing; ring busy-check now includes call_outgoing. Ring-out timeout drives per-frame from call_outgoing_deadline (sends hangup, clears). UI: call bar shows a Calling.../Cancel state while ringing out, and Mute/Unmute in the in-call bar. Mute gates the voice pump send (still receives peer audio); resets on call start/accept/hangup. New GuiState: call_outgoing, call_outgoing_deadline (Instant, not serialized), call_muted.",
+      "why": "Loop item 1+2 (obvious, no operator decision): completes the call feature to peer parity with web (both directions) + the standard mute control, reusing the CALL_ROOM_ID voice path from v0.703.",
+      "verification": "native + relay compile clean; full just verify (759 lib tests + 6 lints + doc-links). Protocol traced against chat-voice-calls.js caller path (ring -> wait accept -> createAndSendOffer). END-TO-END AUDIO still needs the operators two-client field test; this increment is caller-side + mute."
     }
   ],
   "active_scopes_to_avoid": [

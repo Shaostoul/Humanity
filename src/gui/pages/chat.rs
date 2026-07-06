@@ -4088,6 +4088,44 @@ fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                     ui.add_space(4.0);
 
+                    // Voice call (v0.705). Disabled when we're already in any
+                    // call state or calling ourselves; the ring goes out and
+                    // the callee (web or native) sees the incoming-call prompt.
+                    let can_call = key != state.profile_public_key
+                        && state.call_active.is_none()
+                        && state.call_outgoing.is_none()
+                        && state.call_incoming.is_none()
+                        && state.voice_active_room.is_none();
+                    if ui
+                        .add_enabled(
+                            can_call,
+                            egui::Button::new(
+                                RichText::new("Call")
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            )
+                            .fill(Color32::from_rgb(35, 50, 40))
+                            .min_size(Vec2::new(btn_width, 30.0)),
+                        )
+                        .clicked()
+                    {
+                        if let Some(ref client) = state.ws_client {
+                            let _ = client.send(&serde_json::json!({
+                                "type": "voice_call",
+                                "from": state.profile_public_key,
+                                "to": key,
+                                "action": "ring",
+                            }).to_string());
+                        }
+                        state.call_outgoing = Some((key.clone(), name.clone()));
+                        state.call_outgoing_deadline =
+                            Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
+                        state.call_muted = false;
+                        close_modal = true;
+                    }
+
+                    ui.add_space(4.0);
+
                     if is_following {
                         if ui.add(
                             egui::Button::new(
@@ -6590,19 +6628,60 @@ pub(crate) fn draw_incoming_call_modal(ctx: &egui::Context, theme: &Theme, state
             // path (gated on this exact peer). The shared voice session +
             // Opus pump start from `call_active` on the next frame.
             state.call_active = Some((peer_key, peer_name));
+            state.call_muted = false;
         }
     }
 }
 
 /// The in-call bar for an active 1:1 call (v0.703): who, connection state,
-/// Hang up. Anchored top-center so it stays visible over the chat.
+/// Mute, Hang up. Also shows a "Calling ... / Cancel" bar while an outgoing
+/// call rings (v0.705). Anchored top-center so it stays visible over the chat.
 pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Outgoing ring (waiting for the callee to accept).
+    if let Some((peer_key, peer_name)) = state.call_outgoing.clone() {
+        let mut cancel = false;
+        egui::Window::new("call_bar_ringing")
+            .title_bar(false)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_TOP, [0.0, 8.0])
+            .frame(egui::Frame::window(&ctx.style()).fill(theme.bg_card()))
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("Calling {}...", peer_name))
+                            .size(theme.font_size_body)
+                            .color(theme.text_primary())
+                            .strong(),
+                    );
+                    if widgets::Button::danger("Cancel").show(ui, theme) {
+                        cancel = true;
+                    }
+                });
+            });
+        if cancel {
+            if let Some(ref client) = state.ws_client {
+                let _ = client.send(&serde_json::json!({
+                    "type": "voice_call",
+                    "from": state.profile_public_key,
+                    "to": peer_key,
+                    "action": "hangup",
+                }).to_string());
+            }
+            state.call_outgoing = None;
+            state.call_outgoing_deadline = None;
+        }
+        return;
+    }
+
     let (peer_key, peer_name) = match state.call_active.clone() {
         Some(p) => p,
         None => return,
     };
     let connected = state.voice_connected_peers.contains(&peer_key);
     let mut hangup = false;
+    let mut toggle_mute = false;
+    let muted = state.call_muted;
     egui::Window::new("call_bar")
         .title_bar(false)
         .collapsible(false)
@@ -6623,11 +6702,25 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
                     ("connecting...", theme.warning())
                 };
                 ui.label(RichText::new(status).size(theme.font_size_small).color(color));
+                let mute_label = if muted { "Unmute" } else { "Mute" };
+                if widgets::Button::secondary(mute_label).show(ui, theme) {
+                    toggle_mute = true;
+                }
                 if widgets::Button::danger("Hang up").show(ui, theme) {
                     hangup = true;
                 }
             });
+            if muted {
+                ui.label(
+                    RichText::new("Your mic is muted")
+                        .size(theme.font_size_small)
+                        .color(theme.warning()),
+                );
+            }
         });
+    if toggle_mute {
+        state.call_muted = !state.call_muted;
+    }
     if hangup {
         if let Some(ref client) = state.ws_client {
             let _ = client.send(&serde_json::json!({
@@ -6638,6 +6731,7 @@ pub(crate) fn draw_call_bar(ctx: &egui::Context, theme: &Theme, state: &mut GuiS
             }).to_string());
         }
         state.call_active = None;
+        state.call_muted = false;
         state.voice_connected_peers.remove(&peer_key);
         // Drop the str0m connection NOW; leaving it to ICE timeout would
         // make on_voice_offer's already-connected guard refuse this peer's

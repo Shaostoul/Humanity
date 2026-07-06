@@ -9120,6 +9120,25 @@ mod native_app {
                     // voice room (capture + encode + decode/play), and pump captured
                     // Opus to every connected peer. Edge-triggered start/stop.
                     {
+                        // Outgoing-call ring-out timeout (v0.705): the callee has
+                        // 30 s to accept (matching the web). On expiry, cancel the
+                        // ring (tell them to stop) and clear.
+                        if let Some(deadline) = state.gui_state.call_outgoing_deadline {
+                            if std::time::Instant::now() >= deadline {
+                                if let Some((k, _)) = state.gui_state.call_outgoing.take() {
+                                    if let Some(ref client) = state.gui_state.ws_client {
+                                        let _ = client.send(&serde_json::json!({
+                                            "type": "voice_call",
+                                            "from": state.gui_state.profile_public_key,
+                                            "to": k,
+                                            "action": "hangup",
+                                        }).to_string());
+                                    }
+                                }
+                                state.gui_state.call_outgoing_deadline = None;
+                            }
+                        }
+
                         // Voice rooms AND 1:1 calls run the same live session +
                         // Opus pump; a call peer lands in voice_connected_peers
                         // via the same VoiceConnected event as room peers (v0.703).
@@ -9136,7 +9155,14 @@ mod native_app {
                         }
                         state.gui_state.voice_session_prev = want_session;
                         // Send captured mic frames to each connected voice peer.
-                        if want_session && !state.gui_state.voice_connected_peers.is_empty() {
+                        // Skipped while muted in a 1:1 call (v0.705): we stop
+                        // transmitting but still receive + play the peer's audio.
+                        let muted_in_call =
+                            state.gui_state.call_active.is_some() && state.gui_state.call_muted;
+                        if want_session
+                            && !muted_in_call
+                            && !state.gui_state.voice_connected_peers.is_empty()
+                        {
                             let frames = crate::net::voice::drain_voice_send();
                             if !frames.is_empty() {
                                 let peers: Vec<String> = state.gui_state.voice_connected_peers.iter().cloned().collect();
@@ -10720,6 +10746,7 @@ mod native_app {
                                                 "ring" => {
                                                     let busy = state.gui_state.call_active.is_some()
                                                         || state.gui_state.call_incoming.is_some()
+                                                        || state.gui_state.call_outgoing.is_some()
                                                         || state.gui_state.voice_active_room.is_some();
                                                     if busy {
                                                         // Auto-reject like the web does when
@@ -10737,14 +10764,43 @@ mod native_app {
                                                             Some((from, from_name));
                                                     }
                                                 }
+                                                "accept" => {
+                                                    // The peer accepted OUR outgoing call. Per
+                                                    // the web protocol (chat-voice-calls.js the
+                                                    // caller creates the offer on accept), we
+                                                    // move to in-call and send the voice offer
+                                                    // over CALL_ROOM_ID (which wears the web
+                                                    // webrtc_signal envelope). v0.705.
+                                                    if state.gui_state.call_outgoing
+                                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false)
+                                                    {
+                                                        if let Some((k, n)) = state.gui_state.call_outgoing.take() {
+                                                            state.gui_state.call_outgoing_deadline = None;
+                                                            state.gui_state.call_active = Some((k.clone(), n));
+                                                            if let Some(ref webrtc) = state.gui_state.webrtc {
+                                                                webrtc.offer_to_voice(
+                                                                    k,
+                                                                    crate::net::webrtc::CALL_ROOM_ID.to_string(),
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                                 "hangup" | "reject" => {
                                                     // Peer ended it (either side of any state).
                                                     let matches_incoming = state.gui_state.call_incoming
+                                                        .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
+                                                    let matches_outgoing = state.gui_state.call_outgoing
                                                         .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
                                                     let matches_active = state.gui_state.call_active
                                                         .as_ref().map(|(k, _)| *k == from).unwrap_or(false);
                                                     if matches_incoming {
                                                         state.gui_state.call_incoming = None;
+                                                    }
+                                                    if matches_outgoing {
+                                                        // They declined (or hung up) our ring.
+                                                        state.gui_state.call_outgoing = None;
+                                                        state.gui_state.call_outgoing_deadline = None;
                                                     }
                                                     if matches_active {
                                                         state.gui_state.call_active = None;
@@ -10757,10 +10813,6 @@ mod native_app {
                                                         }
                                                     }
                                                 }
-                                                // "accept" matters when NATIVE is the caller —
-                                                // outbound calls are the next increment; the
-                                                // web caller creates the offer on accept, so
-                                                // nothing to do here yet.
                                                 _ => {}
                                             }
                                         }
@@ -11772,7 +11824,8 @@ mod native_app {
                                 // gate anyway to keep a single draw path per frame.
                                 if state.gui_state.active_page != GuiPage::Chat
                                     && (state.gui_state.call_incoming.is_some()
-                                        || state.gui_state.call_active.is_some())
+                                        || state.gui_state.call_active.is_some()
+                                        || state.gui_state.call_outgoing.is_some())
                                 {
                                     crate::gui::pages::chat::draw_incoming_call_modal(ctx, &state.theme, &mut state.gui_state);
                                     crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);

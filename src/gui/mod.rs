@@ -2222,6 +2222,17 @@ pub struct GuiState {
     /// live voice session runs (same pump as voice rooms) and the chat page
     /// shows the in-call bar with Hang up.
     pub call_active: Option<(String, String)>,
+    /// Outgoing 1:1 call we placed, waiting for the peer to accept:
+    /// `(peer pubkey hex, display name)`. On their `accept` we create the
+    /// WebRTC offer and move to `call_active`; on `reject` / timeout we
+    /// clear it. (v0.705 — native-initiated calls.)
+    pub call_outgoing: Option<(String, String)>,
+    /// Ring-out deadline: if the peer hasn't accepted by this instant we
+    /// auto-cancel (matches the web's 30 s setTimeout). Not serialized.
+    pub call_outgoing_deadline: Option<std::time::Instant>,
+    /// Mic muted during a 1:1 call: the voice pump skips sending our Opus
+    /// while true (the peer still reaches us; we just stop transmitting).
+    pub call_muted: bool,
 
     // ── Donation address config ──
 
@@ -3306,6 +3317,9 @@ impl Default for GuiState {
             voice_session_prev: false,
             call_incoming: None,
             call_active: None,
+            call_outgoing: None,
+            call_outgoing_deadline: None,
+            call_muted: false,
             donate_solana_address: String::new(),
             donate_btc_address: String::new(),
             donate_addresses: Vec::new(),
