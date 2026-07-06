@@ -208,9 +208,44 @@ so a shared .blend never vanishes because its uploader later posted chat photos.
 Chat auto-shares only 3D/model formats (`.blend .stl .obj .gltf .glb`) -- attaching
 one signals intent to publish; photos and other chat media stay unlisted/private.
 Original filename is preserved for display (stored name is timestamp-mangled).
-- Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload), `src/relay/storage/uploads.rs` (`list_shared_uploads`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
+Removal (v0.709): signed `POST /api/uploads/delete` — the uploader can remove their
+own file; an admin can remove any (Dilithium-signed "delete_upload" request).
+- Server: `src/relay/api.rs` (`GET /api/uploads`, `share` query param on upload, `POST /api/uploads/delete`), `src/relay/storage/uploads.rs` (`list_shared_uploads`, `delete_shared_upload`, FIFO exemption + tests), schema `user_uploads` (+`shared`, `original_name`, `size_bytes`)
 - Web: `web/pages/shared-files.html` (browse/search/download), `web/chat/chat-messages.js` (auto-share on attach)
-- Native: follow-up (browse in Library or Files page) -- tracked in `docs/PAGES.md`
+- Native (v0.710): Files page "Shared files on the server" manager — list (auto-load + Refresh), Upload via the in-app file browser (share=1), per-row Remove (own files, or any as admin). `src/gui/pages/files.rs`
+
+### In-App File Browser (native, v0.708)
+Universal file-picker widget (NOT the OS dialog — the all-in-one direction): quick
+roots (Home/Downloads/Documents/Desktop/Game data/App folder), dirs-first ci-alpha
+listing, extension filtering (incl. compound `.tar.gz`), max-size guard. Feeds chat
+attach (v0.708) and the Files page shared-uploads manager (v0.710).
+- Native: `src/gui/widgets/file_browser.rs` (`FilePickerState`, `file_picker_modal`), chat attach wiring in `src/gui/pages/chat.rs` (`ATTACH_EXTS`, `upload_file_blocking`)
+
+### Unread Indicators (native, v0.715–v0.719)
+Sidebar-wide unread story, matching the web client's renderUnreadDots:
+DM rows show a decrypted last-message preview line + unread dot (v0.715; own sends
+show "You: …"; opening clears); group headers (v0.717) and channel rows (v0.718)
+get the same dot, preserved across group_list/channel_list rebuilds; the Chat nav
+tab paints a theme.danger() dot whenever ANY dm/group/channel is unread, visible
+from every page (v0.719). P2P-group unread waits for native P2P push (closed P2P
+groups only poll their list — no message event exists to flag).
+NOTE: the WEB DM sidebar deliberately stays name-only (operator 2026-05-27; its
+stored DM bodies are opaque E2EE envelopes) — do not "fix" either side for parity.
+- Native: `src/lib.rs` (dm/group_msg/chat WS handlers), `src/gui/pages/chat.rs` (row painters), `src/gui/pages/escape_menu.rs` (nav dot)
+
+### Saved Servers: add / switch / forget (native, v0.712–v0.714)
+Add Server accepts a bare host (assumes https, v0.714); clicking a saved server's
+name switches to it (reconnects with the same identity, lands on #general;
+v0.712–713); a small "x" forgets the bookmark. The active server shows "(current)".
+- Native: `src/gui/pages/chat.rs` (saved-servers loop + `draw_add_server_modal`)
+
+### System Health Panel (native, v0.720)
+Server Settings → admin tab → "System health": read-only live snapshot of the
+connected server via its public `/health` + `/api/stats` — status, deployed build
+(git commit; a stale deploy is visible in-app), humanized uptime, messages stored,
+connected peers. Worker-thread fetch + Refresh. In-app ops slice 1 native parity
+(`docs/design/in-app-ops.md`).
+- Native: `src/gui/pages/server_settings.rs` (`draw_system_health_admin`), `src/gui/mod.rs` (`SystemHealth`)
 
 ### Threads
 Reply threads on messages.
