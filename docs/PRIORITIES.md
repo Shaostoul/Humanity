@@ -43,13 +43,17 @@
 >    battery kWh from the running sims; assembler infinite-of-X vehicle
 >    selector + buildable Nova v0.725), material-storage Stage A slice 1 DONE
 >    (v0.726: volume_l on all 496 items via scripts/gen-item-volumes.js +
->    Inventory volume tracking + Inventory-page Volume tile). REMAINING game
->    queue: Stage A slice 2 = volume ENFORCEMENT (add_item + crafting
->    outputs_fit gate on volume_capacity_l; slots demoted to bandolier-likes;
->    the tests pinning slot-only behavior need updating — fresh-session sized),
->    container-contents card stat (find where Container entities spawn + link
->    MachineInstanceId), 7 missing material densities in materials.csv, then
->    the bigger arcs (vehicle BAY redesign, texture bug, GLB pipeline).
+>    Inventory volume tracking + Inventory-page Volume tile; densities patched
+>    v0.726.2) AND slice 2 ENFORCEMENT DONE (v0.727: add_item_volume_gated caps
+>    by remaining litres on transfers/crafting/harvest/compost; outputs_fit
+>    volume headroom pauses auto-machines; mining drone delivery deliberately
+>    ungated per the 2026-07-04 never-vanish-a-haul ruling — a documented
+>    tension for the operator to reconcile). STAGE A COMPLETE. REMAINING game
+>    queue (fresh-session arcs): container-wiring design pass (the typed
+>    Container system in containers.rs has ZERO runtime spawns — decide which
+>    home.ron machines are containers + how MachineDef declares container_type,
+>    then the "containers show contents" card stat), vehicle BAY redesign,
+>    texture bug (colored-lines noise collapse), GLB pipeline + viewer.
 > FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
 > (running journal, newest at bottom), this file (top of TIER 0 = next up), and
 > CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.712 shipped economy phase
