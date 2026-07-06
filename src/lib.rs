@@ -10368,6 +10368,16 @@ mod native_app {
                                     }
                                     Some("group_list") => {
                                         if let Some(groups) = val.get("groups").and_then(|v| v.as_array()) {
+                                            // Preserve unread marks across rebuilds — group_list
+                                            // re-arrives on membership changes and would otherwise
+                                            // silently clear every dot. (v0.717)
+                                            let unread_ids: std::collections::HashSet<String> = state
+                                                .gui_state
+                                                .chat_groups
+                                                .iter()
+                                                .filter(|g| g.unread)
+                                                .map(|g| g.id.clone())
+                                                .collect();
                                             state.gui_state.chat_groups.clear();
                                             for g in groups {
                                                 let name = g.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -10403,6 +10413,7 @@ mod native_app {
                                                     }],
                                                     collapsed: false,
                                                     role,
+                                                    unread: unread_ids.contains(&id),
                                                 });
                                             }
                                             log::info!("Group list received: {} groups", state.gui_state.chat_groups.len());
@@ -10541,6 +10552,21 @@ mod native_app {
                                         let content = val.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
                                         let ts = val.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
                                         let group_channel = format!("group:{}", group_id);
+                                        // Sidebar unread dot: flag when the message isn't ours
+                                        // and this group's channel (or a nested "group:<id>:x"
+                                        // channel) isn't currently open. Same pattern as the
+                                        // DM handler above. (v0.717)
+                                        let group_is_open = state.gui_state.chat_active_channel == group_channel
+                                            || state
+                                                .gui_state
+                                                .chat_active_channel
+                                                .starts_with(&format!("group:{}:", group_id));
+                                        let is_from_me = from_key == state.gui_state.profile_public_key;
+                                        if !is_from_me && !group_is_open {
+                                            if let Some(g) = state.gui_state.chat_groups.iter_mut().find(|g| g.id == group_id) {
+                                                g.unread = true;
+                                            }
+                                        }
                                         state.gui_state.chat_messages.push(crate::gui::ChatMessage {
                                             sender_name: from_name,
                                             sender_key: from_key,

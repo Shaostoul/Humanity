@@ -1295,6 +1295,13 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         }
                         cx += 14.0;
 
+                        // Unread dot (same look as the DM rows). (v0.717)
+                        if group.unread {
+                            let dot_r = theme.status_dot_size * 0.375;
+                            ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                            cx += dot_r * 2.0 + 3.0;
+                        }
+
                         // Group name
                         ui.painter().text(
                             egui::pos2(cx, cy),
@@ -1504,6 +1511,11 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     state.chat_active_channel = ch.id.clone();
                                     state.chat_messages.clear();
                                     state.history_fetched = false;
+                                    // Opening any of the group's channels clears its
+                                    // unread dot. (v0.717)
+                                    if let Some(g) = state.chat_groups.get_mut(gi) {
+                                        g.unread = false;
+                                    }
                                     if let Some(ref client) = state.ws_client {
                                         if client.is_connected() {
                                             let msg = serde_json::json!({

@@ -868,6 +868,9 @@ pub struct ChatGroup {
     /// `src/relay/storage/social.rs::create_group`). Defaults to `"member"`
     /// so an old/partial payload never silently grants admin.
     pub role: String,
+    /// A message arrived in this group while its channel wasn't open —
+    /// drives the sidebar unread dot, same pattern as ChatDm. (v0.717)
+    pub unread: bool,
 }
 
 /// A server entry for the left panel (each server has text + voice channels).

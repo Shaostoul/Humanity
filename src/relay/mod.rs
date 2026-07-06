@@ -204,7 +204,12 @@ pub async fn run_relay() {
         Err(e) => tracing::error!("Test-bot purge failed: {e}"),
     }
 
-    // Auto-promote first registered user or ADMIN_KEYS to admin.
+    // Admin bootstrap: promote every key in the ADMIN_KEYS env var (comma-
+    // separated Dilithium3 hex) at startup. This is the ONLY automatic path
+    // to the first admin — there is deliberately NO first-registered-user
+    // rule (on a public relay the first stranger to connect would win the
+    // server). Further admins/mods are granted in-app via /mod by an
+    // existing admin. See docs/admin/SELF-HOSTING.md.
     if let Ok(admin_keys) = std::env::var("ADMIN_KEYS") {
         for key in admin_keys.split(',') {
             let key = key.trim();
