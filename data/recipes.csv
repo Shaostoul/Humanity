@@ -438,3 +438,4 @@ smelt_iron_graphite,Smelt Iron (graphite),smelting,iron_ore_0:2|graphite_0:1,iro
 smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0:1,copper_ingot_0:1,10,smelter_0,metalworking,1,Reduce copper ore using asteroid graphite
 smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
 assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad
+refine_fuel,Refine Fuel,processing,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel

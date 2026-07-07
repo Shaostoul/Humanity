@@ -289,10 +289,16 @@
             shape: "cylinder", size: (0.45, 1.1, 0.45), color: (0.50, 0.46, 0.20),
             label: "Fuel refinery",
             category: "Production",
-            stats: [(kind: "fuel", value: "30%", status: "low"), (kind: "progress", value: "refining", status: "ok")],
+            // The fuel row's value is REPLACED by the live drum fill once the
+            // Container exists; "idle" flips to the live status line (v0.730).
+            stats: [(kind: "fuel", value: "200 L drum", status: "ok"), (kind: "progress", value: "idle", status: "off")],
             // Typed container (v0.728): its product tank is a sealed steel fuel
             // drum — the walk-up card shows live fill + contents from the ECS.
             container_type: Some("steel_fuel_drum"),
+            // Fuel loop (v0.732): auto-distills crude from the home stock; the
+            // refined fuel stays IN THE DRUM (outputs-to-own-vessel rule), so
+            // the card shows the drum filling. Take it out via the card's Take.
+            auto_recipe: Some("refine_fuel"),
         ),
         "generator_portable": (
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),

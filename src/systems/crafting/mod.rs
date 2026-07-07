@@ -719,6 +719,43 @@ impl System for CraftingSystem {
                     }
                     Err(_) => Some("no home inventory".to_string()),
                 };
+                // Vessel escape (v0.732): a machine whose OWN vessel can take
+                // every output (right class + enough room) may start even when
+                // the pack is full — the outputs stay in the vessel, not the
+                // inventory (deliver_outputs' outputs-to-own-vessel rule).
+                let blocked = if matches!(blocked.as_deref(), Some("inventory full")) {
+                    let vessel_takes_all = data
+                        .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                            "container_registry",
+                        )
+                        .and_then(|creg| {
+                            world
+                                .get::<&crate::systems::inventory::containers::Container>(machine)
+                                .ok()
+                                .map(|c| {
+                                    let need: f32 = recipe
+                                        .outputs
+                                        .iter()
+                                        .map(|(id, qty)| {
+                                            item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0)
+                                                * *qty as f32
+                                        })
+                                        .sum();
+                                    recipe.outputs.iter().all(|(id, _)| {
+                                        let class = item_registry
+                                            .map(|r| r.class_for(id).to_string())
+                                            .unwrap_or_else(|| "solid".to_string());
+                                        creg.check(&c.container_type_id, &class).is_accepted()
+                                            && (c.current_content_item.is_none()
+                                                || c.current_content_item.as_deref() == Some(id))
+                                    }) && c.remaining_liters() >= need
+                                })
+                        })
+                        .unwrap_or(false);
+                    if vessel_takes_all { None } else { blocked }
+                } else {
+                    blocked
+                };
                 if let Some(why) = blocked {
                     statuses.push(format!("{} — {why}", recipe.name));
                     continue;
@@ -827,6 +864,9 @@ impl System for CraftingSystem {
                         pad,
                         item_registry,
                         vehicle_kits,
+                        // Manual/instant crafts: the crafter IS the player; a
+                        // player has no Container, so the vessel pass no-ops.
+                        Some(request.crafter),
                     );
                     log::debug!("Instant craft complete: {}", recipe.id);
                 } else {
@@ -887,6 +927,9 @@ impl System for CraftingSystem {
                             craft.pad,
                             item_registry,
                             vehicle_kits,
+                            // Auto crafts: the crafter is the MACHINE — its own
+                            // vessel gets first claim on the outputs (v0.732).
+                            Some(craft.crafter),
                         );
                         log::debug!("Craft complete: {}", recipe.id);
                     }
@@ -952,6 +995,10 @@ impl CraftingSystem {
         pad: Option<(glam::Vec3, glam::Quat)>,
         item_registry: Option<&crate::systems::inventory::ItemRegistry>,
         vehicle_kits: Option<&crate::systems::vehicles::VehicleKitRegistry>,
+        // The MACHINE that crafted this (auto crafts) — a machine with its own
+        // compatible vessel keeps the output there (v0.732, fuel loop: the
+        // refinery's product fills its drum). None/player for manual crafts.
+        crafter_vessel: Option<hecs::Entity>,
     ) {
         // Split out the vehicle-class outputs (usually none).
         let vehicle_outputs: Vec<(String, u32)> = match vehicle_kits {
@@ -1011,12 +1058,56 @@ impl CraftingSystem {
             }
         }
 
-        // Non-vehicle outputs land in the inventory exactly as before.
+        // Non-vehicle outputs land in the inventory — unless the crafting
+        // MACHINE carries its own compatible vessel, which keeps them first
+        // (v0.732, fuel loop slice 1: the refinery's refined fuel fills its
+        // steel drum; the walk-up card shows the drum filling live).
+        // Compatibility is PRE-checked (try_store damages wrong-class vessels
+        // by design); vessel overflow falls through to the inventory.
         if vehicle_outputs.len() < recipe.outputs.len() {
             let mut inv_recipe = recipe.clone();
             inv_recipe
                 .outputs
                 .retain(|(id, _)| !vehicle_outputs.iter().any(|(vid, _)| vid == id));
+            if let Some(machine) = crafter_vessel {
+                if let Some(creg) = data
+                    .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                        "container_registry",
+                    )
+                {
+                    if let Ok(mut c) = world
+                        .get::<&mut crate::systems::inventory::containers::Container>(machine)
+                    {
+                        use crate::systems::inventory::containers::StoreOutcome;
+                        for (id, qty) in inv_recipe.outputs.iter_mut() {
+                            if *qty == 0 {
+                                continue;
+                            }
+                            let class = item_registry
+                                .map(|r| r.class_for(id).to_string())
+                                .unwrap_or_else(|| "solid".to_string());
+                            if !creg.check(&c.container_type_id, &class).is_accepted() {
+                                continue;
+                            }
+                            let unit_vol =
+                                item_registry.map(|r| r.volume_for(id)).unwrap_or(0.0);
+                            if let StoreOutcome::Stored { quantity } =
+                                creg.try_store(&mut c, id, &class, unit_vol, *qty)
+                            {
+                                *qty -= quantity;
+                                log::info!(
+                                    "[Crafting] {} kept {}x {} in its own vessel",
+                                    recipe.id, quantity, id
+                                );
+                            }
+                        }
+                        inv_recipe.outputs.retain(|(_, qty)| *qty > 0);
+                    }
+                }
+            }
+            if inv_recipe.outputs.is_empty() {
+                return;
+            }
             if let Ok(mut inv) = world.get::<&mut Inventory>(target) {
                 Self::produce_outputs(&mut inv, &inv_recipe, item_registry);
             } else {
