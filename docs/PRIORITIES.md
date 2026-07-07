@@ -58,7 +58,10 @@
 >    shaders are canonical bilinear noise, do NOT change the mix() factors;
 >    real hypotheses + repro plan in orchestrator_state decision #89, lead
 >    suspect = f32 precision collapse on world-space UVs far from origin),
->    GLB pipeline + viewer.
+>    GLB pipeline (guide SHIPPED 2026-07-06: `docs/game/model-pipeline.md` —
+>    verified authoring rules from the real loader + the model: field wiring
+>    plan + the replace_mesh/shared-cache hazard the wiring session must
+>    dodge; remaining = the model: field wiring itself + a viewer).
 > FOR THE FIRST OPUS SESSION: read data/coordination/orchestrator_state.json
 > (running journal, newest at bottom), this file (top of TIER 0 = next up), and
 > CLAUDE.md START HERE. The Fable stretch v0.677 -> v0.712 shipped economy phase
