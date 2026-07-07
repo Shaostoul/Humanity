@@ -260,6 +260,12 @@
       "decision": "v0.739.0 GARDEN SLOT TILES + BULK HARVEST. Replaced the per-slot expandable_row list with a wrapped grid of compact status tiles (swatch+glyph, color-coded status word, 4px growth bar; click -> ONE detail card below with the same stats/actions; selection in egui temp memory per group). Added \"Harvest N ready\" per group: GuiState.pending_harvest_many -> harvest_many_request Mutex<Vec<u64>> -> the farming harvest handler now loops a list (single request + bulk merged), so yield/volume-gate/silo-routing/seed-return/XP/quests all apply per crop unchanged.",
       "why": "Operator field report 2: scroll+expand-each-slot was tedious. Tiles match the backpack item-tile language (one visual grammar); bulk harvest removes the per-slot click loop entirely.",
       "verification": "New test bulk_harvest_picks_every_ready_crop_in_one_tick + 778 lib tests; native+relay checks; inventory snapshot renders; theme+glyph lints."
+    },
+    {
+      "at": "2026-07-07",
+      "decision": "v0.740.0 CI-VERIFY FIX (em dashes in rendered GUI strings from the earlier chat/server-settings arcs; no_emdash lint red since v0.738.1, caught by the post-release gh-run-list glance) + v0.741.0 Settings>Data STORAGE section (active mode + plain-language note + Open-in-file-manager rows for game data / saves / config, resolved from the REAL path functions so display cannot drift). Lint lesson persisted to memory dev_workflow_tooling: the pre-push standalone trio is emdash+theme+glyph, all kept prebuilt in %TEMP%, plus check the VERIFY workflow (not just deploy) after every push.",
+      "why": "The emdash ban is an operator hard rule (AI-tell in user-facing text); the Storage section is the tracked v0.707 follow-up and a GUI-first item needing no operator decision. PRIORITIES.md Active focus + FEATURES.md (farming/inventory/containers) synced the same hour.",
+      "verification": "Verify workflow GREEN on v0.740.0+ (was red). 778 lib tests; both feature checks; emdash+theme+glyph standalone; settings snapshot renders."
     }
   ],
   "active_scopes_to_avoid": [
