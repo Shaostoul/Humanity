@@ -11,6 +11,32 @@
 
 ## Active focus
 
+> **>>> FIELD-FEEDBACK LOOP DAY 2 (2026-07-07): FIELD REPORT 2 FULLY SHIPPED
+> (v0.735 -> v0.740).** The operator's hands-on report on v0.731.1 drove five
+> releases, all synced + exe-archived:
+> - v0.735: HOLD-ALT frees the FPS cursor at machine cards; "Save home" now
+>   saves MACHINE placements too (was structure-only -- data-loss grade);
+>   smelter status says where it looks; volume-legal adds grow slots.
+> - v0.736: inventory transfer AT the tile -- right-click Stash/Move/Take
+>   context menu + full drag & drop (tiles drag onto container headers,
+>   accent highlight, floating label). No modal.
+> - v0.737: auto machines draw inputs from HOME STORAGE backpack-first
+>   (home_stock mirror bridge) -- "iron in my inventory and/or garage" now
+>   genuinely feeds the smelter.
+> - v0.738: THE GRAIN LOOP -- beds/trays/fields are plantable garden groups
+>   (Plant button, default_crop in grow_media.ron, seeds consumed, idempotent
+>   refill); 8 grain_<plant>_0 harvest items + sunflower + 6 seed packets in
+>   items.csv (dry_goods -> silo routing engages); per-bed irrigation.
+> - v0.739: garden slot TILE GRID replaces scroll+expand rows; "Harvest N
+>   ready" bulk button (harvest_many_request channel).
+> - v0.740: CI Verify fix -- em dashes purged from rendered GUI strings
+>   (no_emdash lint had gone red at v0.738.1; local lint routine now runs
+>   emdash + theme + glyph before every push).
+> NEXT: operator field report 3 (re-test list in orchestrator_state
+> current_focus); vehicle-kit GLB models BLOCKED on operator Blender exports
+> (pipeline ready, docs/game/model-pipeline.md + the Model test crate).
+> Release-signing backlog (operator-only): v0.678+ unsigned. <<<**
+
 > **>>> MODEL HANDOFF: FABLE -> OPUS (operator, 2026-07-06). Fable 5 access ends
 > ~July 7; then Opus for weeks/months with less compute headroom. Use the
 > remaining Fable time to FINISH the launch-critical, everyday-use features and

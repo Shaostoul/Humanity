@@ -907,8 +907,19 @@ Gas tracking, explosions, suffocation, pressure simulation. **Registered (v0.617
 - Native: `src/systems/disasters.rs`
 
 ### Farming
-6 growth stages, water/health simulation, seasonal effects.
-- Native: `src/systems/farming/mod.rs`
+6 growth stages, water/health simulation, seasonal effects. Plantable grow
+areas beyond towers (v0.738 grain loop): beds/trays/fields render as Garden
+groups with a Plant button (crop = edit-modal Crop field or the medium's
+`default_crop` in grow_media.ron; survival consumes one seed per unit,
+replant is idempotent); bed crops carry the grow-area MACHINE id in
+CropInstance.tower_id + tower_slot = unit index, so grouping/irrigation/
+harvest reuse the tower paths. 8 `grain_<plant>_0` harvest items (dry_goods,
+silo-compatible) + fruit_sunflower_0. Garden slots render as a compact TILE
+GRID with one detail card (v0.739) and each group has a "Harvest N ready"
+bulk button (`harvest_many_request` channel). Harvest overflow routes to a
+compatible home vessel (v0.729 silo routing).
+- Native: `src/systems/farming/mod.rs`, `src/gui/pages/inventory.rs` (Garden)
+- Data: `data/plants.csv`, `data/garden/grow_media.ron`, `data/items.csv`
 
 ### Inventory
 ItemStack slots, add/remove/transfer, max stack from data. Volume tracking
@@ -917,21 +928,32 @@ ItemStack slots, add/remove/transfer, max stack from data. Volume tracking
 material density × per-category packing fraction; `RECOMPUTE_MATS=` env to
 refresh a material's rows); `Inventory.volume_current_l` recalculated every
 tick beside weight, `volume_capacity_l` default 65 L; the Inventory page shows
-a Volume tile + per-item Volume detail row. Slice 2 (NOT built): volume
-ENFORCEMENT in add_item/outputs_fit — slots demoted to bandolier-likes.
-- Native: `src/systems/inventory/mod.rs`
+a Volume tile + per-item Volume detail row. Slice 2 ENFORCEMENT (v0.727):
+`add_item_volume_gated` caps by remaining litres on transfers/crafting/
+harvest/compost; `outputs_fit` volume headroom pauses auto-machines; a
+volume-legal add GROWS the slot grid (v0.735 — volume is the real pack limit,
+raw `add_item` stays slot-bound for bandolier-likes). Transfer UX (v0.736):
+right-click an item tile for a Stash/Move/Take context menu at the cursor,
+or DRAG a tile onto any container header (accent highlight + floating label).
+Auto machines draw recipe inputs from HOME STORAGE backpack-first (v0.737):
+lib.rs mirrors the organize-layer placed items into a `home_stock` map
+pre-tick; crafting counts + consumes; the diff drains back post-tick.
+- Native: `src/systems/inventory/mod.rs`, `src/gui/pages/inventory.rs`,
+  `src/systems/crafting/mod.rs` (home_stock), `src/lib.rs` (bridge)
 - Data: `data/items.csv` (volume_l), `data/materials.csv` (densities)
 
 ### Typed Containers (volume-capped vessels)
-Full system for volume-capped, content-class-typed vessels (barrels, tanks,
-jars: capacity_liters, no-mixing, wrong-class damage/breakage) with registry +
-tests. **⚠️ NOT SPAWNED: `Container::from_type` has zero runtime callers —
-no placed machine gets a Container component, so "containers show contents"
-walk-up stats have nothing to read yet.** Wiring needs a design pass: which
-home.ron machines are containers + how MachineDef declares its container_type
-(found 2026-07-06 while extending the live machine cards).
-- Native: `src/systems/inventory/containers.rs`
-- Data: `data/containers/types.csv`
+Volume-capped, content-class-typed vessels (barrels, tanks, jars:
+capacity_liters, no-mixing, wrong-class damage/breakage) with registry +
+tests. WIRED (v0.728+): `MachineDef.container_type` in home.ron spawns a
+`Container` component on the machine entity (grain silo bin, steel fuel
+drum); the walk-up machine card shows "Holds: Nx item" + Take + per-item
+Store buttons; harvest overflow and refinery output fill them; the backstop
+genset burns its drum's flammable contents (`src/systems/electrical.rs`).
+Always pre-check `registry.check().is_accepted()` before `try_store` — a
+wrong-class store DAMAGES the vessel by design.
+- Native: `src/systems/inventory/containers.rs`, `src/machines.rs`
+- Data: `data/containers/types.csv`, `data/machines/home.ron`
 
 ### Machine Walk-Up Cards (live)
 Distance-LOD machine labels (dot → name → stat card) with LIVE values
