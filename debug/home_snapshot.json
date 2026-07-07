@@ -1,0 +1,829 @@
+{
+  "depth": 89.0,
+  "derived": {
+    "box_m": [
+      55.0,
+      89.0,
+      3.0
+    ],
+    "corners": [
+      {
+        "walls_meeting": 2,
+        "x": 52.75,
+        "z": 51.25
+      },
+      {
+        "walls_meeting": 2,
+        "x": 50.0,
+        "z": 57.75
+      },
+      {
+        "walls_meeting": 2,
+        "x": 55.0,
+        "z": 55.5
+      },
+      {
+        "walls_meeting": 2,
+        "x": 43.75,
+        "z": 45.75
+      },
+      {
+        "walls_meeting": 2,
+        "x": 51.0,
+        "z": 47.25
+      },
+      {
+        "walls_meeting": 2,
+        "x": 48.75,
+        "z": 45.5
+      },
+      {
+        "walls_meeting": 1,
+        "x": 45.0,
+        "z": 52.5
+      },
+      {
+        "walls_meeting": 1,
+        "x": 43.0,
+        "z": 49.25
+      },
+      {
+        "walls_meeting": 2,
+        "x": 45.5,
+        "z": 57.0
+      }
+    ],
+    "light_count": 8,
+    "wall_count": 8,
+    "walls": [
+      {
+        "a": [
+          45.0,
+          52.5
+        ],
+        "b": [
+          45.5,
+          57.0
+        ],
+        "heading_deg": 83.6598129272461,
+        "index": 0,
+        "length_m": 4.527692794799805,
+        "material": "Steel",
+        "openings": 1,
+        "thickness_m": 0.05999999865889549
+      },
+      {
+        "a": [
+          45.5,
+          57.0
+        ],
+        "b": [
+          50.0,
+          57.75
+        ],
+        "heading_deg": 9.462322235107422,
+        "index": 1,
+        "length_m": 4.562071800231934,
+        "material": "Concrete",
+        "openings": 1,
+        "thickness_m": 0.15000000596046448
+      },
+      {
+        "a": [
+          50.0,
+          57.75
+        ],
+        "b": [
+          55.0,
+          55.5
+        ],
+        "heading_deg": -24.227745056152344,
+        "index": 2,
+        "length_m": 5.482928276062012,
+        "material": "Oak",
+        "openings": 1,
+        "thickness_m": 0.10000000149011612
+      },
+      {
+        "a": [
+          55.0,
+          55.5
+        ],
+        "b": [
+          52.75,
+          51.25
+        ],
+        "heading_deg": -117.89727783203125,
+        "index": 3,
+        "length_m": 4.8088459968566895,
+        "material": "Tempered glass",
+        "openings": 1,
+        "thickness_m": 0.012000000104308128
+      },
+      {
+        "a": [
+          52.75,
+          51.25
+        ],
+        "b": [
+          51.0,
+          47.25
+        ],
+        "heading_deg": -113.62937927246094,
+        "index": 4,
+        "length_m": 4.366062164306641,
+        "material": "Aluminum",
+        "openings": 1,
+        "thickness_m": 0.03999999910593033
+      },
+      {
+        "a": [
+          51.0,
+          47.25
+        ],
+        "b": [
+          48.75,
+          45.5
+        ],
+        "heading_deg": -142.12503051757812,
+        "index": 5,
+        "length_m": 2.8504385948181152,
+        "material": "Pine",
+        "openings": 1,
+        "thickness_m": 0.09000000357627869
+      },
+      {
+        "a": [
+          48.75,
+          45.5
+        ],
+        "b": [
+          43.75,
+          45.75
+        ],
+        "heading_deg": 177.13760375976562,
+        "index": 6,
+        "length_m": 5.006246089935303,
+        "material": "Granite",
+        "openings": 1,
+        "thickness_m": 0.20000000298023224
+      },
+      {
+        "a": [
+          43.75,
+          45.75
+        ],
+        "b": [
+          43.0,
+          49.25
+        ],
+        "heading_deg": 102.09475708007812,
+        "index": 7,
+        "length_m": 3.5794553756713867,
+        "material": "HDPE plastic",
+        "openings": 0,
+        "thickness_m": 0.019999999552965164
+      }
+    ]
+  },
+  "height": 3.0,
+  "lights": [
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        38.099998474121094,
+        2.700000047683716,
+        44.5
+      ],
+      "range": null,
+      "type_id": "ceiling_panel"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        33.0,
+        0.800000011920929,
+        50.0
+      ],
+      "range": null,
+      "type_id": "warm_lamp"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        26.399999618530273,
+        2.700000047683716,
+        54.0
+      ],
+      "range": null,
+      "type_id": "cool_panel"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        27.5,
+        2.700000047683716,
+        33.79999923706055
+      ],
+      "range": 10.0,
+      "type_id": "spotlight"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        37.79999923706055,
+        2.0,
+        53.099998474121094
+      ],
+      "range": null,
+      "type_id": "strip"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": null,
+      "on": true,
+      "pos": [
+        49.29999923706055,
+        1.0,
+        53.29999923706055
+      ],
+      "range": 6.0,
+      "type_id": "strip"
+    },
+    {
+      "color": null,
+      "dir": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "intensity": 11.0,
+      "on": true,
+      "pos": [
+        42.5,
+        2.799999952316284,
+        71.30000305175781
+      ],
+      "range": 40.0,
+      "type_id": "ceiling_panel"
+    },
+    {
+      "color": null,
+      "dir": [
+        -6.69697328703478e-8,
+        -0.6427875757217407,
+        0.7660444378852844
+      ],
+      "intensity": 50.0,
+      "on": true,
+      "pos": [
+        11.399999618530273,
+        14.0,
+        0.25
+      ],
+      "range": 40.0,
+      "type_id": "spotlight"
+    }
+  ],
+  "rail_edges": [],
+  "rail_nodes": [],
+  "road_edges": [],
+  "road_nodes": [],
+  "roof_material": 4,
+  "shell_material": 1,
+  "shell_thickness": null,
+  "spawn": [
+    36.756874084472656,
+    25.230674743652344
+  ],
+  "structures": [
+    {
+      "pair": null,
+      "pos": [
+        39.738162994384766,
+        0.0,
+        78.540771484375
+      ],
+      "rot_deg": 0.0,
+      "type_id": "elevator"
+    },
+    {
+      "pair": null,
+      "pos": [
+        23.0,
+        0.0,
+        27.25
+      ],
+      "rot_deg": 0.0,
+      "type_id": "ladder"
+    },
+    {
+      "pair": null,
+      "pos": [
+        36.170936584472656,
+        0.0,
+        77.89288330078125
+      ],
+      "rot_deg": 0.0,
+      "type_id": "ramp"
+    },
+    {
+      "pair": null,
+      "pos": [
+        37.33970642089844,
+        0.0,
+        69.0664291381836
+      ],
+      "rot_deg": 0.0,
+      "type_id": "stairs"
+    },
+    {
+      "pair": 5,
+      "pos": [
+        44.12833786010742,
+        0.0,
+        68.88977813720703
+      ],
+      "rot_deg": 0.0,
+      "type_id": "teleporter"
+    },
+    {
+      "pair": 4,
+      "pos": [
+        49.33073425292969,
+        0.0,
+        71.4035415649414
+      ],
+      "rot_deg": 0.0,
+      "type_id": "teleporter"
+    },
+    {
+      "pair": null,
+      "pos": [
+        47.33094024658203,
+        0.0,
+        79.64120483398438
+      ],
+      "rot_deg": 0.0,
+      "type_id": "train"
+    }
+  ],
+  "walls": [
+    {
+      "a": [
+        45.0,
+        52.5
+      ],
+      "b": [
+        45.5,
+        57.0
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 1,
+      "openings": [
+        {
+          "at": 0.75,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.75,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "swing",
+          "width": 3.0
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        45.5,
+        57.0
+      ],
+      "b": [
+        50.0,
+        57.75
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 2,
+      "openings": [
+        {
+          "at": 1.7810359001159668,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.0999999046325684,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "slide",
+          "width": 1.0
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        50.0,
+        57.75
+      ],
+      "b": [
+        55.0,
+        55.5
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 3,
+      "openings": [
+        {
+          "at": 2.241464138031006,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.0999999046325684,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "rotate",
+          "width": 1.0
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        55.0,
+        55.5
+      ],
+      "b": [
+        52.75,
+        51.25
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 4,
+      "openings": [
+        {
+          "at": 0.32721149921417236,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.0999999046325684,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "energy",
+          "width": 3.922788619995117
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        52.75,
+        51.25
+      ],
+      "b": [
+        51.0,
+        47.25
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 5,
+      "openings": [
+        {
+          "at": 0.75,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.0999999046325684,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "nanowall",
+          "width": 2.75
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        51.0,
+        47.25
+      ],
+      "b": [
+        48.75,
+        45.5
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 6,
+      "openings": [
+        {
+          "at": 0.9252192974090576,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.0999999046325684,
+          "kind": "Door",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.0,
+          "style": "fixed",
+          "width": 1.0
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        48.75,
+        45.5
+      ],
+      "b": [
+        43.75,
+        45.75
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 7,
+      "openings": [
+        {
+          "at": 0.10000000149011612,
+          "auto_open": true,
+          "control_panel": false,
+          "height": 2.5,
+          "kind": "Window",
+          "locked": false,
+          "locks": [],
+          "open_dist": 2.5999999046325684,
+          "sill": 0.20000000298023224,
+          "style": "fixed",
+          "width": 4.5
+        }
+      ],
+      "thickness": null
+    },
+    {
+      "a": [
+        43.75,
+        45.75
+      ],
+      "b": [
+        43.0,
+        49.25
+      ],
+      "height": 3.0,
+      "layers": [],
+      "material": 8,
+      "openings": [],
+      "thickness": null
+    }
+  ],
+  "width": 55.0,
+  "zones": [
+    {
+      "id": "res-1",
+      "label": "Residential District A",
+      "origin": [
+        57.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        120.0,
+        4.0,
+        200.0
+      ],
+      "type_id": "residential"
+    },
+    {
+      "id": "hangar-1",
+      "label": "Hangar Bay 1",
+      "origin": [
+        200.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        50.0,
+        12.0,
+        40.0
+      ],
+      "type_id": "hangar"
+    },
+    {
+      "id": "mech-1",
+      "label": "Mech Bay 1",
+      "origin": [
+        200.0,
+        0.0,
+        45.0
+      ],
+      "size": [
+        16.0,
+        8.0,
+        16.0
+      ],
+      "type_id": "mech_bay"
+    },
+    {
+      "id": "power-1",
+      "label": "Reactor 1",
+      "origin": [
+        200.0,
+        0.0,
+        65.0
+      ],
+      "size": [
+        24.0,
+        8.0,
+        24.0
+      ],
+      "type_id": "power"
+    },
+    {
+      "id": "medical-1",
+      "label": "Medical Bay",
+      "origin": [
+        200.0,
+        0.0,
+        93.0
+      ],
+      "size": [
+        18.0,
+        4.0,
+        18.0
+      ],
+      "type_id": "medical"
+    },
+    {
+      "id": "armory-1",
+      "label": "Armory",
+      "origin": [
+        200.0,
+        0.0,
+        115.0
+      ],
+      "size": [
+        24.0,
+        5.0,
+        34.0
+      ],
+      "type_id": "armory"
+    },
+    {
+      "id": "arena-1",
+      "label": "Arena",
+      "origin": [
+        200.0,
+        0.0,
+        153.0
+      ],
+      "size": [
+        36.0,
+        10.0,
+        36.0
+      ],
+      "type_id": "arena"
+    },
+    {
+      "id": "mall-1",
+      "label": "The Concourse",
+      "origin": [
+        60.0,
+        0.0,
+        205.0
+      ],
+      "size": [
+        40.0,
+        6.0,
+        40.0
+      ],
+      "type_id": "civic_mall"
+    },
+    {
+      "id": "transit-1",
+      "label": "Transit Hub",
+      "origin": [
+        110.0,
+        0.0,
+        205.0
+      ],
+      "size": [
+        24.0,
+        6.0,
+        24.0
+      ],
+      "type_id": "transit_hub"
+    },
+    {
+      "id": "industrial-1",
+      "label": "Factory District",
+      "origin": [
+        -190.0,
+        0.0,
+        0.0
+      ],
+      "size": [
+        40.0,
+        8.0,
+        30.0
+      ],
+      "type_id": "industrial"
+    },
+    {
+      "id": "storage-1",
+      "label": "Storage",
+      "origin": [
+        -190.0,
+        0.0,
+        35.0
+      ],
+      "size": [
+        20.0,
+        5.0,
+        20.0
+      ],
+      "type_id": "storage"
+    },
+    {
+      "id": "cargo-1",
+      "label": "Cargo Freight",
+      "origin": [
+        -190.0,
+        0.0,
+        60.0
+      ],
+      "size": [
+        24.0,
+        5.0,
+        24.0
+      ],
+      "type_id": "cargo"
+    },
+    {
+      "id": "agri-1",
+      "label": "Agricultural Bay",
+      "origin": [
+        -190.0,
+        0.0,
+        90.0
+      ],
+      "size": [
+        30.0,
+        5.0,
+        30.0
+      ],
+      "type_id": "agriculture"
+    }
+  ]
+}

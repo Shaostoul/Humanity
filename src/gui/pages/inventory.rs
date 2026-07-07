@@ -434,6 +434,20 @@ fn with_placed_sel<R>(f: impl FnOnce(&mut Option<usize>) -> R) -> R {
 /// One clickable item tile: a stable-colored swatch (the item's initial as a glyph),
 /// the truncated name, and a quantity badge. `selected` draws the accent outline.
 /// Returns true when clicked.
+/// What an inventory tile drag is carrying (v0.736 drag & drop): a live backpack
+/// slot or a placed-pool entry. Dropped onto a container HEADER row to transfer —
+/// same three mechanisms as the right-click menu, one gesture instead of two.
+#[derive(Clone, Copy, PartialEq)]
+enum InvDragPayload {
+    /// Live backpack slot index.
+    Slot(usize),
+    /// Placed-pool (organize layer) index.
+    Placed(usize),
+}
+
+/// Returns the tile's Response so callers can read `.clicked()` AND attach a
+/// right-click context menu (v0.736: "Stash to" at the cursor — the transfer
+/// action stays where the eyes are, no scroll to the detail card).
 fn item_tile(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -441,7 +455,7 @@ fn item_tile(
     item_id: &str,
     qty: u32,
     selected: bool,
-) -> bool {
+) -> egui::Response {
     let glyph = name.chars().next().map(|c| c.to_uppercase().to_string()).unwrap_or_default();
     let stroke = if selected {
         Stroke::new(2.0, theme.accent())
@@ -473,19 +487,46 @@ fn item_tile(
                 }
             });
         });
-    let resp = inner.response.interact(egui::Sense::click());
+    // click_and_drag: click selects (as before), drag carries the tile to a
+    // container header (v0.736 drag & drop). A click is a press+release without
+    // movement, so selection is unaffected by the added drag sense.
+    let resp = inner.response.interact(egui::Sense::click_and_drag());
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
-    resp.clicked()
+    resp
+}
+
+/// Floating "Moving Nx Name" label at the pointer while a tile drag is in flight,
+/// plus the grabbing cursor — the drag's visual feedback (v0.736).
+fn drag_feedback(ui: &egui::Ui, theme: &Theme, name: &str, qty: u32) {
+    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    let text = if qty > 1 { format!("Moving {qty}x {name}") } else { format!("Moving {name}") };
+    egui::show_tooltip_at_pointer(
+        ui.ctx(),
+        ui.layer_id(),
+        egui::Id::new("inv_drag_feedback"),
+        |ui| {
+            ui.label(RichText::new(text).size(theme.font_size_small).color(theme.text_primary()));
+        },
+    );
 }
 
 /// Clicks the nested-container renderer recorded this frame: a live backpack tile (by
 /// slot) or a placed-pool item tile (by index). Applied to selection after the render.
+/// v0.736 adds the right-click transfer actions (operator field report 2: the
+/// tile-then-scroll-then-dropdown round trip was "a bad design" — the menu now opens
+/// AT the tile, so the eyes never leave it).
 #[derive(Default)]
 struct PlacesOut {
     clicked_slot: Option<usize>,
     clicked_placed: Option<usize>,
+    /// Right-click "Stash to": live backpack slot index -> target container path.
+    stash_slot: Option<(usize, String)>,
+    /// Right-click "Move to": placed-pool index -> new container path.
+    move_placed: Option<(usize, String)>,
+    /// Right-click "Take to backpack": placed-pool index to pull into the live inventory.
+    take_placed: Option<usize>,
 }
 
 /// Recursively render one container (a [`crate::gui::Place`]) as a card: a clickable
@@ -504,6 +545,7 @@ fn draw_container(
     path: &str,
     sel_slot: Option<usize>,
     sel_placed: Option<usize>,
+    containers: &[(String, String)],
     out: &mut PlacesOut,
 ) {
     let depth = path.matches('/').count();
@@ -583,6 +625,35 @@ fn draw_container(
                 r.borrow_mut().insert(path.to_string());
             });
         }
+        // v0.736 drag & drop: every container header is a DROP TARGET. A backpack
+        // tile dropped here stashes into this container; a placed tile dropped here
+        // moves here — or comes back to the live backpack when this IS the backpack
+        // node. Highlight while a payload hovers so the target reads at a glance.
+        if row.dnd_hover_payload::<InvDragPayload>().is_some() {
+            ui.painter().rect_stroke(
+                row.rect.expand(2.0),
+                egui::Rounding::same(theme.border_radius as u8),
+                Stroke::new(2.0, theme.accent()),
+                egui::StrokeKind::Outside,
+            );
+        }
+        if let Some(payload) = row.dnd_release_payload::<InvDragPayload>() {
+            match *payload {
+                InvDragPayload::Slot(i) => {
+                    // Dropping a live-backpack stack onto the backpack itself is a no-op.
+                    if !is_backpack {
+                        out.stash_slot = Some((i, path.to_string()));
+                    }
+                }
+                InvDragPayload::Placed(idx) => {
+                    if is_backpack {
+                        out.take_placed = Some(idx);
+                    } else {
+                        out.move_placed = Some((idx, path.to_string()));
+                    }
+                }
+            }
+        }
         if open {
             // Direct contents render as item TILES: the live backpack stack (at the
             // kind:"backpack" node) OR the placed-pool items tagged with this path.
@@ -622,8 +693,35 @@ fn draw_container(
                         ui.horizontal(|ui| {
                             for &i in row {
                                 if let Some(it) = &inv[i] {
-                                    if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, sel_slot == Some(i)) {
+                                    let resp = item_tile(ui, theme, &it.name, &it.item_id, it.quantity, sel_slot == Some(i));
+                                    if resp.clicked() {
                                         out.clicked_slot = Some(i);
+                                    }
+                                    // Drag the tile onto a container header to stash it
+                                    // there (v0.736 drag & drop).
+                                    if resp.drag_started() {
+                                        egui::DragAndDrop::set_payload(ui.ctx(), InvDragPayload::Slot(i));
+                                    }
+                                    if resp.dragged() {
+                                        drag_feedback(ui, theme, &it.name, it.quantity);
+                                    }
+                                    // Right-click = transfer AT the tile: stash the whole
+                                    // stack into any container without scrolling to the
+                                    // detail card (operator field report 2026-07-06).
+                                    if !containers.is_empty() {
+                                        resp.context_menu(|ui| {
+                                            ui.label(
+                                                RichText::new("Stash to")
+                                                    .size(theme.font_size_small)
+                                                    .color(theme.text_muted()),
+                                            );
+                                            for (p, label) in containers {
+                                                if ui.button(label.as_str()).clicked() {
+                                                    out.stash_slot = Some((i, p.clone()));
+                                                    ui.close_menu();
+                                                }
+                                            }
+                                        });
                                     }
                                 }
                             }
@@ -635,9 +733,44 @@ fn draw_container(
                             for &idx in row {
                                 let pi = &placed[idx];
                                 let sel = sel_placed == Some(idx);
-                                if item_tile(ui, theme, &pi.name, &pi.key, pi.qty, sel) {
+                                let resp = item_tile(ui, theme, &pi.name, &pi.key, pi.qty, sel);
+                                if resp.clicked() {
                                     out.clicked_placed = Some(idx);
                                 }
+                                // Drag onto another container header to move it; onto
+                                // the backpack header to take it (v0.736 drag & drop).
+                                if resp.drag_started() {
+                                    egui::DragAndDrop::set_payload(ui.ctx(), InvDragPayload::Placed(idx));
+                                }
+                                if resp.dragged() {
+                                    drag_feedback(ui, theme, &pi.name, pi.qty);
+                                }
+                                // Right-click on a stored item: pull it back into the
+                                // backpack or shift it to another container, in place.
+                                resp.context_menu(|ui| {
+                                    if ui.button("Take to backpack").clicked() {
+                                        out.take_placed = Some(idx);
+                                        ui.close_menu();
+                                    }
+                                    let others =
+                                        containers.iter().filter(|(p, _)| *p != pi.container);
+                                    let mut any = false;
+                                    for (p, label) in others {
+                                        if !any {
+                                            ui.separator();
+                                            ui.label(
+                                                RichText::new("Move to")
+                                                    .size(theme.font_size_small)
+                                                    .color(theme.text_muted()),
+                                            );
+                                            any = true;
+                                        }
+                                        if ui.button(label.as_str()).clicked() {
+                                            out.move_placed = Some((idx, p.clone()));
+                                            ui.close_menu();
+                                        }
+                                    }
+                                });
                             }
                         });
                     }
@@ -649,7 +782,7 @@ fn draw_container(
                     continue;
                 }
                 ui.add_space(theme.spacing_xs);
-                draw_container(ui, theme, child, inv, placed, &format!("{path}/{i}"), sel_slot, sel_placed, out);
+                draw_container(ui, theme, child, inv, placed, &format!("{path}/{i}"), sel_slot, sel_placed, containers, out);
             }
         }
     });
@@ -1428,6 +1561,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // container's `items`. Clicking a tile selects it; its card shows below.
                 let mut places_out = PlacesOut::default();
                 let placed_sel = with_placed_sel(|s| *s);
+                // Container list computed ONCE for the whole tree render — both the
+                // right-click tile menus and the detail-card dropdowns feed from it.
+                let tree_containers = crate::gui::collect_containers(&state.places);
                 if !state.places.is_empty() {
                     let places = state.places.clone();
                     for (i, place) in places.iter().enumerate() {
@@ -1440,6 +1576,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             &i.to_string(),
                             state.selected_slot,
                             placed_sel,
+                            &tree_containers,
                             &mut places_out,
                         );
                         ui.add_space(theme.spacing_xs);
@@ -1450,11 +1587,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_muted()),
                     );
                 } else {
-                    // No place spine: a single flat backpack grid of tiles.
+                    // No place spine: a single flat backpack grid of tiles. (No
+                    // containers exist without a spine, so no context menu here.)
                     ui.horizontal_wrapped(|ui| {
                         for (i, slot) in state.inventory_items.iter().enumerate() {
                             if let Some(it) = slot {
-                                if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, state.selected_slot == Some(i)) {
+                                if item_tile(ui, theme, &it.name, &it.item_id, it.quantity, state.selected_slot == Some(i)).clicked() {
                                     places_out.clicked_slot = Some(i);
                                 }
                             }
@@ -1473,6 +1611,35 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     with_placed_sel(|s| *s = if *s == Some(idx) { None } else { Some(idx) });
                     state.selected_slot = None;
                     state.garden_selection = None;
+                }
+
+                // Right-click transfer actions from the tiles (v0.736). Same three
+                // mechanisms as the detail cards below, just triggered at the tile.
+                if let Some((i, target)) = places_out.stash_slot.take() {
+                    if let Some(Some(it)) = state.inventory_items.get(i) {
+                        let it = it.clone();
+                        state.pending_inventory_transfers.push((it.item_id.clone(), it.quantity, false));
+                        state.placed_items.push(crate::gui::PlacedItem {
+                            key: it.item_id,
+                            name: it.name,
+                            qty: it.quantity,
+                            container: target,
+                        });
+                        if state.selected_slot == Some(i) {
+                            state.selected_slot = None;
+                        }
+                    }
+                }
+                if let Some(idx) = places_out.take_placed.take() {
+                    if let Some(pi) = state.placed_items.get(idx).cloned() {
+                        state.pending_inventory_transfers.push((pi.key, pi.qty, true));
+                        state.placed_items.remove(idx);
+                        with_placed_sel(|s| *s = None);
+                    }
+                } else if let Some((idx, target)) = places_out.move_placed.take() {
+                    if let Some(p) = state.placed_items.get_mut(idx) {
+                        p.container = target;
+                    }
                 }
 
                 // The selected item's card, shown once below the section. A live

@@ -263,7 +263,7 @@
             range: Some(40.0),
         ),
     ],
-    spawn: Some((7.000847, 19.80943)),
+    spawn: Some((36.756874, 25.230675)),
     structures: [
         (
             type_id: "elevator",
@@ -273,7 +273,7 @@
         ),
         (
             type_id: "ladder",
-            pos: (40.119217, 0.0, 74.29884),
+            pos: (23.0, 0.0, 27.25),
             rot_deg: 0.0,
             pair: None,
         ),
