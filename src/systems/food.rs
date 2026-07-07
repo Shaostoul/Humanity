@@ -135,11 +135,13 @@ pub struct FoodSystem {
 
 impl FoodSystem {
     pub fn new(data_dir: &Path) -> Self {
-        let path = data_dir.join("food_system.ron");
-        let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
-            log::warn!("Failed to read {}: {e}", path.display());
-            "(nutrition_profiles:[],preservation_methods:[],cooking_methods:[],meal_quality_levels:[],temperature_zones:[])".to_string()
-        });
+        // Disk-first (modding), embedded fallback (v0.744) — a zero-file
+        // install keeps its nutrition/cooking data.
+        let text = crate::embedded_data::read_data_or_embedded(data_dir, "food_system.ron")
+            .unwrap_or_else(|| {
+                log::warn!("food_system.ron not found on disk or embedded");
+                "(nutrition_profiles:[],preservation_methods:[],cooking_methods:[],meal_quality_levels:[],temperature_zones:[])".to_string()
+            });
         let data: FoodData = ron::from_str(&text).unwrap_or_else(|e| {
             log::warn!("Failed to parse food_system.ron: {e}");
             FoodData { nutrition_profiles: vec![], preservation_methods: vec![], cooking_methods: vec![], meal_quality_levels: vec![], temperature_zones: vec![] }

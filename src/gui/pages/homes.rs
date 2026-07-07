@@ -191,9 +191,9 @@ pub struct HomeOutline {
 /// malformed file yields empty data (the panel hides; the page still works).
 pub fn load_home_outline(data_dir: &std::path::Path) -> HomeOutline {
     let path = data_dir.join("home_outline.json");
-    let text = match std::fs::read_to_string(&path) {
-        Ok(t) => t,
-        Err(_) => return HomeOutline::default(),
+    let text = match crate::embedded_data::read_data_or_embedded(data_dir, "home_outline.json") {
+        Some(t) => t,
+        None => return HomeOutline::default(),
     };
     match serde_json::from_str::<HomeOutline>(&text) {
         Ok(d) => d,
@@ -1186,11 +1186,17 @@ mod tests {
         }
     }
 
-    /// Missing outline degrades to empty (panel hides), never a panic.
+    /// A missing DISK outline falls back to the EMBEDDED copy (v0.744
+    /// distributed-build completeness) — a zero-file install still shows the
+    /// full Home outline instead of a hidden panel. Never a panic.
     #[test]
-    fn home_outline_missing_file_is_empty() {
+    fn home_outline_missing_file_falls_back_to_embedded() {
         let o = super::load_home_outline(std::path::Path::new("data/definitely_not_a_dir"));
-        assert!(o.loops.is_empty());
+        assert!(
+            !o.loops.is_empty(),
+            "embedded home_outline.json should provide the loops when the disk file is absent"
+        );
+        assert!(!o.title.is_empty());
     }
 
     #[test]

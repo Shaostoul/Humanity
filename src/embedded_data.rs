@@ -111,6 +111,24 @@ pub const LANGUAGE_ACRONYMS_JSON: &str = include_str!("../data/language/acronyms
 pub const LANGUAGE_DICTIONARY_JSON: &str = include_str!("../data/language/dictionary.json");
 pub const LANGUAGE_PARTS_OF_SPEECH_JSON: &str = include_str!("../data/language/parts_of_speech.json");
 
+// ── Gameplay data with runtime loaders (v0.744, distributed-build
+//    completeness): these were loaded from disk ONLY, so a zero-file fresh
+//    install silently lost machines, containers, vitals, the garden, and the
+//    vehicle kits. All small (the set totals ~155 KB). ─────────────────────
+pub const STATUS_EFFECTS_CSV: &str = include_str!("../data/status_effects.csv");
+pub const CONTAINER_TYPES_CSV: &str = include_str!("../data/containers/types.csv");
+pub const CONTAINER_CONTENT_CLASSES_RON: &str = include_str!("../data/containers/content_classes.ron");
+pub const FOOD_SYSTEM_RON: &str = include_str!("../data/food_system.ron");
+pub const MACHINES_HOME_RON: &str = include_str!("../data/machines/home.ron");
+pub const MACHINES_HOME_SOLO_RON: &str = include_str!("../data/machines/home_solo.ron");
+pub const GROW_MEDIA_RON: &str = include_str!("../data/garden/grow_media.ron");
+pub const VEHICLE_KITS_RON: &str = include_str!("../data/vehicles/kits.ron");
+pub const AEROPONIC_CONFIGS_RON: &str = include_str!("../data/towers/aeroponic_configs.ron");
+pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
+pub const HOME_OUTLINE_JSON: &str = include_str!("../data/home_outline.json");
+pub const FIBONACCI_HOMESTEAD_RON: &str = include_str!("../data/blueprints/fibonacci_homestead.ron");
+pub const GUI_NAVIGATION_JSON: &str = include_str!("../data/gui/navigation.json");
+
 // ── Lookup helper ───────────────────────────────────────────────────
 
 /// Look up an embedded data string by its relative path (as used by AssetManager).
@@ -223,7 +241,33 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "language/dictionary.json" => Some(LANGUAGE_DICTIONARY_JSON),
         "language/parts_of_speech.json" => Some(LANGUAGE_PARTS_OF_SPEECH_JSON),
 
+        // Gameplay data with runtime loaders (v0.744)
+        "status_effects.csv" => Some(STATUS_EFFECTS_CSV),
+        "containers/types.csv" => Some(CONTAINER_TYPES_CSV),
+        "containers/content_classes.ron" => Some(CONTAINER_CONTENT_CLASSES_RON),
+        "food_system.ron" => Some(FOOD_SYSTEM_RON),
+        "machines/home.ron" => Some(MACHINES_HOME_RON),
+        "machines/home_solo.ron" => Some(MACHINES_HOME_SOLO_RON),
+        "garden/grow_media.ron" => Some(GROW_MEDIA_RON),
+        "vehicles/kits.ron" => Some(VEHICLE_KITS_RON),
+        "towers/aeroponic_configs.ron" => Some(AEROPONIC_CONFIGS_RON),
+        "places/seed.json" => Some(PLACES_SEED_JSON),
+        "home_outline.json" => Some(HOME_OUTLINE_JSON),
+        "blueprints/fibonacci_homestead.ron" => Some(FIBONACCI_HOMESTEAD_RON),
+        "gui/navigation.json" => Some(GUI_NAVIGATION_JSON),
+
         _ => None,
+    }
+}
+
+/// Read a data file from `data_dir`, falling back to the embedded copy when
+/// the disk file is absent/unreadable (v0.744). This is THE loader entry
+/// point for gameplay data: disk-first keeps modding working, the fallback
+/// keeps a zero-file fresh install complete.
+pub fn read_data_or_embedded(data_dir: &std::path::Path, rel: &str) -> Option<String> {
+    match std::fs::read_to_string(data_dir.join(rel)) {
+        Ok(s) => Some(s),
+        Err(_) => get_embedded(rel).map(|s| s.to_string()),
     }
 }
 
@@ -309,6 +353,20 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "language/acronyms.json",
     "language/dictionary.json",
     "language/parts_of_speech.json",
+    // Gameplay data with runtime loaders (v0.744)
+    "status_effects.csv",
+    "containers/types.csv",
+    "containers/content_classes.ron",
+    "food_system.ron",
+    "machines/home.ron",
+    "machines/home_solo.ron",
+    "garden/grow_media.ron",
+    "vehicles/kits.ron",
+    "towers/aeroponic_configs.ron",
+    "places/seed.json",
+    "home_outline.json",
+    "blueprints/fibonacci_homestead.ron",
+    "gui/navigation.json",
 ];
 
 #[cfg(test)]

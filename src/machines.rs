@@ -536,11 +536,25 @@ pub fn home_ron_path(data_dir: &Path) -> std::path::PathBuf {
 
 impl MachineHome {
     /// Load from a RON file. Returns `None` (with a warning) on a missing or invalid
-    /// file so the caller can fall back gracefully.
+    /// file so the caller can fall back gracefully. When the disk file is absent,
+    /// falls back to the EMBEDDED copy by filename (v0.744) — a zero-file fresh
+    /// install still gets the full home machine layout.
     pub fn load(path: &Path) -> Option<Self> {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
-            Err(_) => return None, // absent is fine, distributed builds may omit it
+            Err(_) => {
+                let rel = path
+                    .file_name()
+                    .map(|f| format!("machines/{}", f.to_string_lossy()))
+                    .unwrap_or_default();
+                match crate::embedded_data::get_embedded(&rel) {
+                    Some(s) => {
+                        log::info!("{} absent on disk, using embedded {rel}", path.display());
+                        s.to_string()
+                    }
+                    None => return None, // absent is fine, distributed builds may omit it
+                }
+            }
         };
         match ron::from_str::<MachineHome>(&text) {
             Ok(h) => Some(h),

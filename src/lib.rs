@@ -4333,16 +4333,42 @@ mod native_app {
             key: &str,
             build: impl Fn(&[u8]) -> Result<T, String>,
         ) {
-            match std::fs::read(&path) {
-                Ok(bytes) => match build(&bytes) {
+            // Disk-first (modding), embedded fallback (v0.744: a zero-file
+            // fresh install still gets every registry). The embedded key is
+            // the path relative to any `data` dir component.
+            let bytes: Option<Vec<u8>> = match std::fs::read(&path) {
+                Ok(b) => Some(b),
+                Err(_) => {
+                    // Relative key = everything after the LAST `data` path
+                    // component (the data dir itself always ends in `data`).
+                    let comps: Vec<_> = path.iter().collect();
+                    let rel = comps
+                        .iter()
+                        .rposition(|c| *c == std::ffi::OsStr::new("data"))
+                        .map(|i| {
+                            comps[i + 1..]
+                                .iter()
+                                .map(|c| c.to_string_lossy())
+                                .collect::<Vec<_>>()
+                                .join("/")
+                        })
+                        .unwrap_or_default();
+                    crate::embedded_data::get_embedded(&rel).map(|s| {
+                        log::info!("{key}: disk file absent, using embedded {rel}");
+                        s.as_bytes().to_vec()
+                    })
+                }
+            };
+            match bytes {
+                Some(bytes) => match build(&bytes) {
                     Ok(reg) => {
                         store.insert(key, reg);
                         log::info!("Loaded {key} from {}", path.display());
                     }
                     Err(e) => log::warn!("Failed to build {key} from {}: {e}", path.display()),
                 },
-                Err(e) => log::warn!(
-                    "Data file {} not found ({e}); {key} unavailable (system on defaults)",
+                None => log::warn!(
+                    "Data file {} not found (no embedded copy); {key} unavailable (system on defaults)",
                     path.display()
                 ),
             }
@@ -4386,43 +4412,42 @@ mod native_app {
         // foundation/wall/door/window/roof/furniture/machine catalog that had nothing
         // loading it into the DataStore before this, so every queue_build() call would
         // have silently missed the registry lookup forever.
-        match std::fs::read(data_dir.join("blueprints").join("basic.ron")) {
-            Ok(bytes) => match crate::systems::construction::BlueprintRegistry::from_ron(&bytes) {
+        match crate::embedded_data::read_data_or_embedded(data_dir, "blueprints/basic.ron") {
+            Some(text) => match crate::systems::construction::BlueprintRegistry::from_ron(text.as_bytes()) {
                 Ok(reg) => {
                     log::info!("Loaded {} blueprints from blueprints/basic.ron", reg.blueprints.len());
                     store.insert("blueprint_registry", reg);
                 }
                 Err(e) => log::warn!("Failed to parse blueprints/basic.ron: {e}"),
             },
-            Err(e) => log::warn!(
-                "Data file {} not found ({e}); blueprint_registry unavailable (ConstructionSystem idle)",
-                data_dir.join("blueprints").join("basic.ron").display()
+            None => log::warn!(
+                "blueprints/basic.ron not found (no embedded copy); blueprint_registry unavailable (ConstructionSystem idle)"
             ),
         }
         // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
         // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
         // deployed-vehicle render pass.
-        match std::fs::read(data_dir.join("vehicles").join("kits.ron")) {
-            Ok(bytes) => match crate::systems::vehicles::VehicleKitRegistry::from_ron(&bytes) {
+        match crate::embedded_data::read_data_or_embedded(data_dir, "vehicles/kits.ron") {
+            Some(text) => match crate::systems::vehicles::VehicleKitRegistry::from_ron(text.as_bytes()) {
                 Ok(reg) => {
                     log::info!("Loaded {} vehicle kits from vehicles/kits.ron", reg.len());
                     store.insert("vehicle_kit_registry", reg);
                 }
                 Err(e) => log::warn!("Failed to parse vehicles/kits.ron: {e}"),
             },
-            Err(e) => log::warn!(
-                "Data file {} not found ({e}); vehicle_kit_registry unavailable (kit deploy refused)",
-                data_dir.join("vehicles").join("kits.ron").display()
+            None => log::warn!(
+                "vehicles/kits.ron not found (no embedded copy); vehicle_kit_registry unavailable (kit deploy refused)"
             ),
         }
-        // Container types + content-class compatibility (graceful on missing files).
+        // Container types + content-class compatibility (disk-first, embedded fallback).
         {
             use crate::systems::inventory::containers::ContainerRegistry;
-            let types_path = data_dir.join("containers").join("types.csv");
-            let classes_path = data_dir.join("containers").join("content_classes.ron");
-            match (std::fs::read(&types_path), std::fs::read(&classes_path)) {
-                (Ok(types_bytes), Ok(classes_bytes)) => {
-                    match ContainerRegistry::from_bytes(&types_bytes, &classes_bytes) {
+            let types = crate::embedded_data::read_data_or_embedded(data_dir, "containers/types.csv");
+            let classes =
+                crate::embedded_data::read_data_or_embedded(data_dir, "containers/content_classes.ron");
+            match (types, classes) {
+                (Some(types_text), Some(classes_text)) => {
+                    match ContainerRegistry::from_bytes(types_text.as_bytes(), classes_text.as_bytes()) {
                         Ok(reg) => {
                             log::info!(
                                 "Loaded ContainerRegistry: {} container types, {} content classes",
@@ -4435,9 +4460,7 @@ mod native_app {
                     }
                 }
                 _ => log::warn!(
-                    "Container data not found ({} / {}); container compatibility disabled",
-                    types_path.display(),
-                    classes_path.display()
+                    "Container data not found (containers/types.csv + content_classes.ron, no embedded copy); container compatibility disabled"
                 ),
             }
         }

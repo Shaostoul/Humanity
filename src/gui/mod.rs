@@ -3922,17 +3922,18 @@ pub fn studio_scene_from_preset(p: &StudioScenePreset) -> StudioScene {
 }
 
 /// Read a JSON file under `data/` and deserialise into `T`. Logs and returns
-/// `None` on any error so callers can fall back gracefully.
+/// `None` on any error so callers can fall back gracefully. Disk-first,
+/// embedded fallback (v0.744) — zero-file installs keep their data-driven UI.
 #[cfg(feature = "native")]
 fn read_data_json<T: serde::de::DeserializeOwned>(
     data_dir: &std::path::Path,
     relative: &str,
 ) -> Option<T> {
     let path = data_dir.join(relative);
-    let bytes = match std::fs::read_to_string(&path) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("[data] failed to read {}: {}", path.display(), e);
+    let bytes = match crate::embedded_data::read_data_or_embedded(data_dir, relative) {
+        Some(b) => b,
+        None => {
+            eprintln!("[data] failed to read {} (no embedded copy)", path.display());
             return None;
         }
     };
@@ -4165,7 +4166,8 @@ pub struct DesignTier {
 /// page then shows an empty state). Reads RON directly, like src/ship/fibonacci.rs.
 pub fn load_homestead_design(data_dir: &std::path::Path) -> Option<HomesteadDesign> {
     let path = data_dir.join("blueprints/fibonacci_homestead.ron");
-    let text = std::fs::read_to_string(&path).ok()?;
+    let text =
+        crate::embedded_data::read_data_or_embedded(data_dir, "blueprints/fibonacci_homestead.ron")?;
     match ron::from_str::<HomesteadDesign>(&text) {
         Ok(d) => Some(d),
         Err(e) => {
@@ -4380,16 +4382,15 @@ pub fn load_grow_media(data_dir: &std::path::Path) -> Vec<GrowMedium> {
     struct File {
         media: Vec<GrowMedium>,
     }
-    let path = data_dir.join("garden").join("grow_media.ron");
-    match std::fs::read_to_string(&path) {
-        Ok(t) => match ron::from_str::<File>(&t) {
+    match crate::embedded_data::read_data_or_embedded(data_dir, "garden/grow_media.ron") {
+        Some(t) => match ron::from_str::<File>(&t) {
             Ok(f) => f.media,
             Err(e) => {
                 log::warn!("grow_media parse failed: {e}");
                 Vec::new()
             }
         },
-        Err(_) => Vec::new(),
+        None => Vec::new(),
     }
 }
 
@@ -4402,9 +4403,10 @@ pub fn load_tower_configs(data_dir: &std::path::Path) -> Vec<TowerConfig> {
         towers: Vec<TowerConfig>,
     }
     let path = data_dir.join("towers/aeroponic_configs.ron");
-    let text = match std::fs::read_to_string(&path) {
-        Ok(t) => t,
-        Err(_) => return Vec::new(),
+    let text = match crate::embedded_data::read_data_or_embedded(data_dir, "towers/aeroponic_configs.ron")
+    {
+        Some(t) => t,
+        None => return Vec::new(),
     };
     match ron::from_str::<File>(&text) {
         Ok(f) => f.towers,
