@@ -126,6 +126,15 @@ impl Inventory {
         let remaining_l = (self.volume_capacity_l - self.volume_current_l).max(0.0);
         let fits = (remaining_l / unit_volume_l).floor() as u32;
         let accepted = quantity.min(fits);
+        // VOLUME is the real limit (v0.735, operator: "still limited number of
+        // slots instead of volume"): when the volume gate accepts, grow slots
+        // so the slot grid never blocks a volume-legal add. Bandolier-like
+        // by-count holders use the raw add_item and keep fixed slots.
+        if accepted > 0 {
+            let occupied = self.slots.iter().filter(|s| s.is_some()).count();
+            let worst_case_new = (accepted as usize).div_ceil(max_stack.max(1) as usize);
+            self.ensure_slots(occupied + worst_case_new);
+        }
         let slot_overflow = self.add_item(item_id, accepted, max_stack);
         let added = accepted - slot_overflow;
         self.volume_current_l += added as f32 * unit_volume_l;
@@ -457,15 +466,22 @@ mod volume_gate_tests {
     }
 
     #[test]
-    fn slot_overflow_does_not_charge_volume() {
-        // Slots bind before volume: only what actually lands charges litres.
+    fn volume_legal_adds_grow_slots() {
+        // v0.735: VOLUME is the real limit — a volume-legal add grows the
+        // slot grid instead of overflowing on slot count ("slots are for
+        // bandolier-likes"). One slot, stack of 5, 9 items at 1 L each into
+        // 100 L: all 9 land across grown slots; volume charged for 9.
         let mut inv = Inventory::new(1);
         inv.volume_capacity_l = 100.0;
-        // One slot, stack of 5 -> only 5 of 9 land; volume charged for 5.
         let overflow = inv.add_item_volume_gated("box_0", 9, 5, 1.0);
-        assert_eq!(overflow, 4);
-        assert_eq!(inv.count_item("box_0"), 5);
-        assert!((inv.volume_current_l - 5.0).abs() < 1e-6);
+        assert_eq!(overflow, 0, "volume-legal add must not slot-overflow");
+        assert_eq!(inv.count_item("box_0"), 9);
+        assert!(inv.max_slots >= 2, "slots grew to fit");
+        assert!((inv.volume_current_l - 9.0).abs() < 1e-6);
+        // The RAW add_item keeps fixed-slot semantics (bandolier-likes).
+        let mut fixed = Inventory::new(1);
+        let raw_overflow = fixed.add_item("shell_0", 9, 5);
+        assert_eq!(raw_overflow, 4, "raw add_item still slot-bound");
     }
 }
 

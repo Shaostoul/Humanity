@@ -732,9 +732,13 @@ mod native_app {
     /// cursor directly without updating it, which desynced the flag so a panel could render but
     /// not be clicked (recurring "I can see the UI but can't interact" bug).
     fn reconcile_cursor(state: &mut EngineState) {
+        // Hold Alt in first-person to FREE the cursor (v0.735, operator
+        // directive: the centered machine card has buttons, and the only
+        // way to click them used to be alt-tabbing out via the Windows key).
         let want_free = state.gui_state.active_page != GuiPage::None
             || state.gui_state.showroom_active
-            || state.gui_state.construction_active;
+            || state.gui_state.construction_active
+            || state.alt_held;
         if want_free == state.cursor_free {
             return;
         }
@@ -4850,6 +4854,12 @@ mod native_app {
         ctrl_held: bool,
         /// Shift modifier state (v0.575), for Ctrl+Shift+Z redo in the construction editor.
         shift_held: bool,
+        /// Alt modifier state (v0.735, operator directive): HOLDING Alt in
+        /// first-person frees the OS cursor so the pinned machine card's
+        /// buttons/dropdowns are clickable without leaving FPS; releasing Alt
+        /// re-grabs. Mouse look is suppressed while held (reaching for a
+        /// button must not spin the camera).
+        alt_held: bool,
         /// Left-mouse-button held state (v0.575): true while dragging a gizmo or a slider, so the undo
         /// history coalesces a continuous drag into one step (checkpoint on release).
         lmb_held: bool,
@@ -5565,6 +5575,7 @@ mod native_app {
                 data_dir,
                 ctrl_held: false,
                 shift_held: false,
+                alt_held: false,
                 lmb_held: false,
                 construction_history: ConstructionHistory::default(),
             });
@@ -5624,6 +5635,11 @@ mod native_app {
                         }
                         if matches!(key, KeyCode::ShiftLeft | KeyCode::ShiftRight) {
                             state.shift_held = pressed; // for Ctrl+Shift+Z redo (v0.575)
+                        }
+                        if matches!(key, KeyCode::AltLeft | KeyCode::AltRight) {
+                            // Hold-Alt free-look cursor (v0.735) — reconcile_cursor
+                            // reads this every frame.
+                            state.alt_held = pressed;
                         }
                         // Undo/redo in the construction editor (v0.575): Ctrl+Z undo, Ctrl+Shift+Z (or
                         // Ctrl+Y) redo. Gated to build mode so it never fights the chat Ctrl+V path.
@@ -7429,8 +7445,14 @@ mod native_app {
                             let path = state.data_dir.join("blueprints").join("home_structure.ron");
                             let hs = state.gui_state.home_structure.as_ref().unwrap();
                             match hs.save(&path) {
-                                Ok(()) => log::info!("Construction: home structure saved to home_structure.ron"),
-                                Err(e) => log::warn!("Construction: home structure save failed: {e}"),
+                                Ok(()) => {
+                                    log::info!("Construction: home structure saved to home_structure.ron");
+                                    state.gui_state.construction_save_note = "Saved home structure.".to_string();
+                                }
+                                Err(e) => {
+                                    log::warn!("Construction: home structure save failed: {e}");
+                                    state.gui_state.construction_save_note = format!("Structure save FAILED: {e}");
+                                }
                             }
                         } else if let Some(layout) = &state.homestead_layout {
                             match crate::ship::fibonacci::save_layout(layout) {
@@ -7447,8 +7469,16 @@ mod native_app {
                         if let Some(home) = &state.gui_state.home_machines {
                             let path = crate::machines::home_ron_path(&state.data_dir);
                             match home.save(&path) {
-                                Ok(()) => log::info!("Construction: machine layout saved to {}", path.display()),
-                                Err(e) => log::warn!("Construction: machine save failed: {e}"),
+                                Ok(()) => {
+                                    log::info!("Construction: machine layout saved to {}", path.display());
+                                    state.gui_state.construction_save_note =
+                                        "Saved home structure + machines.".to_string();
+                                }
+                                Err(e) => {
+                                    log::warn!("Construction: machine save failed: {e}");
+                                    state.gui_state.construction_save_note =
+                                        format!("Machine save FAILED: {e}");
+                                }
                             }
                         }
                     }
@@ -12786,7 +12816,9 @@ mod native_app {
                 // Pass mouse motion to the camera when no GUI page is active. In FPS this is
                 // look; in the showroom / construction orbit cam it only rotates while a mouse
                 // button is held (so moving over a panel does nothing). (v0.464)
-                if state.gui_state.active_page == GuiPage::None {
+                // Suppressed while Alt frees the cursor (v0.735): reaching for
+                // a machine-card button must not spin the camera.
+                if state.gui_state.active_page == GuiPage::None && !state.alt_held {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                 }
             }

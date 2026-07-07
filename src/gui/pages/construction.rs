@@ -641,6 +641,21 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_xs);
                     if ui.button(RichText::new("Save home").color(theme.text_primary())).clicked() {
                         state.construction_save = true;
+                        // "Save home" means the WHOLE home (v0.735, operator field
+                        // report: a placed vehicle assembler silently vanished).
+                        // The structure and the machine layout persist to two
+                        // files; this button used to write only the structure —
+                        // machine placements were dropped on exit.
+                        if state.home_machines.is_some() {
+                            state.home_machines_save = true;
+                        }
+                    }
+                    if !state.construction_save_note.is_empty() {
+                        ui.label(
+                            RichText::new(&state.construction_save_note)
+                                .size(theme.font_size_small)
+                                .color(theme.success()),
+                        );
                     }
                     if ui.button(RichText::new("Close").color(theme.text_muted())).clicked() {
                         state.construction_wall_mode = false;

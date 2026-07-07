@@ -1937,6 +1937,10 @@ pub struct GuiState {
     /// Set by the editor's Save to write home_machines back to home.ron (mirrors
     /// `construction_save` for rooms). The engine clears it after writing.
     pub home_machines_save: bool,
+    /// Transient "Saved …" confirmation under the editor's Save button —
+    /// set by the engine after the write lands so saving is never silent
+    /// (v0.735, operator: "the save home button doesn't do anything").
+    pub construction_save_note: String,
     /// Editable mirror of the layout's rooms (walls + position + size). The engine fills this
     /// when the editor opens and reads it back when `construction_dirty`. (v0.459)
     pub construction_rooms: Vec<ConstructionRoom>,
@@ -3293,6 +3297,7 @@ impl Default for GuiState {
             construction_console_input: String::new(),
             construction_console_output: String::new(),
             home_machines_save: false,
+            construction_save_note: String::new(),
             construction_rooms: Vec::new(),
             construction_room_types: Vec::new(),
             construction_add_type: String::new(),

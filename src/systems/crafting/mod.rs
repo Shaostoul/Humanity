@@ -700,13 +700,19 @@ impl System for CraftingSystem {
                 let blocked: Option<String> = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
                         // First missing input, by name, with the shortfall.
+                        // "in your backpack" (v0.735, operator confusion): auto
+                        // machines draw from the PLAYER inventory only — ore
+                        // stashed into a home container (clothing bag, duffel)
+                        // is invisible to them. Say so, or a stocked-but-stashed
+                        // home looks like a broken smelter. (Machines drawing
+                        // from home containers is a queued design item.)
                         let missing = recipe.inputs.iter().find_map(|(id, qty)| {
                             let have = inv.count_item(id);
                             (have < *qty).then(|| {
                                 let name = item_registry
                                     .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
                                     .unwrap_or_else(|| id.clone());
-                                format!("waiting for {name} x{}", qty - have)
+                                format!("waiting for {name} x{} in your backpack", qty - have)
                             })
                         });
                         if let Some(m) = missing {
