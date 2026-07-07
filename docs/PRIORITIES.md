@@ -11,6 +11,39 @@
 
 ## Active focus
 
+> **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
+> session produced the decided-design handoff so Opus executes against specs
+> instead of re-deriving taste. READ THESE BEFORE ANY GAMEPLAY WORK:**
+> 1. **`docs/design/gameplay-loop-map.md`** - every loop's current state vs
+>    designed state (verified against lib.rs register calls by a 7-agent
+>    survey), the tier stack (BODY -> HABITAT -> PRODUCTION -> EXCHANGE ->
+>    COMMUNITY -> EXPANSION + RISK/PROGRESSION cross-cuts), and THE CLOSURE
+>    LADDER: a strict 10-rung order where each rung is one shippable session.
+>    Rung 1 = death & recovery. Rung 2 = construction entry point (queue_build
+>    has zero callers). Rung 3 = credits + first NPC vendor (economy.ron +
+>    trade_goods.ron are authored but unloaded). Rung 4 = quest repair.
+> 2. **`docs/design/progression-skills-gear.md`** - skills/abilities/gear with
+>    CONCRETE schemas (skills.csv scales+perk_levels columns, spells.csv ->
+>    abilities.csv with flavor real|tech|fantasy, new equipment.csv joining
+>    items.csv, ONE stat grammar through net_stat_multiplier, the Equipped
+>    component unifying the two equip forks) + a 9-rung ladder where rungs
+>    1-3 need no new systems at all.
+> 3. **`docs/design/decision-briefs.md`** - 5 operator taste calls framed with
+>    recommendations (vehicle bay ZONES, unified map scale ladder, Studio =
+>    OBS companion, browser = no-JS readable web, crew client-side). Each
+>    needs one operator line to green-light; move decided ones into design
+>    docs and delete the brief.
+> Key survey facts Opus should not rediscover: 19 systems are registered
+> (Solar/Electrical/PlayerController were previously undocumented); dormant-
+> but-complete systems are allowlisted in tests/engine_wiring_lint.rs
+> DEFERRED_SYSTEMS with reasons; creatures.csv (92) / spells.csv (110) /
+> enchantments.csv (107) are fully authored with ZERO loaders; the relay
+> holds two extra progression forks (game_state JSON XP + skill_dna
+> reality/fantasy XP) that the progression doc's unification section owns;
+> HydrologySystem has a registration-blocking Mutex-type bug (hydrology.rs:323).
+> Operator-blocked items unchanged: vehicle-kit GLB exports, release signing
+> (v0.678+ unsigned). <<<**
+
 > **>>> FIELD-FEEDBACK LOOP DAY 2 (2026-07-07): FIELD REPORT 2 FULLY SHIPPED
 > (v0.735 -> v0.740).** The operator's hands-on report on v0.731.1 drove five
 > releases, all synced + exe-archived:
