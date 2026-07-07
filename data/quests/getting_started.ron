@@ -7,10 +7,11 @@
 //     emits on completion ("craft_<recipe_id>"). All recipes used here are
 //     skill_level <= 1 (the free starter tier), so a fresh player can complete them.
 //
-// The older tutorial/farming/construction/exploration chains lean on Build
-// objectives that need ConstructionSystem (still deferred), so they can't complete
-// yet, this is the playable/testable chain for #8c. gs_first_steps is auto-accepted
-// on spawn; completing it auto-accepts gs_toolsmith (prerequisite chaining).
+// As of v0.746 Build objectives fire too (the Crafting page's Structures
+// section pushes build_<blueprint_id> events), so the construction chain is
+// completable; as of v0.748 quests can also be ACCEPTED from the Quests page
+// and grant xp_rewards. gs_first_steps is auto-accepted on spawn; completing
+// it auto-accepts gs_toolsmith (prerequisite chaining).
 //
 // Format: Vec<QuestDef>, see src/systems/quests/mod.rs
 [
@@ -31,6 +32,9 @@
         rewards: [
             ("iron_ingot_0", 2),
         ],
+        xp_rewards: [
+            ("metalworking", 30),
+        ],
         prerequisite: None,
     ),
     (
@@ -45,6 +49,10 @@
         ],
         rewards: [
             ("wood_plank_0", 4),
+        ],
+        xp_rewards: [
+            ("metalworking", 20),
+            ("woodworking", 10),
         ],
         prerequisite: Some("gs_first_steps"),
     ),

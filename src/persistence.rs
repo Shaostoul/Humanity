@@ -62,6 +62,12 @@ pub struct WorldSave {
     /// (10,000 CR) instead of loading as broke.
     #[serde(default = "default_credits")]
     pub credits: i64,
+    /// Quest progress (v0.748, ladder rung 4). None = a pre-quest-save file;
+    /// the player then starts fresh with the auto-accepted First Steps chain,
+    /// exactly as before. Some = the full tracker round-trips, so completing
+    /// gs_first_steps twice is no longer the player experience.
+    #[serde(default)]
+    pub quests: Option<crate::systems::quests::QuestTracker>,
 }
 
 fn default_credits() -> i64 {
@@ -113,6 +119,7 @@ impl WorldSave {
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
             credits: -1,
+            quests: None,
         }
     }
 }
@@ -285,6 +292,7 @@ mod tests {
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
             credits: -1,
+            quests: None,
         }
     }
 

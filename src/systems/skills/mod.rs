@@ -96,6 +96,7 @@ impl SkillRegistry {
 }
 
 /// XP gain event queued for processing.
+#[derive(Debug, Clone)]
 pub struct SkillXPEvent {
     pub skill_id: String,
     pub amount: u32,

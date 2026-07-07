@@ -91,6 +91,44 @@ fn draw_game_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     }
 
+    // Available quests (v0.748, ladder rung 4): accept-able content the
+    // prerequisite chaining alone never surfaced. One card per quest with an
+    // Accept button; the frame bridge applies it to the live tracker.
+    if !state.quests_available.is_empty() {
+        ui.add_space(theme.spacing_sm);
+        ui.label(
+            RichText::new("Available")
+                .size(theme.font_size_body)
+                .color(theme.text_secondary()),
+        );
+        ui.add_space(theme.spacing_xs);
+        let available = state.quests_available.clone();
+        for q in &available {
+            widgets::card(ui, theme, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(&q.name)
+                            .size(theme.font_size_body)
+                            .color(theme.text_primary()),
+                    );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if widgets::compact_button(ui, theme, "Accept", widgets::ButtonVariant::Primary) {
+                            state.pending_accept_quest = Some(q.id.clone());
+                        }
+                    });
+                });
+                if !q.description.is_empty() {
+                    ui.label(
+                        RichText::new(&q.description)
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                }
+            });
+            ui.add_space(theme.spacing_xs);
+        }
+    }
+
     // Completed quests.
     if has_completed {
         ui.add_space(theme.spacing_sm);

@@ -722,6 +722,16 @@ pub struct GuiQuest {
     pub completed: bool,
 }
 
+/// A quest the player COULD accept (v0.747.x, ladder rung 4): prerequisite
+/// satisfied, not active, not completed. The Quests page's Available section.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiAvailableQuest {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+}
+
 /// A guild for GUI display.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -1916,6 +1926,12 @@ pub struct GuiState {
     /// Player quests (active + completed), synced from the ECS QuestTracker each
     /// frame for the profile Quests panel.
     pub quests: Vec<GuiQuest>,
+    /// Acceptable-but-unaccepted quests (v0.747.x, rung 4). Before this, quests
+    /// with no prerequisite were unreachable authored content.
+    pub quests_available: Vec<GuiAvailableQuest>,
+    /// Quest id the player clicked Accept on; the frame bridge applies it to
+    /// the ECS QuestTracker.
+    pub pending_accept_quest: Option<String>,
 
     // ── Guilds state ──
     pub guilds: Vec<GuiGuild>,
@@ -3330,6 +3346,8 @@ impl Default for GuiState {
             skills: Vec::new(),
             pending_dev_max_skills: false,
             quests: Vec::new(),
+            quests_available: Vec::new(),
+            pending_accept_quest: None,
 
             // Guilds defaults
             guilds: Vec::new(),

@@ -111,6 +111,15 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         save.credits = wallet.credits;
         break;
     }
+    // Quests (v0.748, ladder rung 4): the tracker round-trips, so progress
+    // and completions survive restarts (was: reset fresh every session).
+    for (_e, (tracker, _ctrl)) in world
+        .query::<(&crate::systems::quests::QuestTracker, &Controllable)>()
+        .iter()
+    {
+        save.quests = Some(tracker.clone());
+        break;
+    }
     save
 }
 
@@ -170,6 +179,16 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
             world.query_mut::<(&mut crate::ecs::components::Wallet, &Controllable)>()
         {
             wallet.credits = save.credits;
+            break;
+        }
+    }
+    // Quests (v0.748): a saved tracker replaces the fresh spawn default
+    // (which auto-accepted gs_first_steps); None keeps the fresh start.
+    if let Some(saved) = &save.quests {
+        for (_e, (tracker, _ctrl)) in
+            world.query_mut::<(&mut crate::systems::quests::QuestTracker, &Controllable)>()
+        {
+            *tracker = saved.clone();
             break;
         }
     }

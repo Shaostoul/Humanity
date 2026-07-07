@@ -31,6 +31,11 @@ pub struct QuestDef {
     pub steps: Vec<QuestStep>,
     /// Item rewards granted on quest completion: (item_id, quantity).
     pub rewards: Vec<(String, u32)>,
+    /// Skill XP granted on completion: (skill_id, amount). serde-default so
+    /// existing quest files load unchanged (v0.747.x, ladder rung 4 — the
+    /// Quests page always promised XP; QuestDef finally carries it).
+    #[serde(default)]
+    pub xp_rewards: Vec<(String, u32)>,
     /// Quest ID that must be completed before this quest can be accepted.
     pub prerequisite: Option<String>,
 }
@@ -232,9 +237,14 @@ impl System for QuestSystem {
             .and_then(|m| m.lock().ok().map(|mut e| e.drain(..).collect()))
             .unwrap_or_default();
 
-        // Collect entities with QuestTracker to process
-        let mut updates: Vec<(hecs::Entity, QuestTracker, Vec<(String, Vec<(String, u32)>)>)> =
-            Vec::new();
+        // Collect entities with QuestTracker to process. Completed tuples carry
+        // (quest_id, item rewards, xp rewards).
+        #[allow(clippy::type_complexity)]
+        let mut updates: Vec<(
+            hecs::Entity,
+            QuestTracker,
+            Vec<(String, Vec<(String, u32)>, Vec<(String, u32)>)>,
+        )> = Vec::new();
 
         for (entity, (tracker, inventory)) in
             world.query_mut::<(&QuestTracker, Option<&Inventory>)>()
@@ -250,7 +260,8 @@ impl System for QuestSystem {
                     }
                 }
             }
-            let mut completed_this_tick: Vec<(String, Vec<(String, u32)>)> = Vec::new();
+            let mut completed_this_tick: Vec<(String, Vec<(String, u32)>, Vec<(String, u32)>)> =
+                Vec::new();
             let mut quests_to_advance: Vec<(usize, usize)> = Vec::new(); // (quest_index, new_step)
             let mut quests_to_complete: Vec<usize> = Vec::new();
 
@@ -264,8 +275,11 @@ impl System for QuestSystem {
                 if active.current_step >= quest_def.steps.len() {
                     // All steps done — mark for completion
                     quests_to_complete.push(qi);
-                    completed_this_tick
-                        .push((active.quest_id.clone(), quest_def.rewards.clone()));
+                    completed_this_tick.push((
+                        active.quest_id.clone(),
+                        quest_def.rewards.clone(),
+                        quest_def.xp_rewards.clone(),
+                    ));
                     continue;
                 }
 
@@ -275,8 +289,11 @@ impl System for QuestSystem {
                     if next_step >= quest_def.steps.len() {
                         // Final step completed
                         quests_to_complete.push(qi);
-                        completed_this_tick
-                            .push((active.quest_id.clone(), quest_def.rewards.clone()));
+                        completed_this_tick.push((
+                            active.quest_id.clone(),
+                            quest_def.rewards.clone(),
+                            quest_def.xp_rewards.clone(),
+                        ));
                     } else {
                         quests_to_advance.push((qi, next_step));
                     }
@@ -304,7 +321,7 @@ impl System for QuestSystem {
 
             // Prerequisite chaining: completing a quest auto-accepts any quest whose
             // prerequisite it satisfies (and that isn't already active or completed).
-            for (completed_id, _) in &completed_this_tick {
+            for (completed_id, _, _) in &completed_this_tick {
                 for def in registry.quests.values() {
                     if def.prerequisite.as_deref() == Some(completed_id.as_str())
                         && !tracker.is_active(&def.id)
@@ -329,8 +346,9 @@ impl System for QuestSystem {
                 *t = tracker;
             }
 
-            // Grant item rewards for completed quests
-            for (_quest_id, rewards) in completed {
+            // Grant item + XP rewards for completed quests (XP via the shared
+            // xp_grants channel, drained by SkillSystem later this same frame).
+            for (_quest_id, rewards, xp_rewards) in completed {
                 for (item_id, quantity) in rewards {
                     if let Ok(mut inv) = world.get::<&mut Inventory>(entity) {
                         let overflow = inv.add_item(&item_id, quantity, 99);
@@ -342,6 +360,9 @@ impl System for QuestSystem {
                             );
                         }
                     }
+                }
+                for (skill_id, amount) in xp_rewards {
+                    crate::systems::skills::award_skill_xp(data, &skill_id, amount);
                 }
             }
         }
@@ -364,8 +385,51 @@ mod quest_tests {
                 objective: obj,
             }],
             rewards: reward,
+            xp_rewards: Vec::new(),
             prerequisite: prereq.map(|s| s.to_string()),
         }
+    }
+
+    /// v0.748 (ladder rung 4): completing a quest grants its xp_rewards through
+    /// the shared xp_grants channel (drained by SkillSystem the same frame).
+    #[test]
+    fn completion_grants_xp_rewards() {
+        let mut reg = QuestRegistry::default();
+        let mut q = quest(
+            "xp_quest",
+            QuestObjective::Gather { item_id: "stick_0".into(), quantity: 1 },
+            vec![],
+            None,
+        );
+        q.xp_rewards = vec![("farming".to_string(), 25)];
+        reg.quests.insert(q.id.clone(), q);
+
+        let mut data = DataStore::new();
+        data.insert("quest_registry", reg);
+        data.insert(
+            "xp_grants",
+            std::sync::Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()),
+        );
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(4);
+        inv.add_item("stick_0", 1, 99);
+        let mut tracker = QuestTracker::default();
+        tracker.accept_quest("xp_quest");
+        world.spawn((inv, tracker));
+
+        let mut sys = QuestSystem::new();
+        sys.tick(&mut world, 0.1, &data);
+
+        let grants = data
+            .get::<std::sync::Mutex<Vec<crate::systems::skills::SkillXPEvent>>>("xp_grants")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(
+            grants.iter().any(|g| g.skill_id == "farming" && g.amount == 25),
+            "quest completion pushed the XP grant, got {grants:?}"
+        );
     }
 
     #[test]

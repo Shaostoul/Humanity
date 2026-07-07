@@ -9875,7 +9875,43 @@ mod native_app {
                                     completed: true,
                                 });
                             }
+                            // Available quests (v0.748, ladder rung 4): accept-able
+                            // content the chaining alone never reached — quests with
+                            // no prerequisite (or a completed one) that aren't active
+                            // or done. Sorted for a stable list.
+                            state.gui_state.quests_available.clear();
+                            if let Some(reg) = quest_reg {
+                                let mut avail: Vec<crate::gui::GuiAvailableQuest> = reg
+                                    .quests
+                                    .values()
+                                    .filter(|d| {
+                                        !tracker.is_active(&d.id)
+                                            && !tracker.is_completed(&d.id)
+                                            && d.prerequisite
+                                                .as_deref()
+                                                .map_or(true, |p| tracker.is_completed(p))
+                                    })
+                                    .map(|d| crate::gui::GuiAvailableQuest {
+                                        id: d.id.clone(),
+                                        name: d.name.clone(),
+                                        description: d.description.clone(),
+                                    })
+                                    .collect();
+                                avail.sort_by(|a, b| a.name.cmp(&b.name));
+                                state.gui_state.quests_available = avail;
+                            }
                             break;
+                        }
+                        // Accept clicked: apply to the live tracker.
+                        if let Some(qid) = state.gui_state.pending_accept_quest.take() {
+                            for (_e, (tracker, _c)) in state
+                                .game_world
+                                .world
+                                .query_mut::<(&mut QuestTracker, &Controllable)>()
+                            {
+                                tracker.accept_quest(&qid);
+                                break;
+                            }
                         }
                     }
                     // Bridge growing crops from ECS for the gardening (Garden) panel.
