@@ -570,6 +570,21 @@ pub struct GuiRecipe {
     pub description: String,
 }
 
+/// A buildable structure blueprint for GUI display (v0.746, ladder rung 2):
+/// the Crafting page's Structures section renders these; Build sends the id
+/// through pending_build -> the "build_request" channel -> ConstructionSystem.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiBlueprint {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    pub materials: Vec<(String, u32)>,
+    pub build_time: f32,
+    /// Capability the finished structure provides (e.g. "smelting"), or empty.
+    pub provides: String,
+}
+
 /// Player survival vitals for GUI display (synced from the ECS each frame).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -1760,6 +1775,16 @@ pub struct GuiState {
     pub craft_selected: Option<usize>,
     pub craft_selected_category: Option<String>,
     pub craft_status: String,
+    /// Buildable blueprints (data/blueprints/basic.ron), bridged from the
+    /// blueprint_registry for the Crafting page's Structures section
+    /// (v0.746, closure ladder rung 2).
+    pub blueprints: Vec<GuiBlueprint>,
+    /// Blueprint id the player clicked Build on this frame; lib.rs turns it
+    /// into a "build_request" at a spot in front of the camera.
+    pub pending_build: Option<String>,
+    /// ConstructionSystem's honest status line ("need 4x wood_plank to build
+    /// Wooden Wall", "Building...", "... complete"), synced each frame.
+    pub build_status: String,
     /// Recipe id the player clicked "Craft" on this frame; the main loop bridges it
     /// to the ECS CraftingSystem. None = nothing pending.
     pub pending_craft_recipe: Option<String>,
@@ -3235,6 +3260,9 @@ impl Default for GuiState {
             pending_craft_recipe: None,
             dev_stock_materials: false,
             craft_status: String::new(),
+            blueprints: Vec::new(),
+            pending_build: None,
+            build_status: String::new(),
             pending_consume_item: None,
             pending_drink_item: None,
             pending_rest: false,

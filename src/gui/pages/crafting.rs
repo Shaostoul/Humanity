@@ -15,6 +15,10 @@ fn category_matches(filter: &str, recipe_cat: &str) -> bool {
     filter.eq_ignore_ascii_case(recipe_cat)
 }
 
+/// Sidebar sentinel for the blueprint-building section (v0.746): not a recipe
+/// category, so it can never collide with data/crafting/categories.json.
+const STRUCTURES_CATEGORY: &str = "__structures";
+
 /// An item in the craft queue.
 struct CraftQueueItem {
     recipe_name: String,
@@ -95,6 +99,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .clicked()
                 {
                     newly_selected = Some(None);
+                }
+                // Structures (v0.746, ladder rung 2): blueprint BUILDING —
+                // timed, material-consuming construction in the world, not an
+                // inventory recipe. Sentinel category; the center panel branches.
+                if ui
+                    .selectable_label(
+                        current.as_deref() == Some(STRUCTURES_CATEGORY),
+                        RichText::new("Structures")
+                            .size(theme.font_size_body)
+                            .color(theme.text_primary()),
+                    )
+                    .clicked()
+                {
+                    newly_selected = Some(Some(STRUCTURES_CATEGORY.to_string()));
                 }
                 ui.add_space(theme.spacing_xs);
 
@@ -241,6 +259,107 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
             if theme.cheats_enabled {
                 ui.add_space(theme.spacing_sm);
+            }
+
+            // ── Structures (v0.746, ladder rung 2): the blueprint-building
+            // branch. Each blueprint lists its material cost (backpack have/
+            // need; home storage also counts at build time) and a Build button
+            // that places the construction 4 m in front of the player, snapped
+            // to the metre grid. ConstructionSystem's status line shows above.
+            if filter_cat.as_deref() == Some(STRUCTURES_CATEGORY) {
+                if !state.build_status.is_empty() {
+                    ui.label(
+                        RichText::new(&state.build_status)
+                            .size(theme.font_size_small)
+                            .color(theme.success()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                }
+                let blueprints = state.blueprints.clone();
+                ScrollArea::vertical()
+                    .id_salt("build_blueprint_list")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        if blueprints.is_empty() {
+                            ui.label(
+                                RichText::new("No blueprints loaded (data/blueprints/basic.ron).")
+                                    .color(theme.text_muted()),
+                            );
+                        }
+                        for bp in &blueprints {
+                            if !search_term.is_empty()
+                                && !bp.name.to_lowercase().contains(&search_term)
+                                && !bp.id.to_lowercase().contains(&search_term)
+                            {
+                                continue;
+                            }
+                            let frame = egui::Frame::none()
+                                .fill(Color32::TRANSPARENT)
+                                .rounding(Rounding::same(3))
+                                .stroke(Stroke::new(1.0, theme.border()))
+                                .inner_margin(6.0);
+                            frame.show(ui, |ui| {
+                                ui.set_width(ui.available_width());
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(&bp.name)
+                                            .size(theme.font_size_body)
+                                            .color(theme.text_primary()),
+                                    );
+                                    ui.label(
+                                        RichText::new(format!("· {}", bp.category))
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                    if !bp.provides.is_empty() {
+                                        ui.label(
+                                            RichText::new(format!("provides {}", bp.provides))
+                                                .size(theme.font_size_small)
+                                                .color(theme.accent()),
+                                        );
+                                    }
+                                    ui.with_layout(
+                                        egui::Layout::right_to_left(egui::Align::Center),
+                                        |ui| {
+                                            if widgets::compact_button(
+                                                ui,
+                                                theme,
+                                                "Build",
+                                                widgets::ButtonVariant::Primary,
+                                            ) {
+                                                state.pending_build = Some(bp.id.clone());
+                                                state.build_status =
+                                                    format!("Placing {}...", bp.name);
+                                            }
+                                            ui.label(
+                                                RichText::new(format!("{}s", bp.build_time))
+                                                    .size(theme.font_size_small)
+                                                    .color(theme.text_muted()),
+                                            );
+                                        },
+                                    );
+                                });
+                                let mats: String = bp
+                                    .materials
+                                    .iter()
+                                    .map(|(id, qty)| {
+                                        let have = count_in_inventory(state, id);
+                                        format!("{} {}/{}", id, have, qty)
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                if !mats.is_empty() {
+                                    ui.label(
+                                        RichText::new(mats)
+                                            .size(theme.font_size_small)
+                                            .color(theme.text_muted()),
+                                    );
+                                }
+                            });
+                            ui.add_space(2.0);
+                        }
+                    });
+                return;
             }
 
             ScrollArea::vertical()

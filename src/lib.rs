@@ -4646,6 +4646,11 @@ mod native_app {
         /// one unit wheel cylinder, scaled per vehicle from the kit registry's body
         /// proportions each frame — same build-once pattern as the drone dock above.
         vehicle_meshes: Option<[usize; 2]>, // [unit_box, wheel_cylinder]
+        /// Blueprint structures render (v0.746, ladder rung 2): one unit box,
+        /// scaled per Construction/Structure Transform each frame.
+        structure_mesh: Option<usize>,
+        /// [scaffold amber, wood, stone, metal] — picked by blueprint category.
+        structure_mats: Option<[usize; 4]>,
         /// Stage 3 take-over (v0.690): the vehicle the player is DRIVING (camera
         /// glued to the cab, WASD steers the vehicle). Deliberately NOT the
         /// Controllable-transfer path -- moving Controllable off the player would
@@ -5143,6 +5148,11 @@ mod native_app {
             // death cause here when the player's health reaches zero; the frame
             // bridge surfaces it as the death screen.
             data_store.insert("player_death", std::sync::Mutex::new(Option::<String>::None));
+            // Blueprint building (v0.746, ladder rung 2): the Crafting page's
+            // Structures section queues (blueprint id, world position) builds;
+            // ConstructionSystem drains them + reports one honest status line.
+            data_store.insert("build_request", std::sync::Mutex::new(Vec::<(String, Vec3)>::new()));
+            data_store.insert("build_status", std::sync::Mutex::new(String::new()));
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -5513,6 +5523,8 @@ mod native_app {
                 rail_car_mat: None,
                 drone_dock_meshes: None,
                 vehicle_meshes: None,
+                structure_mesh: None,
+                structure_mats: None,
                 driving_vehicle: None,
                 follow_vehicle: None,
                 targeted_vehicle: None,
@@ -9483,6 +9495,64 @@ mod native_app {
                         state.gui_state.attack_pulse_active = false;
                     }
 
+                    // ── Blueprint building bridges (v0.746, ladder rung 2) ──
+                    // Build clicked: place 4 m in front of the camera at floor
+                    // level; ConstructionSystem snaps to the metre grid, checks
+                    // + consumes materials, and runs the timed build.
+                    if let Some(bp_id) = state.gui_state.pending_build.take() {
+                        let (sin_yaw, cos_yaw) = state.camera.yaw.sin_cos();
+                        let forward = Vec3::new(-sin_yaw, 0.0, -cos_yaw);
+                        let pos = Vec3::new(
+                            state.camera.position.x + forward.x * 4.0,
+                            0.0,
+                            state.camera.position.z + forward.z * 4.0,
+                        );
+                        if let Some(chan) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Vec<(String, Vec3)>>>("build_request")
+                        {
+                            if let Ok(mut c) = chan.lock() {
+                                c.push((bp_id, pos));
+                            }
+                        }
+                    }
+                    // Status line + the blueprint catalog (bridged once).
+                    if let Some(slot) =
+                        state.data_store.get::<std::sync::Mutex<String>>("build_status")
+                    {
+                        if let Ok(s) = slot.lock() {
+                            if !s.is_empty() && *s != state.gui_state.build_status {
+                                state.gui_state.build_status = s.clone();
+                            }
+                        }
+                    }
+                    if state.gui_state.blueprints.is_empty() {
+                        if let Some(reg) = state
+                            .data_store
+                            .get::<crate::systems::construction::BlueprintRegistry>(
+                                "blueprint_registry",
+                            )
+                        {
+                            let mut bps: Vec<crate::gui::GuiBlueprint> = reg
+                                .blueprints
+                                .values()
+                                .map(|bp| crate::gui::GuiBlueprint {
+                                    id: bp.id.clone(),
+                                    name: bp.name.clone(),
+                                    category: bp.category.clone(),
+                                    materials: bp.materials.clone(),
+                                    build_time: bp.build_time,
+                                    provides: bp.provides.clone().unwrap_or_default(),
+                                })
+                                .collect();
+                            bps.sort_by(|a, b| {
+                                (a.category.clone(), a.name.clone())
+                                    .cmp(&(b.category.clone(), b.name.clone()))
+                            });
+                            state.gui_state.blueprints = bps;
+                        }
+                    }
+
                     // ── Death & recovery (v0.745, loop-map rung 1) ──
                     // Surface a death recorded by FoodSystem as the death screen.
                     if let Some(slot) = state
@@ -9989,6 +10059,86 @@ mod native_app {
                                     });
                                 }
                             }
+                        }
+                    }
+
+                    // ── Blueprint structures render (v0.746, ladder rung 2) ──
+                    // A Construction shows as an amber scaffold box that RISES
+                    // with build progress; a finished Structure is a solid box
+                    // tinted by its blueprint category. Same lazy build-once
+                    // mesh/material pattern as the vehicles above.
+                    {
+                        if state.structure_mesh.is_none() {
+                            state.structure_mesh = Some(
+                                state
+                                    .renderer
+                                    .add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0)),
+                            );
+                        }
+                        if state.structure_mats.is_none() {
+                            // theme-exempt: world-object placeholder palette (scaffold amber, wood, stone, metal).
+                            let scaffold = state.renderer.add_material_typed([0.85, 0.62, 0.25, 1.0], 0.0, 0.85, 0.0);
+                            let wood = state.renderer.add_material_typed([0.48, 0.33, 0.20, 1.0], 0.0, 0.8, 0.0);
+                            let stone = state.renderer.add_material_typed([0.55, 0.55, 0.58, 1.0], 0.05, 0.9, 0.0);
+                            let metal = state.renderer.add_material_typed([0.45, 0.30, 0.25, 1.0], 0.6, 0.45, 0.0);
+                            state.structure_mats = Some([scaffold, wood, stone, metal]);
+                        }
+                        let unit_box = state.structure_mesh.unwrap();
+                        let [scaffold_mat, wood_mat, stone_mat, metal_mat] =
+                            state.structure_mats.unwrap();
+                        let bp_registry = state
+                            .data_store
+                            .get::<crate::systems::construction::BlueprintRegistry>(
+                                "blueprint_registry",
+                            );
+                        let mat_for = |bp_id: &str| -> usize {
+                            let category = bp_registry
+                                .as_ref()
+                                .and_then(|r| r.get(bp_id))
+                                .map(|bp| bp.category.as_str())
+                                .unwrap_or("");
+                            match category {
+                                "foundation" => stone_mat,
+                                "wall" | "roof" | "door" | "window" | "furniture" => wood_mat,
+                                _ => metal_mat,
+                            }
+                        };
+                        for (_e, (c, tf)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::systems::construction::Construction,
+                                &crate::ecs::components::Transform,
+                            )>()
+                            .iter()
+                        {
+                            // Scaffold rises from 15% to full height with progress.
+                            let frac =
+                                (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
+                            all_objects.push(RenderObject {
+                                position: tf.position,
+                                rotation: tf.rotation,
+                                scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z),
+                                mesh: unit_box,
+                                material: scaffold_mat,
+                            });
+                        }
+                        for (_e, (s, tf)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::systems::construction::Structure,
+                                &crate::ecs::components::Transform,
+                            )>()
+                            .iter()
+                        {
+                            all_objects.push(RenderObject {
+                                position: tf.position,
+                                rotation: tf.rotation,
+                                scale: tf.scale,
+                                mesh: unit_box,
+                                material: mat_for(&s.blueprint_id),
+                            });
                         }
                     }
 
