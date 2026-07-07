@@ -9,6 +9,10 @@
 //   match_prefix: Some("aeroponic_tower")      machine id starts with this
 //   match_suffix: Some("_bed")                 machine id ends with this
 //
+// default_crop: the plant id (data/plants.csv) the Plant button sows when the user
+// hasn't typed one into the Crop field. Media without one (towers plant from their
+// slot design; mushroom/aquaponic species aren't in plants.csv yet) get no button.
+//
 // Controls (rendered top to bottom in the edit modal):
 //   Slider(key, label)  a 0..1 slider stored under `key` (water / nutrient / humidity / ...)
 //   Crop(label, hint)   a text field for the primary crop / species / fish
@@ -33,8 +37,20 @@
             match_exact: Some("staple_grain_tray"),
             label: "Grain tray - shallow staple tray",
             note: "Shallow trays for cereals. Cereal is the worst per-m2 indoor crop, so these are deliberately few.",
+            default_crop: Some("wheat"),
             controls: [
                 Crop(label: "Grain", hint: "e.g. wheat"),
+                Slider(key: "water", label: "Soil moisture"),
+            ],
+        ),
+        (
+            id: "oilseed_bed",
+            match_exact: Some("oilseed_bed"),
+            label: "Oilseed bed - oil crops",
+            note: "Sunflower and other oil crops. Cooking fat is the hardest calorie to grow indoors.",
+            default_crop: Some("sunflower"),
+            controls: [
+                Crop(label: "Oil crop", hint: "e.g. sunflower"),
                 Slider(key: "water", label: "Soil moisture"),
             ],
         ),
@@ -43,6 +59,7 @@
             match_suffix: Some("_bed"),
             label: "Soil bed - deep in-ground substrate",
             note: "A deep bed for root + bulk crops. Carries the real calories the towers cannot.",
+            default_crop: Some("potato"),
             controls: [
                 Crop(label: "Primary crop", hint: "e.g. potato"),
                 Slider(key: "water", label: "Soil moisture"),
@@ -74,6 +91,7 @@
             match_suffix: Some("_field"),
             label: "Field crop - outdoor sun-lit, large scale",
             note: "Carries the bulk calories no indoor canopy can. The silo buffers the winter.",
+            default_crop: Some("wheat"),
             controls: [
                 Crop(label: "Crop", hint: "e.g. wheat"),
                 Slider(key: "water", label: "Irrigation"),

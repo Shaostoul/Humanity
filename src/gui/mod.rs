@@ -1795,6 +1795,10 @@ pub struct GuiState {
     /// slot) to spawn as CropInstances; drained into the "plant_tower_request"
     /// channel for FarmingSystem (v0.386). Dev-friendly: no seed consumption yet.
     pub pending_plant_tower: Option<(String, Vec<String>)>,
+    /// GUI -> ECS: plant a bed/tray/field grow area (v0.738 grain loop).
+    /// (machine_id, plant_id, unit count) — one CropInstance per unit, tagged
+    /// with the machine id as its grow-area; drained into "plant_bed_request".
+    pub pending_plant_bed: Option<(String, String, u32)>,
     /// Seed item ids to grant the player (the "Dev: stock seeds" starter set);
     /// drained into "stock_seeds_request" for FarmingSystem.
     pub pending_stock_seeds: Option<Vec<String>>,
@@ -3230,6 +3234,7 @@ impl Default for GuiState {
             pending_deploy_kit: None,
             pending_plant_seed: None,
             pending_plant_tower: None,
+            pending_plant_bed: None,
             pending_stock_seeds: None,
             pending_water_crop: None,
             pending_harvest_crop: None,
@@ -4348,6 +4353,10 @@ pub struct GrowMedium {
     pub note: String,
     #[serde(default)]
     pub show_slots: bool,
+    /// Plant id (data/plants.csv) the bed/tray/field Plant button sows when the
+    /// user hasn't typed a crop into the edit modal (v0.738 grain loop).
+    #[serde(default)]
+    pub default_crop: Option<String>,
     #[serde(default)]
     pub controls: Vec<GrowControl>,
 }

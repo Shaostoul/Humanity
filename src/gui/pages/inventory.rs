@@ -220,6 +220,15 @@ fn snapshot_garden_sim(state: &mut GuiState) {
                 .find(|m| m.matches(machine_id))
                 .map_or(false, |m| m.show_slots);
             if !grows_towers {
+                // Beds/trays/fields (v0.738): their crops carry the MACHINE id
+                // as their grow-area tag (in tower_id), so the modal's sliders
+                // apply directly under that key — per-bed irrigation for free.
+                if let Some(w) = cfg.values.get("water").copied() {
+                    irr.insert(machine_id.clone(), w);
+                }
+                if let Some(n) = cfg.values.get("nutrient").copied() {
+                    nut.insert(machine_id.clone(), n);
+                }
                 continue;
             }
             let water = cfg.values.get("water").copied();
@@ -1270,6 +1279,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Plant a whole tower (v0.386): (tower id, plant ids) to spawn as crops, set by
     // the Garden "Plant a tower" buttons, applied to GuiState after the panel.
     let mut action_plant_tower: Option<(String, Vec<String>)> = None;
+    // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id, plant id,
+    // unit count), set by the bed groups' Plant buttons, applied after the panel.
+    let mut action_plant_bed: Option<(String, String, u32)> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -1762,6 +1774,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 }
                             }
                         }
+                        // Bed/tray/field crops too (v0.738): the medium defaults,
+                        // so survival-mode bed planting is testable immediately.
+                        for m in &state.grow_media {
+                            if let Some(crop) = &m.default_crop {
+                                let sid = format!("seed_{crop}_0");
+                                if !seeds.contains(&sid) {
+                                    seeds.push(sid);
+                                }
+                            }
+                        }
                         if !seeds.is_empty() {
                             action_stock_seeds = Some(seeds);
                         }
@@ -1821,6 +1843,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         .iter()
                         .map(|t| (Some(t.id.clone()), t.name.clone()))
                         .collect();
+                    // Non-tower grow areas (beds, trays, fields — v0.738 grain
+                    // loop) get their own groups: crops planted there carry the
+                    // MACHINE id as their grow-area tag, so the same filter works.
+                    for a in &state.garden_areas {
+                        if a.machine_id.starts_with("aeroponic_tower") {
+                            continue;
+                        }
+                        groups.push((Some(a.machine_id.clone()), a.label.clone()));
+                    }
                     if state.crops.iter().any(|c| c.tower_id.is_none()) {
                         groups.push((None, "Other crops".to_string()));
                     }
@@ -1833,10 +1864,40 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let cfg = tid
                             .as_ref()
                             .and_then(|id| state.tower_configs.iter().find(|t| &t.id == id));
+                        // Bed/tray/field group data (v0.738 grain loop): the grow
+                        // area's crop (edit-modal Crop field if typed, else the
+                        // medium's default_crop) and its unit count. None for tower
+                        // groups, "Other crops", and media with no plantable crop.
+                        let bed: Option<(String, String, u32)> = if cfg.is_none() {
+                            tid.as_ref().and_then(|mid| {
+                                state
+                                    .garden_areas
+                                    .iter()
+                                    .find(|a| &a.machine_id == mid)
+                                    .and_then(|a| {
+                                        let typed = with_garden_edit(|s| {
+                                            s.configs
+                                                .get(mid)
+                                                .map(|c| c.crop.trim().to_lowercase())
+                                        })
+                                        .filter(|c| !c.is_empty());
+                                        let crop = typed.or_else(|| {
+                                            state
+                                                .grow_media
+                                                .iter()
+                                                .find(|m| m.matches(mid))
+                                                .and_then(|m| m.default_crop.clone())
+                                        });
+                                        crop.map(|c| (mid.clone(), c, a.count.max(1)))
+                                    })
+                            })
+                        } else {
+                            None
+                        };
                         // Per-slot planned spec (plant id, role, note), flattened from the
                         // plantings EXACTLY as the farming handler assigns tower_slot, so
                         // slot index lines up with crop.tower_slot. Empty for "Other crops".
-                        let slot_specs: Vec<(String, String, String)> = cfg
+                        let mut slot_specs: Vec<(String, String, String)> = cfg
                             .map(|t| {
                                 t.plantings
                                     .iter()
@@ -1851,9 +1912,21 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     .collect()
                             })
                             .unwrap_or_default();
-                        // Slot rows to render: the design's planned slots for a real tower,
-                        // else one row per loose crop (the "Other crops" fallback).
-                        let slot_count = if cfg.is_some() { slot_specs.len() } else { crops.len() };
+                        // A bed group plans one slot per UNIT, all the same crop
+                        // (v0.738) — so unplanted units still render as rows.
+                        if let Some((_, crop, count)) = &bed {
+                            slot_specs = std::iter::repeat((
+                                crop.clone(),
+                                String::new(),
+                                String::new(),
+                            ))
+                            .take(*count as usize)
+                            .collect();
+                        }
+                        // Slot rows to render: the design's planned slots for a real
+                        // tower or bed, else one row per loose crop ("Other crops").
+                        let by_slot = cfg.is_some() || bed.is_some();
+                        let slot_count = if by_slot { slot_specs.len() } else { crops.len() };
                         let count_txt = if slot_count == 0 {
                             "no slots".to_string()
                         } else if crops.is_empty() {
@@ -1909,11 +1982,20 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         action_plant_tower = Some((tid2.clone(), ids.clone()));
                                     }
                                 }
+                                // Bed/tray/field Plant button (v0.738 grain loop):
+                                // sows the area's crop into every empty unit.
+                                if let Some((mid, crop, count)) = &bed {
+                                    let label = format!("Plant {crop} x{count}");
+                                    if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Secondary) {
+                                        action_plant_bed =
+                                            Some((mid.clone(), crop.clone(), *count));
+                                    }
+                                }
                             },
                             |ui| {
                                 if slot_count == 0 {
                                     ui.label(
-                                        RichText::new("This tower has no plantings yet.")
+                                        RichText::new("Nothing growing here yet.")
                                             .size(theme.font_size_small)
                                             .color(theme.text_muted()),
                                     );
@@ -1942,9 +2024,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 // an expandable_row whose body is the plant CARD.
                                 for s in 0..slot_count {
                                     let spec = slot_specs.get(s);
-                                    // Live crop in this slot: real tower -> by tower_slot;
-                                    // loose-crops fallback -> positional.
-                                    let crop: Option<&crate::gui::GuiCrop> = if cfg.is_some() {
+                                    // Live crop in this slot: tower OR bed -> by
+                                    // tower_slot; loose-crops fallback -> positional.
+                                    let crop: Option<&crate::gui::GuiCrop> = if by_slot {
                                         crops.iter().copied().find(|c| c.tower_slot == Some(s as u32))
                                     } else {
                                         crops.get(s).copied()
@@ -2349,6 +2431,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // loop bridges these into FarmingSystem's command channels before the next tick.
     if let Some(ids) = action_plant_tower {
         state.pending_plant_tower = Some(ids);
+    }
+    if let Some(req) = action_plant_bed {
+        state.pending_plant_bed = Some(req);
     }
     if let Some(seeds) = action_stock_seeds {
         state.pending_stock_seeds = Some(seeds);

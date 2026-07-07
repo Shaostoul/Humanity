@@ -567,6 +567,75 @@ impl System for FarmingSystem {
             }
         }
 
+        // PLANT BED (v0.738 grain loop): sow one crop per UNIT of a bed / tray /
+        // field grow area. Same rules as tower planting — idempotent slot fill
+        // (live crop keeps its unit, dead ones are replaced), one seed per unit
+        // in survival, free in creative. The grow-area MACHINE id rides in
+        // `tower_id` (it is the crop's grow-area tag; the Garden GUI groups by
+        // it), with `tower_slot` as the unit index.
+        let plant_bed = data
+            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some((area_id, plant_id, count)) = plant_bed {
+            let first_stage = plant_registry
+                .and_then(|reg| reg.get(&plant_id))
+                .map(|d| d.first_stage().to_string());
+            if let Some(first_stage) = first_stage {
+                let mut planted = 0u32;
+                for unit in 0..count {
+                    let mut occupied = false;
+                    let mut dead_in_slot: Vec<hecs::Entity> = Vec::new();
+                    for (e, c) in world.query::<&CropInstance>().iter() {
+                        if c.tower_id.as_deref() == Some(area_id.as_str())
+                            && c.tower_slot == Some(unit)
+                        {
+                            if c.growth_stage.as_str() == crate::ecs::components::STAGE_DEAD {
+                                dead_in_slot.push(e);
+                            } else {
+                                occupied = true;
+                            }
+                        }
+                    }
+                    if occupied {
+                        continue;
+                    }
+                    for e in dead_in_slot {
+                        let _ = world.despawn(e);
+                    }
+                    if !creative {
+                        let seed_id = format!("seed_{plant_id}_0");
+                        let mut had = false;
+                        for (_e, (inv, _ctrl)) in world.query_mut::<(
+                            &mut crate::systems::inventory::Inventory,
+                            &crate::ecs::components::Controllable,
+                        )>() {
+                            if inv.has_item(&seed_id, 1) {
+                                inv.remove_item(&seed_id, 1);
+                                had = true;
+                            }
+                            break;
+                        }
+                        if !had {
+                            continue;
+                        }
+                    }
+                    world.spawn((CropInstance {
+                        crop_def_id: plant_id.clone(),
+                        growth_stage: first_stage.clone(),
+                        planted_at: elapsed_seconds,
+                        water_level: 1.0,
+                        health: 100.0,
+                        tower_id: Some(area_id.clone()),
+                        tower_slot: Some(unit),
+                    },));
+                    planted += 1;
+                }
+                log::info!("[Farming] bed-planted {planted}x {plant_id} in {area_id}");
+            } else {
+                log::warn!("[Farming] no plant def '{plant_id}' for bed {area_id}; not planted");
+            }
+        }
+
         // DEV: stock one of each requested seed (the "one seed of each" starter set,
         // granted on demand so survival mode is testable now; the on-new-game grant
         // comes when the game is closer to ready). Grows the inventory to fit.
@@ -955,6 +1024,10 @@ mod gardening_tests {
             "stock_seeds_request",
             std::sync::Mutex::new(Option::<Vec<String>>::None),
         );
+        data.insert(
+            "plant_bed_request",
+            std::sync::Mutex::new(Option::<(String, String, u32)>::None),
+        );
         data
     }
 
@@ -1027,6 +1100,68 @@ mod gardening_tests {
         // the harvest granted 2 back), so the garden is self-sustaining.
         let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
         assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
+    }
+
+    /// v0.738 GRAIN LOOP: bed-planting a grain tray sows one wheat crop per unit
+    /// (consuming one seed each in survival), grows, and harvest yields REAL
+    /// grain_wheat_0 — the item the grain silo accepts (dry_goods). Replanting is
+    /// idempotent: live units are skipped, so no crop stacking.
+    #[test]
+    fn bed_plant_grow_harvest_yields_grain() {
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(24);
+        inv.add_item("seed_wheat_0", 8, 50);
+        let player = world.spawn((inv, Controllable));
+
+        // PLANT the 8-unit tray.
+        *data
+            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("staple_grain_tray".to_string(), "wheat".to_string(), 8));
+        sys.tick(&mut world, 1.0, &data);
+        let crops: Vec<hecs::Entity> = world
+            .query::<&CropInstance>()
+            .iter()
+            .filter(|(_, c)| c.tower_id.as_deref() == Some("staple_grain_tray"))
+            .map(|(e, _)| e)
+            .collect();
+        assert_eq!(crops.len(), 8, "one wheat crop per tray unit");
+        assert_eq!(
+            world.get::<&Inventory>(player).unwrap().count_item("seed_wheat_0"),
+            0,
+            "survival planting consumed one seed per unit"
+        );
+
+        // REPLANT while everything is alive: idempotent, nothing stacks.
+        *data
+            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("staple_grain_tray".to_string(), "wheat".to_string(), 8));
+        sys.tick(&mut world, 1.0, &data);
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            8,
+            "replant filled nothing (all units occupied)"
+        );
+
+        // GROW + HARVEST one unit: real grain lands in the pack.
+        *data.get::<std::sync::Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        *data
+            .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(crops[0].to_bits().into());
+        sys.tick(&mut world, 1.0, &data);
+        let grain = world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0");
+        assert!(
+            grain >= 8,
+            "harvest yielded real wheat grain (>= yield_min 8), got {grain}"
+        );
     }
 
     /// Creative mode: planting spawns a crop WITHOUT needing or consuming a seed,

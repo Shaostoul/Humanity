@@ -5042,6 +5042,13 @@ mod native_app {
                 "plant_tower_request",
                 std::sync::Mutex::new(Option::<(String, Vec<String>)>::None),
             );
+            // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id,
+            // plant id, unit count). One CropInstance per unit, tagged with the
+            // machine id as its grow-area so the Garden GUI groups them.
+            data_store.insert(
+                "plant_bed_request",
+                std::sync::Mutex::new(Option::<(String, String, u32)>::None),
+            );
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
@@ -6895,6 +6902,17 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(tower_planting);
+                            }
+                        }
+                    }
+                    // Plant a bed/tray/field (v0.738): (machine id, plant id, count).
+                    if let Some(bed_planting) = state.gui_state.pending_plant_bed.take() {
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                *s = Some(bed_planting);
                             }
                         }
                     }
