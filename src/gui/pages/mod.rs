@@ -6,6 +6,7 @@ pub mod settings;
 pub mod inventory;
 pub mod chat;
 pub mod hud;
+pub mod vendor;
 pub mod showroom;
 pub mod construction;
 pub mod keymap;

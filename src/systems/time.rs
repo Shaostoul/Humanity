@@ -58,8 +58,9 @@ impl Default for GameTime {
 }
 
 /// Seconds per in-game day (real-time at time_scale=1.0).
-/// 20 real minutes = 1 game day.
-const SECONDS_PER_DAY: f64 = 1200.0;
+/// 20 real minutes = 1 game day. Public so sibling systems pacing
+/// per-game-day mechanics (economy passive income, v0.747) share it.
+pub const SECONDS_PER_DAY: f64 = 1200.0;
 
 /// Drives the day/night cycle and writes sun parameters to DataStore.
 pub struct TimeSystem {

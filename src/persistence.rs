@@ -57,6 +57,15 @@ pub struct WorldSave {
     /// read by the live save path) — do not conflate the two.
     #[serde(default)]
     pub deployed_vehicles: Vec<VehicleSave>,
+    /// The player's credit balance (v0.747, ladder rung 3). serde-default -1 =
+    /// "no wallet saved yet" so pre-v0.747 saves keep the fresh-start default
+    /// (10,000 CR) instead of loading as broke.
+    #[serde(default = "default_credits")]
+    pub credits: i64,
+}
+
+fn default_credits() -> i64 {
+    -1
 }
 
 /// One deployed vehicle in a save: what it is + where it stands.
@@ -103,6 +112,7 @@ impl WorldSave {
             outfit: Default::default(),
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
+            credits: -1,
         }
     }
 }
@@ -274,6 +284,7 @@ mod tests {
             outfit: Default::default(),
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
+            credits: -1,
         }
     }
 

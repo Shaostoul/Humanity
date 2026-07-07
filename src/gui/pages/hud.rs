@@ -103,6 +103,15 @@ pub fn draw(
                 FontId::proportional(11.0),
                 Color32::WHITE,
             );
+            // ── Credits (under the health bar, v0.747) ──
+            text_shadowed(
+                painter,
+                Pos2::new(16.0, 38.0),
+                Align2::LEFT_TOP,
+                &format!("{} CR", state.wallet_credits),
+                12.0,
+                theme.accent(),
+            );
 
             // ── FPS counter (top-right) ──
             text_shadowed(
@@ -736,6 +745,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
     if state.machine_card_recipe_options.is_empty()
         && state.machine_card_container.is_none()
         && state.machine_card_storable.is_empty()
+        && !state.machine_card_vendor
     {
         return;
     }
@@ -812,6 +822,17 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                             state.machine_card_store_pending = Some(id.clone());
                         }
                     });
+                }
+                // Trade (v0.747, ladder rung 3): the trading post's card opens
+                // the vendor modal (buy at 125% of base, sell at 50%).
+                if state.machine_card_vendor {
+                    if crate::gui::widgets::Button::primary("Trade")
+                        .tooltip("Buy and sell goods for credits.")
+                        .show(ui, theme)
+                    {
+                        state.vendor_open = true;
+                        state.vendor_status.clear();
+                    }
                 }
             });
         });

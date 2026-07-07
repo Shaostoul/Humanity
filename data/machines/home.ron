@@ -315,6 +315,15 @@
             // Typed container (v0.728): the backup fuel store beside it.
             container_type: Some("steel_fuel_drum"),
         ),
+        // Trading post (v0.747, closure ladder rung 3): the home's NPC vendor
+        // counter. Walk up (E) -> the card's Trade button opens the vendor
+        // (buy at 1.25x base value, sell at 0.5x, data/trade_goods.ron).
+        "trading_post": (
+            shape: "box", size: (1.6, 1.1, 0.8), color: (0.55, 0.42, 0.25),
+            label: "Trading post",
+            category: "Logistics",
+            stats: [(kind: "trade", value: "buys + sells goods", status: "ok")],
+        ),
         "grain_silo": (
             shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
             label: "Grain silo",
@@ -429,6 +438,7 @@
         (id: "fuel_1", machine: "fuel_refinery", room: "study", offset: (43.2, 0.0, 24.6)),
         (id: "uplink_1", machine: "network_uplink", room: "study", offset: (39.0, 0.0, 22.6)),
         (id: "server_1", machine: "home_server", room: "study", offset: (40.0, 0.0, 22.6)),
+        (id: "trading_1", machine: "trading_post", room: "study", offset: (42.0, 0.0, 22.6)),
     ],
 
     // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per

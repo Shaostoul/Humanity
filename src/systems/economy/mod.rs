@@ -2,15 +2,124 @@
 //!
 //! Core mechanic: every player starts with 1 credit per day they've been alive.
 //! A 36-year-old starts with ~13,149 credits. A teenager with ~5,475.
-//! Passive income: 1 credit per real-time day just for existing.
+//! Passive income: 1 credit per game day just for existing (v0.747: REAL —
+//! paid into the player's Wallet component; was a TODO log line).
 //!
 //! Data: data/economy.ron (formula, earning rates, trade fees)
-//!       data/trade_goods.ron (185 item base values)
+//!       data/trade_goods.ron (255 item base values -> TradeGoodsRegistry)
 
 pub mod fleet;
 
 use crate::hot_reload::data_store::DataStore;
 use crate::ecs::systems::System;
+use serde::Deserialize;
+use std::collections::HashMap;
+
+/// One tradeable good's base value (a data/trade_goods.ron row). NPC prices
+/// derive from base_value per the file's own formulas: vendors SELL at 1.25x
+/// (25 percent markup) and BUY at 0.5x (they need margin).
+#[derive(Debug, Clone, Deserialize)]
+pub struct TradeGood {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub category: String,
+    pub base_value: u32,
+    #[serde(default)]
+    pub weight_kg: f32,
+    #[serde(default)]
+    pub description: String,
+}
+
+/// All trade goods keyed by item id. Lives in the DataStore under
+/// `"trade_goods_registry"` (v0.747, closure ladder rung 3).
+#[derive(Debug, Default)]
+pub struct TradeGoodsRegistry {
+    pub goods: HashMap<String, TradeGood>,
+}
+
+impl TradeGoodsRegistry {
+    pub fn from_ron(bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+        let rows: Vec<TradeGood> = ron::from_str(text).map_err(|e| e.to_string())?;
+        let mut goods = HashMap::new();
+        for row in rows {
+            goods.insert(row.id.clone(), row);
+        }
+        Ok(Self { goods })
+    }
+
+    pub fn get(&self, id: &str) -> Option<&TradeGood> {
+        self.goods.get(id)
+    }
+
+    /// What an NPC vendor CHARGES the player (base x 1.25, rounded up, min 1).
+    pub fn vendor_sell_price(&self, id: &str) -> Option<i64> {
+        self.get(id).map(|g| ((g.base_value as f64 * 1.25).ceil() as i64).max(1))
+    }
+
+    /// What an NPC vendor PAYS the player (base x 0.5, rounded down).
+    pub fn vendor_buy_price(&self, id: &str) -> Option<i64> {
+        self.get(id).map(|g| (g.base_value as f64 * 0.5).floor() as i64)
+    }
+
+    pub fn len(&self) -> usize {
+        self.goods.len()
+    }
+}
+
+/// Buy `qty` of `item_id` from an NPC vendor: charges the wallet, adds the
+/// items volume-gated (a full pack refuses rather than losing paid goods).
+/// Pure over the borrowed parts so it is directly testable; lib.rs's vendor
+/// bridge calls it. Returns a human-readable receipt or refusal.
+pub fn vendor_buy(
+    inv: &mut crate::systems::inventory::Inventory,
+    credits: &mut i64,
+    goods: &TradeGoodsRegistry,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    item_id: &str,
+    qty: u32,
+) -> Result<String, String> {
+    let price = goods
+        .vendor_sell_price(item_id)
+        .ok_or_else(|| format!("{item_id} is not traded here"))?;
+    let total = price * qty as i64;
+    if *credits < total {
+        return Err(format!("Not enough credits ({total} CR needed)"));
+    }
+    let max_stack = items.map(|r| r.max_stack_for(item_id)).unwrap_or(99);
+    let unit_vol = items.map(|r| r.volume_for(item_id)).unwrap_or(0.0);
+    // Refuse on overflow BEFORE charging: paid goods must never be lost.
+    let lost = inv.add_item_volume_gated(item_id, qty, max_stack, unit_vol);
+    if lost > 0 {
+        // Roll back what did fit.
+        inv.remove_item(item_id, qty - lost);
+        return Err("Not enough room in your pack".to_string());
+    }
+    *credits -= total;
+    Ok(format!("Bought {qty}x {item_id} for {total} CR"))
+}
+
+/// Sell `qty` of `item_id` to an NPC vendor: removes the items, pays 0.5x base.
+pub fn vendor_sell(
+    inv: &mut crate::systems::inventory::Inventory,
+    credits: &mut i64,
+    goods: &TradeGoodsRegistry,
+    item_id: &str,
+    qty: u32,
+) -> Result<String, String> {
+    let price = goods
+        .vendor_buy_price(item_id)
+        .ok_or_else(|| format!("{item_id} is not traded here"))?;
+    let have = inv.count_item(item_id);
+    if have < qty {
+        return Err(format!("You only have {have}x {item_id}"));
+    }
+    inv.remove_item(item_id, qty);
+    let total = price * qty as i64;
+    *credits += total;
+    Ok(format!("Sold {qty}x {item_id} for {total} CR"))
+}
 
 /// Economy system: manages credits, passive income, and market pricing.
 pub struct EconomySystem {
@@ -29,6 +138,12 @@ impl EconomySystem {
             passive_income_per_day: 1.0,
             passive_timer: 0.0,
         }
+    }
+
+    /// Test hook: put the passive-income timer `seconds` away from a payout.
+    #[cfg(test)]
+    fn force_payout_in(&mut self, seconds: f32) {
+        self.passive_timer = crate::systems::time::SECONDS_PER_DAY as f32 - seconds;
     }
 
     /// Calculate starting credits from a birth date string (YYYY-MM-DD format).
@@ -77,14 +192,20 @@ impl System for EconomySystem {
         "economy"
     }
 
-    fn tick(&mut self, _world: &mut hecs::World, dt: f32, _data: &DataStore) {
-        // Passive income: accumulate time, pay out 1 credit per real-time day
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+        // Passive income (v0.747, REAL): 1 credit per GAME day (1200 s, the
+        // TimeSystem day length) into every Wallet — "nobody is ever stuck at
+        // zero" (economy.ron's design note). Was a TODO log line since the
+        // system was written.
         self.passive_timer += dt;
-        let day_seconds = 86400.0_f32;
+        let day_seconds = crate::systems::time::SECONDS_PER_DAY as f32;
         if self.passive_timer >= day_seconds {
             self.passive_timer -= day_seconds;
-            // TODO: add passive_income_per_day credits to player's wallet
-            log::debug!("Passive income: +{} credits", self.passive_income_per_day);
+            let income = self.passive_income_per_day as i64;
+            for (_e, wallet) in world.query_mut::<&mut crate::ecs::components::Wallet>() {
+                wallet.credits += income;
+            }
+            log::debug!("Passive income: +{income} CR");
         }
     }
 }
@@ -106,5 +227,71 @@ mod tests {
     fn test_invalid_date() {
         let econ = EconomySystem::new();
         assert_eq!(econ.calculate_starting_credits("invalid"), 0);
+    }
+
+    fn shipped_goods() -> TradeGoodsRegistry {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/trade_goods.ron");
+        TradeGoodsRegistry::from_ron(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// v0.747 (ladder rung 3): the shipped trade_goods.ron parses and the price
+    /// formulas match the file's own documentation (sell 1.25x up, buy 0.5x down).
+    #[test]
+    fn trade_goods_registry_parses_shipped_file_with_documented_prices() {
+        let reg = shipped_goods();
+        assert!(reg.len() >= 200, "expected the full catalog, got {}", reg.len());
+        let iron = reg.get("iron_ore_0").expect("iron ore is traded");
+        assert_eq!(iron.base_value, 5);
+        assert_eq!(reg.vendor_sell_price("iron_ore_0"), Some(7)); // ceil(6.25)
+        assert_eq!(reg.vendor_buy_price("iron_ore_0"), Some(2)); // floor(2.5)
+        assert_eq!(reg.vendor_sell_price("nope"), None);
+    }
+
+    /// Buying charges the wallet + lands the items; refusals (broke, full pack)
+    /// change NOTHING - paid goods are never lost and refusals never charge.
+    #[test]
+    fn vendor_buy_and_sell_round_trip() {
+        use crate::systems::inventory::Inventory;
+        let goods = shipped_goods();
+        let mut inv = Inventory::new(8);
+        let mut credits: i64 = 20;
+
+        // Buy 2 iron ore at 7 CR each.
+        let receipt = vendor_buy(&mut inv, &mut credits, &goods, None, "iron_ore_0", 2).unwrap();
+        assert!(receipt.contains("14 CR"), "{receipt}");
+        assert_eq!(credits, 6);
+        assert_eq!(inv.count_item("iron_ore_0"), 2);
+
+        // Too broke for 2 more: refused, nothing changes.
+        let err = vendor_buy(&mut inv, &mut credits, &goods, None, "iron_ore_0", 2).unwrap_err();
+        assert!(err.contains("Not enough credits"), "{err}");
+        assert_eq!(credits, 6);
+        assert_eq!(inv.count_item("iron_ore_0"), 2);
+
+        // Sell both back at 2 CR each.
+        let receipt = vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 2).unwrap();
+        assert!(receipt.contains("4 CR"), "{receipt}");
+        assert_eq!(credits, 10);
+        assert_eq!(inv.count_item("iron_ore_0"), 0);
+
+        // Selling what you don't have: refused.
+        assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1).is_err());
+    }
+
+    /// v0.747: passive income is REAL - a game-day boundary pays 1 CR into
+    /// every Wallet ("nobody is ever stuck at zero").
+    #[test]
+    fn passive_income_pays_the_wallet_each_game_day() {
+        use crate::ecs::components::Wallet;
+        use crate::ecs::systems::System;
+        let mut world = hecs::World::new();
+        let e = world.spawn((Wallet { credits: 0 },));
+        let data = DataStore::new();
+        let mut sys = EconomySystem::new();
+        sys.force_payout_in(1.0);
+        sys.tick(&mut world, 0.5, &data); // not yet
+        assert_eq!(world.get::<&Wallet>(e).unwrap().credits, 0);
+        sys.tick(&mut world, 1.0, &data); // crosses the day boundary
+        assert_eq!(world.get::<&Wallet>(e).unwrap().credits, 1);
     }
 }

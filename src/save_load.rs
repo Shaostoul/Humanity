@@ -103,6 +103,14 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
             yaw: t.rotation.to_euler(glam::EulerRot::YXZ).0,
         })
         .collect();
+    // Wallet (v0.747, ladder rung 3): credits survive restarts.
+    for (_e, (wallet, _ctrl)) in world
+        .query::<(&crate::ecs::components::Wallet, &Controllable)>()
+        .iter()
+    {
+        save.credits = wallet.credits;
+        break;
+    }
     save
 }
 
@@ -155,6 +163,15 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
         *appearance = save.appearance.clone();
         *outfit = save.outfit.clone();
         break;
+    }
+    // Wallet (v0.747): -1 = a pre-wallet save; keep the fresh-start default.
+    if save.credits >= 0 {
+        for (_e, (wallet, _ctrl)) in
+            world.query_mut::<(&mut crate::ecs::components::Wallet, &Controllable)>()
+        {
+            wallet.credits = save.credits;
+            break;
+        }
     }
     // Deployed vehicles (economy Phase 2 Stage 1): the save is AUTHORITATIVE,
     // exactly like inventory above (clear every slot, then rebuild). Despawn

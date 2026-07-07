@@ -528,6 +528,24 @@ impl Default for Dead {
     }
 }
 
+/// The player's credit balance (v0.747, closure ladder rung 3). Credits are
+/// the atomic unit (economy.ron: no decimal subdivision). Earned by selling to
+/// vendors + passive income (EconomySystem, 1 CR per game day); spent at
+/// vendors. Persisted in WorldSave. The age-based starting-credits formula
+/// (EconomySystem::calculate_starting_credits) applies once identity profiles
+/// carry a birth date; until then new players start with trade_goods.ron's
+/// design default of 10,000 CR.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Wallet {
+    pub credits: i64,
+}
+
+impl Default for Wallet {
+    fn default() -> Self {
+        Self { credits: 10_000 }
+    }
+}
+
 /// Loot table — items dropped on death. Each entry is (item_id, drop_chance, count).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LootTable {

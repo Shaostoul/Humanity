@@ -570,6 +570,19 @@ pub struct GuiRecipe {
     pub description: String,
 }
 
+/// One vendor-tradeable good for GUI display (v0.747, ladder rung 3).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone)]
+pub struct GuiTradeGood {
+    pub id: String,
+    pub name: String,
+    pub category: String,
+    /// What the PLAYER PAYS to buy one (vendor sell price, 1.25x base).
+    pub buy_price: i64,
+    /// What the PLAYER RECEIVES selling one (vendor buy price, 0.5x base).
+    pub sell_price: i64,
+}
+
 /// A buildable structure blueprint for GUI display (v0.746, ladder rung 2):
 /// the Crafting page's Structures section renders these; Build sends the id
 /// through pending_build -> the "build_request" channel -> ConstructionSystem.
@@ -1625,6 +1638,22 @@ pub struct GuiState {
     /// Item id the player chose to Store; lib.rs moves as much as fits from
     /// the backpack into the machine's Container next frame. (v0.733)
     pub machine_card_store_pending: Option<String>,
+    /// True when the pinned machine is a trading post (v0.747, ladder rung 3):
+    /// the card shows a Trade button that opens the vendor modal.
+    pub machine_card_vendor: bool,
+    /// Vendor modal open (v0.747). Opened from the trading post's card.
+    pub vendor_open: bool,
+    /// The vendor's catalog: goods that exist in BOTH trade_goods.ron and
+    /// items.csv, with the player-facing prices (pay / receive).
+    pub vendor_goods: Vec<GuiTradeGood>,
+    /// Last vendor transaction receipt or refusal.
+    pub vendor_status: String,
+    /// The player's live credit balance, bridged from the Wallet each frame.
+    pub wallet_credits: i64,
+    /// Buy/Sell clicked this frame: (item id, quantity). lib.rs settles them
+    /// against the ECS inventory + Wallet via economy::vendor_buy/vendor_sell.
+    pub pending_vendor_buy: Option<(String, u32)>,
+    pub pending_vendor_sell: Option<(String, u32)>,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
     pub room_bounds: Vec<RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
@@ -3163,6 +3192,13 @@ impl Default for GuiState {
             machine_card_take_pending: false,
             machine_card_storable: Vec::new(),
             machine_card_store_pending: None,
+            machine_card_vendor: false,
+            vendor_open: false,
+            vendor_goods: Vec::new(),
+            vendor_status: String::new(),
+            wallet_credits: 0,
+            pending_vendor_buy: None,
+            pending_vendor_sell: None,
             room_bounds: Vec::new(),
             reveal_held: false,
             machine_label_dot_dist: 21.0,

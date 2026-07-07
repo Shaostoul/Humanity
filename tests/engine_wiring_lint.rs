@@ -48,7 +48,9 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // queue_build() yet (no GUI/economy-automation caller wired), so it's a live,
     // correct no-op today, not deferred.
     ("PlacementSystem", "paired with ConstructionSystem; same build-mode gating"),
-    ("EconomySystem", "needs market/credits entities + live verification"),
+    // EconomySystem entry removed 2026-07-07 (v0.747, closure ladder rung 3):
+    // REGISTERED in src/lib.rs — passive income pays real credits into the
+    // player's Wallet component; vendor trade runs via the frame bridge.
     // VehicleSystem entry removed 2026-07-02: REGISTERED in src/lib.rs (economy
     // Phase 2 Stage 1) — its deploy arm drains deploy_kit_request live; the
     // enter/exit/mech arms stay dormant until Stage 3 publishes their commands.

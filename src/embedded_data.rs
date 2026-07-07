@@ -128,6 +128,8 @@ pub const PLACES_SEED_JSON: &str = include_str!("../data/places/seed.json");
 pub const HOME_OUTLINE_JSON: &str = include_str!("../data/home_outline.json");
 pub const FIBONACCI_HOMESTEAD_RON: &str = include_str!("../data/blueprints/fibonacci_homestead.ron");
 pub const GUI_NAVIGATION_JSON: &str = include_str!("../data/gui/navigation.json");
+pub const TRADE_GOODS_RON: &str = include_str!("../data/trade_goods.ron");
+pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -255,6 +257,8 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "home_outline.json" => Some(HOME_OUTLINE_JSON),
         "blueprints/fibonacci_homestead.ron" => Some(FIBONACCI_HOMESTEAD_RON),
         "gui/navigation.json" => Some(GUI_NAVIGATION_JSON),
+        "trade_goods.ron" => Some(TRADE_GOODS_RON),
+        "economy.ron" => Some(ECONOMY_RON),
 
         _ => None,
     }
@@ -367,6 +371,8 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "home_outline.json",
     "blueprints/fibonacci_homestead.ron",
     "gui/navigation.json",
+    "trade_goods.ron",
+    "economy.ron",
 ];
 
 #[cfg(test)]

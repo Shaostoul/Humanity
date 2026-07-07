@@ -4429,6 +4429,18 @@ mod native_app {
         // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
         // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
         // deployed-vehicle render pass.
+        // TradeGoodsRegistry (v0.747, ladder rung 3): base credit values for the
+        // vendor economy. Read by the vendor bridge + the vendor modal.
+        match crate::embedded_data::read_data_or_embedded(data_dir, "trade_goods.ron") {
+            Some(text) => match crate::systems::economy::TradeGoodsRegistry::from_ron(text.as_bytes()) {
+                Ok(reg) => {
+                    log::info!("Loaded {} trade goods from trade_goods.ron", reg.len());
+                    store.insert("trade_goods_registry", reg);
+                }
+                Err(e) => log::warn!("Failed to parse trade_goods.ron: {e}"),
+            },
+            None => log::warn!("trade_goods.ron not found (no embedded copy); vendors disabled"),
+        }
         match crate::embedded_data::read_data_or_embedded(data_dir, "vehicles/kits.ron") {
             Some(text) => match crate::systems::vehicles::VehicleKitRegistry::from_ron(text.as_bytes()) {
                 Ok(reg) => {
@@ -5213,6 +5225,11 @@ mod native_app {
             // world). The enter/exit/mech arms it also carries are dormant until
             // Stage 3 wires an interaction that publishes their commands.
             system_runner.register(crate::systems::vehicles::VehicleSystem::new());
+            // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
+            // passive income (1 CR per game day) into every Wallet — economy.ron's
+            // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
+            // bridge (one-shot GUI ops), not here.
+            system_runner.register(crate::systems::economy::EconomySystem::new());
             // SkillSystem ticks LAST so it drains the xp_grants the action systems
             // pushed THIS frame (craft → recipe skill, harvest → farming, mine → mining)
             // and applies level-ups before the frame's ECS→GUI sync reads them.
@@ -5235,6 +5252,7 @@ mod native_app {
                 crate::ecs::components::StatusEffects::default(),
                 crate::ecs::components::Appearance::default(),
                 crate::ecs::components::Outfit::default(),
+                crate::ecs::components::Wallet::default(),
                 PlayerSkills::new(),
                 player_quests,
             ));
@@ -9553,6 +9571,107 @@ mod native_app {
                         }
                     }
 
+                    // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
+                    // Live credit balance for the HUD + vendor modal.
+                    for (_e, (wallet, _c)) in state
+                        .game_world
+                        .world
+                        .query::<(&crate::ecs::components::Wallet, &Controllable)>()
+                        .iter()
+                    {
+                        state.gui_state.wallet_credits = wallet.credits;
+                        break;
+                    }
+                    // Vendor catalog, built once: goods that exist in BOTH
+                    // trade_goods.ron and items.csv (never sell an id the game
+                    // cannot hold), sorted by category then name.
+                    if state.gui_state.vendor_goods.is_empty() {
+                        if let (Some(goods), Some(items)) = (
+                            state
+                                .data_store
+                                .get::<crate::systems::economy::TradeGoodsRegistry>(
+                                    "trade_goods_registry",
+                                ),
+                            state.data_store.get::<ItemRegistry>("item_registry"),
+                        ) {
+                            let mut list: Vec<crate::gui::GuiTradeGood> = goods
+                                .goods
+                                .values()
+                                .filter(|g| items.items.contains_key(&g.id))
+                                .map(|g| crate::gui::GuiTradeGood {
+                                    id: g.id.clone(),
+                                    name: g.name.clone(),
+                                    category: g.category.clone(),
+                                    buy_price: goods.vendor_sell_price(&g.id).unwrap_or(1),
+                                    sell_price: goods.vendor_buy_price(&g.id).unwrap_or(0),
+                                })
+                                .collect();
+                            list.sort_by(|a, b| {
+                                (a.category.clone(), a.name.clone())
+                                    .cmp(&(b.category.clone(), b.name.clone()))
+                            });
+                            state.gui_state.vendor_goods = list;
+                        }
+                    }
+                    // Settle Buy/Sell intents against the ECS inventory + Wallet.
+                    let vendor_ops = (
+                        state.gui_state.pending_vendor_buy.take(),
+                        state.gui_state.pending_vendor_sell.take(),
+                    );
+                    if vendor_ops.0.is_some() || vendor_ops.1.is_some() {
+                        let mut player: Option<hecs::Entity> = None;
+                        for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
+                            player = Some(e);
+                            break;
+                        }
+                        if let (Some(e), Some(goods)) = (
+                            player,
+                            state
+                                .data_store
+                                .get::<crate::systems::economy::TradeGoodsRegistry>(
+                                    "trade_goods_registry",
+                                ),
+                        ) {
+                            let items = state.data_store.get::<ItemRegistry>("item_registry");
+                            let result = (|| -> Result<String, String> {
+                                let mut inv = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut Inventory>(e)
+                                    .map_err(|_| "no inventory".to_string())?;
+                                let mut wallet = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut crate::ecs::components::Wallet>(e)
+                                    .map_err(|_| "no wallet".to_string())?;
+                                if let Some((id, qty)) = vendor_ops.0 {
+                                    crate::systems::economy::vendor_buy(
+                                        &mut inv,
+                                        &mut wallet.credits,
+                                        goods,
+                                        items,
+                                        &id,
+                                        qty,
+                                    )
+                                } else if let Some((id, qty)) = vendor_ops.1 {
+                                    crate::systems::economy::vendor_sell(
+                                        &mut inv,
+                                        &mut wallet.credits,
+                                        goods,
+                                        &id,
+                                        qty,
+                                    )
+                                } else {
+                                    Ok(String::new())
+                                }
+                            })();
+                            state.gui_state.vendor_status = match result {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                        }
+                    }
+
                     // ── Death & recovery (v0.745, loop-map rung 1) ──
                     // Surface a death recorded by FoodSystem as the death screen.
                     if let Some(slot) = state
@@ -10618,6 +10737,21 @@ mod native_app {
                         state.gui_state.machine_card_recipe = current;
                         state.gui_state.machine_card_recipe_options = options;
                         state.gui_state.machine_card_container = container_pub;
+                        // Trading post? (v0.747, ladder rung 3): the pinned
+                        // card grows a Trade button that opens the vendor.
+                        state.gui_state.machine_card_vendor = state
+                            .gui_state
+                            .selected_machine
+                            .and_then(|i| state.gui_state.machine_labels.get(i))
+                            .map(|l| l.machine_id.clone())
+                            .and_then(|mid| {
+                                state.gui_state.home_machines.as_ref().map(|hm| {
+                                    hm.instances
+                                        .iter()
+                                        .any(|inst| inst.id == mid && inst.machine == "trading_post")
+                                })
+                            })
+                            .unwrap_or(false);
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
@@ -12884,6 +13018,12 @@ mod native_app {
                                 {
                                     crate::gui::pages::chat::draw_incoming_call_modal(ctx, &state.theme, &mut state.gui_state);
                                     crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);
+                                }
+
+                                // Vendor modal (v0.747, ladder rung 3): opened from
+                                // the trading post's card; draws over any page.
+                                if state.gui_state.vendor_open {
+                                    crate::gui::pages::vendor::draw_vendor_modal(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // Death screen (v0.745, loop-map rung 1): overlays
