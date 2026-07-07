@@ -671,8 +671,13 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
     // Show whenever the machine HAS an auto recipe (even a single option) —
     // seeing WHAT the machine builds matters as much as switching it, and a
     // one-option dropdown still tells you that (v0.730; was >= 2) — OR when
-    // it's a container holding something (the Take action, v0.731).
-    if state.machine_card_recipe_options.is_empty() && state.machine_card_container.is_none() {
+    // it's a container holding something (Take, v0.731) — OR when the player
+    // carries something an EMPTY vessel accepts (Store, v0.733: the genset
+    // drum starts empty; without this the deposit path would be unreachable).
+    if state.machine_card_recipe_options.is_empty()
+        && state.machine_card_container.is_none()
+        && state.machine_card_storable.is_empty()
+    {
         return;
     }
     // Card geometry mirrors the pinned card draw (now screen-centered, upper
@@ -715,7 +720,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                         }
                     });
                 }
-                // Container contents + Take (v0.731): deposits are automatic
+                // Container contents + Take (v0.731): deposits can be automatic
                 // (harvest surplus routes in), this is the withdraw path.
                 if let Some((_, name, qty)) = state.machine_card_container.clone() {
                     ui.horizontal(|ui| {
@@ -730,6 +735,22 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                             .show(ui, theme)
                         {
                             state.machine_card_take_pending = true;
+                        }
+                    });
+                }
+                // Store (v0.733): per-item deposit buttons for compatible pack
+                // items — how refined fuel gets from the pack into the genset
+                // drum. Only accepted classes are listed, so a wrong-class
+                // deposit (and its vessel damage) can't happen from here.
+                let storable = state.machine_card_storable.clone();
+                for (id, name, qty) in storable {
+                    ui.horizontal(|ui| {
+                        if crate::gui::widgets::Button::secondary(&format!("Store {}x {}", qty, name))
+                            .tooltip("Pour this from your backpack into the vessel \
+                                      (as much as fits).")
+                            .show(ui, theme)
+                        {
+                            state.machine_card_store_pending = Some(id.clone());
                         }
                     });
                 }

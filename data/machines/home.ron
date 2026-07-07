@@ -304,7 +304,14 @@
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
             label: "Generator (backup)",
             category: "Power",
-            stats: [(kind: "fuel", value: "80%", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
+            // The fuel row's value becomes the live drum fill; the power row is
+            // patched live too ("running 2 kW" / "out of fuel"). (v0.733)
+            stats: [(kind: "fuel", value: "200 L drum", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
+            // Real backstop genset (v0.733): 2 kW burning ~1.5 L/h of refined
+            // fuel from its own drum, and ONLY when the island is short with
+            // low batteries. Empty drum = the backstop is gone (the honest
+            // deep-tail consequence the Energy loop note describes).
+            power: Some(Generator(watts: 2000.0, fuel_lph: 1.5)),
             // Typed container (v0.728): the backup fuel store beside it.
             container_type: Some("steel_fuel_drum"),
         ),

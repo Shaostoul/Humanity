@@ -8,8 +8,11 @@
 //!      until supply >= remaining demand.
 //!   5. Throttle log spam to once per 5 seconds.
 //!
-//! Fuel consumption is currently a stub — generators with `fuel_per_second > 0`
-//! should drain their inventory; that's a future tie-in to the Inventory system.
+//! Fueled BACKSTOP gensets (v0.733): a generator with `fuel_per_second > 0`
+//! runs ONLY when its island needs it — free-source supply short of demand
+//! AND island batteries low — and burns from the machine's own fuel drum
+//! (its `Container` component, flammable-class contents). An empty drum means
+//! no watts: the deep-tail backstop is a real consequence, not a stat line.
 
 use std::path::Path;
 
@@ -84,6 +87,10 @@ pub struct ElectricalSystem {
     pub total_consumption: f32,
     /// Accumulator to throttle log spam (seconds since last log).
     log_cooldown: f32,
+    /// Fractional litres burned per fueled genset, carried between ticks so a
+    /// slow burn (1.5 L/h at 60 fps) still consumes whole fuel UNITS from the
+    /// drum once enough has accumulated. Keyed by the genset entity. (v0.733)
+    fuel_accum: std::collections::HashMap<hecs::Entity, f32>,
 }
 
 impl ElectricalSystem {
@@ -104,6 +111,7 @@ impl ElectricalSystem {
             total_generation: 0.0,
             total_consumption: 0.0,
             log_cooldown: 0.0,
+            fuel_accum: std::collections::HashMap::new(),
         }
     }
 }
@@ -120,6 +128,98 @@ impl System for ElectricalSystem {
         // transmission across unconnected wiring. Entities WITHOUT a PowerCircuit (legacy/test spawns)
         // all share the `None` bucket, which reproduces the old whole-world summing exactly.
         // The published PowerStatus aggregates across islands so the Home card still shows the home.
+
+        // 0. Backstop gensets (v0.733): decide per fueled generator whether it
+        // RUNS this tick — its island's free sources short of raw demand AND
+        // the island batteries low — and burn drum fuel while it does. This
+        // runs before the aggregation so an active genset counts as supply.
+        {
+            // Free (unfueled) supply, raw demand, and battery fraction per island.
+            let mut free_gen: HashMap<Option<u32>, f32> = HashMap::new();
+            for (_, (g, pc)) in world.query::<(&PowerGenerator, Option<&PowerCircuit>)>().iter() {
+                if g.active && g.fuel_per_second <= 0.0 {
+                    *free_gen.entry(pc.map(|p| p.island)).or_default() += g.output_watts;
+                }
+            }
+            let mut raw_demand: HashMap<Option<u32>, f32> = HashMap::new();
+            for (_, (c, pc)) in world.query::<(&PowerConsumer, Option<&PowerCircuit>)>().iter() {
+                *raw_demand.entry(pc.map(|p| p.island)).or_default() += c.draw_watts;
+            }
+            let mut batt: HashMap<Option<u32>, (f32, f32)> = HashMap::new();
+            for (_, (b, pc)) in world.query::<(&Battery, Option<&PowerCircuit>)>().iter() {
+                let e = batt.entry(pc.map(|p| p.island)).or_default();
+                e.0 += b.charge_wh;
+                e.1 += b.capacity_wh;
+            }
+            let item_reg =
+                data.get::<crate::systems::inventory::ItemRegistry>("item_registry");
+            let mut updates: Vec<(hecs::Entity, bool)> = Vec::new();
+            for (e, (g, cont, pc)) in world
+                .query::<(
+                    &PowerGenerator,
+                    Option<&crate::systems::inventory::containers::Container>,
+                    Option<&PowerCircuit>,
+                )>()
+                .iter()
+            {
+                if g.fuel_per_second <= 0.0 {
+                    continue;
+                }
+                let island = pc.map(|p| p.island);
+                let shortfall = free_gen.get(&island).copied().unwrap_or(0.0)
+                    < raw_demand.get(&island).copied().unwrap_or(0.0);
+                let (wh, cap) = batt.get(&island).copied().unwrap_or((0.0, 0.0));
+                let batteries_low = cap <= 0.0 || wh / cap < 0.25;
+                // Only flammable-class contents burn (grain in the drum does
+                // not power the house).
+                let fuel_ok = cont
+                    .and_then(|c| c.current_content_item.as_ref().map(|i| (i, c.current_qty)))
+                    .map(|(item, qty)| {
+                        qty > 0
+                            && item_reg
+                                .map(|r| r.class_for(item) == "flammable")
+                                .unwrap_or(false)
+                    })
+                    .unwrap_or(false);
+                updates.push((e, shortfall && batteries_low && fuel_ok));
+            }
+            for (e, run) in updates {
+                if let Ok(mut g) = world.get::<&mut PowerGenerator>(e) {
+                    g.active = run;
+                }
+                if run {
+                    // Burn: accumulate fractional litres; consume whole fuel
+                    // units from the drum as the accumulator crosses each
+                    // unit's volume.
+                    let rate = world
+                        .get::<&PowerGenerator>(e)
+                        .map(|g| g.fuel_per_second)
+                        .unwrap_or(0.0);
+                    let accum = self.fuel_accum.entry(e).or_insert(0.0);
+                    *accum += rate * dt;
+                    if let Ok(mut c) = world
+                        .get::<&mut crate::systems::inventory::containers::Container>(e)
+                    {
+                        if let Some(item) = c.current_content_item.clone() {
+                            let unit_vol = item_reg
+                                .map(|r| r.volume_for(&item))
+                                .unwrap_or(0.0)
+                                .max(0.01);
+                            while *accum >= unit_vol && c.current_qty > 0 {
+                                c.current_qty -= 1;
+                                c.used_liters = (c.used_liters - unit_vol).max(0.0);
+                                *accum -= unit_vol;
+                            }
+                            if c.current_qty == 0 {
+                                c.current_content_item = None;
+                                c.used_liters = 0.0;
+                                log::info!("Backstop genset ran its drum dry");
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // 1. Gather per-island aggregates (Entity is Copy, so the query borrows release after collect).
         let mut gen_by: HashMap<Option<u32>, f32> = HashMap::new();
@@ -313,6 +413,99 @@ mod tests {
         assert!((ps.generation - 3000.0).abs() < 1.0, "generation {}", ps.generation);
         assert!((ps.consumption - 1800.0).abs() < 1.0, "consumption {}", ps.consumption);
         assert!((ps.balance - 1200.0).abs() < 1.0, "balance {}", ps.balance);
+    }
+
+    /// Backstop genset (v0.733): with the island short (no free generation, a
+    /// live load, no batteries) and flammable fuel in its OWN drum, the genset
+    /// runs and BURNS units; a dry drum stops it on the next tick.
+    #[test]
+    fn backstop_genset_runs_when_needed_and_burns_its_drum_dry() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        use crate::systems::inventory::containers::Container;
+
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let reg = crate::systems::inventory::ItemRegistry::from_csv(
+            b"id,name,weight_kg,stack_size,volume_l,content_class\nfuel_refined_0,Refined Fuel,0.8,10,1.0,flammable\n",
+        )
+        .expect("registry");
+        data.insert("item_registry", reg);
+
+        let mut world = hecs::World::new();
+        world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true },));
+        let mut drum = Container::new("steel_fuel_drum", 200.0);
+        drum.current_content_item = Some("fuel_refined_0".to_string());
+        drum.current_qty = 2;
+        drum.used_liters = 2.0;
+        // 1 L/s burn for test speed (real gensets are fuel_lph / 3600).
+        let gen = world.spawn((
+            PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
+            drum,
+        ));
+
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 1.5, &data); // burns 1.5 L -> one whole unit
+        {
+            let g = world.get::<&PowerGenerator>(gen).unwrap();
+            assert!(g.active, "island short + no batteries + fuel -> genset runs");
+        }
+        {
+            let c = world.get::<&Container>(gen).unwrap();
+            assert_eq!(c.current_qty, 1, "1.5 L at 1 L/unit consumes one unit");
+        }
+        sys.tick(&mut world, 1.0, &data); // accum reaches 1.5 -> second unit -> dry
+        sys.tick(&mut world, 0.1, &data); // dry drum observed -> genset stops
+        let g = world.get::<&PowerGenerator>(gen).unwrap();
+        let c = world.get::<&Container>(gen).unwrap();
+        assert!(c.is_empty(), "drum drained");
+        assert!(!g.active, "dry drum -> the backstop is gone");
+    }
+
+    /// Backstop genset (v0.733): healthy batteries keep the genset IDLE even
+    /// with an instantaneous shortfall — no nightly fuel-burn while the banks
+    /// carry the load. No fuel is consumed while idle.
+    #[test]
+    fn backstop_genset_idles_when_batteries_are_healthy() {
+        use super::{ElectricalSystem, PowerStatus};
+        use crate::ecs::components::{Battery, PowerConsumer, PowerGenerator};
+        use crate::ecs::systems::System;
+        use crate::hot_reload::data_store::DataStore;
+        use crate::systems::inventory::containers::Container;
+
+        let mut data = DataStore::new();
+        data.insert("power_status", std::sync::Mutex::new(PowerStatus::default()));
+        let reg = crate::systems::inventory::ItemRegistry::from_csv(
+            b"id,name,weight_kg,stack_size,volume_l,content_class\nfuel_refined_0,Refined Fuel,0.8,10,1.0,flammable\n",
+        )
+        .expect("registry");
+        data.insert("item_registry", reg);
+
+        let mut world = hecs::World::new();
+        world.spawn((PowerConsumer { draw_watts: 100.0, priority: 1, enabled: true },));
+        world.spawn((Battery {
+            charge_wh: 3600.0,
+            capacity_wh: 4000.0,
+            max_charge_w: 2000.0,
+            max_discharge_w: 2000.0,
+        },));
+        let mut drum = Container::new("steel_fuel_drum", 200.0);
+        drum.current_content_item = Some("fuel_refined_0".to_string());
+        drum.current_qty = 2;
+        drum.used_liters = 2.0;
+        let gen = world.spawn((
+            PowerGenerator { output_watts: 2000.0, fuel_per_second: 1.0, active: false },
+            drum,
+        ));
+
+        let mut sys = ElectricalSystem::new(std::path::Path::new("data"));
+        sys.tick(&mut world, 5.0, &data);
+        let g = world.get::<&PowerGenerator>(gen).unwrap();
+        let c = world.get::<&Container>(gen).unwrap();
+        assert!(!g.active, "90% batteries -> the backstop idles");
+        assert_eq!(c.current_qty, 2, "no fuel burned while idle");
     }
 
     /// v0.607: power flows PER ISLAND. Island 0 has a generator + a load (the load runs). Island 1 has

@@ -41,8 +41,17 @@ pub struct MachineStat {
 pub enum MachinePower {
     /// Solar panel: output scales with the sun (peak watts at noon, zero at night).
     Solar { peak_watts: f32 },
-    /// Steady generator (wind, fuel): constant output while active.
-    Generator { watts: f32 },
+    /// Steady generator: constant output while active. `fuel_lph` litres/hour
+    /// of drum fuel burned while RUNNING (v0.733) — 0 (the serde default, so
+    /// wind's `Generator(watts: 150.0)` parses unchanged) = a free source
+    /// that's always on; > 0 = a backstop genset that only runs when its
+    /// island is short AND the batteries are low, drawing from the machine's
+    /// own Container (empty drum = no watts).
+    Generator {
+        watts: f32,
+        #[serde(default)]
+        fuel_lph: f32,
+    },
     /// Power draw. `priority` 1 = critical (shed last), 5 = optional (shed first).
     Consumer { watts: f32, priority: u8 },
     /// Battery bank: buffers surplus / supplies deficit (v0.473). Charges when generation exceeds
@@ -126,7 +135,7 @@ impl MachineDef {
         }
         match &self.power {
             Some(MachinePower::Solar { peak_watts }) => vec![Port::elec_out(*peak_watts)],
-            Some(MachinePower::Generator { watts }) => vec![Port::elec_out(*watts)],
+            Some(MachinePower::Generator { watts, .. }) => vec![Port::elec_out(*watts)],
             Some(MachinePower::Consumer { watts, .. }) => vec![Port::elec_in(*watts)],
             Some(MachinePower::Battery { max_discharge_w, .. }) => vec![Port::elec_bidir(*max_discharge_w)],
             None => Vec::new(),
@@ -807,7 +816,7 @@ impl MachineHome {
             if let Some(def) = self.catalog.get(&inst.machine) {
                 match &def.power {
                     Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
-                    Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                    Some(MachinePower::Generator { watts, .. }) => gen_watts += watts,
                     _ => {}
                 }
                 // A battery is STORAGE, not demand: its inferred bidirectional bus terminal is a
@@ -871,7 +880,7 @@ impl MachineHome {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
             match &def.power {
                 Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
-                Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                Some(MachinePower::Generator { watts, .. }) => gen_watts += watts,
                 _ => {}
             }
             if is_grow_light(&inst.machine) {
@@ -945,7 +954,7 @@ impl MachineHome {
             if let Some(def) = self.catalog.get(&inst.machine) {
                 match &def.power {
                     Some(MachinePower::Solar { peak_watts }) => solar_peak += peak_watts,
-                    Some(MachinePower::Generator { watts }) => gen_watts += watts,
+                    Some(MachinePower::Generator { watts, .. }) => gen_watts += watts,
                     Some(MachinePower::Consumer { watts, .. }) => consumer_watts += watts,
                     Some(MachinePower::Battery { capacity_wh, .. }) => battery_wh += capacity_wh,
                     None => {}
@@ -2401,7 +2410,7 @@ mod tests {
     #[test]
     fn buildability_conduits_undersized_pinned_cable_fails() {
         let home = wired_pair(
-            def_with_power(Some(MachinePower::Generator { watts: 5000.0 })),
+            def_with_power(Some(MachinePower::Generator { watts: 5000.0, fuel_lph: 0.0 })),
             def_with_power(Some(MachinePower::Consumer { watts: 3000.0, priority: 1 })),
             1.0,
             Some("cu_awg14"), // 15 A cable; 3000 W @ 120 V = 25 A -> over ampacity
@@ -2416,7 +2425,7 @@ mod tests {
     #[test]
     fn buildability_conduits_unknown_cable_id_fails() {
         let home = wired_pair(
-            def_with_power(Some(MachinePower::Generator { watts: 500.0 })),
+            def_with_power(Some(MachinePower::Generator { watts: 500.0, fuel_lph: 0.0 })),
             def_with_power(Some(MachinePower::Consumer { watts: 200.0, priority: 1 })),
             1.0,
             Some("unobtainium_42"),

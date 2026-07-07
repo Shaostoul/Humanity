@@ -1274,7 +1274,7 @@ fn draw_building_info(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         use crate::machines::MachinePower::*;
         let s = match power {
             Solar { peak_watts } => format!("Solar source -- up to {peak_watts:.0} W in full sun"),
-            Generator { watts } => format!("Generator -- {watts:.0} W steady"),
+            Generator { watts, .. } => format!("Generator -- {watts:.0} W steady"),
             Consumer { watts, priority } => format!("Draws {watts:.0} W (shed priority {priority})"),
             Battery { capacity_wh, max_charge_w, max_discharge_w } => format!("Battery -- {capacity_wh:.0} Wh ({max_charge_w:.0}/{max_discharge_w:.0} W)"),
         };
@@ -1422,7 +1422,7 @@ fn draw_machine_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.add_space(theme.spacing_xs);
             let role = match power {
                 crate::machines::MachinePower::Solar { peak_watts } => format!("Solar  peak {peak_watts:.0} W"),
-                crate::machines::MachinePower::Generator { watts } => format!("Generator  {watts:.0} W"),
+                crate::machines::MachinePower::Generator { watts, .. } => format!("Generator  {watts:.0} W"),
                 crate::machines::MachinePower::Consumer { watts, priority } => format!("Consumer  {watts:.0} W  (priority {priority})"),
                 crate::machines::MachinePower::Battery { capacity_wh, .. } => format!("Battery  {capacity_wh:.0} Wh"),
             };

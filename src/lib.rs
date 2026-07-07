@@ -301,8 +301,17 @@ mod native_app {
                         ),
                     );
                 }
-                MachinePower::Generator { watts } => {
-                    let _ = world.insert_one(e, PowerGenerator { output_watts: *watts, fuel_per_second: 0.0, active: true });
+                MachinePower::Generator { watts, fuel_lph } => {
+                    // fuel_per_second > 0 marks a backstop genset: the
+                    // ElectricalSystem gates it on need + drum fuel (v0.733).
+                    let _ = world.insert_one(
+                        e,
+                        PowerGenerator {
+                            output_watts: *watts,
+                            fuel_per_second: fuel_lph / 3600.0,
+                            active: *fuel_lph <= 0.0,
+                        },
+                    );
                 }
                 MachinePower::Consumer { watts, priority } => {
                     let _ = world.insert_one(e, PowerConsumer { draw_watts: *watts, priority: *priority, enabled: true });
@@ -9936,6 +9945,9 @@ mod native_app {
                             .selected_machine
                             .and_then(|i| state.gui_state.machine_labels.get(i))
                             .map(|l| l.machine_id.clone());
+                        // Cleared here; the selected-machine block below
+                        // repopulates it when a vessel is pinned.
+                        state.gui_state.machine_card_storable.clear();
                         if let Some(mid) = sel_mid {
                             let pending = state.gui_state.machine_card_recipe_pending.take();
                             for (_e, (id, auto)) in state
@@ -9982,6 +9994,7 @@ mod native_app {
                                 .get::<crate::systems::inventory::ItemRegistry>("item_registry");
                             let mut cont_entity: Option<hecs::Entity> = None;
                             let mut contents: Option<(String, u32)> = None;
+                            let mut cont_type: Option<String> = None;
                             for (e, (id, c)) in state
                                 .game_world
                                 .world
@@ -9995,6 +10008,7 @@ mod native_app {
                                     continue;
                                 }
                                 cont_entity = Some(e);
+                                cont_type = Some(c.container_type_id.clone());
                                 if let Some(item) = &c.current_content_item {
                                     if c.current_qty > 0 {
                                         contents = Some((item.clone(), c.current_qty));
@@ -10035,6 +10049,110 @@ mod native_app {
                                     }
                                 }
                             }
+                            // Store (v0.733): move a chosen pack item into the
+                            // vessel — the deposit path that completes the
+                            // refinery -> pack -> genset-drum fuel handoff.
+                            // Compatibility is guaranteed by construction (the
+                            // Store buttons only list accepted items).
+                            let store = state.gui_state.machine_card_store_pending.take();
+                            if let (Some(e), Some(item)) = (cont_entity, store) {
+                                let unit_vol =
+                                    item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
+                                let class = item_reg
+                                    .map(|r| r.class_for(&item).to_string())
+                                    .unwrap_or_else(|| "solid".to_string());
+                                let mut have = 0u32;
+                                for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
+                                    &crate::systems::inventory::Inventory,
+                                    &crate::ecs::components::Controllable,
+                                )>() {
+                                    have = inv.count_item(&item);
+                                    break;
+                                }
+                                if have > 0 {
+                                    let mut stored = 0u32;
+                                    if let Some(creg) = state
+                                        .data_store
+                                        .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                                            "container_registry",
+                                        )
+                                    {
+                                        if let Ok(mut c) = state
+                                            .game_world
+                                            .world
+                                            .get::<&mut crate::systems::inventory::containers::Container>(e)
+                                        {
+                                            if let crate::systems::inventory::containers::StoreOutcome::Stored { quantity } =
+                                                creg.try_store(&mut c, &item, &class, unit_vol, have)
+                                            {
+                                                stored = quantity;
+                                            }
+                                            contents = c
+                                                .current_content_item
+                                                .clone()
+                                                .filter(|_| c.current_qty > 0)
+                                                .map(|i| (i, c.current_qty));
+                                        }
+                                    }
+                                    if stored > 0 {
+                                        for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
+                                            &mut crate::systems::inventory::Inventory,
+                                            &crate::ecs::components::Controllable,
+                                        )>() {
+                                            inv.remove_item(&item, stored);
+                                            break;
+                                        }
+                                        log::info!("[Machines] stored {stored}x {item} into {mid}");
+                                    }
+                                }
+                            }
+                            // Storable pack items (for the per-item Store buttons):
+                            // class-accepted by this vessel + no-mixing respected.
+                            let mut storable: Vec<(String, String, u32)> = Vec::new();
+                            if let (Some(ct), Some(creg)) = (
+                                cont_type.as_ref(),
+                                state
+                                    .data_store
+                                    .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                                        "container_registry",
+                                    ),
+                            ) {
+                                let current_item = contents.as_ref().map(|(i, _)| i.clone());
+                                for (_pe, (inv, _c)) in state.game_world.world.query::<(
+                                    &crate::systems::inventory::Inventory,
+                                    &crate::ecs::components::Controllable,
+                                )>().iter() {
+                                    let mut counts: std::collections::HashMap<String, u32> =
+                                        std::collections::HashMap::new();
+                                    for slot in inv.slots.iter().flatten() {
+                                        *counts.entry(slot.item_id.clone()).or_default() +=
+                                            slot.quantity;
+                                    }
+                                    for (id, qty) in counts {
+                                        if qty == 0 {
+                                            continue;
+                                        }
+                                        let class = item_reg
+                                            .map(|r| r.class_for(&id).to_string())
+                                            .unwrap_or_else(|| "solid".to_string());
+                                        let mix_ok = current_item
+                                            .as_ref()
+                                            .map(|ci| *ci == id)
+                                            .unwrap_or(true);
+                                        if mix_ok && creg.check(ct, &class).is_accepted() {
+                                            let name = item_reg
+                                                .and_then(|r| r.items.get(&id))
+                                                .map(|d| d.name.clone())
+                                                .unwrap_or_else(|| id.clone());
+                                            storable.push((id, name, qty));
+                                        }
+                                    }
+                                    break;
+                                }
+                                storable.sort_by(|a, b| a.1.cmp(&b.1));
+                                storable.truncate(4);
+                            }
+                            state.gui_state.machine_card_storable = storable;
                             container_pub = contents.map(|(item, qty)| {
                                 let name = item_reg
                                     .and_then(|r| r.items.get(&item))
