@@ -11,6 +11,31 @@
 
 ## Active focus
 
+> **>>> CLOSURE LADDER: FIVE RUNGS SHIPPED (2026-07-07, Fable final day,
+> v0.745-v0.749).** The bible below is not just written - its ladder is
+> EXECUTING. Shipped, each with tests + full battery:
+> 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
+>    death screen + respawn at the spawn room, EffectTick (poison bites,
+>    regeneration heals), attack-pulse on damage.
+> 2. **v0.746 construction entry point** (rung 2): Crafting page > Structures
+>    section, materials consumed backpack-first, scaffold-rises render,
+>    build_<id> quest events + shelter_building XP.
+> 3. **v0.747 credits + first vendor** (rung 3): Wallet (persisted, HUD
+>    readout), EconomySystem registered with REAL passive income,
+>    TradeGoodsRegistry, Trading Post machine + vendor modal (buy 1.25x /
+>    sell 0.5x base).
+> 4. **v0.748 quest repair** (rung 4): QuestTracker persists, Available +
+>    Accept UI (4 unreachable authored quests now live), xp_rewards granted.
+> 5. **v0.749 environment matters** (rung 6): ALL 132 plants harvest
+>    (harvest_item column + 114 new produce items + a forever-test), field
+>    crops face season/weather while indoor grows stay climate-controlled,
+>    station-gated crafting with 8 new craft-station machines.
+> NEXT RUNGS: 5 (native market/trade pages speak to the relay - needs
+> live-relay interaction care), 7 (creatures passive-first: creatures.csv
+> loader + Harvestable animals), 8 (gear + abilities per
+> progression-skills-gear.md - its rungs 1-3 need NO new systems), 9 (zones,
+> awaits decision-briefs.md Brief 1), 10 (community wiring). <<<**
+
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
 > instead of re-deriving taste. READ THESE BEFORE ANY GAMEPLAY WORK:**
