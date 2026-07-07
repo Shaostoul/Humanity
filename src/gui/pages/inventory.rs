@@ -1508,49 +1508,67 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 if widgets::section_disclosure(ui, theme, ("inv_sec", "equipment"), "Equipment", tree_force) {
                 ui.add_space(theme.spacing_xs);
 
+                // v0.750 (ladder rung 8): slots render the REAL worn state — the
+                // ECS Outfit component mirrored into state.outfit — instead of a
+                // page-local placeholder Vec. Click a filled slot to unequip
+                // (the item returns to your pack). Equipping happens from an
+                // item card's Equip button and MOVES the item out of the pack.
+                if !state.equip_status.is_empty() {
+                    ui.label(
+                        RichText::new(&state.equip_status)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                }
+                let slots = state.equipment_slots.clone();
                 ui.horizontal_wrapped(|ui| {
-                    with_state(|ps| {
-                        for (slot_id, equipped_item) in &ps.equipped {
-                            let label = state.equipment_slots.iter()
-                                .find(|(id, _)| id == slot_id)
-                                .map(|(_, name)| name.as_str())
-                                .unwrap_or(slot_id.as_str());
+                    for (slot_id, label) in &slots {
+                        let worn: Option<String> = state.outfit.equipped.get(slot_id).cloned();
+                        let slot_size = 64.0;
+                        ui.vertical(|ui| {
+                            let (rect, response) = ui.allocate_exact_size(
+                                Vec2::splat(slot_size),
+                                egui::Sense::click(),
+                            );
+                            let fill = theme.bg_secondary();
+                            let stroke = if worn.is_some() {
+                                Stroke::new(1.5, theme.accent())
+                            } else {
+                                Stroke::new(1.0, theme.border())
+                            };
+                            ui.painter().rect_filled(rect, Rounding::same(4), fill);
+                            ui.painter().rect_stroke(rect, Rounding::same(4), stroke, egui::StrokeKind::Outside);
 
-                            let slot_size = 64.0;
-                            ui.vertical(|ui| {
-                                let (rect, _response) = ui.allocate_exact_size(
-                                    Vec2::splat(slot_size),
-                                    egui::Sense::click(),
+                            if let Some(item_id) = &worn {
+                                let display = lookup_item_details(item_id)
+                                    .map(|d| d.name)
+                                    .unwrap_or_else(|| item_id.clone());
+                                let icon = display.chars().next().unwrap_or('?').to_string();
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    &icon,
+                                    egui::FontId::proportional(18.0),
+                                    theme.text_primary(),
                                 );
-
-                                let fill = theme.bg_secondary();
-                                let stroke = Stroke::new(1.0, theme.border());
-                                ui.painter().rect_filled(rect, Rounding::same(4), fill);
-                                ui.painter().rect_stroke(rect, Rounding::same(4), stroke, egui::StrokeKind::Outside);
-
-                                if let Some(item_name) = equipped_item {
-                                    let icon = item_name.chars().next().unwrap_or('?').to_string();
-                                    ui.painter().text(
-                                        rect.center(),
-                                        egui::Align2::CENTER_CENTER,
-                                        &icon,
-                                        egui::FontId::proportional(18.0),
-                                        theme.text_primary(),
-                                    );
-                                } else {
-                                    ui.painter().text(
-                                        rect.center(),
-                                        egui::Align2::CENTER_CENTER,
-                                        "-",
-                                        egui::FontId::proportional(14.0),
-                                        theme.text_muted(),
-                                    );
+                                let resp = response.on_hover_text(format!("{display} (click to unequip)"));
+                                if resp.clicked() {
+                                    state.pending_unequip = Some(slot_id.clone());
                                 }
+                            } else {
+                                ui.painter().text(
+                                    rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "-",
+                                    egui::FontId::proportional(14.0),
+                                    theme.text_muted(),
+                                );
+                            }
 
-                                ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()));
-                            });
-                        }
-                    });
+                            ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()));
+                        });
+                    }
                 });
 
                 } // ── end Equipment ──
@@ -2435,17 +2453,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         }
     }
     if item_acts.equip {
+        // v0.750 (ladder rung 8): equipping is REAL — the frame bridge
+        // validates the item's slot against equipment.csv, MOVES it out of
+        // the pack into the ECS Outfit, and swaps back anything worn there.
         if let Some(idx) = state.selected_slot {
             if let Some(Some(item)) = state.inventory_items.get(idx) {
-                let item_name = item.name.clone();
-                with_state(|ps| {
-                    for slot in &mut ps.equipped {
-                        if slot.1.is_none() {
-                            slot.1 = Some(item_name.clone());
-                            break;
-                        }
-                    }
-                });
+                state.pending_equip = Some(item.item_id.clone());
             }
         }
     }

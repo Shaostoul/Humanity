@@ -1,0 +1,26 @@
+# HumanityOS Equipment Stats (v0.750, closure ladder rung 8 / progression doc Part 3)
+# Mechanical stats for wearable items - a JOIN on data/items.csv by item_id.
+# items.csv stays lean (mass/volume physics); only items with a row here do
+# anything when worn. Slots come from data/inventory/equipment_slots.json.
+#
+# armor_* columns: per-damage-type resistance 0..1 (populate the Armor
+#   component on equip; inert until CombatSystem registers - schema-ready).
+# damage/damage_type/range_m: held-tool columns for the future combat wiring.
+# stat_modifiers: pipe-separated stat:value:op in the status_effects.csv
+#   grammar. Consumed today: speed (movement), carry_capacity (adds kg to the
+#   weight cap), cold_resist / heat_resist (scale the temperature health
+#   drain; 0.5 = half damage).
+id,slot,armor_kinetic,armor_thermal,armor_energy,armor_chemical,armor_radiation,damage,damage_type,range_m,stat_modifiers,description
+jacket_light_0,chest,0.02,0.10,0,0.05,0,0,,0,cold_resist:0.15:add,Windbreaker - keeps light chill off
+jacket_heavy_0,chest,0.05,0.25,0,0.05,0,0,,0,cold_resist:0.40:add,Insulated winter jacket
+coat_winter_0,chest,0.05,0.35,0,0.05,0,0,,0,cold_resist:0.60:add,Thick overcoat for hard cold
+jumpsuit_0,chest,0.03,0.10,0.05,0.15,0,0,,0,cold_resist:0.10:add|heat_resist:0.10:add,Utility one-piece
+hat_beanie_0,head,0,0.05,0,0,0,0,,0,cold_resist:0.10:add,Knit hat - warm head
+helmet_hard_0,head,0.25,0.05,0,0.05,0,0,,0,,Impact protection
+helmet_combat_0,head,0.45,0.10,0.10,0.05,0.05,0,,0,,Ballistic headgear
+gloves_winter_0,hands,0,0.10,0,0,0,0,,0,cold_resist:0.10:add,Insulated gloves
+gloves_work_0,hands,0.10,0.05,0,0.10,0,0,,0,,Reinforced grip
+boots_work_0,feet,0.15,0.05,0,0.10,0,0,,0,,Steel-toe boots
+boots_hiking_0,feet,0.05,0.05,0,0.05,0,0,,0,speed:1.05:multiply,Trail boots - easy stride
+backpack_small_0,back,0,0,0,0,0,0,,0,carry_capacity:10:add,Adds 10 kg of comfortable carry
+backpack_large_0,back,0,0,0,0,0,0,,0,carry_capacity:25:add,Adds 25 kg of comfortable carry

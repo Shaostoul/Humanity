@@ -1664,6 +1664,13 @@ pub struct GuiState {
     /// against the ECS inventory + Wallet via economy::vendor_buy/vendor_sell.
     pub pending_vendor_buy: Option<(String, u32)>,
     pub pending_vendor_sell: Option<(String, u32)>,
+    /// Equip/unequip intents (v0.750, ladder rung 8): item id to wear / slot
+    /// id to clear. The frame bridge moves items between the pack and the
+    /// ECS Outfit (slot validated against equipment.csv).
+    pub pending_equip: Option<String>,
+    pub pending_unequip: Option<String>,
+    /// Last equip action's receipt or refusal, shown in the Equipment section.
+    pub equip_status: String,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
     pub room_bounds: Vec<RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
@@ -3215,6 +3222,9 @@ impl Default for GuiState {
             wallet_credits: 0,
             pending_vendor_buy: None,
             pending_vendor_sell: None,
+            pending_equip: None,
+            pending_unequip: None,
+            equip_status: String::new(),
             room_bounds: Vec::new(),
             reveal_held: false,
             machine_label_dot_dist: 21.0,

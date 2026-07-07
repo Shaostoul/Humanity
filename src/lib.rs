@@ -4405,6 +4405,12 @@ mod native_app {
             "skill_registry",
             SkillRegistry::from_csv,
         );
+        load_csv_registry(
+            store,
+            data_dir.join("equipment.csv"),
+            "equipment_registry",
+            crate::systems::economy::EquipmentRegistry::from_csv,
+        );
         store.insert(
             "quest_registry",
             QuestRegistry::from_ron_dir(&data_dir.join("quests")),
@@ -6320,7 +6326,25 @@ mod native_app {
                             )
                             .map(|reg| reg.net_stat_multiplier(ids.iter().map(|s| s.as_str()), "speed"))
                             .unwrap_or(1.0);
-                        state.controller.speed_multiplier = mult;
+                        // Gear speed modifiers stack with effects (v0.750,
+                        // ladder rung 8): hiking boots x1.05, same grammar,
+                        // same fold — one modifier system, ever.
+                        let worn: Vec<String> = state
+                            .game_world
+                            .world
+                            .query::<(&crate::ecs::components::Outfit, &Controllable)>()
+                            .iter()
+                            .next()
+                            .map(|(_, (o, _))| o.equipped.values().cloned().collect())
+                            .unwrap_or_default();
+                        let gear_mult = state
+                            .data_store
+                            .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry")
+                            .map(|reg| {
+                                reg.net_stat_multiplier(worn.iter().map(|s| s.as_str()), "speed")
+                            })
+                            .unwrap_or(1.0);
+                        state.controller.speed_multiplier = mult * gear_mult;
                     }
 
                     // ELEVATOR tick (v0.590): animate each elevator car toward its target end, and
@@ -9683,6 +9707,102 @@ mod native_app {
                                 Ok(msg) => msg,
                                 Err(e) => e,
                             };
+                        }
+                    }
+
+                    // ── Equip/unequip bridge (v0.750, ladder rung 8) ──
+                    // Equipping MOVES the item from the pack into the ECS
+                    // Outfit (slot from equipment.csv); anything already worn
+                    // there swaps back to the pack. Unequip is the reverse.
+                    // The Outfit mirror below the match keeps the GUI in sync.
+                    let equip_op = (
+                        state.gui_state.pending_equip.take(),
+                        state.gui_state.pending_unequip.take(),
+                    );
+                    if equip_op.0.is_some() || equip_op.1.is_some() {
+                        let mut player: Option<hecs::Entity> = None;
+                        for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
+                            player = Some(e);
+                            break;
+                        }
+                        let equip_reg = state
+                            .data_store
+                            .get::<crate::systems::economy::EquipmentRegistry>(
+                                "equipment_registry",
+                            );
+                        let items = state.data_store.get::<ItemRegistry>("item_registry");
+                        if let Some(e) = player {
+                            let result: Result<String, String> = (|| {
+                                let mut inv = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut Inventory>(e)
+                                    .map_err(|_| "no inventory".to_string())?;
+                                let mut outfit = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut crate::ecs::components::Outfit>(e)
+                                    .map_err(|_| "no outfit".to_string())?;
+                                if let Some(item_id) = equip_op.0 {
+                                    let def = equip_reg
+                                        .and_then(|r| r.get(&item_id))
+                                        .ok_or("That item has no wearable stats")?;
+                                    if inv.count_item(&item_id) == 0 {
+                                        return Err("Not in your pack".to_string());
+                                    }
+                                    // Swap out the current occupant first (it
+                                    // must FIT back in the pack, or refuse).
+                                    if let Some(prev) = outfit.equipped.get(&def.slot).cloned() {
+                                        let max_stack =
+                                            items.map(|r| r.max_stack_for(&prev)).unwrap_or(99);
+                                        let vol =
+                                            items.map(|r| r.volume_for(&prev)).unwrap_or(0.0);
+                                        let lost =
+                                            inv.add_item_volume_gated(&prev, 1, max_stack, vol);
+                                        if lost > 0 {
+                                            return Err(
+                                                "No room to take off what you're wearing".into()
+                                            );
+                                        }
+                                    }
+                                    inv.remove_item(&item_id, 1);
+                                    outfit.equipped.insert(def.slot.clone(), item_id.clone());
+                                    Ok(format!("Equipped {item_id}"))
+                                } else if let Some(slot) = equip_op.1 {
+                                    let Some(prev) = outfit.equipped.get(&slot).cloned() else {
+                                        return Ok(String::new());
+                                    };
+                                    // Cosmetic ids (no equipment.csv row) just
+                                    // clear; real gear returns to the pack.
+                                    if equip_reg.and_then(|r| r.get(&prev)).is_some() {
+                                        let max_stack =
+                                            items.map(|r| r.max_stack_for(&prev)).unwrap_or(99);
+                                        let vol =
+                                            items.map(|r| r.volume_for(&prev)).unwrap_or(0.0);
+                                        let lost =
+                                            inv.add_item_volume_gated(&prev, 1, max_stack, vol);
+                                        if lost > 0 {
+                                            return Err("No room in your pack".to_string());
+                                        }
+                                    }
+                                    outfit.equipped.remove(&slot);
+                                    Ok(format!("Removed {prev}"))
+                                } else {
+                                    Ok(String::new())
+                                }
+                            })();
+                            state.gui_state.equip_status = match result {
+                                Ok(msg) => msg,
+                                Err(e) => e,
+                            };
+                            // Refresh the GUI mirror immediately.
+                            if let Ok(outfit) = state
+                                .game_world
+                                .world
+                                .get::<&crate::ecs::components::Outfit>(e)
+                            {
+                                state.gui_state.outfit = (*outfit).clone();
+                            }
                         }
                     }
 

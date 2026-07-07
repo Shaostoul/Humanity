@@ -646,8 +646,14 @@ impl System for InventorySystem {
             }
         }
 
-        // Recalculate total weight, volume and encumbrance for all inventories
-        for (_entity, inventory) in world.query_mut::<&mut Inventory>() {
+        // Recalculate total weight, volume and encumbrance for all inventories.
+        // Worn gear can RAISE the carry cap (v0.750, ladder rung 8): a large
+        // backpack's carry_capacity:25:add means 25 more comfortable kg.
+        let equipment = data
+            .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry");
+        for (_entity, (inventory, outfit)) in world
+            .query_mut::<(&mut Inventory, Option<&crate::ecs::components::Outfit>)>()
+        {
             let mut total_weight: f32 = 0.0;
             let mut total_volume: f32 = 0.0;
             for slot in &inventory.slots {
@@ -666,8 +672,14 @@ impl System for InventorySystem {
             inventory.weight_current = total_weight;
             inventory.volume_current_l = total_volume;
 
+            let carry_bonus = match (equipment, outfit) {
+                (Some(reg), Some(o)) => reg
+                    .stat_add_total(o.equipped.values().map(|s| s.as_str()), "carry_capacity")
+                    .max(0.0),
+                _ => 0.0,
+            };
             let was_encumbered = inventory.encumbered;
-            inventory.encumbered = total_weight > inventory.weight_capacity;
+            inventory.encumbered = total_weight > inventory.weight_capacity + carry_bonus;
 
             // Log encumbrance state transitions
             if inventory.encumbered && !was_encumbered {

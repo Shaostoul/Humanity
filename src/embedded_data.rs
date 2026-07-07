@@ -130,6 +130,7 @@ pub const FIBONACCI_HOMESTEAD_RON: &str = include_str!("../data/blueprints/fibon
 pub const GUI_NAVIGATION_JSON: &str = include_str!("../data/gui/navigation.json");
 pub const TRADE_GOODS_RON: &str = include_str!("../data/trade_goods.ron");
 pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
+pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -259,6 +260,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "gui/navigation.json" => Some(GUI_NAVIGATION_JSON),
         "trade_goods.ron" => Some(TRADE_GOODS_RON),
         "economy.ron" => Some(ECONOMY_RON),
+        "equipment.csv" => Some(EQUIPMENT_CSV),
 
         _ => None,
     }
@@ -373,6 +375,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "gui/navigation.json",
     "trade_goods.ron",
     "economy.ron",
+    "equipment.csv",
 ];
 
 #[cfg(test)]

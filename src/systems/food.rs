@@ -421,13 +421,28 @@ impl System for FoodSystem {
         //    after the pass and the cause is published to the "player_death" slot
         //    for the death screen.
         let mut player_died: Option<(hecs::Entity, String)> = None;
-        for (e, (vitals, effects, health, ctrl, dead)) in world.query_mut::<(
+        // Gear temperature resists (v0.750, ladder rung 8): worn equipment's
+        // cold_resist/heat_resist scale the temperature health drain — an
+        // insulated coat halves freezing damage. Same stat grammar as buffs.
+        let equipment = data
+            .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry");
+        for (e, (vitals, effects, health, ctrl, dead, outfit)) in world.query_mut::<(
             &mut Vitals,
             &mut StatusEffects,
             Option<&mut Health>,
             Option<&crate::ecs::components::Controllable>,
             Option<&crate::ecs::components::Dead>,
+            Option<&crate::ecs::components::Outfit>,
         )>() {
+            let (cold_resist, heat_resist) = match (equipment, outfit) {
+                (Some(reg), Some(o)) => (
+                    reg.stat_add_total(o.equipped.values().map(|s| s.as_str()), "cold_resist")
+                        .clamp(0.0, 0.9),
+                    reg.stat_add_total(o.equipped.values().map(|s| s.as_str()), "heat_resist")
+                        .clamp(0.0, 0.9),
+                ),
+                _ => (0.0, 0.0),
+            };
             // The dead do not hunger: vitals freeze until respawn so the death
             // screen is stable (no double-death, no draining while paused).
             if dead.is_some() {
@@ -505,7 +520,7 @@ impl System for FoodSystem {
             if vitals.body_temp_c < HYPOTHERMIA_C {
                 effects.remove("heat_exhaustion");
                 effects.apply("hypothermia", CONDITION_LINGER);
-                let amt = TEMP_DAMAGE_PER_SEC * dt;
+                let amt = TEMP_DAMAGE_PER_SEC * (1.0 - cold_resist) * dt;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("freezing", amt);
@@ -513,7 +528,7 @@ impl System for FoodSystem {
             } else if vitals.body_temp_c > HEAT_EXHAUSTION_C {
                 effects.remove("hypothermia");
                 effects.apply("heat_exhaustion", CONDITION_LINGER);
-                let amt = TEMP_DAMAGE_PER_SEC * dt;
+                let amt = TEMP_DAMAGE_PER_SEC * (1.0 - heat_resist) * dt;
                 health_drain += amt;
                 if amt > worst.1 {
                     worst = ("heat exhaustion", amt);
@@ -716,6 +731,48 @@ mod nutrition_tests {
             oxygen_max: 100.0,
             waste_max: 100.0,
         }
+    }
+
+    /// v0.750 GEAR RESISTS (ladder rung 8): a winter coat (cold_resist 0.6)
+    /// takes 60 percent off the freezing health drain — clothing is survival
+    /// equipment now, not a cosmetic.
+    #[test]
+    fn winter_coat_reduces_freezing_damage() {
+        use crate::ecs::components::Outfit;
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        let equip = crate::systems::economy::EquipmentRegistry::from_csv(include_bytes!(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/data/equipment.csv")
+        ))
+        .expect("equipment.csv");
+        data.insert("equipment_registry", equip);
+        // Exposed to hard cold: unsealed environment at -20 C.
+        data.insert(
+            "environment_context",
+            std::sync::Mutex::new(crate::ecs::components::EnvironmentContext {
+                sealed: false,
+                oxygenated: true,
+                ambient_temp_c: -20.0,
+            }),
+        );
+
+        let mut world = hecs::World::new();
+        let mut frozen = vitals(80.0, 80.0);
+        frozen.body_temp_c = 20.0; // already hypothermic
+        let bare = world.spawn((Inventory::new(4), frozen.clone(), StatusEffects::default(), Health::default()));
+        let mut coat_outfit = Outfit::default();
+        coat_outfit.equipped.insert("chest".to_string(), "coat_winter_0".to_string());
+        let coated = world.spawn((Inventory::new(4), frozen, StatusEffects::default(), Health::default(), coat_outfit));
+
+        for _ in 0..10 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let bare_hp = world.get::<&Health>(bare).unwrap().current;
+        let coated_hp = world.get::<&Health>(coated).unwrap().current;
+        assert!(
+            coated_hp > bare_hp + 5.0,
+            "the coat blunted the cold: bare {bare_hp}, coated {coated_hp}"
+        );
     }
 
     /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in

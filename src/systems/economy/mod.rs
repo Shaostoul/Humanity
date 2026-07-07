@@ -68,6 +68,113 @@ impl TradeGoodsRegistry {
     }
 }
 
+// ── Equipment (v0.750, closure ladder rung 8 / progression doc Part 3) ──
+// Lives beside the trade registry because both are sparse per-item stat
+// tables joined on items.csv ids.
+
+/// One data/equipment.csv row: what an item DOES when worn. Slots reference
+/// data/inventory/equipment_slots.json; stat_modifiers speak the
+/// status_effects.csv `stat:value:op` grammar (ONE modifier grammar, ever).
+#[derive(Debug, Clone, Deserialize)]
+pub struct EquipmentDef {
+    pub id: String,
+    pub slot: String,
+    #[serde(default)]
+    pub armor_kinetic: f32,
+    #[serde(default)]
+    pub armor_thermal: f32,
+    #[serde(default)]
+    pub armor_energy: f32,
+    #[serde(default)]
+    pub armor_chemical: f32,
+    #[serde(default)]
+    pub armor_radiation: f32,
+    #[serde(default)]
+    pub damage: f32,
+    #[serde(default)]
+    pub damage_type: String,
+    #[serde(default)]
+    pub range_m: f32,
+    #[serde(default)]
+    pub stat_modifiers: String,
+    #[serde(default)]
+    pub description: String,
+}
+
+/// All equipment stats keyed by item id. DataStore: `"equipment_registry"`.
+#[derive(Debug, Default)]
+pub struct EquipmentRegistry {
+    pub defs: HashMap<String, EquipmentDef>,
+}
+
+impl EquipmentRegistry {
+    pub fn from_csv(data: &[u8]) -> Result<Self, String> {
+        let rows: Vec<EquipmentDef> = crate::assets::loader::parse_csv(data)?;
+        let mut defs = HashMap::new();
+        for row in rows {
+            defs.insert(row.id.clone(), row);
+        }
+        Ok(Self { defs })
+    }
+
+    pub fn get(&self, id: &str) -> Option<&EquipmentDef> {
+        self.defs.get(id)
+    }
+
+    /// Fold every WORN item's `stat_modifiers` for one stat — the same
+    /// multiply/add math as StatusEffectRegistry::net_stat_multiplier, so
+    /// gear and buffs never diverge in grammar. `worn` is the Outfit map's
+    /// item ids.
+    pub fn net_stat_multiplier<'a>(
+        &self,
+        worn: impl IntoIterator<Item = &'a str>,
+        stat: &str,
+    ) -> f32 {
+        let mut mult = 1.0_f32;
+        for id in worn {
+            if let Some(def) = self.get(id) {
+                for m in def.stat_modifiers.split('|') {
+                    let mut parts = m.split(':');
+                    let (Some(s), Some(v), Some(op)) =
+                        (parts.next(), parts.next(), parts.next())
+                    else {
+                        continue;
+                    };
+                    if s != stat {
+                        continue;
+                    }
+                    let Ok(value) = v.parse::<f32>() else { continue };
+                    match op {
+                        "multiply" => mult *= value,
+                        "add" => mult += value,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        mult.max(0.0)
+    }
+
+    /// Sum a stat's `add` values across worn items as an ABSOLUTE bonus
+    /// (carry_capacity works in kg, not a multiplier).
+    pub fn stat_add_total<'a>(&self, worn: impl IntoIterator<Item = &'a str>, stat: &str) -> f32 {
+        let mut total = 0.0_f32;
+        for id in worn {
+            if let Some(def) = self.get(id) {
+                for m in def.stat_modifiers.split('|') {
+                    let mut parts = m.split(':');
+                    if parts.next() == Some(stat) {
+                        if let (Some(v), Some("add")) = (parts.next(), parts.next()) {
+                            total += v.parse::<f32>().unwrap_or(0.0);
+                        }
+                    }
+                }
+            }
+        }
+        total
+    }
+}
+
 /// Buy `qty` of `item_id` from an NPC vendor: charges the wallet, adds the
 /// items volume-gated (a full pack refuses rather than losing paid goods).
 /// Pure over the borrowed parts so it is directly testable; lib.rs's vendor
@@ -276,6 +383,31 @@ mod tests {
 
         // Selling what you don't have: refused.
         assert!(vendor_sell(&mut inv, &mut credits, &goods, "iron_ore_0", 1).is_err());
+    }
+
+    /// v0.750 (ladder rung 8): the shipped equipment.csv parses; the stat
+    /// folds match the status-effect grammar (multiply/add), and the absolute
+    /// add total works for carry capacity.
+    #[test]
+    fn equipment_registry_parses_and_folds_stats() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let reg = EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
+        assert!(reg.defs.len() >= 12, "shipped gear set, got {}", reg.defs.len());
+        let coat = reg.get("coat_winter_0").expect("winter coat is gear");
+        assert_eq!(coat.slot, "chest");
+
+        // Winter kit: coat (0.6 cold) + beanie (0.1) + winter gloves (0.1).
+        let worn = ["coat_winter_0", "hat_beanie_0", "gloves_winter_0"];
+        let cold = reg.stat_add_total(worn.iter().copied(), "cold_resist");
+        assert!((cold - 0.8).abs() < 1e-4, "kit totals 0.8 cold resist, got {cold}");
+
+        // Hiking boots multiply speed.
+        let speed = reg.net_stat_multiplier(["boots_hiking_0"].iter().copied(), "speed");
+        assert!((speed - 1.05).abs() < 1e-4, "boots are 1.05x, got {speed}");
+
+        // Backpacks add carry kg.
+        let carry = reg.stat_add_total(["backpack_large_0"].iter().copied(), "carry_capacity");
+        assert!((carry - 25.0).abs() < 1e-4, "large pack adds 25 kg, got {carry}");
     }
 
     /// v0.747: passive income is REAL - a game-day boundary pays 1 CR into
