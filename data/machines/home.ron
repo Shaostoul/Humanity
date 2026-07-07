@@ -315,6 +315,64 @@
             // Typed container (v0.728): the backup fuel store beside it.
             container_type: Some("steel_fuel_drum"),
         ),
+        // ── Craft stations (v0.749, closure ladder rung 6). Manual recipes
+        //    that name a required_station now genuinely need it placed: bread
+        //    needs the stove, circuits the electronics bench. Each is a plain
+        //    box until real models land (same policy as every machine). ──
+        "stove": (
+            shape: "box", size: (0.8, 0.9, 0.7), color: (0.30, 0.30, 0.33),
+            label: "Stove",
+            category: "Kitchen",
+            stats: [(kind: "heat", value: "cooktop", status: "ok")],
+            power: Some(Consumer(watts: 1200.0, priority: 2)),
+        ),
+        "oven": (
+            shape: "box", size: (0.8, 0.9, 0.75), color: (0.28, 0.28, 0.31),
+            label: "Oven",
+            category: "Kitchen",
+            stats: [(kind: "heat", value: "baking", status: "ok")],
+            power: Some(Consumer(watts: 2200.0, priority: 2)),
+        ),
+        // (water_purifier already exists in the water-loop catalog above —
+        // recipes requiring water_purifier_0 are satisfied by the placed one.)
+        "electronics_bench": (
+            shape: "box", size: (1.4, 0.95, 0.7), color: (0.25, 0.35, 0.30),
+            label: "Electronics bench",
+            category: "Fabrication",
+            stats: [(kind: "progress", value: "circuits + boards", status: "ok")],
+            power: Some(Consumer(watts: 150.0, priority: 3)),
+        ),
+        "sewing_machine": (
+            shape: "box", size: (0.9, 0.8, 0.5), color: (0.45, 0.35, 0.40),
+            label: "Sewing machine",
+            category: "Fabrication",
+            stats: [(kind: "progress", value: "textiles + clothing", status: "ok")],
+            power: Some(Consumer(watts: 100.0, priority: 3)),
+        ),
+        "chemistry_set": (
+            shape: "box", size: (1.0, 0.9, 0.6), color: (0.35, 0.45, 0.40),
+            label: "Chemistry set",
+            category: "Fabrication",
+            stats: [(kind: "progress", value: "compounds + medicine", status: "ok")],
+        ),
+        "kiln": (
+            shape: "box", size: (0.9, 1.2, 0.9), color: (0.50, 0.35, 0.28),
+            label: "Kiln",
+            category: "Fabrication",
+            stats: [(kind: "heat", value: "ceramics + glass", status: "ok")],
+        ),
+        "anvil_station": (
+            shape: "box", size: (0.9, 0.8, 0.5), color: (0.30, 0.30, 0.32),
+            label: "Anvil",
+            category: "Fabrication",
+            stats: [(kind: "progress", value: "smithing", status: "ok")],
+        ),
+        "loom": (
+            shape: "box", size: (1.2, 1.0, 0.8), color: (0.50, 0.42, 0.32),
+            label: "Loom",
+            category: "Fabrication",
+            stats: [(kind: "progress", value: "weaving", status: "ok")],
+        ),
         // Trading post (v0.747, closure ladder rung 3): the home's NPC vendor
         // counter. Walk up (E) -> the card's Trade button opens the vendor
         // (buy at 1.25x base value, sell at 0.5x, data/trade_goods.ron).
@@ -439,6 +497,18 @@
         (id: "uplink_1", machine: "network_uplink", room: "study", offset: (39.0, 0.0, 22.6)),
         (id: "server_1", machine: "home_server", room: "study", offset: (40.0, 0.0, 22.6)),
         (id: "trading_1", machine: "trading_post", room: "study", offset: (42.0, 0.0, 22.6)),
+
+        // ── Craft stations (v0.749): a second fabrication row south of the
+        //    smelter/forge/workbench line, plus the kitchen trio beside it.
+        //    Editor-movable like every machine — rearrange at will. ──
+        (id: "stove_1", machine: "stove", room: "study", offset: (39.6, 0.0, 21.4)),
+        (id: "oven_1", machine: "oven", room: "study", offset: (40.6, 0.0, 21.4)),
+        (id: "ebench_1", machine: "electronics_bench", room: "study", offset: (42.8, 0.0, 21.4)),
+        (id: "sewing_1", machine: "sewing_machine", room: "study", offset: (44.0, 0.0, 21.4)),
+        (id: "chem_1", machine: "chemistry_set", room: "study", offset: (45.1, 0.0, 21.4)),
+        (id: "kiln_1", machine: "kiln", room: "study", offset: (46.3, 0.0, 21.4)),
+        (id: "anvil_1", machine: "anvil_station", room: "study", offset: (47.4, 0.0, 21.4)),
+        (id: "loom_1", machine: "loom", room: "study", offset: (48.7, 0.0, 21.4)),
     ],
 
     // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per
@@ -494,6 +564,11 @@
         (from: "battery_8", to: "air_recycler_1", kind: "power"),
         (from: "battery_8", to: "uplink_1", kind: "power"),
         (from: "battery_8", to: "server_1", kind: "power"),
+        // Craft stations (v0.749): the powered four join the same bus.
+        (from: "battery_8", to: "stove_1", kind: "power"),
+        (from: "battery_8", to: "oven_1", kind: "power"),
+        (from: "battery_7", to: "ebench_1", kind: "power"),
+        (from: "battery_7", to: "sewing_1", kind: "power"),
         // Data: the ISP uplink feeds the home server over a WIRED Cat6 link (clean -- no RF near the
         // grow). Swap the medium to wifi_6 in the editor to see the Data-links check warn about RF. (v0.621)
         (from: "uplink_1", to: "server_1", kind: "data", spec: Some("eth_cat6")),

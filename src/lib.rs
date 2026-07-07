@@ -9571,6 +9571,20 @@ mod native_app {
                         }
                     }
 
+                    // Station-gate input (v0.749, ladder rung 6): the set of
+                    // machine TYPES placed in the home, for CraftingSystem's
+                    // manual-craft required_station check.
+                    if let Some(hm) = &state.gui_state.home_machines {
+                        let mut types: std::collections::HashSet<String> =
+                            hm.instances.iter().map(|i| i.machine.clone()).collect();
+                        for a in &hm.arrays {
+                            types.insert(a.machine.clone());
+                        }
+                        state
+                            .data_store
+                            .insert("placed_machine_types", std::sync::Mutex::new(types));
+                    }
+
                     // ── Vendor + wallet bridges (v0.747, ladder rung 3) ──
                     // Live credit balance for the HUD + vendor modal.
                     for (_e, (wallet, _c)) in state

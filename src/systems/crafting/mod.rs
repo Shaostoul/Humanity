@@ -859,6 +859,38 @@ impl System for CraftingSystem {
                     continue;
                 }
 
+                // Station gate (v0.749, ladder rung 6): a recipe that names a
+                // required_station needs that machine PLACED in the home —
+                // bread needs a stove, smelting needs a smelter, not a field.
+                // The station id is item-style ("stove_0"); strip the suffix
+                // to the machine type. Fail-OPEN when the placed-types set is
+                // absent (headless tests, worlds without a home) and in
+                // creative; AutoRefine machines ARE their station (auto path
+                // untouched).
+                if !creative {
+                    if let Some(station) = recipe
+                        .required_station
+                        .as_deref()
+                        .filter(|s| !s.is_empty() && *s != "none")
+                    {
+                        let machine_type = station.strip_suffix("_0").unwrap_or(station);
+                        let placed_ok = data
+                            .get::<std::sync::Mutex<std::collections::HashSet<String>>>(
+                                "placed_machine_types",
+                            )
+                            .and_then(|m| m.lock().ok().map(|set| set.contains(machine_type)))
+                            .unwrap_or(true);
+                        if !placed_ok {
+                            log::debug!(
+                                "Cannot craft {}: no {} placed in the home",
+                                recipe.id,
+                                machine_type
+                            );
+                            continue;
+                        }
+                    }
+                }
+
                 // Validate inventory has required inputs (creative mode bypasses).
                 let can_craft = if creative {
                     true

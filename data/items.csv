@@ -582,3 +582,117 @@ seed_rye_0,Rye Seeds,material,seed,plant_fiber,0.1,50,0,Planting rye seeds packe
 seed_sorghum_0,Sorghum Seeds,material,seed,plant_fiber,0.1,50,0,Planting sorghum seeds packet,dry_goods,0.14
 seed_millet_0,Millet Seeds,material,seed,plant_fiber,0.1,50,0,Planting millet seeds packet,dry_goods,0.14
 seed_sunflower_0,Sunflower Seeds,material,seed,plant_fiber,0.1,50,0,Planting sunflower seeds packet,dry_goods,0.14
+fruit_strawberry_0,Strawberry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested strawberry,solid,0.45
+legume_bean_0,Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested bean,solid,0.45
+vegetable_cucumber_0,Cucumber,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cucumber,solid,0.45
+vegetable_garlic_0,Garlic,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested garlic,solid,0.45
+fruit_pepper_0,Bell Pepper,food,fruit,plant_fiber,0.3,20,0,Fresh harvested bell pepper,solid,0.45
+fruit_pumpkin_0,Pumpkin,food,fruit,plant_fiber,0.3,20,0,Fresh harvested pumpkin,solid,0.45
+vegetable_spinach_0,Spinach,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested spinach,solid,0.45
+herb_basil_0,Basil,food,herb,plant_fiber,0.05,20,0,Fresh harvested basil,dry_goods,0.15
+vegetable_radish_0,Radish,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested radish,solid,0.45
+legume_pea_0,Pea,food,legume,plant_fiber,0.3,20,0,Fresh harvested pea,solid,0.45
+vegetable_broccoli_0,Broccoli,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested broccoli,solid,0.45
+vegetable_squash_0,Squash,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested squash,solid,0.45
+fruit_eggplant_0,Eggplant,food,fruit,plant_fiber,0.3,20,0,Fresh harvested eggplant,solid,0.45
+vegetable_celery_0,Celery,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested celery,solid,0.45
+vegetable_asparagus_0,Asparagus,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested asparagus,solid,0.45
+vegetable_artichoke_0,Artichoke,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested artichoke,solid,0.45
+vegetable_sweet_potato_0,Sweet Potato,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested sweet potato,solid,0.45
+vegetable_beet_0,Beet,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested beet,solid,0.45
+vegetable_turnip_0,Turnip,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested turnip,solid,0.45
+vegetable_kale_0,Kale,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested kale,solid,0.45
+vegetable_cauliflower_0,Cauliflower,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cauliflower,solid,0.45
+vegetable_zucchini_0,Zucchini,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested zucchini,solid,0.45
+vegetable_leek_0,Leek,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested leek,solid,0.45
+vegetable_okra_0,Okra,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested okra,solid,0.45
+vegetable_parsnip_0,Parsnip,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested parsnip,solid,0.45
+fruit_lemon_0,Lemon,food,fruit,plant_fiber,0.3,20,0,Fresh harvested lemon,solid,0.45
+fruit_grape_0,Grape,food,fruit,plant_fiber,0.3,20,0,Fresh harvested grape,solid,0.45
+fruit_blueberry_0,Blueberry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested blueberry,solid,0.45
+fruit_watermelon_0,Watermelon,food,fruit,plant_fiber,0.3,20,0,Fresh harvested watermelon,solid,0.45
+fruit_peach_0,Peach,food,fruit,plant_fiber,0.3,20,0,Fresh harvested peach,solid,0.45
+fruit_pear_0,Pear,food,fruit,plant_fiber,0.3,20,0,Fresh harvested pear,solid,0.45
+fruit_cherry_0,Cherry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested cherry,solid,0.45
+fruit_mango_0,Mango,food,fruit,plant_fiber,0.3,20,0,Fresh harvested mango,solid,0.45
+fruit_pineapple_0,Pineapple,food,fruit,plant_fiber,0.3,20,0,Fresh harvested pineapple,solid,0.45
+fruit_coconut_0,Coconut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested coconut,solid,0.45
+fruit_fig_0,Fig,food,fruit,plant_fiber,0.3,20,0,Fresh harvested fig,solid,0.45
+fruit_pomegranate_0,Pomegranate,food,fruit,plant_fiber,0.3,20,0,Fresh harvested pomegranate,solid,0.45
+fruit_cranberry_0,Cranberry,food,fruit,plant_fiber,0.3,20,0,Fresh harvested cranberry,solid,0.45
+fruit_plum_0,Plum,food,fruit,plant_fiber,0.3,20,0,Fresh harvested plum,solid,0.45
+herb_mint_0,Mint,food,herb,plant_fiber,0.05,20,0,Fresh harvested mint,dry_goods,0.15
+herb_rosemary_0,Rosemary,food,herb,plant_fiber,0.05,20,0,Fresh harvested rosemary,dry_goods,0.15
+herb_thyme_0,Thyme,food,herb,plant_fiber,0.05,20,0,Fresh harvested thyme,dry_goods,0.15
+herb_oregano_0,Oregano,food,herb,plant_fiber,0.05,20,0,Fresh harvested oregano,dry_goods,0.15
+herb_sage_0,Sage,food,herb,plant_fiber,0.05,20,0,Fresh harvested sage,dry_goods,0.15
+herb_cilantro_0,Cilantro,food,herb,plant_fiber,0.05,20,0,Fresh harvested cilantro,dry_goods,0.15
+herb_parsley_0,Parsley,food,herb,plant_fiber,0.05,20,0,Fresh harvested parsley,dry_goods,0.15
+herb_lavender_0,Lavender,food,herb,plant_fiber,0.05,20,0,Fresh harvested lavender,dry_goods,0.15
+herb_chamomile_0,Chamomile,food,herb,plant_fiber,0.05,20,0,Fresh harvested chamomile,dry_goods,0.15
+herb_ginger_0,Ginger,food,herb,plant_fiber,0.05,20,0,Fresh harvested ginger,dry_goods,0.15
+herb_turmeric_0,Turmeric,food,herb,plant_fiber,0.05,20,0,Fresh harvested turmeric,dry_goods,0.15
+herb_cinnamon_0,Cinnamon,food,herb,plant_fiber,0.05,20,0,Fresh harvested cinnamon,dry_goods,0.15
+herb_dill_0,Dill,food,herb,plant_fiber,0.05,20,0,Fresh harvested dill,dry_goods,0.15
+herb_chive_0,Chive,food,herb,plant_fiber,0.05,20,0,Fresh harvested chive,dry_goods,0.15
+herb_lemongrass_0,Lemongrass,food,herb,plant_fiber,0.05,20,0,Fresh harvested lemongrass,dry_goods,0.15
+produce_oak_0,Oak,food,tree,plant_fiber,0.3,20,0,Fresh harvested oak,solid,0.45
+produce_pine_0,Pine,food,tree,plant_fiber,0.3,20,0,Fresh harvested pine,solid,0.45
+produce_birch_0,Birch,food,tree,plant_fiber,0.3,20,0,Fresh harvested birch,solid,0.45
+produce_maple_0,Maple,food,tree,plant_fiber,0.3,20,0,Fresh harvested maple,solid,0.45
+produce_willow_0,Willow,food,tree,plant_fiber,0.3,20,0,Fresh harvested willow,solid,0.45
+produce_bamboo_0,Bamboo,food,tree,plant_fiber,0.3,20,0,Fresh harvested bamboo,solid,0.45
+produce_palm_0,Palm,food,tree,plant_fiber,0.3,20,0,Fresh harvested palm,solid,0.45
+produce_redwood_0,Redwood,food,tree,plant_fiber,0.3,20,0,Fresh harvested redwood,solid,0.45
+produce_eucalyptus_0,Eucalyptus,food,tree,plant_fiber,0.3,20,0,Fresh harvested eucalyptus,solid,0.45
+produce_baobab_0,Baobab,food,tree,plant_fiber,0.3,20,0,Fresh harvested baobab,solid,0.45
+produce_cherry_blossom_0,Cherry Blossom,food,tree,plant_fiber,0.3,20,0,Fresh harvested cherry blossom,solid,0.45
+produce_aloe_vera_0,Aloe Vera,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested aloe vera,solid,0.45
+produce_echinacea_0,Echinacea,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested echinacea,solid,0.45
+produce_ginseng_0,Ginseng,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested ginseng,solid,0.45
+produce_valerian_0,Valerian,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested valerian,solid,0.45
+produce_feverfew_0,Feverfew,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested feverfew,solid,0.45
+produce_comfrey_0,Comfrey,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested comfrey,solid,0.45
+produce_calendula_0,Calendula,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested calendula,solid,0.45
+produce_tea_tree_0,Tea Tree,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested tea tree,solid,0.45
+produce_st_johns_wort_0,St. Johns Wort,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested st. johns wort,solid,0.45
+produce_witch_hazel_0,Witch Hazel,food,medicinal,plant_fiber,0.3,20,0,Fresh harvested witch hazel,solid,0.45
+produce_rose_0,Rose,food,decorative,plant_fiber,0.3,20,0,Fresh harvested rose,solid,0.45
+produce_tulip_0,Tulip,food,decorative,plant_fiber,0.3,20,0,Fresh harvested tulip,solid,0.45
+produce_orchid_0,Orchid,food,decorative,plant_fiber,0.3,20,0,Fresh harvested orchid,solid,0.45
+produce_lily_0,Lily,food,decorative,plant_fiber,0.3,20,0,Fresh harvested lily,solid,0.45
+produce_dahlia_0,Dahlia,food,decorative,plant_fiber,0.3,20,0,Fresh harvested dahlia,solid,0.45
+produce_marigold_0,Marigold,food,decorative,plant_fiber,0.3,20,0,Fresh harvested marigold,solid,0.45
+produce_jasmine_0,Jasmine,food,decorative,plant_fiber,0.3,20,0,Fresh harvested jasmine,solid,0.45
+fiber_cotton_0,Cotton,material,fiber,plant_fiber,0.3,20,0,Harvested cotton fiber bundle,solid,0.45
+fiber_flax_0,Flax,material,fiber,plant_fiber,0.3,20,0,Harvested flax fiber bundle,solid,0.45
+fiber_rubber_tree_0,Rubber Tree,material,fiber,plant_fiber,0.3,20,0,Harvested rubber tree fiber bundle,solid,0.45
+fiber_sugarcane_0,Sugarcane,material,fiber,plant_fiber,0.3,20,0,Harvested sugarcane fiber bundle,solid,0.45
+fiber_hemp_0,Hemp,material,fiber,plant_fiber,0.3,20,0,Harvested hemp fiber bundle,solid,0.45
+fiber_jute_0,Jute,material,fiber,plant_fiber,0.3,20,0,Harvested jute fiber bundle,solid,0.45
+legume_soybean_0,Soybean,food,legume,plant_fiber,0.3,20,0,Fresh harvested soybean,solid,0.45
+legume_lentil_0,Lentil,food,legume,plant_fiber,0.3,20,0,Fresh harvested lentil,solid,0.45
+legume_chickpea_0,Chickpea,food,legume,plant_fiber,0.3,20,0,Fresh harvested chickpea,solid,0.45
+legume_peanut_0,Peanut,food,legume,plant_fiber,0.3,20,0,Fresh harvested peanut,solid,0.45
+vegetable_oyster_mushroom_0,Oyster Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested oyster mushroom,solid,0.45
+vegetable_shiitake_0,Shiitake,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested shiitake,solid,0.45
+vegetable_button_mushroom_0,Button Mushroom,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested button mushroom,solid,0.45
+produce_luminous_fern_0,Luminous Fern,food,alien,plant_fiber,0.3,20,0,Fresh harvested luminous fern,solid,0.45
+produce_void_orchid_0,Void Orchid,food,alien,plant_fiber,0.3,20,0,Fresh harvested void orchid,solid,0.45
+produce_crystal_moss_0,Crystal Moss,food,alien,plant_fiber,0.3,20,0,Fresh harvested crystal moss,solid,0.45
+produce_plasma_vine_0,Plasma Vine,food,alien,plant_fiber,0.3,20,0,Fresh harvested plasma vine,solid,0.45
+produce_gravity_bloom_0,Gravity Bloom,food,alien,plant_fiber,0.3,20,0,Fresh harvested gravity bloom,solid,0.45
+produce_nebula_lily_0,Nebula Lily,food,alien,plant_fiber,0.3,20,0,Fresh harvested nebula lily,solid,0.45
+produce_shadow_fungi_0,Shadow Fungi,food,alien,plant_fiber,0.3,20,0,Fresh harvested shadow fungi,solid,0.45
+produce_star_thistle_0,Star Thistle,food,alien,plant_fiber,0.3,20,0,Fresh harvested star thistle,solid,0.45
+produce_ember_reed_0,Ember Reed,food,alien,plant_fiber,0.3,20,0,Fresh harvested ember reed,solid,0.45
+produce_frost_blossom_0,Frost Blossom,food,alien,plant_fiber,0.3,20,0,Fresh harvested frost blossom,solid,0.45
+produce_phase_mushroom_0,Phase Mushroom,food,alien,plant_fiber,0.3,20,0,Fresh harvested phase mushroom,solid,0.45
+produce_aether_kelp_0,Aether Kelp,food,alien,plant_fiber,0.3,20,0,Fresh harvested aether kelp,solid,0.45
+herb_saffron_0,Saffron,food,herb,plant_fiber,0.05,20,0,Fresh harvested saffron,dry_goods,0.15
+herb_vanilla_0,Vanilla,food,herb,plant_fiber,0.05,20,0,Fresh harvested vanilla,dry_goods,0.15
+herb_hop_0,Hop,food,herb,plant_fiber,0.05,20,0,Fresh harvested hop,dry_goods,0.15
+fruit_coffee_0,Coffee,food,fruit,plant_fiber,0.3,20,0,Fresh harvested coffee,solid,0.45
+fruit_cacao_0,Cacao,food,fruit,plant_fiber,0.3,20,0,Fresh harvested cacao,solid,0.45
+herb_tea_0,Tea,food,herb,plant_fiber,0.05,20,0,Fresh harvested tea,dry_goods,0.15
+fiber_tobacco_0,Tobacco Leaf,material,fiber,plant_fiber,0.2,20,0,Cured tobacco leaf bundle,dry_goods,0.4

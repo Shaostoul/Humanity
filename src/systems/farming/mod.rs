@@ -55,6 +55,13 @@ pub struct PlantDef {
     /// Preferred relative-humidity window, 0..1.
     pub humidity_min: f32,
     pub humidity_max: f32,
+    /// The items.csv id this plant harvests into (v0.749, ladder rung 6).
+    /// Explicit per row (scripts/gen-harvest-items.js), so herbs, legumes,
+    /// mushrooms, and fiber crops harvest to REAL items instead of a warning
+    /// log. Empty = fall back to the legacy vegetable_/fruit_/grain_ prefix
+    /// search (pre-column data still works).
+    #[serde(default)]
+    pub harvest_item: String,
 }
 
 impl PlantDef {
@@ -129,6 +136,7 @@ impl PlantRegistry {
                     temp_max_c: row.temp_max_c,
                     humidity_min: row.humidity_min,
                     humidity_max: row.humidity_max,
+                    harvest_item: row.harvest_item,
                 },
             );
         }
@@ -177,6 +185,8 @@ struct PlantRow {
     yield_min: f32,
     #[serde(default)]
     yield_max: f32,
+    #[serde(default)]
+    harvest_item: String,
 }
 
 /// Split a colon-separated list field into trimmed, non-empty entries.
@@ -345,8 +355,22 @@ fn plant_id_from_seed(seed_id: &str) -> Option<String> {
 /// plants.csv would make this fully data-driven — tracked in gameplay-loops.md.)
 fn harvest_item_for(
     plant_id: &str,
+    plants: Option<&PlantRegistry>,
     items: Option<&crate::systems::inventory::ItemRegistry>,
 ) -> Option<String> {
+    // The explicit plants.csv harvest_item column wins (v0.749) — validated
+    // against items.csv so a typo degrades to the prefix search, not a
+    // phantom item.
+    if let Some(explicit) = plants
+        .and_then(|p| p.get(plant_id))
+        .map(|d| d.harvest_item.clone())
+        .filter(|h| !h.is_empty())
+    {
+        if items.map(|r| r.items.contains_key(&explicit)).unwrap_or(false) {
+            return Some(explicit);
+        }
+        log::warn!("plants.csv harvest_item '{explicit}' for {plant_id} is not in items.csv");
+    }
     for prefix in ["vegetable", "fruit", "grain"] {
         let candidate = format!("{prefix}_{plant_id}_0");
         if items.map(|r| r.items.contains_key(&candidate)).unwrap_or(false) {
@@ -383,6 +407,18 @@ impl System for FarmingSystem {
             .and_then(|m| m.lock().ok())
             .map(|gt| gt.elapsed_seconds)
             .unwrap_or(0.0);
+        // Outdoor climate inputs (v0.749, ladder rung 6): the current season +
+        // live weather temperature, applied to FIELD crops only below. Empty
+        // season / absent weather = no penalty (headless tests, early boot).
+        let season = data
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
+            .map(|gt| format!("{:?}", gt.season).to_lowercase())
+            .unwrap_or_default();
+        let weather_temp = data
+            .get::<std::sync::Mutex<crate::systems::weather::Weather>>("weather")
+            .and_then(|m| m.lock().ok().map(|w| w.temperature))
+            .unwrap_or(20.0);
 
         // Build default stages vec once for plants without custom stages
         let default_stages: Vec<&str> = DEFAULT_GROWTH_STAGES.iter().copied().collect();
@@ -757,7 +793,7 @@ impl System for FarmingSystem {
                     }
                 });
                 if let Some(plant_id) = plant_id {
-                    if let Some(yield_item) = harvest_item_for(&plant_id, item_registry) {
+                    if let Some(yield_item) = harvest_item_for(&plant_id, plant_registry, item_registry) {
                         // Yield range from the plant def. Yields are FRACTIONAL (f32):
                         // saffron's 0.3 means less than one unit per plant per harvest.
                         // Sanitize the window (min >= 0, max >= min); unknown plants
@@ -954,7 +990,41 @@ impl System for FarmingSystem {
                             .as_ref()
                             .and_then(|tid| nutrient.get(tid))
                             .map_or(1.0, |n| 0.5 + n);
-                        let effective_progress = progress * health_factor * nutrient_factor;
+                        // Outdoor climate (v0.749, ladder rung 6): FIELD crops
+                        // face the season + live weather; indoor grows (towers,
+                        // beds, trays, racks) are climate-controlled and skip
+                        // this — the tradeoff that justifies indoor farming.
+                        // Off-season fields crawl at 25%; temperature outside
+                        // the plant's window slows growth toward a 20% floor
+                        // (5% per degree) — slow, not lethal (death stays
+                        // water/RF-driven).
+                        let climate_factor = if crop
+                            .tower_id
+                            .as_deref()
+                            .map_or(false, |tid| tid.ends_with("_field"))
+                        {
+                            let season_ok = season.is_empty()
+                                || plant_def.seasons.is_empty()
+                                || plant_def
+                                    .seasons
+                                    .iter()
+                                    .any(|s| s.eq_ignore_ascii_case(&season));
+                            let season_f: f32 = if season_ok { 1.0 } else { 0.25 };
+                            let temp_f: f32 = if weather_temp < plant_def.temp_min_c {
+                                (1.0 - (plant_def.temp_min_c - weather_temp) * 0.05)
+                                    .clamp(0.2, 1.0)
+                            } else if weather_temp > plant_def.temp_max_c {
+                                (1.0 - (weather_temp - plant_def.temp_max_c) * 0.05)
+                                    .clamp(0.2, 1.0)
+                            } else {
+                                1.0
+                            };
+                            season_f * temp_f
+                        } else {
+                            1.0
+                        };
+                        let effective_progress =
+                            progress * health_factor * nutrient_factor * climate_factor;
 
                         let new_stage =
                             stage_from_progress(effective_progress, &plant_stages);
@@ -1348,11 +1418,41 @@ mod gardening_tests {
         )))
         .expect("items.csv");
         assert_eq!(
-            harvest_item_for("tomato", Some(&items)).as_deref(),
+            harvest_item_for("tomato", None, Some(&items)).as_deref(),
             Some("vegetable_tomato_0")
         );
         // A plant with no produce item in items.csv yields nothing (no crash).
-        assert_eq!(harvest_item_for("void_orchid", Some(&items)), None);
+        assert_eq!(harvest_item_for("void_orchid", None, Some(&items)), None);
+    }
+
+    /// v0.749 (ladder rung 6): EVERY shipped plant harvests into a REAL item.
+    /// The harvest_item column (scripts/gen-harvest-items.js) covers herbs,
+    /// legumes, mushrooms, fiber, and the apothecary garden — before this,
+    /// 113 of 132 plants harvested to a warning log.
+    #[test]
+    fn every_shipped_plant_resolves_a_harvest_item() {
+        let plants = PlantRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/plants.csv"
+        )))
+        .expect("plants.csv");
+        let items = ItemRegistry::from_csv(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/data/items.csv"
+        )))
+        .expect("items.csv");
+        let mut missing: Vec<String> = Vec::new();
+        for id in plants.plants.keys() {
+            if harvest_item_for(id, Some(&plants), Some(&items)).is_none() {
+                missing.push(id.clone());
+            }
+        }
+        missing.sort();
+        assert!(
+            missing.is_empty(),
+            "{} plants harvest to nothing: {missing:?}",
+            missing.len()
+        );
     }
 
     /// Fertilizing a crop consumes one fertilizer_0 from the player and boosts the

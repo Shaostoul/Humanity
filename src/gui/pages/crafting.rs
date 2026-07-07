@@ -548,7 +548,23 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
         }
         _ => true,
     };
-    let can_craft = has_ingredients && skill_ok;
+    // Station gate (v0.749, ladder rung 6): the named station machine must be
+    // placed in the home (strip the item-style _0 suffix to the machine type).
+    // Mirrors CraftingSystem's authoritative check; fail-open when no home
+    // layout is loaded.
+    let station_ok = if recipe.station_required.is_empty() || recipe.station_required == "none" {
+        true
+    } else {
+        let machine_type = recipe
+            .station_required
+            .strip_suffix("_0")
+            .unwrap_or(&recipe.station_required);
+        state.home_machines.as_ref().map_or(true, |hm| {
+            hm.instances.iter().any(|i| i.machine == machine_type)
+                || hm.arrays.iter().any(|a| a.machine == machine_type)
+        })
+    };
+    let can_craft = has_ingredients && skill_ok && station_ok;
 
     // Skill requirement line (shown in danger colour when the player is under-level).
     // Only for gated recipes (level 2+); level-1 recipes are the free starter tier.
@@ -595,9 +611,14 @@ fn draw_recipe_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, re
     if !can_craft {
         ui.add_space(theme.spacing_xs);
         let msg = if !has_ingredients {
-            "Missing ingredients"
+            "Missing ingredients".to_string()
+        } else if !skill_ok {
+            "Skill level too low".to_string()
         } else {
-            "Skill level too low"
+            format!(
+                "Needs a {} placed in your home",
+                recipe.station_required.trim_end_matches("_0").replace('_', " ")
+            )
         };
         ui.label(
             RichText::new(msg)
