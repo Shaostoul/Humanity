@@ -276,6 +276,10 @@ pub struct ItemDef {
     /// (v0.726): "the real limit of a container is its volume" — this is the
     /// number volume-capped storage counts against. 0.0 = unknown (legacy row).
     pub volume_l: f32,
+    /// Content class from items.csv (solid / dry_goods / water / ore ...) —
+    /// what typed containers whitelist against (containers.rs). Default
+    /// "solid" when the column is absent. (v0.729)
+    pub content_class: String,
     pub stackable: bool,
     pub max_stack: u32,
 }
@@ -311,6 +315,15 @@ impl ItemRegistry {
             .unwrap_or(0.0)
     }
 
+    /// Look up the content class for typed-container compatibility,
+    /// defaulting to "solid" for unknown items. (v0.729)
+    pub fn class_for(&self, item_id: &str) -> &str {
+        self.items
+            .get(item_id)
+            .map(|def| def.content_class.as_str())
+            .unwrap_or("solid")
+    }
+
     /// Build the item registry from raw `items.csv` bytes.
     ///
     /// Uses the shared CSV loader (skips `#` comments, header-mapped, row-resilient
@@ -332,6 +345,11 @@ impl ItemRegistry {
                     name: row.name,
                     mass_kg: row.weight_kg,
                     volume_l: row.volume_l,
+                    content_class: if row.content_class.is_empty() {
+                        "solid".to_string()
+                    } else {
+                        row.content_class
+                    },
                     stackable: max_stack > 1,
                     max_stack,
                 },
@@ -353,6 +371,9 @@ struct ItemRow {
     /// so a mod's items.csv without the column still parses.
     #[serde(default)]
     volume_l: f32,
+    /// Typed-container content class (v0.729). Empty -> "solid".
+    #[serde(default)]
+    content_class: String,
     #[serde(default = "default_item_stack")]
     stack_size: u32,
 }
@@ -387,14 +408,18 @@ mod item_registry_csv_tests {
     #[test]
     fn from_csv_parses_volume_and_defaults_to_zero() {
         // Stage A (v0.726): volume_l is parsed when present; absent column
-        // (older/modded CSVs) defaults to 0 = no volume gate.
-        let with = b"id,name,weight_kg,stack_size,volume_l\niron_ore_0,Iron Ore,4.5,20,0.95\n";
+        // (older/modded CSVs) defaults to 0 = no volume gate. content_class
+        // (v0.729) parses when present and defaults to "solid".
+        let with = b"id,name,weight_kg,stack_size,volume_l,content_class\niron_ore_0,Iron Ore,4.5,20,0.95,ore\n";
         let reg = ItemRegistry::from_csv(with).expect("parse");
         assert!((reg.volume_for("iron_ore_0") - 0.95).abs() < 1e-6);
+        assert_eq!(reg.class_for("iron_ore_0"), "ore");
         let without = b"id,name,weight_kg,stack_size\niron_ore_0,Iron Ore,4.5,20\n";
         let reg2 = ItemRegistry::from_csv(without).expect("parse");
         assert_eq!(reg2.volume_for("iron_ore_0"), 0.0);
         assert_eq!(reg2.volume_for("nonexistent"), 0.0);
+        assert_eq!(reg2.class_for("iron_ore_0"), "solid", "absent column -> solid");
+        assert_eq!(reg2.class_for("nonexistent"), "solid");
     }
 }
 

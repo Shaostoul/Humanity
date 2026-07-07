@@ -654,6 +654,10 @@ impl System for FarmingSystem {
         }
 
         // HARVEST: a fully-grown crop -> produce items into the player + despawn it.
+        // Volume-gate surplus that doesn't fit the pack routes into a compatible
+        // home vessel (the grain silo) instead of vanishing — collected here,
+        // applied after the inventory borrow ends. (v0.729)
+        let mut vessel_routes: Vec<(String, u32)> = Vec::new();
         let harvest_bits = data
             .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
             .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
@@ -701,13 +705,14 @@ impl System for FarmingSystem {
                             &mut crate::systems::inventory::Inventory,
                             &crate::ecs::components::Controllable,
                         )>() {
-                            // Volume-gated (Stage A slice 2): a full pack loses
-                            // the surplus — logged so it never vanishes silently.
+                            // Volume-gated (Stage A slice 2): surplus that
+                            // doesn't fit the pack routes to a home vessel
+                            // after this borrow ends (v0.729).
                             let unit_vol =
                                 item_registry.map(|r| r.volume_for(&yield_item)).unwrap_or(0.0);
                             let lost = inv.add_item_volume_gated(&yield_item, qty, max_stack, unit_vol);
                             if lost > 0 {
-                                log::warn!("[Farming] pack full: {lost}x {yield_item} lost at harvest");
+                                vessel_routes.push((yield_item.clone(), lost));
                             }
                             // Saved-seed loop (operator's "harvest yields seeds"):
                             // a SURVIVAL harvest returns a few seeds of this plant, so
@@ -738,6 +743,47 @@ impl System for FarmingSystem {
                         );
                     }
                     let _ = world.despawn(entity);
+                }
+            }
+        }
+
+        // Route harvest surplus into a compatible home vessel (v0.729): a
+        // full backpack no longer LOSES the yield when the grain silo can
+        // take it. Compatibility is PRE-CHECKED so surplus never dents a
+        // wrong-class vessel (try_store on an incompatible container damages
+        // it by design — we don't want grain denting the fuel drum).
+        if !vessel_routes.is_empty() {
+            use crate::systems::inventory::containers::{Container, ContainerRegistry, StoreOutcome};
+            let containers_reg = data.get::<ContainerRegistry>("container_registry");
+            for (item_id, qty) in vessel_routes {
+                let class = item_registry
+                    .map(|r| r.class_for(&item_id).to_string())
+                    .unwrap_or_else(|| "solid".to_string());
+                let unit_vol = item_registry.map(|r| r.volume_for(&item_id)).unwrap_or(0.0);
+                let mut remaining = qty;
+                if let Some(reg) = containers_reg {
+                    for (_e, c) in world.query_mut::<&mut Container>() {
+                        if remaining == 0 {
+                            break;
+                        }
+                        if !reg.check(&c.container_type_id, &class).is_accepted() {
+                            continue;
+                        }
+                        if let StoreOutcome::Stored { quantity } =
+                            reg.try_store(c, &item_id, &class, unit_vol, remaining)
+                        {
+                            remaining -= quantity;
+                            log::info!(
+                                "[Farming] pack full: {quantity}x {item_id} routed into the {}",
+                                c.container_type_id
+                            );
+                        }
+                    }
+                }
+                if remaining > 0 {
+                    log::warn!(
+                        "[Farming] pack + vessels full: {remaining}x {item_id} lost at harvest"
+                    );
                 }
             }
         }
