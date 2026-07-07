@@ -110,6 +110,65 @@ impl AssetManager {
             .ok_or_else(|| format!("Type mismatch for cached {relative_path}"))
     }
 
+    /// Parse a GLTF/GLB into an engine Mesh WITHOUT caching or registering it
+    /// (v0.734): each caller owns its Mesh, so per-instance machine models can
+    /// safely live in per-machine renderer slots (the editor's replace_mesh
+    /// reuse path would corrupt a SHARED cached mesh — see
+    /// docs/game/model-pipeline.md's hazard note). Resolution: `data_dir`
+    /// first (the distributed/moddable tree, e.g. data/models/x.glb), then
+    /// the data dir's PARENT (the dev repo root, so assets/models/x.glb works
+    /// in a checkout).
+    #[cfg(feature = "native")]
+    pub fn parse_gltf_mesh(
+        &self,
+        device: &wgpu::Device,
+        relative_path: &str,
+    ) -> Result<crate::renderer::mesh::Mesh, String> {
+        let mut path = self.data_dir.join(relative_path);
+        if !path.exists() {
+            if let Some(parent) = self.data_dir.parent() {
+                let alt = parent.join(relative_path);
+                if alt.exists() {
+                    path = alt;
+                }
+            }
+        }
+        let (document, buffers, _images) = gltf::import(&path)
+            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+
+        let gltf_mesh = document.meshes().next()
+            .ok_or_else(|| format!("No meshes in {relative_path}"))?;
+        let primitive = gltf_mesh.primitives().next()
+            .ok_or_else(|| format!("No primitives in mesh of {relative_path}"))?;
+
+        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
+        let positions: Vec<[f32; 3]> = reader.read_positions()
+            .ok_or_else(|| format!("No positions in {relative_path}"))?
+            .collect();
+        let indices: Vec<u32> = reader.read_indices()
+            .ok_or_else(|| format!("No indices in {relative_path}"))?
+            .into_u32()
+            .collect();
+        let normals: Vec<[f32; 3]> = if let Some(norm_iter) = reader.read_normals() {
+            norm_iter.collect()
+        } else {
+            generate_flat_normals(&positions, &indices)
+        };
+        let uvs: Vec<[f32; 2]> = if let Some(tc_iter) = reader.read_tex_coords(0) {
+            tc_iter.into_f32().collect()
+        } else {
+            generate_planar_uvs(&positions)
+        };
+        let vertices: Vec<crate::renderer::mesh::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
+            crate::renderer::mesh::Vertex {
+                position: *pos,
+                normal: normals.get(i).copied().unwrap_or([0.0, 1.0, 0.0]),
+                uv: uvs.get(i).copied().unwrap_or([0.0, 0.0]),
+            }
+        }).collect();
+        Ok(crate::renderer::mesh::Mesh::from_vertices(device, &vertices, &indices))
+    }
+
     /// Load a GLTF/GLB model, extract the first mesh primitive, and return
     /// the mesh index for use in RenderObject. Cached by path — subsequent
     /// calls with the same path skip parsing and GPU upload.

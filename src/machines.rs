@@ -113,6 +113,14 @@ pub struct MachineDef {
     /// card can show live contents + fill. None = not a material container.
     #[serde(default)]
     pub container_type: Option<String>,
+    /// GLB model path (v0.734, docs/game/model-pipeline.md): rendered instead
+    /// of the primitive shape when set. Resolved against the DATA dir first
+    /// ("models/x.glb"), then the dev repo root ("assets/models/x.glb").
+    /// Meters, Y-up, first mesh's first primitive, indexed triangles. The
+    /// primitive stays the fallback when the file is missing or malformed —
+    /// a bad model never blanks the machine.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
@@ -495,6 +503,9 @@ pub struct PlacedMachine {
     /// Yaw degrees about Y (v0.633), carried from `MachineInstance.rotation` so the renderer can orient
     /// the mesh. Array-expanded cells inherit their array's nominal 0 (rotated as a group is a later step).
     pub rotation: f32,
+    /// GLB model path from the def (v0.734) — the renderer draws this instead
+    /// of the primitive when set (primitive stays the fallback on load error).
+    pub model: Option<String>,
 }
 
 impl BuildabilityReport {
@@ -1418,6 +1429,7 @@ impl MachineHome {
                 label: if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() },
                 stats: def.stats.clone(),
                 rotation: inst.rotation,
+                model: def.model.clone(),
             });
         }
         out
@@ -1604,6 +1616,7 @@ mod tests {
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
+            model: None,
         }
     }
 

@@ -1358,7 +1358,23 @@ mod native_app {
         state.machine_pick.clear();
         let mut objs = Vec::with_capacity(placements.len());
         for (i, p) in placements.iter().enumerate() {
-            let mesh = machine_mesh(&state.renderer.device, &p.shape, p.size);
+            // GLB model when the def declares one (v0.734): parsed fresh PER
+            // INSTANCE (no shared cache), so the replace/reuse slot logic
+            // below stays safe — each machine owns its mesh slot. Primitive
+            // fallback on any load error, so a bad file never blanks it.
+            let mesh = p
+                .model
+                .as_deref()
+                .and_then(|m| {
+                    state
+                        .asset_manager
+                        .parse_gltf_mesh(&state.renderer.device, m)
+                        .map_err(|e| {
+                            log::warn!("machine {} model '{m}' failed: {e}; primitive fallback", p.id)
+                        })
+                        .ok()
+                })
+                .unwrap_or_else(|| machine_mesh(&state.renderer.device, &p.shape, p.size));
             let color = [p.color.0, p.color.1, p.color.2, 1.0];
             let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
             if let Some(&(mi, ma, _, _)) = prior.get(i) {
@@ -3867,7 +3883,25 @@ mod native_app {
                         )
                     };
                     let (sx, sy, _sz) = def.size;
-                    let mesh = machine_mesh(&state.renderer.device, &def.shape, def.size);
+                    // GLB model when declared (v0.734); primitive fallback on
+                    // any load error. Per-instance parse — see the editor
+                    // rebuild's note on why the mesh is never cache-shared.
+                    let mesh = def
+                        .model
+                        .as_deref()
+                        .and_then(|m| {
+                            state
+                                .asset_manager
+                                .parse_gltf_mesh(&state.renderer.device, m)
+                                .map_err(|e| {
+                                    log::warn!(
+                                        "machine {} model '{m}' failed: {e}; primitive fallback",
+                                        inst.id
+                                    )
+                                })
+                                .ok()
+                        })
+                        .unwrap_or_else(|| machine_mesh(&state.renderer.device, &def.shape, def.size));
                     let mesh_idx = state.renderer.add_mesh(mesh);
                     let mat = state.renderer.add_material_typed(
                         [def.color.0, def.color.1, def.color.2, 1.0],

@@ -338,6 +338,18 @@
             category: "Logistics",
             stats: [(kind: "storage", value: "1 mining drone", status: "ok")],
         ),
+        "model_test": (
+            // Model-pipeline demo (v0.734): renders data/models/test_crate.glb
+            // (a crate with a pyramid lid — unmistakably not a primitive).
+            // NOT placed in the seed home; place one from the editor palette
+            // to verify GLB rendering, then use `model:` on any machine with
+            // your own exported GLB (docs/game/model-pipeline.md).
+            shape: "box", size: (1.0, 1.2, 1.0), color: (0.75, 0.55, 0.25),
+            label: "Model test crate",
+            category: "Machines",
+            stats: [(kind: "progress", value: "GLB pipeline demo", status: "ok")],
+            model: Some("models/test_crate.glb"),
+        ),
         "defense_turret": (
             shape: "cylinder", size: (0.5, 1.6, 0.5), color: (0.45, 0.20, 0.18),
             label: "Defense turret",
