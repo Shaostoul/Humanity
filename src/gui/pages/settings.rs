@@ -1871,8 +1871,78 @@ pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
     });
 }
 
+/// Open a folder (or a file's parent folder) in the OS file manager.
+/// Windows explorer / macOS open / Linux xdg-open; spawn-and-forget.
+fn open_in_file_manager(path: &std::path::Path) {
+    let dir = if path.is_file() { path.parent().unwrap_or(path) } else { path };
+    #[cfg(target_os = "windows")]
+    let _ = std::process::Command::new("explorer").arg(dir).spawn();
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(dir).spawn();
+    #[cfg(target_os = "linux")]
+    let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+}
+
+/// One "label: path [Open]" row for the Storage section. The Open button
+/// only renders when the path exists (nothing to show otherwise).
+fn storage_path_row(ui: &mut egui::Ui, theme: &Theme, label: &str, path: &std::path::Path) {
+    ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(format!("{label}:"))
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.label(
+            RichText::new(path.display().to_string())
+                .size(theme.font_size_small)
+                .color(theme.text_primary()),
+        );
+        if path.exists() && widgets::compact_button(ui, theme, "Open", widgets::ButtonVariant::Secondary) {
+            open_in_file_manager(path);
+        }
+    });
+}
+
 pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
+        // Where your files live (v0.741, GUI-first + the v0.707 storage-chooser
+        // follow-up): show the ACTIVE storage mode + every real path, each with
+        // an Open button, so nobody needs a terminal (or a doc) to find their
+        // saves, identity, or modding data.
+        ui.label(RichText::new("Storage").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        let (mode_name, mode_note) = match crate::storage::mode() {
+            crate::storage::StorageMode::Portable => (
+                "Portable",
+                "Everything lives beside the app (USB-drive friendly). Delete portable.txt next to the exe and restart to switch to per-user storage.",
+            ),
+            crate::storage::StorageMode::Installed => (
+                "Per-user",
+                "Your files live in your user folder, so they survive app updates and moves.",
+            ),
+            crate::storage::StorageMode::LegacyBesideExe => (
+                "Beside the app (legacy)",
+                "A data folder sits next to the exe from an earlier setup; files stay there so nothing moves out from under you.",
+            ),
+            crate::storage::StorageMode::Undecided => (
+                "Not chosen yet",
+                "The first-boot storage chooser runs before any files are written.",
+            ),
+        };
+        ui.label(RichText::new(format!("Mode: {mode_name}")).color(theme.text_primary()));
+        ui.label(
+            RichText::new(mode_note)
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_sm);
+        if let Some(p) = crate::storage::writable_data_dir() {
+            storage_path_row(ui, theme, "Game data (modding)", &p);
+        }
+        storage_path_row(ui, theme, "Saves", &crate::persistence::saves_dir());
+        storage_path_row(ui, theme, "Settings + identity", &crate::config::AppConfig::config_path());
+
+        ui.add_space(theme.spacing_lg);
         // Household size (2026-07-01): which home design data/machines/*.ron loads. Two
         // real, fully-authored designs exist -- the default family-scale home.ron and a
         // one-person self-sufficient design (home_solo.ron, see
