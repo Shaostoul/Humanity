@@ -97,6 +97,13 @@ pub struct MachineDef {
     /// component; `CraftingSystem` does the rest. None = a machine with no auto production.
     #[serde(default)]
     pub auto_recipe: Option<String>,
+    /// Typed-container archetype id from `data/containers/types.csv` (v0.728,
+    /// "containers show contents"): a grain silo IS a `grain_silo_bin`, the
+    /// fuel refinery a `steel_fuel_drum`. Spawns a `Container` ECS component
+    /// (volume-capped, content-class typed — see containers.rs) so the walk-up
+    /// card can show live contents + fill. None = not a material container.
+    #[serde(default)]
+    pub container_type: Option<String>,
 }
 
 /// Bulk storage a machine provides for one utility (v0.608). `capacity` is litres for a fluid
@@ -1587,6 +1594,7 @@ mod tests {
             storage: Vec::new(),
             rf_emission: 0.0,
             auto_recipe: None,
+            container_type: None,
         }
     }
 

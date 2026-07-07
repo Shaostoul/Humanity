@@ -207,7 +207,7 @@ mod native_app {
             let Some(def) = home.catalog.get(&inst.machine) else {
                 continue;
             };
-            spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None);
+            spawn_home_machine_entity(world, inst, def, &power_islands, &water_islands, None, None);
         }
         spawn_home_air_space(world);
     }
@@ -242,6 +242,10 @@ mod native_app {
         // (menu mode has no resolve pass; corrected on Enter World when machines
         // despawn + respawn with resolved positions).
         world_pos: Option<Vec3>,
+        // Typed-container archetypes (v0.728). None in MENU mode (the DataStore
+        // isn't threaded there and those entities are despawned + respawned by
+        // load_world before the walk-up cards can ever render them).
+        containers: Option<&crate::systems::inventory::containers::ContainerRegistry>,
     ) {
         use crate::ecs::components::{
             Battery, HomeMachine, PlumbingCircuit, PowerCircuit, PowerConsumer, PowerGenerator, SolarPanel,
@@ -261,6 +265,7 @@ mod native_app {
             && air_out <= 0.0
             && def.rf_emission <= 0.0
             && def.auto_recipe.is_none()
+            && def.container_type.is_none()
         {
             return;
         }
@@ -366,6 +371,28 @@ mod native_app {
                 e,
                 crate::ecs::components::AutoRefine { recipe_id: recipe_id.clone() },
             );
+        }
+        // Typed container (v0.728, "containers show contents"): the machine IS
+        // a volume-capped, content-class-typed vessel (grain silo, fuel drum).
+        // First runtime spawn of the containers.rs system — it was tests-only
+        // until now. The walk-up card reads this component's live fill.
+        if let Some(ct) = &def.container_type {
+            match containers.and_then(|r| r.container_type(ct)) {
+                Some(t) => {
+                    let _ = world.insert_one(
+                        e,
+                        crate::systems::inventory::containers::Container::from_type(t),
+                    );
+                }
+                None => {
+                    if containers.is_some() {
+                        log::warn!(
+                            "machine {} declares unknown container_type '{}' (not in data/containers/types.csv)",
+                            inst.id, ct
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -3793,6 +3820,11 @@ mod native_app {
                         &power_islands,
                         &water_islands,
                         Some(pos),
+                        state
+                            .data_store
+                            .get::<crate::systems::inventory::containers::ContainerRegistry>(
+                                "container_registry",
+                            ),
                     );
                     placed += 1;
                 }
@@ -9718,26 +9750,59 @@ mod native_app {
                                 });
                             }
                         }
-                        let mut live: std::collections::HashMap<String, (Option<(f32, f32)>, Option<(f32, f32)>)> =
+                        // (tank, battery, container-fill + contents-line)
+                        type LiveStats = (
+                            Option<(f32, f32)>,
+                            Option<(f32, f32)>,
+                            Option<(String, String, &'static str)>,
+                        );
+                        let item_reg = state
+                            .data_store
+                            .get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                        let mut live: std::collections::HashMap<String, LiveStats> =
                             std::collections::HashMap::new();
-                        for (_e, (mid, tank, bat)) in state
+                        for (_e, (mid, tank, bat, cont)) in state
                             .game_world
                             .world
-                            .query::<(&MachineInstanceId, Option<&WaterTank>, Option<&Battery>)>()
+                            .query::<(
+                                &MachineInstanceId,
+                                Option<&WaterTank>,
+                                Option<&Battery>,
+                                Option<&crate::systems::inventory::containers::Container>,
+                            )>()
                             .iter()
                         {
-                            if tank.is_some() || bat.is_some() {
-                                live.insert(
-                                    mid.0.clone(),
-                                    (
-                                        tank.map(|t| (t.liters, t.capacity_l)),
-                                        bat.map(|b| (b.charge_wh, b.capacity_wh)),
-                                    ),
-                                );
+                            if tank.is_none() && bat.is_none() && cont.is_none() {
+                                continue;
                             }
+                            // Typed container -> a fill line + a contents line
+                            // ("containers show contents", v0.728).
+                            let cont_rows = cont.map(|c| {
+                                let fill = format!("{:.0} / {:.0} L", c.used_liters, c.capacity_liters);
+                                let contents = if c.is_broken() {
+                                    ("BROKEN (spilled)".to_string(), "off")
+                                } else if let Some(item) = &c.current_content_item {
+                                    let name = item_reg
+                                        .and_then(|r| r.items.get(item))
+                                        .map(|d| d.name.clone())
+                                        .unwrap_or_else(|| item.clone());
+                                    (format!("{}x {}", c.current_qty, name), "ok")
+                                } else {
+                                    ("empty".to_string(), "off")
+                                };
+                                (fill, contents.0, contents.1)
+                            });
+                            live.insert(
+                                mid.0.clone(),
+                                (
+                                    tank.map(|t| (t.liters, t.capacity_l)),
+                                    bat.map(|b| (b.charge_wh, b.capacity_wh)),
+                                    cont_rows,
+                                ),
+                            );
                         }
                         for label in &mut state.gui_state.machine_labels {
-                            let Some((tank, bat)) = live.get(&label.machine_id) else { continue };
+                            let Some((tank, bat, cont)) = live.get(&label.machine_id) else { continue };
                             if let Some((liters, cap)) = tank {
                                 let frac = if *cap > 0.0 { liters / cap } else { 0.0 };
                                 let status = if frac < 0.15 { "low" } else { "ok" };
@@ -9758,6 +9823,24 @@ mod native_app {
                                     "power",
                                     format!("{:.1} / {:.1} kWh", wh / 1000.0, cap / 1000.0),
                                     status,
+                                );
+                            }
+                            if let Some((fill, contents, cstatus)) = cont {
+                                // Fill goes on the storage/fuel row (keeps the
+                                // RON author's icon); contents get their own row.
+                                patch_stat(
+                                    &mut label.stats,
+                                    &["storage", "fuel"],
+                                    "storage",
+                                    fill.clone(),
+                                    "ok",
+                                );
+                                patch_stat(
+                                    &mut label.stats,
+                                    &["contents"],
+                                    "contents",
+                                    contents.clone(),
+                                    cstatus,
                                 );
                             }
                         }

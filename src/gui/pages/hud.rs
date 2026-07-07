@@ -720,7 +720,9 @@ fn paint_stat_icon(painter: &egui::Painter, rect: Rect, kind: &str, color: Color
         "water" | "fuel" => icons::paint_droplet(painter, rect, color),
         "heat" => icons::paint_flame(painter, rect, color),
         "nutrient" => icons::paint_leaf(painter, rect, color),
-        "storage" => icons::paint_box(painter, rect, color),
+        // "contents" = what's inside a typed container (v0.728) — same box
+        // family as storage, reads as "the stuff in the box".
+        "storage" | "contents" => icons::paint_box(painter, rect, color),
         "progress" => icons::paint_cog(painter, rect, color),
         _ => {
             painter.circle_filled(rect.center(), rect.width() * 0.22, color);

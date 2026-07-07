@@ -290,18 +290,26 @@
             label: "Fuel refinery",
             category: "Production",
             stats: [(kind: "fuel", value: "30%", status: "low"), (kind: "progress", value: "refining", status: "ok")],
+            // Typed container (v0.728): its product tank is a sealed steel fuel
+            // drum — the walk-up card shows live fill + contents from the ECS.
+            container_type: Some("steel_fuel_drum"),
         ),
         "generator_portable": (
             shape: "box", size: (0.55, 0.45, 0.45), color: (0.45, 0.45, 0.20),
             label: "Generator (backup)",
             category: "Power",
             stats: [(kind: "fuel", value: "80%", status: "ok"), (kind: "power", value: "backup 2 kW", status: "off")],
+            // Typed container (v0.728): the backup fuel store beside it.
+            container_type: Some("steel_fuel_drum"),
         ),
         "grain_silo": (
             shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
             label: "Grain silo",
             category: "Food",
             stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
+            // Typed container (v0.728): a bulk dry-goods bin — the card shows
+            // what is actually inside (grain, dry staples) and the live fill.
+            container_type: Some("grain_silo_bin"),
         ),
         // ── Hull-surface installations (v0.438): the mining-drone landing pad and a
         //    player-operated defense turret, both on the garage exterior of the mothership.

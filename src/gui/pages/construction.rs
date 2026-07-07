@@ -3529,6 +3529,7 @@ mod multi_select_tests {
             storage: Vec::new(),
             rf_emission: 0.0,
             auto_recipe: None,
+            container_type: None,
         }
     }
 
