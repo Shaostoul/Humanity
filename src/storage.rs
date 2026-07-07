@@ -243,6 +243,167 @@ pub fn extract_data_if_needed() {
     log::info!("Data extraction complete");
 }
 
+// ── Storage-mode MIGRATION (v0.742, the "move my files" Settings tool) ──
+//
+// Safety contract (this moves the encrypted identity, so it is copy-first,
+// commit-last, delete-never):
+//   1. Every file is COPIED before anything about the mode changes. A failed
+//      copy aborts with the install untouched.
+//   2. The mode "commit" (writing / removing portable.txt) happens LAST.
+//   3. Source files are NEVER deleted. Portable -> per-user renames the
+//      exe-side `data` dir to `data-backup[-N]` (rename, not delete) purely so
+//      next-boot detection lands on Installed instead of LegacyBesideExe;
+//      everything else stays in place as an inert backup.
+
+/// Recursively copy a directory tree (regular files only). Returns the number
+/// of files copied. A missing source is Ok(0) — "nothing to move" is a valid
+/// migration state, not an error.
+fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<u32> {
+    if !src.exists() {
+        return Ok(0);
+    }
+    let mut copied = 0u32;
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let to = dst.join(entry.file_name());
+        if ty.is_dir() {
+            copied += copy_tree(&entry.path(), &to)?;
+        } else if ty.is_file() {
+            std::fs::copy(entry.path(), &to)?;
+            copied += 1;
+        }
+    }
+    Ok(copied)
+}
+
+/// First free `<base>-backup[-N]` name beside `base` (never overwrites).
+fn unique_backup_name(base: &Path) -> PathBuf {
+    let first = base.with_file_name(format!(
+        "{}-backup",
+        base.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+    ));
+    if !first.exists() {
+        return first;
+    }
+    for n in 1.. {
+        let candidate = base.with_file_name(format!(
+            "{}-backup-{n}",
+            base.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+        ));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    unreachable!()
+}
+
+/// The per-user subtrees a migration carries (config.json is handled apart).
+const MIGRATE_DIRS: &[&str] = &["data", "saves", "logs", "backups", "cache"];
+
+/// Copy config.json (the ENCRYPTED IDENTITY) preserving any existing
+/// destination copy as `config.json-backup[-N]` first — an identity file is
+/// never overwritten, period, even though the source is always the live copy
+/// (adversarial-review hardening, 2026-07-07).
+fn copy_identity(src: &Path, dst: &Path) -> Result<u32, String> {
+    if !src.is_file() {
+        return Ok(0);
+    }
+    if dst.is_file() {
+        let backup = unique_backup_name(dst);
+        std::fs::rename(dst, &backup)
+            .map_err(|e| format!("could not back up the existing {}: {e}", dst.display()))?;
+    }
+    std::fs::copy(src, dst).map_err(|e| e.to_string())?;
+    Ok(1)
+}
+
+/// Switch a per-user (or legacy) install to PORTABLE: copy the install beside
+/// the exe, then write the marker LAST. Originals stay in place as a backup.
+/// Err = nothing was committed (the marker is only written on full success).
+pub fn migrate_to_portable() -> Result<String, String> {
+    let exe = exe_dir();
+    let mut copied = 0u32;
+    match mode() {
+        StorageMode::Portable => return Err("Already in portable mode.".into()),
+        StorageMode::Undecided => {
+            return Err("Choose a storage location first (first-boot chooser).".into())
+        }
+        StorageMode::Installed => {
+            let root = os_root().ok_or("No per-user folder resolvable on this system.")?;
+            copied += copy_identity(&root.join("config.json"), &exe.join("config.json"))?;
+            for d in MIGRATE_DIRS {
+                copied += copy_tree(&root.join(d), &exe.join(d)).map_err(|e| e.to_string())?;
+            }
+        }
+        StorageMode::LegacyBesideExe => {
+            // Live game data already sits beside the exe — copy only the
+            // per-user pieces (identity/saves/logs), and NOT the per-user
+            // `data` dir, which would clobber live modded files with stale ones.
+            if let Some(root) = os_root() {
+                copied += copy_identity(&root.join("config.json"), &exe.join("config.json"))?;
+                for d in MIGRATE_DIRS.iter().filter(|d| **d != "data") {
+                    copied += copy_tree(&root.join(d), &exe.join(d)).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+    }
+    // Commit LAST: the marker only appears once every copy above succeeded.
+    std::fs::write(
+        exe.join(PORTABLE_MARKER),
+        "HumanityOS portable mode.\n\
+         This file tells HumanityOS to keep ALL of your files (game data,\n\
+         saves, settings, identity, logs) in this folder, next to the app,\n\
+         so the whole folder travels between machines (USB drive friendly).\n\
+         Delete this file and restart to switch back to per-user storage.\n",
+    )
+    .map_err(|e| format!("Copies succeeded but writing the portable marker failed: {e}"))?;
+    *MODE.write().unwrap() = Some(StorageMode::Portable);
+    log::info!("Storage migrated to Portable ({copied} files copied)");
+    Ok(format!(
+        "Copied {copied} files next to the app. Your old copies remain in the user folder as a backup. Restart HumanityOS to finish."
+    ))
+}
+
+/// Switch a PORTABLE install back to per-user: copy everything into the OS
+/// per-user folder, rename the exe-side `data` dir to a backup name (so
+/// next-boot detection lands on Installed, not LegacyBesideExe), then remove
+/// the marker LAST. Nothing is deleted.
+pub fn migrate_to_per_user() -> Result<String, String> {
+    if mode() != StorageMode::Portable {
+        return Err("Not in portable mode.".into());
+    }
+    let exe = exe_dir();
+    let root = os_root().ok_or("No per-user folder resolvable on this system.")?;
+    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let mut copied = copy_identity(&exe.join("config.json"), &root.join("config.json"))?;
+    for d in MIGRATE_DIRS {
+        copied += copy_tree(&exe.join(d), &root.join(d)).map_err(|e| e.to_string())?;
+    }
+    // Rename the exe-side data dir out of detection's way (rename, NOT delete).
+    let exe_data = exe.join("data");
+    let mut data_backup: Option<PathBuf> = None;
+    if exe_data.is_dir() {
+        let backup = unique_backup_name(&exe_data);
+        std::fs::rename(&exe_data, &backup).map_err(|e| e.to_string())?;
+        data_backup = Some(backup);
+    }
+    // Commit LAST: remove the marker; on failure, undo the rename so the
+    // install stays fully portable rather than half-switched.
+    if let Err(e) = std::fs::remove_file(exe.join(PORTABLE_MARKER)) {
+        if let Some(backup) = data_backup {
+            let _ = std::fs::rename(&backup, &exe_data);
+        }
+        return Err(format!("Copies succeeded but removing the portable marker failed: {e}"));
+    }
+    *MODE.write().unwrap() = Some(StorageMode::Installed);
+    log::info!("Storage migrated to per-user ({copied} files copied)");
+    Ok(format!(
+        "Copied {copied} files to your user folder. The app-side copies remain as a backup. Restart HumanityOS to finish."
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,6 +413,54 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn copy_tree_copies_nested_files_and_counts_them() {
+        let src = tmp("ct_src");
+        let dst = tmp("ct_dst");
+        std::fs::create_dir_all(src.join("a/b")).unwrap();
+        std::fs::write(src.join("top.txt"), "1").unwrap();
+        std::fs::write(src.join("a/mid.txt"), "22").unwrap();
+        std::fs::write(src.join("a/b/deep.txt"), "333").unwrap();
+        let n = copy_tree(&src, &dst).unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(std::fs::read_to_string(dst.join("a/b/deep.txt")).unwrap(), "333");
+        // Source untouched (copy, not move).
+        assert!(src.join("top.txt").exists());
+        // Missing source is Ok(0), not an error.
+        assert_eq!(copy_tree(&src.join("nope"), &dst).unwrap(), 0);
+    }
+
+    #[test]
+    fn copy_identity_backs_up_the_destination_before_overwriting() {
+        let d = tmp("ci");
+        let src = d.join("src_config.json");
+        let dst = d.join("config.json");
+        std::fs::write(&src, "live-identity").unwrap();
+        std::fs::write(&dst, "old-identity").unwrap();
+        assert_eq!(copy_identity(&src, &dst).unwrap(), 1);
+        assert_eq!(std::fs::read_to_string(&dst).unwrap(), "live-identity");
+        // The pre-existing destination copy survives under a backup name.
+        let backup = d.join("config.json-backup");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), "old-identity");
+        // Missing source = Ok(0), destination untouched.
+        assert_eq!(copy_identity(&d.join("nope.json"), &dst).unwrap(), 0);
+        assert_eq!(std::fs::read_to_string(&dst).unwrap(), "live-identity");
+    }
+
+    #[test]
+    fn unique_backup_name_never_collides() {
+        let d = tmp("ubn");
+        let base = d.join("data");
+        std::fs::create_dir_all(&base).unwrap();
+        let first = unique_backup_name(&base);
+        assert!(first.ends_with("data-backup"));
+        std::fs::create_dir_all(&first).unwrap();
+        let second = unique_backup_name(&base);
+        assert!(second.ends_with("data-backup-1"));
+        std::fs::create_dir_all(&second).unwrap();
+        assert!(unique_backup_name(&base).ends_with("data-backup-2"));
     }
 
     #[test]

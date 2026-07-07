@@ -1942,6 +1942,84 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         storage_path_row(ui, theme, "Saves", &crate::persistence::saves_dir());
         storage_path_row(ui, theme, "Settings + identity", &crate::config::AppConfig::config_path());
 
+        // Move-my-files (v0.742, the second v0.707 follow-up): switch modes
+        // WITH the file migration, in-app. Copy-first, commit-last, originals
+        // kept — see storage.rs's migration safety contract. Two-click confirm;
+        // the result line persists in egui temp memory until the next attempt.
+        let migrate_result_id = egui::Id::new("storage_migrate_result");
+        let confirm_id = egui::Id::new("storage_migrate_confirm");
+        // ONE migration per session (adversarial-review hardening): after a
+        // successful move the switch button is replaced by the restart note,
+        // so the mode can't be toggled back and forth against half-reloaded
+        // session state. The flag is session-memory; a restart clears it.
+        let migrated_id = egui::Id::new("storage_migrated_this_session");
+        let migrated = ui.data_mut(|d| d.get_temp::<bool>(migrated_id).unwrap_or(false));
+        let target: Option<(&str, &str)> = match crate::storage::mode() {
+            crate::storage::StorageMode::Installed
+            | crate::storage::StorageMode::LegacyBesideExe => Some((
+                "Switch to portable storage",
+                "Copies your files (identity, saves, game data, logs) next to the app so the folder travels between machines. Your current files stay where they are as a backup.",
+            )),
+            crate::storage::StorageMode::Portable => Some((
+                "Switch to per-user storage",
+                "Copies your files into your user folder so they survive app moves. The app-side copies stay as a backup.",
+            )),
+            crate::storage::StorageMode::Undecided => None,
+        };
+        if migrated {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Files moved. Restart HumanityOS to finish switching storage modes.")
+                    .size(theme.font_size_small)
+                    .color(theme.accent()),
+            );
+        } else if let Some((label, note)) = target {
+            ui.add_space(theme.spacing_sm);
+            let confirming = ui.data_mut(|d| d.get_temp::<bool>(confirm_id).unwrap_or(false));
+            if confirming {
+                ui.label(
+                    RichText::new(note).size(theme.font_size_small).color(theme.text_muted()),
+                );
+                ui.horizontal(|ui| {
+                    if widgets::primary_button(ui, theme, "Yes, move my files") {
+                        let result = match crate::storage::mode() {
+                            crate::storage::StorageMode::Portable => {
+                                crate::storage::migrate_to_per_user()
+                            }
+                            _ => crate::storage::migrate_to_portable(),
+                        };
+                        let line = match result {
+                            Ok(msg) => {
+                                ui.data_mut(|d| d.insert_temp(migrated_id, true));
+                                msg
+                            }
+                            Err(e) => format!("Nothing was changed: {e}"),
+                        };
+                        ui.data_mut(|d| {
+                            d.insert_temp(migrate_result_id, line);
+                            d.insert_temp(confirm_id, false);
+                        });
+                    }
+                    if widgets::secondary_button(ui, theme, "Cancel") {
+                        ui.data_mut(|d| d.insert_temp(confirm_id, false));
+                    }
+                });
+            } else if widgets::secondary_button(ui, theme, label) {
+                ui.data_mut(|d| d.insert_temp(confirm_id, true));
+            }
+            if let Some(line) = ui.data_mut(|d| d.get_temp::<String>(migrate_result_id)) {
+                if !line.is_empty() {
+                    ui.add_space(theme.spacing_xs);
+                    let failed = line.starts_with("Nothing was changed");
+                    ui.label(
+                        RichText::new(line)
+                            .size(theme.font_size_small)
+                            .color(if failed { theme.danger() } else { theme.success() }),
+                    );
+                }
+            }
+        }
+
         ui.add_space(theme.spacing_lg);
         // Household size (2026-07-01): which home design data/machines/*.ron loads. Two
         // real, fully-authored designs exist -- the default family-scale home.ron and a
