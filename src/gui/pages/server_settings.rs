@@ -292,7 +292,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                 .show(ui, theme)
             {
                 send_slash(state, "/link");
-                state.server_settings_status = "Sent: /link — the code appears privately in Chat.".into();
+                state.server_settings_status = "Sent: /link - the code appears privately in Chat.".into();
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Generate friend code")
@@ -301,7 +301,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                 .show(ui, theme)
             {
                 send_slash(state, "/friend-code");
-                state.server_settings_status = "Sent: /friend-code — the code appears privately in Chat.".into();
+                state.server_settings_status = "Sent: /friend-code - the code appears privately in Chat.".into();
             }
         });
         ui.add_space(theme.spacing_xs);
@@ -319,13 +319,13 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
             let code_ok = !state.redeem_code_draft.trim().is_empty();
             ui.add_enabled_ui(code_ok, |ui| {
                 if widgets::Button::secondary("Redeem")
-                    .tooltip("Redeem a friend code someone shared with you — you'll \
+                    .tooltip("Redeem a friend code someone shared with you - you'll \
                               follow each other automatically.")
                     .show(ui, theme)
                 {
                     let cmd = format!("/redeem {}", state.redeem_code_draft.trim());
                     send_slash(state, &cmd);
-                    state.server_settings_status = format!("Sent: {} — result appears in Chat.", cmd);
+                    state.server_settings_status = format!("Sent: {} - result appears in Chat.", cmd);
                     state.redeem_code_draft.clear();
                 }
             });
@@ -352,7 +352,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
                 {
                     let cmd = format!("/revoke {}", state.revoke_key_draft.trim());
                     send_slash(state, &cmd);
-                    state.server_settings_status = format!("Sent: {} — result appears in Chat.", cmd);
+                    state.server_settings_status = format!("Sent: {} - result appears in Chat.", cmd);
                     state.revoke_key_draft.clear();
                 }
             });
@@ -602,7 +602,7 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     ui.add_space(theme.spacing_xs);
 
     if state.federation_servers.is_empty() && state.federation_status.is_empty() {
-        widgets::body_hint(ui, theme, "No federated servers yet — add one below.");
+        widgets::body_hint(ui, theme, "No federated servers yet - add one below.");
     }
     if !state.federation_status.is_empty() {
         ui.label(
@@ -662,14 +662,14 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
             if tier != row.trust_tier {
                 let cmd = format!("/server-trust {} {}", row.server_id, tier);
                 send_slash(state, &cmd);
-                state.server_settings_status = format!("Sent: {} — Refresh to confirm.", cmd);
+                state.server_settings_status = format!("Sent: {} - Refresh to confirm.", cmd);
             }
             // Remove (confirm per row via the shared confirm slot).
             let confirm_key = format!("/server-remove {}", row.server_id);
             if state.server_settings_confirm_action.as_deref() == Some(confirm_key.as_str()) {
                 if widgets::Button::danger("Really remove?").show(ui, theme) {
                     send_slash(state, &confirm_key);
-                    state.server_settings_status = format!("Sent: {} — Refresh to confirm.", confirm_key);
+                    state.server_settings_status = format!("Sent: {} - Refresh to confirm.", confirm_key);
                     state.server_settings_confirm_action = None;
                 }
                 if widgets::Button::secondary("Cancel").show(ui, theme) {
@@ -717,7 +717,7 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                     format!("/server-add {} {}", url, name)
                 };
                 send_slash(state, &cmd);
-                state.server_settings_status = format!("Sent: {} — Refresh to see it listed.", cmd);
+                state.server_settings_status = format!("Sent: {} - Refresh to see it listed.", cmd);
                 state.federation_add_url_draft.clear();
                 state.federation_add_name_draft.clear();
             }
@@ -738,7 +738,7 @@ fn draw_federation_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
             .show(ui, theme)
         {
             send_slash(state, "/server-connect");
-            state.server_settings_status = "Sent: /server-connect — result appears in Chat.".into();
+            state.server_settings_status = "Sent: /server-connect - result appears in Chat.".into();
         }
     });
 }
@@ -839,7 +839,7 @@ fn draw_system_health_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
         ui, theme,
         &format!(
             "Live read-only snapshot of {} (its public /health + /api/stats). \
-             The version is the deployed build's git commit — compare it against \
+             The version is the deployed build's git commit - compare it against \
              the newest release to spot a stale deploy.",
             state.server_url.trim_end_matches('/')
         ),

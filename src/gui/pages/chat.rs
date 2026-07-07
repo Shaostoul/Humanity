@@ -3928,7 +3928,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // OWN browser widget, not an OS dialog).
                     if widgets::Button::secondary("Attach")
                         .tooltip("Attach a file from your computer (images, documents, \
-                                  3D models — up to 6 MB). 3D files are also published \
+                                  3D models - up to 6 MB). 3D files are also published \
                                   to the server's Shared Files library.")
                         .show(ui, theme)
                     {
