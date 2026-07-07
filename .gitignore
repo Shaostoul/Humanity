@@ -74,6 +74,11 @@ local-heron-admin.json
 data/relay.db
 data/relay.db-journal
 
+# ── Debug output (screenshot protocol + world snapshots; machine-local) ──
+# debug/screenshot_request.json triggers an in-game capture; the PNGs +
+# done/snapshot JSONs it produces are transient inspection artifacts.
+/debug/
+
 # ── OS/editor noise ──
 .DS_Store
 Thumbs.db
