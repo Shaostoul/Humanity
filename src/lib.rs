@@ -1180,11 +1180,70 @@ mod native_app {
         Vec3::new(p.pos.0 + r * a.cos(), top, p.pos.2 + r * a.sin())
     }
 
+    /// Keep the live machine ECS in sync with the editor placements (v0.730).
+    /// Spawns entities for newly-placed machines (with their power/water/
+    /// AutoRefine/Container roles), despawns removed ones, and updates the
+    /// Transform of survivors so behaviors anchored to the machine's pose
+    /// (the assembler's factory pad) follow a move. Idempotent + cheap.
+    fn sync_machine_entities(state: &mut EngineState, placements: &[crate::machines::PlacedMachine]) {
+        use crate::ecs::components::{MachineInstanceId, Transform};
+        let Some(home) = state.gui_state.home_machines.as_ref() else { return };
+        let all = home.all_instances();
+        let power_islands = home.electrical_islands(&all);
+        let water_islands = home.water_islands(&all);
+        let inst_by_id: std::collections::HashMap<&str, &crate::machines::MachineInstance> =
+            all.iter().map(|i| (i.id.as_str(), i)).collect();
+        let placed_ids: std::collections::HashSet<&str> =
+            placements.iter().map(|p| p.id.as_str()).collect();
+        // Snapshot the existing machine entities (id -> entity) in one scope so
+        // the query borrow ends before we mutate the world.
+        let existing: std::collections::HashMap<String, hecs::Entity> = state
+            .game_world
+            .world
+            .query::<&MachineInstanceId>()
+            .iter()
+            .map(|(e, mid)| (mid.0.clone(), e))
+            .collect();
+        // Despawn entities whose machine no longer exists in the editor state.
+        for (id, e) in &existing {
+            if !placed_ids.contains(id.as_str()) {
+                let _ = state.game_world.world.despawn(*e);
+                log::info!("[Machines] despawned removed machine entity {id}");
+            }
+        }
+        let containers = state
+            .data_store
+            .get::<crate::systems::inventory::containers::ContainerRegistry>("container_registry");
+        for p in placements {
+            let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
+            if let Some(&e) = existing.get(&p.id) {
+                // Keep the pose current (moves are count-unchanged edits).
+                if let Ok(mut t) = state.game_world.world.get::<&mut Transform>(e) {
+                    t.position = pos;
+                    t.rotation = Quat::from_rotation_y(p.rotation.to_radians());
+                }
+            } else if let Some(inst) = inst_by_id.get(p.id.as_str()) {
+                if let Some(def) = home.catalog.get(&inst.machine) {
+                    spawn_home_machine_entity(
+                        &mut state.game_world.world,
+                        inst,
+                        def,
+                        &power_islands,
+                        &water_islands,
+                        Some(pos),
+                        containers,
+                    );
+                    log::info!("[Machines] spawned live entity for placed machine {}", p.id);
+                }
+            }
+        }
+    }
+
     /// Rebuild ONLY the home machine meshes + floating labels from the live editor state
     /// (gui_state.home_machines + room_bounds), so a construction-editor edit (move/add/remove/
     /// connect) shows immediately instead of only on the next world entry. Positions come from the
-    /// tested MachineHome::placements. Does NOT touch the live power ECS (that refreshes on world
-    /// entry) or the connection pipes (a follow-up). (v0.525)
+    /// tested MachineHome::placements. The live ECS is kept in sync too as of v0.730 (see
+    /// sync_machine_entities above); the connection pipes rebuild via rebuild_connection_objects.
     fn rebuild_machine_objects(state: &mut EngineState) {
         use std::collections::HashMap;
         let rooms: HashMap<String, crate::machines::RoomGeom> = state
@@ -1241,6 +1300,20 @@ mod native_app {
             };
             state.port_pick = pp;
         }
+        // ── Live ECS sync (v0.730, operator field report): the editor previously
+        // rebuilt VISUALS only, so a machine placed in the construction editor had
+        // NO entity until the next Enter World — no AutoRefine (a placed vehicle
+        // assembler never assembled and showed no recipe selector), no Container
+        // (a placed silo's card stayed on the static RON stats), no power/water
+        // roles. Diff the placements against the live entities by machine id:
+        // spawn missing, despawn removed, keep Transforms current so a moved
+        // assembler's factory pad follows. Runs on every editor commit (and per
+        // frame during drags) — one small map + query, cheap at homestead scale.
+        // NOTE: electrical/plumbing ISLANDS for pre-existing entities are not
+        // recomputed here (a new connection re-islands on the next world entry,
+        // same as before).
+        sync_machine_entities(state, &placements);
+
         // Fast path: the machine COUNT is unchanged (an offset drag / room move, not add/remove).
         // Reuse the existing meshes + materials and only update positions, so a per-frame drag does
         // NOT leak a fresh mesh per machine every frame (the v0.527 regression). placements() is
@@ -9893,6 +9966,53 @@ mod native_app {
                                             .collect();
                                         opts.sort_by(|a, b| a.1.cmp(&b.1));
                                         options = opts;
+                                    }
+                                }
+                            }
+                        }
+                        // Patch the pinned machine's "progress" row with its LIVE
+                        // production status ("42%", "waiting for Coal x1", "pad
+                        // full") — the v0.681 status lines only showed on the
+                        // Inventory page, so a stalled smelter looked idle at the
+                        // machine itself (operator field report 2026-07-06).
+                        if let (Some(sel), Some(cur)) =
+                            (state.gui_state.selected_machine, current.as_ref())
+                        {
+                            let recipe_name = options
+                                .iter()
+                                .find(|(id, _)| id == cur)
+                                .map(|(_, n)| n.clone());
+                            if let Some(name) = recipe_name {
+                                if let Some(line) = state
+                                    .gui_state
+                                    .factory_status
+                                    .iter()
+                                    .find(|l| l.contains(&name))
+                                    .cloned()
+                                {
+                                    // Lines read "Recipe Name — detail"; the card
+                                    // value column is narrow, keep the detail.
+                                    let mut val = line
+                                        .split('—')
+                                        .nth(1)
+                                        .map(|s| s.trim().to_string())
+                                        .unwrap_or(line);
+                                    if val.chars().count() > 20 {
+                                        val = format!("{}...", val.chars().take(17).collect::<String>());
+                                    }
+                                    if let Some(lbl) = state.gui_state.machine_labels.get_mut(sel) {
+                                        if let Some(row) =
+                                            lbl.stats.iter_mut().find(|s| s.kind == "progress")
+                                        {
+                                            row.value = val;
+                                            row.status = "ok".to_string();
+                                        } else {
+                                            lbl.stats.push(crate::machines::MachineStat {
+                                                kind: "progress".to_string(),
+                                                value: val,
+                                                status: "ok".to_string(),
+                                            });
+                                        }
                                     }
                                 }
                             }

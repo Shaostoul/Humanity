@@ -306,7 +306,11 @@
             shape: "cylinder", size: (0.6, 1.9, 0.6), color: (0.70, 0.60, 0.35),
             label: "Grain silo",
             category: "Food",
-            stats: [(kind: "food", value: "750 days stored", status: "ok"), (kind: "storage", value: "85%", status: "ok")],
+            // The storage row's value is REPLACED by the live fill ("0 / 4000 L")
+            // once the machine's Container entity exists; a "contents" row is
+            // appended live too. The old authored "750 days stored / 85%" numbers
+            // confused the operator (looked like real state; they never were).
+            stats: [(kind: "food", value: "winter buffer", status: "ok"), (kind: "storage", value: "4000 L bin", status: "ok")],
             // Typed container (v0.728): a bulk dry-goods bin — the card shows
             // what is actually inside (grain, dry staples) and the live fill.
             container_type: Some("grain_silo_bin"),

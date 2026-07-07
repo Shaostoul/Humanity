@@ -304,11 +304,16 @@ pub fn draw(
                     theme.accent(),
                 );
             }
-            // Pinned (E-opened) machine card: fixed top-left, stays until E again.
+            // Pinned (E-opened) machine card: CENTERED on screen (upper third,
+            // clear of the crosshair) — was pinned tiny at the top-left, which
+            // the operator reported as invisible-in-practice (v0.730).
             if let Some(i) = state.selected_machine {
                 if let Some(label) = state.machine_labels.get(i) {
                     let size = machine_card_size(label);
-                    let card = Rect::from_min_size(Pos2::new(16.0, 56.0), size);
+                    let card = Rect::from_min_size(
+                        Pos2::new(center.x - size.x * 0.5, screen.top() + screen.height() * 0.22),
+                        size,
+                    );
                     draw_machine_card_body(painter, theme, card, label, true);
                     text_shadowed(painter, Pos2::new(card.left() + 2.0, card.bottom() + 9.0), Align2::LEFT_CENTER, "[E] close", 10.0, theme.text_muted());
                 }
@@ -663,12 +668,20 @@ fn draw_machine_card_body(painter: &egui::Painter, theme: &Theme, card: Rect, la
 /// (published per frame by lib.rs); only shows when there's a real choice.
 pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     let Some(i) = state.selected_machine else { return };
-    if state.machine_card_recipe_options.len() < 2 {
+    // Show whenever the machine HAS an auto recipe (even a single option) —
+    // seeing WHAT the machine builds matters as much as switching it, and a
+    // one-option dropdown still tells you that. (v0.730; was >= 2.)
+    if state.machine_card_recipe_options.is_empty() {
         return;
     }
-    // Card height computed the same way the pinned card draws it, so the
-    // selector sits right underneath (below the "[E] close" footer line).
+    // Card geometry mirrors the pinned card draw (now screen-centered, upper
+    // third) so the selector sits right underneath the "[E] close" footer.
     let Some(card_h) = state.machine_labels.get(i).map(|l| machine_card_size(l).y) else { return };
+    let screen = ctx.screen_rect();
+    let sel_pos = Pos2::new(
+        screen.center().x - CARD_W * 0.5,
+        screen.top() + screen.height() * 0.22 + card_h + 20.0,
+    );
     let cur_id = state.machine_card_recipe.clone().unwrap_or_default();
     let cur_name = state
         .machine_card_recipe_options
@@ -677,7 +690,7 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
         .map(|(_, n)| n.clone())
         .unwrap_or_else(|| cur_id.clone());
     Area::new(egui::Id::new("machine_recipe_selector"))
-        .fixed_pos(Pos2::new(16.0, 56.0 + card_h + 20.0))
+        .fixed_pos(sel_pos)
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
