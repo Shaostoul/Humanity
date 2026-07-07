@@ -29,6 +29,12 @@ pub struct StatusEffectDef {
     /// `stat:value:operation`, e.g. `speed:0.8:multiply`. `none:0:none` = no modifier.
     #[serde(default)]
     pub stat_modifier: String,
+    /// Seconds between damage/healing applications (0 = the per-tick values
+    /// are already per second). Consumed by the FoodSystem effect tick
+    /// (v0.745, loop-map rung 1) which normalizes to a continuous rate:
+    /// food_poisoning's 3 dmg / 15 s becomes 0.2 dmg/s.
+    #[serde(default)]
+    pub tick_interval_s: f32,
     /// Damage applied each tick (0 = none).
     #[serde(default)]
     pub damage_per_tick: f32,

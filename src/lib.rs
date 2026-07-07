@@ -738,7 +738,9 @@ mod native_app {
         let want_free = state.gui_state.active_page != GuiPage::None
             || state.gui_state.showroom_active
             || state.gui_state.construction_active
-            || state.alt_held;
+            || state.alt_held
+            // Dead = the death screen is up; its Respawn button needs the cursor.
+            || state.gui_state.player_death_cause.is_some();
         if want_free == state.cursor_free {
             return;
         }
@@ -5137,6 +5139,10 @@ mod native_app {
             // line per auto machine each tick ("Assemble Rover — 42%", "waiting
             // for Steel Ingot x6", "pad full, line paused"); the GUI shows them.
             data_store.insert("auto_craft_status", std::sync::Mutex::new(Vec::<String>::new()));
+            // Death & recovery (v0.745, loop-map rung 1): FoodSystem writes the
+            // death cause here when the player's health reaches zero; the frame
+            // bridge surfaces it as the death screen.
+            data_store.insert("player_death", std::sync::Mutex::new(Option::<String>::None));
             // World rewind signal (v0.679 review fix): raised right after
             // apply_save_to_world rewinds the live world (launcher character
             // pick); CraftingSystem drops its in-flight batches so a rewound
@@ -6060,6 +6066,11 @@ mod native_app {
                             KeyCode::Space => input.jump = pressed,
                             KeyCode::KeyE => input.interact = pressed,
                             _ => {}
+                        }
+                        // Dead players do not walk: freeze movement input while
+                        // the death screen is up (v0.745). Held keys clear too.
+                        if state.gui_state.player_death_cause.is_some() {
+                            input = InputState::default();
                         }
                         state.data_store.insert("input_state", input);
                     }
@@ -9450,9 +9461,85 @@ mod native_app {
                     // ── Bridge ECS/DataStore state into GuiState for GUI pages ──
 
                     // Bridge player health and inventory from ECS
+                    let now_s = state
+                        .data_store
+                        .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+                        .and_then(|m| m.lock().ok().map(|t| t.elapsed_seconds as f64))
+                        .unwrap_or(0.0);
                     for (_entity, (health, _ctrl)) in state.game_world.world.query::<(&Health, &Controllable)>().iter() {
+                        // Any health DROP pulses the attack indicator (v0.745):
+                        // the nav separator flashes red so damage is legible
+                        // even mid-menu; it clears after 3 quiet game-seconds.
+                        if health.current < state.gui_state.player_health - 0.01 {
+                            state.gui_state.attack_pulse_active = true;
+                            state.gui_state.attack_pulse_last_hit_at = now_s;
+                        }
                         state.gui_state.player_health = health.current;
                         state.gui_state.player_health_max = health.max;
+                    }
+                    if state.gui_state.attack_pulse_active
+                        && now_s - state.gui_state.attack_pulse_last_hit_at > 3.0
+                    {
+                        state.gui_state.attack_pulse_active = false;
+                    }
+
+                    // ── Death & recovery (v0.745, loop-map rung 1) ──
+                    // Surface a death recorded by FoodSystem as the death screen.
+                    if let Some(slot) = state
+                        .data_store
+                        .get::<std::sync::Mutex<Option<String>>>("player_death")
+                    {
+                        if let Ok(mut s) = slot.lock() {
+                            if let Some(cause) = s.take() {
+                                state.gui_state.player_death_cause = Some(cause);
+                            }
+                        }
+                    }
+                    // The Respawn button: back to the spawn room (the fibonacci
+                    // design's respawner/medbay), full health, survivable vitals,
+                    // effects cleared, Dead removed. Nothing is dropped or lost
+                    // pre-launch; the penalty conversation is a later tune.
+                    if state.gui_state.pending_respawn {
+                        state.gui_state.pending_respawn = false;
+                        state.gui_state.player_death_cause = None;
+                        let mut player: Option<hecs::Entity> = None;
+                        for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
+                            player = Some(e);
+                            break;
+                        }
+                        if let Some(e) = player {
+                            if let Ok(mut h) = state.game_world.world.get::<&mut Health>(e) {
+                                h.current = h.max;
+                            }
+                            if let Ok(mut v) = state
+                                .game_world
+                                .world
+                                .get::<&mut crate::ecs::components::Vitals>(e)
+                            {
+                                v.satiation = v.satiation.max(60.0);
+                                v.hydration = v.hydration.max(60.0);
+                                v.energy = v.energy.max(60.0);
+                                v.oxygen = v.oxygen_max;
+                                v.body_temp_c = 37.0;
+                            }
+                            if let Ok(mut fx) = state
+                                .game_world
+                                .world
+                                .get::<&mut crate::ecs::components::StatusEffects>(e)
+                            {
+                                fx.active.clear();
+                            }
+                            let _ = state
+                                .game_world
+                                .world
+                                .remove_one::<crate::ecs::components::Dead>(e);
+                            if let Ok(mut t) = state.game_world.world.get::<&mut Transform>(e) {
+                                t.position = state.fps_spawn;
+                            }
+                        }
+                        state.camera.position = state.fps_spawn;
+                        state.driving_vehicle = None;
+                        log::info!("[Vitals] player respawned at the spawn room");
                     }
                     // Bridge inventory from the player entity
                     let item_registry = state.data_store.get::<ItemRegistry>("item_registry");
@@ -12649,6 +12736,13 @@ mod native_app {
                                     crate::gui::pages::chat::draw_call_bar(ctx, &state.theme, &mut state.gui_state);
                                 }
 
+                                // Death screen (v0.745, loop-map rung 1): overlays
+                                // EVERYTHING while the player is dead; its Respawn
+                                // button is handled in the frame bridge above.
+                                if state.gui_state.player_death_cause.is_some() {
+                                    crate::gui::pages::hud::draw_death_screen(ctx, &state.theme, &mut state.gui_state);
+                                }
+
                                 // Construction editor panel (v0.455): per-wall kinds + height,
                                 // rebuilds the home live. Toggled with B.
                                 if state.gui_state.active_page == GuiPage::None
@@ -12924,7 +13018,10 @@ mod native_app {
                 // button is held (so moving over a panel does nothing). (v0.464)
                 // Suppressed while Alt frees the cursor (v0.735): reaching for
                 // a machine-card button must not spin the camera.
-                if state.gui_state.active_page == GuiPage::None && !state.alt_held {
+                if state.gui_state.active_page == GuiPage::None
+                    && !state.alt_held
+                    && state.gui_state.player_death_cause.is_none()
+                {
                     state.controller.process_mouse_motion(delta.0, delta.1);
                 }
             }

@@ -6,6 +6,65 @@ use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::updater::UpdateState;
 
+/// Death screen (v0.745, loop-map rung 1): a full-screen dim + the cause of
+/// death + a Respawn button, drawn at ctx level OVER every page while
+/// `player_death_cause` is Some. Respawn is handled by lib.rs (teleport to the
+/// spawn room, reset vitals, remove Dead) via `pending_respawn`.
+pub fn draw_death_screen(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    let Some(cause) = state.player_death_cause.clone() else { return };
+    let screen = ctx.screen_rect();
+    // Dim the world so the moment reads instantly (paint-only layer).
+    Area::new(egui::Id::new("death_dim"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(screen.min)
+        .interactable(false)
+        .show(ctx, |ui| {
+            ui.painter()
+                .rect_filled(screen, 0.0, Color32::from_black_alpha(190));
+        });
+    // Centered card with the cause + the one action. Created after the dim in
+    // the same order, so it draws (and clicks) on top.
+    Area::new(egui::Id::new("death_card"))
+        .order(egui::Order::Foreground)
+        .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            egui::Frame::window(&ctx.style())
+                .fill(theme.bg_card())
+                .inner_margin(egui::Margin::same(24))
+                .show(ui, |ui| {
+                    ui.set_min_width(320.0);
+                    ui.vertical_centered(|ui| {
+                        ui.label(
+                            RichText::new("YOU DIED")
+                                .size(theme.font_size_heading * 1.6)
+                                .strong()
+                                .color(theme.danger()),
+                        );
+                        ui.add_space(theme.spacing_sm);
+                        ui.label(
+                            RichText::new(format!("Cause: {cause}"))
+                                .size(theme.font_size_body)
+                                .color(theme.text_primary()),
+                        );
+                        ui.add_space(theme.spacing_xs);
+                        ui.label(
+                            RichText::new(
+                                "You wake in the respawner. Nothing was lost, but the \
+                                 body remembers: keep fed, hydrated, warm, and breathing.",
+                            )
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                        );
+                        ui.add_space(theme.spacing_md);
+                        if crate::gui::widgets::Button::primary("Respawn").show(ui, theme) {
+                            state.pending_respawn = true;
+                        }
+                        ui.add_space(theme.spacing_xs);
+                    });
+                });
+        });
+}
+
 pub fn draw(
     ctx: &egui::Context,
     theme: &Theme,

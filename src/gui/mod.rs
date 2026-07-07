@@ -2799,6 +2799,13 @@ pub struct GuiState {
     /// game_time when attack_pulse_active was last set; used to auto-clear
     /// after a few seconds of no new damage events.
     pub attack_pulse_last_hit_at: f64,
+    /// Death & recovery (v0.745, loop-map rung 1): Some(cause) while the
+    /// player is dead — the death screen overlay shows it ("starvation",
+    /// "suffocation", an effect name...). Cleared by respawn.
+    pub player_death_cause: Option<String>,
+    /// The death screen's Respawn button; lib.rs performs the respawn
+    /// (teleport to spawn, reset vitals, remove Dead) and clears it.
+    pub pending_respawn: bool,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
     // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
     // standalone onboarding page (the web /onboarding page still reads the
@@ -3613,6 +3620,8 @@ impl Default for GuiState {
             nav_top_category: "reality".to_string(),
             attack_pulse_active: false,
             attack_pulse_last_hit_at: 0.0,
+            player_death_cause: None,
+            pending_respawn: false,
             // v0.197.0: ai_usage_filters removed (page deleted).
             help_registry: crate::gui::widgets::help_modal::HelpRegistry::new(),
             active_help_topic: None,

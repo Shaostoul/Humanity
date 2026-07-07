@@ -415,10 +415,28 @@ impl System for FoodSystem {
         //    short-of-breath/colder; low levels apply conditions; empty/extreme levels
         //    drain Health; timed buffs/debuffs count down and expire. All Health loss
         //    this tick is accumulated and applied once (Option<&mut Health> moves).
-        for (_e, (vitals, effects, health)) in
-            world.query_mut::<(&mut Vitals, &mut StatusEffects, Option<&mut Health>)>()
-        {
+        //    v0.745 (loop-map rung 1): status-effect damage/healing-over-time acts
+        //    here too, the largest drain source is remembered as the DEATH CAUSE,
+        //    and a Controllable (player) reaching 0 health DIES: Dead is inserted
+        //    after the pass and the cause is published to the "player_death" slot
+        //    for the death screen.
+        let mut player_died: Option<(hecs::Entity, String)> = None;
+        for (e, (vitals, effects, health, ctrl, dead)) in world.query_mut::<(
+            &mut Vitals,
+            &mut StatusEffects,
+            Option<&mut Health>,
+            Option<&crate::ecs::components::Controllable>,
+            Option<&crate::ecs::components::Dead>,
+        )>() {
+            // The dead do not hunger: vitals freeze until respawn so the death
+            // screen is stable (no double-death, no draining while paused).
+            if dead.is_some() {
+                continue;
+            }
             let mut health_drain = 0.0_f32;
+            // Largest single drain source this tick -- becomes the death line
+            // ("You died: starvation") if this is the tick that reaches zero.
+            let mut worst: (&str, f32) = ("", 0.0);
 
             vitals.satiation = (vitals.satiation - SATIATION_DECAY_PER_SEC * dt).max(0.0);
             vitals.hydration = (vitals.hydration - HYDRATION_DECAY_PER_SEC * dt).max(0.0);
@@ -433,10 +451,18 @@ impl System for FoodSystem {
                 effects.remove("thirsty");
             }
             if vitals.satiation <= 0.0 {
-                health_drain += STARVE_DAMAGE_PER_SEC * dt;
+                let amt = STARVE_DAMAGE_PER_SEC * dt;
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = ("starvation", amt);
+                }
             }
             if vitals.hydration <= 0.0 {
-                health_drain += DEHYDRATE_DAMAGE_PER_SEC * dt;
+                let amt = DEHYDRATE_DAMAGE_PER_SEC * dt;
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = ("dehydration", amt);
+                }
             }
 
             // Energy drains while awake; low energy -> fatigued (speed debuff, #3b).
@@ -457,7 +483,11 @@ impl System for FoodSystem {
             if vitals.oxygen <= 0.0 {
                 effects.remove("hypoxia");
                 effects.apply("suffocation", CONDITION_LINGER);
-                health_drain += SUFFOCATION_DAMAGE_PER_SEC * dt;
+                let amt = SUFFOCATION_DAMAGE_PER_SEC * dt;
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = ("suffocation", amt);
+                }
             } else if vitals.oxygen < HYPOXIA_THRESHOLD {
                 effects.remove("suffocation");
                 effects.apply("hypoxia", CONDITION_LINGER);
@@ -475,11 +505,19 @@ impl System for FoodSystem {
             if vitals.body_temp_c < HYPOTHERMIA_C {
                 effects.remove("heat_exhaustion");
                 effects.apply("hypothermia", CONDITION_LINGER);
-                health_drain += TEMP_DAMAGE_PER_SEC * dt;
+                let amt = TEMP_DAMAGE_PER_SEC * dt;
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = ("freezing", amt);
+                }
             } else if vitals.body_temp_c > HEAT_EXHAUSTION_C {
                 effects.remove("hypothermia");
                 effects.apply("heat_exhaustion", CONDITION_LINGER);
-                health_drain += TEMP_DAMAGE_PER_SEC * dt;
+                let amt = TEMP_DAMAGE_PER_SEC * dt;
+                health_drain += amt;
+                if amt > worst.1 {
+                    worst = ("heat exhaustion", amt);
+                }
             } else {
                 effects.remove("hypothermia");
                 effects.remove("heat_exhaustion");
@@ -493,15 +531,63 @@ impl System for FoodSystem {
                 effects.remove("unsanitary");
             }
 
-            // Apply the tick's accumulated Health drain (all survival sources).
-            if health_drain > 0.0 {
-                if let Some(health) = health {
-                    health.current = (health.current - health_drain).max(0.0);
+            // ── EFFECT TICK (v0.745, loop-map rung 1): damage/healing-over-time
+            // rows from status_effects.csv finally act. Per-tick values are
+            // normalized to a continuous per-second rate by tick_interval_s
+            // (0 = the value is already per second): food_poisoning's
+            // 3 dmg / 15 s drains 0.2/s; regeneration's 5 heal / 3 s restores
+            // ~1.67/s. This is also the game's first health REGENERATION path.
+            let mut effect_heal = 0.0_f32;
+            if let Some(reg) = registry {
+                for active in &effects.active {
+                    if let Some(def) = reg.get(&active.id) {
+                        let interval =
+                            if def.tick_interval_s > 0.0 { def.tick_interval_s } else { 1.0 };
+                        if def.damage_per_tick > 0.0 {
+                            let amt = def.damage_per_tick / interval * dt;
+                            health_drain += amt;
+                            if amt > worst.1 {
+                                worst = (def.name.as_str(), amt);
+                            }
+                        }
+                        if def.healing_per_tick > 0.0 {
+                            effect_heal += def.healing_per_tick / interval * dt;
+                        }
+                    }
+                }
+            }
+
+            // Apply the tick's accumulated Health drain + healing (all sources).
+            // A Controllable (the player) whose health reaches zero THIS tick
+            // dies: recorded here, Dead inserted after the query borrow ends.
+            if let Some(health) = health {
+                let before = health.current;
+                if health_drain > 0.0 || effect_heal > 0.0 {
+                    health.current =
+                        (health.current - health_drain + effect_heal).clamp(0.0, health.max);
+                }
+                if ctrl.is_some() && before > 0.0 && health.current <= 0.0 {
+                    let cause =
+                        if worst.0.is_empty() { "injuries".to_string() } else { worst.0.to_string() };
+                    player_died = Some((e, cause));
                 }
             }
 
             // Expire timed effects (conditions were just refreshed, so they survive dt).
             effects.tick(dt);
+        }
+
+        // Death (v0.745): mark the player Dead + publish the cause for the death
+        // screen (the "player_death" DataStore slot; lib.rs surfaces it). Done
+        // outside the query pass because hecs cannot insert mid-borrow.
+        if let Some((entity, cause)) = player_died {
+            let _ = world.insert_one(entity, crate::ecs::components::Dead::default());
+            if let Some(slot) = data.get::<std::sync::Mutex<Option<String>>>("player_death") {
+                if let Ok(mut s) = slot.lock() {
+                    *s = Some(cause.clone());
+                }
+            }
+            log::info!("[Vitals] player died: {cause}");
         }
 
         // ── 3. SPOILAGE (existing): age food sitting in inventories. ──
@@ -612,6 +698,7 @@ mod nutrition_tests {
         data.insert("rest_request", std::sync::Mutex::new(false));
         data.insert("compost_request", std::sync::Mutex::new(false));
         data.insert("drink_request", std::sync::Mutex::new(Option::<String>::None));
+        data.insert("player_death", std::sync::Mutex::new(Option::<String>::None));
         data
     }
 
@@ -629,6 +716,87 @@ mod nutrition_tests {
             oxygen_max: 100.0,
             waste_max: 100.0,
         }
+    }
+
+    /// v0.745 EFFECT TICK (loop-map rung 1): damage/healing-over-time rows in
+    /// status_effects.csv finally act. food_poisoning (3 dmg / 15 s) drains
+    /// health at 0.2/s; regeneration (5 heal / 3 s) restores it. Pinned with
+    /// exact rates so a CSV rebalance shows up as a test diff, not a surprise.
+    #[test]
+    fn status_effect_damage_and_healing_tick_on_health() {
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+        let mut world = hecs::World::new();
+        let mut fx = StatusEffects::default();
+        fx.apply("food_poisoning", 5400.0);
+        let e = world.spawn((Inventory::new(4), vitals(80.0, 80.0), fx, Health::default()));
+
+        // 30 simulated seconds of poison at 3/15 = 0.2 dmg/s -> ~6 damage.
+        for _ in 0..30 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let after_poison = world.get::<&Health>(e).unwrap().current;
+        assert!(
+            (93.0..95.5).contains(&after_poison),
+            "food_poisoning drained ~6 HP over 30s, got {after_poison}"
+        );
+
+        // Swap poison for regeneration (5 heal / 3 s): health climbs back.
+        {
+            let mut fx = world.get::<&mut StatusEffects>(e).unwrap();
+            fx.remove("food_poisoning");
+            fx.apply("regeneration", 300.0);
+        }
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        let after_regen = world.get::<&Health>(e).unwrap().current;
+        assert!(
+            after_regen > after_poison + 3.0,
+            "regeneration healed (was {after_poison}, now {after_regen})"
+        );
+    }
+
+    /// v0.745 DEATH (loop-map rung 1): a Controllable whose health reaches zero
+    /// gets the Dead component and the death CAUSE lands in the player_death
+    /// slot for the death screen. Dead entities stop decaying (no double death).
+    #[test]
+    fn player_death_inserts_dead_and_records_the_cause() {
+        use crate::ecs::components::{Controllable, Dead};
+        let mut sys = FoodSystem::new(data_dir());
+        let data = make_store();
+        let mut world = hecs::World::new();
+        // Starving: satiation 0 drains health every tick.
+        let mut v = vitals(0.0, 80.0);
+        v.energy = 100.0;
+        let e = world.spawn((
+            Inventory::new(4),
+            v,
+            StatusEffects::default(),
+            Health { current: 2.0, max: 100.0 },
+            Controllable,
+        ));
+
+        // Starvation drains 1 HP/s; 2 HP is gone within three 1s ticks, while
+        // hydration (80, decaying 0.13/s) stays far from zero — so the cause
+        // is unambiguously starvation.
+        for _ in 0..3 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+        assert!(world.get::<&Dead>(e).is_ok(), "player marked Dead at 0 HP");
+        let cause = data
+            .get::<std::sync::Mutex<Option<String>>>("player_death")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(cause.as_deref(), Some("starvation"), "cause recorded for the death screen");
+
+        // Dead = frozen: hydration would keep decaying if the pass still ran.
+        let hyd_before = world.get::<&Vitals>(e).unwrap().hydration;
+        sys.tick(&mut world, 3600.0, &data);
+        let hyd_after = world.get::<&Vitals>(e).unwrap().hydration;
+        assert_eq!(hyd_before, hyd_after, "vitals freeze while dead");
     }
 
     /// Eating a cooked/preserved food restores satiation + hydration on the
