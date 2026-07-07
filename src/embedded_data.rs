@@ -226,3 +226,106 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         _ => None,
     }
 }
+
+/// Every embedded key, for ENUMERATION (first-run data extraction in
+/// `storage::extract_data_if_needed`, completeness tests). Kept in the same
+/// file as the match above so the two lists are edited together; the unit
+/// test below fails the build if they drift.
+///
+/// `solar_system/bodies.json` is deliberately ABSENT: it is a backwards-compat
+/// ALIAS for `star_systems/sol.json` (same content), so enumerating it would
+/// extract the same bytes twice under a stale name.
+pub const EMBEDDED_KEYS: &[&str] = &[
+    // CSV
+    "items.csv",
+    "recipes.csv",
+    "materials.csv",
+    "components.csv",
+    "plants.csv",
+    "game.csv",
+    "skills/skills.csv",
+    "chemistry/elements.csv",
+    "chemistry/alloys.csv",
+    "chemistry/compounds.csv",
+    "chemistry/gases.csv",
+    "chemistry/toxins.csv",
+    "asteroids/types.csv",
+    // JSON
+    "glossary.json",
+    "star_systems/sol.json",
+    "star_systems/index.json",
+    "solar-system.json",
+    "tools/catalog.json",
+    "cities.json",
+    "coastlines.json",
+    "constellations.json",
+    "milky-way.json",
+    "stars-catalog.json",
+    "stars-nearby.json",
+    // TOML
+    "config.toml",
+    "calendar.toml",
+    "input.toml",
+    "player.toml",
+    // RON
+    "gui/theme.ron",
+    "planets/earth.ron",
+    "planets/mars.ron",
+    "planets/moon.ron",
+    "solar_system/earth.ron",
+    "solar_system/mars.ron",
+    "solar_system/sun.ron",
+    "world/solar_system.ron",
+    "world/spawn.ron",
+    "world/player.ron",
+    "ships/bridge.ron",
+    "ships/layout_medium.ron",
+    "ships/reactor.ron",
+    "ships/starter_fleet.ron",
+    "quests/construction.ron",
+    "quests/exploration.ron",
+    "quests/farming.ron",
+    "quests/tutorial.ron",
+    "quests/getting_started.ron",
+    "blueprints/basic.ron",
+    "blueprints/construction.ron",
+    "blueprints/habitat.ron",
+    "blueprints/materials.ron",
+    "blueprints/objects.ron",
+    "entities/human/human_001.ron",
+    "entities/plants/plant_001.ron",
+    "entities/plants/tomato.ron",
+    "entities/substrates/loam_basic.ron",
+    "entities/substrates/substrate_001.ron",
+    "plots/plot_001.ron",
+    "resources/fertilizer_basic.ron",
+    "resources/water_clean.ron",
+    // i18n + language
+    "i18n/en.json",
+    "i18n/es.json",
+    "i18n/fr.json",
+    "i18n/ja.json",
+    "i18n/zh.json",
+    "language/acronyms.json",
+    "language/dictionary.json",
+    "language/parts_of_speech.json",
+];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// EMBEDDED_KEYS and the get_embedded match must never drift: every
+    /// enumerated key resolves, and every key resolves to non-empty content.
+    #[test]
+    fn every_enumerated_key_resolves_to_embedded_content() {
+        for key in EMBEDDED_KEYS {
+            let content = get_embedded(key);
+            assert!(content.is_some(), "EMBEDDED_KEYS lists '{key}' but get_embedded returns None");
+            assert!(
+                !content.unwrap().is_empty(),
+                "embedded content for '{key}' is empty"
+            );
+        }
+    }
+}

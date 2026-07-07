@@ -189,47 +189,14 @@ pub fn extract_data_if_needed() {
     }
     log::info!("First run: extracting editable game data to {:?}", data_dir);
 
-    // All embedded files with their relative paths.
-    // NOTE: this hand-maintained list has drifted from the full data set
-    // (e.g. status_effects.csv, containers/, food_system.ron are loaded at
-    // runtime but not listed here) — distributed-build completeness is
-    // tracked as a follow-up to derive this list from embedded_data's keys.
-    // Dev runs are unaffected (find_data_dir prefers the live repo data),
-    // and reads always fall back to the embedded copies.
-    let files: &[&str] = &[
-        "items.csv", "recipes.csv", "materials.csv", "components.csv",
-        "plants.csv", "game.csv", "skills/skills.csv",
-        "chemistry/elements.csv", "chemistry/alloys.csv",
-        "chemistry/compounds.csv", "chemistry/gases.csv", "chemistry/toxins.csv",
-        "asteroids/types.csv",
-        "glossary.json", "solar_system/bodies.json", "solar-system.json",
-        "tools/catalog.json", "cities.json", "coastlines.json",
-        "constellations.json", "milky-way.json", "stars-catalog.json",
-        "stars-nearby.json",
-        "config.toml", "calendar.toml", "input.toml", "player.toml",
-        "gui/theme.ron",
-        "planets/earth.ron", "planets/mars.ron", "planets/moon.ron",
-        "solar_system/earth.ron", "solar_system/mars.ron", "solar_system/sun.ron",
-        "ships/bridge.ron", "ships/layout_medium.ron", "ships/reactor.ron",
-        "ships/starter_fleet.ron",
-        "quests/construction.ron", "quests/exploration.ron",
-        "quests/farming.ron", "quests/tutorial.ron", "quests/getting_started.ron",
-        "blueprints/basic.ron", "blueprints/construction.ron",
-        "blueprints/habitat.ron", "blueprints/materials.ron",
-        "blueprints/objects.ron",
-        "entities/human/human_001.ron", "entities/plants/plant_001.ron",
-        "entities/plants/tomato.ron", "entities/substrates/loam_basic.ron",
-        "entities/substrates/substrate_001.ron",
-        "plots/plot_001.ron",
-        "world/solar_system.ron", "world/spawn.ron", "world/player.ron",
-        "resources/fertilizer_basic.ron", "resources/water_clean.ron",
-        "i18n/en.json", "i18n/es.json", "i18n/fr.json",
-        "i18n/ja.json", "i18n/zh.json",
-        "language/acronyms.json", "language/dictionary.json",
-        "language/parts_of_speech.json",
-    ];
-
-    for relative_path in files {
+    // The extraction list IS embedded_data::EMBEDDED_KEYS (v0.743) — one
+    // canonical enumeration, unit-tested against the get_embedded match, so
+    // this can no longer drift the way the old hand list did (it had missed
+    // star_systems/sol.json + index.json and still extracted the stale
+    // solar_system/bodies.json alias). Runtime files with NO embedded copy
+    // (status_effects.csv, containers/, machines/, ...) are the tracked
+    // distributed-build-completeness follow-up.
+    for relative_path in crate::embedded_data::EMBEDDED_KEYS {
         if let Some(content) = crate::embedded_data::get_embedded(relative_path) {
             let file_path = data_dir.join(relative_path);
             if let Some(parent) = file_path.parent() {
