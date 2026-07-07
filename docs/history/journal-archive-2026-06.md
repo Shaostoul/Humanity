@@ -1738,3 +1738,60 @@ Decisions rotated out of `data/coordination/orchestrator_state.json` (oldest fir
 
 **Why:** Loop bulk mode. Batch (A) is the lowest-churn, fully-testable grid-hierarchy increment (tier field already existed; grid_tie added only 1 literal) and lays the trunk-hierarchy + service-entrance foundation. Machine rotation (batch B) deferred: 25 MachineInstance positional literals is too much autonomous churn for one turn.
 
+
+## 2026-06-29
+
+**Decision:** SHIPPED v0.633.0 (loop, bulk) -- MACHINE ROTATION (yaw). A placed machine can now be rotated about Y so a box-shaped machine (teleporter/server/battery) can face a chosen direction. MachineInstance gained a rotation: f32 yaw field (degrees, serde-default 0) + PlacedMachine.rotation (placements carry it); yaw threaded through machine_objects (the tuple grew (usize,usize,Vec3) -> (usize,usize,Vec3,f32): fast-path .3 sync, prior-slot destructure &(mi,ma,_,_), both slow-path pushes, the load_world push, and the render applies Quat::from_rotation_y). Machine detail panel has a Rotation DragValue + "+90" button (direct instances only -- array members have no individual pose). The 25 MachineInstance positional literals were the churn: a Node script added rotation: 0.0 to the 17 single-line ones, then the 8 multi-line/array-expansion/placements literals by hand (serde default covers RON, NOT Rust literals -- the v0.631 lesson, executed cleanly).
+
+**Why:** Loop bulk mode, the broadly-useful feature the operator will want (orient machines). Took the literal churn this turn (deferred from v0.632) and handled it systematically (script for single-line, hand for multi-line) -- compiled clean first try after the fixes.
+
+
+## 2026-06-29
+
+**Decision:** SHIPPED v0.634.0 (loop, bulk) -- ZONE INTERACTIVITY (completes superstructure M1). Zones are now first-class gizmo objects like machines/nodes: try_pick_zone (ray-vs-AABB slab method, runs LAST before the room grab so a big zone never steals a click from anything in front) selects a zone -> it highlights bright white + a draw_zone_detail panel shows type/purpose, editable origin/size, Duplicate / Remove / Deselect. ObjectGrab::Zone drags a selected zone on the floor (centre follows the cursor; zones render live so no rebuild flag). New HomeStructure::duplicate_zone (fresh id, nudged +2 m). LOW churn: construction_zone_selected is a PURE selection (GuiState only, NOT serialized -> no positional-literal break), the only new persisted thing is none. Cleared on every viewport press (top-of-pressed) + in clear_sel so the highlight is exclusive.
+
+**Why:** Loop bulk mode, candidate (1): completes M1 by making zones interactive (the operator principle: every object needs a proper gizmo) at low churn (no new persisted field). Mirrors the existing try_pick_node / ObjectGrab / detail-panel patterns.
+
+
+## 2026-06-29
+
+**Decision:** SHIPPED v0.635.0 (loop, bulk) -- SUPERSTRUCTURE M2: the RAIL NODE GRAPH. Generalises the v0.592 paired-train-platform link into a multi-stop line, mirroring the road graph exactly. HomeStructure gained rail_nodes: Vec<RailNode> + rail_edges: Vec<RailEdge> (serde-default; RailNode = id:u32 + pos:(f32,f32) like RoadNode; RailEdge = from/to) + add_rail_node / remove_rail_node (prunes touching edges) / add_rail_edge (refuses self-loop / unknown endpoint / either-direction duplicate) / remove_rail_edge. draw_rail_editor panel (drop stops, from/to edge pickers, lists + remove). Gizmo render: each stop a pale-gold ring, each edge a straight track line. Cars + multi-stop routing deferred to M2b. The 8 HomeStructure positional literals were fixed AGAIN (3rd time -- box_only + 5 multiline via replace_all on the zones-tail, door_panels x2, wall_collision) cleanly.
+
+**Why:** Loop bulk mode, next TIER-0 = superstructure M2 transit. The rail graph is the cleanest M2 piece (the road graph is an exact template with gizmos already). Kept it to topology + editor + gizmo + tests; deferred car animation/routing to M2b to stay one verified increment.
+
+
+## 2026-06-29
+
+**Decision:** SHIPPED v0.636.0 (loop, bulk) -- VIEWPORT HIDE-PER-TYPE (the deferred nice-to-have; declutters the busy editor). Mirrors lock-per-type: a construction_hidden_types HashSet<String> (GuiState only, NOT serialized -> zero churn). A Hide/Show toggle sits beside Lock type in each object-browser group header (Walls/Structures/Machines/Lights/Road/Pipe) with a [hidden] badge. Hidden types are skipped in BOTH render + pick: pick gating folds hidden into the existing lock bools (blocked = locked OR hidden) so the try_pick_* chain already excludes them + a hide_zone gate; render gating skips machine meshes (hide_machines) + connection pipes (hide_pipes) + the machine bounds gizmo + port-node spheres + the road-graph gizmo (nodes+edges) + the conduit-node rings. Walls/floor stay (baked into the homestead mesh batch -- hiding Wall declutters its wireframe gizmo + disables wall picking, a noted limitation). Chose this for VARIETY (lots of graph-adding lately) + low risk (no field/literal churn).
+
+**Why:** Loop bulk mode, candidate (1) for variety + low churn. The editor has gotten busy (machines, pipes, ports, conduit/road/rail nodes, zones, flow markers); per-type hide lets you focus on one system. No serialized field -> no literal churn, unlike the recent graph-adds.
+
+
+## 2026-06-29
+
+**Decision:** SHIPPED v0.637.0 (loop, bulk) -- M2b RAIL CARS. A small box car animates along each rail edge in build mode so the v0.635 rail graph reads as a LIVING line, not static topology. Render-only (no new field/literal churn): mirrors the v0.623 conduit flow-marker pattern -- collect each edge endpoint (ending the home_structure borrow before mutating the renderer), lazy-create a rail_car_mesh (box) + rail_car_mat, then per edge push a RenderObject at lerp(A,B, phase) where phase = (start_time.elapsed * SPEED + i*0.17) mod 1, oriented along the track via Quat::from_rotation_arc(Vec3::X, dir). Gated on construction_active. Full passenger/cargo routing + stops = later M2b.
+
+**Why:** Loop bulk mode, the recommended M2b rail-cars item: a satisfying low-risk visual payoff that confirms the rail graph works (good for the operator bulk test), render-only so zero churn, and varies from editor-plumbing.
+
+
+## 2026-06-29
+
+**Decision:** PAUSED the autonomous bulk run at v0.637 (shipped NOTHING this iteration -- a docs-only commit). JUDGEMENT CALL per the loop off-ramp: after 9 verified releases (v0.629-637) the contained construction-editor backlog had thinned to padding (a teleporter/cargo transit graph = the rail pattern repeated + literal churn; a zone hide toggle = trivial), and the genuinely valuable remaining work needs operator DESIGN steer (M1 zone-editor architecture: one editor w/ zoom vs separate; M3 civic mall: shop stalls + market integration; grid S3: home->fleet aggregation model). Wrote a consolidated "BULK RUN PAUSED -- awaiting operator bulk-test + steer" block at the top of PRIORITIES.md Active focus listing all 9 shipped releases + the 3 open forks. Backed the loop cadence off to a 30-min heartbeat so the operator has room to bulk-test the accumulated 3D work + pick the next fork.
+
+**Why:** The operator built this off-ramp into the loop prompt (do not pad with trivial gizmos; if contained items feel like padding, write a status note, ship nothing, longer delay). 9 releases of 3D editor features are stacked unverified-by-operator; quality > quantity, and the high-value work is genuinely operator-design-gated. Continuing to auto-add small gizmos would be padding + building on unvalidated direction.
+
+
+## 2026-06-30
+
+**Decision:** Reacquaintance assessment (13 agents) + full docs cleanup (7 agents + direct fixes). Deleted OpenClaw personal-assistant template (root + docs/ai/ + docs/reference/, twice-rejected now removed a third time), 133 dead SurrealDB .surql files, ~50 files describing a never-adopted multi-crate module architecture across docs/contributor/ + docs/game/, and ~16 files describing a fictional network protocol (spaces/session-tokens/Tailscale/CBOR-frames) across docs/network/. Found and fixed a live-site risk: docs/website/knowledge/config-policy.md would have published the operators local OpenClaw filesystem paths publicly via a Jekyll include that deploy-pages.yml actually mirrors at build time. Re-synced ROADMAP.md/STATUS.md/PAGES.md to v0.637 reality (PAGES.md was off by 20 pages, 32 claimed vs 52 real GuiPage variants). Operator confirmed single-crate is final (fixed 00-START-HERE/01-VISION/03-MODULE-MAP/04-CONTRIBUTING to match) and gave a no-backwards-compat-debt directive (added to CLAUDE.md). Captured new infra vision in ROADMAP.md: multi-site hosting, admin-only remote website editing from the exe, relay-hosted torrent sharing, livestreaming, and a game/simulator opt-out toggle (also logged as PRIORITIES.md TIER 2 item 9). Why: operator directed a full docs cleanup after the reacquaintance assessment surfaced how stale the docs had gotten; ultracode was on so multi-agent parallel audit was the right tool for a tree this size. 0 broken links after ~180 files removed/moved/fixed. Full narrative: docs/history/2026-06-30.md.
+
+
+## 2026-06-30
+
+**Decision:** Three construction/superstructure forks logged 2026-06-29 (M1 zone-editor architecture, M3 civic mall, grid S3 multi-home tiers) remain UNRESOLVED. This session was docs-only, nothing about them changed. Do not assume they were decided.
+
+
+## 2026-06-30
+
+**Decision:** SHIPPED v0.638.0 -- mothership zone interior population (M2c). Residential zones clone the player home into every slot (swappable roster, one design today); every other zone type gets a generic tiled filler from new data/blueprints/zone_filler.ron, tinted by zone colour; added armory + arena zone types. Built by a subagent in an isolated worktree, reviewed line-by-line before merge, re-verified in the main tree (both cargo checks, full lib test suite, all 5 lints green). Operator rejected the game/simulator toggle idea (too confusing), real direction is a real/fake multi-save flag per house/character with real-life as the default boot state -- logged as PRIORITIES.md TIER 2 item 9, nothing built yet. Operator felt Jekyll (shaostoul.github.io/Humanity) could be retired; found the premise partly false (data/library was stale, now fixed via scripts/build-library.js; web/ has zero doc pages, deploy pipeline does not rsync docs to the nginx root) and did NOT retire it -- recommended building the missing web-side piece first. Why: operator gave real build direction (home first, then mothership population) plus explicit subagent-usage encouragement (unused weekly budget headroom). Honest known gaps carried forward, not hidden: zone population has no 3D viewport visual confirmation yet (only the 2D snapshot harness ran), and renders via CPU-merged buffers, not true GPU instancing (that path is dead code in the renderer) -- will not scale to the 10-billion-occupant stretch goal without a real instancing pass.
+
