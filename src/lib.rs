@@ -7088,12 +7088,63 @@ mod native_app {
                         }
                     }
 
+                    // Home-storage stock for auto machines (v0.737): mirror the
+                    // organize-layer placed items (garage bags, trunks, duffels)
+                    // into a shared id -> qty map the crafting system counts and
+                    // consumes from during the tick. The snapshot is rebuilt every
+                    // frame; the after-tick diff below drains what machines took
+                    // back out of the GUI containers, so the two layers agree.
+                    let home_stock_before: std::collections::HashMap<String, u32> = {
+                        let mut stock = std::collections::HashMap::new();
+                        for pi in &state.gui_state.placed_items {
+                            *stock.entry(pi.key.clone()).or_insert(0) += pi.qty;
+                        }
+                        state
+                            .data_store
+                            .insert("home_stock", std::sync::Mutex::new(stock.clone()));
+                        stock
+                    };
+
                     // Tick all ECS systems
                     state.system_runner.tick(
                         &mut state.game_world.world,
                         dt,
                         &state.data_store,
                     );
+
+                    // Apply what auto machines consumed FROM home storage this
+                    // tick (v0.737): any shortfall vs the pre-tick snapshot comes
+                    // out of the matching placed-item entries, first-found first;
+                    // emptied stacks disappear from their containers.
+                    if let Some(slot) = state
+                        .data_store
+                        .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+                    {
+                        if let Ok(after) = slot.lock() {
+                            let mut changed = false;
+                            for (id, before_qty) in &home_stock_before {
+                                let after_qty = after.get(id).copied().unwrap_or(0);
+                                let mut deficit = before_qty.saturating_sub(after_qty);
+                                if deficit == 0 {
+                                    continue;
+                                }
+                                for pi in state.gui_state.placed_items.iter_mut() {
+                                    if deficit == 0 {
+                                        break;
+                                    }
+                                    if pi.key == *id {
+                                        let take = pi.qty.min(deficit);
+                                        pi.qty -= take;
+                                        deficit -= take;
+                                        changed = true;
+                                    }
+                                }
+                            }
+                            if changed {
+                                state.gui_state.placed_items.retain(|p| p.qty > 0);
+                            }
+                        }
+                    }
 
                     // ── Multiplayer co-presence (v0.472) ──────────────────────────────────────
                     // While actually in the 3D world AND connected to a relay, join the shared game

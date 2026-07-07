@@ -669,6 +669,21 @@ impl System for CraftingSystem {
         // published to the "auto_craft_status" channel for the GUI.
         let mut statuses: Vec<String> = Vec::new();
         if let (Some(recipes), Some(player_e)) = (recipe_registry, player) {
+            // Home-storage stock (v0.737, operator field report: "there IS
+            // iron in my inventory and/or garage"): auto machines also draw
+            // from the home's organize-layer containers (garage bags, trunks,
+            // duffels). lib.rs mirrors the placed-item counts into this shared
+            // map right before the tick and drains whatever we consume from it
+            // back out of the GUI containers right after. Backpack is consumed
+            // FIRST, home storage covers the remainder.
+            let home_stock = data
+                .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock");
+            let home_count = |id: &str| -> u32 {
+                home_stock
+                    .as_ref()
+                    .and_then(|m| m.lock().ok().map(|s| s.get(id).copied().unwrap_or(0)))
+                    .unwrap_or(0)
+            };
             let mut auto_starts: Vec<(hecs::Entity, String)> = Vec::new();
             for (machine, auto) in world
                 .query::<&crate::ecs::components::AutoRefine>()
@@ -700,19 +715,17 @@ impl System for CraftingSystem {
                 let blocked: Option<String> = match world.get::<&Inventory>(player_e) {
                     Ok(inv) => {
                         // First missing input, by name, with the shortfall.
-                        // "in your backpack" (v0.735, operator confusion): auto
-                        // machines draw from the PLAYER inventory only — ore
-                        // stashed into a home container (clothing bag, duffel)
-                        // is invisible to them. Say so, or a stocked-but-stashed
-                        // home looks like a broken smelter. (Machines drawing
-                        // from home containers is a queued design item.)
+                        // Counts the backpack AND home storage (v0.737) — the
+                        // v0.735 "in your backpack" qualifier is gone because
+                        // ore stashed into a clothing bag now genuinely feeds
+                        // the smelter.
                         let missing = recipe.inputs.iter().find_map(|(id, qty)| {
-                            let have = inv.count_item(id);
+                            let have = inv.count_item(id) + home_count(id);
                             (have < *qty).then(|| {
                                 let name = item_registry
                                     .and_then(|r| r.items.get(id).map(|d| d.name.clone()))
                                     .unwrap_or_else(|| id.clone());
-                                format!("waiting for {name} x{} in your backpack", qty - have)
+                                format!("waiting for {name} x{}", qty - have)
                             })
                         });
                         if let Some(m) = missing {
@@ -784,8 +797,26 @@ impl System for CraftingSystem {
                         continue;
                     }
                 }
+                // Consume backpack-first; whatever the pack lacks comes out of
+                // home storage (the map decrement is drained from the GUI's
+                // placed containers by lib.rs right after this tick).
                 if let Ok(mut inv) = world.get::<&mut Inventory>(player_e) {
-                    Self::consume_inputs(&mut inv, &recipe);
+                    for (id, qty) in &recipe.inputs {
+                        let from_pack = inv.count_item(id).min(*qty);
+                        if from_pack > 0 {
+                            inv.remove_item(id, from_pack);
+                        }
+                        let remainder = qty - from_pack;
+                        if remainder > 0 {
+                            if let Some(m) = home_stock.as_ref() {
+                                if let Ok(mut s) = m.lock() {
+                                    if let Some(c) = s.get_mut(id) {
+                                        *c = c.saturating_sub(remainder);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 statuses.push(format!("{} — starting", recipe.name));
                 self.active_crafts.push(ActiveCraft {
@@ -1640,6 +1671,54 @@ mod vehicle_factory_tests {
         assert_eq!(inv.count_item("steel_ingot_0"), 0, "steel consumed");
         assert_eq!(inv.count_item("iron_ingot_0"), 0, "iron consumed");
         assert_eq!(inv.count_item("rubber_sheet_0"), 0, "rubber consumed");
+    }
+
+    /// v0.737 (operator field report: "there IS iron in my inventory and/or
+    /// garage"): auto machines draw from HOME STORAGE too. Backpack is
+    /// consumed first; the shortfall comes out of the mirrored home-stock map
+    /// (lib.rs drains that decrement from the GUI containers after the tick).
+    #[test]
+    fn auto_machine_draws_missing_inputs_from_home_stock() {
+        let data = {
+            let mut d = factory_data();
+            // Garage holds the rubber the backpack lacks (plus spare steel that
+            // must NOT be touched — the pack already covers steel in full).
+            let mut stock = std::collections::HashMap::new();
+            stock.insert("rubber_sheet_0".to_string(), 3u32);
+            stock.insert("steel_ingot_0".to_string(), 5u32);
+            d.insert("home_stock", std::sync::Mutex::new(stock));
+            d
+        };
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(16);
+        inv.add_item("steel_ingot_0", 6, 20);
+        inv.add_item("iron_ingot_0", 4, 20);
+        inv.add_item("rubber_sheet_0", 1, 10); // recipe needs 4 — 3 short
+        world.spawn((inv, Controllable));
+        assembler_at(&mut world, glam::Vec3::ZERO);
+
+        let mut sys = CraftingSystem::new();
+        for _ in 0..125 {
+            sys.tick(&mut world, 1.0, &data);
+        }
+
+        assert_eq!(vehicles(&mut world).len(), 1, "rover built from pack + home storage");
+        let stock = data
+            .get::<std::sync::Mutex<std::collections::HashMap<String, u32>>>("home_stock")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(
+            stock.get("rubber_sheet_0").copied().unwrap_or(0),
+            0,
+            "home storage covered the 3 missing rubber sheets"
+        );
+        assert_eq!(
+            stock.get("steel_ingot_0").copied().unwrap_or(0),
+            5,
+            "backpack-first: fully-stocked inputs never touch home storage"
+        );
     }
 
     /// A FULL backpack must not stall the assembly line: the vehicle output
