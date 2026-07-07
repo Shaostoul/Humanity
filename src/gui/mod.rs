@@ -1806,6 +1806,9 @@ pub struct GuiState {
     pub pending_water_crop: Option<u64>,
     /// Crop entity bits the player clicked "Harvest" on this frame.
     pub pending_harvest_crop: Option<u64>,
+    /// Bulk harvest (v0.739): every mature crop's bits from a Garden group's
+    /// "Harvest N ready" button; drained into "harvest_many_request".
+    pub pending_harvest_many: Vec<u64>,
     /// Dev: instantly mature all crops (testing affordance, like dev-stock).
     pub dev_grow_crops: bool,
     /// Growing crops, synced from the ECS each frame for the Garden panel.
@@ -3238,6 +3241,7 @@ impl Default for GuiState {
             pending_stock_seeds: None,
             pending_water_crop: None,
             pending_harvest_crop: None,
+            pending_harvest_many: Vec::new(),
             dev_grow_crops: false,
             crops: Vec::new(),
             pending_drone_manifest: None,

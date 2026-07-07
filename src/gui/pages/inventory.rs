@@ -1282,6 +1282,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id, plant id,
     // unit count), set by the bed groups' Plant buttons, applied after the panel.
     let mut action_plant_bed: Option<(String, String, u32)> = None;
+    // Bulk harvest (v0.739): every mature crop's bits from a group's
+    // "Harvest N ready" button, applied after the panel.
+    let mut action_harvest_many: Option<Vec<u64>> = None;
     // Summon a world vehicle to drive itself to the player (Stage 3, v0.680),
     // set by the Vehicles section's Summon button; applied after the panel.
     let mut action_summon_vehicle: Option<u64> = None;
@@ -1859,6 +1862,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         let crops: Vec<&crate::gui::GuiCrop> =
                             state.crops.iter().filter(|c| &c.tower_id == tid).collect();
                         let ready = crops.iter().filter(|c| c.mature).count();
+                        // Bulk-harvest set (v0.739): entity bits of every crop in
+                        // this group that is ready to pick (mature and not dead).
+                        let ready_bits: Vec<u64> = crops
+                            .iter()
+                            .filter(|c| c.mature && !c.dead)
+                            .map(|c| c.entity_bits)
+                            .collect();
                         // The tower's CONFIG (None for the "Other crops" group, which
                         // holds loose seed-planted crops with no fixed-slot design).
                         let cfg = tid
@@ -1991,6 +2001,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             Some((mid.clone(), crop.clone(), *count));
                                     }
                                 }
+                                // Bulk harvest (v0.739): the whole ready set in one
+                                // click, no per-slot clicking.
+                                if !ready_bits.is_empty() {
+                                    let label = format!("Harvest {} ready", ready_bits.len());
+                                    if widgets::compact_button(ui, theme, &label, widgets::ButtonVariant::Primary) {
+                                        action_harvest_many = Some(ready_bits.clone());
+                                    }
+                                }
                             },
                             |ui| {
                                 if slot_count == 0 {
@@ -2018,14 +2036,28 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .collect::<Vec<_>>()
                                         .join(" ")
                                 };
-                                // One SLOT row per slot (operator 2026-06-08: "rows of like
-                                // slot 1, 2, 3 ... click on the specific plant can expand
-                                // that single row to a multirow card"). Each slot is itself
-                                // an expandable_row whose body is the plant CARD.
-                                for s in 0..slot_count {
+                                // SLOT TILE GRID (v0.739, operator field report 2:
+                                // "scroll this list of slots and expand each one
+                                // individually is tedious"). Every slot is a compact
+                                // status tile; clicking one opens a SINGLE detail
+                                // card below the grid. Replaces one expandable row
+                                // per slot.
+                                let sel_id = egui::Id::new(("garden_sel_slot", gi));
+                                let mut sel: Option<usize> = ui
+                                    .data_mut(|d| d.get_temp::<Option<usize>>(sel_id))
+                                    .flatten();
+                                // Wrap by the VISIBLE width (same fix as the backpack
+                                // grid: the tree content Ui is width-unbounded).
+                                let visible_w = (ui.ctx().screen_rect().width()
+                                    - ui.min_rect().left()
+                                    - 24.0)
+                                    .max(140.0);
+                                const SLOT_TILE_W: f32 = 68.0;
+                                let per_row =
+                                    ((visible_w / (SLOT_TILE_W + 6.0)).floor() as usize).max(2);
+                                // Per-slot resolve, shared by the tiles and the card.
+                                let slot_data = |s: usize| {
                                     let spec = slot_specs.get(s);
-                                    // Live crop in this slot: tower OR bed -> by
-                                    // tower_slot; loose-crops fallback -> positional.
                                     let crop: Option<&crate::gui::GuiCrop> = if by_slot {
                                         crops.iter().copied().find(|c| c.tower_slot == Some(s as u32))
                                     } else {
@@ -2035,8 +2067,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .map(|sp| sp.0.clone())
                                         .or_else(|| crop.map(|c| c.name.clone()))
                                         .unwrap_or_default();
-                                    let role = spec.map(|sp| sp.1.clone()).unwrap_or_default();
-                                    let note = spec.map(|sp| sp.2.clone()).unwrap_or_default();
                                     let name = crop.map(|c| c.name.clone()).unwrap_or_else(|| {
                                         if plant_id.is_empty() {
                                             format!("Slot {}", s + 1)
@@ -2044,7 +2074,78 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                             prettify(&plant_id)
                                         }
                                     });
-                                    let name_body = name.clone();
+                                    (spec, crop, plant_id, name)
+                                };
+                                for r in 0..slot_count.div_ceil(per_row) {
+                                    ui.horizontal(|ui| {
+                                        for s in (r * per_row)..((r + 1) * per_row).min(slot_count) {
+                                            let (_, crop, plant_id, name) = slot_data(s);
+                                            let (status, scol) = match crop {
+                                                Some(c) if c.dead => ("dead".to_string(), theme.danger()),
+                                                Some(c) if c.mature => ("ready".to_string(), theme.accent()),
+                                                Some(c) => (c.stage.clone(), theme.text_secondary()),
+                                                None => ("planned".to_string(), theme.text_muted()),
+                                            };
+                                            let selected = sel == Some(s);
+                                            let stroke = if selected {
+                                                Stroke::new(2.0, theme.accent())
+                                            } else {
+                                                Stroke::new(1.0, theme.border())
+                                            };
+                                            let swatch = widgets::swatch_color(if plant_id.is_empty() {
+                                                &name
+                                            } else {
+                                                &plant_id
+                                            });
+                                            let glyph = name
+                                                .chars()
+                                                .next()
+                                                .map(|c| c.to_uppercase().to_string())
+                                                .unwrap_or_default();
+                                            let inner = Frame::none()
+                                                .fill(theme.bg_card())
+                                                .rounding(Rounding::same(theme.border_radius_lg as u8))
+                                                .stroke(stroke)
+                                                .inner_margin(Vec2::new(5.0, 5.0))
+                                                .show(ui, |ui| {
+                                                    ui.set_width(SLOT_TILE_W - 10.0);
+                                                    ui.vertical_centered(|ui| {
+                                                        widgets::placeholder_tile(ui, theme, swatch, 34.0, &glyph);
+                                                        ui.label(
+                                                            RichText::new(status)
+                                                                .size(theme.font_size_small)
+                                                                .color(scol),
+                                                        );
+                                                        if let Some(c) = crop {
+                                                            ui.add(
+                                                                egui::ProgressBar::new(c.progress.clamp(0.0, 1.0))
+                                                                    .fill(theme.accent())
+                                                                    .desired_width(SLOT_TILE_W - 16.0)
+                                                                    .desired_height(4.0),
+                                                            );
+                                                        }
+                                                    });
+                                                });
+                                            let resp = inner
+                                                .response
+                                                .interact(egui::Sense::click())
+                                                .on_hover_text(format!("Slot {} · {name}", s + 1));
+                                            if resp.hovered() {
+                                                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                                            }
+                                            if resp.clicked() {
+                                                sel = if selected { None } else { Some(s) };
+                                            }
+                                        }
+                                    });
+                                }
+                                ui.data_mut(|d| d.insert_temp(sel_id, sel));
+                                // THE CARD — one for the selected slot: colored tile +
+                                // name + role + planting note + live details/actions.
+                                if let Some(s) = sel.filter(|s| *s < slot_count) {
+                                    let (spec, crop, plant_id, name) = slot_data(s);
+                                    let role = spec.map(|sp| sp.1.clone()).unwrap_or_default();
+                                    let note = spec.map(|sp| sp.2.clone()).unwrap_or_default();
                                     let swatch = widgets::swatch_color(if plant_id.is_empty() {
                                         &name
                                     } else {
@@ -2055,153 +2156,93 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                         .next()
                                         .map(|c| c.to_uppercase().to_string())
                                         .unwrap_or_default();
-                                    widgets::expandable_row(
-                                        ui,
-                                        ("garden_slot", gi, s),
-                                        false,
-                                        tree_force,
-                                        |ui| {
-                                            widgets::row_cell(ui, theme.cell_narrow_width, |ui| {
+                                    ui.add_space(theme.spacing_xs);
+                                    ui.horizontal_top(|ui| {
+                                        widgets::placeholder_tile(ui, theme, swatch, 72.0, &glyph);
+                                        ui.add_space(theme.spacing_sm);
+                                        ui.vertical(|ui| {
+                                            ui.label(
+                                                RichText::new(format!("{name} · Slot {}", s + 1))
+                                                    .size(theme.font_size_heading)
+                                                    .strong()
+                                                    .color(theme.accent()),
+                                            );
+                                            if !role.is_empty() {
                                                 ui.label(
-                                                    RichText::new(format!("Slot {}", s + 1))
+                                                    RichText::new(&role)
                                                         .size(theme.font_size_small)
+                                                        .italics()
                                                         .color(theme.text_muted()),
                                                 );
-                                            });
-                                            widgets::row_cell(ui, theme.cell_name_width, |ui| {
-                                                let col = match crop {
-                                                    Some(c) if c.dead => theme.danger(),
-                                                    Some(c) if c.mature => theme.accent(),
-                                                    Some(_) => theme.text_primary(),
-                                                    None => theme.text_muted(),
-                                                };
-                                                ui.label(RichText::new(&name).color(col));
-                                            });
-                                            widgets::row_cell(ui, theme.cell_short_width, |ui| {
-                                                let (txt, col) = match crop {
-                                                    Some(c) if c.dead => {
-                                                        ("dead".to_string(), theme.danger())
-                                                    }
-                                                    Some(c) if c.mature => {
-                                                        ("ready".to_string(), theme.accent())
-                                                    }
-                                                    Some(c) => {
-                                                        (c.stage.clone(), theme.text_secondary())
-                                                    }
-                                                    None => {
-                                                        ("planned".to_string(), theme.text_muted())
-                                                    }
-                                                };
+                                            }
+                                            if !note.is_empty() {
                                                 ui.label(
-                                                    RichText::new(txt)
-                                                        .size(theme.font_size_small)
-                                                        .color(col),
-                                                );
-                                            });
-                                            if let Some(c) = crop {
-                                                ui.add(
-                                                    egui::ProgressBar::new(c.progress.clamp(0.0, 1.0))
-                                                        .fill(theme.accent())
-                                                        .desired_width(theme.status_bar_width)
-                                                        .desired_height(theme.status_bar_height),
+                                                    RichText::new(&note)
+                                                        .color(theme.text_secondary()),
                                                 );
                                             }
-                                        },
-                                        |ui| {
-                                            // THE CARD — colored placeholder tile + name +
-                                            // role + description (the planting note) + the
-                                            // live details/actions when a crop occupies it.
                                             ui.add_space(theme.spacing_xs);
-                                            ui.horizontal_top(|ui| {
-                                                widgets::placeholder_tile(
-                                                    ui, theme, swatch, 72.0, &glyph,
-                                                );
-                                                ui.add_space(theme.spacing_sm);
-                                                ui.vertical(|ui| {
-                                                    ui.label(
-                                                        RichText::new(&name_body)
-                                                            .size(theme.font_size_heading)
-                                                            .strong()
-                                                            .color(theme.accent()),
-                                                    );
-                                                    if !role.is_empty() {
-                                                        ui.label(
-                                                            RichText::new(&role)
-                                                                .size(theme.font_size_small)
-                                                                .italics()
-                                                                .color(theme.text_muted()),
-                                                        );
-                                                    }
-                                                    if !note.is_empty() {
-                                                        ui.label(
-                                                            RichText::new(&note)
-                                                                .color(theme.text_secondary()),
-                                                        );
-                                                    }
+                                            match crop {
+                                                Some(c) => {
+                                                    egui::Grid::new(("slot_card", gi, s))
+                                                        .spacing([10.0, 2.0])
+                                                        .show(ui, |ui| {
+                                                            let mut stat =
+                                                                |ui: &mut egui::Ui,
+                                                                 k: &str,
+                                                                 v: String| {
+                                                                    ui.label(
+                                                                        RichText::new(k)
+                                                                            .size(theme.font_size_small)
+                                                                            .color(theme.text_muted()),
+                                                                    );
+                                                                    ui.label(
+                                                                        RichText::new(v)
+                                                                            .size(theme.font_size_small)
+                                                                            .color(theme.text_secondary()),
+                                                                    );
+                                                                    ui.end_row();
+                                                                };
+                                                            let stage = if c.dead {
+                                                                "dead".to_string()
+                                                            } else if c.mature {
+                                                                "ready".to_string()
+                                                            } else {
+                                                                c.stage.clone()
+                                                            };
+                                                            stat(ui, "Stage", stage);
+                                                            stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
+                                                            stat(ui, "N·P·K", format!("{:.2} · {:.2} · {:.2}", c.n, c.p, c.k));
+                                                            stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
+                                                            stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
+                                                            stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
+                                                            stat(ui, "Health", format!("{:.0}%", c.health));
+                                                        });
                                                     ui.add_space(theme.spacing_xs);
-                                                    match crop {
-                                                        Some(c) => {
-                                                            egui::Grid::new(("slot_card", gi, s))
-                                                                .spacing([10.0, 2.0])
-                                                                .show(ui, |ui| {
-                                                                    let mut stat =
-                                                                        |ui: &mut egui::Ui,
-                                                                         k: &str,
-                                                                         v: String| {
-                                                                            ui.label(
-                                                                                RichText::new(k)
-                                                                                    .size(theme.font_size_small)
-                                                                                    .color(theme.text_muted()),
-                                                                            );
-                                                                            ui.label(
-                                                                                RichText::new(v)
-                                                                                    .size(theme.font_size_small)
-                                                                                    .color(theme.text_secondary()),
-                                                                            );
-                                                                            ui.end_row();
-                                                                        };
-                                                                    let stage = if c.dead {
-                                                                        "dead".to_string()
-                                                                    } else if c.mature {
-                                                                        "ready".to_string()
-                                                                    } else {
-                                                                        c.stage.clone()
-                                                                    };
-                                                                    stat(ui, "Stage", stage);
-                                                                    stat(ui, "Growth", format!("{:.0}%", c.progress * 100.0));
-                                                                    stat(ui, "N·P·K", format!("{:.2} · {:.2} · {:.2}", c.n, c.p, c.k));
-                                                                    stat(ui, "Water/day", format!("{:.1} L", c.water_per_day));
-                                                                    stat(ui, "Temp window", format!("{:.0}-{:.0} °C", c.temp_min, c.temp_max));
-                                                                    stat(ui, "Reservoir", format!("{:.0}%", c.water * 100.0));
-                                                                    stat(ui, "Health", format!("{:.0}%", c.health));
-                                                                });
-                                                            ui.add_space(theme.spacing_xs);
-                                                            ui.horizontal(|ui| {
-                                                                ui.spacing_mut().item_spacing.x = 4.0;
-                                                                if c.mature && widgets::compact_button(ui, theme, "Harvest", widgets::ButtonVariant::Primary) {
-                                                                    action_harvest_crop = Some(c.entity_bits);
-                                                                }
-                                                                if !c.dead && widgets::compact_button(ui, theme, "Water", widgets::ButtonVariant::Secondary) {
-                                                                    action_water_crop = Some(c.entity_bits);
-                                                                }
-                                                                if !c.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
-                                                                    action_fertilize_crop = Some(c.entity_bits);
-                                                                }
-                                                            });
+                                                    ui.horizontal(|ui| {
+                                                        ui.spacing_mut().item_spacing.x = 4.0;
+                                                        if c.mature && widgets::compact_button(ui, theme, "Harvest", widgets::ButtonVariant::Primary) {
+                                                            action_harvest_crop = Some(c.entity_bits);
                                                         }
-                                                        None => {
-                                                            ui.label(
-                                                                RichText::new("Not yet planted. Use the Plant button above to fill empty slots.")
-                                                                    .size(theme.font_size_small)
-                                                                    .color(theme.text_muted()),
-                                                            );
+                                                        if !c.dead && widgets::compact_button(ui, theme, "Water", widgets::ButtonVariant::Secondary) {
+                                                            action_water_crop = Some(c.entity_bits);
                                                         }
-                                                    }
-                                                });
-                                            });
-                                            ui.add_space(theme.spacing_xs);
-                                        },
-                                    );
+                                                        if !c.dead && widgets::compact_button(ui, theme, "Fertilize", widgets::ButtonVariant::Secondary) {
+                                                            action_fertilize_crop = Some(c.entity_bits);
+                                                        }
+                                                    });
+                                                }
+                                                None => {
+                                                    ui.label(
+                                                        RichText::new("Not yet planted. Use the Plant button above to fill empty slots.")
+                                                            .size(theme.font_size_small)
+                                                            .color(theme.text_muted()),
+                                                    );
+                                                }
+                                            }
+                                        });
+                                    });
+                                    ui.add_space(theme.spacing_xs);
                                 }
                             },
                         );
@@ -2443,6 +2484,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     }
     if let Some(bits) = action_harvest_crop {
         state.pending_harvest_crop = Some(bits);
+    }
+    if let Some(bits) = action_harvest_many {
+        state.pending_harvest_many = bits;
     }
     if action_dev_grow {
         state.dev_grow_crops = true;

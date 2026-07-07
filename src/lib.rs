@@ -5051,6 +5051,8 @@ mod native_app {
             );
             data_store.insert("water_request", std::sync::Mutex::new(Option::<u64>::None));
             data_store.insert("harvest_request", std::sync::Mutex::new(Option::<u64>::None));
+            // Bulk harvest (v0.739): the Garden group "Harvest N ready" button.
+            data_store.insert("harvest_many_request", std::sync::Mutex::new(Vec::<u64>::new()));
             data_store.insert("dev_grow_crops", std::sync::Mutex::new(false));
             // Per-area irrigation targets the garden edit modal publishes (tower_id ->
             // water level 0..1). FarmingSystem tops matching crops up to it; mirrored
@@ -6933,6 +6935,18 @@ mod native_app {
                         {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(bits);
+                            }
+                        }
+                    }
+                    // Bulk harvest (v0.739): the whole ready set in one frame.
+                    if !state.gui_state.pending_harvest_many.is_empty() {
+                        let bits = std::mem::take(&mut state.gui_state.pending_harvest_many);
+                        if let Some(slot) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request")
+                        {
+                            if let Ok(mut s) = slot.lock() {
+                                s.extend(bits);
                             }
                         }
                     }

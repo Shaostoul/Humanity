@@ -727,10 +727,21 @@ impl System for FarmingSystem {
         // home vessel (the grain silo) instead of vanishing — collected here,
         // applied after the inventory borrow ends. (v0.729)
         let mut vessel_routes: Vec<(String, u32)> = Vec::new();
-        let harvest_bits = data
+        let mut harvest_list: Vec<u64> = Vec::new();
+        if let Some(bits) = data
             .get::<std::sync::Mutex<Option<u64>>>("harvest_request")
-            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
-        if let Some(bits) = harvest_bits {
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()))
+        {
+            harvest_list.push(bits);
+        }
+        // Bulk harvest (v0.739): the Garden group's "Harvest N ready" button sends
+        // every mature crop's bits at once — same code path, one loop.
+        if let Some(m) = data.get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request") {
+            if let Ok(mut s) = m.lock() {
+                harvest_list.append(&mut s);
+            }
+        }
+        for bits in harvest_list {
             if let Some(entity) = hecs::Entity::from_bits(bits) {
                 // Read the crop (immutable, scoped) to confirm maturity + plant id.
                 let plant_id = world.get::<&CropInstance>(entity).ok().and_then(|crop| {
@@ -1028,6 +1039,7 @@ mod gardening_tests {
             "plant_bed_request",
             std::sync::Mutex::new(Option::<(String, String, u32)>::None),
         );
+        data.insert("harvest_many_request", std::sync::Mutex::new(Vec::<u64>::new()));
         data
     }
 
@@ -1100,6 +1112,50 @@ mod gardening_tests {
         // the harvest granted 2 back), so the garden is self-sustaining.
         let seeds = world.get::<&Inventory>(player).unwrap().count_item("seed_tomato_0");
         assert_eq!(seeds, 2, "survival harvest yielded 2 seeds, got {seeds}");
+    }
+
+    /// v0.739 BULK HARVEST: the "Harvest N ready" button sends every mature
+    /// crop's bits through harvest_many_request; one tick picks them all
+    /// (immature crops in the list are left standing).
+    #[test]
+    fn bulk_harvest_picks_every_ready_crop_in_one_tick() {
+        let data = make_store();
+        let mut sys = FarmingSystem::new();
+        let mut world = hecs::World::new();
+        let mut inv = Inventory::new(24);
+        inv.add_item("seed_wheat_0", 3, 50);
+        let player = world.spawn((inv, Controllable));
+
+        *data
+            .get::<std::sync::Mutex<Option<(String, String, u32)>>>("plant_bed_request")
+            .unwrap()
+            .lock()
+            .unwrap() = Some(("staple_grain_tray".to_string(), "wheat".to_string(), 3));
+        sys.tick(&mut world, 1.0, &data);
+        let crops: Vec<hecs::Entity> =
+            world.query::<&CropInstance>().iter().map(|(e, _)| e).collect();
+        assert_eq!(crops.len(), 3);
+
+        // Mature them all, then bulk-harvest the whole set in ONE tick.
+        *data.get::<std::sync::Mutex<bool>>("dev_grow_crops").unwrap().lock().unwrap() = true;
+        sys.tick(&mut world, 1.0, &data);
+        *data
+            .get::<std::sync::Mutex<Vec<u64>>>("harvest_many_request")
+            .unwrap()
+            .lock()
+            .unwrap() = crops.iter().map(|e| e.to_bits().into()).collect();
+        sys.tick(&mut world, 1.0, &data);
+
+        assert_eq!(
+            world.query::<&CropInstance>().iter().count(),
+            0,
+            "all three crops harvested + despawned in one tick"
+        );
+        let grain = world.get::<&Inventory>(player).unwrap().count_item("grain_wheat_0");
+        assert!(
+            grain >= 24,
+            "three harvests of wheat (yield_min 8 each) landed, got {grain}"
+        );
     }
 
     /// v0.738 GRAIN LOOP: bed-planting a grain tray sows one wheat crop per unit
