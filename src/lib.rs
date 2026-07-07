@@ -9930,6 +9930,7 @@ mod native_app {
                         use crate::ecs::components::{AutoRefine, MachineInstanceId};
                         let mut current: Option<String> = None;
                         let mut options: Vec<(String, String)> = Vec::new();
+                        let mut container_pub: Option<(String, String, u32)> = None;
                         let sel_mid = state
                             .gui_state
                             .selected_machine
@@ -9969,6 +9970,78 @@ mod native_app {
                                     }
                                 }
                             }
+
+                            // ── Container contents + the Take action (v0.731):
+                            // deposits into vessels are automatic (harvest
+                            // surplus), so the card panel is the WITHDRAW path —
+                            // "Take" moves as much as fits (volume-gated) from
+                            // the machine's Container into the backpack.
+                            let take = std::mem::take(&mut state.gui_state.machine_card_take_pending);
+                            let item_reg = state
+                                .data_store
+                                .get::<crate::systems::inventory::ItemRegistry>("item_registry");
+                            let mut cont_entity: Option<hecs::Entity> = None;
+                            let mut contents: Option<(String, u32)> = None;
+                            for (e, (id, c)) in state
+                                .game_world
+                                .world
+                                .query::<(
+                                    &MachineInstanceId,
+                                    &crate::systems::inventory::containers::Container,
+                                )>()
+                                .iter()
+                            {
+                                if id.0 != mid {
+                                    continue;
+                                }
+                                cont_entity = Some(e);
+                                if let Some(item) = &c.current_content_item {
+                                    if c.current_qty > 0 {
+                                        contents = Some((item.clone(), c.current_qty));
+                                    }
+                                }
+                                break;
+                            }
+                            if take {
+                                if let (Some(e), Some((item, qty))) = (cont_entity, contents.clone()) {
+                                    let unit_vol = item_reg.map(|r| r.volume_for(&item)).unwrap_or(0.0);
+                                    let max_stack = item_reg.map(|r| r.max_stack_for(&item)).unwrap_or(99);
+                                    let mut taken = 0u32;
+                                    for (_pe, (inv, _c)) in state.game_world.world.query_mut::<(
+                                        &mut crate::systems::inventory::Inventory,
+                                        &crate::ecs::components::Controllable,
+                                    )>() {
+                                        let overflow =
+                                            inv.add_item_volume_gated(&item, qty, max_stack, unit_vol);
+                                        taken = qty - overflow;
+                                        break;
+                                    }
+                                    if taken > 0 {
+                                        if let Ok(mut c) = state.game_world.world.get::<&mut crate::systems::inventory::containers::Container>(e) {
+                                            c.current_qty -= taken;
+                                            c.used_liters =
+                                                (c.used_liters - taken as f32 * unit_vol).max(0.0);
+                                            if c.current_qty == 0 {
+                                                c.current_content_item = None;
+                                                c.used_liters = 0.0;
+                                            }
+                                        }
+                                        contents = if qty > taken {
+                                            Some((item.clone(), qty - taken))
+                                        } else {
+                                            None
+                                        };
+                                        log::info!("[Machines] took {taken}x {item} from {mid}");
+                                    }
+                                }
+                            }
+                            container_pub = contents.map(|(item, qty)| {
+                                let name = item_reg
+                                    .and_then(|r| r.items.get(&item))
+                                    .map(|d| d.name.clone())
+                                    .unwrap_or_else(|| item.clone());
+                                (item, name, qty)
+                            });
                         }
                         // Patch the pinned machine's "progress" row with its LIVE
                         // production status ("42%", "waiting for Coal x1", "pad
@@ -10019,6 +10092,7 @@ mod native_app {
                         }
                         state.gui_state.machine_card_recipe = current;
                         state.gui_state.machine_card_recipe_options = options;
+                        state.gui_state.machine_card_container = container_pub;
                     }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──

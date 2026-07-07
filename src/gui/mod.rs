@@ -1596,6 +1596,12 @@ pub struct GuiState {
     /// The player's pick from the card's recipe dropdown; lib.rs applies it to
     /// the machine entity's AutoRefine next frame and clears it. (v0.725)
     pub machine_card_recipe_pending: Option<String>,
+    /// Pinned machine's container contents (item id, display name, qty) when
+    /// it holds something — drives the card panel's "Take" action. (v0.731)
+    pub machine_card_container: Option<(String, String, u32)>,
+    /// Set by the card panel's Take button; lib.rs moves as much as fits
+    /// (volume-gated) from the machine's Container into the backpack. (v0.731)
+    pub machine_card_take_pending: bool,
     /// Room volumes (v0.429), for room-based label occlusion: which room is the camera in.
     pub room_bounds: Vec<RoomBounds>,
     /// Hold-Tab "reveal" peek (v0.429): triples the label distances and shows labels
@@ -3102,6 +3108,8 @@ impl Default for GuiState {
             machine_card_recipe: None,
             machine_card_recipe_options: Vec::new(),
             machine_card_recipe_pending: None,
+            machine_card_container: None,
+            machine_card_take_pending: false,
             room_bounds: Vec::new(),
             reveal_held: false,
             machine_label_dot_dist: 21.0,

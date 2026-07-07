@@ -670,8 +670,9 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
     let Some(i) = state.selected_machine else { return };
     // Show whenever the machine HAS an auto recipe (even a single option) —
     // seeing WHAT the machine builds matters as much as switching it, and a
-    // one-option dropdown still tells you that. (v0.730; was >= 2.)
-    if state.machine_card_recipe_options.is_empty() {
+    // one-option dropdown still tells you that (v0.730; was >= 2) — OR when
+    // it's a container holding something (the Take action, v0.731).
+    if state.machine_card_recipe_options.is_empty() && state.machine_card_container.is_none() {
         return;
     }
     // Card geometry mirrors the pinned card draw (now screen-centered, upper
@@ -693,25 +694,45 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
         .fixed_pos(sel_pos)
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Auto-build:")
-                            .size(theme.font_size_small)
-                            .color(theme.text_secondary()),
-                    );
-                    let mut picked = cur_id.clone();
-                    egui::ComboBox::from_id_salt("machine_recipe_combo")
-                        .selected_text(cur_name)
-                        .width(170.0)
-                        .show_ui(ui, |ui| {
-                            for (id, name) in &state.machine_card_recipe_options {
-                                ui.selectable_value(&mut picked, id.clone(), name);
-                            }
-                        });
-                    if picked != cur_id {
-                        state.machine_card_recipe_pending = Some(picked);
-                    }
-                });
+                if !state.machine_card_recipe_options.is_empty() {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("Auto-build:")
+                                .size(theme.font_size_small)
+                                .color(theme.text_secondary()),
+                        );
+                        let mut picked = cur_id.clone();
+                        egui::ComboBox::from_id_salt("machine_recipe_combo")
+                            .selected_text(cur_name)
+                            .width(170.0)
+                            .show_ui(ui, |ui| {
+                                for (id, name) in &state.machine_card_recipe_options {
+                                    ui.selectable_value(&mut picked, id.clone(), name);
+                                }
+                            });
+                        if picked != cur_id {
+                            state.machine_card_recipe_pending = Some(picked);
+                        }
+                    });
+                }
+                // Container contents + Take (v0.731): deposits are automatic
+                // (harvest surplus routes in), this is the withdraw path.
+                if let Some((_, name, qty)) = state.machine_card_container.clone() {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!("Holds: {}x {}", qty, name))
+                                .size(theme.font_size_small)
+                                .color(theme.text_primary()),
+                        );
+                        if crate::gui::widgets::Button::secondary("Take")
+                            .tooltip("Move as much as fits into your backpack \
+                                      (limited by your pack's free volume).")
+                            .show(ui, theme)
+                        {
+                            state.machine_card_take_pending = true;
+                        }
+                    });
+                }
             });
         });
 }
