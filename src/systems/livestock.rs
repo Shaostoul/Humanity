@@ -287,11 +287,30 @@ impl System for LivestockSystem {
             }
         }
 
+        // Predator positions this frame, for the flee override below
+        // (v0.762): a living hunt-class creature nearby spooks the herd.
+        let threats: Vec<Vec3> = world
+            .query::<(
+                &crate::ecs::components::AIBehavior,
+                &Transform,
+                Option<&crate::ecs::components::Dead>,
+            )>()
+            .iter()
+            .filter(|(_, (ai, _, dead))| {
+                dead.is_none()
+                    && matches!(ai.behavior_type.as_str(), "predator" | "aggressive")
+            })
+            .map(|(_, (_, tf, _))| tf.position)
+            .collect();
+
         // Graze amble: ease each animal toward a slowly-orbiting target around
         // its anchor. The two incommensurate frequencies trace a lissajous
         // loop, so the herd drifts naturally instead of circling. The dead
         // stay where they fell (v0.760); AI-driven creatures (hostiles) are
-        // the AISystem's to move, not this amble's (v0.761).
+        // the AISystem's to move, not this amble's (v0.761). A predator
+        // within FLEE_RADIUS overrides the amble: run directly away at
+        // double speed - no more grazing while being eaten (v0.762).
+        const FLEE_RADIUS: f32 = 12.0;
         for (_e, (c, tf, dead, ai)) in world.query_mut::<(
             &Creature,
             &mut Transform,
@@ -299,6 +318,19 @@ impl System for LivestockSystem {
             Option<&crate::ecs::components::AIBehavior>,
         )>() {
             if dead.is_some() || ai.is_some() {
+                continue;
+            }
+            let nearest_threat = threats
+                .iter()
+                .map(|p| (*p, (*p - tf.position).length()))
+                .filter(|(_, d)| *d < FLEE_RADIUS)
+                .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+            if let Some((threat_pos, _)) = nearest_threat {
+                let away = (tf.position - threat_pos).normalize_or_zero();
+                if away.length_squared() > 0.0 {
+                    tf.position += away * (c.speed * 2.0) * dt;
+                    tf.rotation = Quat::from_rotation_y(f32::atan2(away.x, away.z));
+                }
                 continue;
             }
             let t = self.t * 0.22 + c.phase;
@@ -511,6 +543,56 @@ mod tests {
             let mut h = world.get::<&mut Harvestable>(hen).unwrap();
             assert_eq!(collect(&mut h), Some(1));
         }
+    }
+
+    /// A living predator nearby overrides the amble: the animal runs
+    /// directly AWAY at double speed; a dead predator spooks nobody. (v0.762)
+    #[test]
+    fn livestock_flee_living_predators() {
+        use crate::ecs::components::AIBehavior;
+
+        let mut world = hecs::World::new();
+        let data = DataStore::new();
+        let anchor = Vec3::new(0.0, 0.0, 0.0);
+        let hen = world.spawn((
+            Creature {
+                def_id: "chicken".into(),
+                anchor,
+                range: 2.0,
+                phase: 0.0,
+                speed: 0.5,
+                tint: [1.0, 1.0, 1.0],
+                body_side: 0.15,
+            },
+            Transform { position: anchor, ..Default::default() },
+        ));
+        // A wolf 5m east - inside the flee radius.
+        let wolf = world.spawn((
+            AIBehavior {
+                behavior_type: "predator".into(),
+                state: "hunting".into(),
+                target: None,
+            },
+            Transform { position: Vec3::new(5.0, 0.0, 0.0), ..Default::default() },
+            crate::ecs::components::Dead { since: 0.0, looted: false },
+        ));
+        // Dead wolf first: the hen ambles normally (no westward panic).
+        let mut sys = LivestockSystem::new();
+        sys.tick(&mut world, 0.1, &data);
+        let calm_x = world.get::<&Transform>(hen).unwrap().position.x;
+        assert!(calm_x > -0.06, "a dead predator spooks nobody (x = {calm_x})");
+
+        // Revive the wolf: the hen bolts west (away), faster than the amble.
+        world.remove_one::<crate::ecs::components::Dead>(wolf).unwrap();
+        for _ in 0..10 {
+            sys.tick(&mut world, 0.1, &data);
+        }
+        let fled = world.get::<&Transform>(hen).unwrap().position;
+        assert!(
+            fled.x < -0.5,
+            "the hen ran away from the wolf (x = {})",
+            fled.x
+        );
     }
 
     /// The graze amble moves an animal toward its wander target and never

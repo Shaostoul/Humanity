@@ -84,7 +84,8 @@ impl System for CombatSystem {
 
         // ── Process pending damage events ──
         let events: Vec<_> = self.pending_damage.drain(..).collect();
-        let mut deaths_to_handle: Vec<(hecs::Entity, Option<String>, bool)> = Vec::new();
+        let mut deaths_to_handle: Vec<(hecs::Entity, Option<String>, bool, DamageType)> =
+            Vec::new();
 
         for (entity, event) in events {
             // Skip if already dead.
@@ -107,14 +108,19 @@ impl System for CombatSystem {
                         "Entity {:?} killed by {:.1} {:?} damage ({:.0}% mitigated by armor)",
                         entity, mitigated, event.damage_type, resistance * 100.0
                     );
-                    deaths_to_handle.push((entity, event.source_name, event.source_is_player));
+                    deaths_to_handle.push((
+                        entity,
+                        event.source_name,
+                        event.source_is_player,
+                        event.damage_type,
+                    ));
                 }
             }
         }
 
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
         let mut rng = rand::thread_rng();
-        for (entity, source_name, source_is_player) in deaths_to_handle {
+        for (entity, source_name, source_is_player, killing_type) in deaths_to_handle {
             // Insert Dead marker (no-op if already present).
             let _ = world.insert_one(entity, Dead::default());
 
@@ -134,6 +140,17 @@ impl System for CombatSystem {
                     }
                 }
                 continue; // players drop no loot
+            }
+
+            // The player's killing blow trains a combat skill (v0.762) - the
+            // first XP source for the combat category. Kinetic kills train
+            // melee; everything else (spells, energy) trains ranged.
+            if source_is_player {
+                let skill = match killing_type {
+                    DamageType::Kinetic => "melee",
+                    _ => "ranged",
+                };
+                crate::systems::skills::award_skill_xp(data, skill, 10);
             }
 
             // Roll loot if the entity has a LootTable: per entry, chance
@@ -230,6 +247,10 @@ mod tests {
             "loot_drops",
             std::sync::Mutex::new(Vec::<(String, u32)>::new()),
         );
+        data.insert(
+            "xp_grants",
+            std::sync::Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()),
+        );
         data
     }
 
@@ -294,6 +315,16 @@ mod tests {
             .unwrap()
             .clone();
         assert_eq!(drops, vec![("raw_poultry_0".to_string(), 2)]);
+        // The player's thermal killing blow trained ranged (v0.762).
+        let grants = data
+            .get::<std::sync::Mutex<Vec<crate::systems::skills::SkillXPEvent>>>("xp_grants")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|g| (g.skill_id.clone(), g.amount))
+            .collect::<Vec<_>>();
+        assert_eq!(grants, vec![("ranged".to_string(), 10)]);
 
         // Overkill on a corpse: no double death, no double loot.
         push_hit(50.0);
