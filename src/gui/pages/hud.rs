@@ -447,14 +447,90 @@ pub fn draw(
                     );
                 }
 
-                // Slot number
-                painter.text(
-                    rect.left_top() + Vec2::new(4.0, 2.0),
-                    Align2::LEFT_TOP,
-                    format!("{}", i + 1),
-                    FontId::proportional(10.0),
-                    theme.text_muted(),
-                );
+                // No slot numbers here: the 1-9 keys belong to the ability
+                // bar above (numbers on a display-only row would lie).
+            }
+
+            // ── Ability bar (v0.754) ── the first nine castable abilities,
+            // above the inventory hotbar; 1-9 casts the matching slot (the
+            // same order the abilities bridge sorts: castable first, by name).
+            {
+                let castable: Vec<_> = state
+                    .abilities
+                    .iter()
+                    .filter(|a| a.castable_now)
+                    .take(9)
+                    .collect();
+                if !castable.is_empty() {
+                    let a_size = 32.0;
+                    let a_gap = 4.0;
+                    let a_total = castable.len() as f32 * a_size
+                        + (castable.len() - 1) as f32 * a_gap;
+                    let ax0 = center.x - a_total / 2.0;
+                    let ay = start_y - a_size - 8.0;
+                    for (i, ab) in castable.iter().enumerate() {
+                        let rect = Rect::from_min_size(
+                            Pos2::new(ax0 + i as f32 * (a_size + a_gap), ay),
+                            Vec2::splat(a_size),
+                        );
+                        painter.rect_filled(rect, Rounding::same(4), Color32::from_black_alpha(140));
+                        painter.rect_stroke(rect, Rounding::same(4), egui::Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
+                        let ready = ab.cooldown_remaining <= 0.0;
+                        // Cooldown sweep: a dark overlay that DRAINS downward
+                        // as the ability recharges (full dark right after cast).
+                        if !ready && ab.cooldown_s > 0.0 {
+                            let frac = (ab.cooldown_remaining / ab.cooldown_s).clamp(0.0, 1.0);
+                            let h = rect.height() * frac;
+                            let overlay = Rect::from_min_max(
+                                Pos2::new(rect.left(), rect.bottom() - h),
+                                rect.right_bottom(),
+                            );
+                            painter.rect_filled(overlay, Rounding::same(4), Color32::from_black_alpha(160));
+                        }
+                        // Two-word initials ("First Aid" -> FA).
+                        let initials: String = ab
+                            .name
+                            .split_whitespace()
+                            .filter_map(|w| w.chars().next())
+                            .take(2)
+                            .collect();
+                        painter.text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            initials,
+                            FontId::proportional(13.0),
+                            if ready { theme.accent() } else { theme.text_muted() },
+                        );
+                        // The key that casts this slot.
+                        painter.text(
+                            rect.left_top() + Vec2::new(3.0, 1.0),
+                            Align2::LEFT_TOP,
+                            format!("{}", i + 1),
+                            FontId::proportional(9.0),
+                            theme.text_muted(),
+                        );
+                        if !ready {
+                            painter.text(
+                                rect.right_bottom() + Vec2::new(-3.0, -1.0),
+                                Align2::RIGHT_BOTTOM,
+                                format!("{:.0}", ab.cooldown_remaining.max(1.0)),
+                                FontId::proportional(9.0),
+                                theme.text_muted(),
+                            );
+                        }
+                    }
+                    // Cast feedback above the bar (lib.rs fades it after 4 s).
+                    if !state.ability_status.is_empty() {
+                        text_shadowed(
+                            painter,
+                            Pos2::new(center.x, ay - 14.0),
+                            Align2::CENTER_BOTTOM,
+                            &state.ability_status,
+                            12.0,
+                            theme.text_primary(),
+                        );
+                    }
+                }
             }
 
             // ── Update notification toast (top-right, below weather) ──

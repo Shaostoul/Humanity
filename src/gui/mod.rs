@@ -1926,6 +1926,9 @@ pub struct GuiState {
     pub pending_cast: Option<String>,
     /// One-line cast feedback from AbilitySystem ("First Aid restores 35 health").
     pub ability_status: String,
+    /// game_time when ability_status was set; lib.rs fades it after a few
+    /// seconds so the HUD line does not linger forever. (v0.754)
+    pub ability_status_at: f64,
 
     pub listings: Vec<GuiListing>,
     /// Set once listing_browse has been sent this connection; cleared on
@@ -3438,6 +3441,7 @@ impl Default for GuiState {
             abilities: Vec::new(),
             pending_cast: None,
             ability_status: String::new(),
+            ability_status_at: 0.0,
             listings: Vec::new(),
             listings_synced: false,
             listing_status: String::new(),

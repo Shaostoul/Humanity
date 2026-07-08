@@ -6128,6 +6128,41 @@ mod native_app {
                             }
                         }
 
+                        // 1-9 cast from the HUD ability bar (v0.754): the first
+                        // nine castable abilities, in the same order the bar
+                        // draws them. Ready-check here is a courtesy; the
+                        // AbilitySystem re-validates cost + cooldown anyway.
+                        if pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                        {
+                            let slot = match key {
+                                KeyCode::Digit1 => Some(0),
+                                KeyCode::Digit2 => Some(1),
+                                KeyCode::Digit3 => Some(2),
+                                KeyCode::Digit4 => Some(3),
+                                KeyCode::Digit5 => Some(4),
+                                KeyCode::Digit6 => Some(5),
+                                KeyCode::Digit7 => Some(6),
+                                KeyCode::Digit8 => Some(7),
+                                KeyCode::Digit9 => Some(8),
+                                _ => None,
+                            };
+                            if let Some(i) = slot {
+                                let id = state
+                                    .gui_state
+                                    .abilities
+                                    .iter()
+                                    .filter(|a| a.castable_now)
+                                    .nth(i)
+                                    .filter(|a| a.cooldown_remaining <= 0.0)
+                                    .map(|a| a.id.clone());
+                                if let Some(id) = id {
+                                    state.gui_state.pending_cast = Some(id);
+                                }
+                            }
+                        }
+
                         // R toggles the home roof/ceiling (construction mode, v0.453). Off by
                         // default so the sky (stars + the real solar system) shows through the
                         // open top; on for a sealed look or atmosphere tests. Also exposed as a
@@ -10033,15 +10068,26 @@ mod native_app {
                         .data_store
                         .get::<std::sync::Mutex<String>>("ability_status")
                     {
-                        if let Ok(slot) = s.lock() {
+                        if let Ok(mut slot) = s.lock() {
                             if !slot.is_empty() {
-                                state.gui_state.ability_status = slot.clone();
+                                // TAKE the line (leave the channel empty) so the
+                                // fade below cannot re-latch a stale status.
+                                state.gui_state.ability_status = std::mem::take(&mut *slot);
+                                state.gui_state.ability_status_at = now_s;
                             }
                         }
                     }
-                    // Panel rows, rebuilt while the Profile page is open
-                    // (cooldowns move every frame; gates change on level-up).
-                    if state.gui_state.active_page == GuiPage::Profile {
+                    // Fade the cast feedback after 4 game-seconds (the Profile
+                    // panel and the HUD ability bar both draw it while set).
+                    if !state.gui_state.ability_status.is_empty()
+                        && now_s - state.gui_state.ability_status_at > 4.0
+                    {
+                        state.gui_state.ability_status.clear();
+                    }
+                    // Panel rows, rebuilt while in the world (the HUD ability
+                    // bar needs them for 1-9 casting, not just the Profile
+                    // page; cooldowns move every frame, gates on level-up).
+                    if state.gui_state.active_page == GuiPage::Profile || state.world_loaded {
                         if let Some(reg) = state
                             .data_store
                             .get::<crate::systems::abilities::AbilityRegistry>("ability_registry")
