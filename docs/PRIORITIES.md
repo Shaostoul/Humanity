@@ -11,7 +11,7 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: ELEVEN INCREMENTS SHIPPED (v0.745-v0.755, started
+> **>>> CLOSURE LADDER: TWELVE INCREMENTS SHIPPED (v0.745-v0.756, started
 > Fable final day 2026-07-07).** The bible below is not just written - its
 > ladder is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
@@ -61,13 +61,18 @@
 >    star rows, live average) and the buyer-seller message thread
 >    (Contact Seller pulls history, broadcasts append live, draft box
 >    sends). Wire frames pinned by tests.
-> NEXT RUNGS: 5-escrow (the native order-book buy/settle against
-> relay trading.rs - the ONE unshipped T3 native piece; no dead Buy
-> button shipped meanwhile), 9 (zones, awaits decision-briefs.md
-> Brief 1), 10 (community wiring). The combat arc unlocks offensive
-> ability rows + creature loot tables + armor-on-equip when it lands.
-> T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
-> unwired) can be pulled forward on operator say-so. <<<**
+> 12. **v0.756 native escrow trades** (rung 5 CLOSED - T3 fully native):
+>    the Trade page rebuilt from the hardcoded mock to the real relay
+>    flow (request by key, accept/reject, per-side offer editing, dual
+>    confirm, cancel); private-wrapper delivery routed to the page (was
+>    destined for chat as noise); relay fix removed the untargeted
+>    TradeData broadcast that sent every trade to every client.
+> NEXT RUNGS: 9 (zones, awaits decision-briefs.md Brief 1), 10
+> (community wiring: guild/governance surfaces to their sims). The
+> combat arc unlocks offensive ability rows + creature loot tables +
+> armor-on-equip when it lands. T5 planet-landing (PlanetRegistry +
+> heightmap pipeline, written but unwired) can be pulled forward on
+> operator say-so. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
