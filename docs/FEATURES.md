@@ -1430,12 +1430,20 @@ The home-construction data model (replaced the old rooms-as-sliding-AABBs approa
 (the mothership allotment, default 55x89x3 m steel, glass roof) plus freely-placed INTERIOR WALLS; rooms
 EMERGE from the walls via grid flood-fill rather than being placed as boxes.
 
-### HomeStructure Model
-The serialized home: box dims + shell/roof material, interior walls, placed lights, placed structures, a
-road graph (nodes + edges), and the player spawn point. Loaded at runtime from RON (save preserves the
-file's `//` design header); meshes regenerate on edit; rooms detected by flood-fill.
-- Native: `src/ship/home_structure.rs` (`HomeStructure`, `load`/`save`, `generate_meshes`, `detect_rooms`)
-- Data: `data/blueprints/home_structure.ron` (the authored seed home)
+### HomeStructure Model + Multi-Zone ShipStructure (v0.766)
+The serialized home body: box dims + shell/roof material, interior walls, placed lights, placed
+structures, a road graph (nodes + edges), and the player spawn point. Meshes regenerate on edit; rooms
+detected by flood-fill. Since v0.766 (ship-superstructure increment A) the home body is ONE ZONE of a
+`ShipStructure { zones }`: each zone carries id/label/purpose (residence | commons | bay | agriculture |
+corridor) + a world origin + the full home body unchanged. The build editor's Ship zone selector
+(combo + Add zone + label/purpose/origin + confirmed delete) edits any zone with all existing tools;
+machines carry a `zone` id (default "home") and clamp into their zone's footprint. A lone legacy
+home_structure.ron adopts once as zone "home". Corridors/commons/hull are increments B-D in
+docs/design/ship-superstructure.md.
+- Native: `src/ship/ship_structure.rs` (`ShipZone`/`ShipStructure`, load/save/adopt, per-zone meshes),
+  `src/ship/home_structure.rs` (the per-zone body: `HomeStructure`, `generate_meshes`, `detect_rooms`),
+  `src/ship/wall_collision.rs` (`ship_wall_segments`), `src/machines.rs` (per-zone clamping)
+- Data: `data/blueprints/ship_structure.ron` (the authored seed ship; the old home file migrated in)
 
 ### Interior Walls + Wall Materials (v0.552, v0.585)
 Walls are corner-node segment chains with per-wall material, per-wall thickness (down to a 1 mm screen),
