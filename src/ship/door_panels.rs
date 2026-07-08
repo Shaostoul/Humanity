@@ -58,6 +58,27 @@ pub struct PanelPlacement {
     pub locks: Vec<ResolvedLock>,
 }
 
+/// Compute a PanelPlacement for every opening in EVERY zone of the ship (v0.754, ship-superstructure
+/// increment A): each zone's placements (from the unchanged per-body `panel_placements`) with every
+/// world position translated by that zone's origin, concatenated in zone order. Doors in a second
+/// zone therefore open/collide exactly like the home's.
+pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<PanelPlacement> {
+    let mut out = Vec::new();
+    for zone in &ship.zones {
+        let o = zone.origin_vec();
+        out.extend(panel_placements(&zone.body).into_iter().map(|mut p| {
+            p.center += o;
+            p.hinge += o;
+            p.control_panel_pos += o;
+            for l in p.locks.iter_mut() {
+                l.pos += o;
+            }
+            p
+        }));
+    }
+    out
+}
+
 /// Compute a PanelPlacement for every opening in the home (world space).
 pub fn panel_placements(home: &HomeStructure) -> Vec<PanelPlacement> {
     let mut out = Vec::new();

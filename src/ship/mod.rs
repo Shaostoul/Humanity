@@ -10,6 +10,7 @@ pub mod home_structure;
 pub mod layout;
 pub mod lock_types;
 pub mod rooms;
+pub mod ship_structure;
 pub mod structure;
 pub mod wall_collision;
 pub mod room_types;

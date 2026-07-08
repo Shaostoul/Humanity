@@ -638,7 +638,9 @@ fn text_shadowed(
 /// where two walls meet at a corner, and -- while drawing -- a live length readout by the cursor.
 /// Paint-only, reusing world_to_screen + text_shadowed. Only drawn in the construction editor.
 pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &GuiState, view_proj: Mat4) {
-    let Some(hs) = &state.home_structure else { return };
+    let Some(hs) = crate::ship::ship_structure::zone_body(&state.ship_structure, state.construction_zone) else { return };
+    // The ACTIVE zone's world origin (v0.754): body coords are zone-local, labels paint in world.
+    let zo = crate::ship::ship_structure::zone_origin(&state.ship_structure, state.construction_zone);
     let screen = ctx.screen_rect();
     let y = hs.height * 0.5; // label height: mid-wall
     let norm = |dx: f32, dz: f32| -> Option<(f32, f32)> {
@@ -659,7 +661,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
             // Each interior wall's length at the BOTTOM middle of the wall (v0.559, by the floor like
             // the gizmo orb -- was mid-wall height).
             for (i, wall) in hs.walls.iter().enumerate() {
-                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, 0.06, (wall.a.1 + wall.b.1) * 0.5);
+                let mid = Vec3::new((wall.a.0 + wall.b.0) * 0.5, 0.06, (wall.a.1 + wall.b.1) * 0.5) + zo;
                 let len = ((wall.b.0 - wall.a.0).powi(2) + (wall.b.1 - wall.a.1).powi(2)).sqrt();
                 let col = if state.construction_wall_selected == Some(i) { theme.accent() } else { theme.text_primary() };
                 if let Some(sp) = world_to_screen(mid, view_proj, screen) {
@@ -713,10 +715,10 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                             continue;
                         }
                         let mid = a0 + slice * 0.5;
-                        let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, 0.12, c.1 + mid.sin() * RING_R * 0.62);
+                        let world = Vec3::new(c.0 + mid.cos() * RING_R * 0.62, 0.12, c.1 + mid.sin() * RING_R * 0.62) + zo;
                         // Drop labels that fall outside the box footprint (e.g. the exterior slice at a
                         // hull join) so only the meaningful in-room angles show.
-                        if world.x < -0.3 || world.x > bw + 0.3 || world.z < -0.3 || world.z > bd + 0.3 {
+                        if world.x < zo.x - 0.3 || world.x > zo.x + bw + 0.3 || world.z < zo.z - 0.3 || world.z > zo.z + bd + 0.3 {
                             continue;
                         }
                         if let Some(sp) = world_to_screen(world, view_proj, screen) {
@@ -746,7 +748,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                                 let gap = s - cursor;
                                 if gap > 0.05 {
                                     let mid = cursor + gap * 0.5;
-                                    let world = Vec3::new(ax + ux * mid, 0.35, az + uz * mid);
+                                    let world = Vec3::new(ax + ux * mid, 0.35, az + uz * mid) + zo;
                                     if let Some(sp) = world_to_screen(world, view_proj, screen) {
                                         text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{gap:.2} m"), 11.0, theme.text_secondary());
                                     }
@@ -769,7 +771,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
                 let (ux, uz) = (wdx / wlen, wdz / wlen);
                 for op in &wall.openings {
                     let s = op.at + op.width * 0.5;
-                    let world = Vec3::new(ax + ux * s, op.sill + op.height * 0.5, az + uz * s);
+                    let world = Vec3::new(ax + ux * s, op.sill + op.height * 0.5, az + uz * s) + zo;
                     if let Some(sp) = world_to_screen(world, view_proj, screen) {
                         let lock = if op.locked { " [locked]" } else { "" };
                         text_shadowed(painter, sp, Align2::CENTER_CENTER, &format!("{}{}", op.style, lock), 11.0, theme.text_primary());
@@ -779,7 +781,7 @@ pub fn draw_construction_overlay(ctx: &egui::Context, theme: &Theme, state: &Gui
             // Live readout while drawing: the pending segment length by the cursor.
             if let (Some(s), Some(cur)) = (state.construction_wall_start, state.construction_cursor_world) {
                 let len = ((cur.0 - s.0).powi(2) + (cur.1 - s.1).powi(2)).sqrt();
-                if let Some(sp) = world_to_screen(Vec3::new(cur.0, y, cur.1), view_proj, screen) {
+                if let Some(sp) = world_to_screen(Vec3::new(cur.0, y, cur.1) + zo, view_proj, screen) {
                     text_shadowed(painter, sp + Vec2::new(22.0, -14.0), Align2::LEFT_CENTER, &format!("{len:.2} m"), 15.0, theme.accent());
                 }
             }

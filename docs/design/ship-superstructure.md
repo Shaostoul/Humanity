@@ -26,6 +26,14 @@ primitive - it is plurality and connection:
 
 ### A. ShipStructure: many zones (the foundation, direction-independent)
 
+> SHIPPED (v0.754): `src/ship/ship_structure.rs` (ShipZone/ShipStructure + one-time
+> adoption of a legacy home_structure.ron), `data/blueprints/ship_structure.ron`
+> (the old home file migrated outright as zone "home"), per-zone meshes/collision/
+> door panels/lights, `MachineInstance.zone` (default "home") with per-zone clamping,
+> and the editor's Ship zone selector (combo + Add zone + label/purpose/origin +
+> confirmed delete) at the top of the Home structure panel. One shared pressurized
+> volume spans all zones (the AtmosphereSystem bounds fold over every zone's rooms).
+
 A ship is a list of ZONES in one data file. Each zone carries an id, a label,
 a purpose tag, a world origin offset, and the ENTIRE existing HomeStructure
 body unchanged (box dims, walls, openings, materials, lights, spawn):

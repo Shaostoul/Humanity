@@ -12,6 +12,7 @@ use crate::gui::theme::Theme;
 use crate::gui::{EditorOpening, EditorOpeningKind, GuiState};
 use crate::ship::fibonacci::WallKind;
 use crate::ship::home_structure::{Opening, OpeningKind};
+use crate::ship::ship_structure::{zone_body, zone_body_mut};
 
 const WALL_LABELS: [&str; 4] = ["North", "South", "West", "East"];
 
@@ -23,7 +24,7 @@ const OPENING_STYLES: [&str; 8] =
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // v0.534: when the home is a HomeStructure (a FIXED box + freely-drawn interior walls), the
     // editor is the node/wall editor. The legacy room-AABB editor below stays for other structures.
-    if state.home_structure.is_some() {
+    if state.ship_structure.is_some() {
         draw_wall_editor(ctx, theme, state);
         return;
     }
@@ -519,6 +520,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                         room: room_id.clone(),
                                         offset: (0.0, 0.0, 0.0),
                                         rotation: 0.0,
+                                        // Legacy room-editor path (no ship): the default zone.
+                                        zone: crate::machines::default_machine_zone(),
                                     });
                                     machines_changed = true;
                                 }
@@ -620,7 +623,8 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 /// to segment); the RIGHT panel edits the selected wall's corners, height, and openings (doors /
 /// windows, each with a data-driven animation STYLE). The footer palette still places machines.
 /// Edits set `construction_structure_dirty` so the engine rebuilds the mesh live; Save persists
-/// home_structure.ron (the same file the AI edits -- one model, edited the same way by both).
+/// ship_structure.ron (the same file the AI edits -- one model, edited the same way by both; the
+/// v0.754 multi-zone ship, with a zone selector choosing which zone the tools operate on).
 fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Footer: the machine palette (places into the box's single "home" room for now).
     draw_palette(ctx, theme, state);
@@ -671,7 +675,11 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             egui::ScrollArea::vertical().id_salt("hs_left_scroll").show(ui, |ui| {
                 ui.add_space(theme.spacing_md);
                 ui.label(RichText::new("Home structure").size(theme.font_size_body).strong().color(theme.text_primary()));
-                if let Some(hs) = &state.home_structure {
+                // SHIP ZONE selector (v0.754, ship-superstructure increment A): which zone the
+                // editor is editing. Every tool below (walls, openings, lights, machines, spawn)
+                // operates on the selected zone; the whole ship stays visible in the viewport.
+                draw_ship_zone_selector(ui, theme, state);
+                if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
                     ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
                         .size(theme.font_size_small).color(theme.text_muted()));
                 }
@@ -875,7 +883,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     return;
                 }
             };
-            let n = state.home_structure.as_ref().map_or(0, |h| h.walls.len());
+            let n = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.walls.len());
             if sel >= n {
                 state.construction_wall_selected = None;
                 return;
@@ -885,7 +893,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
 
             let mut changed = false;
             let mut wall_len = 0.0f32;
-            if let Some(hs) = state.home_structure.as_mut() {
+            if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                 let w = hs.width;
                 let d = hs.depth;
                 let hmax = hs.height;
@@ -1002,7 +1010,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new("Openings").strong().color(theme.text_primary()));
             ui.horizontal(|ui| {
                 if ui.button("+ Door").clicked() {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         hs.walls[sel].openings.push(Opening {
                             kind: OpeningKind::Door,
                             at: (wall_len * 0.5 - 0.5).max(0.0),
@@ -1015,7 +1023,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                     changed = true;
                 }
                 if ui.button("+ Window").clicked() {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         hs.walls[sel].openings.push(Opening {
                             kind: OpeningKind::Window,
                             at: (wall_len * 0.5 - 0.75).max(0.0),
@@ -1029,12 +1037,12 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 }
             });
 
-            let n_op = state.home_structure.as_ref().map_or(0, |h| h.walls[sel].openings.len());
+            let n_op = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.walls[sel].openings.len());
             let mut remove_op: Option<usize> = None;
             for oi in 0..n_op {
                 ui.add_space(theme.spacing_xs);
                 ui.group(|ui| {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         let op = &mut hs.walls[sel].openings[oi];
                         let kind_label = match op.kind {
                             OpeningKind::Door => "Door",
@@ -1148,7 +1156,7 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if let Some(oi) = remove_op {
-                if let Some(hs) = state.home_structure.as_mut() {
+                if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     if oi < hs.walls[sel].openings.len() {
                         hs.walls[sel].openings.remove(oi);
                     }
@@ -1178,7 +1186,7 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(i) => i,
         None => return,
     };
-    let n = state.home_structure.as_ref().map_or(0, |h| h.lights.len());
+    let n = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.lights.len());
     if li >= n {
         state.construction_light_selected = None;
         return;
@@ -1186,7 +1194,7 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut changed = false;
     let mut remove = false;
     {
-        let hs = match state.home_structure.as_mut() {
+        let hs = match zone_body_mut(&mut state.ship_structure, state.construction_zone) {
             Some(h) => h,
             None => return,
         };
@@ -1255,7 +1263,7 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
     if remove {
-        if let Some(hs) = state.home_structure.as_mut() {
+        if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
             if li < hs.lights.len() {
                 hs.lights.remove(li);
             }
@@ -1528,9 +1536,139 @@ const CONSOLE_VERBS: &[ConsoleVerb] = &[
     ConsoleVerb { usage: "rm_road <n>", desc: "Remove road edge #n (1-based)." },
 ];
 
+/// SHIP ZONE selector (v0.754, ship-superstructure increment A), at the top of the Home structure
+/// panel: a combo of the ship's zones (which one the editor is EDITING -- every tool operates on
+/// it), an "Add zone" button (a modest default 10 x 10 x 3 m box placed clear of existing zones),
+/// per-zone label / purpose / origin fields, and a two-click confirmed Delete for non-home zones.
+/// Switching zones clears zone-scoped selections (their indices point into the new body) and moves
+/// the build avatar to the new zone's spawn.
+fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    let Some(n_zones) = state.ship_structure.as_ref().map(|s| s.zones.len()) else {
+        return;
+    };
+    state.construction_zone = state.construction_zone.min(n_zones.saturating_sub(1));
+    // Owned display strings so the ship borrow ends before the mutations below.
+    let zone_names: Vec<String> = state
+        .ship_structure
+        .as_ref()
+        .map(|s| {
+            s.zones
+                .iter()
+                .map(|z| if z.label.trim().is_empty() { z.id.clone() } else { format!("{} ({})", z.label, z.id) })
+                .collect()
+        })
+        .unwrap_or_default();
+    let home_idx = state.ship_structure.as_ref().map_or(0, |s| s.home_zone_index());
+    let mut switch_to: Option<usize> = None;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Ship zone").size(theme.font_size_small).color(theme.text_muted()));
+        egui::ComboBox::from_id_salt("ship_zone_selector")
+            .selected_text(zone_names.get(state.construction_zone).cloned().unwrap_or_default())
+            .show_ui(ui, |ui| {
+                for (i, name) in zone_names.iter().enumerate() {
+                    if ui.selectable_label(i == state.construction_zone, name).clicked() {
+                        switch_to = Some(i);
+                    }
+                }
+            });
+        if ui.small_button("Add zone").clicked() {
+            if let Some(ship) = state.ship_structure.as_mut() {
+                let idx = ship.add_zone("New Zone", "commons");
+                switch_to = Some(idx);
+            }
+            state.construction_structure_dirty = true; // render + collide the new box immediately
+        }
+    });
+    // Per-zone metadata: label, purpose tag, world origin. Origin edits rebuild live (the whole
+    // zone box moves). Deferred flags keep the ship borrow local to each block.
+    let mut zone_edited = false;
+    if let Some(z) = state
+        .ship_structure
+        .as_mut()
+        .and_then(|s| s.zones.get_mut(state.construction_zone))
+    {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Label").size(theme.font_size_small).color(theme.text_muted()));
+            ui.add(egui::TextEdit::singleline(&mut z.label).desired_width(120.0));
+            egui::ComboBox::from_id_salt("ship_zone_purpose")
+                .selected_text(z.purpose.clone())
+                .width(96.0)
+                .show_ui(ui, |ui| {
+                    for p in ["residence", "commons", "bay", "agriculture", "corridor"] {
+                        ui.selectable_value(&mut z.purpose, p.to_string(), p);
+                    }
+                });
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Origin").size(theme.font_size_small).color(theme.text_muted()));
+            let mut o = z.origin;
+            let rx = ui.add(egui::DragValue::new(&mut o.0).speed(0.5).suffix(" x"));
+            let ry = ui.add(egui::DragValue::new(&mut o.1).speed(0.5).suffix(" y"));
+            let rz = ui.add(egui::DragValue::new(&mut o.2).speed(0.5).suffix(" z"));
+            if rx.changed() || ry.changed() || rz.changed() {
+                z.origin = o;
+                zone_edited = true;
+            }
+        });
+    }
+    if zone_edited {
+        state.construction_structure_dirty = true;
+    }
+    // Delete the EDITED zone (never the home zone, never the last zone) with a 2-click confirm.
+    if state.construction_zone != home_idx && n_zones > 1 {
+        ui.horizontal(|ui| {
+            if state.construction_zone_delete_arm {
+                ui.label(RichText::new("Delete this zone?").size(theme.font_size_small).color(theme.warning()));
+                if ui.small_button(RichText::new("Confirm delete").color(theme.danger())).clicked() {
+                    let removed = state
+                        .ship_structure
+                        .as_mut()
+                        .map_or(false, |s| {
+                            let idx = state.construction_zone;
+                            s.remove_zone(idx)
+                        });
+                    state.construction_zone_delete_arm = false;
+                    if removed {
+                        switch_to = Some(home_idx.min(state.construction_zone));
+                        state.construction_structure_dirty = true;
+                    }
+                }
+                if ui.small_button("Cancel").clicked() {
+                    state.construction_zone_delete_arm = false;
+                }
+            } else if ui.small_button(RichText::new("Delete zone").color(theme.danger())).clicked() {
+                state.construction_zone_delete_arm = true;
+            }
+        });
+    }
+    if let Some(mut i) = switch_to {
+        // Runs unconditionally (even i == current): after a DELETE the indices shifted, so the
+        // old selections must clear regardless of whether the index number happens to match.
+        let count = state.ship_structure.as_ref().map_or(0, |s| s.zones.len());
+        i = i.min(count.saturating_sub(1));
+        state.construction_zone = i;
+        state.construction_zone_delete_arm = false;
+        // Zone-scoped selections index into the OLD body; clear them all.
+        state.construction_wall_selected = None;
+        state.construction_light_selected = None;
+        state.construction_structure_selected = None;
+        state.construction_road_node_selected = None;
+        state.construction_zone_selected = None;
+        state.construction_machine_selected = None;
+        state.construction_wall_start = None;
+        // Move the build avatar to the new zone's spawn (its box centre if none saved).
+        let spawn = zone_body(&state.ship_structure, i)
+            .map(|b| b.spawn.unwrap_or((b.width * 0.5, b.depth * 0.5)));
+        state.build_char_pos = spawn;
+        state.construction_structure_dirty = true; // refresh introspection + gizmo state
+    }
+    ui.add_space(theme.spacing_xs);
+}
+
 /// Execute a construction console command against the LIVE home (v0.578) and return a result string.
-/// Mutates gui_state.home_structure and flags it dirty, so the SAME live rebuild the gizmos use redraws
-/// -- one edit path for an AI (typed verbs) and a human (the gizmos). Verbs are enumerable via `help`.
+/// Mutates the ACTIVE ship zone's body (v0.754) and flags it dirty, so the SAME live rebuild the
+/// gizmos use redraws -- one edit path for an AI (typed verbs) and a human (the gizmos). Verbs are
+/// enumerable via `help`.
 pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
     let line = line.trim();
     if line.is_empty() {
@@ -1549,7 +1687,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                        the engine writes debug/screenshot_N.png + debug/screenshot_done.json within a frame.\n");
             s
         }
-        "list" => match &state.home_structure {
+        "list" => match zone_body(&state.ship_structure, state.construction_zone) {
             Some(h) => format!("{} walls, {} openings, {} lights. Full JSON: debug/home_snapshot.json",
                 h.walls.len(), h.walls.iter().map(|w| w.openings.len()).sum::<usize>(), h.lights.len()),
             None => "No home loaded.".into(),
@@ -1559,7 +1697,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 return "usage: add_wall x1 z1 x2 z2 [mat]".into();
             };
             let mat = u(5).unwrap_or(1) as u32;
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             let height = h.height;
             h.walls.push(crate::ship::home_structure::InteriorWall {
                 a: (x1, z1), b: (x2, z2), height, material: mat, openings: Vec::new(), thickness: None, layers: Vec::new(),
@@ -1569,7 +1707,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_wall" => {
             let Some(i) = u(1) else { return "usage: rm_wall <n>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if i >= 1 && i <= h.walls.len() {
                 h.walls.remove(i - 1);
                 state.construction_structure_dirty = true;
@@ -1580,7 +1718,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "set_material" => {
             let (Some(w), Some(mat)) = (u(1), u(2)) else { return "usage: set_material <wall> <mat>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
                 h.walls[w - 1].material = mat as u32;
                 state.construction_structure_dirty = true;
@@ -1592,7 +1730,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         "add_door" => {
             let Some(w) = u(1) else { return "usage: add_door <wall> <at> <width>".into(); };
             let (Some(at), Some(width)) = (f(2), f(3)) else { return "usage: add_door <wall> <at> <width>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
                 h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
                     kind: crate::ship::home_structure::OpeningKind::Door,
@@ -1612,7 +1750,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 let ids: Vec<&str> = crate::renderer::light::light_types().iter().map(|t| t.id.as_str()).collect();
                 return format!("unknown light type '{tid}'. types: {}", ids.join(", "));
             }
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             h.lights.push(crate::ship::home_structure::PlacedLight {
                 type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None,
             });
@@ -1621,7 +1759,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_light" => {
             let Some(i) = u(1) else { return "usage: rm_light <n>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if i >= 1 && i <= h.lights.len() {
                 h.lights.remove(i - 1);
                 state.construction_structure_dirty = true;
@@ -1641,7 +1779,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 return "wall is drawn, not placed -- use add_wall x1 z1 x2 z2 [mat].".into();
             }
             let yaw = f(5).unwrap_or(0.0);
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             h.structures.push(crate::ship::home_structure::PlacedStructure {
                 type_id: tid.to_string(), pos: (x, y, z), rot_deg: yaw, pair: None,
             });
@@ -1650,7 +1788,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_structure" => {
             let Some(i) = u(1) else { return "usage: rm_structure <n>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if i >= 1 && i <= h.structures.len() {
                 h.structures.remove(i - 1);
                 for s in &mut h.structures {
@@ -1677,7 +1815,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             if crate::ship::home_structure::wall_material(mat as u32).is_none() {
                 return format!("unknown material {mat} (1-8).");
             }
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
                 // New coat goes on TOP (index 0) -> the exposed face, matching the gizmo editor.
                 h.walls[w - 1].layers.insert(0, crate::ship::home_structure::SurfaceLayer {
@@ -1691,7 +1829,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_layer" => {
             let (Some(w), Some(n)) = (u(1), u(2)) else { return "usage: rm_layer <wall> <n>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             match h.walls.get_mut(w.wrapping_sub(1)) {
                 Some(wl) if w >= 1 && n >= 1 && n <= wl.layers.len() => {
                     wl.layers.remove(n - 1);
@@ -1706,7 +1844,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             let (Some(at), Some(width), Some(sill), Some(height)) = (f(2), f(3), f(4), f(5)) else {
                 return "usage: add_window <wall> <at> <width> <sill> <height>".into();
             };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if w >= 1 && w <= h.walls.len() {
                 h.walls[w - 1].openings.push(crate::ship::home_structure::Opening {
                     kind: crate::ship::home_structure::OpeningKind::Window,
@@ -1722,7 +1860,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         "set_style" => {
             let (Some(w), Some(o)) = (u(1), u(2)) else { return "usage: set_style <wall> <opening> <style>".into(); };
             let Some(style) = parts.get(3) else { return "usage: set_style <wall> <opening> <style>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             match h.walls.get_mut(w.wrapping_sub(1)).and_then(|wl| wl.openings.get_mut(o.wrapping_sub(1))) {
                 Some(op) if w >= 1 && o >= 1 => {
                     op.style = style.to_string();
@@ -1739,7 +1877,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 let ids: Vec<&str> = crate::ship::lock_types::lock_types().iter().map(|t| t.id.as_str()).collect();
                 return format!("unknown lock type '{tid}'. types: {}", ids.join(", "));
             }
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             match h.walls.get_mut(w.wrapping_sub(1)).and_then(|wl| wl.openings.get_mut(o.wrapping_sub(1))) {
                 Some(op) if w >= 1 && o >= 1 => {
                     op.locks.push(crate::ship::home_structure::LockInstance {
@@ -1753,7 +1891,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "add_road_node" => {
             let (Some(x), Some(z)) = (f(1), f(2)) else { return "usage: add_road_node <x> <z>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             let id = h.unique_road_node_id();
             h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos: (x, z) });
             state.construction_structure_dirty = true;
@@ -1761,7 +1899,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_road_node" => {
             let Some(id) = u(1).map(|v| v as u32) else { return "usage: rm_road_node <id>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if h.road_node_pos(id).is_some() {
                 h.remove_road_node(id);
                 state.construction_structure_dirty = true;
@@ -1783,7 +1921,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 return "a road edge needs two different nodes.".into();
             }
             let width = f(4).unwrap_or(4.0).max(0.5);
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if h.road_node_pos(from).is_none() || h.road_node_pos(to).is_none() {
                 return format!("need both nodes (N{from}, N{to}).");
             }
@@ -1793,7 +1931,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
         }
         "rm_road" => {
             let Some(i) = u(1) else { return "usage: rm_road <n>".into(); };
-            let Some(h) = state.home_structure.as_mut() else { return "No home loaded.".into(); };
+            let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             if i >= 1 && i <= h.road_edges.len() {
                 h.road_edges.remove(i - 1);
                 state.construction_structure_dirty = true;
@@ -1831,7 +1969,7 @@ fn zone_label(type_id: &str) -> String {
 /// into (residential, industrial, hangar, the civic mall, ...). Render is a wireframe box per zone in
 /// build mode (lib.rs). Deferred actions so it never holds a home_structure borrow across the closures.
 fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let zones: Vec<(String, String, (f32, f32, f32), (f32, f32, f32))> = match state.home_structure.as_ref() {
+    let zones: Vec<(String, String, (f32, f32, f32), (f32, f32, f32))> = match zone_body(&state.ship_structure, state.construction_zone) {
         Some(h) => h.zones.iter().map(|z| (z.id.clone(), z.type_id.clone(), z.origin, z.size)).collect(),
         None => return,
     };
@@ -1892,7 +2030,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
         });
-    if let Some(hs) = state.home_structure.as_mut() {
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         if let Some(t) = add_type {
             let sz = crate::ship::structure::zone_type(&t).map(|zt| zt.default_size).unwrap_or((20.0, 4.0, 20.0));
             // Seed the new zone centred in the structure footprint.
@@ -1916,7 +2054,7 @@ fn draw_zones_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// operator asked for; main/sub/subsub hierarchy is a later stage. Uses deferred actions so it never
 /// holds a home_machines borrow across the egui closures.
 fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let (bw, bd, bh) = state.home_structure.as_ref().map(|h| (h.width, h.depth, h.height)).unwrap_or((55.0, 89.0, 3.0));
+    let (bw, bd, bh) = zone_body(&state.ship_structure, state.construction_zone).map(|h| (h.width, h.depth, h.height)).unwrap_or((55.0, 89.0, 3.0));
     let machine_ids: Vec<String> = state.home_machines.as_ref().map(|h| h.all_instances().into_iter().map(|i| i.id).collect()).unwrap_or_default();
     let nodes: Vec<(String, (f32, f32, f32))> = state.home_machines.as_ref().map(|h| h.conduit_nodes.iter().map(|n| (n.id.clone(), n.pos)).collect()).unwrap_or_default();
     let edges: Vec<(String, String, String)> = state.home_machines.as_ref().map(|h| h.conduit_edges.iter().map(|e| (conduit_end_str(&e.from), conduit_end_str(&e.to), e.kind.clone())).collect()).unwrap_or_default();
@@ -2028,7 +2166,7 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // detail panel (v0.597). This keeps only the "Add light" picker. One consistent style.
     let mut changed = false;
     {
-        let hs = match state.home_structure.as_mut() {
+        let hs = match zone_body_mut(&mut state.ship_structure, state.construction_zone) {
             Some(h) => h,
             None => return,
         };
@@ -2074,7 +2212,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         Some(s) => s,
         None => return,
     };
-    let n = state.home_structure.as_ref().map_or(0, |h| h.structures.len());
+    let n = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.structures.len());
     if sel >= n {
         state.construction_structure_selected = None;
         return;
@@ -2082,9 +2220,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     let mut changed = false;
     let mut deselect = false;
     // Snapshot fields needed for the pairing combo (other teleporters) before the mutable borrow.
-    let pieces: Vec<(usize, String)> = state
-        .home_structure
-        .as_ref()
+    let pieces: Vec<(usize, String)> = zone_body(&state.ship_structure, state.construction_zone)
         .map(|h| {
             h.structures
                 .iter()
@@ -2093,7 +2229,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                 .collect()
         })
         .unwrap_or_default();
-    if let Some(hs) = state.home_structure.as_mut() {
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         let ps = &mut hs.structures[sel];
         let ty = crate::ship::structure::structure_type(&ps.type_id);
         let label = ty.map(|t| t.label.clone()).unwrap_or_else(|| ps.type_id.clone());
@@ -2174,7 +2310,7 @@ fn draw_structure_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
 /// RAIL-graph editor (v0.635, superstructure M2): drop rail stops + wire straight edges into a multi-stop
 /// line. Mirrors the road editor (simpler -- no class/width). Renders as a gizmo (lib.rs); cars are M2b.
 fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let (nn, ne) = state.home_structure.as_ref().map_or((0, 0), |h| (h.rail_nodes.len(), h.rail_edges.len()));
+    let (nn, ne) = zone_body(&state.ship_structure, state.construction_zone).map_or((0, 0), |h| (h.rail_nodes.len(), h.rail_edges.len()));
     egui::CollapsingHeader::new(RichText::new(format!("Rail ({nn} nodes, {ne} edges)")).strong().color(theme.text_primary()))
         .id_salt("hs_rail_sec")
         .default_open(false)
@@ -2182,17 +2318,17 @@ fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new("Lay a rail line as a graph: drop stops, wire edges. Cars run it (M2b).")
                 .size(theme.font_size_small).color(theme.text_muted()));
             if ui.button("+ Rail node").clicked() {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     let pos = (h.width * 0.5, h.depth * 0.5);
                     h.add_rail_node(pos);
                 }
             }
             let mut rm_node: Option<u32> = None;
             for i in 0..nn {
-                let id = state.home_structure.as_ref().unwrap().rail_nodes[i].id;
+                let id = zone_body(&state.ship_structure, state.construction_zone).unwrap().rail_nodes[i].id;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(format!("N{id}")).size(theme.font_size_small).color(theme.text_secondary()));
-                    if let Some(h) = state.home_structure.as_mut() {
+                    if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         let p = &mut h.rail_nodes[i].pos;
                         ui.add(egui::DragValue::new(&mut p.0).speed(0.25).prefix("x ").suffix(" m"));
                         ui.add(egui::DragValue::new(&mut p.1).speed(0.25).prefix("z ").suffix(" m"));
@@ -2203,13 +2339,13 @@ fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if let Some(id) = rm_node {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     h.remove_rail_node(id);
                 }
             }
             if nn >= 2 {
                 ui.separator();
-                let ids: Vec<u32> = state.home_structure.as_ref().unwrap().rail_nodes.iter().map(|n| n.id).collect();
+                let ids: Vec<u32> = zone_body(&state.ship_structure, state.construction_zone).unwrap().rail_nodes.iter().map(|n| n.id).collect();
                 if !ids.contains(&state.rail_edge_from) {
                     state.rail_edge_from = ids[0];
                 }
@@ -2225,16 +2361,16 @@ fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         for id in &ids { ui.selectable_value(&mut state.rail_edge_to, *id, format!("N{id}")); }
                     });
                     if ui.button("Add rail").clicked() {
-                        if let Some(h) = state.home_structure.as_mut() {
+                        if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                             h.add_rail_edge(state.rail_edge_from, state.rail_edge_to);
                         }
                     }
                 });
             }
             let mut rm_edge: Option<usize> = None;
-            let ne_now = state.home_structure.as_ref().map_or(0, |h| h.rail_edges.len());
+            let ne_now = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.rail_edges.len());
             for i in 0..ne_now {
-                let Some((f, t)) = state.home_structure.as_ref().and_then(|h| h.rail_edges.get(i)).map(|e| (e.from, e.to)) else {
+                let Some((f, t)) = zone_body(&state.ship_structure, state.construction_zone).and_then(|h| h.rail_edges.get(i)).map(|e| (e.from, e.to)) else {
                     break;
                 };
                 ui.horizontal(|ui| {
@@ -2245,7 +2381,7 @@ fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if let Some(i) = rm_edge {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     h.remove_rail_edge(i);
                 }
             }
@@ -2253,7 +2389,7 @@ fn draw_rail_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    let (nn, ne) = state.home_structure.as_ref().map_or((0, 0), |h| (h.road_nodes.len(), h.road_edges.len()));
+    let (nn, ne) = zone_body(&state.ship_structure, state.construction_zone).map_or((0, 0), |h| (h.road_nodes.len(), h.road_edges.len()));
     let mut changed = false;
     // Default the class picker to the first road type.
     if state.construction_road_class.is_empty() {
@@ -2269,7 +2405,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_small).color(theme.text_muted()));
             // Add a node at the home centre (drag it from there, or set x/z below).
             if ui.button("+ Road node").clicked() {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     let id = h.unique_road_node_id();
                     let pos = (h.width * 0.5, h.depth * 0.5);
                     h.road_nodes.push(crate::ship::home_structure::RoadNode { id, pos });
@@ -2279,10 +2415,10 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Node list: id + x/z drag + remove.
             let mut rm_node: Option<u32> = None;
             for i in 0..nn {
-                let id = state.home_structure.as_ref().unwrap().road_nodes[i].id;
+                let id = zone_body(&state.ship_structure, state.construction_zone).unwrap().road_nodes[i].id;
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(format!("N{id}")).size(theme.font_size_small).color(theme.text_secondary()));
-                    if let Some(h) = state.home_structure.as_mut() {
+                    if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         let p = &mut h.road_nodes[i].pos;
                         changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.25).prefix("x ").suffix(" m")).changed();
                         changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.25).prefix("z ").suffix(" m")).changed();
@@ -2293,7 +2429,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if let Some(id) = rm_node {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     h.remove_road_node(id);
                 }
                 changed = true;
@@ -2302,7 +2438,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if nn >= 2 {
                 ui.separator();
                 ui.horizontal(|ui| {
-                    let ids: Vec<u32> = state.home_structure.as_ref().map(|h| h.road_nodes.iter().map(|n| n.id).collect()).unwrap_or_default();
+                    let ids: Vec<u32> = zone_body(&state.ship_structure, state.construction_zone).map(|h| h.road_nodes.iter().map(|n| n.id).collect()).unwrap_or_default();
                     egui::ComboBox::from_id_salt("road_from").selected_text(format!("from N{}", state.construction_road_from))
                         .show_ui(ui, |ui| { for id in &ids { ui.selectable_value(&mut state.construction_road_from, *id, format!("N{id}")); } });
                     egui::ComboBox::from_id_salt("road_to").selected_text(format!("to N{}", state.construction_road_to))
@@ -2319,7 +2455,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     if ui.button("Add edge").clicked() {
                         let (f, t, cls, w) = (state.construction_road_from, state.construction_road_to, state.construction_road_class.clone(), state.construction_road_width);
                         if f != t {
-                            if let Some(h) = state.home_structure.as_mut() {
+                            if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                                 if h.road_node_pos(f).is_some() && h.road_node_pos(t).is_some() {
                                     h.road_edges.push(crate::ship::home_structure::RoadEdge { from: f, to: t, class: cls, width: w });
                                     changed = true;
@@ -2332,11 +2468,9 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Edge list + remove. Re-read the count: a node removal above may have PRUNED edges this
             // same frame, so the captured `ne` is stale -- indexing it would panic. (v0.586 fix)
             let mut rm_edge: Option<usize> = None;
-            let ne_now = state.home_structure.as_ref().map_or(0, |h| h.road_edges.len());
+            let ne_now = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.road_edges.len());
             for i in 0..ne_now {
-                let Some((f, t, cls)) = state
-                    .home_structure
-                    .as_ref()
+                let Some((f, t, cls)) = zone_body(&state.ship_structure, state.construction_zone)
                     .and_then(|h| h.road_edges.get(i))
                     .map(|e| (e.from, e.to, e.class.clone()))
                 else {
@@ -2350,7 +2484,7 @@ fn draw_roads_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 });
             }
             if let Some(i) = rm_edge {
-                if let Some(h) = state.home_structure.as_mut() {
+                if let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                     if i < h.road_edges.len() {
                         h.road_edges.remove(i);
                     }
@@ -2372,8 +2506,8 @@ fn draw_road_node_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     };
     let mut changed = false;
     let mut deselect = false;
-    let edges = state.home_structure.as_ref().map_or(0, |h| h.road_edges.iter().filter(|e| e.from == id || e.to == id).count());
-    if let Some(hs) = state.home_structure.as_mut() {
+    let edges = zone_body(&state.ship_structure, state.construction_zone).map_or(0, |h| h.road_edges.iter().filter(|e| e.from == id || e.to == id).count());
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         if let Some(idx) = hs.road_nodes.iter().position(|n| n.id == id) {
             ui.label(RichText::new(format!("Road node N{id}")).strong().size(theme.font_size_body).color(theme.text_primary()));
             ui.label(RichText::new(format!("{edges} road segment(s) connect here")).size(theme.font_size_small).color(theme.text_muted()));
@@ -2409,7 +2543,7 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(i) => i.clone(),
         None => return,
     };
-    let z = state.home_structure.as_ref().and_then(|hs| hs.zones.iter().find(|z| z.id == id).cloned());
+    let z = zone_body(&state.ship_structure, state.construction_zone).and_then(|hs| hs.zones.iter().find(|z| z.id == id).cloned());
     let z = match z {
         Some(z) => z,
         None => {
@@ -2451,7 +2585,7 @@ fn draw_zone_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
     let mut new_sel: Option<Option<String>> = None;
-    if let Some(hs) = state.home_structure.as_mut() {
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         if ch {
             if let Some(zz) = hs.zones.iter_mut().find(|z| z.id == id) {
                 zz.origin = o;
@@ -2614,7 +2748,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if p.len() >= 2 { format!("{}_{}", p[p.len() - 2], p[p.len() - 1]) } else { s.to_string() }
     };
     let mut rows: Vec<Row> = Vec::new();
-    if let Some(hs) = state.home_structure.as_ref() {
+    if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
         for (i, w) in hs.walls.iter().enumerate() {
             rows.push(Row {
                 tag: "Wall",
@@ -2859,7 +2993,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(Act::NudgeMulti(dx, dz)) => group_nudge(state, dx, dz),
         Some(Act::Focus(p)) => state.construction_focus_request = Some(p),
         Some(Act::ToggleLight(i)) => {
-            if let Some(hs) = state.home_structure.as_mut() {
+            if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                 if let Some(l) = hs.lights.get_mut(i) {
                     l.on = !l.on;
                 }
@@ -2869,7 +3003,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         Some(Act::Remove(k)) => {
             match k {
                 Key::Wall(i) => {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         if i < hs.walls.len() {
                             hs.walls.remove(i);
                         }
@@ -2878,7 +3012,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.construction_structure_dirty = true;
                 }
                 Key::Structure(i) => {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         if i < hs.structures.len() {
                             hs.structures.remove(i);
                             for s in &mut hs.structures {
@@ -2892,7 +3026,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.construction_structure_dirty = true;
                 }
                 Key::Light(i) => {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         if i < hs.lights.len() {
                             hs.lights.remove(i);
                         }
@@ -2908,7 +3042,7 @@ fn draw_object_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     state.construction_machines_dirty = true;
                 }
                 Key::RoadNode(id) => {
-                    if let Some(hs) = state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
                         hs.remove_road_node(id); // prunes edges touching it
                     }
                     state.construction_road_node_selected = None;
@@ -2948,7 +3082,7 @@ fn group_delete(state: &mut GuiState) {
     }
     let mut struct_dirty = false;
     let mut mach_dirty = false;
-    if let Some(hs) = state.home_structure.as_mut() {
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         struct_idx.sort_unstable();
         struct_idx.dedup();
         for &i in struct_idx.iter().rev() {
@@ -2991,7 +3125,7 @@ fn group_nudge(state: &mut GuiState, dx: f32, dz: f32) {
     let keys: Vec<String> = state.construction_multi.iter().cloned().collect();
     let mut struct_dirty = false;
     let mut mach_dirty = false;
-    if let Some(hs) = state.home_structure.as_mut() {
+    if let Some(hs) = zone_body_mut(&mut state.ship_structure, state.construction_zone) {
         for k in &keys {
             let Some((tag, rest)) = k.split_once(':') else { continue };
             match tag {
@@ -3241,7 +3375,7 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Then the machine catalog's categories. One palette, two data sources. The Structure category is
     // gated to the new HomeStructure editor (placement needs a HomeStructure) so the legacy room-AABB
     // home never shows a placeable-looking ghost that can't drop. (v0.583)
-    let mut categories: Vec<(String, Vec<(String, String)>)> = if state.home_structure.is_some() {
+    let mut categories: Vec<(String, Vec<(String, String)>)> = if state.ship_structure.is_some() {
         crate::ship::structure::palette_categories()
     } else {
         Vec::new()
@@ -3552,7 +3686,7 @@ mod multi_select_tests {
     fn home_abc() -> MachineHome {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), box_def());
-        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         MachineHome {
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],

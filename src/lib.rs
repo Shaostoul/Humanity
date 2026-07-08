@@ -131,6 +131,7 @@ mod native_app {
     use crate::renderer::camera::{Camera, CameraController};
     use crate::renderer::mesh::Mesh;
     use crate::renderer::{RenderObject, Renderer};
+    use crate::ship::ship_structure::{zone_body, zone_body_mut, zone_origin, ShipStructure};
     use crate::systems::crafting::CraftingSystem;
     use crate::systems::farming::FarmingSystem;
     use crate::systems::food::FoodSystem;
@@ -852,13 +853,17 @@ mod native_app {
                 Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6)))
             }
         } else { None };
-        // v0.539: a HomeStructure with a glass roof renders the ceiling TRANSPARENT (you see the
-        // stars through the sealed clear roof); otherwise it is the opaque grey ceiling.
+        // v0.539: a glass roof renders the ceiling TRANSPARENT (you see the stars through the
+        // sealed clear roof); otherwise it is the opaque grey ceiling. v0.754 (multi-zone ships):
+        // roofs are PER ZONE -- `ShipStructure::generate_meshes` routes glass-roof zones' ceilings
+        // into `ceilings` (this transparent slot) and opaque-roof zones' into `ceilings_opaque`
+        // (its own slot below, show_roof-gated like the old single opaque roof). The fibonacci
+        // fallback still fills this slot with `roof_glass = false` (opaque), unchanged.
         let roof_glass = state
             .gui_state
-            .home_structure
+            .ship_structure
             .as_ref()
-            .map_or(false, |hs| hs.roof_is_glass());
+            .map_or(false, |s| s.any_glass_roof());
         state.homestead_ceiling_glass = roof_glass;
         let prior = state.homestead_ceiling;
         state.homestead_ceiling = if !homestead.ceilings.0.is_empty() {
@@ -880,6 +885,25 @@ mod native_app {
                 Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed(ocol, omet, orough, otype)))
             }
         } else { None };
+        // OPAQUE-roof zones' ceilings (v0.754): their own slot with the same opaque material the
+        // single opaque roof used ([0.60,0.62,0.68], rough 0.8, concrete type 2), rendered only
+        // when show_roof is on (see the render loop) -- per-zone glass/steel roofs both behave.
+        let prior = state.homestead_ceiling_opaque;
+        state.homestead_ceiling_opaque = if !homestead.ceilings_opaque.0.is_empty() {
+            let mesh = Mesh::from_vertices(
+                &state.renderer.device,
+                &homestead.ceilings_opaque.0,
+                &homestead.ceilings_opaque.1,
+            );
+            let (ocol, omet, orough, otype) = ([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, ocol, omet, orough, otype);
+                Some((mi, ma))
+            } else {
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_typed(ocol, omet, orough, otype)))
+            }
+        } else { None };
     }
 
     /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
@@ -889,7 +913,7 @@ mod native_app {
     /// selection (restoring a stale selection would yank the right panel).
     fn editor_snapshot(state: &EngineState) -> EditorSnapshot {
         EditorSnapshot {
-            structure: state.gui_state.home_structure.clone(),
+            structure: state.gui_state.ship_structure.clone(),
             machines: state.gui_state.home_machines.clone(),
         }
     }
@@ -898,8 +922,15 @@ mod native_app {
     /// than via the dirty flags means the restore never looks like a fresh edit to the history tick --
     /// so it can't spuriously checkpoint and there's no restore/edit frame race.
     fn editor_restore(state: &mut EngineState, snap: EditorSnapshot) {
-        state.gui_state.home_structure = snap.structure;
+        state.gui_state.ship_structure = snap.structure;
         state.gui_state.home_machines = snap.machines;
+        // An undo can remove zones; keep the active-zone index valid (v0.754).
+        let max_zone = state
+            .gui_state
+            .ship_structure
+            .as_ref()
+            .map_or(0, |s| s.zones.len().saturating_sub(1));
+        state.gui_state.construction_zone = state.gui_state.construction_zone.min(max_zone);
         rebuild_homestead(state);
         rebuild_machine_objects(state);
     }
@@ -958,7 +989,7 @@ mod native_app {
         let g = &mut state.gui_state;
         if let Some(i) = g.construction_structure_selected {
             let mut new_idx = None;
-            if let Some(hs) = g.home_structure.as_mut() {
+            if let Some(hs) = zone_body_mut(&mut g.ship_structure, g.construction_zone) {
                 if let Some(mut np) = hs.structures.get(i).cloned() {
                     np.pos.0 += 1.0;
                     np.pos.2 += 1.0;
@@ -975,7 +1006,7 @@ mod native_app {
         }
         if let Some(i) = g.construction_light_selected {
             let mut new_idx = None;
-            if let Some(hs) = g.home_structure.as_mut() {
+            if let Some(hs) = zone_body_mut(&mut g.ship_structure, g.construction_zone) {
                 if let Some(mut nl) = hs.lights.get(i).cloned() {
                     nl.pos.0 += 1.0;
                     nl.pos.2 += 1.0;
@@ -991,7 +1022,7 @@ mod native_app {
         }
         if let Some(i) = g.construction_wall_selected {
             let mut new_idx = None;
-            if let Some(hs) = g.home_structure.as_mut() {
+            if let Some(hs) = zone_body_mut(&mut g.ship_structure, g.construction_zone) {
                 if let Some(mut nw) = hs.walls.get(i).cloned() {
                     nw.a.0 += 1.0;
                     nw.a.1 += 1.0;
@@ -1050,33 +1081,38 @@ mod native_app {
         // Normalize every corner onto the corner grid (v0.574) so co-located corners are byte-identical
         // -- this self-heals any older home whose snapped corners had sub-tolerance residue (which read
         // as two overlapping orbs that dragged apart). Idempotent: an on-grid corner is unchanged.
-        if let Some(hs) = state.gui_state.home_structure.as_mut() {
-            for wall in hs.walls.iter_mut() {
-                wall.a = crate::ship::home_structure::quantize_corner(wall.a);
-                wall.b = crate::ship::home_structure::quantize_corner(wall.b);
+        // Runs across EVERY zone (v0.754): all zones render + collide, not just the edited one.
+        if let Some(ship) = state.gui_state.ship_structure.as_mut() {
+            for zone in ship.zones.iter_mut() {
+                for wall in zone.body.walls.iter_mut() {
+                    wall.a = crate::ship::home_structure::quantize_corner(wall.a);
+                    wall.b = crate::ship::home_structure::quantize_corner(wall.b);
+                }
             }
         }
         // Dev tool (v0.576): write a machine-readable snapshot of the live home so an AI can READ what
         // the operator is building (the act surface -- a text-command console -- is the next stage).
-        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+        // Still the ACTIVE ZONE's body (the zone being edited -- what the operator is building right
+        // now); a ship-level introspection surface is a follow-up.
+        if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             let json = hs.to_introspection_json();
             let _ = std::fs::create_dir_all("debug");
             let _ = std::fs::write("debug/home_snapshot.json", json);
         }
-        // v0.534: regenerate from the new HomeStructure (fixed box + interior walls) when present,
+        // v0.534/v0.754: regenerate the WHOLE SHIP (every zone, offset by its origin) when present,
         // else the legacy AABB-room layout.
-        let homestead = if let Some(hs) = &state.gui_state.home_structure {
-            hs.generate_meshes()
+        let homestead = if let Some(ship) = state.gui_state.ship_structure.as_ref() {
+            ship.generate_meshes()
         } else if let Some(layout) = state.homestead_layout.clone() {
             crate::ship::fibonacci::generate_from_layout(&layout)
         } else {
             return;
         };
         let room_info = homestead.room_info.clone();
-        // Rebuild the wall collision segments from the live home (v0.556) so editing a wall updates
-        // what the player walks into. Empty for the legacy AABB layout (no per-segment home walls).
-        state.wall_colliders = match &state.gui_state.home_structure {
-            Some(hs) => crate::ship::wall_collision::wall_segments(hs),
+        // Rebuild the wall collision segments from the live ship (v0.556; per-zone offsets v0.754)
+        // so editing a wall updates what the player walks into. Empty for the legacy AABB layout.
+        state.wall_colliders = match &state.gui_state.ship_structure {
+            Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
             None => Vec::new(),
         };
         apply_homestead_meshes(state, homestead);
@@ -1087,8 +1123,8 @@ mod native_app {
             let intensity = (room_size * 0.5).clamp(2.0, 15.0);
             crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, room_size * 1.5)
         }).collect();
-        // v0.571: a home's PLACED lights override the auto one-per-room synthesis (empty -> auto).
-        state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
+        // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
+        state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
         state.homestead_bounds = room_info.iter().fold(None, |acc, r| {
             let rmin = r.center - r.dimensions * 0.5;
             let rmax = r.center + r.dimensions * 0.5;
@@ -1169,14 +1205,11 @@ mod native_app {
         if rooms.is_empty() {
             return None;
         }
-        let (box_mode, box_dims) = match &state.gui_state.home_structure {
-            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
-            None => (false, (0.0, 0.0, 0.0)),
-        };
+        let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
         // Match by CATALOG TYPE ("drone_hangar"), not by id or label text, so a renamed label or a
         // re-numbered instance id still resolves correctly.
         let hangar_id = home.all_instances().into_iter().find(|i| i.machine == "drone_hangar")?.id;
-        home.placements(&rooms, box_mode, box_dims)
+        home.placements(&rooms, zone_rects.as_deref())
             .into_iter()
             .find(|p| p.id == hangar_id)
             .map(|p| (Vec3::new(p.pos.0, p.pos.1, p.pos.2), p.rotation))
@@ -1283,14 +1316,12 @@ mod native_app {
         if rooms.is_empty() {
             return;
         }
-        // v0.538: a HomeStructure home positions machines by ABSOLUTE world coords (box mode), not
-        // room-center-relative -- so they survive flood-fill room-id churn.
-        let (box_mode, box_dims) = match &state.gui_state.home_structure {
-            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
-            None => (false, (0.0, 0.0, 0.0)),
-        };
+        // v0.538: a box home positions machines by ABSOLUTE world coords (not room-center-relative)
+        // so they survive flood-fill room-id churn. v0.754: clamped per machine into ITS ship
+        // zone's footprint at that zone's origin.
+        let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
         let placements = match &state.gui_state.home_machines {
-            Some(h) => h.placements(&rooms, box_mode, box_dims),
+            Some(h) => h.placements(&rooms, zone_rects.as_deref()),
             None => return,
         };
         // Port pick volumes (v0.625): every machine's derived ports -> a grab-able world gizmo, so the
@@ -1457,14 +1488,19 @@ mod native_app {
         if rooms.is_empty() {
             return;
         }
-        // v0.538: box-mode absolute positioning when a HomeStructure home is active (mirrors
-        // rebuild_machine_objects so the conduit anchors match the machine meshes).
-        let (box_mode, box_dims) = match &state.gui_state.home_structure {
-            Some(hs) => (true, (hs.width, hs.depth, hs.height)),
-            None => (false, (0.0, 0.0, 0.0)),
+        // v0.538: box-mode absolute positioning when a ship home is active (mirrors
+        // rebuild_machine_objects so the conduit anchors match the machine meshes). v0.754:
+        // per-zone footprints; conduit NODES clamp into the whole ship's AABB (they carry no zone).
+        let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
+        let node_bounds = match state.gui_state.ship_structure.as_ref() {
+            Some(ship) => {
+                let (mn, mx) = ship.world_bounds();
+                ((mn.x, mn.y, mn.z), (mx.x, mx.y, mx.z))
+            }
+            None => ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
         };
         let (placements, connections) = match &state.gui_state.home_machines {
-            Some(h) => (h.placements(&rooms, box_mode, box_dims), h.connections.clone()),
+            Some(h) => (h.placements(&rooms, zone_rects.as_deref()), h.connections.clone()),
             None => return,
         };
         // Low pipe-height anchor per machine id (the fixture port the conduit drops to).
@@ -1509,8 +1545,8 @@ mod native_app {
             if let Some(home) = state.gui_state.home_machines.as_ref() {
                 for e in &home.conduit_edges {
                     if let (Some(a), Some(b)) = (
-                        home.conduit_anchor(&e.from, &placement_tuples, box_dims),
-                        home.conduit_anchor(&e.to, &placement_tuples, box_dims),
+                        home.conduit_anchor(&e.from, &placement_tuples, node_bounds),
+                        home.conduit_anchor(&e.to, &placement_tuples, node_bounds),
                     ) {
                         routes.push((Vec3::new(a.0, a.1, a.2), Vec3::new(b.0, b.1, b.2), e.kind.clone(), end_id(&e.from), end_id(&e.to)));
                     }
@@ -1547,9 +1583,25 @@ mod native_app {
         // Home geometry for routing (v0.536): run conduits UP to a service height near the ceiling
         // and ACROSS in Manhattan legs (never a straight diagonal through the room -- the operator's
         // "the straight lines that pass through everything is wrong"), placing material-aware
-        // passthroughs where a run crosses an interior wall.
-        let (home_h, shell_mat, walls) = match &state.gui_state.home_structure {
-            Some(hs) => (hs.height, hs.shell_material, hs.walls.clone()),
+        // passthroughs where a run crosses an interior wall. v0.754 (multi-zone): the service
+        // height + shell material come from the HOME zone (one shared service level -- honest for
+        // the single-deck v1; per-zone service heights land with corridors, increment B), and the
+        // wall-passthrough list is EVERY zone's walls shifted to WORLD coords so a run through any
+        // zone gaskets where it crosses that zone's walls.
+        let (home_h, shell_mat, walls) = match &state.gui_state.ship_structure {
+            Some(ship) => {
+                let home = &ship.zones[ship.home_zone_index()];
+                let mut walls: Vec<crate::ship::home_structure::InteriorWall> = Vec::new();
+                for z in &ship.zones {
+                    let (ox, oz) = (z.origin.0, z.origin.2);
+                    walls.extend(z.body.walls.iter().cloned().map(|mut w| {
+                        w.a = (w.a.0 + ox, w.a.1 + oz);
+                        w.b = (w.b.0 + ox, w.b.1 + oz);
+                        w
+                    }));
+                }
+                (home.body.height, home.body.shell_material, walls)
+            }
             None => (3.0, 1, Vec::new()),
         };
         let service_y = (home_h - 0.3).max(0.6);
@@ -1661,8 +1713,9 @@ mod native_app {
     /// a structure rebuild + on load. Preserves the per-panel open fraction when the panel COUNT is
     /// unchanged (so editing a far wall does not slam every door shut); otherwise resets to closed.
     fn rebuild_door_panels(state: &mut EngineState) {
-        let placements = match &state.gui_state.home_structure {
-            Some(hs) => crate::ship::door_panels::panel_placements(hs),
+        // v0.754: every zone's doors, at world positions (per-zone origin offsets).
+        let placements = match &state.gui_state.ship_structure {
+            Some(ship) => crate::ship::door_panels::ship_panel_placements(ship),
             None => Vec::new(),
         };
         if placements.len() == state.door_panels.len() {
@@ -1710,28 +1763,31 @@ mod native_app {
     /// room lighting; the directional SUN, gated separately by GI, still provides the even base when GI
     /// is on). With NO placed lights the old behaviour is unchanged (auto fill when GI on, dark when off).
     fn home_lights(
-        home: Option<&crate::ship::home_structure::HomeStructure>,
+        ship: Option<&ShipStructure>,
         auto: Vec<crate::renderer::light::RoomLight>,
         gi_on: bool,
     ) -> Vec<crate::renderer::light::RoomLight> {
         use crate::renderer::light::{LightKind, RoomLight};
-        let placed: Vec<RoomLight> = home
-            .map(|h| {
-                h.lights
+        // v0.754: EVERY zone's placed lights, each offset by its zone's world origin.
+        let placed: Vec<RoomLight> = ship
+            .map(|s| {
+                s.zones
                     .iter()
-                    .filter(|l| l.on)
-                    .filter_map(|l| {
-                        let t = crate::renderer::light::light_type(&l.type_id)?;
-                        let c = l.color.unwrap_or(t.color);
-                        let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2);
-                        let color = [c.0, c.1, c.2];
-                        let intensity = l.intensity.unwrap_or(t.intensity);
-                        let range = l.range.unwrap_or(t.range);
-                        Some(if t.kind == LightKind::Spot {
-                            let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
-                            RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)
-                        } else {
-                            RoomLight::point(pos, color, intensity, range)
+                    .flat_map(|z| {
+                        let o = z.origin_vec();
+                        z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
+                            let t = crate::renderer::light::light_type(&l.type_id)?;
+                            let c = l.color.unwrap_or(t.color);
+                            let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
+                            let color = [c.0, c.1, c.2];
+                            let intensity = l.intensity.unwrap_or(t.intensity);
+                            let range = l.range.unwrap_or(t.range);
+                            Some(if t.kind == LightKind::Spot {
+                                let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
+                                RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)
+                            } else {
+                                RoomLight::point(pos, color, intensity, range)
+                            })
                         })
                     })
                     .collect()
@@ -2210,6 +2266,24 @@ mod native_app {
         best.map(|(i, _, hx, hz)| (i, hx, hz))
     }
 
+    /// The construction editor's ACTIVE zone world origin (v0.754, ship-superstructure increment A):
+    /// gizmos add it to zone-local body coords; ray hits subtract it before writing body coords.
+    /// ZERO with no ship, so the legacy single-home math (world == box-local) is unchanged.
+    fn active_zone_origin(state: &EngineState) -> Vec3 {
+        zone_origin(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+    }
+
+    /// The active zone's id, for tagging newly placed machines (v0.754). "home" without a ship.
+    fn active_zone_id(state: &EngineState) -> String {
+        state
+            .gui_state
+            .ship_structure
+            .as_ref()
+            .and_then(|s| s.zones.get(state.gui_state.construction_zone))
+            .map(|z| z.id.clone())
+            .unwrap_or_else(|| "home".to_string())
+    }
+
     /// Drop the currently-held palette machine where the cursor hits a room floor. Keeps the item
     /// held so you can place several; right-click or re-click the palette item to stop. Appears live
     /// via construction_machines_dirty. (v0.529; v0.538: box mode stores ABSOLUTE coords)
@@ -2222,10 +2296,12 @@ mod native_app {
         };
         let rb = &state.gui_state.room_bounds[rb_i];
         let room_id = rb.id.clone();
-        // v0.538: in a HomeStructure box home, store the ABSOLUTE world floor-hit (world == box-local,
-        // box min corner at origin), so the machine survives flood-fill room-id churn. The legacy
-        // ship layout keeps the room-center-relative offset.
-        let box_mode = state.gui_state.home_structure.is_some();
+        // v0.538: in a box home, store the ABSOLUTE world floor-hit so the machine survives
+        // flood-fill room-id churn. The legacy ship layout keeps the room-center-relative offset.
+        // v0.754: the machine is tagged with the ACTIVE zone (the zone selector's choice) and
+        // placement clamps it into that zone's footprint -- so tools operate on the selected zone.
+        let box_mode = state.gui_state.ship_structure.is_some();
+        let zone = active_zone_id(state);
         let offset = if box_mode {
             (hx, 0.0, hz)
         } else {
@@ -2242,6 +2318,7 @@ mod native_app {
                     room: room_id,
                     offset,
                     rotation: 0.0,
+                    zone,
                 });
                 state.gui_state.construction_machines_dirty = true;
             }
@@ -2249,8 +2326,9 @@ mod native_app {
     }
 
     /// Drop the currently-held STRUCTURAL piece (stairs/ladder/elevator/...) where the cursor hits a
-    /// room floor (v0.583). Stores an ABSOLUTE home-local pose (box min at origin) at the floor height,
-    /// with the current placement yaw. Stays held so you can place several; right-click cancels.
+    /// room floor (v0.583). Stores a ZONE-LOCAL pose (the active zone's box min at its origin) at the
+    /// floor height, with the current placement yaw. Stays held so you can place several;
+    /// right-click cancels.
     fn try_place_structure(state: &mut EngineState) {
         let Some(tid) = state.gui_state.construction_structure_type.clone() else {
             return;
@@ -2261,12 +2339,13 @@ mod native_app {
         let Some((rb_i, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
+        let zo = active_zone_origin(state); // world floor hit -> active-zone-local body coords (v0.754)
         let floor_y = state.gui_state.room_bounds[rb_i].min.y;
         let place_y = floor_y + state.gui_state.construction_structure_place_y.max(0.0);
-        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+        if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
             hs.structures.push(crate::ship::home_structure::PlacedStructure {
                 type_id: tid,
-                pos: (hx, place_y, hz),
+                pos: (hx - zo.x, place_y - zo.y, hz - zo.z),
                 rot_deg: state.gui_state.construction_structure_yaw,
                 pair: None,
             });
@@ -2277,17 +2356,19 @@ mod native_app {
     /// Drop a corner node while drawing an interior wall (v0.534). The first click sets the wall's
     /// start corner; the second click adds a wall segment from the start to here and CHAINS (the new
     /// corner becomes the next start), so you can walk a whole floor plan with successive clicks. The
-    /// point comes from the floor raycast, snapped to 0.25 m. (World x/z equals box-local x/z because
-    /// the box min corner sits at the world origin.)
+    /// point comes from the floor raycast, snapped to 0.25 m, converted into the ACTIVE zone's local
+    /// coords (v0.754: world x/z equals box-local x/z only for a zone at the world origin).
     fn try_place_wall_node(state: &mut EngineState) {
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
+        let zo = active_zone_origin(state);
+        let (hx, hz) = (hx - zo.x, hz - zo.z); // active-zone-local (v0.754)
         // v0.541: snap a drawn corner to an existing corner / the box edge / the grid (same rules as
         // dragging), so successive walls share corners + reach the perimeter for an airtight seal.
         // (NaN "grabbed" sentinel skips nothing, so a new corner CAN snap onto an existing one.)
         let grid = state.gui_state.construction_grid_snap;
-        let p = match state.gui_state.home_structure.as_ref() {
+        let p = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => snap_node_position(hs, (f32::NAN, f32::NAN), (hx, hz), grid),
             None => ((hx * 4.0).round() / 4.0, (hz * 4.0).round() / 4.0),
         };
@@ -2296,7 +2377,7 @@ mod native_app {
             Some(start) => {
                 // Ignore a zero-length segment (a double-click on the same spot).
                 if (start.0 - p.0).abs() > 0.05 || (start.1 - p.1).abs() > 0.05 {
-                    if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                    if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                         let height = hs.height;
                         let material = hs.shell_material;
                         hs.walls.push(crate::ship::home_structure::InteriorWall {
@@ -2414,7 +2495,7 @@ mod native_app {
         {
             return HoverGizmo::None;
         }
-        let Some(hs) = state.gui_state.home_structure.as_ref() else {
+        let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) else {
             return HoverGizmo::None;
         };
         let sz = state.window.inner_size();
@@ -2427,17 +2508,18 @@ mod native_app {
             }
             if (p - (origin + dir * t)).length() < pick_r { Some(t) } else { None }
         };
+        let zo = active_zone_origin(state); // gizmos live at zone-local + origin (v0.754)
         let mut best_t = f32::INFINITY;
         let mut best = HoverGizmo::None;
         for c in unique_corners(hs) {
-            if let Some(t) = test(Vec3::new(c.0, -0.05, c.1), 0.45) {
+            if let Some(t) = test(Vec3::new(c.0 + zo.x, zo.y - 0.05, c.1 + zo.z), 0.45) {
                 if t < best_t {
                     best_t = t;
                     best = HoverGizmo::Corner(c.0, c.1);
                 }
             }
         }
-        for (idx, p) in opening_gizmos(hs) {
+        for (idx, p) in opening_gizmos(hs, zo) {
             if let Some(t) = test(p, 0.4) {
                 if t < best_t {
                     best_t = t;
@@ -2446,7 +2528,7 @@ mod native_app {
             }
         }
         if let Some((cx, cz)) = state.gui_state.build_char_pos {
-            if let Some(t) = test(Vec3::new(cx, 0.7, cz), 0.7) {
+            if let Some(t) = test(Vec3::new(cx + zo.x, zo.y + 0.7, cz + zo.z), 0.7) {
                 if t < best_t {
                     best = HoverGizmo::Char;
                 }
@@ -2460,10 +2542,11 @@ mod native_app {
     fn try_grab_node(state: &mut EngineState) -> bool {
         // Compute the gizmo set as owned values so the home_structure borrow ends before the
         // mutable grab assignment below.
-        let (top_y, corners) = match state.gui_state.home_structure.as_ref() {
+        let (top_y, corners) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => (-0.05, unique_corners(hs)), // orb centre (top-at-floor); matches the render (v0.568)
             None => return false,
         };
+        let zo = active_zone_origin(state); // corners are zone-local; the orb renders at +origin (v0.754)
         let sz = state.window.inner_size();
         // pick_ray already returns a unit dir (or zero for a degenerate ray); re-normalizing a zero
         // vector would be NaN, so use it as-is. (v0.542)
@@ -2471,7 +2554,7 @@ mod native_app {
             state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
         let mut best: Option<((f32, f32), f32)> = None;
         for c in &corners {
-            let p = Vec3::new(c.0, top_y, c.1);
+            let p = Vec3::new(c.0 + zo.x, zo.y + top_y, c.1 + zo.z);
             let t = (p - origin).dot(dir);
             if t < 0.0 {
                 continue; // behind the camera
@@ -2680,20 +2763,21 @@ mod native_app {
     /// drag. Runs LAST in the pick chain (before the room grab) so a zone -- a big background volume --
     /// never steals a click from a machine / wall / node in front of it. Returns true on a hit.
     fn try_pick_zone(state: &mut EngineState) -> bool {
-        let zones: Vec<(String, (f32, f32, f32), (f32, f32, f32))> = match state.gui_state.home_structure.as_ref() {
+        let zones: Vec<(String, (f32, f32, f32), (f32, f32, f32))> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => hs.zones.iter().map(|z| (z.id.clone(), z.origin, z.size)).collect(),
             None => return false,
         };
         if zones.is_empty() {
             return false;
         }
+        let zo = active_zone_origin(state); // intra-zone volumes are zone-local (v0.754)
         let sz = state.window.inner_size();
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
         let inv = Vec3::new(1.0 / dir.x, 1.0 / dir.y, 1.0 / dir.z); // 0 component -> inf, slab-safe
         let mut best: Option<(String, f32)> = None;
         for (id, o, s) in &zones {
-            let mn = Vec3::new(o.0, o.1, o.2);
-            let mx = Vec3::new(o.0 + s.0, o.1 + s.1, o.2 + s.2);
+            let mn = Vec3::new(o.0, o.1, o.2) + zo;
+            let mx = Vec3::new(o.0 + s.0, o.1 + s.1, o.2 + s.2) + zo;
             let t1 = (mn - origin) * inv;
             let t2 = (mx - origin) * inv;
             let entry = t1.min(t2).max_element();
@@ -2729,12 +2813,13 @@ mod native_app {
     /// Each interior wall is a vertical slab; we intersect the ray with its centre plane and check the
     /// hit lies within the wall's length + height. Returns true (so the click doesn't also grab a room).
     fn try_pick_wall(state: &mut EngineState) -> bool {
-        let walls: Vec<(usize, Vec3, Vec3, f32)> = match state.gui_state.home_structure.as_ref() {
+        let zo = active_zone_origin(state); // wall coords are zone-local; test in world (v0.754)
+        let walls: Vec<(usize, Vec3, Vec3, f32)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => hs
                 .walls
                 .iter()
                 .enumerate()
-                .map(|(i, w)| (i, Vec3::new(w.a.0, 0.0, w.a.1), Vec3::new(w.b.0, 0.0, w.b.1), w.height))
+                .map(|(i, w)| (i, Vec3::new(w.a.0, 0.0, w.a.1) + zo, Vec3::new(w.b.0, 0.0, w.b.1) + zo, w.height))
                 .collect(),
             None => return false,
         };
@@ -2760,7 +2845,8 @@ mod native_app {
             }
             let hit = origin + dir * t;
             let s = (hit - *a).dot(along_n); // distance along the wall from a
-            if s >= -0.1 && s <= len + 0.1 && hit.y >= -0.1 && hit.y <= *h + 0.1 {
+            // Height window relative to the zone's deck (a.y == the zone origin y, v0.754).
+            if s >= -0.1 && s <= len + 0.1 && hit.y >= a.y - 0.1 && hit.y <= a.y + *h + 0.1 {
                 if best.map_or(true, |(_, bt)| t < bt) {
                     best = Some((*i, t));
                 }
@@ -2780,12 +2866,13 @@ mod native_app {
     /// light (its detail shows on the right panel, like a wall). Returns true so the click doesn't also
     /// pick a wall / grab a room.
     fn try_pick_light(state: &mut EngineState) -> bool {
-        let lights: Vec<(usize, Vec3)> = match state.gui_state.home_structure.as_ref() {
+        let zo = active_zone_origin(state); // lights are zone-local; test in world (v0.754)
+        let lights: Vec<(usize, Vec3)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => hs
                 .lights
                 .iter()
                 .enumerate()
-                .map(|(i, l)| (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2)))
+                .map(|(i, l)| (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo))
                 .collect(),
             None => return false,
         };
@@ -2858,7 +2945,8 @@ mod native_app {
     /// it. Returns true so the click doesn't also pick a wall / grab a room.
     fn try_pick_structure(state: &mut EngineState) -> bool {
         use crate::ship::structure::{rotated_half_extents, structure_type, StructureKind};
-        let pieces: Vec<(usize, Vec3, Vec3)> = match state.gui_state.home_structure.as_ref() {
+        let zo = active_zone_origin(state); // pieces are zone-local; test in world (v0.754)
+        let pieces: Vec<(usize, Vec3, Vec3)> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => hs
                 .structures
                 .iter()
@@ -2869,8 +2957,8 @@ mod native_app {
                         return None;
                     }
                     let (hw, h, hd) = rotated_half_extents(ty, ps.rot_deg.to_radians());
-                    let min = Vec3::new(ps.pos.0 - hw, ps.pos.1, ps.pos.2 - hd);
-                    let max = Vec3::new(ps.pos.0 + hw, ps.pos.1 + h, ps.pos.2 + hd);
+                    let min = Vec3::new(ps.pos.0 - hw, ps.pos.1, ps.pos.2 - hd) + zo;
+                    let max = Vec3::new(ps.pos.0 + hw, ps.pos.1 + h, ps.pos.2 + hd) + zo;
                     Some((i, min, max))
                 })
                 .collect(),
@@ -2912,12 +3000,13 @@ mod native_app {
             Road(u32),
             Conduit(String),
         }
+        let zo = active_zone_origin(state); // road nodes are zone-local; conduit nodes world (v0.754)
         let sz = state.window.inner_size();
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
         let mut best: Option<(f32, Sel)> = None;
-        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+        if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             for n in &hs.road_nodes {
-                let p = Vec3::new(n.pos.0, 0.06, n.pos.1);
+                let p = Vec3::new(n.pos.0 + zo.x, zo.y + 0.06, n.pos.1 + zo.z);
                 let t = (p - origin).dot(dir);
                 if t < 0.0 {
                     continue;
@@ -2969,9 +3058,10 @@ mod native_app {
         let Some((cx, cz)) = state.gui_state.build_char_pos else {
             return false;
         };
+        let zo = active_zone_origin(state); // the avatar stands in the ACTIVE zone (v0.754)
         let sz = state.window.inner_size();
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-        let c = Vec3::new(cx, 0.7, cz); // mid-body
+        let c = Vec3::new(cx + zo.x, zo.y + 0.7, cz + zo.z); // mid-body
         let t = (c - origin).dot(dir);
         if t < 0.0 {
             return false;
@@ -2984,13 +3074,13 @@ mod native_app {
         }
     }
 
-    /// Per-frame while the avatar is grabbed: move it to the cursor's floor hit, clamped into the box.
+    /// Per-frame while the avatar is grabbed: move it to the cursor's floor hit, converted into the
+    /// ACTIVE zone's local coords (v0.754) and clamped into that zone's box.
     fn apply_char_drag(state: &mut EngineState) {
         if let Some((_, hx, hz)) = cursor_floor_hit(state) {
-            let (bw, bd) = state
-                .gui_state
-                .home_structure
-                .as_ref()
+            let zo = active_zone_origin(state);
+            let (hx, hz) = (hx - zo.x, hz - zo.z);
+            let (bw, bd) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                 .map_or((1e6, 1e6), |hs| (hs.width, hs.depth));
             state.gui_state.build_char_pos = Some((hx.clamp(0.3, bw - 0.3), hz.clamp(0.3, bd - 0.3)));
         }
@@ -3017,15 +3107,18 @@ mod native_app {
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
+        // World floor hit -> the ACTIVE zone's local coords (the grabbed corner is local). (v0.754)
+        let zo = active_zone_origin(state);
+        let (hx, hz) = (hx - zo.x, hz - zo.z);
         let grid = state.gui_state.construction_grid_snap;
-        let snapped = match state.gui_state.home_structure.as_ref() {
+        let snapped = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             Some(hs) => snap_node_position(hs, grabbed, (hx, hz), grid),
             None => return,
         };
         if (snapped.0 - grabbed.0).abs() < 1e-4 && (snapped.1 - grabbed.1).abs() < 1e-4 {
             return; // no movement this frame
         }
-        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+        if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
             for wall in hs.walls.iter_mut() {
                 if (wall.a.0 - grabbed.0).abs() < 0.05 && (wall.a.1 - grabbed.1).abs() < 0.05 {
                     wall.a = snapped;
@@ -3042,23 +3135,26 @@ mod native_app {
     /// Per-frame while an OBJECT (light / machine / structure) is grabbed (v0.593): move it to the
     /// cursor's floor hit, keeping its Y (height) -- the operator's "maintain their vertical height
     /// while dragging." Tap-vs-drag like the wall corners, and honours the 0.25 m grid-snap toggle.
-    /// Collect the floor (x,z) of every placed object EXCEPT the one being dragged, for alignment
-    /// snapping (v0.613). Walls contribute both corners.
+    /// Collect the WORLD floor (x,z) of every placed object EXCEPT the one being dragged, for
+    /// alignment snapping (v0.613). Walls contribute both corners. World space (v0.754): the
+    /// active zone's local objects shift by its origin, so they align with the world-coordinate
+    /// machines/conduit nodes in one shared space.
     fn gather_other_positions(state: &EngineState, grab: &ObjectGrab) -> Vec<(f32, f32)> {
         let mut out = Vec::new();
-        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+        let zo = active_zone_origin(state);
+        if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             for (i, l) in hs.lights.iter().enumerate() {
-                if !matches!(grab, ObjectGrab::Light(g) if *g == i) { out.push((l.pos.0, l.pos.2)); }
+                if !matches!(grab, ObjectGrab::Light(g) if *g == i) { out.push((l.pos.0 + zo.x, l.pos.2 + zo.z)); }
             }
             for (i, s) in hs.structures.iter().enumerate() {
-                if !matches!(grab, ObjectGrab::Structure(g) if *g == i) { out.push((s.pos.0, s.pos.2)); }
+                if !matches!(grab, ObjectGrab::Structure(g) if *g == i) { out.push((s.pos.0 + zo.x, s.pos.2 + zo.z)); }
             }
             for n in &hs.road_nodes {
-                if !matches!(grab, ObjectGrab::RoadNode(g) if *g == n.id) { out.push((n.pos.0, n.pos.1)); }
+                if !matches!(grab, ObjectGrab::RoadNode(g) if *g == n.id) { out.push((n.pos.0 + zo.x, n.pos.1 + zo.z)); }
             }
             for w in &hs.walls {
-                out.push((w.a.0, w.a.1));
-                out.push((w.b.0, w.b.1));
+                out.push((w.a.0 + zo.x, w.a.1 + zo.z));
+                out.push((w.b.0 + zo.x, w.b.1 + zo.z));
             }
         }
         if let Some(h) = state.gui_state.home_machines.as_ref() {
@@ -3145,21 +3241,25 @@ mod native_app {
         nz = az;
         state.construction_snap_x = gx;
         state.construction_snap_z = gz;
+        // Snapping ran in WORLD space (machines + conduit nodes are world); zone-local objects
+        // (lights, structures, road nodes, intra-zone volumes) subtract the active zone origin
+        // before storing body coords. (v0.754)
+        let zo = active_zone_origin(state);
         match grab {
             ObjectGrab::Light(i) => {
-                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                     if let Some(l) = hs.lights.get_mut(i) {
-                        l.pos.0 = nx;
-                        l.pos.2 = nz; // l.pos.1 (height) preserved
+                        l.pos.0 = nx - zo.x;
+                        l.pos.2 = nz - zo.z; // l.pos.1 (height) preserved
                     }
                 }
                 state.gui_state.construction_structure_dirty = true;
             }
             ObjectGrab::Structure(i) => {
-                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                     if let Some(ps) = hs.structures.get_mut(i) {
-                        ps.pos.0 = nx;
-                        ps.pos.2 = nz; // ps.pos.1 (height) preserved
+                        ps.pos.0 = nx - zo.x;
+                        ps.pos.2 = nz - zo.z; // ps.pos.1 (height) preserved
                     }
                 }
                 state.gui_state.construction_structure_dirty = true;
@@ -3182,10 +3282,10 @@ mod native_app {
                 state.gui_state.construction_machines_dirty = true;
             }
             ObjectGrab::RoadNode(id) => {
-                // Road nodes live in the XZ plane (v0.599): drag moves both.
-                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                // Road nodes live in the XZ plane (v0.599): drag moves both. Zone-local (v0.754).
+                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                     if let Some(n) = hs.road_nodes.iter_mut().find(|n| n.id == id) {
-                        n.pos = (nx, nz);
+                        n.pos = (nx - zo.x, nz - zo.z);
                     }
                 }
                 state.gui_state.construction_structure_dirty = true;
@@ -3200,12 +3300,13 @@ mod native_app {
                 state.gui_state.construction_machines_dirty = true;
             }
             ObjectGrab::Zone(id) => {
-                // Drag a zone on the floor so its CENTRE follows the cursor (keeps y + size). Zones
-                // render live from home_structure.zones, so no rebuild flag is needed. (v0.634)
-                if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                // Drag an intra-zone volume on the floor so its CENTRE follows the cursor (keeps
+                // y + size); zone-local coords (v0.754). Volumes render live from the body's
+                // zones list, so no rebuild flag is needed. (v0.634)
+                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                     if let Some(z) = hs.zones.iter_mut().find(|z| z.id == id) {
-                        z.origin.0 = nx - z.size.0 * 0.5;
-                        z.origin.2 = nz - z.size.2 * 0.5;
+                        z.origin.0 = (nx - zo.x) - z.size.0 * 0.5;
+                        z.origin.2 = (nz - zo.z) - z.size.2 * 0.5;
                     }
                 }
             }
@@ -3213,8 +3314,8 @@ mod native_app {
     }
 
     /// World positions of every door/window opening gizmo: ((wall index, opening index), centre).
-    /// (v0.546)
-    fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure) -> Vec<((usize, usize), Vec3)> {
+    /// `zo` is the owning zone's world origin (body coords are zone-local, v0.754). (v0.546)
+    fn opening_gizmos(hs: &crate::ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize), Vec3)> {
         let mut out = Vec::new();
         for (wi, wall) in hs.walls.iter().enumerate() {
             let (ax, az) = wall.a;
@@ -3227,7 +3328,7 @@ mod native_app {
             for (oi, op) in wall.openings.iter().enumerate() {
                 let s = (op.at + op.width * 0.5).clamp(0.0, len);
                 let cy = op.sill + op.height * 0.5;
-                out.push(((wi, oi), Vec3::new(ax + ux * s, cy, az + uz * s)));
+                out.push(((wi, oi), Vec3::new(ax + ux * s, cy, az + uz * s) + zo));
             }
         }
         out
@@ -3236,8 +3337,9 @@ mod native_app {
     /// On a build-mode click, try to grab the nearest door/window opening gizmo (ray vs the cube).
     /// Returns true if one was grabbed. (v0.546)
     fn try_grab_opening(state: &mut EngineState) -> bool {
-        let gizmos = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => opening_gizmos(hs),
+        let zo = active_zone_origin(state);
+        let gizmos = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
+            Some(hs) => opening_gizmos(hs, zo),
             None => return false,
         };
         if gizmos.is_empty() {
@@ -3282,8 +3384,11 @@ mod native_app {
         let Some((_, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
+        // World floor hit -> the active zone's local coords (wall data is zone-local). (v0.754)
+        let zo = active_zone_origin(state);
+        let (hx, hz) = (hx - zo.x, hz - zo.z);
         let grid = state.gui_state.construction_grid_snap;
-        if let Some(hs) = state.gui_state.home_structure.as_mut() {
+        if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
             let Some(wall) = hs.walls.get_mut(wi) else {
                 return;
             };
@@ -3308,8 +3413,9 @@ mod native_app {
 
     /// World positions of every opening RESIZE handle (v0.578): 4 per opening at the aperture edges --
     /// left/right (mid-height) resize width, top/bottom (mid-width) resize height. Returns
-    /// ((wall, opening, edge), pos) with edge 0=left 1=right 2=top 3=bottom.
-    fn opening_resize_handles(hs: &crate::ship::home_structure::HomeStructure) -> Vec<((usize, usize, u8), Vec3)> {
+    /// ((wall, opening, edge), pos) with edge 0=left 1=right 2=top 3=bottom. `zo` is the owning
+    /// zone's world origin (v0.754).
+    fn opening_resize_handles(hs: &crate::ship::home_structure::HomeStructure, zo: Vec3) -> Vec<((usize, usize, u8), Vec3)> {
         let mut out = Vec::new();
         for (wi, wall) in hs.walls.iter().enumerate() {
             let (ax, az) = wall.a;
@@ -3324,10 +3430,10 @@ mod native_app {
                 let s_r = (op.at + op.width).clamp(0.0, len);
                 let s_c = (op.at + op.width * 0.5).clamp(0.0, len);
                 let cy_c = op.sill + op.height * 0.5;
-                out.push(((wi, oi, 0), Vec3::new(ax + ux * s_l, cy_c, az + uz * s_l)));
-                out.push(((wi, oi, 1), Vec3::new(ax + ux * s_r, cy_c, az + uz * s_r)));
-                out.push(((wi, oi, 2), Vec3::new(ax + ux * s_c, op.sill + op.height, az + uz * s_c)));
-                out.push(((wi, oi, 3), Vec3::new(ax + ux * s_c, op.sill, az + uz * s_c)));
+                out.push(((wi, oi, 0), Vec3::new(ax + ux * s_l, cy_c, az + uz * s_l) + zo));
+                out.push(((wi, oi, 1), Vec3::new(ax + ux * s_r, cy_c, az + uz * s_r) + zo));
+                out.push(((wi, oi, 2), Vec3::new(ax + ux * s_c, op.sill + op.height, az + uz * s_c) + zo));
+                out.push(((wi, oi, 3), Vec3::new(ax + ux * s_c, op.sill, az + uz * s_c) + zo));
             }
         }
         out
@@ -3336,8 +3442,9 @@ mod native_app {
     /// On a build-mode click, try to grab an opening RESIZE handle under the cursor (v0.578). Returns
     /// true (so the click doesn't also grab the move-cube or a wall).
     fn try_grab_opening_resize(state: &mut EngineState) -> bool {
-        let handles = match state.gui_state.home_structure.as_ref() {
-            Some(hs) => opening_resize_handles(hs),
+        let zo = active_zone_origin(state);
+        let handles = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
+            Some(hs) => opening_resize_handles(hs, zo),
             None => return false,
         };
         if handles.is_empty() {
@@ -3373,7 +3480,7 @@ mod native_app {
             return;
         };
         // Copy the wall axis to locals so the cursor calls below don't conflict with the home borrow.
-        let (ax, az, ux, uz, len, wall_h) = match state.gui_state.home_structure.as_ref().and_then(|hs| hs.walls.get(wi)) {
+        let (ax, az, ux, uz, len, wall_h) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).and_then(|hs| hs.walls.get(wi)) {
             Some(wall) => {
                 let (ax, az) = wall.a;
                 let (dx, dz) = (wall.b.0 - ax, wall.b.1 - az);
@@ -3385,11 +3492,13 @@ mod native_app {
             }
             None => return,
         };
+        let zo = active_zone_origin(state); // wall data is zone-local; the cursor/ray are world (v0.754)
         let grid = state.gui_state.construction_grid_snap;
         let val = if edge <= 1 {
             let Some((_, hx, hz)) = cursor_floor_hit(state) else {
                 return;
             };
+            let (hx, hz) = (hx - zo.x, hz - zo.z);
             let mut along = ((hx - ax) * ux + (hz - az) * uz).clamp(0.0, len);
             if grid {
                 along = (along * 4.0).round() / 4.0;
@@ -3403,20 +3512,18 @@ mod native_app {
             if denom.abs() < 1e-6 {
                 return;
             }
-            let t = (Vec3::new(ax, 0.0, az) - origin).dot(normal) / denom;
+            // The wall plane passes through its zone-local `a` shifted to world by the origin.
+            let t = (Vec3::new(ax + zo.x, 0.0, az + zo.z) - origin).dot(normal) / denom;
             if t < 0.0 {
                 return;
             }
-            let mut y = (origin + ddir * t).y.clamp(0.0, wall_h);
+            let mut y = ((origin + ddir * t).y - zo.y).clamp(0.0, wall_h);
             if grid {
                 y = (y * 4.0).round() / 4.0;
             }
             y
         };
-        if let Some(op) = state
-            .gui_state
-            .home_structure
-            .as_mut()
+        if let Some(op) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone)
             .and_then(|hs| hs.walls.get_mut(wi))
             .and_then(|w| w.openings.get_mut(oi))
         {
@@ -3748,19 +3855,23 @@ mod native_app {
 
         // ── Homestead meshes ── (v0.455: load the LAYOUT, keep it for the construction
         // editor, then generate + upload meshes through the shared path.)
-        // v0.534: prefer the new HomeStructure model (a FIXED outer box + freely-designed interior
-        // walls) for the home; fall back to the legacy AABB-room layout if home_structure.ron is
-        // absent. Both produce HomesteadMeshes, so the render path is identical.
-        let hs_path = state.data_dir.join("blueprints").join("home_structure.ron");
+        // v0.534/v0.754: prefer the SHIP model (many zones, each a fixed outer box + freely-drawn
+        // interior walls) from ship_structure.ron -- with one-time ADOPTION of a legacy
+        // home_structure.ron data dir (wrapped as zone "home"; see ShipStructure::load_or_adopt).
+        // Fall back to the legacy AABB-room layout when neither file exists. All paths produce
+        // HomesteadMeshes, so the render path is identical.
+        let blueprints_dir = state.data_dir.join("blueprints");
         let (homestead, room_info) =
-            if let Some(hs) = crate::ship::home_structure::HomeStructure::load(&hs_path) {
-                let meshes = hs.generate_meshes();
+            if let Some(ship) = ShipStructure::load_or_adopt(&blueprints_dir) {
+                let meshes = ship.generate_meshes();
                 let info = meshes.room_info.clone();
-                // Restore the persisted build-mode spawn point (v0.582).
-                if let Some(sp) = hs.spawn {
+                // Start editing the HOME zone; restore its persisted build-mode spawn point (v0.582).
+                let home_idx = ship.home_zone_index();
+                state.gui_state.construction_zone = home_idx;
+                if let Some(sp) = ship.zones[home_idx].body.spawn {
                     state.gui_state.build_char_pos = Some(sp);
                 }
-                state.gui_state.home_structure = Some(hs);
+                state.gui_state.ship_structure = Some(ship);
                 (meshes, info)
             } else {
                 let layout = crate::ship::fibonacci::load_layout_or_fallback();
@@ -3769,9 +3880,10 @@ mod native_app {
                 state.homestead_layout = Some(layout);
                 (meshes, info)
             };
-        // Wall collision segments so the player can't walk through walls from the first frame (v0.556).
-        state.wall_colliders = match &state.gui_state.home_structure {
-            Some(hs) => crate::ship::wall_collision::wall_segments(hs),
+        // Wall collision segments so the player can't walk through walls from the first frame
+        // (v0.556; per-zone origin offsets v0.754).
+        state.wall_colliders = match &state.gui_state.ship_structure {
+            Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
             None => Vec::new(),
         };
         apply_homestead_meshes(state, homestead);
@@ -3784,8 +3896,8 @@ mod native_app {
             let radius = room_size * 1.5;
             crate::renderer::light::RoomLight::point(light_pos, [1.0, 0.95, 0.85], intensity, radius)
         }).collect();
-        // v0.571: placed lights override the auto synthesis (empty -> auto).
-        state.room_lights = home_lights(state.gui_state.home_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
+        // v0.571: placed lights (across ALL zones, v0.754) override the auto synthesis (empty -> auto).
+        state.room_lights = home_lights(state.gui_state.ship_structure.as_ref(), auto_lights, state.gui_state.gi_enabled);
 
         // Sealed-volume AABB (encompasses every room) for the survival environment
         // context — inside it the player is sealed/oxygenated, outside = vacuum.
@@ -3885,15 +3997,13 @@ mod native_app {
                     })
                     .collect();
                 let mut placed = 0usize;
-                // v0.538: a HomeStructure home positions machines by ABSOLUTE world coords (box mode,
-                // clamped into the footprint) and skips NO machine on a stale room id -- mirrors
-                // MachineHome::placements' box-mode branch; the two MUST stay in sync. Removing the
-                // skip in box mode also restores each machine's live ECS power role below. The legacy
-                // ship layout keeps room-center-relative + skip-if-missing.
-                let (box_mode, box_w, box_d) = match &state.gui_state.home_structure {
-                    Some(hs) => (true, hs.width, hs.depth),
-                    None => (false, 0.0, 0.0),
-                };
+                // v0.538: a box home positions machines by ABSOLUTE world coords (clamped into the
+                // footprint) and skips NO machine on a stale room id -- mirrors
+                // MachineHome::placements' zone branch; the two MUST stay in sync. Removing the
+                // skip in box mode also restores each machine's live ECS power role below. The
+                // legacy ship layout keeps room-center-relative + skip-if-missing. v0.754: the
+                // clamp is per machine into ITS zone's footprint at that zone's origin.
+                let zone_rects = state.gui_state.ship_structure.as_ref().map(|s| s.zone_rects());
                 // Explicit instances + every `arrays` grid expanded (dense garden towers).
                 let all_instances = home.all_instances();
                 // Electrical + plumbing island per machine, so spawned entities flow on their circuit. (v0.607/v0.608)
@@ -3906,12 +4016,15 @@ mod native_app {
                 for inst in &all_instances {
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
-                    // live-refresh twin); keep the two in sync. (v0.525/v0.538)
-                    let pos = if box_mode {
+                    // live-refresh twin); keep the two in sync. (v0.525/v0.538/v0.754)
+                    let pos = if let Some(zones) = zone_rects.as_deref() {
+                        let Some(zr) = crate::machines::resolve_zone_rect(zones, &inst.zone) else { continue };
+                        let (ox, oy, oz) = zr.origin;
+                        let (w, d, _h) = zr.size;
                         Vec3::new(
-                            inst.offset.0.clamp(0.3, (box_w - 0.3).max(0.3)),
-                            inst.offset.1,
-                            inst.offset.2.clamp(0.3, (box_d - 0.3).max(0.3)),
+                            inst.offset.0.clamp(ox + 0.3, (ox + w - 0.3).max(ox + 0.3)),
+                            oy + inst.offset.1,
+                            inst.offset.2.clamp(oz + 0.3, (oz + d - 0.3).max(oz + 0.3)),
                         )
                     } else {
                         let Some(&(center, floor_y, _ceiling_y)) = rooms.get(inst.room.as_str()) else { continue };
@@ -5009,7 +5122,12 @@ mod native_app {
         /// Homestead mirror / portal panel mesh + material. (v0.453)
         homestead_mirrors: Option<(usize, usize)>,
         /// Homestead ceiling mesh + material — drawn only when `gui_state.show_roof`. (v0.453)
+        /// On the ship path (v0.754) this slot holds only the GLASS-roof zones' ceilings.
         homestead_ceiling: Option<(usize, usize)>,
+        /// OPAQUE-roof zones' ceilings (v0.754, per-zone glass-or-steel roofs): their own slot,
+        /// rendered with the opaque ceiling material and gated by `show_roof` exactly like the old
+        /// single opaque roof. None when every zone's roof is glass (the shipped default).
+        homestead_ceiling_opaque: Option<(usize, usize)>,
         /// True when the ceiling is a CLEAR/GLASS roof (v0.539): the renderer draws it in the
         /// transparent pass (you see the stars through it) instead of as an opaque ceiling. Set by
         /// apply_homestead_meshes from the HomeStructure's roof_material.
@@ -5037,11 +5155,12 @@ mod native_app {
         /// Teleporter re-fire cooldown in seconds (v0.584): set when the player jumps through a
         /// teleport pad; counts down each frame so standing on the destination pad doesn't ping-pong.
         teleport_cooldown: f32,
-        /// ELEVATOR runtime state (v0.590), keyed by the placed-structure index: (anim 0..1 between
-        /// base + top, target 0/1, was_riding). Pure runtime -- not saved with the home; resynced each
-        /// frame during play. An idle elevator stays put (anim == target); stepping on toggles the
-        /// target (ride to the other end); waiting in the shaft at floor level recalls the car.
-        elevator_state: std::collections::HashMap<usize, (f32, f32, bool)>,
+        /// ELEVATOR runtime state (v0.590), keyed by (ship-zone index, placed-structure index)
+        /// (v0.754 -- every zone's elevators run): (anim 0..1 between base + top, target 0/1,
+        /// was_riding). Pure runtime -- not saved with the home; resynced each frame during play.
+        /// An idle elevator stays put (anim == target); stepping on toggles the target (ride to
+        /// the other end); waiting in the shaft at floor level recalls the car.
+        elevator_state: std::collections::HashMap<(usize, usize), (f32, f32, bool)>,
         /// Cached unit-box mesh + material for the moving elevator CAR slab (v0.590), scaled + posed
         /// per elevator per frame so the moving floor never leaks a mesh.
         elevator_car_mesh: Option<usize>,
@@ -5182,12 +5301,13 @@ mod native_app {
         construction_history: ConstructionHistory,
     }
 
-    /// One captured editor state for undo/redo (v0.575): a clone of the editable home (structure +
-    /// machines). Selection is intentionally NOT captured -- restoring it would yank the right panel to
-    /// a stale wall; the current selection is kept (and self-clamps if it falls out of range).
+    /// One captured editor state for undo/redo (v0.575): a clone of the editable SHIP (all zones,
+    /// v0.754 -- so zone add/delete/origin edits undo too) + machines. Selection is intentionally
+    /// NOT captured -- restoring it would yank the right panel to a stale wall; the current
+    /// selection is kept (and self-clamps if it falls out of range).
     #[derive(Clone, Default)]
     struct EditorSnapshot {
-        structure: Option<crate::ship::home_structure::HomeStructure>,
+        structure: Option<ShipStructure>,
         machines: Option<crate::machines::MachineHome>,
     }
 
@@ -5889,6 +6009,7 @@ mod native_app {
                 homestead_windows: None,
                 homestead_mirrors: None,
                 homestead_ceiling: None,
+                homestead_ceiling_opaque: None,
                 homestead_ceiling_glass: false,
                 homestead_layout: None,
                 construction_cam_active: false,
@@ -6528,13 +6649,13 @@ mod native_app {
                             } else if state.gui_state.construction_structure_type.is_some() {
                                 // Holding a STRUCTURAL piece (v0.583) -> drop it on the floor.
                                 try_place_structure(state);
-                            } else if state.gui_state.home_structure.is_some() && try_grab_opening_resize(state) {
+                            } else if state.gui_state.ship_structure.is_some() && try_grab_opening_resize(state) {
                                 // Grabbed an opening RESIZE handle (v0.578): the per-frame drag resizes
                                 // the door/window (width via left/right, height via top/bottom).
-                            } else if state.gui_state.home_structure.is_some() && try_grab_opening(state) {
+                            } else if state.gui_state.ship_structure.is_some() && try_grab_opening(state) {
                                 // Grabbed a door/window opening gizmo (v0.546): the per-frame drag
                                 // slides it along its wall.
-                            } else if state.gui_state.home_structure.is_some() && try_grab_node(state) {
+                            } else if state.gui_state.ship_structure.is_some() && try_grab_node(state) {
                                 // Grabbed a wall corner-node gizmo (v0.541): the per-frame drag moves
                                 // it (+ any walls sharing it) with snapping.
                             } else if try_grab_char(state) {
@@ -6542,26 +6663,26 @@ mod native_app {
                                 // spawn right there when you leave build mode.
                             } else if (!lock_road || !lock_pipe) && try_pick_node(state) {
                                 // Clicked a ROAD / CONDUIT node orb (v0.599): select + drag it.
-                            } else if !lock_light && state.gui_state.home_structure.is_some() && try_pick_light(state) {
+                            } else if !lock_light && state.gui_state.ship_structure.is_some() && try_pick_light(state) {
                                 // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
                                 // the right panel, like a wall.
-                            } else if !lock_struct && state.gui_state.home_structure.is_some() && try_pick_structure(state) {
+                            } else if !lock_struct && state.gui_state.ship_structure.is_some() && try_pick_structure(state) {
                                 // Clicked a placed STRUCTURE (v0.583) -> its detail shows on the right.
-                            } else if !lock_machine && state.gui_state.home_structure.is_some() && try_pick_port(state) {
+                            } else if !lock_machine && state.gui_state.ship_structure.is_some() && try_pick_port(state) {
                                 // Grabbed a machine PORT (v0.625): drag onto another machine to WIRE
                                 // them. Runs before the machine pick so a port beats moving the body.
-                            } else if !lock_machine && state.gui_state.home_structure.is_some() && try_pick_machine(state) {
+                            } else if !lock_machine && state.gui_state.ship_structure.is_some() && try_pick_machine(state) {
                                 // Selected a machine in the viewport (v0.553) -> its detail shows on
                                 // the right panel. Click only; machines are not dragged here. Gated to
                                 // the box-home path so it never shadows the legacy room-grab.
-                            } else if state.gui_state.home_structure.is_some() && try_pick_connection(state) {
+                            } else if state.gui_state.ship_structure.is_some() && try_pick_connection(state) {
                                 // Clicked a PIPE/WIRE (v0.626): select that connection -> its detail +
                                 // a Remove button show on the right panel. After machines (so a machine
                                 // under the cursor wins) but before walls (pipes are in the foreground).
-                            } else if !lock_wall && state.gui_state.home_structure.is_some() && try_pick_wall(state) {
+                            } else if !lock_wall && state.gui_state.ship_structure.is_some() && try_pick_wall(state) {
                                 // Clicked a WALL SURFACE (v0.573): select that wall for editing --
                                 // unambiguous vs hunting for the right corner orb at an intersection.
-                            } else if !hide_zone && state.gui_state.home_structure.is_some() && try_pick_zone(state) {
+                            } else if !hide_zone && state.gui_state.ship_structure.is_some() && try_pick_zone(state) {
                                 // Clicked a ZONE box (v0.634): select + drag it. LAST before the room grab
                                 // so the big macro volumes never steal a click from anything in front.
                             } else {
@@ -6573,7 +6694,7 @@ mod native_app {
                             // instead of moving it (v0.549). Click to inspect, click-and-hold to move.
                             if state.construction_grab_press.is_some() {
                                 if let Some(c) = state.construction_node_grab {
-                                    let sel = state.gui_state.home_structure.as_ref().and_then(|hs| {
+                                    let sel = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).and_then(|hs| {
                                         hs.walls.iter().position(|w| {
                                             ((w.a.0 - c.0).abs() < 0.05 && (w.a.1 - c.1).abs() < 0.05)
                                                 || ((w.b.0 - c.0).abs() < 0.05 && (w.b.1 - c.1).abs() < 0.05)
@@ -6721,8 +6842,9 @@ mod native_app {
                     // ELEVATOR tick (v0.590): animate each elevator car toward its target end, and
                     // CALL it -- stepping onto the car toggles its destination (ride to the other end),
                     // and waiting in the shaft at floor level recalls the car down to you. Runtime state
-                    // lives in `elevator_state` keyed by structure index (not saved). First person, not
-                    // build. The footing sampler below reads the updated car height so the rider rides.
+                    // lives in `elevator_state` keyed by (zone index, structure index) (not saved).
+                    // First person, not build. Every ZONE's elevators run, at world positions (v0.754).
+                    // The footing sampler below reads the updated car height so the rider rides.
                     const ELEVATOR_TRAVEL: f32 = 3.0; // one storey
                     const ELEVATOR_RATE: f32 = 0.5; // anim units / s (0..1 over the full travel ~2 s)
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
@@ -6730,30 +6852,34 @@ mod native_app {
                     {
                         let p = state.camera.position;
                         let feet = p.y - state.controller.eye_height();
-                        // Collect the elevator indices + poses first (immutable borrow), then update the
-                        // runtime map (mutable) -- avoids overlapping borrows of state.
-                        let elevators: Vec<(usize, (f32, f32, f32), f32, bool)> = state
+                        // Collect the elevator keys + WORLD poses first (immutable borrow), then update
+                        // the runtime map (mutable) -- avoids overlapping borrows of state.
+                        let elevators: Vec<((usize, usize), (f32, f32, f32), f32, bool)> = state
                             .gui_state
-                            .home_structure
+                            .ship_structure
                             .as_ref()
-                            .map(|hs| {
-                                hs.structures
+                            .map(|ship| {
+                                ship.zones
                                     .iter()
                                     .enumerate()
-                                    .filter_map(|(i, ps)| {
-                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                        if ty.kind != crate::ship::structure::StructureKind::Elevator {
-                                            return None;
-                                        }
-                                        let inside = crate::ship::structure::in_footprint(
-                                            ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
-                                        );
-                                        Some((i, ps.pos, ty.size.1, inside))
+                                    .flat_map(|(zi, zone)| {
+                                        let o = zone.origin;
+                                        zone.body.structures.iter().enumerate().filter_map(move |(i, ps)| {
+                                            let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                            if ty.kind != crate::ship::structure::StructureKind::Elevator {
+                                                return None;
+                                            }
+                                            let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
+                                            let inside = crate::ship::structure::in_footprint(
+                                                ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
+                                            );
+                                            Some(((zi, i), wpos, ty.size.1, inside))
+                                        })
                                     })
                                     .collect()
                             })
                             .unwrap_or_default();
-                        let live: std::collections::HashSet<usize> = elevators.iter().map(|e| e.0).collect();
+                        let live: std::collections::HashSet<(usize, usize)> = elevators.iter().map(|e| e.0).collect();
                         state.elevator_state.retain(|k, _| live.contains(k));
                         for (i, pos, _h, inside) in elevators {
                             let e = state.elevator_state.entry(i).or_insert((0.0, 0.0, false));
@@ -6798,33 +6924,38 @@ mod native_app {
                             // you climb (the rest floor lags at the base). `max` never lowers it.
                             // Stairs need neither -- you are grounded on each step, so the rest floor
                             // already tracks them. (v0.589, gated after a movement review.)
-                            if let Some(hs) = state.gui_state.home_structure.as_ref() {
+                            // v0.754: EVERY zone's structures, at world positions.
+                            if let Some(ship) = state.gui_state.ship_structure.as_ref() {
                                 let feet = if state.controller.in_climb_zone() {
                                     (p.y - state.controller.eye_height()).max(state.controller.ground_floor())
                                 } else {
                                     state.controller.ground_floor()
                                 };
                                 const STEP_UP: f32 = 0.6;
-                                for (i, ps) in hs.structures.iter().enumerate() {
-                                    if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
-                                        // An ELEVATOR's footing is its MOVING car (v0.590): the car floor
-                                        // = base + anim*travel, so standing on it rides you up/down. Other
-                                        // pieces use the static walk_surface.
-                                        let surf = if ty.kind == crate::ship::structure::StructureKind::Elevator {
-                                            if crate::ship::structure::in_footprint(ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z) {
-                                                let anim = state.elevator_state.get(&i).map_or(0.0, |e| e.0);
-                                                Some(ps.pos.1 + anim * ELEVATOR_TRAVEL)
+                                for (zi, zone) in ship.zones.iter().enumerate() {
+                                    let o = zone.origin;
+                                    for (i, ps) in zone.body.structures.iter().enumerate() {
+                                        if let Some(ty) = crate::ship::structure::structure_type(&ps.type_id) {
+                                            let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
+                                            // An ELEVATOR's footing is its MOVING car (v0.590): the car floor
+                                            // = base + anim*travel, so standing on it rides you up/down. Other
+                                            // pieces use the static walk_surface.
+                                            let surf = if ty.kind == crate::ship::structure::StructureKind::Elevator {
+                                                if crate::ship::structure::in_footprint(ty, wpos, ps.rot_deg.to_radians(), p.x, p.z) {
+                                                    let anim = state.elevator_state.get(&(zi, i)).map_or(0.0, |e| e.0);
+                                                    Some(wpos.1 + anim * ELEVATOR_TRAVEL)
+                                                } else {
+                                                    None
+                                                }
                                             } else {
-                                                None
-                                            }
-                                        } else {
-                                            crate::ship::structure::walk_surface(
-                                                ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
-                                            )
-                                        };
-                                        if let Some(top) = surf {
-                                            if top <= feet + STEP_UP && top > floor {
-                                                floor = top;
+                                                crate::ship::structure::walk_surface(
+                                                    ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
+                                                )
+                                            };
+                                            if let Some(top) = surf {
+                                                if top <= feet + STEP_UP && top > floor {
+                                                    floor = top;
+                                                }
                                             }
                                         }
                                     }
@@ -6845,21 +6976,30 @@ mod native_app {
                         && state.teleport_cooldown <= 0.0
                     {
                         let p = state.camera.position;
+                        // v0.754: EVERY zone's teleporters, at world positions. A pair links WITHIN
+                        // its zone (pair indices are per-body), so the destination shifts by the
+                        // same zone's origin.
                         let jump: Option<(f32, f32, f32)> =
-                            state.gui_state.home_structure.as_ref().and_then(|hs| {
-                                for ps in &hs.structures {
-                                    let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                    if ty.kind != crate::ship::structure::StructureKind::Teleporter {
-                                        continue;
-                                    }
-                                    let Some(pair) = ps.pair else { continue };
-                                    if pair >= hs.structures.len() {
-                                        continue;
-                                    }
-                                    if crate::ship::structure::in_footprint(
-                                        ty, ps.pos, ps.rot_deg.to_radians(), p.x, p.z,
-                                    ) {
-                                        return Some(hs.structures[pair].pos);
+                            state.gui_state.ship_structure.as_ref().and_then(|ship| {
+                                for zone in &ship.zones {
+                                    let o = zone.origin;
+                                    let hs = &zone.body;
+                                    for ps in &hs.structures {
+                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                        if ty.kind != crate::ship::structure::StructureKind::Teleporter {
+                                            continue;
+                                        }
+                                        let Some(pair) = ps.pair else { continue };
+                                        if pair >= hs.structures.len() {
+                                            continue;
+                                        }
+                                        let wpos = (ps.pos.0 + o.0, ps.pos.1 + o.1, ps.pos.2 + o.2);
+                                        if crate::ship::structure::in_footprint(
+                                            ty, wpos, ps.rot_deg.to_radians(), p.x, p.z,
+                                        ) {
+                                            let d = hs.structures[pair].pos;
+                                            return Some((d.0 + o.0, d.1 + o.1, d.2 + o.2));
+                                        }
                                     }
                                 }
                                 None
@@ -6879,19 +7019,23 @@ mod native_app {
                         && !state.gui_state.construction_active
                     {
                         let p = state.camera.position;
-                        let zone = state.gui_state.home_structure.as_ref().and_then(|hs| {
-                            for ps in &hs.structures {
-                                let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                if ty.kind != crate::ship::structure::StructureKind::Ladder {
-                                    continue;
-                                }
-                                let (dx, dz) = (p.x - ps.pos.0, p.z - ps.pos.2);
-                                // Generous reach (v0.589 review fix): a ladder mounted flush against a
-                                // wall gets the player pushed ~radius+half_thickness off the wall by the
-                                // XZ collider; a wider zone keeps them ON the ladder instead of dropping.
-                                let reach = ty.size.0.max(ty.size.2) * 0.5 + 0.9;
-                                if dx * dx + dz * dz <= reach * reach {
-                                    return Some((ps.pos.1, ps.pos.1 + ty.size.1));
+                        // v0.754: EVERY zone's ladders, at world positions.
+                        let zone = state.gui_state.ship_structure.as_ref().and_then(|ship| {
+                            for z in &ship.zones {
+                                let o = z.origin;
+                                for ps in &z.body.structures {
+                                    let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                    if ty.kind != crate::ship::structure::StructureKind::Ladder {
+                                        continue;
+                                    }
+                                    let (dx, dz) = (p.x - (ps.pos.0 + o.0), p.z - (ps.pos.2 + o.2));
+                                    // Generous reach (v0.589 review fix): a ladder mounted flush against a
+                                    // wall gets the player pushed ~radius+half_thickness off the wall by the
+                                    // XZ collider; a wider zone keeps them ON the ladder instead of dropping.
+                                    let reach = ty.size.0.max(ty.size.2) * 0.5 + 0.9;
+                                    if dx * dx + dz * dz <= reach * reach {
+                                        return Some((ps.pos.1 + o.1, ps.pos.1 + o.1 + ty.size.1));
+                                    }
                                 }
                             }
                             None
@@ -7832,11 +7976,13 @@ mod native_app {
                         state.controller.showroom_lock = false; // full orbit controls, not the fixed showroom orbit
                         state.construction_return_pos = state.camera.position;
                         // Seed the build-mode avatar at the player's CURRENT spot the first time
-                        // (v0.557), clamped into the box, so toggling build mode without moving it keeps
+                        // (v0.557), converted into the ACTIVE zone's local coords (v0.754) and
+                        // clamped into its box, so toggling build mode without moving it keeps
                         // you put; it then persists where you leave it and spawns you there on close.
                         if state.gui_state.build_char_pos.is_none() {
-                            if let Some(hs) = &state.gui_state.home_structure {
-                                let p = state.construction_return_pos;
+                            let zo = active_zone_origin(state);
+                            if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
+                                let p = state.construction_return_pos - zo;
                                 state.gui_state.build_char_pos =
                                     Some((p.x.clamp(0.3, hs.width - 0.3), p.z.clamp(0.3, hs.depth - 0.3)));
                             }
@@ -7857,10 +8003,23 @@ mod native_app {
                         state.construction_cam_active = false;
                         state.camera.switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
                         // Spawn at the build-mode avatar (v0.557) -- "where I'm at" when I leave build
-                        // mode; fall back to the pre-build position if no avatar was placed.
+                        // mode, in the EDITED zone (its origin shifts the avatar to world, v0.754).
+                        // Fall back to the home zone's saved spawn, then the pre-build position.
+                        let zo = active_zone_origin(state);
                         state.camera.position = match state.gui_state.build_char_pos {
-                            Some((x, z)) => Vec3::new(x, 1.7, z),
-                            None => state.construction_return_pos,
+                            Some((x, z)) => Vec3::new(x + zo.x, zo.y + 1.7, z + zo.z),
+                            None => state
+                                .gui_state
+                                .ship_structure
+                                .as_ref()
+                                .and_then(|s| {
+                                    let home = &s.zones[s.home_zone_index()];
+                                    home.body.spawn.map(|(x, z)| {
+                                        let o = home.origin_vec();
+                                        Vec3::new(x + o.x, o.y + 1.7, z + o.z)
+                                    })
+                                })
+                                .unwrap_or(state.construction_return_pos),
                         };
                         state.gui_state.construction_selected_room = None;
                         state.construction_grab = None;
@@ -7910,13 +8069,16 @@ mod native_app {
                                 apply_room_drag(state);
                             }
                         }
-                        // Track the cursor's floor position for the dimension overlay (v0.545). While
-                        // DRAWING a wall, snap the preview to the same grid/endpoint/edge the placed node
+                        // Track the cursor's floor position for the dimension overlay (v0.545),
+                        // in the ACTIVE zone's LOCAL coords (v0.754 -- the overlay adds the zone
+                        // origin back when painting, and wall_start is local too). While DRAWING a
+                        // wall, snap the preview to the same grid/endpoint/edge the placed node
                         // will use, so the selector visibly snaps (v0.559 -- it tracked the raw cursor).
-                        let hit = cursor_floor_hit(state).map(|(_, hx, hz)| (hx, hz));
+                        let azo = active_zone_origin(state);
+                        let hit = cursor_floor_hit(state).map(|(_, hx, hz)| (hx - azo.x, hz - azo.z));
                         state.gui_state.construction_cursor_world = hit.map(|(hx, hz)| {
                             if state.gui_state.construction_wall_mode {
-                                if let Some(hs) = &state.gui_state.home_structure {
+                                if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
                                     let grabbed =
                                         state.gui_state.construction_wall_start.unwrap_or((f32::NAN, f32::NAN));
                                     return snap_node_position(hs, grabbed, (hx, hz), state.gui_state.construction_grid_snap);
@@ -8041,24 +8203,28 @@ mod native_app {
                     }
                     if state.gui_state.construction_save {
                         state.gui_state.construction_save = false;
-                        // v0.534: the home is a HomeStructure when present -> save it; else the
-                        // legacy AABB layout. One file per model; the AI + editor share it.
-                        if state.gui_state.home_structure.is_some() {
-                            // Persist the build-mode SPAWN point with the home (v0.582) so the moved
-                            // avatar survives the save (was lost -- spawn lived only in GuiState).
+                        // v0.534/v0.754: the home is a SHIP when present -> save the WHOLE ship
+                        // (every zone) to ship_structure.ron; else the legacy AABB layout. One
+                        // file per model; the AI + editor share it. Note this is also what
+                        // completes the one-time legacy adoption: after the first save the new
+                        // file exists and home_structure.ron is never read again.
+                        if state.gui_state.ship_structure.is_some() {
+                            // Persist the build-mode SPAWN point with the EDITED zone (v0.582) so
+                            // the moved avatar survives the save (was lost -- spawn lived only in
+                            // GuiState). build_char_pos is zone-local, exactly what body.spawn holds.
                             let spawn = state.gui_state.build_char_pos;
-                            if let Some(hs) = state.gui_state.home_structure.as_mut() {
+                            if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
                                 hs.spawn = spawn;
                             }
-                            let path = state.data_dir.join("blueprints").join("home_structure.ron");
-                            let hs = state.gui_state.home_structure.as_ref().unwrap();
-                            match hs.save(&path) {
+                            let path = state.data_dir.join("blueprints").join("ship_structure.ron");
+                            let ship = state.gui_state.ship_structure.as_ref().unwrap();
+                            match ship.save(&path) {
                                 Ok(()) => {
-                                    log::info!("Construction: home structure saved to home_structure.ron");
-                                    state.gui_state.construction_save_note = "Saved home structure.".to_string();
+                                    log::info!("Construction: ship structure saved to ship_structure.ron");
+                                    state.gui_state.construction_save_note = "Saved ship structure.".to_string();
                                 }
                                 Err(e) => {
-                                    log::warn!("Construction: home structure save failed: {e}");
+                                    log::warn!("Construction: ship structure save failed: {e}");
                                     state.gui_state.construction_save_note = format!("Structure save FAILED: {e}");
                                 }
                             }
@@ -8166,14 +8332,17 @@ mod native_app {
                     // line along the snapped X and/or Z axis (spanning the box) so you see what you are
                     // lining up with. Only while a drag is active; cleared implicitly when the grab ends.
                     if state.gui_state.construction_active && state.construction_object_grab.is_some() {
-                        if let Some(hs) = state.gui_state.home_structure.as_ref() {
-                            let (bw, bd, gy) = (hs.width, hs.depth, 0.05_f32);
+                        let zo = active_zone_origin(state);
+                        if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
+                            // Guide coords are WORLD (snap ran in world space); the span covers the
+                            // ACTIVE zone's box at its origin (v0.754).
+                            let (bw, bd, gy) = (hs.width, hs.depth, zo.y + 0.05_f32);
                             const GUIDE: [f32; 4] = [1.0, 0.85, 0.2, 0.8]; // amber
                             if let Some(gx) = state.construction_snap_x {
-                                crate::renderer::line::push_polyline(&mut ring_lines, &[[gx, gy, 0.0], [gx, gy, bd]], GUIDE);
+                                crate::renderer::line::push_polyline(&mut ring_lines, &[[gx, gy, zo.z], [gx, gy, zo.z + bd]], GUIDE);
                             }
                             if let Some(gz) = state.construction_snap_z {
-                                crate::renderer::line::push_polyline(&mut ring_lines, &[[0.0, gy, gz], [bw, gy, gz]], GUIDE);
+                                crate::renderer::line::push_polyline(&mut ring_lines, &[[zo.x, gy, gz], [zo.x + bw, gy, gz]], GUIDE);
                             }
                         }
                     }
@@ -8327,6 +8496,11 @@ mod native_app {
                         // below, so you see the stars through it without hiding the seal.
                         if state.gui_state.show_roof && !state.homestead_ceiling_glass {
                             shell.push(state.homestead_ceiling);
+                        }
+                        // OPAQUE-roof zones' ceilings (v0.754, per-zone roofs): same show_roof gate
+                        // as the old single opaque roof, regardless of the glass slot's state.
+                        if state.gui_state.show_roof {
+                            shell.push(state.homestead_ceiling_opaque);
                         }
                         for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
                             all_objects.push(RenderObject {
@@ -8525,16 +8699,22 @@ mod native_app {
                         // edge in build mode so the line reads as ALIVE -- the visual payoff that the rail
                         // graph works. Render-only (no state); mirrors the conduit flow-marker pattern.
                         if state.gui_state.construction_active {
-                            // Collect the edge endpoints first so the home_structure borrow ends before we
-                            // mutate the renderer (lazy mesh/material) + push.
-                            let rail_edges: Vec<(Vec3, Vec3)> = match state.gui_state.home_structure.as_ref() {
-                                Some(hs) => hs
-                                    .rail_edges
+                            // Collect the edge endpoints first so the structure borrow ends before we
+                            // mutate the renderer (lazy mesh/material) + push. EVERY zone's rail
+                            // edges, offset by their zone origins (the track meshes render there
+                            // too, v0.754).
+                            let rail_edges: Vec<(Vec3, Vec3)> = match state.gui_state.ship_structure.as_ref() {
+                                Some(ship) => ship
+                                    .zones
                                     .iter()
-                                    .filter_map(|e| {
-                                        let a = hs.rail_node_pos(e.from)?;
-                                        let b = hs.rail_node_pos(e.to)?;
-                                        Some((Vec3::new(a.0, 0.15, a.1), Vec3::new(b.0, 0.15, b.1)))
+                                    .flat_map(|z| {
+                                        let o = z.origin_vec();
+                                        let hs = &z.body;
+                                        hs.rail_edges.iter().filter_map(move |e| {
+                                            let a = hs.rail_node_pos(e.from)?;
+                                            let b = hs.rail_node_pos(e.to)?;
+                                            Some((Vec3::new(a.0, 0.15, a.1) + o, Vec3::new(b.0, 0.15, b.1) + o))
+                                        })
                                     })
                                     .collect(),
                                 None => Vec::new(),
@@ -8583,29 +8763,34 @@ mod native_app {
                         }
                         let car_mesh = state.elevator_car_mesh.unwrap();
                         let car_mat = state.elevator_car_mat.unwrap();
+                        // EVERY zone's elevator cars, at world positions, keyed (zone, idx) (v0.754).
                         let cars: Vec<(Vec3, Quat, Vec3)> = state
                             .gui_state
-                            .home_structure
+                            .ship_structure
                             .as_ref()
-                            .map(|hs| {
-                                hs.structures
+                            .map(|ship| {
+                                ship.zones
                                     .iter()
                                     .enumerate()
-                                    .filter_map(|(i, ps)| {
-                                        let ty = crate::ship::structure::structure_type(&ps.type_id)?;
-                                        if ty.kind != crate::ship::structure::StructureKind::Elevator {
-                                            return None;
-                                        }
-                                        let anim = state.elevator_state.get(&i).map_or(0.0, |e| e.0);
-                                        let car_top = ps.pos.1 + anim * 3.0; // ELEVATOR_TRAVEL
-                                        let (w, _h, d) = ty.size;
-                                        let thick = 0.15;
-                                        // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
-                                        // TOP sits at car_top (the standing surface).
-                                        let pos = Vec3::new(ps.pos.0, car_top - thick, ps.pos.2);
-                                        let scale = Vec3::new(w * 0.85, thick, d * 0.85);
-                                        let rot = Quat::from_rotation_y(ps.rot_deg.to_radians());
-                                        Some((pos, rot, scale))
+                                    .flat_map(|(zi, zone)| {
+                                        let o = zone.origin_vec();
+                                        let es = &state.elevator_state;
+                                        zone.body.structures.iter().enumerate().filter_map(move |(i, ps)| {
+                                            let ty = crate::ship::structure::structure_type(&ps.type_id)?;
+                                            if ty.kind != crate::ship::structure::StructureKind::Elevator {
+                                                return None;
+                                            }
+                                            let anim = es.get(&(zi, i)).map_or(0.0, |e| e.0);
+                                            let car_top = ps.pos.1 + o.y + anim * 3.0; // ELEVATOR_TRAVEL
+                                            let (w, _h, d) = ty.size;
+                                            let thick = 0.15;
+                                            // box_xyz is y-bottom-origin + XZ-centered: place the slab so its
+                                            // TOP sits at car_top (the standing surface).
+                                            let pos = Vec3::new(ps.pos.0 + o.x, car_top - thick, ps.pos.2 + o.z);
+                                            let scale = Vec3::new(w * 0.85, thick, d * 0.85);
+                                            let rot = Quat::from_rotation_y(ps.rot_deg.to_radians());
+                                            Some((pos, rot, scale))
+                                        })
                                     })
                                     .collect()
                             })
@@ -8753,18 +8938,17 @@ mod native_app {
                                 mesh,
                                 material: mat,
                             });
-                            // Preview wall from the pending start corner to the cursor.
+                            // Preview wall from the pending start corner (zone-LOCAL -> world by the
+                            // active zone origin, v0.754) to the cursor (already world).
                             if let Some((sx, sz)) = state.gui_state.construction_wall_start {
-                                let a = Vec3::new(sx, floor_y, sz);
+                                let zo = active_zone_origin(state);
+                                let a = Vec3::new(sx + zo.x, floor_y, sz + zo.z);
                                 let b = Vec3::new(hx, floor_y, hz);
                                 let dx = b.x - a.x;
                                 let dz = b.z - a.z;
                                 let len = (dx * dx + dz * dz).sqrt();
                                 if len > 0.05 {
-                                    let height = state
-                                        .gui_state
-                                        .home_structure
-                                        .as_ref()
+                                    let height = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                                         .map_or(3.0, |h| h.height);
                                     let dir = Vec3::new(dx, 0.0, dz) / len;
                                     let rot = Quat::from_rotation_arc(Vec3::X, dir);
@@ -8790,7 +8974,7 @@ mod native_app {
                     // Click + drag one to reposition the corner (walls sharing it move together) with
                     // snapping; idle -> hover -> active (grabbed) by colour. Cached sphere mesh + three
                     // materials, reused -- no per-frame allocation.
-                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                    if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
                         if state.construction_node_mesh.is_none() {
                             let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 12, 16));
                             state.construction_node_mesh = Some(m);
@@ -8822,8 +9006,10 @@ mod native_app {
                         let (rr, gg, bb) = hsv_rgb(hue, 0.85, 1.0);
                         state.renderer.update_material_full(hot_mat, [rr, gg, bb, 1.0], 0.0, 0.3, 0.0, 1.2);
                         let grabbed = state.construction_node_grab;
+                        // The ACTIVE zone's origin shifts every gizmo into world space (v0.754).
+                        let zo = active_zone_origin(state);
                         let corners = {
-                            let hs = state.gui_state.home_structure.as_ref().unwrap();
+                            let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
                             unique_corners(hs)
                         };
                         for c in &corners {
@@ -8834,7 +9020,7 @@ mod native_app {
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
                             // + the floor it sits under. (v0.560). Idle -> hover -> active by colour (v0.569).
                             overlay_objects.push(RenderObject {
-                                position: Vec3::new(c.0, -r, c.1),
+                                position: Vec3::new(c.0 + zo.x, zo.y - r, c.1 + zo.z),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(r),
                                 mesh: node_mesh,
@@ -8845,7 +9031,7 @@ mod native_app {
                             // thickened with radius. Radius 1.1 matches the overlay's RING_R; the per-slice
                             // angle labels are painted separately by the egui overlay.
                             crate::renderer::line::push_circle(
-                                &mut ring_lines, [c.0, 0.1, c.1], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
+                                &mut ring_lines, [c.0 + zo.x, zo.y + 0.1, c.1 + zo.z], 1.1, [0.30, 0.85, 1.0, 0.85], 48,
                             );
                         }
                         // Wall-SELECT orbs (v0.573): a RED sphere at each wall's bottom-middle. Click
@@ -8859,22 +9045,20 @@ mod native_app {
                         }
                         let wall_mat = state.construction_wall_mat.unwrap();
                         let sel_wall = state.gui_state.construction_wall_selected;
-                        let wall_mids: Vec<(usize, f32, f32)> = state
-                            .gui_state
-                            .home_structure
-                            .as_ref()
+                        let wall_mids: Vec<(usize, f32, f32)> =
+                            zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                             .map(|h| {
                                 h.walls
                                     .iter()
                                     .enumerate()
-                                    .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5, (w.a.1 + w.b.1) * 0.5))
+                                    .map(|(i, w)| (i, (w.a.0 + w.b.0) * 0.5 + zo.x, (w.a.1 + w.b.1) * 0.5 + zo.z))
                                     .collect()
                             })
                             .unwrap_or_default();
                         for (i, mx, mz) in &wall_mids {
                             let selected = sel_wall == Some(*i);
                             overlay_objects.push(RenderObject {
-                                position: Vec3::new(*mx, -0.07, *mz), // orb top at the floor base
+                                position: Vec3::new(*mx, zo.y - 0.07, *mz), // orb top at the floor base
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(0.07),
                                 mesh: node_mesh,
@@ -8897,7 +9081,7 @@ mod native_app {
                     // Placed-LIGHT gizmos (v0.572): a DIAMOND centre-marker + an RGB range "sphere"
                     // (three axis great-circles -- X red, Y green, Z blue) at each placed light, so the
                     // operator (and an AI) can see where each light sits + how far it reaches. Build mode.
-                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                    if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
                         if state.construction_light_mesh.is_none() {
                             let m = state.renderer.add_mesh(Mesh::octahedron(&state.renderer.device, 1.0));
                             state.construction_light_mesh = Some(m);
@@ -8915,10 +9099,10 @@ mod native_app {
                         let sel_light = state.gui_state.construction_light_selected;
                         // Resolve each light's range + (for a SPOT) its aim direction + cone half-angle,
                         // so a spotlight draws a CONE instead of the omni range sphere (v0.582, operator).
-                        let lights: Vec<(usize, Vec3, f32, Option<(Vec3, f32)>)> = state
-                            .gui_state
-                            .home_structure
-                            .as_ref()
+                        // ACTIVE zone's lights (the editable set), shifted to world by its origin (v0.754).
+                        let lzo = active_zone_origin(state);
+                        let lights: Vec<(usize, Vec3, f32, Option<(Vec3, f32)>)> =
+                            zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
                             .map(|h| {
                                 h.lights
                                     .iter()
@@ -8933,7 +9117,7 @@ mod native_app {
                                                 let d = if d == Vec3::ZERO { Vec3::NEG_Y } else { d };
                                                 (d, t.cone_outer_deg.max(1.0).to_radians())
                                             });
-                                        (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2), range, spot)
+                                        (i, Vec3::new(l.pos.0, l.pos.1, l.pos.2) + lzo, range, spot)
                                     })
                                     .collect()
                             })
@@ -8978,18 +9162,23 @@ mod native_app {
                     // primitive (shows through walls), gated by the master toggle so a busy view can quiet
                     // them. The interactive editing handles (corner orbs, resize cubes) are NOT gated.
                     if state.gui_state.construction_active && state.gui_state.construction_show_helpers {
-                        if let Some(hs) = state.gui_state.home_structure.as_ref() {
+                        if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
                             let sel = state.gui_state.construction_structure_selected;
                             // WALL WIREFRAME (v0.594, operator): the layout outline -- top + bottom edge
                             // of every wall (box perimeter + interior walls) + a vertical at each corner,
                             // like looking at the floor-plan wireframe. Param-closure so it doesn't hold a
                             // borrow on ring_lines across the rest of the helper block.
                             const WF: [f32; 4] = [0.80, 0.86, 0.92, 0.45];
+                            // Helper gizmos draw the ACTIVE zone's body, shifted into world by its
+                            // origin (v0.754). Baked into the `wire` closure + each loop below.
+                            let zo = active_zone_origin(state);
                             let wire = |lines: &mut Vec<crate::renderer::line::LineVertex>, a: (f32, f32), b: (f32, f32), h: f32| {
-                                crate::renderer::line::push_polyline(lines, &[[a.0, 0.0, a.1], [b.0, 0.0, b.1]], WF); // bottom
-                                crate::renderer::line::push_polyline(lines, &[[a.0, h, a.1], [b.0, h, b.1]], WF); // top
-                                crate::renderer::line::push_polyline(lines, &[[a.0, 0.0, a.1], [a.0, h, a.1]], WF); // vert @a
-                                crate::renderer::line::push_polyline(lines, &[[b.0, 0.0, b.1], [b.0, h, b.1]], WF); // vert @b
+                                let (a, b) = ((a.0 + zo.x, a.1 + zo.z), (b.0 + zo.x, b.1 + zo.z));
+                                let (y0, y1) = (zo.y, zo.y + h);
+                                crate::renderer::line::push_polyline(lines, &[[a.0, y0, a.1], [b.0, y0, b.1]], WF); // bottom
+                                crate::renderer::line::push_polyline(lines, &[[a.0, y1, a.1], [b.0, y1, b.1]], WF); // top
+                                crate::renderer::line::push_polyline(lines, &[[a.0, y0, a.1], [a.0, y1, a.1]], WF); // vert @a
+                                crate::renderer::line::push_polyline(lines, &[[b.0, y0, b.1], [b.0, y1, b.1]], WF); // vert @b
                             };
                             let (bw, bd, bh) = (hs.width, hs.depth, hs.height);
                             wire(&mut ring_lines, (0.0, 0.0), (bw, 0.0), bh);
@@ -9008,14 +9197,14 @@ mod native_app {
                                 let (hw, hd) = (w * 0.5, d * 0.5);
                                 let yaw = ps.rot_deg.to_radians();
                                 let (s, c) = yaw.sin_cos();
-                                // The 4 footprint corners, yaw-rotated around the piece centre.
+                                // The 4 footprint corners, yaw-rotated around the piece centre (world).
                                 let corner = |lx: f32, lz: f32| {
                                     let rx = lx * c + lz * s;
                                     let rz = -lx * s + lz * c;
-                                    (ps.pos.0 + rx, ps.pos.2 + rz)
+                                    (ps.pos.0 + rx + zo.x, ps.pos.2 + rz + zo.z)
                                 };
                                 let fc = [corner(-hw, -hd), corner(hw, -hd), corner(hw, hd), corner(-hw, hd)];
-                                let (y0, y1) = (ps.pos.1, ps.pos.1 + h.max(0.1));
+                                let (y0, y1) = (ps.pos.1 + zo.y, ps.pos.1 + zo.y + h.max(0.1));
                                 let col: [f32; 4] = if sel == Some(i) {
                                     [1.0, 0.85, 0.25, 0.95] // selected: bright amber
                                 } else {
@@ -9042,7 +9231,7 @@ mod native_app {
                             for n in hs.road_nodes.iter().filter(|_| !hide_road) {
                                 // Grabbable handle: a ring at the node (white double-ring when selected,
                                 // so you see which you're dragging). Click + hold to drag it. (v0.599)
-                                let c = [n.pos.0, 0.06, n.pos.1];
+                                let c = [n.pos.0 + zo.x, zo.y + 0.06, n.pos.1 + zo.z];
                                 if sel_road == Some(n.id) {
                                     crate::renderer::line::push_circle(&mut ring_lines, c, 0.4, RN_SEL, 24);
                                     crate::renderer::line::push_circle(&mut ring_lines, c, 0.6, RN_SEL, 24);
@@ -9055,7 +9244,7 @@ mod native_app {
                                 // road -- a polyline through the Catmull-Rom samples.
                                 let center = hs.road_edge_centerline(e);
                                 if center.len() >= 2 {
-                                    let pts: Vec<[f32; 3]> = center.iter().map(|p| [p.0, 0.08, p.1]).collect();
+                                    let pts: Vec<[f32; 3]> = center.iter().map(|p| [p.0 + zo.x, zo.y + 0.08, p.1 + zo.z]).collect();
                                     crate::renderer::line::push_polyline(&mut ring_lines, &pts, RE);
                                 }
                             }
@@ -9065,11 +9254,11 @@ mod native_app {
                             const RAILN: [f32; 4] = [0.88, 0.86, 0.45, 0.95]; // pale-gold stop ring
                             const RAILE: [f32; 4] = [0.92, 0.80, 0.35, 0.9]; // track line
                             for n in &hs.rail_nodes {
-                                crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0, 0.15, n.pos.1], 0.5, RAILN, 18);
+                                crate::renderer::line::push_circle(&mut ring_lines, [n.pos.0 + zo.x, zo.y + 0.15, n.pos.1 + zo.z], 0.5, RAILN, 18);
                             }
                             for e in &hs.rail_edges {
                                 if let (Some(a), Some(b)) = (hs.rail_node_pos(e.from), hs.rail_node_pos(e.to)) {
-                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0, 0.18, a.1], [b.0, 0.18, b.1]], RAILE);
+                                    crate::renderer::line::push_polyline(&mut ring_lines, &[[a.0 + zo.x, zo.y + 0.18, a.1 + zo.z], [b.0 + zo.x, zo.y + 0.18, b.1 + zo.z]], RAILE);
                                 }
                             }
                             // ZONE wireframe boxes (v0.631, superstructure M1): each macro district
@@ -9078,7 +9267,7 @@ mod native_app {
                             // reads at a glance. Edited in the Zones panel.
                             let sel_zone = state.gui_state.construction_zone_selected.as_deref();
                             for z in &hs.zones {
-                                let (ox, oy, oz) = z.origin;
+                                let (ox, oy, oz) = (z.origin.0 + zo.x, z.origin.1 + zo.y, z.origin.2 + zo.z);
                                 let (sw, sh, sd) = z.size;
                                 let c = crate::ship::structure::zone_type(&z.type_id).map(|t| t.color).unwrap_or((0.6, 0.6, 0.6));
                                 // The SELECTED zone draws bright white so you see which the panel edits. (v0.634)
@@ -9104,7 +9293,7 @@ mod native_app {
                                         let pj = &hs.structures[j];
                                         crate::renderer::line::push_polyline(
                                             &mut ring_lines,
-                                            &[[ps.pos.0, 0.2, ps.pos.2], [pj.pos.0, 0.2, pj.pos.2]],
+                                            &[[ps.pos.0 + zo.x, zo.y + 0.2, ps.pos.2 + zo.z], [pj.pos.0 + zo.x, zo.y + 0.2, pj.pos.2 + zo.z]],
                                             [0.9, 0.7, 0.3, 0.8],
                                         );
                                     }
@@ -9297,16 +9486,19 @@ mod native_app {
                             };
                             // Player-sized avatar STANDING on the floor (v0.560): body box ~1.55 m + a
                             // head, so the marker reads as the player's height/width. Overlay pass ->
-                            // visible through walls.
+                            // visible through walls. The avatar stands in the ACTIVE zone, so its
+                            // zone-local (cx, cz) shifts to world by the zone origin (v0.754).
+                            let zo = active_zone_origin(state);
+                            let (cx, cz) = (cx + zo.x, cz + zo.z);
                             overlay_objects.push(RenderObject {
-                                position: Vec3::new(cx, 0.0, cz),
+                                position: Vec3::new(cx, zo.y, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
                                 mesh: body_mesh,
                                 material: char_mat,
                             });
                             overlay_objects.push(RenderObject {
-                                position: Vec3::new(cx, 1.66, cz),
+                                position: Vec3::new(cx, zo.y + 1.66, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(0.2),
                                 mesh: head_mesh,
@@ -9315,7 +9507,7 @@ mod native_app {
                             // Pyramid gizmo BELOW the floor with its top vertex at the floor (operator
                             // note): apex at y=0, base at -0.4.
                             overlay_objects.push(RenderObject {
-                                position: Vec3::new(cx, -0.4, cz),
+                                position: Vec3::new(cx, zo.y - 0.4, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(0.5, 0.4, 0.5),
                                 mesh: pyr_mesh,
@@ -9326,7 +9518,7 @@ mod native_app {
 
                     // Door/window OPENING gizmos (v0.546): a distinct cyan CUBE at each opening,
                     // draggable along its wall (vs the yellow corner spheres). Cached mesh + material.
-                    if state.gui_state.construction_active && state.gui_state.home_structure.is_some() {
+                    if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
                         if state.construction_opening_mesh.is_none() {
                             let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
                             state.construction_opening_mesh = Some(m);
@@ -9345,12 +9537,13 @@ mod native_app {
                         let node_mat = state.construction_node_mat.unwrap(); // yellow, for resize handles
                         let grabbed_op = state.construction_opening_grab;
                         let resize_grab = state.construction_opening_resize;
+                        let ozo = active_zone_origin(state); // gizmo world positions (v0.754)
                         let gizmos = {
-                            let hs = state.gui_state.home_structure.as_ref().unwrap();
-                            opening_gizmos(hs)
+                            let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
+                            opening_gizmos(hs, ozo)
                         };
                         const S: f32 = 0.35;
-                        let hs = state.gui_state.home_structure.as_ref().unwrap();
+                        let hs = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone).unwrap();
                         for (idx, p) in &gizmos {
                             // Align the cube to ITS wall (v0.560) instead of fixed north/south: rotate
                             // by the wall's heading so its faces sit square to the wall at any angle.
@@ -9377,7 +9570,7 @@ mod native_app {
                         // edges (left/right resize width, top/bottom resize height); centred on the seam
                         // between the opening and the wall/frame. The grabbed one shifts RGB.
                         const RS: f32 = 0.16;
-                        for ((wi, oi, edge), p) in opening_resize_handles(hs) {
+                        for ((wi, oi, edge), p) in opening_resize_handles(hs, ozo) {
                             let yaw = hs.walls.get(wi).map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
                             let m = if resize_grab == Some((wi, oi, edge)) { hot_mat } else { node_mat };
                             all_objects.push(RenderObject {
