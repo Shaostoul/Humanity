@@ -2320,6 +2320,10 @@ pub struct GuiState {
     /// game_time when ability_status was set; lib.rs fades it after a few
     /// seconds so the HUD line does not linger forever. (v0.754)
     pub ability_status_at: f64,
+    /// F pressed: swing the held tool (or bare hands) at the faced creature.
+    pub pending_swing: bool,
+    /// game_time when the next swing is allowed (0.8s between swings). (v0.765)
+    pub swing_ready_at: f64,
 
     pub listings: Vec<GuiListing>,
     /// Set once listing_browse has been sent this connection; cleared on
@@ -3866,6 +3870,8 @@ impl Default for GuiState {
             pending_cast: None,
             ability_status: String::new(),
             ability_status_at: 0.0,
+            pending_swing: false,
+            swing_ready_at: 0.0,
             listings: Vec::new(),
             listings_synced: false,
             listing_status: String::new(),

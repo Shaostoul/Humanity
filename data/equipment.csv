@@ -24,3 +24,10 @@ boots_work_0,feet,0.15,0.05,0,0.10,0,0,,0,,Steel-toe boots
 boots_hiking_0,feet,0.05,0.05,0,0.05,0,0,,0,speed:1.05:multiply,Trail boots - easy stride
 backpack_small_0,back,0,0,0,0,0,0,,0,carry_capacity:10:add,Adds 10 kg of comfortable carry
 backpack_large_0,back,0,0,0,0,0,0,,0,carry_capacity:25:add,Adds 25 kg of comfortable carry
+hammer_0,hands,0,0,0,0,0,8,kinetic,2.0,,Swing it - light demolition or defense
+axe_0,hands,0,0,0,0,0,14,kinetic,2.2,,Felling axe - trees fear it and so should wolves
+pickaxe_0,hands,0,0,0,0,0,12,kinetic,2.2,,Rock-breaker that doubles as a weapon
+shovel_0,hands,0,0,0,0,0,7,kinetic,2.2,,Flat-blade earth mover with a mean swing
+knife_utility_0,hands,0,0,0,0,0,6,kinetic,1.6,,Small blade for close work
+knife_combat_0,hands,0,0,0,0,0,12,kinetic,1.8,,Fixed fighting blade
+spear_0,hands,0,0,0,0,0,15,kinetic,3.0,,Thrusting reach - keep the wolf at pole's length

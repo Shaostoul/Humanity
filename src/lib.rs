@@ -6335,6 +6335,17 @@ mod native_app {
                             }
                         }
 
+                        // F swings the held tool (or bare hands) at the faced
+                        // creature (v0.765). The frame bridge settles it with
+                        // the worn hands-slot weapon's damage + reach.
+                        if key == KeyCode::KeyF
+                            && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                        {
+                            state.gui_state.pending_swing = true;
+                        }
+
                         // R toggles the home roof/ceiling (construction mode, v0.453). Off by
                         // default so the sky (stars + the real solar system) shows through the
                         // open top; on for a sealed look or atmosphere tests. Also exposed as a
@@ -7208,8 +7219,8 @@ mod native_app {
                                         }
                                     }
                                     // No renewable product = a wild creature:
-                                    // the hotbar attacks it. (v0.761)
-                                    Err(_) => format!("{name} - press 1-9 to attack"),
+                                    // abilities or a swing attack it. (v0.765)
+                                    Err(_) => format!("{name} - 1-9 casts, F swings"),
                                 }
                             }
                             None => String::new(),
@@ -10162,6 +10173,60 @@ mod native_app {
                         && now_s - state.gui_state.livestock_notice_at > 3.0
                     {
                         state.gui_state.livestock_notice.clear();
+                    }
+
+                    // ── Melee swing settle (v0.765) ── F swings the worn
+                    // hands-slot weapon (its equipment.csv damage + reach) or
+                    // bare hands at the faced creature; the hit rides the one
+                    // damage pipeline, so armor/death/loot/kill-XP all apply.
+                    if std::mem::take(&mut state.gui_state.pending_swing) {
+                        if now_s >= state.gui_state.swing_ready_at {
+                            state.gui_state.swing_ready_at = now_s + 0.8;
+                            // What is in the hands? A tool row wins; bare
+                            // hands are the honest fallback.
+                            let hands_item: Option<String> = state
+                                .game_world
+                                .world
+                                .query::<(&crate::ecs::components::Outfit, &Controllable)>()
+                                .iter()
+                                .next()
+                                .and_then(|(_, (o, _))| o.equipped.get("hands").cloned());
+                            let (weapon_name, damage, range) = hands_item
+                                .as_deref()
+                                .and_then(|id| {
+                                    let def = state
+                                        .data_store
+                                        .get::<crate::systems::economy::EquipmentRegistry>(
+                                            "equipment_registry",
+                                        )?
+                                        .get(id)?;
+                                    if def.damage <= 0.0 {
+                                        return None; // gloves are not weapons
+                                    }
+                                    let name = state
+                                        .data_store
+                                        .get::<ItemRegistry>("item_registry")
+                                        .and_then(|r| r.items.get(id))
+                                        .map(|d| d.name.clone())
+                                        .unwrap_or_else(|| id.to_string());
+                                    Some((name, def.damage, def.range_m.max(1.5)))
+                                })
+                                .unwrap_or(("Bare hands".to_string(), 3.0, 1.5));
+                            let status = match state.targeted_livestock {
+                                Some(target) => crate::systems::combat::player_swing(
+                                    &mut state.game_world.world,
+                                    &state.data_store,
+                                    target,
+                                    state.camera.position,
+                                    &weapon_name,
+                                    damage,
+                                    range,
+                                ),
+                                None => "Nothing in reach".to_string(),
+                            };
+                            state.gui_state.ability_status = status;
+                            state.gui_state.ability_status_at = now_s;
+                        }
                     }
 
                     // ── Loot settle (v0.760, combat arc) ── kills roll their

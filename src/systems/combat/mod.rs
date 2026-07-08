@@ -36,6 +36,52 @@ fn damage_type_key(t: &DamageType) -> &'static str {
     }
 }
 
+/// One player melee swing at a target (v0.765): validates the target is a
+/// living creature within `range` of `caster_pos`, queues the kinetic hit on
+/// the damage_events channel, and returns the honest status line. Pure over
+/// world + channel so lib.rs's F-key bridge and the tests share one rule.
+pub fn player_swing(
+    world: &mut hecs::World,
+    data: &DataStore,
+    target: hecs::Entity,
+    caster_pos: glam::Vec3,
+    weapon_name: &str,
+    damage: f32,
+    range: f32,
+) -> String {
+    if !world.contains(target)
+        || world.get::<&Dead>(target).is_ok()
+        || world.get::<&Health>(target).is_err()
+    {
+        return "Nothing in reach".to_string();
+    }
+    let target_pos = match world.get::<&Transform>(target) {
+        Ok(t) => t.position,
+        Err(_) => return "Nothing in reach".to_string(),
+    };
+    if (target_pos - caster_pos).length() > range + 0.5 {
+        return "Out of reach - step closer".to_string();
+    }
+    let target_name = world
+        .get::<&crate::ecs::components::Name>(target)
+        .map(|n| n.0.clone())
+        .unwrap_or_else(|_| "the target".to_string());
+    if let Some(chan) = data.get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events") {
+        if let Ok(mut q) = chan.lock() {
+            q.push((
+                target.to_bits().into(),
+                DamageEvent {
+                    damage_type: DamageType::Kinetic,
+                    amount: damage,
+                    source_name: None,
+                    source_is_player: true,
+                },
+            ));
+        }
+    }
+    format!("{weapon_name} hits {target_name} for {damage:.0}")
+}
+
 /// Combat system: processes damage events, status effects, and death.
 pub struct CombatSystem {
     /// Pending damage events to process this frame.
@@ -388,6 +434,47 @@ mod tests {
         sys.tick(&mut world, 0.016, &data);
         assert!(!world.contains(hen), "creature corpse decayed away");
         assert!(world.contains(player), "a dead player is never despawned");
+    }
+
+    /// The melee swing (v0.765): in-range hits queue kinetic damage with the
+    /// weapon's number; out-of-range and dead targets refuse without a hit.
+    #[test]
+    fn player_swing_hits_in_range_and_refuses_otherwise() {
+        use glam::Vec3;
+
+        let mut world = hecs::World::new();
+        let data = store_with_channels();
+        let hen = spawn_hen(&mut world);
+        // Hen sits at origin (spawn_hen default Transform).
+
+        // In axe range (2.2 + 0.5 tolerance) from 2m away: hit for 14.
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(2.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        assert!(msg.contains("hits") && msg.contains("14"), "got: {msg}");
+        let queued = data
+            .get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].1.amount, 14.0);
+        assert!(queued[0].1.source_is_player);
+
+        // Too far: refused, nothing queued.
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(9.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        assert!(msg.contains("Out of reach"), "got: {msg}");
+        let n = data
+            .get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .len();
+        assert_eq!(n, 1, "no hit queued out of range");
+
+        // Dead target: refused.
+        world.insert_one(hen, Dead::default()).unwrap();
+        let msg = player_swing(&mut world, &data, hen, Vec3::new(1.0, 0.0, 0.0), "Axe", 14.0, 2.2);
+        assert!(msg.contains("Nothing in reach"), "got: {msg}");
     }
 
     /// A combat death of the PLAYER publishes its cause to the same
