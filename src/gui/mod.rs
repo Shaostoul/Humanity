@@ -2771,12 +2771,24 @@ pub struct GuiState {
     /// Default on. The interactive editing handles (corner orbs, resize cubes) + the light gizmos (the
     /// diamond is clickable) are always shown -- this only quiets the passive helpers.
     pub construction_show_helpers: bool,
-    /// The home as a FIXED outer box + freely-designed interior walls (v0.534, the node/wall
-    /// redesign). The editor edits THIS; the engine renders it (load_world + rebuild_homestead via
-    /// generate_meshes) instead of the old room-AABB layout when present. Loaded in load_world.
-    pub home_structure: Option<crate::ship::home_structure::HomeStructure>,
+    /// The SHIP: many pressurized zones, each a fixed outer box + freely-designed interior walls
+    /// (v0.754, ship-superstructure increment A; the single-home model was v0.534). The editor
+    /// edits the zone selected by `construction_zone` (via `ship::ship_structure::zone_body[_mut]`,
+    /// free functions on this field so sibling GuiState fields stay borrowable); the engine renders
+    /// ALL zones (load_world + rebuild_homestead via `ShipStructure::generate_meshes`) instead of
+    /// the old room-AABB layout when present. Loaded in load_world (with one-time adoption of a
+    /// legacy home_structure.ron).
+    pub ship_structure: Option<crate::ship::ship_structure::ShipStructure>,
+    /// Index into `ship_structure.zones` of the zone the construction editor is EDITING (the zone
+    /// selector at the top of the Home structure panel, v0.754). All viewport tools + panel edits
+    /// operate on this zone; gizmos and ray picks convert between world and zone-local space
+    /// through its origin.
+    pub construction_zone: usize,
+    /// Two-click delete confirm for the zone selector's "Delete zone" (v0.754): armed by the first
+    /// click, executed by "Confirm delete", cleared on cancel / zone switch.
+    pub construction_zone_delete_arm: bool,
     /// Set by the panel on an interior-wall edit (add / remove / move corner / opening) -> the
-    /// engine rebuilds the home mesh and writes home_structure.ron. (v0.534)
+    /// engine rebuilds the home mesh and writes ship_structure.ron on Save. (v0.534)
     pub construction_structure_dirty: bool,
     /// Wall-drawing mode (v0.534): true while the "Add wall" tool is active. Click the floor to
     /// drop corner nodes; the first click sets `construction_wall_start`, the second adds the wall
@@ -4064,7 +4076,9 @@ impl Default for GuiState {
             construction_level: 0,
             construction_dirty: false,
             construction_machines_dirty: false,
-            home_structure: None,
+            ship_structure: None,
+            construction_zone: 0,
+            construction_zone_delete_arm: false,
             construction_structure_dirty: false,
             construction_wall_mode: false,
             construction_wall_start: None,

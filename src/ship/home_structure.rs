@@ -6,10 +6,12 @@
 //! as the regions those interior walls (plus the box) enclose.
 //!
 //! AI + human friendly (the operator's north star): the whole structure is ONE small readable file.
-//! Add an interior wall by adding one `InteriorWall(a: (x, z), b: (x, z))` line to
-//! data/blueprints/home_structure.ron -- no code. The construction editor places the SAME segments
-//! by dragging corner nodes. One model, edited the same way by an AI and a human. The model is
-//! intended for designing ANY structure, not just the player home.
+//! Add an interior wall by adding one `InteriorWall(a: (x, z), b: (x, z))` line to the zone body in
+//! data/blueprints/ship_structure.ron -- no code (v0.754: the home body lives inside the multi-zone
+//! ShipStructure as zone "home"; see ship_structure.rs). The construction editor places the SAME
+//! segments by dragging corner nodes. One model, edited the same way by an AI and a human. The
+//! model is intended for designing ANY structure, not just the player home -- and as of increment A
+//! of docs/design/ship-superstructure.md it IS the per-zone primitive for every enclosed space.
 //!
 //! Stage 1 (this file): the data model + mesh generation for the fixed box + interior walls, in the
 //! existing `HomesteadMeshes` form so it renders through the same path. Wiring it into the live world
@@ -840,6 +842,7 @@ impl HomeStructure {
             windows: (Vec::new(), Vec::new()),
             mirrors: (Vec::new(), Vec::new()),
             ceilings,
+            ceilings_opaque: (Vec::new(), Vec::new()),
             room_info: self.detect_rooms(),
         }
     }
@@ -2353,13 +2356,21 @@ mod tests {
         assert!(!opaque.roof_is_glass());
     }
 
-    #[test]
-    fn parses_the_shipped_home_structure() {
+    /// The shipped home body now lives INSIDE data/blueprints/ship_structure.ron as zone "home"
+    /// (increment A of docs/design/ship-superstructure.md migrated home_structure.ron outright).
+    fn shipped_home_body() -> HomeStructure {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("blueprints")
-            .join("home_structure.ron");
-        let h = HomeStructure::load(&path).expect("home_structure.ron parses");
+            .join("ship_structure.ron");
+        let ship = crate::ship::ship_structure::ShipStructure::load(&path)
+            .expect("ship_structure.ron parses");
+        ship.zones[ship.home_zone_index()].body.clone()
+    }
+
+    #[test]
+    fn parses_the_shipped_home_structure() {
+        let h = shipped_home_body();
         assert!(h.width > 0.0 && h.depth > 0.0 && h.height > 0.0);
     }
 
@@ -2369,11 +2380,7 @@ mod tests {
     /// corners, openings, and placed structures all survive the bake-and-translate path.
     #[test]
     fn the_real_shipped_home_clones_into_a_residential_zone() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("blueprints")
-            .join("home_structure.ron");
-        let mut h = HomeStructure::load(&path).expect("home_structure.ron parses");
+        let mut h = shipped_home_body();
         let before = h.generate_meshes().material_walls.len();
         // A zone with room for a 2x2 grid of the real home's own footprint.
         let (w, d) = (h.width, h.depth);

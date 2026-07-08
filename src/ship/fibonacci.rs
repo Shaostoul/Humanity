@@ -347,7 +347,13 @@ pub struct HomesteadMeshes {
     pub mirrors: (Vec<Vertex>, Vec<u32>),
     /// (vertices, indices) for all room ceilings combined — drawn only when the roof is
     /// toggled on (v0.453). Built unconditionally; visibility is gated at render time.
+    /// On the ship path (v0.754, ship_structure) this buffer holds only GLASS-roof zones'
+    /// ceilings (the transparent pass); opaque roofs go to `ceilings_opaque` below.
     pub ceilings: (Vec<Vertex>, Vec<u32>),
+    /// (vertices, indices) for OPAQUE-roof zones' ceilings (v0.754, per-zone glass-or-steel
+    /// roofs): rendered with the opaque ceiling material, gated by the show-roof toggle exactly
+    /// like the old single opaque roof. Empty on the fibonacci path (which keeps `ceilings`).
+    pub ceilings_opaque: (Vec<Vertex>, Vec<u32>),
     /// Room metadata (id, center, dimensions, flags)
     pub room_info: Vec<RoomInfo>,
 }
@@ -1588,6 +1594,7 @@ fn build_meshes(layout: &HomesteadLayout, positions: &[Vec3], profiles: &TrimPro
         windows: (win_v, win_i),
         mirrors: (mir_v, mir_i),
         ceilings: (ceil_v, ceil_i),
+        ceilings_opaque: (Vec::new(), Vec::new()),
         room_info,
     }
 }

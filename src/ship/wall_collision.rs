@@ -73,6 +73,24 @@ pub fn wall_segments(home: &HomeStructure) -> Vec<WallSegment> {
     segs
 }
 
+/// Build the blocking segments for the WHOLE SHIP (v0.754, ship-superstructure increment A): each
+/// zone's segments (from the unchanged per-body `wall_segments`) translated by that zone's world
+/// origin, all concatenated. Collision stays a 2D XZ push-out (Y is never touched), so zones at a
+/// different deck height share the same segment plane -- honest for the single-deck v1; multi-deck
+/// stacking is explicitly out of scope (design doc section E).
+pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
+    let mut segs = Vec::new();
+    for zone in &ship.zones {
+        let (ox, oz) = (zone.origin.0, zone.origin.2);
+        segs.extend(wall_segments(&zone.body).into_iter().map(|s| WallSegment {
+            a: (s.a.0 + ox, s.a.1 + oz),
+            b: (s.b.0 + ox, s.b.1 + oz),
+            half_thickness: s.half_thickness,
+        }));
+    }
+    segs
+}
+
 /// Closest point on segment a..b to (px,pz), and the distance to it. (cx, cz, dist).
 fn closest_on_seg(px: f32, pz: f32, a: (f32, f32), b: (f32, f32)) -> (f32, f32, f32) {
     let (ax, az) = a;
@@ -221,6 +239,48 @@ mod tests {
         let out = resolve(Vec3::new(1.0, 1.7, 4.95), Vec3::new(3.0, 1.7, 4.95), PLAYER_RADIUS, &segs, &[]);
         assert!(out.x > 2.5, "x (tangential) advanced along the wall, got {}", out.x);
         assert!(out.z < 5.0 - 0.2, "z held clear of the wall, got {}", out.z);
+    }
+
+    #[test]
+    fn ship_segments_offset_each_zone_by_its_origin() {
+        use crate::ship::ship_structure::{ShipStructure, ShipZone};
+        // One zone at the world origin, one at (70, 0, 10): the second zone's segments (its
+        // perimeter + interior wall piers) must all be translated by exactly that origin.
+        let ship = ShipStructure {
+            zones: vec![
+                ShipZone {
+                    id: "home".into(),
+                    label: String::new(),
+                    purpose: "residence".into(),
+                    origin: (0.0, 0.0, 0.0),
+                    body: home(),
+                },
+                ShipZone {
+                    id: "commons".into(),
+                    label: String::new(),
+                    purpose: "commons".into(),
+                    origin: (70.0, 0.0, 10.0),
+                    body: home(),
+                },
+            ],
+        };
+        let per_zone = wall_segments(&home());
+        let all = ship_wall_segments(&ship);
+        assert_eq!(all.len(), per_zone.len() * 2, "both zones contribute segments");
+        // The second zone's block mirrors the first, shifted by (+70, +10).
+        for (i, s) in per_zone.iter().enumerate() {
+            let shifted = &all[per_zone.len() + i];
+            assert!((shifted.a.0 - (s.a.0 + 70.0)).abs() < 1e-4, "x offset by the zone origin");
+            assert!((shifted.a.1 - (s.a.1 + 10.0)).abs() < 1e-4, "z offset by the zone origin");
+            assert!((shifted.b.0 - (s.b.0 + 70.0)).abs() < 1e-4);
+            assert!((shifted.b.1 - (s.b.1 + 10.0)).abs() < 1e-4);
+        }
+        // Behavioral check: the second zone's x=70 hull pushes a player standing just inside it.
+        let out = at(Vec3::new(70.05, 1.7, 15.0), &all, &[]);
+        assert!(out.x >= 70.0 + PLAYER_RADIUS - 0.05, "pushed off the offset hull, got {}", out.x);
+        // And its doorway gap still works at the offset position (door span x=4..6 local -> 74..76).
+        let in_door = at(Vec3::new(75.0, 1.7, 15.0), &all, &[]);
+        assert!((in_door.z - 15.0).abs() < 0.01, "offset doorway is a gap, got z={}", in_door.z);
     }
 
     #[test]

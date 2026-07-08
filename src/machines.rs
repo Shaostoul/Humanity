@@ -234,6 +234,12 @@ impl MachineDef {
     }
 }
 
+/// The default ship zone a machine belongs to when its data predates multi-zone ships (v0.754,
+/// ship-superstructure increment A): the player's home. Every existing home.ron parses unchanged.
+pub fn default_machine_zone() -> String {
+    "home".to_string()
+}
+
 /// One placed machine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MachineInstance {
@@ -243,8 +249,9 @@ pub struct MachineInstance {
     /// depends on it); for a legacy AABB-room ship layout it binds the instance to a room.
     pub room: String,
     /// Position (v0.538, meaning depends on the home model -- see `MachineHome::placements`):
-    /// - HomeStructure box home: ABSOLUTE world (x, y, z) in metres (the box min corner is at the
-    ///   world origin; clamped into the box footprint on resolve), y up from the box floor.
+    /// - ShipStructure zone home (v0.754): x/z are ABSOLUTE world metres, clamped into the named
+    ///   `zone`'s footprint at that zone's origin on resolve; y is up from the ZONE's floor (its
+    ///   origin y), so a machine on a raised deck sits on that deck.
     /// - legacy AABB-room ship layout: (x, y, z) RELATIVE to the room center, y up from the floor.
     pub offset: (f32, f32, f32),
     /// Yaw rotation in DEGREES about the vertical (Y) axis (v0.633). 0 = unrotated. Lets a box-shaped
@@ -252,6 +259,11 @@ pub struct MachineInstance {
     /// home.ron + array-expanded cell is unchanged.
     #[serde(default)]
     pub rotation: f32,
+    /// The SHIP ZONE this machine lives in (v0.754, ship-superstructure increment A): a
+    /// `ShipStructure` zone id. Placement clamps the machine into THIS zone's footprint at that
+    /// zone's origin. serde-defaults to "home" so every pre-zone home.ron is unchanged.
+    #[serde(default = "default_machine_zone")]
+    pub zone: String,
 }
 
 /// A grid of identical machines, expanded into instances at load time. Lets a dense
@@ -274,6 +286,10 @@ pub struct MachineArray {
     pub spacing: (f32, f32),
     /// Id prefix for the generated instances (e.g. "tower" -> "tower_0", "tower_1", ...).
     pub id_prefix: String,
+    /// The SHIP ZONE the whole grid lives in (v0.754); every expanded cell inherits it. Defaults
+    /// to "home" so every pre-zone home.ron is unchanged.
+    #[serde(default = "default_machine_zone")]
+    pub zone: String,
 }
 
 /// A pipe / cable / tube between two machines.
@@ -482,6 +498,28 @@ pub struct RoomGeom {
     pub ceiling_y: f32,
 }
 
+/// One ship zone's footprint, as the machine placer sees it (v0.754, ship-superstructure
+/// increment A): the zone id, its world origin (box min corner; y = deck height), and its box
+/// size (width, depth, height). Built from `ShipStructure::zone_rects`; plain tuples so this
+/// module stays renderer-free + testable.
+#[derive(Debug, Clone)]
+pub struct ZoneRect {
+    pub id: String,
+    pub origin: (f32, f32, f32),
+    pub size: (f32, f32, f32),
+}
+
+/// The zone a machine clamps into: its named zone, else "home", else the first zone -- a
+/// DETERMINISTIC fallback chain so a machine whose zone was deleted/renamed still lands somewhere
+/// stable (the ship always keeps at least one zone; `ShipStructure::remove_zone` protects "home").
+pub fn resolve_zone_rect<'a>(zones: &'a [ZoneRect], id: &str) -> Option<&'a ZoneRect> {
+    zones
+        .iter()
+        .find(|z| z.id == id)
+        .or_else(|| zones.iter().find(|z| z.id == "home"))
+        .or_else(|| zones.first())
+}
+
 /// A placed machine resolved to its world draw position + appearance, ready for the renderer. The
 /// construction editor rebuilds these live on an edit so a move/add/remove shows instantly. (v0.525)
 #[derive(Debug, Clone)]
@@ -660,6 +698,7 @@ impl MachineHome {
                         arr.origin.2 + r as f32 * arr.spacing.1,
                     ),
                     rotation: 0.0,
+                    zone: arr.zone.clone(),
                 });
                 idx += 1;
             }
@@ -736,13 +775,16 @@ impl MachineHome {
 
     /// Resolve a ConduitEnd to a world anchor (v0.581): a MACHINE uses the SAME low pipe anchor the
     /// renderer uses (placement pos + 0.35 m up); a NODE uses its clamped position. `placements` are
-    /// the resolved machine placements; `box_dims` is (width, depth, height) for clamping.
+    /// the resolved machine placements; `bounds` is the world (min, max) AABB to clamp nodes into --
+    /// the single home box pre-v0.754, the whole ship's zone AABB now (nodes carry no zone id; they
+    /// are free graph junctions anywhere on the ship).
     pub fn conduit_anchor(
         &self,
         end: &ConduitEnd,
         placements: &[(String, (f32, f32, f32), f32)], // (id, pos, floor_y)
-        box_dims: (f32, f32, f32),
+        bounds: ((f32, f32, f32), (f32, f32, f32)),    // world (min xyz, max xyz)
     ) -> Option<(f32, f32, f32)> {
+        let (mn, mx) = bounds;
         match end {
             ConduitEnd::Machine(id) => placements
                 .iter()
@@ -750,9 +792,9 @@ impl MachineHome {
                 .map(|(_, pos, floor_y)| (pos.0, floor_y + 0.35, pos.2)),
             ConduitEnd::Node(id) => self.conduit_nodes.iter().find(|n| &n.id == id).map(|n| {
                 (
-                    n.pos.0.clamp(0.3, box_dims.0 - 0.3),
-                    n.pos.1.clamp(0.1, box_dims.2),
-                    n.pos.2.clamp(0.3, box_dims.1 - 0.3),
+                    n.pos.0.clamp(mn.0 + 0.3, (mx.0 - 0.3).max(mn.0 + 0.3)),
+                    n.pos.1.clamp(mn.1 + 0.1, mx.1.max(mn.1 + 0.1)),
+                    n.pos.2.clamp(mn.2 + 0.3, (mx.2 - 0.3).max(mn.2 + 0.3)),
                 )
             }),
         }
@@ -1389,31 +1431,33 @@ impl MachineHome {
     /// appearance. Pure + renderer-free: `load_world` turns these into meshes on world entry, and
     /// the construction editor calls this to refresh the machine view LIVE on an edit.
     ///
-    /// `box_mode` selects the coordinate model (v0.538):
-    /// - **box_mode = true** (a HomeStructure fixed-box home): each instance's `offset.0`/`offset.2`
-    ///   is an ABSOLUTE world x/z (the box min corner sits at the world origin), CLAMPED into the box
-    ///   footprint `box_dims = (width, depth, height)` so a machine authored with legacy room-relative
-    ///   (often negative) coords still lands visibly INSIDE the box; the y base is the box floor (0).
-    ///   No instance is skipped on a stale room id -- position no longer depends on the churning
-    ///   flood-fill room ids, so a machine survives wall edits and old data still renders.
-    /// - **box_mode = false** (a legacy AABB-room ship layout): the offset is RELATIVE to the room
-    ///   center, y up from the room floor, and a machine whose room is missing is skipped -- exactly
-    ///   as before. `box_dims` is ignored.
+    /// `zones` selects the coordinate model (v0.538 box mode, generalized per-zone v0.754):
+    /// - **zones = Some(rects)** (a ShipStructure multi-zone home): each instance's
+    ///   `offset.0`/`offset.2` is an ABSOLUTE world x/z, CLAMPED into ITS zone's footprint at that
+    ///   zone's origin (`resolve_zone_rect` falls back "home" -> first zone for a stale zone id) so
+    ///   a machine authored with legacy room-relative (often negative) coords still lands visibly
+    ///   INSIDE its zone; the y base is the ZONE's floor (its origin y). No instance is skipped on
+    ///   a stale room id -- position no longer depends on the churning flood-fill room ids, so a
+    ///   machine survives wall edits and old data still renders.
+    /// - **zones = None** (a legacy AABB-room ship layout): the offset is RELATIVE to the room
+    ///   center, y up from the room floor, and a machine whose room is missing is skipped --
+    ///   exactly as before.
     pub fn placements(
         &self,
         rooms: &std::collections::HashMap<String, RoomGeom>,
-        box_mode: bool,
-        box_dims: (f32, f32, f32),
+        zones: Option<&[ZoneRect]>,
     ) -> Vec<PlacedMachine> {
         let mut out = Vec::new();
-        let (bw, bd, bh) = box_dims;
         for inst in self.all_instances() {
             let Some(def) = self.catalog.get(&inst.machine) else { continue };
-            let (x, y, z, floor_y, ceiling_y) = if box_mode {
-                // Absolute world x/z clamped into the box; y from the box floor (0).
-                let x = inst.offset.0.clamp(0.3, (bw - 0.3).max(0.3));
-                let z = inst.offset.2.clamp(0.3, (bd - 0.3).max(0.3));
-                (x, inst.offset.1, z, 0.0, bh)
+            let (x, y, z, floor_y, ceiling_y) = if let Some(zones) = zones {
+                // Absolute world x/z clamped into the machine's zone; y from that zone's floor.
+                let Some(zr) = resolve_zone_rect(zones, &inst.zone) else { continue };
+                let (ox, oy, oz) = zr.origin;
+                let (w, d, h) = zr.size;
+                let x = inst.offset.0.clamp(ox + 0.3, (ox + w - 0.3).max(ox + 0.3));
+                let z = inst.offset.2.clamp(oz + 0.3, (oz + d - 0.3).max(oz + 0.3));
+                (x, oy + inst.offset.1, z, oy, oy + h)
             } else {
                 let Some(g) = rooms.get(&inst.room) else { continue };
                 (
@@ -1467,6 +1511,7 @@ impl MachineHome {
                             arr.origin.2 + r as f32 * arr.spacing.1,
                         ),
                         rotation: 0.0,
+                        zone: arr.zone.clone(),
                     });
                     idx += 1;
                 }
@@ -1605,6 +1650,7 @@ mod tests {
             room: "garage".to_string(),
             offset: (0.0, 0.0, 0.0),
             rotation: 0.0,
+            zone: "home".to_string(),
         });
         let tmp = std::env::temp_dir().join("humanity_home_add.ron");
         home.save(&tmp).expect("save");
@@ -1652,6 +1698,7 @@ mod tests {
                 cols: 2, // expands to solar_panel_0..solar_panel_3
                 spacing: (1.0, 1.0),
                 id_prefix: "solar_panel".to_string(),
+                zone: "home".to_string(),
             }],
             connections: Vec::new(),
             loops: Vec::new(),
@@ -1678,6 +1725,7 @@ mod tests {
             room: "garage".to_string(),
             offset: (0.0, 0.0, 0.0),
             rotation: 0.0,
+            zone: "home".to_string(),
         };
         let conn = |from: &str, to: &str| MachineConnection {
             from: from.to_string(),
@@ -1713,6 +1761,7 @@ mod tests {
             room: room.to_string(),
             offset: (0.0, 0.0, 0.0),
             rotation: 0.0,
+            zone: "home".to_string(),
         };
         let mut home = MachineHome {
             catalog,
@@ -1725,6 +1774,7 @@ mod tests {
                 cols: 1,
                 spacing: (1.0, 1.0),
                 id_prefix: "gtower".to_string(),
+                zone: "home".to_string(),
             }],
             // g1->k1 spans rooms; deleting garden removes g1 so this connection must go.
             connections: vec![MachineConnection {
@@ -1759,6 +1809,7 @@ mod tests {
             room: "garage".to_string(),
             offset: (0.0, 0.0, 0.0),
             rotation: 0.0,
+            zone: "home".to_string(),
         };
         let mut home = MachineHome {
             catalog,
@@ -1789,7 +1840,7 @@ mod tests {
         catalog.insert("box".to_string(), test_def("box"));
         let mut home = MachineHome {
             catalog,
-            instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0 }],
+            instances: vec![MachineInstance { id: "solo".into(), machine: "box".into(), room: "garden".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into() }],
             arrays: vec![MachineArray {
                 machine: "box".to_string(),
                 room: "garden".to_string(),
@@ -1798,6 +1849,7 @@ mod tests {
                 cols: 3, // 6 cells: tray_0..tray_5
                 spacing: (1.5, 2.0),
                 id_prefix: "tray".to_string(),
+                zone: "home".to_string(),
             }],
             connections: Vec::new(),
             loops: Vec::new(),
@@ -1828,7 +1880,7 @@ mod tests {
     fn remove_connection_between_drops_either_direction() {
         let mut catalog = BTreeMap::new();
         catalog.insert("box".to_string(), test_def("box"));
-        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str| MachineInstance { id: id.into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let mut home = MachineHome {
             catalog,
             instances: vec![inst("a"), inst("b"), inst("c")],
@@ -1891,7 +1943,7 @@ mod tests {
         catalog.insert("box".to_string(), test_def("box"));
         let mut home = MachineHome {
             catalog,
-            instances: vec![MachineInstance { id: "m1".into(), machine: "box".into(), room: "g".into(), offset: (1.0, 0.0, 2.0), rotation: 90.0 }],
+            instances: vec![MachineInstance { id: "m1".into(), machine: "box".into(), room: "g".into(), offset: (1.0, 0.0, 2.0), rotation: 90.0, zone: "home".into() }],
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
@@ -1899,7 +1951,7 @@ mod tests {
             conduit_edges: Vec::new(),
         };
         // placements (box mode) carry the yaw through to the renderer.
-        let placed = home.placements(&std::collections::HashMap::new(), true, (20.0, 20.0, 4.0));
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(20.0, 20.0, 4.0)));
         let m = placed.iter().find(|p| p.id == "m1").expect("m1 placed");
         assert_eq!(m.rotation, 90.0, "placement carries the instance rotation");
         // RON round-trip preserves it.
@@ -1907,7 +1959,7 @@ mod tests {
         let back: MachineHome = ron::from_str(&ron).expect("deserialize");
         assert_eq!(back.instances[0].rotation, 90.0, "rotation survives the round-trip");
         // An array-expanded cell defaults to 0 yaw.
-        home.arrays.push(MachineArray { machine: "box".into(), room: "g".into(), origin: (5.0, 0.0, 5.0), rows: 1, cols: 1, spacing: (1.0, 1.0), id_prefix: "cell".into() });
+        home.arrays.push(MachineArray { machine: "box".into(), room: "g".into(), origin: (5.0, 0.0, 5.0), rows: 1, cols: 1, spacing: (1.0, 1.0), id_prefix: "cell".into(), zone: "home".into() });
         let cell = home.all_instances().into_iter().find(|i| i.id == "cell_0").expect("cell exists");
         assert_eq!(cell.rotation, 0.0, "an array cell defaults to 0 yaw");
     }
@@ -1924,7 +1976,7 @@ mod tests {
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
         let home = MachineHome {
             catalog,
-            instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 }],
+            instances: vec![MachineInstance { id: "l1".into(), machine: "load".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() }],
             arrays: Vec::new(),
             connections: Vec::new(),
             loops: Vec::new(),
@@ -1943,7 +1995,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
@@ -1975,7 +2027,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 4000.0, max_charge_w: 2000.0, max_discharge_w: 2000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
@@ -2004,7 +2056,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
         catalog.insert("grow_light".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 5 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let mut home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
@@ -2076,7 +2128,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 2000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
@@ -2103,7 +2155,7 @@ mod tests {
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 1000.0 })));
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 200.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("b1", "batt"), inst("l1", "load")],
@@ -2128,7 +2180,7 @@ mod tests {
         catalog.insert("box".to_string(), test_def("box"));
         let home = MachineHome {
             catalog,
-            instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 }],
+            instances: vec![MachineInstance { id: "a".into(), machine: "box".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() }],
             arrays: Vec::new(),
             connections: vec![MachineConnection { from: "a".into(), to: "ghost".into(), kind: "power".into(), spec: None }],
             loops: Vec::new(),
@@ -2167,9 +2219,9 @@ mod tests {
         MachineHome {
             catalog,
             instances: vec![
-                MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0 },
-                MachineInstance { id: "s1".into(), machine: "ball".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 },
-                MachineInstance { id: "ghost".into(), machine: "box".into(), room: "nowhere".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 },
+                MachineInstance { id: "b1".into(), machine: "box".into(), room: "garage".into(), offset: (1.0, 0.0, 2.0), rotation: 0.0, zone: "home".into() },
+                MachineInstance { id: "s1".into(), machine: "ball".into(), room: "garage".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() },
+                MachineInstance { id: "ghost".into(), machine: "box".into(), room: "nowhere".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() },
             ],
             arrays: Vec::new(),
             connections: Vec::new(),
@@ -2179,14 +2231,51 @@ mod tests {
         }
     }
 
-    /// v0.525/v0.538: in SHIP mode (box_mode=false) placements() resolves room center + offset,
+    /// A single "home" zone at the world origin -- the pre-v0.754 single-box world, expressed in
+    /// the new per-zone form, so the legacy box-mode tests keep asserting the same behavior.
+    fn one_zone(w: f32, d: f32, h: f32) -> Vec<ZoneRect> {
+        vec![ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (w, d, h) }]
+    }
+
+    /// v0.754 (ship-superstructure increment A): a machine whose `zone` names a second zone clamps
+    /// into THAT zone's footprint at that zone's origin -- not the home's -- and its y sits on that
+    /// zone's deck. A stale zone id falls back to "home" deterministically.
+    #[test]
+    fn machine_clamps_into_its_zones_footprint_at_that_zones_origin() {
+        let mut home = pos_test_home();
+        home.instances = vec![
+            // In the commons zone but authored way outside it: must clamp into 70..90 x, 5..35 z.
+            MachineInstance { id: "shop".into(), machine: "box".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "commons".into() },
+            // Inside the commons footprint: passes through unclamped, y on the commons deck (y=2).
+            MachineInstance { id: "stall".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "commons".into() },
+            // A stale zone id: falls back to the "home" zone's footprint.
+            MachineInstance { id: "lost".into(), machine: "box".into(), room: "g".into(), offset: (75.0, 0.0, 10.0), rotation: 0.0, zone: "deleted_zone".into() },
+        ];
+        let zones = vec![
+            ZoneRect { id: "home".into(), origin: (0.0, 0.0, 0.0), size: (55.0, 89.0, 3.0) },
+            ZoneRect { id: "commons".into(), origin: (70.0, 2.0, 5.0), size: (20.0, 30.0, 6.0) },
+        ];
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&zones));
+        let shop = placed.iter().find(|p| p.id == "shop").unwrap();
+        assert!((shop.pos.0 - 70.3).abs() < 1e-5, "clamped to the commons' near x edge, got {}", shop.pos.0);
+        assert!((shop.pos.2 - 5.3).abs() < 1e-5, "clamped to the commons' near z edge, got {}", shop.pos.2);
+        assert_eq!(shop.floor_y, 2.0, "floor is the commons deck height");
+        assert_eq!(shop.ceiling_y, 8.0, "ceiling is deck + zone height");
+        let stall = placed.iter().find(|p| p.id == "stall").unwrap();
+        assert_eq!(stall.pos, (75.0, 2.0, 10.0), "an in-footprint machine is unmoved, y on its deck");
+        let lost = placed.iter().find(|p| p.id == "lost").unwrap();
+        assert!(lost.pos.0 <= 55.0 - 0.3 + 1e-5 && lost.pos.2 <= 89.0 - 0.3 + 1e-5, "a stale zone id falls back to the home footprint");
+        assert_eq!(lost.floor_y, 0.0);
+    }
+
+    /// v0.525/v0.538: in SHIP mode (zones=None) placements() resolves room center + offset,
     /// floor-relative y, lifts spheres, and SKIPS a machine whose room has no geometry.
     #[test]
     fn placements_ship_mode_is_room_relative_and_skips() {
         let home = pos_test_home();
         let mut rooms = std::collections::HashMap::new();
         rooms.insert("garage".to_string(), RoomGeom { center_x: 10.0, center_z: 20.0, floor_y: 5.0, ceiling_y: 8.0 });
-        let placed = home.placements(&rooms, false, (0.0, 0.0, 0.0));
+        let placed = home.placements(&rooms, None);
         assert_eq!(placed.len(), 2, "the machine in an unknown room is skipped in ship mode");
         let b = placed.iter().find(|p| p.id == "b1").unwrap();
         assert_eq!(b.pos, (11.0, 5.0, 22.0), "box at center+offset, floor-relative");
@@ -2228,7 +2317,7 @@ mod tests {
     fn placements_box_mode_is_absolute_and_never_skips() {
         let home = pos_test_home();
         let rooms = std::collections::HashMap::new(); // empty -- box mode must not depend on it
-        let placed = home.placements(&rooms, true, (55.0, 89.0, 3.0));
+        let placed = home.placements(&rooms, Some(&one_zone(55.0, 89.0, 3.0)));
         assert_eq!(placed.len(), 3, "box mode skips nothing -- all three render");
         let b = placed.iter().find(|p| p.id == "b1").unwrap();
         assert_eq!(b.pos, (1.0, 0.0, 2.0), "box at its absolute offset, y on the box floor");
@@ -2245,8 +2334,8 @@ mod tests {
     #[test]
     fn placements_box_mode_clamps_negative_offsets_into_the_box() {
         let mut home = pos_test_home();
-        home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0), rotation: 0.0 }];
-        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        home.instances = vec![MachineInstance { id: "solar".into(), machine: "box".into(), room: "garage".into(), offset: (-7.0, 0.0, -22.0), rotation: 0.0, zone: "home".into() }];
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
         assert_eq!(placed.len(), 1, "a negative-offset machine is visible, not skipped");
         assert!((placed[0].pos.0 - 0.3).abs() < 1e-5, "negative x clamps to the near edge, inside the box");
         assert!((placed[0].pos.2 - 0.3).abs() < 1e-5, "negative z clamps to the near edge, inside the box");
@@ -2261,7 +2350,7 @@ mod tests {
             .join("machines")
             .join("home.ron");
         let home = MachineHome::load(&path).expect("home.ron parses");
-        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
         assert_eq!(placed.len(), home.all_instances().len(), "box mode skips nothing -- the seed home renders fully");
     }
 
@@ -2281,7 +2370,7 @@ mod tests {
         assert_eq!(hangars.len(), 1, "v1 assumes exactly one drone hangar; update the visual's doc comment if this ever changes");
         let hangar_id = hangars[0].id.clone();
         // Box mode (the live HomeStructure home) never skips a machine, so this must resolve.
-        let placed = home.placements(&std::collections::HashMap::new(), true, (55.0, 89.0, 3.0));
+        let placed = home.placements(&std::collections::HashMap::new(), Some(&one_zone(55.0, 89.0, 3.0)));
         let hangar_placement = placed.iter().find(|p| p.id == hangar_id).expect("drone hangar resolves to a placement");
         assert_eq!(hangar_placement.shape, "box", "the hangar pad renders as its authored box shape");
     }
@@ -2385,8 +2474,8 @@ mod tests {
         MachineHome {
             catalog,
             instances: vec![
-                MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 },
-                MachineInstance { id: "l1".into(), machine: "load".into(), room: "g".into(), offset: (gap, 0.0, 0.0), rotation: 0.0 },
+                MachineInstance { id: "s1".into(), machine: "src".into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() },
+                MachineInstance { id: "l1".into(), machine: "load".into(), room: "g".into(), offset: (gap, 0.0, 0.0), rotation: 0.0, zone: "home".into() },
             ],
             arrays: Vec::new(),
             connections: vec![MachineConnection {
@@ -2473,7 +2562,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("uplink".to_string(), uplink);
         catalog.insert("server".to_string(), server);
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let mut home = MachineHome {
             catalog,
             instances: vec![inst("u", "uplink"), inst("s", "server")],
@@ -2512,7 +2601,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("batt".to_string(), def_with_power(Some(MachinePower::Battery { capacity_wh: 1000.0, max_charge_w: 500.0, max_discharge_w: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 100.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let mut home = MachineHome {
             catalog,
             instances: vec![inst("b1", "batt"), inst("l1", "load")],
@@ -2540,7 +2629,7 @@ mod tests {
         let mut catalog = BTreeMap::new();
         catalog.insert("panel".to_string(), def_with_power(Some(MachinePower::Solar { peak_watts: 500.0 })));
         catalog.insert("load".to_string(), def_with_power(Some(MachinePower::Consumer { watts: 80.0, priority: 1 })));
-        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0 };
+        let inst = |id: &str, m: &str| MachineInstance { id: id.into(), machine: m.into(), room: "g".into(), offset: (0.0, 0.0, 0.0), rotation: 0.0, zone: "home".into() };
         let mut home = MachineHome {
             catalog,
             instances: vec![inst("p1", "panel"), inst("l1", "load")],
