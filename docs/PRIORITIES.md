@@ -93,20 +93,22 @@
 > SHIP SUPERSTRUCTURE ARC (operator-raised 2026-07-08, the ACTIVE arc):
 > docs/design/ship-superstructure.md is the contract (absorbs Brief 1).
 > A SHIPPED v0.766 (multi-zone ShipStructure + editor zone selector).
-> B SHIPPED v0.767 (corridors: one data row generates the walled tube
-> with a glass-or-steel lid AND cuts walkable apertures through both
-> zone shells in mesh + collision; editor Corridors section; honest
-> validation; straight/axis-aligned v1). NEXT: increment C - AUTHOR THE
-> COMMONS as data (one big commons-purpose zone with the default glass
-> roof, garden machines + trading posts tagged zone "commons", one
-> corridor row to the home; a solo data session, no new engine code),
-> then D (the hull wrap - data-driven profiles, the "looks like a
-> spaceship" pass, screenshot-tunable like planets). OPERATOR FIELD
-> TESTS PENDING: planets (look up, tune sliders + RON live), zones +
-> corridors (build editor: Add zone -> Corridors -> Create -> walk it).
-> OTHER ARCS ON THE SHELF: combat taste items, planet LANDING arc,
-> guild production pools. Journal follow-up still open: guild REST auth
-> should ride the signed-auth helper before real users. <<<**
+> B SHIPPED v0.767 (corridors: one row generates the tube + cuts
+> walkable shell apertures). C SHIPPED v0.768 (THE COMMONS - the
+> operator mall as PURE DATA: 34x55x8 glass-roofed hall, 3x3 tower
+> grove center on the home garden loop, three open-fronted Trading Post
+> stalls, a 10m glass gallery from the home east door; proves the
+> architecture - zero engine code). NEXT: increment D - the hull wrap
+> (data-driven nose/mid/engine profiles around the zone cluster,
+> greeble blocks as data rows, cutouts over glass; the "looks like a
+> spaceship from outside" pass, screenshot-tunable like the planets).
+> OPERATOR FIELD TESTS PENDING: planets (look up, tune sliders + RON
+> live) and the ship (walk out the home east door down the glass
+> gallery into the Commons; build editor shows both zones + the
+> corridor row). OTHER ARCS ON THE SHELF: combat taste items, planet
+> LANDING arc, guild production pools. Journal follow-up still open:
+> guild REST auth should ride the signed-auth helper before real
+> users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
