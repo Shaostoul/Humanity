@@ -574,6 +574,69 @@ impl GuiListingMsg {
     }
 }
 
+/// One item on a side of a P2P trade, mirroring the relay's TradeItem (v0.756).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiTradeItem {
+    pub item_type: String,
+    pub name: String,
+    pub quantity: u32,
+    pub description: String,
+}
+
+/// One P2P trade, mirroring the relay's TradeDataPayload (v0.756). Delivered
+/// through targeted `__trade_data__:` / `__trade_list__:` private wrappers.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiTrade {
+    pub id: String,
+    pub initiator_key: String,
+    pub recipient_key: String,
+    /// pending | active | completed | cancelled | rejected (relay strings).
+    pub status: String,
+    pub initiator_items: Vec<GuiTradeItem>,
+    pub recipient_items: Vec<GuiTradeItem>,
+    pub initiator_confirmed: bool,
+    pub recipient_confirmed: bool,
+    pub created_at: i64,
+    pub message: String,
+}
+
+#[cfg(feature = "native")]
+impl GuiTrade {
+    /// Map one TradeDataPayload JSON object (the `trade` field of a
+    /// `__trade_data__:` wrapper, or a `trades` element of `__trade_list__:`).
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        let items = |k: &str| -> Vec<GuiTradeItem> {
+            v.get(k)
+                .and_then(|x| x.as_array())
+                .map(|a| {
+                    a.iter()
+                        .map(|i| GuiTradeItem {
+                            item_type: i.get("item_type").and_then(|x| x.as_str()).unwrap_or("item").to_string(),
+                            name: i.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                            quantity: i.get("quantity").and_then(|x| x.as_u64()).unwrap_or(1) as u32,
+                            description: i.get("description").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        Self {
+            id: v.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            initiator_key: v.get("initiator_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            recipient_key: v.get("recipient_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            status: v.get("status").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            initiator_items: items("initiator_items"),
+            recipient_items: items("recipient_items"),
+            initiator_confirmed: v.get("initiator_confirmed").and_then(|x| x.as_bool()).unwrap_or(false),
+            recipient_confirmed: v.get("recipient_confirmed").and_then(|x| x.as_bool()).unwrap_or(false),
+            created_at: v.get("created_at").and_then(|x| x.as_i64()).unwrap_or(0),
+            message: v.get("message").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        }
+    }
+}
+
 #[cfg(all(test, feature = "native"))]
 mod listing_mapping_tests {
     use super::GuiListing;
@@ -710,6 +773,52 @@ mod listing_mapping_tests {
             Some("wire-1"),
             "the dispatch arm filters on review.listing_id"
         );
+    }
+
+    /// Wire pin for the v0.756 trade flow: the relay's REAL private-wrapped
+    /// `__trade_data__:` delivery (a serialized TradeData frame behind the
+    /// prefix) maps through the native routing path exactly as lib.rs's
+    /// private-message arm slices it.
+    #[test]
+    fn relay_trade_wrapper_round_trips_to_gui() {
+        use super::GuiTrade;
+
+        let frame = crate::relay::relay::RelayMessage::TradeData {
+            trade: crate::relay::relay::TradeDataPayload {
+                id: "trade-9".into(),
+                initiator_key: "alicekey".into(),
+                recipient_key: "bobkey".into(),
+                status: "active".into(),
+                initiator_items: vec![crate::relay::relay::TradeItem {
+                    item_type: "item".into(),
+                    name: "Iron Ingot".into(),
+                    quantity: 10,
+                    description: String::new(),
+                    reference_id: None,
+                }],
+                recipient_items: vec![],
+                initiator_confirmed: true,
+                recipient_confirmed: false,
+                created_at: 1_720_000_000_000,
+                completed_at: None,
+                message: Some("swap for wheat?".into()),
+            },
+        };
+        // The relay wraps the serialized frame behind the private prefix.
+        let wire = format!("__trade_data__:{}", serde_json::to_string(&frame).unwrap());
+
+        // ... and the native private-message arm slices + parses it.
+        let payload = wire.strip_prefix("__trade_data__:").unwrap();
+        let val: serde_json::Value = serde_json::from_str(payload).unwrap();
+        let t = GuiTrade::from_relay_json(val.get("trade").unwrap());
+        assert_eq!(t.id, "trade-9");
+        assert_eq!(t.status, "active");
+        assert_eq!(t.initiator_items.len(), 1);
+        assert_eq!(t.initiator_items[0].name, "Iron Ingot");
+        assert_eq!(t.initiator_items[0].quantity, 10);
+        assert!(t.initiator_confirmed);
+        assert!(!t.recipient_confirmed);
+        assert_eq!(t.message, "swap for wheat?");
     }
 }
 
@@ -2064,6 +2173,13 @@ pub struct GuiState {
     pub listing_thread_for: String,
     pub listing_thread_open: bool,
     pub listing_msg_draft: String,
+
+    /// P2P trades (v0.756), delivered via targeted private wrappers.
+    pub trades: Vec<GuiTrade>,
+    /// Set once trade_list_request has been sent this connection.
+    pub trades_synced: bool,
+    /// One-line trade feedback ("Trade completed", errors).
+    pub trade_status: String,
     pub listing_show_new_form: bool,
     pub listing_new_title: String,
     pub listing_new_description: String,
@@ -3582,6 +3698,9 @@ impl Default for GuiState {
             listing_thread_for: String::new(),
             listing_thread_open: false,
             listing_msg_draft: String::new(),
+            trades: Vec::new(),
+            trades_synced: false,
+            trade_status: String::new(),
             listing_show_new_form: false,
             listing_new_title: String::new(),
             listing_new_description: String::new(),

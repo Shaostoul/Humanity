@@ -3098,16 +3098,12 @@ fn trade_to_payload(t: &crate::relay::storage::TradeRecord) -> TradeDataPayload 
     }
 }
 
-/// Send trade data to both parties.
+/// Send trade data to both parties. TARGETED private wrappers only (v0.756):
+/// an earlier untargeted `TradeData` broadcast here delivered every trade's
+/// item lists to every connected client; the private `__trade_data__:` path
+/// (which web and native both consume) was always the intended delivery.
 fn send_trade_data(state: &Arc<RelayState>, trade: &crate::relay::storage::TradeRecord) {
     let payload = trade_to_payload(trade);
-    // Send to initiator
-    let msg1 = RelayMessage::TradeData { trade: payload.clone() };
-    let _ = state.broadcast_tx.send(msg1);
-    // The broadcast loop will deliver to both since TradeData has no target filter.
-    // We rely on the client filtering by their own key.
-    // Actually, we need to send as Private-like targeted messages. Let's use the
-    // existing Private pattern with JSON prefix.
     let json = serde_json::to_string(&RelayMessage::TradeData { trade: payload }).unwrap_or_default();
     let priv_init = RelayMessage::Private {
         to: trade.initiator_key.clone(),

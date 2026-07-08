@@ -13105,6 +13105,55 @@ mod native_app {
                                                 route_game_message(state, &payload);
                                                 continue;
                                             }
+                                            // P2P trades (v0.756) ride targeted private
+                                            // wrappers (same delivery web consumes) -
+                                            // route them to the Trade page, never chat.
+                                            if let Some(payload) = msg.strip_prefix("__trade_data__:") {
+                                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
+                                                    if let Some(t) = v.get("trade") {
+                                                        let gt = crate::gui::GuiTrade::from_relay_json(t);
+                                                        if let Some(slot) = state
+                                                            .gui_state
+                                                            .trades
+                                                            .iter_mut()
+                                                            .find(|x| x.id == gt.id)
+                                                        {
+                                                            *slot = gt;
+                                                        } else {
+                                                            state.gui_state.trades.insert(0, gt);
+                                                        }
+                                                    }
+                                                }
+                                                continue;
+                                            }
+                                            if let Some(payload) = msg.strip_prefix("__trade_list__:") {
+                                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
+                                                    if let Some(arr) = v.get("trades").and_then(|x| x.as_array()) {
+                                                        state.gui_state.trades = arr
+                                                            .iter()
+                                                            .map(crate::gui::GuiTrade::from_relay_json)
+                                                            .collect();
+                                                    }
+                                                }
+                                                continue;
+                                            }
+                                            if let Some(payload) = msg.strip_prefix("__trade_complete__:") {
+                                                if let Ok(v) = serde_json::from_str::<serde_json::Value>(payload) {
+                                                    if let Some(tid) = v.get("trade_id").and_then(|x| x.as_str()) {
+                                                        if let Some(t) = state
+                                                            .gui_state
+                                                            .trades
+                                                            .iter_mut()
+                                                            .find(|x| x.id == tid)
+                                                        {
+                                                            t.status = "completed".to_string();
+                                                        }
+                                                        state.gui_state.trade_status =
+                                                            "Trade completed - items exchanged.".to_string();
+                                                    }
+                                                }
+                                                continue;
+                                            }
                                             // Filter out profile validation noise (not relevant to chat)
                                             let is_profile_noise = msg.contains("Profile URL")
                                                 || msg.contains("must start with https://")
