@@ -11,6 +11,39 @@
 
 ## Active focus
 
+> **>>> TIER 0 - THE PIVOT (operator, 2026-07-08, Opus era): VALIDATION +
+> REAL CO-PRESENCE, not more breadth.** After a long build streak of
+> deep-but-unwitnessed features (the ship corridors the operator found
+> visually broken on first real play are the canary - tests cannot catch
+> what needs eyes), the focus is now: get a SECOND real human into the
+> world and prove what exists holds up when a person touches it. The
+> mission is uniting humans; the near-term bar is playable multiplayer on
+> the VPS; everything built (mall, trade, chat, ship) only matters with
+> someone else present.
+> WORK ORDER:
+> 1. UNIFIED CHAT - same relay #general in-game / Chat tab / website /
+>    livestream. v0.771 shipped 1a: read-only bottom-left in-game #general
+>    HUD feed (the app already auto-connects to united-humanity.us when the
+>    seed is unlocked). NEXT: inline in-world typing (Enter -> compact
+>    #general input line, cursor-release), then the server-join flow so the
+>    VPS appears in the launcher Servers list.
+> 2. SHARED-WORLD CO-PRESENCE - actually see other avatars. NetSyncSystem
+>    + RemotePlayer render already exist; needs the launcher join flow wired
+>    and a TWO-CLIENT live test on the VPS. This is the mission-critical
+>    proof; if it is broken it is the single highest-value fix.
+> 3. FIELD-REPORT CADENCE - operator plays, reports what is broken/ugly, I
+>    fix. The corridor rework belongs here: corridors should OWN their door
+>    mouths (not reference a pre-drawn door by index) - fixes BOTH the
+>    move-the-door-desync AND the coincident-wall z-fighting. Plus a
+>    Dev/Creative/Normal MODE system so the operator builds the whole
+>    mothership in-game while normal players are limited to their homestead.
+> 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
+>    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
+>    (no root / persistent process / custom ports). Do NOT renew it for a
+>    relay. The $0 test = a SECOND relay process on the SAME VPS on another
+>    port + a subdomain via nginx, federate the two. our.universe is only a
+>    domain name / static web mirror. <<<**
+
 > **>>> CLOSURE LADDER: FIFTEEN INCREMENTS SHIPPED (v0.745-v0.759, started
 > Fable final day 2026-07-07). Every unblocked rung has now shipped its
 > planned increments.** Shipped, each with tests + full battery:
