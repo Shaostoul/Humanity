@@ -11,7 +11,7 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: TWELVE INCREMENTS SHIPPED (v0.745-v0.756, started
+> **>>> CLOSURE LADDER: THIRTEEN INCREMENTS SHIPPED (v0.745-v0.757, started
 > Fable final day 2026-07-07).** The bible below is not just written - its
 > ladder is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
@@ -67,12 +67,18 @@
 >    confirm, cancel); private-wrapper delivery routed to the page (was
 >    destined for chat as noise); relay fix removed the untargeted
 >    TradeData broadcast that sent every trade to every client.
-> NEXT RUNGS: 9 (zones, awaits decision-briefs.md Brief 1), 10
-> (community wiring: guild/governance surfaces to their sims). The
-> combat arc unlocks offensive ability rows + creature loot tables +
-> armor-on-equip when it lands. T5 planet-landing (PlanetRegistry +
-> heightmap pipeline, written but unwired) can be pulled forward on
-> operator say-so. <<<**
+> 13. **v0.757 guilds are real** (rung 10, first increment): the Guilds
+>    page live against the relay REST guild API - merged list+membership
+>    fetch, real join/leave/create/delete (owner), member roles, fake
+>    guild-chat echo box removed with an honest pointer to Chat groups.
+> NEXT: rung 10 rest (Civilization dashboard static numbers -> the relay
+> civilization stats; load data/governance/proposal_types.ron so vote
+> quorum/threshold rules are data; guild-scoped production pools later),
+> rung 9 (zones, awaits decision-briefs.md Brief 1). Follow-up noted in
+> the journal: guild REST auth should ride the signed-auth helper before
+> real users. The combat arc unlocks offensive ability rows + creature
+> loot tables + armor-on-equip when it lands. T5 planet-landing can be
+> pulled forward on operator say-so. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
