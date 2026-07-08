@@ -820,6 +820,35 @@ mod listing_mapping_tests {
         assert!(!t.recipient_confirmed);
         assert_eq!(t.message, "swap for wheat?");
     }
+
+    /// Wire pin for the v0.757 guild list: the exact object shape
+    /// GET /api/guilds serializes (src/relay/api.rs get_guilds) maps into
+    /// the GUI row, hex colours parse, junk colours fall back.
+    #[test]
+    fn relay_guild_json_maps_with_hex_colors() {
+        use super::{parse_hex_color, GuiGuild};
+
+        let v: serde_json::Value = serde_json::from_str(
+            r##"{"id": "g-1", "name": "Builders", "description": "We build.",
+                "owner_key": "ownerkey", "icon": "", "color": "#2e86c1",
+                "created_at": "2026-07-08", "member_count": 4}"##,
+        )
+        .unwrap();
+        let g = GuiGuild::from_relay_json(&v);
+        assert_eq!(g.id, "g-1");
+        assert_eq!(g.name, "Builders");
+        assert_eq!(g.owner_key, "ownerkey");
+        assert_eq!(g.member_count, 4);
+        assert_eq!(g.color, egui::Color32::from_rgb(0x2e, 0x86, 0xc1)); // theme-exempt: test fixture.
+        assert!(!g.is_member, "membership is merged separately");
+
+        assert_eq!(parse_hex_color("nonsense"), None);
+        assert_eq!(parse_hex_color("#12345"), None);
+        assert_eq!(
+            parse_hex_color("#ff0080"),
+            Some(egui::Color32::from_rgb(255, 0, 128)) // theme-exempt: test fixture.
+        );
+    }
 }
 
 /// One castable (or honestly-locked) ability row for the Profile page's
@@ -1098,12 +1127,51 @@ pub struct GuiAvailableQuest {
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
 pub struct GuiGuild {
-    pub id: u64,
+    /// Relay guild id (uuid).
+    pub id: String,
     pub name: String,
     pub description: String,
+    pub owner_key: String,
+    /// Parsed from the relay's hex colour string (user-chosen guild colour).
     pub color: egui::Color32,
-    pub members: Vec<String>,
+    pub member_count: i64,
+    /// True when MY key appears in this guild's membership (merged from the
+    /// `?user=` fetch).
     pub is_member: bool,
+    pub created_at: String,
+}
+
+#[cfg(feature = "native")]
+impl GuiGuild {
+    /// Map one guild object from GET /api/guilds (v0.757).
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        Self {
+            id: s("id"),
+            name: s("name"),
+            description: s("description"),
+            owner_key: s("owner_key"),
+            color: parse_hex_color(v.get("color").and_then(|x| x.as_str()).unwrap_or(""))
+                // theme-exempt: the fallback guild colour is user data, not a UI token.
+                .unwrap_or(egui::Color32::from_rgb(68, 136, 255)),
+            member_count: v.get("member_count").and_then(|x| x.as_i64()).unwrap_or(0),
+            is_member: false,
+            created_at: s("created_at"),
+        }
+    }
+}
+
+/// Parse a `#rrggbb` hex colour (the relay's guild colour format).
+#[cfg(feature = "native")]
+pub fn parse_hex_color(s: &str) -> Option<egui::Color32> {
+    let hex = s.trim().strip_prefix('#')?;
+    if hex.len() != 6 {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some(egui::Color32::from_rgb(r, g, b)) // theme-exempt: user-chosen guild colour from data.
 }
 
 /// A chat message received from or sent to the relay server.
@@ -2349,15 +2417,28 @@ pub struct GuiState {
     /// the ECS QuestTracker.
     pub pending_accept_quest: Option<String>,
 
-    // ── Guilds state ──
+    // ── Guilds state (live from the relay's REST guild API, v0.757) ──
     pub guilds: Vec<GuiGuild>,
-    pub guild_selected: Option<usize>,
+    /// Selection by GUILD ID (refetches reorder the vector).
+    pub guild_selected: Option<String>,
     pub guild_search: String,
     pub guild_show_create: bool,
     pub guild_new_name: String,
     pub guild_new_desc: String,
     pub guild_new_color: egui::Color32,
-    pub guild_next_id: u64,
+    /// Set once the list fetch has run this session; cleared to refetch.
+    pub guilds_loaded: bool,
+    /// In-flight list fetch (all guilds + my memberships merged).
+    pub guilds_rx: Option<std::sync::mpsc::Receiver<Result<Vec<GuiGuild>, String>>>,
+    /// In-flight create/join/leave action; Ok(msg) triggers a refetch.
+    pub guild_action_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
+    /// One-line guild feedback ("Joined", errors).
+    pub guild_status: String,
+    /// Member list for the OPEN guild detail: (display name, role).
+    pub guild_members: Vec<(String, String)>,
+    pub guild_members_for: String,
+    pub guild_members_rx:
+        Option<std::sync::mpsc::Receiver<Result<Vec<(String, String)>, String>>>,
 
     // ── Bridged game state (written by lib.rs each frame) ──
 
@@ -3793,12 +3874,18 @@ impl Default for GuiState {
             // Guilds defaults
             guilds: Vec::new(),
             guild_selected: None,
+            guilds_loaded: false,
+            guilds_rx: None,
+            guild_action_rx: None,
+            guild_status: String::new(),
+            guild_members: Vec::new(),
+            guild_members_for: String::new(),
+            guild_members_rx: None,
             guild_search: String::new(),
             guild_show_create: false,
             guild_new_name: String::new(),
             guild_new_desc: String::new(),
             guild_new_color: egui::Color32::from_rgb(46, 134, 193),
-            guild_next_id: 1,
 
             player_health: 100.0,
             player_health_max: 100.0,
