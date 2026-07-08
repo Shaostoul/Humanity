@@ -10,7 +10,7 @@
 //! Doorways (open, unlocked doors) are gaps you walk through; windows and closed/locked doors block
 //! (you cannot walk through glass, and a shut door is a wall). Y is never touched.
 
-use crate::ship::home_structure::{HomeStructure, OpeningKind};
+use crate::ship::home_structure::{HomeStructure, OpeningKind, ShellCut};
 use glam::Vec3;
 
 /// Player capsule radius (metres) for the horizontal push-out.
@@ -29,16 +29,50 @@ pub struct WallSegment {
 /// solid (you can't walk through glass -- the pane + the sill wall block the whole width). Doors get a
 /// separate LIVE collider in `resolve`'s `doors` arg, because their open state changes every frame.
 pub fn wall_segments(home: &HomeStructure) -> Vec<WallSegment> {
+    wall_segments_with_shell_cuts(home, &[])
+}
+
+/// `wall_segments` with corridor APERTURES cut out of the perimeter (ship-superstructure increment
+/// B, the collision twin of `generate_meshes_with_shell_cuts`): where a corridor tube meets the
+/// box, the perimeter gets a door-width walk-through gap instead of a solid wall. With no cuts
+/// this is exactly the pre-B path.
+pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
     let mut segs = Vec::new();
     let (w, d) = (home.width.max(1.0), home.depth.max(1.0));
     let st = home.shell_resolved_thickness() * 0.5;
-    for (a, b) in [
+    // Perimeter edges in the same winding `ShellCut.edge` indexes (0: z=0, 1: x=w, 2: z=d, 3: x=0).
+    for (ei, (a, b)) in [
         ((0.0, 0.0), (w, 0.0)),
         ((w, 0.0), (w, d)),
         ((w, d), (0.0, d)),
         ((0.0, d), (0.0, 0.0)),
-    ] {
-        segs.push(WallSegment { a, b, half_thickness: st });
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let len = if ei % 2 == 0 { w } else { d };
+        let mut cuts: Vec<(f32, f32)> = shell_cuts
+            .iter()
+            .filter(|c| c.edge == ei)
+            .map(|c| (c.at.clamp(0.0, len), (c.at + c.width).clamp(0.0, len)))
+            .collect();
+        if cuts.is_empty() {
+            segs.push(WallSegment { a, b, half_thickness: st });
+            continue;
+        }
+        cuts.sort_by(|x, y| x.0.partial_cmp(&y.0).unwrap_or(std::cmp::Ordering::Equal));
+        let (ux, uz) = ((b.0 - a.0) / len, (b.1 - a.1) / len);
+        let mut cursor = 0.0f32;
+        for (s, e) in cuts.iter().chain(std::iter::once(&(len, len))) {
+            if s - cursor > 0.02 {
+                segs.push(WallSegment {
+                    a: (a.0 + ux * cursor, a.1 + uz * cursor),
+                    b: (a.0 + ux * s, a.1 + uz * s),
+                    half_thickness: st,
+                });
+            }
+            cursor = e.max(cursor);
+        }
     }
     for wall in &home.walls {
         let ht = wall.resolved_thickness() * 0.5;
@@ -78,15 +112,44 @@ pub fn wall_segments(home: &HomeStructure) -> Vec<WallSegment> {
 /// origin, all concatenated. Collision stays a 2D XZ push-out (Y is never touched), so zones at a
 /// different deck height share the same segment plane -- honest for the single-deck v1; multi-deck
 /// stacking is explicitly out of scope (design doc section E).
+///
+/// Increment B adds corridors: each zone's perimeter gets a door-width GAP where a corridor tube
+/// meets it (`ShipStructure::shell_cuts_for_zone`), and each valid corridor contributes its two
+/// SIDE walls as blocking rails -- and NOTHING across its open ends, so the player walks down the
+/// hallway but not through its sides.
 pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
+    use crate::ship::ship_structure::{CorridorAxis, CORRIDOR_WALL_THICKNESS};
     let mut segs = Vec::new();
-    for zone in &ship.zones {
+    for (zi, zone) in ship.zones.iter().enumerate() {
         let (ox, oz) = (zone.origin.0, zone.origin.2);
-        segs.extend(wall_segments(&zone.body).into_iter().map(|s| WallSegment {
+        let cuts = ship.shell_cuts_for_zone(zi);
+        segs.extend(wall_segments_with_shell_cuts(&zone.body, &cuts).into_iter().map(|s| WallSegment {
             a: (s.a.0 + ox, s.a.1 + oz),
             b: (s.b.0 + ox, s.b.1 + oz),
             half_thickness: s.half_thickness,
         }));
+    }
+    for c in &ship.corridors {
+        let Ok(g) = ship.corridor_geometry(c) else {
+            continue; // a broken row blocks nothing (mesh skips it too; the editor shows why)
+        };
+        let hw = g.width * 0.5;
+        let ht = CORRIDOR_WALL_THICKNESS * 0.5;
+        for s in [-1.0f32, 1.0] {
+            let seg = match g.axis {
+                CorridorAxis::X => WallSegment {
+                    a: (g.start, g.lat + hw * s),
+                    b: (g.end, g.lat + hw * s),
+                    half_thickness: ht,
+                },
+                CorridorAxis::Z => WallSegment {
+                    a: (g.lat + hw * s, g.start),
+                    b: (g.lat + hw * s, g.end),
+                    half_thickness: ht,
+                },
+            };
+            segs.push(seg);
+        }
     }
     segs
 }
@@ -263,6 +326,7 @@ mod tests {
                     body: home(),
                 },
             ],
+            corridors: Vec::new(),
         };
         let per_zone = wall_segments(&home());
         let all = ship_wall_segments(&ship);
@@ -290,5 +354,69 @@ mod tests {
         let segs = wall_segments(&home());
         let out = resolve(Vec3::new(1.0, 1.7, 4.0), Vec3::new(1.0, 1.7, 7.0), PLAYER_RADIUS, &segs, &[]);
         assert!(out.z < 4.9, "blocked on the near side of the wall, got z={}", out.z);
+    }
+
+    /// A zone body with one door-carrying wall along a +Z line at x = `wall_x` (the ship-structure
+    /// corridor-test shape): door 1 m wide centred at z = `door_z`.
+    fn body_with_door(w: f32, d: f32, h: f32, wall_x: f32, z1: f32, z2: f32, door_z: f32) -> HomeStructure {
+        ron::from_str(&format!(
+            "(width: {w}, depth: {d}, height: {h}, walls: [(a: ({wall_x}, {z1}), b: ({wall_x}, {z2}), \
+             height: {h}, material: 1, openings: [(kind: Door, at: {}, width: 1.0, sill: 0.0, \
+             height: 2.1, style: \"swing\", open_dist: 2.6, locked: false, auto_open: true, \
+             control_panel: false, locks: [])])])",
+            door_z - z1 - 0.5
+        ))
+        .expect("corridor test body parses")
+    }
+
+    /// Increment B: a corridor's SIDE walls block, its RUN is open end to end (the perimeter shells
+    /// gain door-width gaps where the tube meets them), and off-door perimeter still blocks.
+    #[test]
+    fn corridor_sides_block_but_the_run_is_open_end_to_end() {
+        use crate::ship::ship_structure::{ShipCorridor, ShipStructure, ShipZone};
+        // Home 10x10x3 at the origin, door on its x=10 edge at world z=5; commons 8x8x6 at
+        // (20, 0, 2), door on its x=0 edge (world x=20) at world z=5. Tube: x 10..20, width 3.
+        let ship = ShipStructure {
+            zones: vec![
+                ShipZone {
+                    id: "home".into(),
+                    label: String::new(),
+                    purpose: "residence".into(),
+                    origin: (0.0, 0.0, 0.0),
+                    body: body_with_door(10.0, 10.0, 3.0, 10.0, 3.0, 7.0, 5.0),
+                },
+                ShipZone {
+                    id: "commons".into(),
+                    label: String::new(),
+                    purpose: "commons".into(),
+                    origin: (20.0, 0.0, 2.0),
+                    body: body_with_door(8.0, 8.0, 6.0, 0.0, 1.0, 5.0, 3.0),
+                },
+            ],
+            corridors: vec![ShipCorridor {
+                from_zone: "home".into(),
+                from_opening: 0,
+                to_zone: "commons".into(),
+                to_opening: 0,
+                width: 3.0,
+                glass_top: false,
+            }],
+        };
+        let segs = ship_wall_segments(&ship);
+        // The tube's two side rails (z = 3.5 and 6.5, x 10..20) block...
+        let out = at(Vec3::new(15.0, 1.7, 6.5), &segs, &[]);
+        assert!((out.z - 6.5).abs() > 0.2, "a corridor side wall blocks, got z={}", out.z);
+        // ...but the centreline is clear (no segment across the run or its open ends).
+        let mid = at(Vec3::new(15.0, 1.7, 5.0), &segs, &[]);
+        assert!((mid.x - 15.0).abs() < 0.01 && (mid.z - 5.0).abs() < 0.01, "mid-tube is open");
+        // The player can WALK from inside the home, through its shell cut, down the tube, through
+        // the commons' shell cut: both perimeter crossings are gaps, not walls.
+        let leave_home = resolve(Vec3::new(9.5, 1.7, 5.0), Vec3::new(10.5, 1.7, 5.0), PLAYER_RADIUS, &segs, &[]);
+        assert!(leave_home.x > 10.3, "the home shell opens at the corridor mouth, got x={}", leave_home.x);
+        let enter_commons = resolve(Vec3::new(19.5, 1.7, 5.0), Vec3::new(20.5, 1.7, 5.0), PLAYER_RADIUS, &segs, &[]);
+        assert!(enter_commons.x > 20.3, "the commons shell opens at the corridor mouth, got x={}", enter_commons.x);
+        // Off the door, the home's x=10 perimeter is still solid.
+        let blocked = resolve(Vec3::new(9.5, 1.7, 8.5), Vec3::new(10.5, 1.7, 8.5), PLAYER_RADIUS, &segs, &[]);
+        assert!(blocked.x < 9.8, "off-door perimeter still blocks, got x={}", blocked.x);
     }
 }

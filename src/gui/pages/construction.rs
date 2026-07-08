@@ -679,6 +679,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // editor is editing. Every tool below (walls, openings, lights, machines, spawn)
                 // operates on the selected zone; the whole ship stays visible in the viewport.
                 draw_ship_zone_selector(ui, theme, state);
+                // CORRIDORS (increment B): ship-level rows connecting two zones' doors -- they
+                // belong to no single zone, so they live here beside the zone selector.
+                draw_corridor_section(ui, theme, state);
                 if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
                     ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
                         .size(theme.font_size_small).color(theme.text_muted()));
@@ -1661,6 +1664,203 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             .map(|b| b.spawn.unwrap_or((b.width * 0.5, b.depth * 0.5)));
         state.build_char_pos = spawn;
         state.construction_structure_dirty = true; // refresh introspection + gizmo state
+    }
+    ui.add_space(theme.spacing_xs);
+}
+
+/// CORRIDORS section (ship-superstructure increment B), directly under the zone selector: lists the
+/// ship's corridors (each with a delete X and, when broken, the honest reason it cannot generate)
+/// and an "Add corridor" flow -- pick zone A + one of its DOOR openings, zone B + one of its doors,
+/// a width drag, a glass-top checkbox, Create. Creation validates through
+/// `ShipStructure::corridor_geometry` (the same resolver mesh + collision use) and shows the error
+/// verbatim on failure. Creating/deleting flags `construction_structure_dirty`, the same live
+/// rebuild every zone edit takes.
+fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    use crate::ship::ship_structure::{zone_door_refs, ShipCorridor};
+    let Some(ship) = state.ship_structure.as_ref() else {
+        return;
+    };
+    if ship.zones.len() < 2 {
+        return; // nothing to connect until a second zone exists
+    }
+    ui.add_space(theme.spacing_xs);
+    ui.label(RichText::new("Corridors").size(theme.font_size_small).strong().color(theme.text_primary()));
+    // Existing rows: owned display data first, so the ship borrow ends before any mutation below.
+    let rows: Vec<(String, Option<String>)> = ship
+        .corridors
+        .iter()
+        .map(|c| {
+            let label = format!(
+                "{} door {} -> {} door {}  ({:.1} m{})",
+                c.from_zone,
+                c.from_opening,
+                c.to_zone,
+                c.to_opening,
+                c.width,
+                if c.glass_top { ", glass" } else { "" }
+            );
+            (label, ship.corridor_geometry(c).err())
+        })
+        .collect();
+    // Zone names + the SELECTED zones' door lists (labels by canonical door index).
+    let zone_names: Vec<String> = ship.zones.iter().map(|z| z.id.clone()).collect();
+    let n_zones = zone_names.len();
+    state.construction_corridor_from_zone = state.construction_corridor_from_zone.min(n_zones - 1);
+    state.construction_corridor_to_zone = state.construction_corridor_to_zone.min(n_zones - 1);
+    let door_labels = |zi: usize| -> Vec<String> {
+        zone_door_refs(&ship.zones[zi].body)
+            .iter()
+            .map(|d| format!("door {} (wall {}, {:.1} m)", d.opening_index, d.wall_index, d.width))
+            .collect()
+    };
+    let from_doors = door_labels(state.construction_corridor_from_zone);
+    let to_doors = door_labels(state.construction_corridor_to_zone);
+    let (from_id, to_id) = (
+        zone_names[state.construction_corridor_from_zone].clone(),
+        zone_names[state.construction_corridor_to_zone].clone(),
+    );
+    let mut delete: Option<usize> = None;
+    for (i, (label, err)) in rows.iter().enumerate() {
+        ui.horizontal(|ui| {
+            if ui.small_button("X").on_hover_text("Delete this corridor").clicked() {
+                delete = Some(i);
+            }
+            let color = if err.is_some() { theme.warning() } else { theme.text_primary() };
+            ui.label(RichText::new(label).size(theme.font_size_small).color(color));
+        });
+        if let Some(e) = err {
+            // The honest reason this row currently generates nothing (e.g. its door was deleted,
+            // or a zone was dragged out of alignment). Saving drops broken rows.
+            ui.label(RichText::new(e).size(theme.font_size_small).color(theme.warning()));
+        }
+    }
+    if rows.is_empty() {
+        ui.label(RichText::new("None yet. A corridor is a straight tube between two zones' doors.")
+            .size(theme.font_size_small).color(theme.text_muted()));
+    }
+    // Add flow: from zone + door, to zone + door, width, glass top, Create.
+    let mut clear_error = false;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("From").size(theme.font_size_small).color(theme.text_muted()));
+        egui::ComboBox::from_id_salt("corridor_from_zone")
+            .selected_text(from_id.clone())
+            .width(80.0)
+            .show_ui(ui, |ui| {
+                for (i, name) in zone_names.iter().enumerate() {
+                    if ui.selectable_label(i == state.construction_corridor_from_zone, name).clicked() {
+                        state.construction_corridor_from_zone = i;
+                        state.construction_corridor_from_door = 0;
+                        clear_error = true;
+                    }
+                }
+            });
+        state.construction_corridor_from_door =
+            state.construction_corridor_from_door.min(from_doors.len().saturating_sub(1));
+        egui::ComboBox::from_id_salt("corridor_from_door")
+            .selected_text(
+                from_doors
+                    .get(state.construction_corridor_from_door)
+                    .cloned()
+                    .unwrap_or_else(|| "no doors".to_string()),
+            )
+            .width(140.0)
+            .show_ui(ui, |ui| {
+                for (i, name) in from_doors.iter().enumerate() {
+                    if ui.selectable_label(i == state.construction_corridor_from_door, name).clicked() {
+                        state.construction_corridor_from_door = i;
+                        clear_error = true;
+                    }
+                }
+            });
+    });
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("To").size(theme.font_size_small).color(theme.text_muted()));
+        egui::ComboBox::from_id_salt("corridor_to_zone")
+            .selected_text(to_id.clone())
+            .width(80.0)
+            .show_ui(ui, |ui| {
+                for (i, name) in zone_names.iter().enumerate() {
+                    if ui.selectable_label(i == state.construction_corridor_to_zone, name).clicked() {
+                        state.construction_corridor_to_zone = i;
+                        state.construction_corridor_to_door = 0;
+                        clear_error = true;
+                    }
+                }
+            });
+        state.construction_corridor_to_door =
+            state.construction_corridor_to_door.min(to_doors.len().saturating_sub(1));
+        egui::ComboBox::from_id_salt("corridor_to_door")
+            .selected_text(
+                to_doors
+                    .get(state.construction_corridor_to_door)
+                    .cloned()
+                    .unwrap_or_else(|| "no doors".to_string()),
+            )
+            .width(140.0)
+            .show_ui(ui, |ui| {
+                for (i, name) in to_doors.iter().enumerate() {
+                    if ui.selectable_label(i == state.construction_corridor_to_door, name).clicked() {
+                        state.construction_corridor_to_door = i;
+                        clear_error = true;
+                    }
+                }
+            });
+    });
+    let mut create = false;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Width").size(theme.font_size_small).color(theme.text_muted()));
+        ui.add(
+            egui::DragValue::new(&mut state.construction_corridor_width)
+                .speed(0.1)
+                .range(0.5..=20.0)
+                .suffix(" m"),
+        );
+        ui.checkbox(&mut state.construction_corridor_glass, RichText::new("Glass top").size(theme.font_size_small));
+        create = ui.small_button("Create").clicked();
+    });
+    if clear_error {
+        state.construction_corridor_error.clear();
+    }
+    if create {
+        let candidate = ShipCorridor {
+            from_zone: from_id,
+            from_opening: state.construction_corridor_from_door,
+            to_zone: to_id,
+            to_opening: state.construction_corridor_to_door,
+            width: state.construction_corridor_width,
+            glass_top: state.construction_corridor_glass,
+        };
+        // Validate through the SAME resolver generation uses; show the failure verbatim.
+        let verdict = state
+            .ship_structure
+            .as_ref()
+            .map(|s| s.corridor_geometry(&candidate).map(|_| ()))
+            .unwrap_or(Err("no ship loaded".to_string()));
+        match verdict {
+            Ok(()) => {
+                if let Some(s) = state.ship_structure.as_mut() {
+                    s.corridors.push(candidate);
+                }
+                state.construction_corridor_error.clear();
+                state.construction_structure_dirty = true; // render + collide the new tube now
+            }
+            Err(e) => state.construction_corridor_error = e,
+        }
+    }
+    if !state.construction_corridor_error.is_empty() {
+        ui.label(
+            RichText::new(&state.construction_corridor_error)
+                .size(theme.font_size_small)
+                .color(theme.warning()),
+        );
+    }
+    if let Some(i) = delete {
+        if let Some(s) = state.ship_structure.as_mut() {
+            if i < s.corridors.len() {
+                s.corridors.remove(i);
+                state.construction_structure_dirty = true;
+            }
+        }
     }
     ui.add_space(theme.spacing_xs);
 }

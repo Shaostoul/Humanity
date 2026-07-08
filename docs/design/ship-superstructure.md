@@ -62,6 +62,23 @@ body unchanged (box dims, walls, openings, materials, lights, spawn):
 
 ### B. Corridors: generated connections
 
+> SHIPPED: `ShipStructure.corridors: Vec<ShipCorridor>` (serde-defaulted, so every
+> pre-B ship_structure.ron loads unchanged). Each row references two zones' DOOR
+> openings by index (`zone_door_refs` order: walls in order, openings in order,
+> windows skipped) and generates: a floor slab + two side walls + a glass-or-shell
+> lid between the two openings' world centres; a door-sized aperture CUT through
+> each zone's perimeter shell where the tube meets it (mesh via
+> `generate_meshes_with_shell_cuts`, collision via `wall_segments_with_shell_cuts`,
+> so the hallway is genuinely walkable end to end); two collision rails along the
+> tube sides (open ends); and a walkable room bound (`corridor_<i>`) so the shared
+> pressurized volume + the "you are in" HUD span the hallway. Tube height = the
+> SHORTER zone's box height; the tube inherits the from-zone's shell material.
+> `corridor_geometry` is the single resolver validation, mesh, and collision all
+> share; `validate()` rejects bad rows at load, the editor's Create button shows
+> the same errors, and the save path prunes rows whose doors were edited away.
+> Editor: a "Corridors" section under the Ship zone selector (list + delete X +
+> from/to zone + door combos + width drag + glass-top checkbox + Create).
+
 A corridor row references two zones' door openings and generates a straight
 tube between them (floor, two walls, ceiling; glass ceiling optional):
 
@@ -72,14 +89,29 @@ tube between them (floor, two walls, ceiling; glass ceiling optional):
 - Generation: both openings' world positions are known; extrude a box between
   them, cut the openings, add collision. No hand-drawn walls per hallway.
 - v1 corridors are straight and axis-aligned (zones placed to suit); L-bends
-  are a follow-up (two segments + an elbow).
+  are a follow-up (two segments + an elbow). Validation enforces it honestly:
+  openings must face each other along one world axis (lateral offset within
+  width/4, walls within ~5 degrees of perpendicular to the run, same deck
+  height), and a non-conforming pair is rejected with the specific reason.
 - Airlock flag later for EVA-rated separations; today every corridor is
   pressurized and the atmosphere volume is shared.
+- Known v1 limits (deliberate): a corridor routed THROUGH a third zone's box is
+  not detected (place zones so tubes run through empty space); door panels are
+  not generated at the shell apertures (the zone's own door hardware is the
+  door); conduit routing does not yet treat tube walls as obstacles.
 
 ### C. The Commons (authoring, not new tech)
 
 The operator's target: "a shopping mall with a garden in the center with a
-giant glass ceiling." After A + B this is a DATA task:
+giant glass ceiling." After A + B this is a DATA task. The authoring recipe B
+leaves ready: add the commons zone; in each of the two zones draw a wall ALONG
+the perimeter edge that faces the other zone and put a door in it (the editor's
+normal wall + opening tools); then one corridor row, e.g. with the home's door
+being its 3rd door and the commons' entrance its 1st:
+
+```ron
+(from_zone: "home", from_opening: 2, to_zone: "commons", to_opening: 0, width: 4.0, glass_top: true),
+```
 
 - One big zone (e.g. 34 x 55 x 8 m) with purpose "commons" and roof glass.
 - Garden center: the existing grow-area machines (fields, towers, beds)
