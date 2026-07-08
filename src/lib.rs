@@ -740,6 +740,8 @@ mod native_app {
             || state.gui_state.showroom_active
             || state.gui_state.construction_active
             || state.alt_held
+            // In-world chat panel open (v0.772): the cursor must reach its input + buttons.
+            || state.gui_state.chat_input_active
             // Dead = the death screen is up; its Respawn button needs the cursor.
             || state.gui_state.player_death_cause.is_some();
         if want_free == state.cursor_free {
@@ -6346,12 +6348,20 @@ mod native_app {
                             return;
                         }
 
-                        // Enter toggles chat overlay (only when in-game)
+                        // Enter opens the in-world chat panel (v0.772): frees
+                        // the cursor + disables look/move so you can read + type
+                        // in the same relay chat as the Chat page. Only fires
+                        // when the panel is NOT already open (once open its input
+                        // has egui focus, so egui_consumed is true and this is
+                        // skipped; the panel handles Enter-to-send + Esc-to-close).
                         if key == KeyCode::Enter && pressed
                             && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.chat_input_active
+                            && !state.gui_state.showroom_active
                             && !egui_consumed
                         {
-                            state.gui_state.show_chat = !state.gui_state.show_chat;
+                            state.gui_state.chat_input_active = true;
+                            state.gui_state.chat_input_focus_pending = true;
                         }
 
                         // Tab = HOLD to reveal hidden labels (v0.429): peek markers
@@ -14637,6 +14647,15 @@ mod native_app {
                                     chat::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
+                                // In-world interactive chat panel (v0.772): Enter opens it,
+                                // which frees the cursor + disables look/move so you can read
+                                // and type in the same relay chat as the Chat page/website.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.chat_input_active
+                                {
+                                    chat::draw_ingame_chat(ctx, &state.theme, &mut state.gui_state);
+                                }
+
                                 // Passphrase modal overlay (blocks interaction until resolved)
                                 if state.gui_state.passphrase_needed {
                                     crate::gui::pages::passphrase_modal::draw(ctx, &state.theme, &mut state.gui_state);
@@ -14901,6 +14920,7 @@ mod native_app {
                 // a machine-card button must not spin the camera.
                 if state.gui_state.active_page == GuiPage::None
                     && !state.alt_held
+                    && !state.gui_state.chat_input_active
                     && state.gui_state.player_death_cause.is_none()
                 {
                     state.controller.process_mouse_motion(delta.0, delta.1);

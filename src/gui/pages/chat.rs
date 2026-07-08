@@ -3976,6 +3976,169 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 /// the content was sent (or locally echoed for the scratchpad); false when
 /// the send was aborted (unencryptable DM stashed for the confirm modal, or
 /// a failed P2P-group send) -- the composer keeps its input in that case.
+/// Human-readable label for a chat channel id (v0.772): server channels show
+/// `#name`, DMs and group channels get a friendly prefix instead of the raw
+/// `dm:<key>` / `p2pgroup:<id>` string.
+pub(crate) fn channel_display_label(channel: &str) -> String {
+    if let Some(rest) = channel.strip_prefix("dm:") {
+        let short = if rest.len() > 8 { &rest[..8] } else { rest };
+        format!("DM {short}")
+    } else if channel.starts_with("p2pgroup:") {
+        "Group".to_string()
+    } else {
+        format!("#{channel}")
+    }
+}
+
+/// In-world chat panel (v0.772, unified-chat increment 1b): opened with Enter
+/// while playing the 3D world (which sets `chat_input_active`, freeing the
+/// cursor + disabling look/move in lib.rs). A compact bottom-left panel over
+/// the world: the active channel's recent messages + a channel switcher + a
+/// focused input, so you read and post to the SAME relay chat as the Chat page
+/// and the website without leaving the world. Esc or Close returns to gameplay.
+/// The full Chat page (nav tab) remains the place for DMs, groups, and options
+/// (the all-chat / dms / groups view modes here are the next increment).
+pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Esc closes and returns to gameplay.
+    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+        state.chat_input_active = false;
+        state.chat_input_focus_pending = false;
+        return;
+    }
+    let active = state.chat_active_channel.clone();
+    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    let mut close = false;
+    let mut switch_to: Option<String> = None;
+
+    egui::Area::new(egui::Id::new("ingame_chat_panel"))
+        .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(12.0, -12.0))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style())
+                .inner_margin(egui::Margin::same(8))
+                .show(ui, |ui| {
+                    ui.set_width(470.0);
+                    // Header: active channel + connection state + close.
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(channel_display_label(&active))
+                                .strong()
+                                .color(theme.accent()),
+                        );
+                        ui.label(
+                            RichText::new(if connected { "connected" } else { "offline" })
+                                .size(theme.font_size_small)
+                                .color(if connected { theme.success() } else { theme.warning() }),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close (Esc)").clicked() {
+                                close = true;
+                            }
+                        });
+                    });
+
+                    // Channel switcher: the server's channels. Switching sets
+                    // chat_active_channel + resets history_fetched so the new
+                    // channel's history reloads (same path the Chat page uses).
+                    let chans: Vec<(String, String)> = if state.chat_channels.is_empty() {
+                        vec![
+                            ("general".to_string(), "general".to_string()),
+                            ("announcements".to_string(), "announcements".to_string()),
+                        ]
+                    } else {
+                        state
+                            .chat_channels
+                            .iter()
+                            .map(|c| (c.id.clone(), c.name.clone()))
+                            .collect()
+                    };
+                    ui.horizontal_wrapped(|ui| {
+                        for (id, name) in &chans {
+                            let is_active = active == *id;
+                            if ui.selectable_label(is_active, format!("#{name}")).clicked() && !is_active {
+                                switch_to = Some(id.clone());
+                            }
+                        }
+                    });
+                    ui.separator();
+
+                    // Message list for the active channel (scrollable, newest at bottom).
+                    egui::ScrollArea::vertical()
+                        .max_height(160.0)
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            let msgs: Vec<(&str, &str)> = state
+                                .chat_messages
+                                .iter()
+                                .filter(|m| m.channel == active)
+                                .map(|m| {
+                                    (
+                                        if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
+                                        m.content.as_str(),
+                                    )
+                                })
+                                .collect();
+                            if msgs.is_empty() {
+                                ui.label(
+                                    RichText::new("No messages yet.")
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            }
+                            for (name, content) in msgs.iter().rev().take(40).rev() {
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.label(
+                                        RichText::new(format!("{name}:"))
+                                            .strong()
+                                            .color(theme.text_primary())
+                                            .size(theme.font_size_small),
+                                    );
+                                    ui.label(
+                                        RichText::new(*content)
+                                            .color(theme.text_secondary())
+                                            .size(theme.font_size_small),
+                                    );
+                                });
+                            }
+                        });
+
+                    // Input line: auto-focused on open, Enter or Send posts to
+                    // the active channel via the same path the Chat page uses.
+                    ui.horizontal(|ui| {
+                        let resp = ui.add(
+                            egui::TextEdit::singleline(&mut state.chat_input)
+                                .desired_width(390.0)
+                                .hint_text("Message... (Enter to send, Esc to close)"),
+                        );
+                        if state.chat_input_focus_pending {
+                            resp.request_focus();
+                            state.chat_input_focus_pending = false;
+                        }
+                        let enter_send =
+                            resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                        let button_send = ui.button("Send").clicked();
+                        if enter_send || button_send {
+                            let text = state.chat_input.trim().to_string();
+                            if !text.is_empty() {
+                                send_composed_content(state, &text);
+                                state.chat_input.clear();
+                            }
+                            // Keep the panel open + refocused so you can keep chatting.
+                            resp.request_focus();
+                        }
+                    });
+                });
+        });
+
+    if let Some(id) = switch_to {
+        state.chat_active_channel = id;
+        state.history_fetched = false; // trigger the new channel's history fetch
+    }
+    if close {
+        state.chat_input_active = false;
+        state.chat_input_focus_pending = false;
+    }
+}
+
 fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     let channel = state.chat_active_channel.clone();
     // Single timestamp for both the WS send and the local echo so

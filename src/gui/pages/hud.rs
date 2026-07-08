@@ -533,18 +533,22 @@ pub fn draw(
                 }
             }
 
-            // ── In-game #general chat feed (bottom-left, v0.771) ── the SAME
-            // relay #general you see on the Chat page and the website, live
-            // while you play. The app auto-connects to your saved server
+            // ── In-game chat feed (bottom-left, v0.771; follows active channel v0.772) ──
+            // the SAME relay channel you see on the Chat page and the website,
+            // live while you play. The app auto-connects to your saved server
             // (united-humanity.us by default) whenever your identity seed is
             // unlocked, so this fills without opening the Chat page. Read-only
-            // here; press Enter for the full chat page to type (inline typing
-            // is the follow-up). Paint-only, like the rest of the HUD.
-            {
+            // here; press Enter for the interactive panel to type + switch
+            // channels. Suppressed while that panel is open (it shows instead).
+            // Follows `chat_active_channel`, so switching channels there (or on
+            // the Chat page) updates this header + messages. Paint-only.
+            if !state.chat_input_active {
+                let active = state.chat_active_channel.clone();
+                let label = crate::gui::pages::chat::channel_display_label(&active);
                 let recent: Vec<&crate::gui::ChatMessage> = state
                     .chat_messages
                     .iter()
-                    .filter(|m| m.channel == "general")
+                    .filter(|m| m.channel == active)
                     .rev()
                     .take(7)
                     .collect();
@@ -553,11 +557,11 @@ pub fn draw(
                 // offline / locked-identity state is legible in-world instead
                 // of a silently empty box.
                 let status = if connected {
-                    "#general - connected".to_string()
+                    format!("{label} - connected")
                 } else if !state.ws_status.is_empty() {
-                    format!("#general - {}", state.ws_status)
+                    format!("{label} - {}", state.ws_status)
                 } else {
-                    "#general - offline".to_string()
+                    format!("{label} - offline")
                 };
                 let line_h = 15.0;
                 let width = 420.0;
@@ -587,9 +591,9 @@ pub fn draw(
                 }
                 if recent.is_empty() {
                     let hint = if connected {
-                        "No messages yet - say hi in #general (Enter opens chat)."
+                        "No messages yet - say hi (Enter opens chat)."
                     } else {
-                        "Sign in (Settings > Security > Unlock) to join #general."
+                        "Sign in (Settings > Security > Unlock) to join chat."
                     };
                     text_shadowed(painter, Pos2::new(x0, top + line_h + 2.0), Align2::LEFT_TOP, hint, 11.0, theme.text_muted());
                 }

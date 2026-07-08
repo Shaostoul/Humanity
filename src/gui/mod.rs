@@ -1961,6 +1961,14 @@ pub struct GuiState {
     /// not nest under it).
     pub nav_back_stack: Vec<GuiPage>,
     pub show_chat: bool,
+    /// In-world interactive chat panel open (v0.772): Enter opens it, which
+    /// frees the cursor + disables look/move so you can read + type in the
+    /// same relay chat as the Chat page/website without leaving the 3D world.
+    pub chat_input_active: bool,
+    /// Set true when chat_input_active just opened so the panel requests
+    /// keyboard focus for its input exactly once (re-focusing every frame
+    /// would steal focus from the channel buttons). (v0.772)
+    pub chat_input_focus_pending: bool,
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
@@ -3734,6 +3742,8 @@ impl Default for GuiState {
             last_page: GuiPage::Chat,
             nav_back_stack: Vec::new(),
             show_chat: false,
+            chat_input_active: false,
+            chat_input_focus_pending: false,
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
