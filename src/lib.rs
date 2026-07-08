@@ -914,8 +914,9 @@ mod native_app {
     /// no-leak discipline: a per-frame editor drag must not orphan GPU buffers). Purely visual:
     /// no collision is registered for the hull.
     fn rebuild_hull(state: &mut EngineState) {
-        // Lazy one-time profile load (disk first, embedded fallback). Cached for the session;
-        // a live hot-reload of the profile file is a documented follow-up.
+        // Lazy profile load (disk first, embedded fallback). Cached until the
+        // hot-reload poll sees hull_profile.ron change, which clears the cache
+        // and calls back in here (v0.770) - silhouette tuning without relaunch.
         if state.hull_profile.is_none() {
             state.hull_profile = crate::ship::hull::HullProfile::load(&state.data_dir);
         }
@@ -6866,6 +6867,19 @@ mod native_app {
                         n.contains("planets/") && n.ends_with(".ron")
                     }) {
                         reload_planet_defs(state);
+                    }
+                    // Hull-profile hot-reload (v0.770): saving
+                    // data/blueprints/hull_profile.ron regrows the hull next
+                    // frame - silhouette tuning is save-file-see-hull, the
+                    // same loop the planets get. An invalid edit falls back
+                    // to the embedded profile (warned in the log), never a
+                    // missing hull mid-session.
+                    if changes.iter().any(|c| {
+                        let n = c.replace('\\', "/");
+                        n.ends_with("blueprints/hull_profile.ron")
+                    }) {
+                        state.hull_profile = None; // force the re-read
+                        rebuild_hull(state);
                     }
 
                     // Apply the player's active status-effect SPEED modifiers to movement
