@@ -149,6 +149,29 @@ impl Mesh {
         Self::from_vertices(device, &vertices, &indices)
     }
 
+    /// Build a mesh from procedural planet-surface data (v0.763).
+    ///
+    /// Per-face RGB colors ride packed inside the UV channel (see
+    /// `terrain::planet_surface::pack_color_to_uv`); the PBR shader's
+    /// material type 12 decodes them. All three corners of a flat-shaded
+    /// face carry identical UVs, so rasterizer interpolation cannot corrupt
+    /// the packed value. No new vertex layout or pipeline needed.
+    pub fn from_planet_surface(
+        device: &wgpu::Device,
+        data: &crate::terrain::planet_surface::SurfaceMeshData,
+    ) -> Self {
+        let vertices: Vec<Vertex> = data
+            .vertices
+            .iter()
+            .map(|v| Vertex {
+                position: v.position,
+                normal: v.normal,
+                uv: crate::terrain::planet_surface::pack_color_to_uv(v.color),
+            })
+            .collect();
+        Self::from_vertices(device, &vertices, &data.indices)
+    }
+
     /// Ground plane on XZ axis (centered at origin, 10x10 units).
     pub fn plane(device: &wgpu::Device) -> Self {
         let s = 5.0;

@@ -812,6 +812,23 @@ Recursive subdivision from icosahedron. LOD from billboard to walkable surface.
 - Native: `src/terrain/icosphere.rs`, `src/terrain/planet.rs`
 - Data: `data/planets/*.ron`
 
+### Procedural Sky-Planet Surfaces (v0.763)
+Sky planets render as fractal-surfaced icospheres instead of flat-color
+spheres: seeded FBM elevation displaces land (oceans stay smooth at the
+sphere radius), per-face colors classify from elevation + latitude (ocean,
+shore, lowland, highland, mountain, polar cap; dark basins on dry worlds),
+plus a translucent fresnel atmosphere shell for bodies with air. Subdivision
+level is screen-size-driven (one more level per doubling of projected pixel
+size; threshold + max level + master toggle live in Settings, Graphics,
+Planets, persisted in AppConfig). Meshes cache per (body, level). Colors ride
+packed in the UV channel (PBR shader material types 12/13), so no new vertex
+layout or pipeline.
+- Native: `src/terrain/planet_surface.rs`, `src/terrain/planet.rs`
+  (`lod_level_for_pixels`), `src/renderer/mesh.rs` (`from_planet_surface`),
+  `assets/shaders/pbr_simple.wgsl` (types 12/13), sky loop in `src/lib.rs`
+- Data: `data/planets/earth.ron`, `mars.ron`, `moon.ron` (palette + noise
+  params per body; a new planet look = a new RON file)
+
 ### Heightmap Terrain Generation
 Procedural terrain from heightmaps with 16 biome types.
 - Native: `src/terrain/heightmap.rs`

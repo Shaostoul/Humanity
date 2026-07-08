@@ -1788,6 +1788,22 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         }
 
         ui.add_space(theme.spacing_md);
+        ui.label(RichText::new("Planets").color(theme.text_secondary()).strong());
+        ui.label(RichText::new("Sky planets subdivide as they grow on screen: one more detail level each time a body's projected size doubles past the pixel threshold. Changes apply live.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+        // Procedural fractal surfaces (oceans, continents, polar caps) vs the
+        // old flat single-color spheres. Data lives in data/planets/<id>.ron.
+        if widgets::toggle(ui, theme, "Procedural surfaces", &mut state.settings.planet_detail) {
+            state.settings_dirty = true;
+        }
+        if widgets::labeled_slider(ui, theme, "LOD pixel threshold", &mut state.settings.planet_lod_px, 4.0..=64.0) {
+            state.settings_dirty = true;
+        }
+        if widgets::labeled_slider(ui, theme, "Max subdivision level", &mut state.settings.planet_max_subdiv, 0.0..=7.0) {
+            state.settings_dirty = true;
+        }
+
+        ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
         ui.label(RichText::new("How close to show a machine's dot / name / info card. Hold Tab in-game to triple these and see through walls.").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_xs);

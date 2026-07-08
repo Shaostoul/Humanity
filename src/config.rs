@@ -183,6 +183,18 @@ pub struct AppConfig {
     pub window_mode: WindowMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
+    /// Procedural sky-planet surfaces master toggle (v0.763). Off = the old
+    /// flat-colored spheres.
+    #[serde(default = "default_true")]
+    pub planet_detail: bool,
+    /// Screen-size LOD base threshold in pixels for sky planets: one more
+    /// icosphere subdivision each time the projected diameter doubles past
+    /// this. See `terrain::planet::lod_level_for_pixels`.
+    #[serde(default = "default_planet_lod_px")]
+    pub planet_lod_px: f32,
+    /// Max icosphere subdivision level for sky planets (0-7).
+    #[serde(default = "default_planet_max_subdiv")]
+    pub planet_max_subdiv: f32,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -365,6 +377,8 @@ fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
+fn default_planet_lod_px() -> f32 { 10.0 }
+fn default_planet_max_subdiv() -> f32 { 6.0 }
 fn default_panel_width() -> f32 { 220.0 }
 // v0.488 voice input prefs: unity gain, "V" push key, a modest activation floor.
 /// Prettify a stored winit-KeyCode name for display, e.g. "KeyV" -> "V",
@@ -605,6 +619,9 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
+            planet_detail: state.settings.planet_detail,
+            planet_lod_px: state.settings.planet_lod_px,
+            planet_max_subdiv: state.settings.planet_max_subdiv,
             home_variant: state.settings.home_variant.clone(),
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
             voice_input_device: state.audio_input_device.clone(),
@@ -681,6 +698,17 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
+        state.settings.planet_detail = self.planet_detail;
+        // Guard a corrupted saved value (a 0/negative threshold would pin
+        // every body at max subdivision).
+        state.settings.planet_lod_px = if self.planet_lod_px >= 1.0 {
+            self.planet_lod_px
+        } else {
+            default_planet_lod_px()
+        };
+        state.settings.planet_max_subdiv = self
+            .planet_max_subdiv
+            .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
         state.settings.home_variant = self.home_variant.clone();
         // v0.488 voice input prefs.
         state.audio_input_device = self.voice_input_device.clone();

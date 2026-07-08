@@ -16,22 +16,27 @@
 # but has no landable surface).
 #
 # ENGINE INTEGRATION:
-#   Terrain Generation — native/src/terrain/
-#     - Icosphere (native/src/terrain/icosphere.rs): Base mesh for planets/moons.
+#   Terrain Generation (src/terrain/)
+#     - Icosphere (src/terrain/icosphere.rs): Base mesh for planets/moons.
 #       Starts as a 20-face icosahedron, subdivided recursively. At level N:
 #       20 * 4^N faces. Projected onto a sphere of the body's radius.
-#     - Planet renderer (native/src/terrain/planet.rs): PlanetDef struct loaded
-#       from RON. Procedural heightmap generated from terrain_seed. LOD is
-#       distance-based:
-#         Billboard    (>100,000 km): flat sprite with glow
-#         LowPoly      (10,000-100,000 km): subdivision 1, 80 faces
-#         MidDetail    (1,000-10,000 km): subdivision 2-3
-#         HighDetail   (100-1,000 km): subdivision 4
-#         SurfaceApproach (10-100 km): subdivision 5+
-#         Surface      (<10 km): heightmap with 0.5m resolution
-#     - Asteroid (native/src/terrain/asteroid.rs): Sparse octree voxel mesh
+#     - Planet defs (src/terrain/planet.rs): PlanetDef struct loaded from RON.
+#     - Sky surfaces (src/terrain/planet_surface.rs, v0.763): procedural
+#       fractal surface + per-face color from terrain_seed. Subdivision level
+#       is SCREEN-SIZE-driven (projected pixel diameter; one more level per
+#       doubling past a settings threshold, capped by a settings max level):
+#         < 10 px   : level 0 (20 faces)
+#         10-20 px  : level 1 (80 faces)
+#         20-40 px  : level 2 (320 faces)
+#         ...doubling...
+#         cap       : level 7 (327,680 faces)
+#       (Defaults; both knobs live tune in Settings -> Graphics -> Planets.)
+#     - PlanetRenderer's distance-based LOD ladder (also src/terrain/planet.rs)
+#       remains the seed for the future landing arc (chunked near-surface
+#       subdivision down to walkable resolution).
+#     - Asteroid (src/terrain/asteroid.rs): Sparse octree voxel mesh
 #       with greedy meshing. Used for small irregular bodies.
-#     - Heightmap (native/src/terrain/heightmap.rs): Fine-detail terrain at
+#     - Heightmap (src/terrain/heightmap.rs): Fine-detail terrain at
 #       surface level, blended with icosphere at transition distance.
 #
 #   Solar System Map — The orbital tree from bodies.json renders as an
@@ -351,6 +356,16 @@ constraints = "Max 512 characters."
 #   8. LOD dynamically adjusts as camera moves (subdivide approaching faces,
 #      collapse distant faces)
 #
+# SKY RENDERING (v0.763, src/terrain/planet_surface.rs): bodies seen from the
+# homestead render as whole-sphere icospheres whose subdivision level follows
+# the body's PROJECTED PIXEL SIZE (one more level per doubling past a
+# threshold; both knobs live in Settings -> Graphics -> Planets). Land is
+# displaced by seeded FBM noise up to surface_relief; oceans stay smooth at
+# the sphere radius; per-face colors classify from elevation + latitude
+# (water/basin, shore, lowland, highland, mountain, polar cap). Bodies with
+# an atmosphere get a translucent fresnel shell. Meshes cache per
+# (body, level), so LOD switches never rebuild.
+#
 # For gas giants (surface_type = "gas"):
 #   - No solid surface; cloud bands rendered as texture on the icosphere
 #   - Player cannot land; orbital stations only
@@ -404,6 +419,19 @@ constraints = "Max 512 characters."
 #     orbital_period: 306720.0,
 #     rotation_period: 306720.0,  // tidally locked
 #     axial_tilt: 0.0017,
+#
+#     // Procedural sky-surface fields (v0.763, all optional with defaults;
+#     // consumed by src/terrain/planet_surface.rs). Shipped examples:
+#     // data/planets/earth.ron, mars.ron, moon.ron.
+#     surface_relief: 0.02,        // max land displacement, fraction of radius
+#     noise_frequency: 2.2,        // base elevation-noise frequency
+#     noise_octaves: 5,            // fine-detail octave count (1-8)
+#     shore_color: (0.78, 0.72, 0.52, 1.0),   // beach band (water worlds)
+#     highland_color: (0.42, 0.36, 0.22, 1.0),
+#     mountain_color: (0.52, 0.49, 0.46, 1.0),
+#     cap_color: (0.93, 0.95, 0.97, 1.0),     // polar caps + highest peaks
+#     basin_color: Some((0.3, 0.3, 0.3, 1.0)),// dry-world low basins (maria)
+#     polar_cap_latitude: 0.88,    // caps above this |sin(latitude)|; >1 = none
 # )
 
 # ============================================================================
