@@ -7,6 +7,7 @@ pub mod conduits;
 pub mod door_panels;
 pub mod fibonacci;
 pub mod home_structure;
+pub mod hull;
 pub mod layout;
 pub mod lock_types;
 pub mod rooms;

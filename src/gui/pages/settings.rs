@@ -1819,6 +1819,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // the open top; on seals it. Also toggled with the R key in-world.
         widgets::toggle(ui, theme, "Show roof (R)", &mut state.show_roof);
         ui.label(RichText::new("Off shows the sky (stars + the real solar system) through the open top; on seals the home for an interior / atmosphere look.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.add_space(theme.spacing_xs);
+        // Hull wrap (ship-superstructure increment D): the generated exterior shell around the
+        // zone cluster (data/blueprints/hull_profile.ron). Default ON; also toggled with H.
+        widgets::toggle(ui, theme, "Show hull (H)", &mut state.show_hull);
+        ui.label(RichText::new("The generated exterior hull around the ship's zones (open above glass roofs, so gardens keep their starlight). Off for unobstructed interior or top-down build views.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 

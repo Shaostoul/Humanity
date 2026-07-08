@@ -84,6 +84,7 @@ pub const BLUEPRINT_CONSTRUCTION_RON: &str = include_str!("../data/blueprints/co
 pub const BLUEPRINT_HABITAT_RON: &str = include_str!("../data/blueprints/habitat.ron");
 pub const BLUEPRINT_MATERIALS_RON: &str = include_str!("../data/blueprints/materials.ron");
 pub const BLUEPRINT_OBJECTS_RON: &str = include_str!("../data/blueprints/objects.ron");
+pub const BLUEPRINT_HULL_PROFILE_RON: &str = include_str!("../data/blueprints/hull_profile.ron");
 
 // ── Entity templates (RON) ─────────────────────────────────────────
 pub const ENTITY_HUMAN_001_RON: &str = include_str!("../data/entities/human/human_001.ron");
@@ -227,6 +228,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "blueprints/habitat.ron" => Some(BLUEPRINT_HABITAT_RON),
         "blueprints/materials.ron" => Some(BLUEPRINT_MATERIALS_RON),
         "blueprints/objects.ron" => Some(BLUEPRINT_OBJECTS_RON),
+        "blueprints/hull_profile.ron" => Some(BLUEPRINT_HULL_PROFILE_RON),
 
         // RON — Entities
         "entities/human/human_001.ron" => Some(ENTITY_HUMAN_001_RON),
@@ -352,6 +354,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "blueprints/habitat.ron",
     "blueprints/materials.ron",
     "blueprints/objects.ron",
+    "blueprints/hull_profile.ron",
     "entities/human/human_001.ron",
     "entities/plants/plant_001.ron",
     "entities/plants/tomato.ron",
