@@ -81,13 +81,12 @@
 >    data-driven quorum/pass verdicts (hot-editable per request), the
 >    native governance page shows them per proposal (abstain counts
 >    toward quorum, not the pass ratio).
-> NEXT BIG ARCS (pick per operator direction): the combat arc (TWO
-> INCREMENTS IN: v0.760 fight-kill-loot + v0.761 hostiles fight back -
-> AISystem registered, wolves hunt the player AND the chickens, bites
-> ride the damage pipeline, combat deaths named on the death screen,
-> armor-on-equip live, wild spawns are a data file; OPTIONAL NEXT:
-> melee/tool attack from the weapon damage columns, livestock fleeing
-> predators, spawn variety/respawn cadence, kill XP for combat skills),
+> NEXT BIG ARCS (pick per operator direction): the combat arc (THREE
+> INCREMENTS IN: v0.760 fight-kill-loot, v0.761 hostiles fight back +
+> armor protects, v0.762 livestock flee predators + kills train
+> melee/ranged; the wolf-tier loop is COMPLETE - remaining options are
+> taste calls: melee/tool attack from the weapon damage columns, spawn
+> variety/respawn cadence, wall-aware pathfinding, aggro telegraphs),
 > T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
 > unwired), rung 9 zones (awaits decision-briefs.md Brief 1),
 > guild-scoped production pools (engagement mode 4), or operator
