@@ -91,19 +91,20 @@
 > documented: 1m chunked landing subdivision, rivers, real craters,
 > biomes.ron wiring, mesh-cache eviction.
 > SHIP SUPERSTRUCTURE ARC (operator-raised 2026-07-08, the ACTIVE arc):
-> docs/design/ship-superstructure.md is the contract (zones + corridors
-> + Commons + hull wrap; absorbs decision-briefs Brief 1 - the vehicle
-> bay is a bay-purpose zone). Increment A SHIPPED v0.766: multi-zone
-> ShipStructure (home body unchanged per zone, editor Ship-zone selector
-> + Add/Delete, per-zone everything, one-time legacy adoption). NEXT:
-> increment B (generated corridors between zone openings), then C (the
-> Commons: a big glass-roofed zone with garden center + trading posts,
-> pure data), then D (the hull wrap - data-driven profiles, the
-> "looks like a spaceship" pass, screenshot-tunable like planets).
-> OPERATOR FIELD TESTS PENDING: planets (v0.763-764: look up, tune
-> sliders + RON live) and zones (v0.766: Add zone in the build editor).
-> OTHER ARCS ON THE SHELF: combat taste items (spawn variety,
-> pathfinding, telegraphs), planet LANDING arc (1m chunked subdivision),
+> docs/design/ship-superstructure.md is the contract (absorbs Brief 1).
+> A SHIPPED v0.766 (multi-zone ShipStructure + editor zone selector).
+> B SHIPPED v0.767 (corridors: one data row generates the walled tube
+> with a glass-or-steel lid AND cuts walkable apertures through both
+> zone shells in mesh + collision; editor Corridors section; honest
+> validation; straight/axis-aligned v1). NEXT: increment C - AUTHOR THE
+> COMMONS as data (one big commons-purpose zone with the default glass
+> roof, garden machines + trading posts tagged zone "commons", one
+> corridor row to the home; a solo data session, no new engine code),
+> then D (the hull wrap - data-driven profiles, the "looks like a
+> spaceship" pass, screenshot-tunable like planets). OPERATOR FIELD
+> TESTS PENDING: planets (look up, tune sliders + RON live), zones +
+> corridors (build editor: Add zone -> Corridors -> Create -> walk it).
+> OTHER ARCS ON THE SHELF: combat taste items, planet LANDING arc,
 > guild production pools. Journal follow-up still open: guild REST auth
 > should ride the signed-auth helper before real users. <<<**
 
