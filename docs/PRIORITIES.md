@@ -85,8 +85,11 @@
 > icosphere LOD (d20 when tiny, doubling ladder, level-7 cap, cached
 > meshes), seeded FBM fractal surfaces (smooth oceans, dry-world basins,
 > polar caps), fresnel atmosphere shells, per-planet RON params, LIVE
-> Settings sliders (Graphics > Planets). Follow-ups documented: 1m
-> chunked landing subdivision, rivers, real craters, biomes.ron wiring.
+> Settings sliders (Graphics > Planets). v0.764 adds planet-def
+> HOT-RELOAD: save a data/planets/*.ron mid-game and the sky updates
+> within a frame - the visual tuning loop needs no relaunch. Follow-ups
+> documented: 1m chunked landing subdivision, rivers, real craters,
+> biomes.ron wiring, mesh-cache eviction.
 > NEXT BIG ARCS (pick per operator direction): the combat arc (wolf-tier
 > loop COMPLETE across v0.760-762; remaining are taste calls: melee/tool
 > attack, spawn variety, wall-aware pathfinding, aggro telegraphs), the
