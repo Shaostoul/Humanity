@@ -3713,6 +3713,35 @@ mod native_app {
 
     /// Lazy-load the 3D world: homestead, hologram, stars, planet, CSV data.
     /// Called once on first Enter World. Keeps app startup instant (chat-first).
+    /// (Re)load every data/planets/<body_id>.ron into state.planet_defs and
+    /// drop the cached surface meshes + atmosphere materials so the next
+    /// frame regenerates from the fresh values. Called at world load and by
+    /// the hot-reload poll when a planet RON changes on disk (v0.764) - so
+    /// palette/noise/sea-level tuning shows in the sky without a relaunch.
+    /// The superseded GPU meshes stay resident until session end (bounded by
+    /// how many edits a tuning session makes; eviction is a noted follow-up).
+    fn reload_planet_defs(state: &mut EngineState) {
+        state.planet_defs.clear();
+        state.planet_mesh_cache.clear();
+        state.planet_atmo_materials.clear();
+        for b in crate::cosmos::sol_bodies() {
+            let rel = format!("planets/{}.ron", b.id);
+            if state.asset_manager.data_dir().join(&rel).exists() {
+                match state.asset_manager.load_ron::<PlanetDef>(&rel) {
+                    Ok(def) => {
+                        let def = def.clone();
+                        state.planet_defs.insert(b.id.clone(), def);
+                    }
+                    Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
+                }
+            }
+        }
+        log::info!(
+            "Planets: {} procedural surface def(s) loaded from data/planets/",
+            state.planet_defs.len()
+        );
+    }
+
     fn load_world(state: &mut EngineState) {
         log::info!("Loading 3D world...");
         let load_start = Instant::now();
@@ -4303,25 +4332,7 @@ mod native_app {
         // planet look = a new data/planets/<body_id>.ron, no code change.
         // Bodies without a def fall back to smooth LOD spheres with the
         // coarse body-type materials.
-        state.planet_defs.clear();
-        state.planet_mesh_cache.clear();
-        state.planet_atmo_materials.clear();
-        for b in crate::cosmos::sol_bodies() {
-            let rel = format!("planets/{}.ron", b.id);
-            if state.asset_manager.data_dir().join(&rel).exists() {
-                match state.asset_manager.load_ron::<PlanetDef>(&rel) {
-                    Ok(def) => {
-                        let def = def.clone();
-                        state.planet_defs.insert(b.id.clone(), def);
-                    }
-                    Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
-                }
-            }
-        }
-        log::info!(
-            "Planets: {} procedural surface def(s) loaded from data/planets/",
-            state.planet_defs.len()
-        );
+        reload_planet_defs(state);
 
         // ── Ship position (GEO above Silverdale, WA) ──
         let lat_rad = 47.6_f64.to_radians();
@@ -6639,6 +6650,17 @@ mod native_app {
                     let changes = state.hot_reload.poll(&mut state.asset_manager);
                     for changed in &changes {
                         log::info!("Hot-reload: {changed}");
+                    }
+                    // Planet-def hot-reload (v0.764): saving a
+                    // data/planets/<id>.ron while the game runs re-reads the
+                    // defs and drops the cached surface meshes, so palette /
+                    // noise / sea-level tuning shows in the sky within a
+                    // frame - no relaunch during the visual tuning loop.
+                    if changes.iter().any(|c| {
+                        let n = c.replace('\\', "/");
+                        n.contains("planets/") && n.ends_with(".ron")
+                    }) {
+                        reload_planet_defs(state);
                     }
 
                     // Apply the player's active status-effect SPEED modifiers to movement
