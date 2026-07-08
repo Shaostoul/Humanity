@@ -1430,20 +1430,35 @@ The home-construction data model (replaced the old rooms-as-sliding-AABBs approa
 (the mothership allotment, default 55x89x3 m steel, glass roof) plus freely-placed INTERIOR WALLS; rooms
 EMERGE from the walls via grid flood-fill rather than being placed as boxes.
 
-### HomeStructure Model + Multi-Zone ShipStructure (v0.766)
+### HomeStructure Model + the Ship Superstructure (v0.766 - v0.769)
 The serialized home body: box dims + shell/roof material, interior walls, placed lights, placed
 structures, a road graph (nodes + edges), and the player spawn point. Meshes regenerate on edit; rooms
-detected by flood-fill. Since v0.766 (ship-superstructure increment A) the home body is ONE ZONE of a
-`ShipStructure { zones }`: each zone carries id/label/purpose (residence | commons | bay | agriculture |
-corridor) + a world origin + the full home body unchanged. The build editor's Ship zone selector
-(combo + Add zone + label/purpose/origin + confirmed delete) edits any zone with all existing tools;
-machines carry a `zone` id (default "home") and clamp into their zone's footprint. A lone legacy
-home_structure.ron adopts once as zone "home". Corridors/commons/hull are increments B-D in
-docs/design/ship-superstructure.md.
-- Native: `src/ship/ship_structure.rs` (`ShipZone`/`ShipStructure`, load/save/adopt, per-zone meshes),
-  `src/ship/home_structure.rs` (the per-zone body: `HomeStructure`, `generate_meshes`, `detect_rooms`),
-  `src/ship/wall_collision.rs` (`ship_wall_segments`), `src/machines.rs` (per-zone clamping)
-- Data: `data/blueprints/ship_structure.ron` (the authored seed ship; the old home file migrated in)
+detected by flood-fill. The ship-superstructure arc (docs/design/ship-superstructure.md, absorbs
+decision-briefs Brief 1) generalized it into a whole vessel:
+- **Zones (v0.766)**: the home body is ONE ZONE of `ShipStructure { zones }` - each zone carries
+  id/label/purpose (residence | commons | bay | agriculture | corridor) + a world origin + the full
+  home body unchanged. Editor Ship zone selector (Add zone, label/purpose/origin, confirmed delete);
+  machines carry a `zone` id (default "home") and clamp into their zone's footprint; a lone legacy
+  home_structure.ron adopts once as zone "home".
+- **Corridors (v0.767)**: one data row (from_zone/door -> to_zone/door, width, glass_top) GENERATES the
+  walled tube (floor, sides, glass-or-steel lid) and cuts walkable door apertures through both zones'
+  perimeter shells in mesh AND collision. Straight/axis-aligned v1 with specific validation rejections;
+  editor Corridors section; save prunes broken rows.
+- **The Commons (v0.768, pure data)**: the seed ship's communal hall - a 34x55x8 glass-roofed commons
+  zone with a 3x3 aeroponic tower grove (tank-watered, composter-fed like the home garden), apothecary
+  towers + mushroom rack, three open-fronted Trading Post stalls, and a 10 m glass gallery from the
+  home's east door. Zero engine code - the architecture's proof.
+- **The Hull Wrap (v0.769)**: lofted plating swept through data-driven silhouette stations scaled to
+  the cluster's real bounds (long-axis auto-detect), taper clamps that never slice a pressurized box,
+  top cutouts over every glass roof + corridor lid, double-sided plating (look up through glass and see
+  hull), greebles (engines/radiators/masts) as data rows. Regrows on any structure edit; H key /
+  Settings "Show hull" toggle; purely visual (no exterior collision - bay doors/EVA are follow-ups).
+- Native: `src/ship/ship_structure.rs` (zones + corridors, load/save/adopt, merged meshes),
+  `src/ship/home_structure.rs` (the per-zone body incl. shell cuts), `src/ship/hull.rs` (profile +
+  loft + greebles), `src/ship/wall_collision.rs` (`ship_wall_segments` + shell-cut gaps),
+  `src/machines.rs` (per-zone clamping)
+- Data: `data/blueprints/ship_structure.ron` (the seed ship: home + Commons + gallery),
+  `data/blueprints/hull_profile.ron` (silhouette stations, margin, greebles - screenshot-tunable)
 
 ### Interior Walls + Wall Materials (v0.552, v0.585)
 Walls are corner-node segment chains with per-wall material, per-wall thickness (down to a 1 mm screen),

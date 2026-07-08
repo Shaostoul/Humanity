@@ -90,25 +90,25 @@
 > within a frame - the visual tuning loop needs no relaunch. Follow-ups
 > documented: 1m chunked landing subdivision, rivers, real craters,
 > biomes.ron wiring, mesh-cache eviction.
-> SHIP SUPERSTRUCTURE ARC (operator-raised 2026-07-08, the ACTIVE arc):
-> docs/design/ship-superstructure.md is the contract (absorbs Brief 1).
-> A SHIPPED v0.766 (multi-zone ShipStructure + editor zone selector).
-> B SHIPPED v0.767 (corridors: one row generates the tube + cuts
-> walkable shell apertures). C SHIPPED v0.768 (THE COMMONS - the
-> operator mall as PURE DATA: 34x55x8 glass-roofed hall, 3x3 tower
-> grove center on the home garden loop, three open-fronted Trading Post
-> stalls, a 10m glass gallery from the home east door; proves the
-> architecture - zero engine code). NEXT: increment D - the hull wrap
-> (data-driven nose/mid/engine profiles around the zone cluster,
-> greeble blocks as data rows, cutouts over glass; the "looks like a
-> spaceship from outside" pass, screenshot-tunable like the planets).
-> OPERATOR FIELD TESTS PENDING: planets (look up, tune sliders + RON
-> live) and the ship (walk out the home east door down the glass
-> gallery into the Commons; build editor shows both zones + the
-> corridor row). OTHER ARCS ON THE SHELF: combat taste items, planet
-> LANDING arc, guild production pools. Journal follow-up still open:
-> guild REST auth should ride the signed-auth helper before real
-> users. <<<**
+> SHIP SUPERSTRUCTURE ARC COMPLETE (v0.766-v0.769, operator screenshot
+> to vessel in one day; docs/design/ship-superstructure.md is the
+> record, absorbs Brief 1): A zones (multi-zone ShipStructure + editor
+> selector), B corridors (one row generates the tube + cuts walkable
+> shell apertures), C THE COMMONS (the operator mall as pure data:
+> glass-roofed hall, tower grove, Trading Post stalls, glass gallery),
+> D THE HULL WRAP (lofted plating through data-driven silhouette
+> stations, taper clamps that never slice zones, cutouts over glass,
+> greebles as data in data/blueprints/hull_profile.ron, live regrow,
+> H-key/Settings toggle). The ship's exterior is screenshot-tunable
+> data. FOLLOW-UP SEAMS: curved lofts, hull windows, bay doors, profile
+> hot-reload, interior liner, multi-deck (design section E).
+> OPERATOR FIELD TESTS PENDING (one relaunch covers all): planets in
+> the sky + slider/RON tuning, the hull from outside, the glass gallery
+> walk to the Commons, wolves + melee. NEXT ARCS (pick per operator
+> direction or field reports): hull/planet taste tuning per screenshots,
+> combat taste items, planet LANDING arc (1m chunked subdivision),
+> guild production pools. Journal follow-up still open: guild REST auth
+> should ride the signed-auth helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
