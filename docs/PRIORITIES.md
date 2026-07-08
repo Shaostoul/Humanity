@@ -21,12 +21,18 @@
 > the VPS; everything built (mall, trade, chat, ship) only matters with
 > someone else present.
 > WORK ORDER:
-> 1. UNIFIED CHAT - same relay #general in-game / Chat tab / website /
->    livestream. v0.771 shipped 1a: read-only bottom-left in-game #general
->    HUD feed (the app already auto-connects to united-humanity.us when the
->    seed is unlocked). NEXT: inline in-world typing (Enter -> compact
->    #general input line, cursor-release), then the server-join flow so the
->    VPS appears in the launcher Servers list.
+> 1. UNIFIED CHAT - same relay chat in-game / Chat tab / website /
+>    livestream. SHIPPED: 1a (v0.771) read-only bottom-left in-game feed;
+>    1b (v0.772) the panel is now INTERACTIVE - Enter opens a compact
+>    bottom-left chat panel that frees the cursor + disables look/move,
+>    with a channel switcher, active-channel message list, and a focused
+>    input that sends via the same path the Chat page uses. The v0.771
+>    feed now FOLLOWS chat_active_channel (fixes the field-report bug where
+>    switching to #announcements never updated the header or loaded its
+>    messages) and hides while the interactive panel is open. NEXT: 1c view
+>    modes inside the in-world panel (all-chat / DMs / group chats /
+>    options - today the full Chat page nav tab is still the home for those),
+>    then the server-join flow so the VPS appears in the launcher Servers list.
 > 2. SHARED-WORLD CO-PRESENCE - actually see other avatars. NetSyncSystem
 >    + RemotePlayer render already exist; needs the launcher join flow wired
 >    and a TWO-CLIENT live test on the VPS. This is the mission-critical
