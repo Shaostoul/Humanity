@@ -237,10 +237,27 @@ fn demo_state() -> GuiState {
 
     // ── Market listings ──
     s.listings = vec![
-        GuiListing { id: 1, title: "Helix Wide 60 tower".into(), description: "33-slot aeroponic tower".into(), price: 120.0, seller: "Shaostoul".into(), category: "Equipment".into() },
-        GuiListing { id: 2, title: "Heirloom seed pack".into(), description: "Greens + herbs".into(), price: 8.0, seller: "Ada".into(), category: "Seeds".into() },
+        GuiListing {
+            id: "demo-1".into(),
+            title: "Helix Wide 60 tower".into(),
+            description: "33-slot aeroponic tower".into(),
+            price: "120 SOL".into(),
+            seller_name: "Shaostoul".into(),
+            category: "Equipment".into(),
+            status: "active".into(),
+            ..Default::default()
+        },
+        GuiListing {
+            id: "demo-2".into(),
+            title: "Heirloom seed pack".into(),
+            description: "Greens + herbs".into(),
+            price: "8 SOL".into(),
+            seller_name: "Ada".into(),
+            category: "Seeds".into(),
+            status: "active".into(),
+            ..Default::default()
+        },
     ];
-    s.listing_next_id = 3;
 
     // ── Notes ──
     s.notes = vec![

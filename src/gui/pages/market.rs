@@ -54,6 +54,40 @@ fn with_state<R>(f: impl FnOnce(&mut MarketPageState) -> R) -> R {
     STATE.with(|s| f(&mut s.borrow_mut()))
 }
 
+/// Leading numeric value of a free-text price ("12.5 SOL" -> 12.5) for
+/// sorting; non-numeric or empty prices sort last.
+fn price_num(p: &str) -> f64 {
+    let s: String = p
+        .trim()
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    s.parse().unwrap_or(f64::MAX)
+}
+
+/// Client-generated listing id, unique per publish (same contract as web:
+/// the relay stores whatever id the creating client minted).
+fn new_listing_id() -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNT: AtomicU32 = AtomicU32::new(0);
+    let millis = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    format!("n{:x}-{:03x}", millis, COUNT.fetch_add(1, Ordering::Relaxed))
+}
+
+/// Seller display: profile name when the relay knows it, key prefix otherwise.
+fn seller_label(l: &GuiListing) -> String {
+    if !l.seller_name.is_empty() {
+        l.seller_name.clone()
+    } else if l.seller_key.len() > 8 {
+        format!("{}...", &l.seller_key[..8])
+    } else {
+        l.seller_key.clone()
+    }
+}
+
 fn category_color(category: &str) -> Color32 {
     match category {
         "Tools" => Color32::from_rgb(70, 130, 180),
@@ -68,9 +102,26 @@ fn category_color(category: &str) -> Color32 {
 }
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Live sync with the connected relay (v0.752, ladder rung 5): first view
+    // after connect pulls the live list via listing_browse; the lib.rs WS
+    // dispatch keeps it current from listing_new/updated/deleted broadcasts.
+    // Dropping the connection clears the flag so a reconnect re-syncs.
+    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    if connected && !state.listings_synced {
+        if let Some(ws) = &state.ws_client {
+            ws.send(&serde_json::json!({"type": "listing_browse"}).to_string());
+        }
+        state.listings_synced = true;
+    }
+    if !connected {
+        state.listings_synced = false;
+    }
+
     // Detail view (replaces center panel when viewing a listing)
     let showing_detail = with_state(|ps| ps.detail_view) && state.listing_selected.is_some();
     let mut close_detail = false;
+    // Deferred action out of the listing borrow below.
+    let mut delete_listing_id: Option<String> = None;
 
     // Left sidebar: category filter
     egui::SidePanel::left("market_categories")
@@ -102,80 +153,98 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             if showing_detail {
                 // ── Detail view ──
-                if let Some(sel_idx) = state.listing_selected {
-                    if let Some(listing) = state.listings.get(sel_idx) {
-                        ScrollArea::vertical().show(ui, |ui| {
-                            // Back button
-                            ui.horizontal(|ui| {
-                                if widgets::secondary_button(ui, theme, "< Back to Listings") {
-                                    close_detail = true;
-                                }
-                            });
-                            ui.add_space(theme.spacing_sm);
-
-                            ui.label(RichText::new(&listing.title).size(theme.font_size_title).color(theme.accent()));
-                            ui.add_space(theme.spacing_xs);
-
-                            // Category badge
-                            widgets::badge(ui, theme, &listing.category, category_color(&listing.category));
-
-                            ui.add_space(theme.spacing_md);
-
-                            // Image placeholder
-                            let (img_rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 180.0), egui::Sense::hover());
-                            ui.painter().rect_filled(img_rect, Rounding::same(6), theme.bg_secondary());
-                            ui.painter().text(
-                                img_rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                "No Image",
-                                egui::FontId::proportional(16.0),
-                                theme.text_muted(),
-                            );
-
-                            ui.add_space(theme.spacing_md);
-
-                            // Price
-                            ui.label(RichText::new(format!("{:.2} SOL", listing.price)).size(theme.font_size_title).color(theme.accent()));
-
-                            ui.add_space(theme.spacing_sm);
-
-                            // Description
-                            widgets::card(ui, theme, |ui| {
-                                ui.label(RichText::new("Description").size(theme.font_size_body).color(theme.text_secondary()));
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(RichText::new(&listing.description).color(theme.text_primary()));
-                            });
-
-                            ui.add_space(theme.spacing_sm);
-
-                            // Seller info
-                            widgets::card(ui, theme, |ui| {
-                                ui.label(RichText::new("Seller Information").size(theme.font_size_body).color(theme.text_secondary()));
-                                ui.add_space(theme.spacing_xs);
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Seller:").color(theme.text_muted()));
-                                    ui.label(RichText::new(&listing.seller).color(theme.text_primary()));
-                                });
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new("Reputation:").color(theme.text_muted()));
-                                    // Placeholder reputation
-                                    ui.label(RichText::new("No ratings yet").color(theme.text_muted()));
-                                });
-                            });
-
-                            ui.add_space(theme.spacing_md);
-
-                            // Action buttons
-                            ui.horizontal(|ui| {
-                                if widgets::primary_button(ui, theme, "Buy") {
-                                    // Placeholder
-                                }
-                                if widgets::secondary_button(ui, theme, "Contact Seller") {
-                                    // Placeholder
-                                }
-                            });
+                let sel_id = state.listing_selected.clone().unwrap_or_default();
+                let my_key = state.profile_public_key.clone();
+                if let Some(listing) = state.listings.iter().find(|l| l.id == sel_id) {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        // Back button
+                        ui.horizontal(|ui| {
+                            if widgets::secondary_button(ui, theme, "< Back to Listings") {
+                                close_detail = true;
+                            }
                         });
-                    }
+                        ui.add_space(theme.spacing_sm);
+
+                        ui.label(RichText::new(&listing.title).size(theme.font_size_title).color(theme.accent()));
+                        ui.add_space(theme.spacing_xs);
+
+                        // Category badge
+                        widgets::badge(ui, theme, &listing.category, category_color(&listing.category));
+
+                        ui.add_space(theme.spacing_md);
+
+                        // Image placeholder
+                        let (img_rect, _) = ui.allocate_exact_size(Vec2::new(300.0, 180.0), egui::Sense::hover());
+                        ui.painter().rect_filled(img_rect, Rounding::same(6), theme.bg_secondary());
+                        ui.painter().text(
+                            img_rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            "No Image",
+                            egui::FontId::proportional(16.0),
+                            theme.text_muted(),
+                        );
+
+                        ui.add_space(theme.spacing_md);
+
+                        // Price (free text, matching web)
+                        let price = if listing.price.is_empty() { "Price on request" } else { &listing.price };
+                        ui.label(RichText::new(price).size(theme.font_size_title).color(theme.accent()));
+
+                        ui.add_space(theme.spacing_sm);
+
+                        // Description
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(RichText::new("Description").size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.add_space(theme.spacing_xs);
+                            let desc = if listing.description.is_empty() { "No description." } else { &listing.description };
+                            ui.label(RichText::new(desc).color(theme.text_primary()));
+                        });
+
+                        ui.add_space(theme.spacing_sm);
+
+                        // Seller + trade details
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(RichText::new("Seller Information").size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.add_space(theme.spacing_xs);
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new("Seller:").color(theme.text_muted()));
+                                ui.label(RichText::new(seller_label(listing)).color(theme.text_primary()));
+                            });
+                            for (label, value) in [
+                                ("Condition:", &listing.condition),
+                                ("Payment:", &listing.payment_methods),
+                                ("Location:", &listing.location),
+                                ("Listed:", &listing.created_at),
+                            ] {
+                                if !value.is_empty() {
+                                    ui.horizontal(|ui| {
+                                        ui.label(RichText::new(label).color(theme.text_muted()));
+                                        ui.label(RichText::new(value).color(theme.text_primary()));
+                                    });
+                                }
+                            }
+                        });
+
+                        ui.add_space(theme.spacing_md);
+
+                        // Actions: your own listing can be removed; buying and
+                        // seller chat arrive with the trade-flow increment (the
+                        // relay routes exist) - no dead buttons until then.
+                        if listing.seller_key == my_key {
+                            if widgets::secondary_button(ui, theme, "Delete Listing") {
+                                delete_listing_id = Some(listing.id.clone());
+                            }
+                        } else {
+                            ui.label(
+                                RichText::new("Contact + escrow buying arrive with the trade-flow increment.")
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
+                        }
+                    });
+                } else {
+                    // The listing vanished (deleted remotely) - fall back.
+                    close_detail = true;
                 }
             } else {
                 // ── Listing grid view ──
@@ -187,8 +256,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         if widgets::primary_button(ui, theme, "+ Create Listing") {
                             state.listing_show_new_form = !state.listing_show_new_form;
                         }
+                        if connected && widgets::secondary_button(ui, theme, "Refresh") {
+                            if let Some(ws) = &state.ws_client {
+                                ws.send(&serde_json::json!({"type": "listing_browse"}).to_string());
+                            }
+                        }
                     });
                 });
+                if !connected {
+                    ui.label(
+                        RichText::new("Offline - connect to a server (Chat page) to browse the live market.")
+                            .color(theme.warning())
+                            .size(theme.font_size_small),
+                    );
+                }
+                if !state.listing_status.is_empty() {
+                    ui.label(
+                        RichText::new(&state.listing_status)
+                            .color(theme.text_secondary())
+                            .size(theme.font_size_small),
+                    );
+                }
 
                 ui.add_space(theme.spacing_sm);
 
@@ -223,8 +311,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                 .desired_width(280.0)
                                 .desired_rows(2));
                         });
-                        widgets::form_row(ui, theme, "Price (SOL)", |ui| {
-                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_price).desired_width(100.0));
+                        widgets::form_row(ui, theme, "Price", |ui| {
+                            ui.add(egui::TextEdit::singleline(&mut state.listing_new_price)
+                                .hint_text("e.g. 5 SOL, 20 CR, free")
+                                .desired_width(160.0));
                         });
                         widgets::form_row(ui, theme, "Category", |ui| {
                             let create_cats: Vec<String> = state.market_categories.iter().skip(1).cloned().collect();
@@ -240,23 +330,33 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                         });
                         ui.add_space(theme.spacing_sm);
                         ui.horizontal(|ui| {
-                            if widgets::Button::primary("Create").show(ui, theme) && !state.listing_new_title.is_empty() {
-                                let price = state.listing_new_price.parse::<f64>().unwrap_or(0.0);
-                                let listing = GuiListing {
-                                    id: state.listing_next_id,
-                                    title: state.listing_new_title.clone(),
-                                    description: state.listing_new_description.clone(),
-                                    price,
-                                    seller: if state.user_name.is_empty() { "You".to_string() } else { state.user_name.clone() },
-                                    category: if state.listing_new_category.is_empty() { "Other".to_string() } else { state.listing_new_category.clone() },
-                                };
-                                state.listing_next_id += 1;
-                                state.listings.push(listing);
-                                state.listing_new_title.clear();
-                                state.listing_new_description.clear();
-                                state.listing_new_price.clear();
-                                state.listing_new_category.clear();
-                                state.listing_show_new_form = false;
+                            if widgets::Button::primary("Publish").show(ui, theme) && !state.listing_new_title.trim().is_empty() {
+                                if connected {
+                                    // Same contract as web: client mints the id,
+                                    // the relay stores + broadcasts listing_new
+                                    // (which is what adds it to our list - no
+                                    // local echo, the round-trip IS the confirm).
+                                    let msg = serde_json::json!({
+                                        "type": "listing_create",
+                                        "id": new_listing_id(),
+                                        "title": state.listing_new_title.trim(),
+                                        "description": state.listing_new_description.trim(),
+                                        "category": if state.listing_new_category.is_empty() { "Other" } else { state.listing_new_category.as_str() },
+                                        "price": state.listing_new_price.trim(),
+                                    });
+                                    if let Some(ws) = &state.ws_client {
+                                        ws.send(&msg.to_string());
+                                    }
+                                    state.listing_status = "Publishing...".to_string();
+                                    state.listing_new_title.clear();
+                                    state.listing_new_description.clear();
+                                    state.listing_new_price.clear();
+                                    state.listing_new_category.clear();
+                                    state.listing_show_new_form = false;
+                                } else {
+                                    state.listing_status =
+                                        "Connect to a server (Chat page) to publish listings.".to_string();
+                                }
                             }
                             ui.add_space(theme.spacing_sm);
                             if widgets::Button::secondary("Cancel").show(ui, theme) {
@@ -286,20 +386,25 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .map(|(i, _)| i)
                     .collect();
 
-                // Apply sort
+                // Apply sort (prices are free text - sort by leading number)
                 match sort_order {
                     SortOrder::PriceLowHigh => {
                         filtered.sort_by(|&a, &b| {
-                            state.listings[a].price.partial_cmp(&state.listings[b].price).unwrap_or(std::cmp::Ordering::Equal)
+                            price_num(&state.listings[a].price)
+                                .partial_cmp(&price_num(&state.listings[b].price))
+                                .unwrap_or(std::cmp::Ordering::Equal)
                         });
                     }
                     SortOrder::PriceHighLow => {
                         filtered.sort_by(|&a, &b| {
-                            state.listings[b].price.partial_cmp(&state.listings[a].price).unwrap_or(std::cmp::Ordering::Equal)
+                            price_num(&state.listings[b].price)
+                                .partial_cmp(&price_num(&state.listings[a].price))
+                                .unwrap_or(std::cmp::Ordering::Equal)
                         });
                     }
                     SortOrder::Newest => {
-                        filtered.sort_by(|&a, &b| b.cmp(&a));
+                        // The relay returns newest-first; broadcasts insert at
+                        // the front - natural order IS newest.
                     }
                     SortOrder::Relevance => {
                         // Keep natural order
@@ -310,7 +415,12 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_xl);
                     ui.vertical_centered(|ui| {
                         ui.label(RichText::new("No listings").size(theme.font_size_heading).color(theme.text_muted()));
-                        ui.label(RichText::new("Create one to get started.").color(theme.text_secondary()));
+                        let hint = if connected {
+                            "Create one to get started."
+                        } else {
+                            "Connect to a server to see the live market."
+                        };
+                        ui.label(RichText::new(hint).color(theme.text_secondary()));
                     });
                 } else {
                     // Result count
@@ -331,16 +441,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                                 ui.label(RichText::new(&listing.title).color(theme.text_primary()));
                                                 widgets::badge_sm(ui, theme, &listing.category, category_color(&listing.category));
                                             });
-                                            ui.label(RichText::new(format!("{:.2} SOL", listing.price)).size(theme.font_size_heading).color(theme.accent()));
+                                            let price = if listing.price.is_empty() { "Price on request".to_string() } else { listing.price.clone() };
+                                            ui.label(RichText::new(price).size(theme.font_size_heading).color(theme.accent()));
                                             // Short description
                                             if !listing.description.is_empty() {
                                                 let preview: String = listing.description.chars().take(60).collect();
                                                 let suffix = if listing.description.chars().count() > 60 { "..." } else { "" };
                                                 ui.label(RichText::new(format!("{}{}", preview, suffix)).color(theme.text_muted()).size(theme.font_size_small));
                                             }
-                                            ui.label(RichText::new(format!("Seller: {}", listing.seller)).color(theme.text_muted()).size(theme.font_size_small));
+                                            ui.label(RichText::new(format!("Seller: {}", seller_label(listing))).color(theme.text_muted()).size(theme.font_size_small));
+                                            let id = listing.id.clone();
                                             if widgets::secondary_button(ui, theme, "View") {
-                                                state.listing_selected = Some(idx);
+                                                state.listing_selected = Some(id);
                                                 with_state(|ps| ps.detail_view = true);
                                             }
                                         });
@@ -353,6 +465,17 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
             }
         });
+
+    // Deferred delete (collected inside the listing borrow above): the relay
+    // enforces ownership and broadcasts listing_deleted, which removes it
+    // from our list - no local removal here, the round-trip is the truth.
+    if let Some(id) = delete_listing_id {
+        if let Some(ws) = &state.ws_client {
+            ws.send(&serde_json::json!({"type": "listing_delete", "id": id}).to_string());
+        }
+        state.listing_status = "Deleting listing...".to_string();
+        close_detail = true;
+    }
 
     if close_detail {
         with_state(|ps| ps.detail_view = false);

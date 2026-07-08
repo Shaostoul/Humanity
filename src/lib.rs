@@ -12833,6 +12833,49 @@ mod native_app {
                                             log::info!("Received {} tasks from server", state.gui_state.tasks.len());
                                         }
                                     }
+                                    // ── Marketplace sync (v0.752, ladder rung 5) ──
+                                    // The Market page sends listing_browse; the
+                                    // relay answers listing_list (unicast) and
+                                    // keeps everyone current with listing_new /
+                                    // listing_updated / listing_deleted broadcasts.
+                                    Some("listing_list") => {
+                                        if let Some(arr) = val.get("listings").and_then(|v| v.as_array()) {
+                                            state.gui_state.listings = arr
+                                                .iter()
+                                                .map(crate::gui::GuiListing::from_relay_json)
+                                                .collect();
+                                            state.gui_state.listing_status.clear();
+                                        }
+                                    }
+                                    Some("listing_new") | Some("listing_updated") => {
+                                        if let Some(l) = val.get("listing") {
+                                            let gl = crate::gui::GuiListing::from_relay_json(l);
+                                            if gl.seller_key == state.gui_state.profile_public_key {
+                                                state.gui_state.listing_status = "Listing published.".to_string();
+                                            }
+                                            if let Some(slot) = state
+                                                .gui_state
+                                                .listings
+                                                .iter_mut()
+                                                .find(|x| x.id == gl.id)
+                                            {
+                                                *slot = gl;
+                                            } else {
+                                                state.gui_state.listings.insert(0, gl);
+                                            }
+                                        }
+                                    }
+                                    Some("listing_deleted") => {
+                                        if let Some(id) = val.get("id").and_then(|v| v.as_str()) {
+                                            state.gui_state.listings.retain(|l| l.id != id);
+                                            if state.gui_state.listing_selected.as_deref() == Some(id) {
+                                                state.gui_state.listing_selected = None;
+                                            }
+                                            if state.gui_state.listing_status == "Deleting listing..." {
+                                                state.gui_state.listing_status = "Listing removed.".to_string();
+                                            }
+                                        }
+                                    }
                                     Some("private") => {
                                         // Private server-to-user message (rate limit, errors, command responses)
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {

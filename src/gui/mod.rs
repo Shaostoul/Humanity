@@ -472,16 +472,139 @@ pub struct GuiTask {
     pub labels: Vec<String>,
 }
 
-/// A marketplace listing.
+/// A marketplace listing, mirroring the relay's ListingData shape (v0.752,
+/// ladder rung 5: the native Market page finally speaks to the connected
+/// relay instead of holding a page-local mock list).
 #[cfg(feature = "native")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GuiListing {
-    pub id: u32,
+    /// Relay listing id (client-generated at create, e.g. "n18c2f-0001").
+    pub id: String,
     pub title: String,
     pub description: String,
-    pub price: f64,
-    pub seller: String,
+    /// Free-text price, matching web ("5 SOL", "20 CR negotiable", "").
+    pub price: String,
+    pub seller_key: String,
+    pub seller_name: String,
     pub category: String,
+    pub condition: String,
+    pub payment_methods: String,
+    pub location: String,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[cfg(feature = "native")]
+impl GuiListing {
+    /// Map one relay `ListingData` JSON object (from listing_list /
+    /// listing_new / listing_updated frames) into the GUI shape. Absent or
+    /// null optional fields become empty strings.
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        let s = |k: &str| {
+            v.get(k)
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string()
+        };
+        Self {
+            id: s("id"),
+            title: s("title"),
+            description: s("description"),
+            price: s("price"),
+            seller_key: s("seller_key"),
+            seller_name: s("seller_name"),
+            category: s("category"),
+            condition: s("condition"),
+            payment_methods: s("payment_methods"),
+            location: s("location"),
+            status: s("status"),
+            created_at: s("created_at"),
+        }
+    }
+}
+
+#[cfg(all(test, feature = "native"))]
+mod listing_mapping_tests {
+    use super::GuiListing;
+
+    /// The exact frame shape the relay's listing_list / listing_new carry
+    /// (ListingData serialized by src/relay/relay.rs) maps losslessly, and
+    /// null optionals (a listing with no description/price) become empty
+    /// strings instead of panicking.
+    #[test]
+    fn relay_listing_json_maps_and_tolerates_nulls() {
+        let full: serde_json::Value = serde_json::from_str(
+            r#"{
+                "id": "n18c2f-001", "seller_key": "abc123def456", "seller_name": "Ada",
+                "title": "Heirloom seeds", "description": "Greens + herbs",
+                "category": "Seeds", "condition": "new", "price": "8 SOL",
+                "payment_methods": "SOL, barter", "location": "Sol station",
+                "status": "active", "created_at": "2026-07-07 12:00:00",
+                "updated_at": null, "images": null
+            }"#,
+        )
+        .unwrap();
+        let l = GuiListing::from_relay_json(&full);
+        assert_eq!(l.id, "n18c2f-001");
+        assert_eq!(l.title, "Heirloom seeds");
+        assert_eq!(l.price, "8 SOL");
+        assert_eq!(l.seller_name, "Ada");
+        assert_eq!(l.status, "active");
+
+        let sparse: serde_json::Value = serde_json::from_str(
+            r#"{"id": "x", "seller_key": "k", "seller_name": null, "title": "Bare",
+                "description": null, "category": "Other", "condition": null,
+                "price": null, "payment_methods": null, "location": null,
+                "status": "active", "created_at": null}"#,
+        )
+        .unwrap();
+        let l = GuiListing::from_relay_json(&sparse);
+        assert_eq!(l.title, "Bare");
+        assert_eq!(l.description, "");
+        assert_eq!(l.price, "");
+        assert_eq!(l.seller_name, "");
+    }
+
+    /// WIRE-CONTRACT pin: serialize the relay's REAL ListingList frame (the
+    /// exact bytes the server sends) and run it through the same JSON path
+    /// the native WS dispatch uses. If either side renames a serde field,
+    /// this breaks here instead of as a silently-empty Market page.
+    #[test]
+    fn relay_listing_list_frame_round_trips_to_gui() {
+        let frame = crate::relay::relay::RelayMessage::ListingList {
+            target: Some("somekey".into()),
+            listings: vec![crate::relay::relay::ListingData {
+                id: "wire-1".into(),
+                seller_key: "sellerkey".into(),
+                seller_name: Some("Ada".into()),
+                title: "Wire test".into(),
+                description: Some("desc".into()),
+                category: "Tools".into(),
+                condition: None,
+                price: Some("3 SOL".into()),
+                payment_methods: None,
+                location: None,
+                images: None,
+                status: "active".into(),
+                created_at: Some("2026-07-07".into()),
+                updated_at: None,
+            }],
+        };
+        let wire = serde_json::to_string(&frame).unwrap();
+        let val: serde_json::Value = serde_json::from_str(&wire).unwrap();
+        assert_eq!(
+            val.get("type").and_then(|t| t.as_str()),
+            Some("listing_list"),
+            "frame type tag"
+        );
+        let arr = val.get("listings").and_then(|v| v.as_array()).unwrap();
+        let l = GuiListing::from_relay_json(&arr[0]);
+        assert_eq!(l.id, "wire-1");
+        assert_eq!(l.title, "Wire test");
+        assert_eq!(l.price, "3 SOL");
+        assert_eq!(l.seller_name, "Ada");
+        assert_eq!(l.condition, "");
+    }
 }
 
 /// Planet data for the map viewer.
@@ -1774,10 +1897,16 @@ pub struct GuiState {
 
     // ── Market state ──
     pub listings: Vec<GuiListing>,
-    pub listing_next_id: u32,
+    /// Set once listing_browse has been sent this connection; cleared on
+    /// disconnect so a reconnect re-syncs. (v0.752)
+    pub listings_synced: bool,
+    /// One-line market feedback ("Listing published", errors).
+    pub listing_status: String,
     pub listing_search: String,
     pub listing_filter_category: String,
-    pub listing_selected: Option<usize>,
+    /// Detail-view selection by LISTING ID (not index: live broadcasts
+    /// reorder the vector under the open detail view).
+    pub listing_selected: Option<String>,
     pub listing_show_new_form: bool,
     pub listing_new_title: String,
     pub listing_new_description: String,
@@ -3276,7 +3405,8 @@ impl Default for GuiState {
 
             // Market defaults
             listings: Vec::new(),
-            listing_next_id: 1,
+            listings_synced: false,
+            listing_status: String::new(),
             listing_search: String::new(),
             listing_filter_category: String::new(),
             listing_selected: None,
