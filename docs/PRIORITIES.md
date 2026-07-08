@@ -11,8 +11,8 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: FIVE RUNGS SHIPPED (2026-07-07, Fable final day,
-> v0.745-v0.749).** The bible below is not just written - its ladder is
+> **>>> CLOSURE LADDER: SEVEN RUNGS SHIPPED (2026-07-07, Fable final day,
+> v0.745-v0.751).** The bible below is not just written - its ladder is
 > EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
 >    death screen + respawn at the spawn room, EffectTick (poison bites,
@@ -30,11 +30,21 @@
 >    (harvest_item column + 114 new produce items + a forever-test), field
 >    crops face season/weather while indoor grows stay climate-controlled,
 >    station-gated crafting with 8 new craft-station machines.
-> NEXT RUNGS: 5 (native market/trade pages speak to the relay - needs
-> live-relay interaction care), 7 (creatures passive-first: creatures.csv
-> loader + Harvestable animals), 8 (gear + abilities per
-> progression-skills-gear.md - its rungs 1-3 need NO new systems), 9 (zones,
-> awaits decision-briefs.md Brief 1), 10 (community wiring). <<<**
+> 6. **v0.750 gear is real** (rung 8, first increments): equipment.csv over
+>    the existing clothing family, Equip MOVES items onto the persisted
+>    Outfit (slot-validated, swap-back refuses rather than loses),
+>    cold/heat_resist scale the temperature drain, speed + carry_capacity
+>    fold through ONE stat grammar.
+> 7. **v0.751 passive livestock** (rung 7): CreatureRegistry over all 92
+>    creatures.csv species + renewable_product column, starter herd
+>    (chickens/goats/sheep via data/entities/livestock.ron) grazing by the
+>    fields, walk-up [E] collect (egg/milk/wool) volume-gated with farming
+>    XP + harvest_<creature> quest events, block bodies sized from mass.
+> NEXT RUNGS: 5 (native market/trade pages speak to the relay - test
+> against a LOCAL relay first), 8-rest (abilities: spells.csv ->
+> abilities.csv loader + hotbar per progression doc Part 2; armor-on-equip
+> when combat lands), 9 (zones, awaits decision-briefs.md Brief 1), 10
+> (community wiring). <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
