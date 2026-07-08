@@ -11,9 +11,9 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: NINE INCREMENTS SHIPPED (2026-07-07, Fable final
-> day, v0.745-v0.753).** The bible below is not just written - its ladder
-> is EXECUTING. Shipped, each with tests + full battery:
+> **>>> CLOSURE LADDER: TEN INCREMENTS SHIPPED (v0.745-v0.754, started
+> Fable final day 2026-07-07).** The bible below is not just written - its
+> ladder is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
 >    death screen + respawn at the spawn room, EffectTick (poison bites,
 >    regeneration heals), attack-pulse on damage.
@@ -51,11 +51,17 @@
 >    (energy pays; level-1 gates baseline-open), v1 self-scoped healing
 >    casts (first_aid, cauterize, repair, heal), honest Abilities panel
 >    on Profile > Skills.
+> 10. **v0.754 HUD ability bar** (rung 8 CLOSED): first nine castable
+>    abilities above the inventory hotbar, digit keys 1-9 cast, cooldown
+>    sweep + seconds per slot, 4s-fading cast feedback, decorative
+>    inventory slot numbers removed (keys that cast must not be numbered
+>    on a row that ignores them).
 > NEXT RUNGS: 5-rest (escrow trade flow + listing messages + reviews in
-> native - relay routes all exist), 8-hotbar (1-9 keys casting from the
-> HUD), 9 (zones, awaits decision-briefs.md Brief 1), 10 (community
-> wiring). The combat arc unlocks offensive ability rows + creature loot
-> tables when it lands. <<<**
+> native - relay routes all exist), 9 (zones, awaits decision-briefs.md
+> Brief 1), 10 (community wiring). The combat arc unlocks offensive
+> ability rows + creature loot tables + armor-on-equip when it lands.
+> T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
+> unwired) can be pulled forward on operator say-so. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
