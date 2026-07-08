@@ -90,17 +90,22 @@
 > within a frame - the visual tuning loop needs no relaunch. Follow-ups
 > documented: 1m chunked landing subdivision, rivers, real craters,
 > biomes.ron wiring, mesh-cache eviction.
-> NEXT BIG ARCS (pick per operator direction): the combat arc (FOUR
-> increments in: v0.760-762 + v0.765 melee - F swings the worn hands
-> weapon, tool/blade equipment rows live, bare-hands fallback; remaining
-> taste calls: spawn variety/respawn, wall-aware pathfinding, aggro
-> telegraphs), the planet LANDING arc (chunked near-surface subdivision
-> toward 1m, the container-swap design), rung 9 zones (awaits
-> decision-briefs.md Brief 1), guild-scoped production pools (engagement
-> mode 4), or operator field-report fixes (planets field test pending:
-> relaunch, look up, tune sliders + RON live, screenshot). Journal
-> follow-up still open: guild REST auth should ride the signed-auth
-> helper before real users. <<<**
+> SHIP SUPERSTRUCTURE ARC (operator-raised 2026-07-08, the ACTIVE arc):
+> docs/design/ship-superstructure.md is the contract (zones + corridors
+> + Commons + hull wrap; absorbs decision-briefs Brief 1 - the vehicle
+> bay is a bay-purpose zone). Increment A SHIPPED v0.766: multi-zone
+> ShipStructure (home body unchanged per zone, editor Ship-zone selector
+> + Add/Delete, per-zone everything, one-time legacy adoption). NEXT:
+> increment B (generated corridors between zone openings), then C (the
+> Commons: a big glass-roofed zone with garden center + trading posts,
+> pure data), then D (the hull wrap - data-driven profiles, the
+> "looks like a spaceship" pass, screenshot-tunable like planets).
+> OPERATOR FIELD TESTS PENDING: planets (v0.763-764: look up, tune
+> sliders + RON live) and zones (v0.766: Add zone in the build editor).
+> OTHER ARCS ON THE SHELF: combat taste items (spawn variety,
+> pathfinding, telegraphs), planet LANDING arc (1m chunked subdivision),
+> guild production pools. Journal follow-up still open: guild REST auth
+> should ride the signed-auth helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
