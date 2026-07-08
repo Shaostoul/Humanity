@@ -2591,6 +2591,12 @@ pub struct GuiState {
     /// (stars + the real solar system) stays visible from inside; toggle on for atmosphere
     /// tests or a sealed look.
     pub show_roof: bool,
+    /// Hull wrap (ship-superstructure increment D): show the generated exterior hull around
+    /// the whole zone cluster. Default ON so the ship reads as a vessel from outside; toggle
+    /// off (H in-world, or the Settings checkbox) for unobstructed interior screenshots or a
+    /// clear top-down build view. Glass roofs keep their starlight either way (the hull top is
+    /// cut open above them).
+    pub show_hull: bool,
     /// Construction EDITOR (v0.455): when active, a panel lets the player set each room's
     /// per-wall kind + the uniform height and rebuild the home live. Toggled with B in-world.
     pub construction_active: bool,
@@ -4038,6 +4044,7 @@ impl Default for GuiState {
             air_breathable: false,
             showroom_active: false,
             show_roof: false,
+            show_hull: true,
             construction_active: false,
             home_machines: None,
             home_machine_add_type: String::new(),

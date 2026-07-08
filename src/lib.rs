@@ -906,6 +906,46 @@ mod native_app {
         } else { None };
     }
 
+    /// Regenerate + upload the HULL WRAP (ship-superstructure increment D): the generated
+    /// exterior shell around the zone cluster, lofted from data/blueprints/hull_profile.ron
+    /// (embedded fallback) with cutouts over glass roofs + glass corridor lids. Called wherever
+    /// the ship structure rebuilds (load_world + rebuild_homestead), so adding/moving a zone
+    /// grows the hull next frame. Reuses the prior mesh/material slot in place (the v0.531
+    /// no-leak discipline: a per-frame editor drag must not orphan GPU buffers). Purely visual:
+    /// no collision is registered for the hull.
+    fn rebuild_hull(state: &mut EngineState) {
+        // Lazy one-time profile load (disk first, embedded fallback). Cached for the session;
+        // a live hot-reload of the profile file is a documented follow-up.
+        if state.hull_profile.is_none() {
+            state.hull_profile = crate::ship::hull::HullProfile::load(&state.data_dir);
+        }
+        let meshes = match (state.gui_state.ship_structure.as_ref(), state.hull_profile.as_ref()) {
+            (Some(ship), Some(profile)) => crate::ship::hull::generate_hull(ship, profile),
+            // No ship (legacy fibonacci layout) or no parseable profile: no hull.
+            _ => crate::ship::hull::HullMeshes::default(),
+        };
+        let prior = state.homestead_hull;
+        state.homestead_hull = if !meshes.plating.0.is_empty() {
+            let mesh = Mesh::from_vertices(&state.renderer.device, &meshes.plating.0, &meshes.plating.1);
+            // Hull plating colors from the same wall-material palette as zone shells, so the
+            // profile's `material` id means the same thing everywhere.
+            let mat_id = state.hull_profile.as_ref().map_or(1, |p| p.material);
+            let color = crate::ship::home_structure::HomeStructure::material_color(mat_id);
+            if let Some((mi, ma)) = prior {
+                state.renderer.replace_mesh(mi, mesh);
+                state.renderer.update_material_typed(ma, color, 0.35, 0.55, mat_id as f32);
+                Some((mi, ma))
+            } else {
+                Some((
+                    state.renderer.add_mesh(mesh),
+                    state.renderer.add_material_typed(color, 0.35, 0.55, mat_id as f32),
+                ))
+            }
+        } else {
+            None // an emptied hull orphans its slot once (bounded, same as the other families)
+        };
+    }
+
     /// Regenerate the homestead meshes from the live layout (the construction editor's apply).
     /// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
     /// them. (v0.455)
@@ -1116,6 +1156,9 @@ mod native_app {
             None => Vec::new(),
         };
         apply_homestead_meshes(state, homestead);
+        // The hull wrap follows the structure (increment D): a zone add/move/resize or a roof
+        // material change regrows the exterior shell in the same rebuild.
+        rebuild_hull(state);
         // Refresh lights + sealed bounds from the new room_info (height edits move them).
         let auto_lights = room_info.iter().map(|r| {
             let light_pos = Vec3::new(r.center.x, r.center.y + r.dimensions.y * 0.5 - 0.1, r.center.z);
@@ -3887,6 +3930,10 @@ mod native_app {
             None => Vec::new(),
         };
         apply_homestead_meshes(state, homestead);
+        // The hull wrap (ship-superstructure increment D): the exterior shell around the zone
+        // cluster, generated from data/blueprints/hull_profile.ron. Ships with the world load;
+        // rebuild_homestead regrows it on every structure edit.
+        rebuild_hull(state);
 
         // Room ceiling lights
         let auto_lights = room_info.iter().map(|r| {
@@ -5132,6 +5179,17 @@ mod native_app {
         /// transparent pass (you see the stars through it) instead of as an opaque ceiling. Set by
         /// apply_homestead_meshes from the HomeStructure's roof_material.
         homestead_ceiling_glass: bool,
+        /// HULL WRAP plating mesh + material (ship-superstructure increment D): the generated
+        /// exterior shell around the whole zone cluster, lofted from data/blueprints/
+        /// hull_profile.ron with cutouts over glass roofs + glass corridor lids. Opaque pass,
+        /// gated by `gui_state.show_hull` (H key / Settings). Purely visual -- no collision.
+        /// Rebuilt by `rebuild_hull` whenever the ship structure rebuilds; the slot is reused
+        /// in place across rebuilds like every other homestead slot (no GPU-buffer leak).
+        homestead_hull: Option<(usize, usize)>,
+        /// The loaded hull profile (disk first, embedded fallback -- see HullProfile::load).
+        /// Loaded lazily on the first `rebuild_hull`; None only if BOTH copies fail to parse
+        /// (the hull is then simply absent).
+        hull_profile: Option<crate::ship::hull::HullProfile>,
         /// The live homestead layout (v0.455). Held so the construction editor can mutate it
         /// (per-wall kinds, heights) and regenerate the meshes without a restart.
         homestead_layout: Option<crate::ship::fibonacci::HomesteadLayout>,
@@ -6011,6 +6069,8 @@ mod native_app {
                 homestead_ceiling: None,
                 homestead_ceiling_opaque: None,
                 homestead_ceiling_glass: false,
+                homestead_hull: None,
+                hull_profile: None,
                 homestead_layout: None,
                 construction_cam_active: false,
                 construction_return_pos: Vec3::new(0.0, 1.7, 0.0),
@@ -6476,6 +6536,19 @@ mod native_app {
                             && !state.gui_state.showroom_active
                         {
                             state.gui_state.show_roof = !state.gui_state.show_roof;
+                            return;
+                        }
+
+                        // H toggles the HULL WRAP (ship-superstructure increment D): the
+                        // generated exterior shell around the zone cluster. On by default so
+                        // the ship reads as a vessel from outside; off for unobstructed
+                        // interior screenshots or a clear top-down build view. Also exposed
+                        // as a Settings checkbox next to Show roof (GUI-first).
+                        if key == KeyCode::KeyH && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                        {
+                            state.gui_state.show_hull = !state.gui_state.show_hull;
                             return;
                         }
 
@@ -8510,6 +8583,14 @@ mod native_app {
                         // as the old single opaque roof, regardless of the glass slot's state.
                         if state.gui_state.show_roof {
                             shell.push(state.homestead_ceiling_opaque);
+                        }
+                        // The HULL WRAP (increment D): exterior plating around the whole zone
+                        // cluster, holes already cut over glass roofs + glass corridor lids.
+                        // Gated by Show hull (H / Settings) so interior shots + the top-down
+                        // editor view can shed it instantly; visible in play AND build mode
+                        // by default so the operator sees the silhouette while editing zones.
+                        if state.gui_state.show_hull {
+                            shell.push(state.homestead_hull);
                         }
                         for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
                             all_objects.push(RenderObject {

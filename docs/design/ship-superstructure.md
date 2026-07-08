@@ -124,6 +124,21 @@ being its 3rd door and the commons' entrance its 1st:
 
 ### D. The hull wrap (what makes it LOOK like a ship)
 
+> SHIPPED: `src/ship/hull.rs` (headless loft math) + `data/blueprints/hull_profile.ron`
+> (embedded fallback). The profile is stations `(at 0..1, half-width scale, height scale)`
+> lofted along the cluster's LONGER horizontal axis around the AABB + `margin`; the loft is
+> CLAMPED so plating never slices a zone box or corridor tube (tapers only bite where the
+> boxes leave empty space), the top plating is cut OPEN over every glass zone roof and glass
+> corridor lid (rect holes -- gardens keep their starlight), `skirt`/`belly` close an
+> underbelly, and greeble rows render as primitive blocks ("engine" cap-mounted + protruding,
+> everything else standing on the top plating). One mesh+material slot
+> (`EngineState::homestead_hull`, hull material from the shared wall palette) uploaded by
+> `rebuild_hull` at world load AND inside `rebuild_homestead`, so every zone/corridor edit
+> regrows the hull next frame. Gated by `GuiState::show_hull` (default ON; H key + a Settings
+> toggle beside Show roof). Purely visual: no exterior collision, interiors untouched.
+> Follow-up seams: curved lofts, per-station materials, hull windows, bay doors, profile
+> hot-reload (the profile is cached per session), an in-app profile editor.
+
 A generated shell around the zone cluster so the exterior reads as a vessel:
 
 - v1: an extruded data-driven profile (nose / mid / engine silhouette scaled
