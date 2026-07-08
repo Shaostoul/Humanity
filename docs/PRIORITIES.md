@@ -81,14 +81,15 @@
 >    data-driven quorum/pass verdicts (hot-editable per request), the
 >    native governance page shows them per proposal (abstain counts
 >    toward quorum, not the pass ratio).
-> NEXT BIG ARCS (pick per operator direction): the combat arc (UNDERWAY:
-> v0.760 increment 1 shipped - CombatSystem registered, offensive
-> abilities cast at the faced creature, kills roll authored loot tables
-> into the pack, 128 loot items generated, corpses decay; NEXT
-> increments: hostile spawns + AISystem so something fights back,
-> armor-on-equip once hostiles hit back, melee/tool attack, combat death
-> cause), T5 planet-landing (PlanetRegistry + heightmap pipeline, written
-> but unwired), rung 9 zones (awaits decision-briefs.md Brief 1),
+> NEXT BIG ARCS (pick per operator direction): the combat arc (TWO
+> INCREMENTS IN: v0.760 fight-kill-loot + v0.761 hostiles fight back -
+> AISystem registered, wolves hunt the player AND the chickens, bites
+> ride the damage pipeline, combat deaths named on the death screen,
+> armor-on-equip live, wild spawns are a data file; OPTIONAL NEXT:
+> melee/tool attack from the weapon damage columns, livestock fleeing
+> predators, spawn variety/respawn cadence, kill XP for combat skills),
+> T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
+> unwired), rung 9 zones (awaits decision-briefs.md Brief 1),
 > guild-scoped production pools (engagement mode 4), or operator
 > field-report fixes as they arrive. Journal follow-up still open: guild
 > REST auth should ride the signed-auth helper before real users. <<<**
