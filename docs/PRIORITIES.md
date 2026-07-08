@@ -11,7 +11,7 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: THIRTEEN INCREMENTS SHIPPED (v0.745-v0.757, started
+> **>>> CLOSURE LADDER: FOURTEEN INCREMENTS SHIPPED (v0.745-v0.758, started
 > Fable final day 2026-07-07).** The bible below is not just written - its
 > ladder is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
@@ -71,8 +71,12 @@
 >    page live against the relay REST guild API - merged list+membership
 >    fetch, real join/leave/create/delete (owner), member roles, fake
 >    guild-chat echo box removed with an honest pointer to Chat groups.
-> NEXT: rung 10 rest (Civilization dashboard static numbers -> the relay
-> civilization stats; load data/governance/proposal_types.ron so vote
+> 14. **v0.758 real Community Dashboard** (rung 10, civilization
+>    increment): GET /api/civilization aggregates rendered live (members
+>    + real weekly trend, messages, market, task completion, follows,
+>    activity); the fabricated tech/food/water/happiness metrics and the
+>    Charts stub removed until real sims feed them.
+> NEXT: rung 10 rest (load data/governance/proposal_types.ron so vote
 > quorum/threshold rules are data; guild-scoped production pools later),
 > rung 9 (zones, awaits decision-briefs.md Brief 1). Follow-up noted in
 > the journal: guild REST auth should ride the signed-auth helper before
