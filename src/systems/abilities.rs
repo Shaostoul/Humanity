@@ -159,16 +159,17 @@ impl System for AbilitySystem {
             *t > 0.0
         });
 
-        // Drain this frame's cast requests.
-        let requests: Vec<String> = data
-            .get::<std::sync::Mutex<Vec<String>>>("ability_request")
+        // Drain this frame's cast requests: (ability id, optional target
+        // entity bits - the creature the caster faces, v0.760).
+        let requests: Vec<(String, Option<u64>)> = data
+            .get::<std::sync::Mutex<Vec<(String, Option<u64>)>>>("ability_request")
             .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
             .unwrap_or_default();
 
         if !requests.is_empty() {
             let mut status = String::new();
-            for id in requests {
-                status = self.cast(world, data, &id);
+            for (id, target) in requests {
+                status = self.cast(world, data, &id, target);
             }
             if let Some(s) = data.get::<std::sync::Mutex<String>>("ability_status") {
                 if let Ok(mut slot) = s.lock() {
@@ -186,20 +187,81 @@ impl System for AbilitySystem {
     }
 }
 
+/// Map an abilities.csv damage_type string onto the combat system's damage
+/// categories (Armor.resistance keys). Fantasy elements collapse into the
+/// physical categories they behave like; "true" damage picks kinetic, which
+/// creatures carry no resistance against today.
+fn combat_damage_type(s: &str) -> crate::systems::combat::damage::DamageType {
+    use crate::systems::combat::damage::DamageType as D;
+    match s {
+        "fire" | "ice" => D::Thermal,
+        "lightning" | "psychic" | "holy" | "shadow" => D::Energy,
+        "poison" => D::Chemical,
+        _ => D::Kinetic, // physical, true, none, unknown
+    }
+}
+
 impl AbilitySystem {
     /// Validate + apply one cast against the player. Returns the status line.
-    fn cast(&mut self, world: &mut hecs::World, data: &DataStore, id: &str) -> String {
+    fn cast(
+        &mut self,
+        world: &mut hecs::World,
+        data: &DataStore,
+        id: &str,
+        target: Option<u64>,
+    ) -> String {
         let Some(reg) = data.get::<AbilityRegistry>("ability_registry") else {
             return "Abilities are still loading".to_string();
         };
         let Some(def) = reg.get(id) else {
             return format!("Unknown ability {id}");
         };
-        if !def.self_castable() {
-            return format!("{} needs a target - combat arrives later", def.name);
+        let offensive = def.damage_base > 0.0 && !def.self_castable();
+        if !def.self_castable() && !offensive {
+            return format!("{} does nothing yet - a later arc wires it", def.name);
         }
         if let Some(t) = self.cooldowns.get(id) {
             return format!("{} recharging ({:.0}s)", def.name, t.max(1.0));
+        }
+
+        // Offensive casts need a living target within range (v0.760).
+        let mut target_entity: Option<hecs::Entity> = None;
+        let mut target_name = String::new();
+        if offensive {
+            let Some(bits) = target else {
+                return format!("{} needs a target - face a creature", def.name);
+            };
+            let Some(e) = hecs::Entity::from_bits(bits) else {
+                return format!("{} needs a target - face a creature", def.name);
+            };
+            if !world.contains(e)
+                || world.get::<&crate::ecs::components::Dead>(e).is_ok()
+                || world.get::<&Health>(e).is_err()
+            {
+                return format!("{}: that target is gone", def.name);
+            }
+            // Range gate: caster position vs target position, with a small
+            // tolerance since the player Transform trails the camera.
+            if def.range_m > 0.0 {
+                let caster_pos = world
+                    .query_mut::<(&crate::ecs::components::Transform, &Controllable)>()
+                    .into_iter()
+                    .next()
+                    .map(|(_e, (t, _c))| t.position);
+                if let (Some(cp), Ok(tt)) = (
+                    caster_pos,
+                    world.get::<&crate::ecs::components::Transform>(e),
+                ) {
+                    if (tt.position - cp).length() > def.range_m + 2.0 {
+                        return format!("{}: out of range ({:.0}m)", def.name, def.range_m);
+                    }
+                }
+            }
+            target_name = world
+                .get::<&crate::ecs::components::Name>(e)
+                .map(|n| n.0.clone())
+                .unwrap_or_else(|_| "the target".to_string());
+            target_entity = Some(e);
         }
 
         for (_e, (skills, vitals, health, _c)) in world
@@ -216,20 +278,44 @@ impl AbilitySystem {
                 return format!("Too tired to cast {} ({cost:.0} energy)", def.name);
             }
             vitals.energy -= cost;
-            let healed = def
-                .healing_base
-                .min((health.max - health.current).max(0.0));
-            health.current = (health.current + def.healing_base).min(health.max);
+            if !offensive {
+                let healed = def
+                    .healing_base
+                    .min((health.max - health.current).max(0.0));
+                health.current = (health.current + def.healing_base).min(health.max);
+                self.cooldowns.insert(id.to_string(), def.cooldown_s);
+                if !def.skill_required.is_empty() {
+                    crate::systems::skills::award_skill_xp(data, &def.skill_required, 5);
+                }
+                return if healed > 0.0 {
+                    format!("{} restores {healed:.0} health", def.name)
+                } else {
+                    format!("{} cast (already at full health)", def.name)
+                };
+            }
+            // Offensive: queue the hit for CombatSystem (armor mitigation +
+            // death + loot all live there - one damage pipeline).
             self.cooldowns.insert(id.to_string(), def.cooldown_s);
-            // Casting trains the gating skill - learn by doing.
             if !def.skill_required.is_empty() {
                 crate::systems::skills::award_skill_xp(data, &def.skill_required, 5);
             }
-            return if healed > 0.0 {
-                format!("{} restores {healed:.0} health", def.name)
-            } else {
-                format!("{} cast (already at full health)", def.name)
-            };
+            if let (Some(e), Some(chan)) = (
+                target_entity,
+                data.get::<std::sync::Mutex<
+                    Vec<(u64, crate::systems::combat::damage::DamageEvent)>,
+                >>("damage_events"),
+            ) {
+                if let Ok(mut q) = chan.lock() {
+                    q.push((
+                        e.to_bits().into(),
+                        crate::systems::combat::damage::DamageEvent {
+                            damage_type: combat_damage_type(&def.damage_type),
+                            amount: def.damage_base,
+                        },
+                    ));
+                }
+            }
+            return format!("{} hits {} for {:.0}", def.name, target_name, def.damage_base);
         }
         "No caster in the world yet".to_string()
     }
@@ -263,7 +349,7 @@ mod tests {
         let fireball = reg.get("fireball").expect("fireball exists");
         assert_eq!(fireball.flavor, "fantasy");
         assert_eq!(fireball.energy_cost(), 25.0);
-        assert!(!fireball.self_castable(), "damage rows wait for combat");
+        assert!(!fireball.self_castable(), "damage rows target creatures");
         let cauterize = reg.get("cauterize").expect("cauterize exists");
         assert!(cauterize.self_castable(), "healing rows are live");
 
@@ -300,10 +386,14 @@ mod tests {
             Vitals::default(),
             Health { current: 40.0, max: 100.0 },
             Controllable,
+            crate::ecs::components::Transform::default(),
         ));
         let mut data = DataStore::new();
         data.insert("ability_registry", shipped_registry());
-        data.insert("ability_request", std::sync::Mutex::new(Vec::<String>::new()));
+        data.insert(
+            "ability_request",
+            std::sync::Mutex::new(Vec::<(String, Option<u64>)>::new()),
+        );
         data.insert("ability_status", std::sync::Mutex::new(String::new()));
         data.insert(
             "ability_cooldowns",
@@ -312,6 +402,12 @@ mod tests {
         data.insert(
             "xp_grants",
             std::sync::Mutex::new(Vec::<crate::systems::skills::SkillXPEvent>::new()),
+        );
+        data.insert(
+            "damage_events",
+            std::sync::Mutex::new(
+                Vec::<(u64, crate::systems::combat::damage::DamageEvent)>::new(),
+            ),
         );
         (world, data)
     }
@@ -327,11 +423,11 @@ mod tests {
         // Gate: pyromancy 1 - level-1 gates are baseline-open, so a fresh
         // player (untrained = level 0) can still cast it.
         let push = |data: &DataStore, id: &str| {
-            data.get::<std::sync::Mutex<Vec<String>>>("ability_request")
+            data.get::<std::sync::Mutex<Vec<(String, Option<u64>)>>>("ability_request")
                 .unwrap()
                 .lock()
                 .unwrap()
-                .push(id.to_string());
+                .push((id.to_string(), None));
         };
         let status = |data: &DataStore| -> String {
             data.get::<std::sync::Mutex<String>>("ability_status")
@@ -372,26 +468,76 @@ mod tests {
         }
     }
 
-    /// Refusals are honest and free: an offensive row (no combat targets
-    /// yet) and an unaffordable cast change nothing.
+    /// Refusals are honest and free: an offensive row without a target and
+    /// an unaffordable cast change nothing.
     #[test]
     fn refused_casts_change_nothing() {
         let (mut world, data) = cast_world();
         let mut sys = AbilitySystem::new();
 
-        // Offensive row: refused, nothing spent.
-        let msg = sys.cast(&mut world, &data, "fireball");
+        // Offensive row with no target: refused, nothing spent.
+        let msg = sys.cast(&mut world, &data, "fireball", None);
         assert!(msg.contains("needs a target"), "got: {msg}");
 
         // Drain energy below any cost: refused, health unchanged.
         for (_e, (v, _c)) in world.query_mut::<(&mut Vitals, &Controllable)>() {
             v.energy = 1.0;
         }
-        let msg = sys.cast(&mut world, &data, "cauterize");
+        let msg = sys.cast(&mut world, &data, "cauterize", None);
         assert!(msg.contains("Too tired"), "got: {msg}");
         let mut q = world.query::<(&Health, &Vitals)>();
         let (_, (h, v)) = q.iter().next().unwrap();
         assert_eq!(h.current, 40.0);
         assert_eq!(v.energy, 1.0);
+    }
+
+    /// The attack path (v0.760): an offensive cast at a living creature pays
+    /// energy, queues the hit on the damage_events channel for CombatSystem,
+    /// and range/dead gates refuse honestly.
+    #[test]
+    fn offensive_cast_queues_damage_at_a_target() {
+        use crate::ecs::components::{Name, Transform};
+        use glam::Vec3;
+
+        let (mut world, data) = cast_world();
+        let mut sys = AbilitySystem::new();
+
+        // A chicken 5m away (ember_shot: 18 kinetic-mapped fire, range 25m).
+        let hen = world.spawn((
+            Name("Chicken".to_string()),
+            Health { current: 15.0, max: 15.0 },
+            Transform {
+                position: Vec3::new(5.0, 0.0, 0.0),
+                ..Default::default()
+            },
+        ));
+
+        let msg = sys.cast(&mut world, &data, "ember_shot", Some(hen.to_bits().into()));
+        assert!(msg.contains("hits Chicken for 18"), "got: {msg}");
+        let queued = data
+            .get::<std::sync::Mutex<Vec<(u64, crate::systems::combat::damage::DamageEvent)>>>(
+                "damage_events",
+            )
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(queued.len(), 1);
+        assert_eq!(queued[0].0, u64::from(hen.to_bits()));
+        assert_eq!(queued[0].1.amount, 18.0);
+
+        // Out of range: a far target refuses without spending.
+        sys.tick(&mut world, 5.0, &data); // clear ember_shot's 1s cooldown
+        {
+            let mut t = world.get::<&mut Transform>(hen).unwrap();
+            t.position = Vec3::new(100.0, 0.0, 0.0);
+        }
+        let msg = sys.cast(&mut world, &data, "ember_shot", Some(hen.to_bits().into()));
+        assert!(msg.contains("out of range"), "got: {msg}");
+
+        // A dead target refuses.
+        world.insert_one(hen, crate::ecs::components::Dead::default()).unwrap();
+        let msg = sys.cast(&mut world, &data, "ember_shot", Some(hen.to_bits().into()));
+        assert!(msg.contains("gone"), "got: {msg}");
     }
 }

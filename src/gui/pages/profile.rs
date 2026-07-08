@@ -471,7 +471,9 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     }
                 });
             if let Some(id) = cast_id {
-                state.pending_cast = Some(id);
+                // Panel casts carry no world target (pages hide the
+                // crosshair); offensive rows say "face a creature".
+                state.pending_cast = Some((id, None));
             }
         }
     });

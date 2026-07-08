@@ -40,7 +40,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // the home) + publishes the live AirStatus. Left this allowlist.
     ("DisasterSystem", "spawn is intentionally manual; operates on Disaster entities not yet spawned"),
     // Gameplay systems — implemented but need their content/UI/data layer wired.
-    ("CombatSystem", "needs combat encounters + live-behaviour verification vs player/NPC"),
+    // CombatSystem: REGISTERED v0.760 (combat arc increment 1: damage_events
+    // channel, creature loot drops, corpse decay) — removed from this list.
     ("AISystem", "behaviour trees/autonomy; needs NPC spawn + dialogue wiring (note: off-screen autonomy is currently relay-side)"),
     // ConstructionSystem is REGISTERED in src/lib.rs as of 2026-07-01 (afternoon audit:
     // fully-coded blueprint->build->Structure loop, just never turned on) plus

@@ -2313,7 +2313,8 @@ pub struct GuiState {
     /// Abilities panel rows (v0.753), rebuilt while the Profile page is open.
     pub abilities: Vec<GuiAbility>,
     /// Cast click -> lib.rs bridges it into the ability_request channel.
-    pub pending_cast: Option<String>,
+    /// (ability id, optional target entity bits - the faced creature, v0.760).
+    pub pending_cast: Option<(String, Option<u64>)>,
     /// One-line cast feedback from AbilitySystem ("First Aid restores 35 health").
     pub ability_status: String,
     /// game_time when ability_status was set; lib.rs fades it after a few

@@ -3982,6 +3982,7 @@ mod native_app {
                             .data_store
                             .get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
                     ) {
+                        let items = state.data_store.get::<ItemRegistry>("item_registry");
                         for (pi, p) in list.animals.iter().enumerate() {
                             let Some(def) = reg.get(&p.creature) else {
                                 log::warn!("livestock.ron: unknown creature {}", p.creature);
@@ -4020,6 +4021,16 @@ mod native_app {
                                         amount: product.amount as f32,
                                         regrow_time: product.regrow_s,
                                         time_since_harvest: product.regrow_s, // ready on arrival
+                                    },
+                                    // Combat arc (v0.760): animals are living
+                                    // entities - real health from the species
+                                    // + a resolved loot table for the kill.
+                                    Health {
+                                        current: def.health_base.max(1.0),
+                                        max: def.health_base.max(1.0),
+                                    },
+                                    crate::ecs::components::LootTable {
+                                        entries: def.loot_entries(items),
                                     },
                                 ));
                             }
@@ -5357,7 +5368,7 @@ mod native_app {
             // self-scoped effect) and publishes live cooldowns for the GUI.
             data_store.insert(
                 "ability_request",
-                std::sync::Mutex::new(Vec::<String>::new()),
+                std::sync::Mutex::new(Vec::<(String, Option<u64>)>::new()),
             );
             data_store.insert("ability_status", std::sync::Mutex::new(String::new()));
             data_store.insert(
@@ -5365,6 +5376,20 @@ mod native_app {
                 std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
             );
             system_runner.register(crate::systems::abilities::AbilitySystem::new());
+            // CombatSystem (v0.760, combat arc): drains damage_events hits
+            // (armor mitigation, death, loot rolls into loot_drops, corpse
+            // decay). Offensive ability casts are its first damage source.
+            data_store.insert(
+                "damage_events",
+                std::sync::Mutex::new(
+                    Vec::<(u64, crate::systems::combat::damage::DamageEvent)>::new(),
+                ),
+            );
+            data_store.insert(
+                "loot_drops",
+                std::sync::Mutex::new(Vec::<(String, u32)>::new()),
+            );
+            system_runner.register(crate::systems::combat::CombatSystem::new());
             // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
             // passive income (1 CR per game day) into every Wallet — economy.ron's
             // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
@@ -6158,7 +6183,12 @@ mod native_app {
                                     .filter(|a| a.cooldown_remaining <= 0.0)
                                     .map(|a| a.id.clone());
                                 if let Some(id) = id {
-                                    state.gui_state.pending_cast = Some(id);
+                                    // Offensive casts hit the creature the
+                                    // player is facing (v0.760).
+                                    let target = state
+                                        .targeted_livestock
+                                        .map(|e| u64::from(e.to_bits()));
+                                    state.gui_state.pending_cast = Some((id, target));
                                 }
                             }
                         }
@@ -6974,16 +7004,20 @@ mod native_app {
                         let cp = state.camera.position;
                         let cf = state.camera.forward();
                         let mut best: Option<(hecs::Entity, f32)> = None;
-                        for (e, (c, tf, _h)) in state
+                        for (e, (c, tf, _h, dead)) in state
                             .game_world
                             .world
                             .query::<(
                                 &crate::ecs::components::Creature,
                                 &crate::ecs::components::Transform,
                                 &crate::ecs::components::Harvestable,
+                                Option<&crate::ecs::components::Dead>,
                             )>()
                             .iter()
                         {
+                            if dead.is_some() {
+                                continue; // corpses are not collect/attack targets
+                            }
                             let to = tf.position + Vec3::Y * (c.body_side * 0.8) - cp;
                             let dist = to.length();
                             if !(0.3..=4.0).contains(&dist) {
@@ -9877,6 +9911,63 @@ mod native_app {
                         state.gui_state.livestock_notice.clear();
                     }
 
+                    // ── Loot settle (v0.760, combat arc) ── kills roll their
+                    // loot into the loot_drops channel; it lands in the
+                    // killer's pack volume-gated (overflow is dropped with an
+                    // honest note - ground items are a later arc).
+                    let drops: Vec<(String, u32)> = state
+                        .data_store
+                        .get::<std::sync::Mutex<Vec<(String, u32)>>>("loot_drops")
+                        .and_then(|m| m.lock().ok().map(|mut v| std::mem::take(&mut *v)))
+                        .unwrap_or_default();
+                    if !drops.is_empty() {
+                        let mut player: Option<hecs::Entity> = None;
+                        for (e, _c) in state.game_world.world.query::<&Controllable>().iter() {
+                            player = Some(e);
+                            break;
+                        }
+                        let items = state.data_store.get::<ItemRegistry>("item_registry");
+                        let mut gained: Vec<String> = Vec::new();
+                        let mut overflowed = false;
+                        if let Some(e) = player {
+                            if let Ok(mut inv) =
+                                state.game_world.world.get::<&mut Inventory>(e)
+                            {
+                                for (item, count) in &drops {
+                                    let max_stack =
+                                        items.map(|r| r.max_stack_for(item)).unwrap_or(99);
+                                    let unit_vol =
+                                        items.map(|r| r.volume_for(item)).unwrap_or(0.0);
+                                    let lost = inv.add_item_volume_gated(
+                                        item, *count, max_stack, unit_vol,
+                                    );
+                                    let kept = count - lost;
+                                    if lost > 0 {
+                                        overflowed = true;
+                                    }
+                                    if kept > 0 {
+                                        let name = items
+                                            .and_then(|r| r.items.get(item))
+                                            .map(|d| d.name.clone())
+                                            .unwrap_or_else(|| item.clone());
+                                        gained.push(format!("+{kept} {name}"));
+                                    }
+                                }
+                            }
+                        }
+                        if !gained.is_empty() || overflowed {
+                            let mut notice = gained.join("  ");
+                            if overflowed {
+                                if !notice.is_empty() {
+                                    notice.push_str("  ");
+                                }
+                                notice.push_str("(pack full - some loot lost)");
+                            }
+                            state.gui_state.livestock_notice = notice;
+                            state.gui_state.livestock_notice_at = now_s;
+                        }
+                    }
+
                     // ── Blueprint building bridges (v0.746, ladder rung 2) ──
                     // Build clicked: place 4 m in front of the camera at floor
                     // level; ConstructionSystem snaps to the metre grid, checks
@@ -10054,13 +10145,13 @@ mod native_app {
                     // Cast click -> the ability_request channel AbilitySystem
                     // drains at its tick; the status line rides back the same
                     // frame it lands.
-                    if let Some(id) = state.gui_state.pending_cast.take() {
+                    if let Some((id, target)) = state.gui_state.pending_cast.take() {
                         if let Some(req) = state
                             .data_store
-                            .get::<std::sync::Mutex<Vec<String>>>("ability_request")
+                            .get::<std::sync::Mutex<Vec<(String, Option<u64>)>>>("ability_request")
                         {
                             if let Ok(mut v) = req.lock() {
-                                v.push(id);
+                                v.push((id, target));
                             }
                         }
                     }
@@ -10108,9 +10199,13 @@ mod native_app {
                                 if let Some((_e, (skills, _c))) = q.iter().next() {
                                     for def in reg.defs.values() {
                                         let gate_ok = def.skill_gate_met(skills);
-                                        let castable = def.self_castable() && gate_ok;
-                                        let locked_reason = if !def.self_castable() {
-                                            "Arrives with the combat arc".to_string()
+                                        // Healing rows self-cast; damage rows
+                                        // cast at the faced creature (v0.760).
+                                        let has_effect =
+                                            def.self_castable() || def.damage_base > 0.0;
+                                        let castable = has_effect && gate_ok;
+                                        let locked_reason = if !has_effect {
+                                            "Does nothing yet - a later arc wires it".to_string()
                                         } else if !gate_ok {
                                             format!(
                                                 "Needs {} level {}",
@@ -10880,19 +10975,29 @@ mod native_app {
                             );
                         }
                         let unit_box = state.livestock_mesh.unwrap();
-                        let animals: Vec<(Vec3, Quat, f32, [f32; 3])> = state
+                        let animals: Vec<(Vec3, Quat, f32, [f32; 3], bool)> = state
                             .game_world
                             .world
                             .query::<(
                                 &crate::ecs::components::Creature,
                                 &crate::ecs::components::Transform,
+                                Option<&crate::ecs::components::Dead>,
                             )>()
                             .iter()
-                            .map(|(_e, (c, tf))| (tf.position, tf.rotation, c.body_side, c.tint))
+                            .map(|(_e, (c, tf, dead))| {
+                                (tf.position, tf.rotation, c.body_side, c.tint, dead.is_some())
+                            })
                             .collect();
                         let mats = &mut state.livestock_mats;
                         let renderer = &mut state.renderer;
-                        for (pos, rot, s, tint) in animals {
+                        for (pos, rot, s, tint, is_dead) in animals {
+                            // A dead animal lies on its side until the corpse
+                            // decays (CombatSystem despawns it). (v0.760)
+                            let rot = if is_dead {
+                                rot * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)
+                            } else {
+                                rot
+                            };
                             // One material per distinct tint, built on first sight.
                             let key = ((tint[0] * 255.0) as u64) << 16
                                 | ((tint[1] * 255.0) as u64) << 8

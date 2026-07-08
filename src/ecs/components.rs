@@ -572,7 +572,10 @@ impl Default for Wallet {
 /// Loot table — items dropped on death. Each entry is (item_id, drop_chance, count).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LootTable {
-    pub entries: Vec<(String, f32, u32)>,
+    /// (item id, drop chance 0..1, min count, max count) - count rolled
+    /// uniformly at drop time. Parsed from creatures.csv loot_table rows
+    /// (`raw_poultry:100:1:2`) with item ids resolved against items.csv.
+    pub entries: Vec<(String, f32, u32, u32)>,
 }
 
 // ── Medical ─────────────────────────────────────────────────

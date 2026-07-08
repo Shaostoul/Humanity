@@ -96,6 +96,40 @@ impl CreatureDef {
     pub fn body_side(&self) -> f32 {
         (self.weight_kg.max(0.1) / 1000.0).cbrt().clamp(0.12, 1.2)
     }
+
+    /// Parse the loot_table column (`raw_poultry:100:1:2|feather:80:1:3`)
+    /// into LootTable entries: (item id, chance 0..1, min, max). Item ids in
+    /// creatures.csv predate the `_0` suffix convention, so each resolves
+    /// against items.csv: exact id first, then `{id}_0`. Malformed segments
+    /// are skipped (a bad row loses a drop, not the game). (v0.760)
+    pub fn loot_entries(
+        &self,
+        items: Option<&crate::systems::inventory::ItemRegistry>,
+    ) -> Vec<(String, f32, u32, u32)> {
+        self.loot_table
+            .split('|')
+            .filter_map(|seg| {
+                let mut parts = seg.split(':');
+                let raw = parts.next().filter(|s| !s.is_empty())?;
+                let chance: f32 = parts.next()?.parse().ok()?;
+                let min: u32 = parts.next()?.parse().ok()?;
+                let max: u32 = parts.next()?.parse().ok()?;
+                let id = match items {
+                    Some(reg) if reg.items.contains_key(raw) => raw.to_string(),
+                    Some(reg) => {
+                        let suffixed = format!("{raw}_0");
+                        if reg.items.contains_key(&suffixed) {
+                            suffixed
+                        } else {
+                            raw.to_string()
+                        }
+                    }
+                    None => raw.to_string(),
+                };
+                Some((id, (chance / 100.0).clamp(0.0, 1.0), min, max.max(min)))
+            })
+            .collect()
+    }
 }
 
 /// All creature species keyed by id. DataStore: `"creature_registry"`.
@@ -201,7 +235,13 @@ impl System for LivestockSystem {
         // Regrowth: every Harvestable in the world ages toward ready (animals
         // today; wild berry bushes ride the same pass when they land). Clamped
         // at ready so the float never grows unbounded across long sessions.
-        for (_e, h) in world.query_mut::<&mut Harvestable>() {
+        // Dead animals stop producing (v0.760).
+        for (_e, (h, dead)) in
+            world.query_mut::<(&mut Harvestable, Option<&crate::ecs::components::Dead>)>()
+        {
+            if dead.is_some() {
+                continue;
+            }
             if h.time_since_harvest < h.regrow_time {
                 h.time_since_harvest = (h.time_since_harvest + dt).min(h.regrow_time);
             }
@@ -209,8 +249,16 @@ impl System for LivestockSystem {
 
         // Graze amble: ease each animal toward a slowly-orbiting target around
         // its anchor. The two incommensurate frequencies trace a lissajous
-        // loop, so the herd drifts naturally instead of circling.
-        for (_e, (c, tf)) in world.query_mut::<(&Creature, &mut Transform)>() {
+        // loop, so the herd drifts naturally instead of circling. The dead
+        // stay where they fell (v0.760).
+        for (_e, (c, tf, dead)) in world.query_mut::<(
+            &Creature,
+            &mut Transform,
+            Option<&crate::ecs::components::Dead>,
+        )>() {
+            if dead.is_some() {
+                continue;
+            }
             let t = self.t * 0.22 + c.phase;
             let target = c.anchor
                 + Vec3::new(t.sin(), 0.0, (t * 0.63 + 1.7).cos()) * c.range;
@@ -283,6 +331,34 @@ mod tests {
         assert_eq!(reg.get("goat").unwrap().renewable().unwrap().item, "milk_0");
         // A wild species has no renewable yield.
         assert_eq!(reg.get("wolf").and_then(|d| d.renewable()), None);
+    }
+
+    /// Every loot-table drop across the WHOLE creature database resolves to
+    /// a real items.csv id (directly or via the `_0` suffix) - a kill that
+    /// drops a non-item would vanish silently. (v0.760, combat arc)
+    #[test]
+    fn every_loot_drop_resolves_to_a_real_item() {
+        let reg = shipped_registry();
+        let items = shipped_items();
+        for def in reg.defs.values() {
+            for (id, chance, min, max) in def.loot_entries(Some(&items)) {
+                assert!(
+                    items.items.contains_key(&id),
+                    "{}: loot item {} is not in items.csv (even with _0)",
+                    def.id,
+                    id
+                );
+                assert!((0.0..=1.0).contains(&chance), "{}: chance {}", def.id, chance);
+                assert!(max >= min, "{}: max < min on {}", def.id, id);
+            }
+            if !def.loot_table.is_empty() {
+                assert!(
+                    !def.loot_entries(Some(&items)).is_empty(),
+                    "{}: authored loot_table parsed to nothing",
+                    def.id
+                );
+            }
+        }
     }
 
     /// Every renewable product across the WHOLE database resolves to a real
