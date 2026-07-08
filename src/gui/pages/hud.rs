@@ -533,6 +533,68 @@ pub fn draw(
                 }
             }
 
+            // ── In-game #general chat feed (bottom-left, v0.771) ── the SAME
+            // relay #general you see on the Chat page and the website, live
+            // while you play. The app auto-connects to your saved server
+            // (united-humanity.us by default) whenever your identity seed is
+            // unlocked, so this fills without opening the Chat page. Read-only
+            // here; press Enter for the full chat page to type (inline typing
+            // is the follow-up). Paint-only, like the rest of the HUD.
+            {
+                let recent: Vec<&crate::gui::ChatMessage> = state
+                    .chat_messages
+                    .iter()
+                    .filter(|m| m.channel == "general")
+                    .rev()
+                    .take(7)
+                    .collect();
+                let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+                // Status line: what the relay link is doing right now, so an
+                // offline / locked-identity state is legible in-world instead
+                // of a silently empty box.
+                let status = if connected {
+                    "#general - connected".to_string()
+                } else if !state.ws_status.is_empty() {
+                    format!("#general - {}", state.ws_status)
+                } else {
+                    "#general - offline".to_string()
+                };
+                let line_h = 15.0;
+                let width = 420.0;
+                let rows = recent.len().max(1);
+                let box_h = line_h * (rows as f32 + 1.0) + 10.0;
+                let x0 = 14.0;
+                let bottom = screen.bottom() - 12.0;
+                let top = bottom - box_h;
+                // Legibility backing behind the feed.
+                let bg = Rect::from_min_max(
+                    Pos2::new(x0 - 6.0, top - 4.0),
+                    Pos2::new(x0 + width, bottom + 2.0),
+                );
+                painter.rect_filled(bg, Rounding::same(4), Color32::from_black_alpha(120));
+                // Header / connection status at the top of the box.
+                let status_col = if connected { theme.success() } else { theme.warning() };
+                text_shadowed(painter, Pos2::new(x0, top), Align2::LEFT_TOP, &status, 11.0, status_col);
+                // Messages oldest -> newest downward, newest just above the bottom.
+                for (i, m) in recent.iter().rev().enumerate() {
+                    let y = top + line_h * (i as f32 + 1.0) + 2.0;
+                    let name = if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() };
+                    let mut line = format!("{name}: {}", m.content);
+                    if line.chars().count() > 66 {
+                        line = format!("{}...", line.chars().take(63).collect::<String>());
+                    }
+                    text_shadowed(painter, Pos2::new(x0, y), Align2::LEFT_TOP, &line, 11.0, theme.text_secondary());
+                }
+                if recent.is_empty() {
+                    let hint = if connected {
+                        "No messages yet - say hi in #general (Enter opens chat)."
+                    } else {
+                        "Sign in (Settings > Security > Unlock) to join #general."
+                    };
+                    text_shadowed(painter, Pos2::new(x0, top + line_h + 2.0), Align2::LEFT_TOP, hint, 11.0, theme.text_muted());
+                }
+            }
+
             // ── Update notification toast (top-right, below weather) ──
             if let UpdateState::Available { ref version, .. } = state.updater.state {
                 let toast_rect = Rect::from_min_size(
