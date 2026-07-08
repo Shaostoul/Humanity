@@ -52,6 +52,24 @@ pub enum OpeningKind {
     Window,
 }
 
+/// A corridor-driven aperture through one of the 4 PERIMETER shell edges (ship-superstructure
+/// increment B). Edges are indexed in the perimeter build order used by `generate_meshes` and
+/// `wall_collision::wall_segments`: 0 = the z=0 edge (from (0,0) to (w,0)), 1 = the x=w edge
+/// (from (w,0) to (w,d)), 2 = the z=d edge (from (w,d) to (0,d)), 3 = the x=0 edge (from (0,d)
+/// to (0,0)). `at` is metres along the edge FROM ITS START in that winding; the cut spans
+/// [at, at+width] along the edge and [floor, height] vertically. Produced by
+/// `ShipStructure::shell_cuts_for_zone` (one door-sized aperture where each corridor tube meets
+/// the box), consumed by `generate_meshes_with_shell_cuts` (mesh) and
+/// `wall_collision::wall_segments_with_shell_cuts` (collision) so a corridor is genuinely
+/// walkable, not a tube butted against a sealed hull.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ShellCut {
+    pub edge: usize,
+    pub at: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
 /// An opening (door or window) cut into a wall face. Defined the operator's way: a door is one point
 /// on the wall's bottom edge (here `at` + `width`); a window is a region on the face (`at`/`width` +
 /// `sill`/`height`). The aperture is cut out of the wall mesh; left/right piers + a header (+ a sill
@@ -537,7 +555,8 @@ impl HomeStructure {
 
     /// Material color (rgba) for a material id, sourced from the wall-material registry so the picker,
     /// the saved data, and the rendered color stay in lockstep. Grid grey for an unknown id.
-    fn material_color(m: u32) -> [f32; 4] {
+    /// pub(crate) so `ship_structure`'s corridor tubes color themselves from the same registry.
+    pub(crate) fn material_color(m: u32) -> [f32; 4] {
         match wall_material(m) {
             Some(mat) => [mat.color.0, mat.color.1, mat.color.2, mat.color.3],
             None => [0.50, 0.52, 0.56, 1.0],
@@ -561,6 +580,14 @@ impl HomeStructure {
     /// plus each interior wall segment, in the existing `HomesteadMeshes` form so the renderer path
     /// is a drop-in. One room ("home") for now -- room subdivision by interior walls is a later stage.
     pub fn generate_meshes(&self) -> HomesteadMeshes {
+        self.generate_meshes_with_shell_cuts(&[])
+    }
+
+    /// `generate_meshes` with corridor APERTURES cut through the perimeter shell (ship-superstructure
+    /// increment B): each `ShellCut` opens a door-sized hole in one of the 4 outer box walls where a
+    /// corridor tube meets it (piers + header fill the rest, exactly like an interior wall's door).
+    /// With no cuts this is byte-identical to the pre-B path (`wall_box` per edge).
+    pub fn generate_meshes_with_shell_cuts(&self, shell_cuts: &[ShellCut]) -> HomesteadMeshes {
         let w = self.width.max(1.0);
         let d = self.depth.max(1.0);
         let h = self.height.max(1.0);
@@ -584,9 +611,43 @@ impl HomeStructure {
             (Vec3::new(0.0, 0.0, d), Vec3::new(0.0, 0.0, 0.0)),
         ];
         let shell_t = self.shell_resolved_thickness();
-        for (a, b) in perimeter {
+        for (ei, (a, b)) in perimeter.into_iter().enumerate() {
             let g = by_mat.entry(self.shell_material).or_insert_with(|| (Vec::new(), Vec::new()));
-            merge(g, wall_box(a, b, 0.0, h, shell_t));
+            let cuts: Vec<&ShellCut> = shell_cuts.iter().filter(|c| c.edge == ei).collect();
+            if cuts.is_empty() {
+                merge(g, wall_box(a, b, 0.0, h, shell_t));
+            } else {
+                // A corridor meets this edge: cut its aperture(s) with the SAME pier/header builder
+                // interior doors use. Synthetic Door openings, square (unmitred) edge ends -- the box
+                // corners were never mitred, so the ends stay the plain perpendicular offsets.
+                let openings: Vec<Opening> = cuts
+                    .iter()
+                    .map(|c| Opening {
+                        kind: OpeningKind::Door,
+                        at: c.at,
+                        width: c.width,
+                        sill: 0.0,
+                        height: c.height.min(h),
+                        // Never animated -- the aperture is just a hole the corridor tube meets; door
+                        // PANELS come from real wall openings, not shell cuts.
+                        style: "fixed".to_string(),
+                        open_dist: 0.0,
+                        locked: false,
+                        auto_open: false,
+                        control_panel: false,
+                        locks: Vec::new(),
+                    })
+                    .collect();
+                let len = (b - a).length().max(1e-6);
+                let (dx, dz) = ((b.x - a.x) / len, (b.z - a.z) / len);
+                let (px, pz) = (-dz, dx);
+                let half = shell_t * 0.5;
+                let al = (a.x + px * half, a.z + pz * half);
+                let ar = (a.x - px * half, a.z - pz * half);
+                let bl = (b.x + px * half, b.z + pz * half);
+                let br = (b.x - px * half, b.z - pz * half);
+                merge(g, wall_with_openings(a, b, h, shell_t, 0.0, &openings, al, ar, bl, br));
+            }
         }
         // Incidence map for MITRED corners (v0.558): corner-key -> the incident walls' (index, dir
         // AWAY from the corner, half-thickness). A 2-wall join is mitred (ends cut to meet flush); a

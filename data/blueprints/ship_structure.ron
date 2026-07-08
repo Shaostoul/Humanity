@@ -1,9 +1,11 @@
 // HumanityOS ship structure: MANY pressurized zones, each a fixed outer box + freely
-// placed interior walls (the proven home model, now plural -- increment A of
+// placed interior walls (the proven home model, now plural -- increments A + B of
 // docs/design/ship-superstructure.md). Each zone: id, label, purpose
 // (residence|commons|bay|agriculture|corridor), a world origin for its box min corner
 // (y = deck height), and the full home body in zone-local metres. The former
 // data/blueprints/home_structure.ron migrated outright into zone 'home' below.
+// `corridors` (bottom of the file) generates straight walk-through tubes between
+// two zones' door openings -- see the comment there for the row shape.
 //
 // AI + human friendly: add a zone by adding an entry to zones; add a wall by adding an
 // InteriorWall line inside a zone body. The construction editor edits the same data
@@ -416,4 +418,10 @@
             ),
         ),
     ],
+    // Generated corridors (increment B): straight tubes between two zones' DOOR openings.
+    // Each row: (from_zone, from_opening, to_zone, to_opening, width, glass_top), where
+    // from_opening/to_opening index that zone's doors (walls in order, openings in order,
+    // windows skipped). The two doors must face each other along one world axis. Example:
+    // (from_zone: "home", from_opening: 0, to_zone: "commons", to_opening: 0, width: 3.0, glass_top: true),
+    corridors: [],
 )

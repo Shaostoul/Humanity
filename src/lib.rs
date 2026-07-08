@@ -8217,7 +8217,16 @@ mod native_app {
                                 hs.spawn = spawn;
                             }
                             let path = state.data_dir.join("blueprints").join("ship_structure.ron");
-                            let ship = state.gui_state.ship_structure.as_ref().unwrap();
+                            let ship = state.gui_state.ship_structure.as_mut().unwrap();
+                            // Drop corridor rows that no longer resolve (a referenced door/zone was
+                            // edited away) BEFORE writing: validate() rejects a whole file over one
+                            // bad corridor, so a saved file must always re-load. Live editing keeps
+                            // broken rows visible (the Corridors panel shows why); save is the
+                            // deliberate moment they are let go. (Increment B.)
+                            let pruned = ship.prune_invalid_corridors();
+                            if pruned > 0 {
+                                log::warn!("Construction: dropped {pruned} corridor(s) whose openings no longer exist or align");
+                            }
                             match ship.save(&path) {
                                 Ok(()) => {
                                     log::info!("Construction: ship structure saved to ship_structure.ron");

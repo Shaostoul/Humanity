@@ -2787,6 +2787,16 @@ pub struct GuiState {
     /// Two-click delete confirm for the zone selector's "Delete zone" (v0.754): armed by the first
     /// click, executed by "Confirm delete", cleared on cancel / zone switch.
     pub construction_zone_delete_arm: bool,
+    /// Corridor add-flow state (ship-superstructure increment B, the "Corridors" section under the
+    /// zone selector): pending from/to zone indices + door indices (into `zone_door_refs` order),
+    /// tube width, glass-top flag, and the last validation error ("" = none) shown under Create.
+    pub construction_corridor_from_zone: usize,
+    pub construction_corridor_from_door: usize,
+    pub construction_corridor_to_zone: usize,
+    pub construction_corridor_to_door: usize,
+    pub construction_corridor_width: f32,
+    pub construction_corridor_glass: bool,
+    pub construction_corridor_error: String,
     /// Set by the panel on an interior-wall edit (add / remove / move corner / opening) -> the
     /// engine rebuilds the home mesh and writes ship_structure.ron on Save. (v0.534)
     pub construction_structure_dirty: bool,
@@ -4079,6 +4089,13 @@ impl Default for GuiState {
             ship_structure: None,
             construction_zone: 0,
             construction_zone_delete_arm: false,
+            construction_corridor_from_zone: 0,
+            construction_corridor_from_door: 0,
+            construction_corridor_to_zone: 0,
+            construction_corridor_to_door: 0,
+            construction_corridor_width: 3.0,
+            construction_corridor_glass: false,
+            construction_corridor_error: String::new(),
             construction_structure_dirty: false,
             construction_wall_mode: false,
             construction_wall_start: None,
