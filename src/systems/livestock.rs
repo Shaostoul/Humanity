@@ -189,6 +189,46 @@ impl LivestockSpawnList {
     }
 }
 
+// ── Wild spawns (data/entities/wild_spawns.ron, v0.761) ─────────────
+
+/// One wild-creature placement: `count` of a species scattered around an
+/// absolute world position (hostiles live away from the homestead).
+#[derive(Debug, Clone, Deserialize)]
+pub struct WildSpawn {
+    pub creature: String,
+    pub count: u32,
+    /// World-space (x, z) center; y sits at ground level.
+    pub pos: (f32, f32),
+    pub radius: f32,
+    pub tint: (f32, f32, f32),
+}
+
+/// The wild-spawn list. DataStore: `"wild_spawn_list"`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct WildSpawnList {
+    pub spawns: Vec<WildSpawn>,
+}
+
+impl WildSpawnList {
+    pub fn from_ron(bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+        ron::from_str(text).map_err(|e| e.to_string())
+    }
+}
+
+/// Map a creatures.csv ai_behavior string onto the AISystem's behavior_type
+/// state machine. hunt-class rows become predators (they count the player as
+/// prey); ambush/aggressive rows are aggressive; everything else wanders as
+/// passive. (v0.761)
+pub fn behavior_type_for(def: &CreatureDef) -> &'static str {
+    match def.ai_behavior.as_str() {
+        "hunt" => "predator",
+        "ambush" | "swarm" => "aggressive",
+        "guard" | "patrol" => "guard",
+        _ => "passive",
+    }
+}
+
 // ── Harvest ─────────────────────────────────────────────────────────
 
 /// Collect from a Harvestable if its product has regrown: resets the timer and
@@ -250,13 +290,15 @@ impl System for LivestockSystem {
         // Graze amble: ease each animal toward a slowly-orbiting target around
         // its anchor. The two incommensurate frequencies trace a lissajous
         // loop, so the herd drifts naturally instead of circling. The dead
-        // stay where they fell (v0.760).
-        for (_e, (c, tf, dead)) in world.query_mut::<(
+        // stay where they fell (v0.760); AI-driven creatures (hostiles) are
+        // the AISystem's to move, not this amble's (v0.761).
+        for (_e, (c, tf, dead, ai)) in world.query_mut::<(
             &Creature,
             &mut Transform,
             Option<&crate::ecs::components::Dead>,
+            Option<&crate::ecs::components::AIBehavior>,
         )>() {
-            if dead.is_some() {
+            if dead.is_some() || ai.is_some() {
                 continue;
             }
             let t = self.t * 0.22 + c.phase;

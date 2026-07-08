@@ -4046,6 +4046,87 @@ mod native_app {
                 }
             }
         }
+        // ── Wild hostiles (v0.761, combat arc) ── absolute-position spawns
+        // away from the homestead; the AISystem drives them (hunt-class rows
+        // become predators that stalk prey INCLUDING the player). Runs even
+        // without a home layout. Idempotent: previous wild creatures clear
+        // first (the livestock pass only despawns when a home exists).
+        {
+            let old: Vec<hecs::Entity> = state
+                .game_world
+                .world
+                .query::<(
+                    &crate::ecs::components::Creature,
+                    &crate::ecs::components::AIBehavior,
+                )>()
+                .iter()
+                .map(|(e, _)| e)
+                .collect();
+            for e in old {
+                let _ = state.game_world.world.despawn(e);
+            }
+            let mut bundles = Vec::new();
+            if let (Some(reg), Some(list)) = (
+                state
+                    .data_store
+                    .get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
+                state
+                    .data_store
+                    .get::<crate::systems::livestock::WildSpawnList>("wild_spawn_list"),
+            ) {
+                let items = state.data_store.get::<ItemRegistry>("item_registry");
+                for (si, s) in list.spawns.iter().enumerate() {
+                    let Some(def) = reg.get(&s.creature) else {
+                        log::warn!("wild_spawns.ron: unknown creature {}", s.creature);
+                        continue;
+                    };
+                    let center = Vec3::new(s.pos.0, 0.0, s.pos.1);
+                    for i in 0..s.count {
+                        let a = i as f32 * 2.399_963 + si as f32 * 1.7;
+                        let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
+                        let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
+                        bundles.push((
+                            crate::ecs::components::Creature {
+                                def_id: def.id.clone(),
+                                anchor: center,
+                                range: s.radius,
+                                phase: si as f32 * 0.9 + i as f32 * 1.7,
+                                speed: (def.movement_speed * 0.35).max(0.2),
+                                tint: [s.tint.0, s.tint.1, s.tint.2],
+                                body_side: def.body_side(),
+                            },
+                            Transform {
+                                position: pos,
+                                ..Default::default()
+                            },
+                            Name(def.name.clone()),
+                            Health {
+                                current: def.health_base.max(1.0),
+                                max: def.health_base.max(1.0),
+                            },
+                            crate::ecs::components::LootTable {
+                                entries: def.loot_entries(items),
+                            },
+                            crate::ecs::components::AIBehavior {
+                                behavior_type: crate::systems::livestock::behavior_type_for(def)
+                                    .to_string(),
+                                state: "idle".to_string(),
+                                target: None,
+                            },
+                            Velocity::default(),
+                        ));
+                    }
+                }
+            }
+            let packs = bundles.len();
+            for b in bundles {
+                state.game_world.world.spawn(b);
+            }
+            if packs > 0 {
+                log::info!("Wild creatures: spawned {packs} in the wilds");
+            }
+        }
+
         // The home's sealed air space for the live AtmosphereSystem readout (v0.617).
         spawn_home_air_space(&mut state.game_world.world);
         // Build the live connection cylinders (replaces the old static routed pipes). (v0.530)
@@ -4553,6 +4634,18 @@ mod native_app {
                 Err(e) => log::warn!("Failed to parse entities/livestock.ron: {e}"),
             },
             None => log::warn!("entities/livestock.ron not found (no embedded copy); no starter animals"),
+        }
+        // WildSpawnList (v0.761, combat arc): hostile creatures placed away
+        // from the homestead. Read by load_world's wild spawn pass.
+        match crate::embedded_data::read_data_or_embedded(data_dir, "entities/wild_spawns.ron") {
+            Some(text) => match crate::systems::livestock::WildSpawnList::from_ron(text.as_bytes()) {
+                Ok(list) => {
+                    log::info!("Loaded {} wild spawn placements from entities/wild_spawns.ron", list.spawns.len());
+                    store.insert("wild_spawn_list", list);
+                }
+                Err(e) => log::warn!("Failed to parse entities/wild_spawns.ron: {e}"),
+            },
+            None => log::warn!("entities/wild_spawns.ron not found (no embedded copy); no wild creatures"),
         }
         // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
         // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
@@ -5390,6 +5483,10 @@ mod native_app {
                 std::sync::Mutex::new(Vec::<(String, u32)>::new()),
             );
             system_runner.register(crate::systems::combat::CombatSystem::new());
+            // AISystem (v0.761, combat arc): the behavior state machine for
+            // AI creatures - predators hunt prey INCLUDING the player and
+            // their bites ride the damage_events channel above.
+            system_runner.register(crate::systems::ai::AISystem::new());
             // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
             // passive income (1 CR per game day) into every Wallet — economy.ron's
             // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
@@ -7010,7 +7107,7 @@ mod native_app {
                             .query::<(
                                 &crate::ecs::components::Creature,
                                 &crate::ecs::components::Transform,
-                                &crate::ecs::components::Harvestable,
+                                Option<&crate::ecs::components::Harvestable>,
                                 Option<&crate::ecs::components::Dead>,
                             )>()
                             .iter()
@@ -7054,7 +7151,9 @@ mod native_app {
                                             format!("{name} ({item_name} in {wait:.0}s)")
                                         }
                                     }
-                                    Err(_) => String::new(),
+                                    // No renewable product = a wild creature:
+                                    // the hotbar attacks it. (v0.761)
+                                    Err(_) => format!("{name} - press 1-9 to attack"),
                                 }
                             }
                             None => String::new(),
@@ -10237,6 +10336,40 @@ mod native_app {
                                 (!a.castable_now, &a.name).cmp(&(!b.castable_now, &b.name))
                             });
                             state.gui_state.abilities = rows;
+                        }
+                    }
+
+                    // ── Armor from worn gear (v0.761, combat arc) ── the
+                    // equipment.csv armor columns populate the player's Armor
+                    // component every frame (cheap: a few map sums) so saved
+                    // outfits protect from load and equip changes apply
+                    // instantly. CombatSystem mitigates hostile bites by it.
+                    {
+                        let mut player: Option<hecs::Entity> = None;
+                        let mut worn: Vec<String> = Vec::new();
+                        for (e, (outfit, _c)) in state
+                            .game_world
+                            .world
+                            .query::<(&crate::ecs::components::Outfit, &Controllable)>()
+                            .iter()
+                        {
+                            player = Some(e);
+                            worn = outfit.equipped.values().cloned().collect();
+                            break;
+                        }
+                        if let (Some(e), Some(reg)) = (
+                            player,
+                            state
+                                .data_store
+                                .get::<crate::systems::economy::EquipmentRegistry>(
+                                    "equipment_registry",
+                                ),
+                        ) {
+                            let resistance = reg.armor_from_worn(worn.iter().map(|s| s.as_str()));
+                            let _ = state
+                                .game_world
+                                .world
+                                .insert_one(e, crate::ecs::components::Armor { resistance });
                         }
                     }
 

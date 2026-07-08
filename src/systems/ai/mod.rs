@@ -4,6 +4,12 @@
 //! state machine driven by `behavior_type`. No pathfinding yet — movement is
 //! direct toward/away from targets.
 //!
+//! Registered live in v0.761 (combat arc increment 2). Predators now count
+//! the PLAYER as prey, the `attacking` state lands real bites through the
+//! `damage_events` channel (CombatSystem resolves mitigation/death/loot),
+//! and the system integrates its own movement (position += velocity * dt)
+//! so hostiles actually close distance.
+//!
 //! Behavior tree node types live in `behavior.rs` (data-driven RON format).
 //! Flow field pathfinding in `flow_field.rs` (future integration).
 //! Off-screen autonomy in `autonomy.rs`.
@@ -14,7 +20,7 @@ pub mod flow_field;
 use glam::Vec3;
 use rand::Rng;
 
-use crate::ecs::components::{AIBehavior, Faction, Health, Transform, Velocity};
+use crate::ecs::components::{AIBehavior, Controllable, Faction, Health, Transform, Velocity};
 use crate::ecs::systems::System;
 use crate::hot_reload::data_store::DataStore;
 
@@ -34,6 +40,11 @@ const MOVE_SPEED: f32 = 4.0;
 const FLEE_SPEED: f32 = 6.0;
 /// Rest duration after a predator makes a kill (seconds).
 const REST_DURATION: f32 = 5.0;
+/// Seconds between bites while in the attacking state. (v0.761)
+const BITE_COOLDOWN_S: f32 = 1.5;
+/// Bite damage = max health * this (a 65 hp wolf bites for ~10), capped.
+const BITE_DAMAGE_FRACTION: f32 = 0.15;
+const BITE_DAMAGE_CAP: f32 = 25.0;
 
 /// Behavior state machine runner for all AI-controlled entities.
 pub struct AISystem {
@@ -42,6 +53,8 @@ pub struct AISystem {
     timers: std::collections::HashMap<u64, f32>,
     /// Per-entity wander targets.
     wander_targets: std::collections::HashMap<u64, Vec3>,
+    /// Per-entity seconds until the next bite lands. (v0.761)
+    bite_timers: std::collections::HashMap<u64, f32>,
 }
 
 impl AISystem {
@@ -49,6 +62,7 @@ impl AISystem {
         Self {
             timers: std::collections::HashMap::new(),
             wander_targets: std::collections::HashMap::new(),
+            bite_timers: std::collections::HashMap::new(),
         }
     }
 }
@@ -58,21 +72,31 @@ impl System for AISystem {
         "AISystem"
     }
 
-    fn tick(&mut self, world: &mut hecs::World, dt: f32, _data: &DataStore) {
+    fn tick(&mut self, world: &mut hecs::World, dt: f32, data: &DataStore) {
         // ── 1. Snapshot all positions, factions, health, and AI state ────
         // We need to read other entities' data while deciding what to do,
         // so collect everything up front to avoid borrow conflicts.
         let snapshots: Vec<EntitySnapshot> = world
-            .query::<(&Transform, &Health, Option<&Faction>, Option<&AIBehavior>)>()
+            .query::<(
+                &Transform,
+                &Health,
+                Option<&Faction>,
+                Option<&AIBehavior>,
+                Option<&Controllable>,
+                Option<&crate::ecs::components::Name>,
+            )>()
             .iter()
-            .map(|(entity, (tf, hp, faction, ai))| EntitySnapshot {
+            .map(|(entity, (tf, hp, faction, ai, player, name))| EntitySnapshot {
                 id: entity.to_bits().into(),
                 position: tf.position,
                 health_frac: if hp.max > 0.0 { hp.current / hp.max } else { 0.0 },
+                max_health: hp.max,
                 faction: faction.map(|f| f.id.clone()),
                 behavior_type: ai.map(|a| a.behavior_type.clone()),
                 state: ai.map(|a| a.state.clone()),
                 alive: hp.current > 0.0,
+                is_player: player.is_some(),
+                name: name.map(|n| n.0.clone()),
             })
             .collect();
 
@@ -96,9 +120,16 @@ impl System for AISystem {
         }
 
         // ── 3. Apply decisions back to components ───────────────────────
+        // Bite bookkeeping: cooldowns tick down for everyone. (v0.761)
+        for t in self.bite_timers.values_mut() {
+            *t -= dt;
+        }
+        self.bite_timers.retain(|_, t| *t > 0.0);
+
         for (id, new_state, target, desired_vel) in decisions {
             let entity = hecs::Entity::from_bits(id).expect("valid entity bits");
 
+            let attacking = new_state == "attacking";
             if let Ok(mut ai) = world.get::<&mut AIBehavior>(entity) {
                 ai.state = new_state;
                 ai.target = target;
@@ -106,6 +137,53 @@ impl System for AISystem {
 
             if let Ok(mut vel) = world.get::<&mut Velocity>(entity) {
                 vel.linear = desired_vel;
+            }
+
+            // Integrate movement + face travel direction: nothing else moves
+            // AI entities, so the system owns its own locomotion. (v0.761)
+            if desired_vel.length_squared() > 0.001 {
+                if let Ok(mut tf) = world.get::<&mut Transform>(entity) {
+                    tf.position += desired_vel * dt;
+                    tf.rotation =
+                        glam::Quat::from_rotation_y(f32::atan2(desired_vel.x, desired_vel.z));
+                }
+            }
+
+            // A landed attack BITES through the one damage pipeline. (v0.761)
+            if attacking {
+                if let Some(target_id) = target {
+                    let cooling = self.bite_timers.contains_key(&id);
+                    if !cooling {
+                        self.bite_timers.insert(id, BITE_COOLDOWN_S);
+                        let (damage, my_name) = snapshots
+                            .iter()
+                            .find(|s| s.id == id)
+                            .map(|s| {
+                                (
+                                    (s.max_health * BITE_DAMAGE_FRACTION).min(BITE_DAMAGE_CAP),
+                                    s.name.clone(),
+                                )
+                            })
+                            .unwrap_or((5.0, None));
+                        if let Some(chan) = data.get::<std::sync::Mutex<
+                            Vec<(u64, crate::systems::combat::damage::DamageEvent)>,
+                        >>("damage_events")
+                        {
+                            if let Ok(mut q) = chan.lock() {
+                                q.push((
+                                    target_id,
+                                    crate::systems::combat::damage::DamageEvent {
+                                        damage_type:
+                                            crate::systems::combat::damage::DamageType::Kinetic,
+                                        amount: damage,
+                                        source_name: my_name,
+                                        source_is_player: false,
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -118,10 +196,14 @@ struct EntitySnapshot {
     id: u64,
     position: Vec3,
     health_frac: f32,
+    max_health: f32,
     faction: Option<String>,
     behavior_type: Option<String>,
     state: Option<String>,
     alive: bool,
+    /// The player (Controllable) - predators count them as prey. (v0.761)
+    is_player: bool,
+    name: Option<String>,
 }
 
 impl AISystem {
@@ -220,13 +302,14 @@ impl AISystem {
             // Done resting
         }
 
-        // Hunt nearest passive or herd entity
+        // Hunt the nearest prey: passive/herd animals or the PLAYER (v0.761).
         let prey = others
             .iter()
             .filter(|o| {
                 o.id != me.id
                     && o.alive
-                    && matches!(o.behavior_type.as_deref(), Some("passive") | Some("herd"))
+                    && (o.is_player
+                        || matches!(o.behavior_type.as_deref(), Some("passive") | Some("herd")))
             })
             .min_by(|a, b| {
                 let da = me.position.distance_squared(a.position);
@@ -410,4 +493,89 @@ fn compute_herd_center(me: &EntitySnapshot, others: &[EntitySnapshot]) -> Option
 /// Direction vector pointing away from a threat.
 fn flee_direction(my_pos: Vec3, threat_pos: Vec3) -> Vec3 {
     (my_pos - threat_pos).normalize_or_zero()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ecs::components::Name;
+
+    /// THE hostile loop (v0.761): a predator wolf sees the player as prey,
+    /// closes the distance under its own locomotion, and once in range its
+    /// bites land on the damage_events channel with its name attached and
+    /// respect the bite cooldown.
+    #[test]
+    fn predator_hunts_the_player_and_bites() {
+        let mut world = hecs::World::new();
+        let mut data = DataStore::new();
+        data.insert(
+            "damage_events",
+            std::sync::Mutex::new(
+                Vec::<(u64, crate::systems::combat::damage::DamageEvent)>::new(),
+            ),
+        );
+
+        let player = world.spawn((
+            Controllable,
+            Transform {
+                position: Vec3::ZERO,
+                ..Default::default()
+            },
+            Health { current: 100.0, max: 100.0 },
+        ));
+        let wolf = world.spawn((
+            Name("Wolf".to_string()),
+            AIBehavior {
+                behavior_type: "predator".to_string(),
+                state: "idle".to_string(),
+                target: None,
+            },
+            Transform {
+                position: Vec3::new(15.0, 0.0, 0.0),
+                ..Default::default()
+            },
+            Health { current: 65.0, max: 65.0 },
+            Velocity::default(),
+        ));
+
+        let mut sys = AISystem::new();
+        // First tick: the wolf spots the player and starts hunting.
+        sys.tick(&mut world, 0.1, &data);
+        {
+            let ai = world.get::<&AIBehavior>(wolf).unwrap();
+            assert_eq!(ai.state, "hunting", "wolf hunts the player");
+            assert_eq!(ai.target, Some(player.to_bits().into()));
+        }
+        let d0 = world.get::<&Transform>(wolf).unwrap().position.length();
+        assert!(d0 < 15.0, "the wolf moved closer under its own locomotion");
+
+        // Run until it closes to attack range and bites.
+        for _ in 0..600 {
+            sys.tick(&mut world, 0.1, &data);
+        }
+        {
+            let ai = world.get::<&AIBehavior>(wolf).unwrap();
+            assert_eq!(ai.state, "attacking", "wolf reached attack range");
+        }
+        let bites = data
+            .get::<std::sync::Mutex<Vec<(u64, crate::systems::combat::damage::DamageEvent)>>>(
+                "damage_events",
+            )
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(!bites.is_empty(), "bites landed");
+        let (target_bits, bite) = &bites[0];
+        assert_eq!(*target_bits, u64::from(player.to_bits()));
+        assert_eq!(bite.source_name.as_deref(), Some("Wolf"));
+        assert!(!bite.source_is_player);
+        assert!((bite.amount - 65.0 * BITE_DAMAGE_FRACTION).abs() < 0.01);
+        // Cooldown: 60 seconds of ticks can land at most ~60/1.5 = 40 bites.
+        assert!(
+            bites.len() <= 1 + (60.0 / BITE_COOLDOWN_S) as usize,
+            "bite cooldown respected ({} bites)",
+            bites.len()
+        );
+    }
 }

@@ -311,6 +311,8 @@ impl AbilitySystem {
                         crate::systems::combat::damage::DamageEvent {
                             damage_type: combat_damage_type(&def.damage_type),
                             amount: def.damage_base,
+                            source_name: None,
+                            source_is_player: true,
                         },
                     ));
                 }

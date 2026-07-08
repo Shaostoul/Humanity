@@ -42,7 +42,8 @@ const DEFERRED_SYSTEMS: &[(&str, &str)] = &[
     // Gameplay systems — implemented but need their content/UI/data layer wired.
     // CombatSystem: REGISTERED v0.760 (combat arc increment 1: damage_events
     // channel, creature loot drops, corpse decay) — removed from this list.
-    ("AISystem", "behaviour trees/autonomy; needs NPC spawn + dialogue wiring (note: off-screen autonomy is currently relay-side)"),
+    // AISystem: REGISTERED v0.761 (combat arc increment 2: predators hunt
+    // the player, bites ride damage_events, wild spawns) — entry removed.
     // ConstructionSystem is REGISTERED in src/lib.rs as of 2026-07-01 (afternoon audit:
     // fully-coded blueprint->build->Structure loop, just never turned on) plus
     // BlueprintRegistry now actually loads data/blueprints/basic.ron -- nothing calls

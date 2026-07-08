@@ -84,7 +84,7 @@ impl System for CombatSystem {
 
         // ── Process pending damage events ──
         let events: Vec<_> = self.pending_damage.drain(..).collect();
-        let mut deaths_to_handle: Vec<hecs::Entity> = Vec::new();
+        let mut deaths_to_handle: Vec<(hecs::Entity, Option<String>, bool)> = Vec::new();
 
         for (entity, event) in events {
             // Skip if already dead.
@@ -107,16 +107,34 @@ impl System for CombatSystem {
                         "Entity {:?} killed by {:.1} {:?} damage ({:.0}% mitigated by armor)",
                         entity, mitigated, event.damage_type, resistance * 100.0
                     );
-                    deaths_to_handle.push(entity);
+                    deaths_to_handle.push((entity, event.source_name, event.source_is_player));
                 }
             }
         }
 
         // ── Trigger death: insert Dead, roll loot into the loot_drops channel ──
         let mut rng = rand::thread_rng();
-        for entity in deaths_to_handle {
+        for (entity, source_name, source_is_player) in deaths_to_handle {
             // Insert Dead marker (no-op if already present).
             let _ = world.insert_one(entity, Dead::default());
+
+            // A dead PLAYER publishes its cause for the death screen (the
+            // same slot FoodSystem's environmental deaths use). (v0.761)
+            if world.get::<&crate::ecs::components::Controllable>(entity).is_ok() {
+                if let Some(slot) =
+                    data.get::<std::sync::Mutex<Option<String>>>("player_death")
+                {
+                    if let Ok(mut s) = slot.lock() {
+                        if s.is_none() {
+                            *s = Some(match &source_name {
+                                Some(n) => format!("killed by a {n}"),
+                                None => "killed in combat".to_string(),
+                            });
+                        }
+                    }
+                }
+                continue; // players drop no loot
+            }
 
             // Roll loot if the entity has a LootTable: per entry, chance
             // gates the drop, count rolls uniformly in min..=max.
@@ -145,13 +163,16 @@ impl System for CombatSystem {
                 }
                 let position = world.get::<&Transform>(entity).ok().map(|t| t.position);
                 log::info!("Loot dropped from {:?} at {:?}: {:?}", entity, position, drops);
-                // Deliver through the channel; lib.rs settles it into the
-                // killer's pack (v1: the player is the only attacker).
-                if let Some(chan) =
-                    data.get::<std::sync::Mutex<Vec<(String, u32)>>>("loot_drops")
-                {
-                    if let Ok(mut out) = chan.lock() {
-                        out.extend(drops);
+                // Deliver to the killer's pack ONLY when the player landed
+                // the killing blow - a wolf's kill is the wolf's dinner, not
+                // your loot. (v0.761)
+                if source_is_player {
+                    if let Some(chan) =
+                        data.get::<std::sync::Mutex<Vec<(String, u32)>>>("loot_drops")
+                    {
+                        if let Ok(mut out) = chan.lock() {
+                            out.extend(drops);
+                        }
                     }
                 }
             }
@@ -252,6 +273,8 @@ mod tests {
                 .push((hen.to_bits().into(), DamageEvent {
                     damage_type: DamageType::Thermal,
                     amount,
+                    source_name: None,
+                    source_is_player: true,
                 }));
         };
 
@@ -306,6 +329,8 @@ mod tests {
             .push((hen.to_bits().into(), DamageEvent {
                 damage_type: DamageType::Thermal,
                 amount: 10.0,
+                source_name: None,
+                source_is_player: true,
             }));
         sys.tick(&mut world, 0.016, &data);
         assert_eq!(
@@ -323,6 +348,8 @@ mod tests {
             .push((hen.to_bits().into(), DamageEvent {
                 damage_type: DamageType::Kinetic,
                 amount: 100.0,
+                source_name: None,
+                source_is_player: true,
             }));
         sys.tick(&mut world, 0.016, &data);
         assert!(world.get::<&Dead>(hen).is_ok());
@@ -330,5 +357,67 @@ mod tests {
         sys.tick(&mut world, 0.016, &data);
         assert!(!world.contains(hen), "creature corpse decayed away");
         assert!(world.contains(player), "a dead player is never despawned");
+    }
+
+    /// A combat death of the PLAYER publishes its cause to the same
+    /// player_death slot environmental deaths use ("killed by a Wolf"),
+    /// drops no loot, and a non-player kill delivers no pack loot. (v0.761)
+    #[test]
+    fn player_combat_death_records_cause_and_wolf_kills_grant_no_loot() {
+        let mut world = hecs::World::new();
+        let mut data = store_with_channels();
+        data.insert(
+            "player_death",
+            std::sync::Mutex::new(Option::<String>::None),
+        );
+
+        let player = world.spawn((
+            crate::ecs::components::Controllable,
+            Health { current: 8.0, max: 100.0 },
+        ));
+        let hen = spawn_hen(&mut world);
+
+        let mut sys = CombatSystem::new();
+        // A wolf bite kills the player.
+        data.get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push((player.to_bits().into(), DamageEvent {
+                damage_type: DamageType::Kinetic,
+                amount: 10.0,
+                source_name: Some("Wolf".to_string()),
+                source_is_player: false,
+            }));
+        // The wolf also kills the hen: no loot for the player's pack.
+        data.get::<std::sync::Mutex<Vec<(u64, DamageEvent)>>>("damage_events")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push((hen.to_bits().into(), DamageEvent {
+                damage_type: DamageType::Kinetic,
+                amount: 100.0,
+                source_name: Some("Wolf".to_string()),
+                source_is_player: false,
+            }));
+        sys.tick(&mut world, 0.016, &data);
+
+        assert!(world.get::<&Dead>(player).is_ok(), "player died");
+        let cause = data
+            .get::<std::sync::Mutex<Option<String>>>("player_death")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert_eq!(cause.as_deref(), Some("killed by a Wolf"));
+
+        assert!(world.get::<&Dead>(hen).is_ok(), "hen died to the wolf");
+        let drops = data
+            .get::<std::sync::Mutex<Vec<(String, u32)>>>("loot_drops")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .clone();
+        assert!(drops.is_empty(), "a wolf's kill is not the player's loot");
     }
 }

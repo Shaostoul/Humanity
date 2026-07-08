@@ -155,6 +155,35 @@ impl EquipmentRegistry {
         mult.max(0.0)
     }
 
+    /// Sum worn items' armor columns into the Armor component's
+    /// per-damage-type resistance map (keys match CombatSystem's damage_type
+    /// strings), capped at 0.85 per type so no outfit is ever immune. (v0.761)
+    pub fn armor_from_worn<'a>(
+        &self,
+        worn: impl IntoIterator<Item = &'a str>,
+    ) -> HashMap<String, f32> {
+        let mut map: HashMap<String, f32> = HashMap::new();
+        for id in worn {
+            if let Some(def) = self.get(id) {
+                for (key, v) in [
+                    ("kinetic", def.armor_kinetic),
+                    ("thermal", def.armor_thermal),
+                    ("energy", def.armor_energy),
+                    ("chemical", def.armor_chemical),
+                    ("radiation", def.armor_radiation),
+                ] {
+                    if v > 0.0 {
+                        *map.entry(key.to_string()).or_insert(0.0) += v;
+                    }
+                }
+            }
+        }
+        for v in map.values_mut() {
+            *v = v.min(0.85);
+        }
+        map
+    }
+
     /// Sum a stat's `add` values across worn items as an ABSOLUTE bonus
     /// (carry_capacity works in kg, not a multiplier).
     pub fn stat_add_total<'a>(&self, worn: impl IntoIterator<Item = &'a str>, stat: &str) -> f32 {
@@ -408,6 +437,33 @@ mod tests {
         // Backpacks add carry kg.
         let carry = reg.stat_add_total(["backpack_large_0"].iter().copied(), "carry_capacity");
         assert!((carry - 25.0).abs() < 1e-4, "large pack adds 25 kg, got {carry}");
+    }
+
+    /// v0.761: the armor columns bite - a worn kit sums per-damage-type
+    /// resistances into the Armor map, capped so no outfit is immune.
+    #[test]
+    fn armor_from_worn_sums_and_caps() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/equipment.csv");
+        let reg = EquipmentRegistry::from_csv(&std::fs::read(path).unwrap()).unwrap();
+
+        // Combat helmet + work boots: kinetic 0.45 + 0.15 = 0.60.
+        let map = reg.armor_from_worn(["helmet_combat_0", "boots_work_0"].iter().copied());
+        assert!((map.get("kinetic").copied().unwrap_or(0.0) - 0.60).abs() < 1e-4);
+
+        // Winter kit resists thermal hits: coat 0.35 + beanie 0.05 + gloves 0.10.
+        let map = reg.armor_from_worn(
+            ["coat_winter_0", "hat_beanie_0", "gloves_winter_0"].iter().copied(),
+        );
+        assert!((map.get("thermal").copied().unwrap_or(0.0) - 0.50).abs() < 1e-4);
+
+        // Cap: stacking the same big piece many times never exceeds 0.85.
+        let stack = ["helmet_combat_0"; 5];
+        let map = reg.armor_from_worn(stack.iter().copied());
+        assert!(map.get("kinetic").copied().unwrap_or(0.0) <= 0.85);
+
+        // Cosmetics with no gear row contribute nothing.
+        let map = reg.armor_from_worn(["some_cosmetic_scarf"].iter().copied());
+        assert!(map.is_empty());
     }
 
     /// v0.747: passive income is REAL - a game-day boundary pays 1 CR into

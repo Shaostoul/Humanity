@@ -1,0 +1,17 @@
+// Wild creature spawns (v0.761, combat arc increment 2).
+//
+// Hostile-tier creatures.csv species placed at absolute world positions AWAY
+// from the homestead (the home footprint sits roughly x 0-40, z 0-70; the
+// outdoor fields around x 27-31, z 61-65). Each entry scatters `count`
+// animals within `radius` metres of `pos`. Their combat behavior comes from
+// the species' ai_behavior column (hunt -> predator: they stalk prey
+// INCLUDING the player). tint is the placeholder body colour.
+//
+// Adding a wild species or a den = adding a row here.
+(
+    spawns: [
+        // A small wolf pack in the wilds northeast of the homestead - far
+        // enough that they must be sought out (or wander in hungry).
+        (creature: "wolf", count: 2, pos: (75.0, 100.0), radius: 10.0, tint: (0.42, 0.42, 0.48)),
+    ],
+)
