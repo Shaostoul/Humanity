@@ -1043,10 +1043,11 @@ impl Renderer {
         &self,
         camera: &Camera,
         objects: &[RenderObject],
+        transparent: &[RenderObject],
         sun_dir: Vec3,
         view: &wgpu::TextureView,
     ) {
-        if objects.is_empty() {
+        if objects.is_empty() && transparent.is_empty() {
             return;
         }
         self.queue.write_buffer(
@@ -1098,8 +1099,12 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
+            // Opaque bodies + transparent shells (atmospheres) share one
+            // object-uniform buffer: shells continue the index range after the
+            // opaque list. Both lists together must stay under MAX_OBJECTS
+            // (a couple dozen sky bodies in practice).
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().enumerate() {
+            for (i, obj) in objects.iter().chain(transparent.iter()).enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
                 let normal_matrix = model.inverse().transpose();
@@ -1120,6 +1125,26 @@ impl Renderer {
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+
+            // Atmosphere shells etc.: alpha-blended over the bodies, depth-TESTED
+            // against them (no depth write), so the back hemisphere of a shell is
+            // hidden by its own planet while the limb halo survives. Few and far
+            // apart, so no depth sorting needed. (v0.763)
+            if !transparent.is_empty() {
+                render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
+                for (i, obj) in transparent.iter().enumerate() {
+                    let slot = objects.len() + i;
+                    if slot >= MAX_OBJECTS { break; }
+                    let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
+                    let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
+                    let dynamic_offset = (uniform_align as u32) * (slot as u32);
+                    render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
             }
         }
 

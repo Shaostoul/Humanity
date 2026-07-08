@@ -143,7 +143,7 @@ mod native_app {
     use crate::systems::player::PlayerControllerSystem;
     use crate::systems::time::{GameTime, TimeSystem};
     use crate::systems::weather::{Weather, WeatherSystem};
-    use crate::terrain::planet::{PlanetDef, PlanetRenderer};
+    use crate::terrain::planet::PlanetDef;
     use std::path::PathBuf;
     use std::sync::Arc;
     use std::time::Instant;
@@ -4290,19 +4290,38 @@ mod native_app {
             &star_csv,
         );
 
-        // ── Planet ──
-        state.planet_material = state.renderer.add_material([0.3, 0.5, 0.2, 1.0], 0.0, 0.7);
-        match state.asset_manager.load_ron::<PlanetDef>("planets/earth.ron") {
-            Ok(def) => {
-                let mut pr = PlanetRenderer::new(def.clone(), glam::DVec3::ZERO);
-                pr.update_lod(state.camera.world_position);
-                let ico = pr.icosphere();
-                let mesh_idx = state.renderer.add_mesh(Mesh::from_icosphere(&state.renderer.device, ico, 1.0));
-                state.planet = Some(pr);
-                state.planet_mesh = Some(mesh_idx);
+        // ── Planets (procedural fractal surfaces, v0.763) ──
+        // One shared vertex-color material (shader type 12) renders every
+        // procedural planet surface; the per-face colors ride in the mesh
+        // itself (packed in the UV channel), so no per-planet material is
+        // needed for the ground. Meshes are generated lazily per (body,
+        // LOD level) in the per-frame sky loop and cached in
+        // state.planet_mesh_cache.
+        state.planet_surface_material =
+            state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 12.0, 0.0);
+        // Per-body surface parameters are data files (infinite-of-X): a new
+        // planet look = a new data/planets/<body_id>.ron, no code change.
+        // Bodies without a def fall back to smooth LOD spheres with the
+        // coarse body-type materials.
+        state.planet_defs.clear();
+        state.planet_mesh_cache.clear();
+        state.planet_atmo_materials.clear();
+        for b in crate::cosmos::sol_bodies() {
+            let rel = format!("planets/{}.ron", b.id);
+            if state.asset_manager.data_dir().join(&rel).exists() {
+                match state.asset_manager.load_ron::<PlanetDef>(&rel) {
+                    Ok(def) => {
+                        let def = def.clone();
+                        state.planet_defs.insert(b.id.clone(), def);
+                    }
+                    Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
+                }
             }
-            Err(e) => log::warn!("Could not load planet: {e}"),
         }
+        log::info!(
+            "Planets: {} procedural surface def(s) loaded from data/planets/",
+            state.planet_defs.len()
+        );
 
         // ── Ship position (GEO above Silverdale, WA) ──
         let lat_rad = 47.6_f64.to_radians();
@@ -4795,9 +4814,23 @@ mod native_app {
         data_store: DataStore,
         star_renderer: Option<crate::renderer::stars::StarRenderer>,
         floating_origin: crate::renderer::floating_origin::FloatingOrigin,
-        planet: Option<PlanetRenderer>,
-        planet_mesh: Option<usize>,
-        planet_material: usize,
+        /// Procedural surface parameters per sky body, loaded from
+        /// `data/planets/<body_id>.ron` at world load (v0.763). Bodies
+        /// without a def render as smooth LOD spheres with the coarse
+        /// `solar_body_materials` below.
+        planet_defs: std::collections::HashMap<String, PlanetDef>,
+        /// Cached sky-body meshes keyed by (body id, subdivision level).
+        /// Bodies WITHOUT a procedural def share plain icosphere meshes
+        /// under the reserved id "_flat". LOD switches therefore never
+        /// regenerate a mesh that was already built this session; only a
+        /// first visit to a (body, level) pair pays the build cost.
+        planet_mesh_cache: std::collections::HashMap<(String, u32), usize>,
+        /// Shared vertex-color material (shader type 12) for every
+        /// procedural planet surface; per-face colors ride in the mesh.
+        planet_surface_material: usize,
+        /// Per-body fresnel atmosphere-shell materials (shader type 13),
+        /// created lazily from the def's atmosphere color.
+        planet_atmo_materials: std::collections::HashMap<String, usize>,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
         /// Emissive material index for the Sun core.
@@ -5781,9 +5814,10 @@ mod native_app {
                 // 3D world state: empty defaults, loaded lazily on first Enter World
                 star_renderer: None,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
-                planet: None,
-                planet_mesh: None,
-                planet_material: 0,
+                planet_defs: std::collections::HashMap::new(),
+                planet_mesh_cache: std::collections::HashMap::new(),
+                planet_surface_material: 0,
+                planet_atmo_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
                 sun_halo_material: 0,
@@ -8085,6 +8119,10 @@ mod native_app {
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
                     let mut celestial_objects: Vec<RenderObject> = Vec::new();
+                    // Transparent celestial shells (planet atmospheres, v0.763): alpha-blended
+                    // after the opaque bodies inside the SAME celestial pass, so they share
+                    // its far plane and depth-test against the planets.
+                    let mut celestial_transparent: Vec<RenderObject> = Vec::new();
                     // World-space orbit lines, built this frame, drawn
                     // after the scene so they depth-occlude behind planets.
                     let mut orbit_lines: Vec<crate::renderer::line::LineVertex> = Vec::new();
@@ -9500,77 +9538,22 @@ mod native_app {
                         state.targeted_planet = closest_hit.map(|(_, name)| name);
                     }
 
-                    // Render Earth relative to the player's GEO-orbit position.
-                    // The player spawns inside their homestead which sits at the ship's
-                    // world position (state.ship_world_pos) ~42,164 km from Earth's
-                    // centre. Earth itself lives at world origin; we render it as a
-                    // single giant object offset by -ship_world_pos so it appears
-                    // below the player as expected for geostationary orbit.
+                    // ── The real solar system around the home ──
+                    // (map sync increment B; procedural surfaces v0.763.)
+                    // The player spawns inside their homestead at GEO
+                    // ~42,164 km from Earth's centre; Earth lives at world
+                    // origin. Every body the Maps page shows (Earth
+                    // included) is spawned at its TRUE position from the
+                    // SAME canonical Keplerian model (crate::cosmos) the
+                    // Maps page reads:
+                    //   (helio(body) - helio(earth)) * metres-per-AU
+                    // i.e. Earth-centred world space (zero for Earth
+                    // itself), then offset into the camera/floating-origin
+                    // frame by -ship_pos. Live sim time = seconds since
+                    // J2000 from the real clock, so the sky matches the
+                    // real date (same as Maps "Now").
                     let elapsed = (now - state.start_time).as_secs_f32();
-                    if let (Some(ref mut planet), Some(mesh_idx)) = (&mut state.planet, state.planet_mesh) {
-                        // Earth position relative to ship (ship at GEO, Earth at world origin)
-                        let earth_offset = -state.ship_world_pos;
-                        let cam_world = glam::DVec3::new(
-                            state.camera.position.x as f64,
-                            state.camera.position.y as f64,
-                            state.camera.position.z as f64,
-                        );
-                        let dist_to_earth = (earth_offset - cam_world).length();
-
-                        // Update LOD based on distance
-                        planet.world_position = earth_offset;
-                        if planet.update_lod(cam_world) {
-                            let ico = planet.icosphere();
-                            state.renderer.meshes[mesh_idx] = Mesh::from_icosphere(&state.renderer.device, ico, 1.0);
-                            log::info!("Planet LOD changed: {:?}, {} faces", planet.lod(), planet.face_count());
-                        }
-
-                        // Render position: Earth center relative to camera
-                        let render_pos = Vec3::new(
-                            earth_offset.x as f32,
-                            earth_offset.y as f32,
-                            earth_offset.z as f32,
-                        );
-                        let scale = planet.def.radius as f32;
-
-                        // One-shot debug line so we can see render params in the console.
-                        static LOGGED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-                        if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-                            crate::debug::push_debug(format!(
-                                "Earth: offset=({:.0},{:.0},{:.0}), scale={:.0}, dist={:.0}km, LOD={:?}",
-                                render_pos.x, render_pos.y, render_pos.z, scale, dist_to_earth / 1000.0, planet.lod()
-                            ));
-                        }
-
-                        let rotation = Quat::from_rotation_y(elapsed * 0.01);
-                        // Earth -> the CELESTIAL pass (huge far so it is not clipped). Hidden
-                        // in the showroom (its dark limb would fill the view). (v0.450)
-                        if !showroom {
-                            celestial_objects.push(RenderObject {
-                                position: render_pos,
-                                rotation,
-                                scale: Vec3::splat(scale),
-                                mesh: mesh_idx,
-                                material: state.planet_material,
-                            });
-                        }
-
-                        // ── The real solar system around the home ──
-                        // (map sync, increment B). Was: a single hardcoded
-                        // Sun along a fake [0.3,1,0.5] vector. Now every
-                        // body the Maps page shows is spawned at its TRUE
-                        // position relative to Earth, from the SAME
-                        // canonical Keplerian model (crate::cosmos) the
-                        // Maps page reads — so the FPS sky IS the Maps
-                        // page, just real size. Earth itself stays the
-                        // dedicated PlanetRenderer at world origin (above);
-                        // every other body is placed at
-                        //   (helio(body) - helio(earth)) * metres-per-AU
-                        // i.e. Earth-centred world space, then offset into
-                        // the camera/floating-origin frame by -ship_pos
-                        // exactly like Earth. Live sim time = seconds
-                        // since J2000 from the real clock, so the sky
-                        // matches the real date (same as Maps "Now").
+                    {
                         let sim_t = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .map(|d| d.as_secs_f64())
@@ -9580,14 +9563,33 @@ mod native_app {
                             .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
                             .unwrap_or(glam::DVec3::ZERO);
                         let mut sun_rel_earth_m = glam::DVec3::ZERO;
+
+                        // Screen-size-driven icosphere LOD (v0.763): each
+                        // body's subdivision level follows its projected
+                        // pixel size (terrain::planet::lod_level_for_pixels,
+                        // a doubling ladder), live-tunable from Settings ->
+                        // Graphics -> Planets. Meshes are cached per
+                        // (body, level), so a LOD switch re-uses any level
+                        // already built this session.
+                        let procedural = state.gui_state.settings.planet_detail;
+                        let px_per_level = state.gui_state.settings.planet_lod_px.max(1.0);
+                        let max_level = state
+                            .gui_state
+                            .settings
+                            .planet_max_subdiv
+                            .round()
+                            .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32)
+                            as u32;
+                        let viewport_h = state.renderer.surface_size().1 as f32;
+                        let fov_deg = state.camera.fov_degrees;
+                        let rotation = Quat::from_rotation_y(elapsed * 0.01);
+
                         for b in crate::cosmos::sol_bodies() {
-                            // Earth is the dedicated PlanetRenderer; its
-                            // moons orbit a planet (parent != sun) so skip
-                            // them to keep the sky readable. Render the
-                            // Sun + everything that directly orbits it
-                            // (planets, dwarfs, named belt bodies) + our
-                            // Moon. This mirrors the Maps left-list.
-                            if b.id == "earth" { continue; }
+                            // The Sun + everything that directly orbits it
+                            // (planets, dwarfs, named belt bodies) + Earth +
+                            // our Moon. Other planets' moons are skipped to
+                            // keep the sky readable. Mirrors the Maps
+                            // left-list.
                             let is_sun = b.body_type == "star";
                             let direct_solar = b.parent.as_deref() == Some("sun");
                             if !is_sun && !direct_solar && b.id != "moon" { continue; }
@@ -9597,6 +9599,10 @@ mod native_app {
                             let rel_earth_m =
                                 (helio_au - earth_helio_au) * crate::cosmos::M_PER_AU;
                             if is_sun { sun_rel_earth_m = rel_earth_m; }
+                            // The Sun's light direction is needed even in the
+                            // showroom; the sky bodies themselves are hidden
+                            // there (a dark Earth limb would fill the view).
+                            if showroom { continue; }
                             let render_off = rel_earth_m - state.ship_world_pos;
                             let dist = render_off.length().max(1.0);
                             let radius_m = (b.radius_km * 1000.0) as f64;
@@ -9605,15 +9611,65 @@ mod native_app {
                             // pass a real planet from tens of millions of
                             // km is sub-pixel. Clamp the on-screen disc to
                             // a minimum angular size so it reads as a body
-                            // (true POSITION is always exact — only the
+                            // (true POSITION is always exact -- only the
                             // disc is floored, same trick the old Sun used
                             // and how Elite/KSP draw distant bodies). The
                             // Sun gets a bigger floor so it reads as a sun.
                             let min_ang = if is_sun { 0.045 } else { 0.0028 };
                             let visual_scale = radius_m.max(dist * min_ang) as f32;
 
+                            // Projected on-screen size (of the floored disc,
+                            // since that is what actually rasterizes) drives
+                            // the subdivision level.
+                            let px = crate::terrain::planet::projected_pixel_diameter(
+                                visual_scale as f64,
+                                dist,
+                                viewport_h,
+                                fov_deg,
+                            );
+                            let level = crate::terrain::planet::lod_level_for_pixels(
+                                px,
+                                px_per_level,
+                                max_level,
+                            );
+
+                            // Procedural fractal surface when a def exists in
+                            // data/planets/<id>.ron and the master toggle is
+                            // on. The Sun stays a smooth emissive sphere.
+                            // Bodies without a def share plain icosphere
+                            // meshes cached under the reserved "_flat" id.
+                            let def = if procedural && !is_sun {
+                                state.planet_defs.get(&b.id)
+                            } else {
+                                None
+                            };
+                            let cache_id: &str = if def.is_some() { b.id.as_str() } else { "_flat" };
+                            let key = (cache_id.to_string(), level);
+                            let body_mesh = if let Some(&m) = state.planet_mesh_cache.get(&key) {
+                                m
+                            } else {
+                                let mesh = if let Some(d) = def {
+                                    let data =
+                                        crate::terrain::planet_surface::build_surface_mesh(d, level);
+                                    Mesh::from_planet_surface(&state.renderer.device, &data)
+                                } else {
+                                    let mut ico = crate::terrain::icosphere::Icosphere::new();
+                                    ico.subdivide_n(level);
+                                    Mesh::from_icosphere(&state.renderer.device, &ico, 1.0)
+                                };
+                                let m = state.renderer.add_mesh(mesh);
+                                state.planet_mesh_cache.insert(key, m);
+                                log::info!(
+                                    "Sky-planet mesh built: {} level {} (~{:.0} px on screen)",
+                                    cache_id, level, px
+                                );
+                                m
+                            };
+
                             let material = if is_sun {
                                 state.sun_material
+                            } else if def.is_some() {
+                                state.planet_surface_material
                             } else {
                                 match b.body_type.as_str() {
                                     "gas_giant" | "gas giant" => state.solar_body_materials[1],
@@ -9627,18 +9683,94 @@ mod native_app {
                                     _ => state.solar_body_materials[3],
                                 }
                             };
-                            if !showroom {
-                                celestial_objects.push(RenderObject {
-                                    position: Vec3::new(
-                                        render_off.x as f32,
-                                        render_off.y as f32,
-                                        render_off.z as f32,
-                                    ),
-                                    rotation: Quat::from_rotation_y(elapsed * 0.01),
-                                    scale: Vec3::splat(visual_scale),
-                                    mesh: mesh_idx,
-                                    material,
-                                });
+                            let position = Vec3::new(
+                                render_off.x as f32,
+                                render_off.y as f32,
+                                render_off.z as f32,
+                            );
+                            celestial_objects.push(RenderObject {
+                                position,
+                                rotation,
+                                scale: Vec3::splat(visual_scale),
+                                mesh: body_mesh,
+                                material,
+                            });
+
+                            // Simple atmosphere (v0.763): a slightly larger
+                            // translucent shell with a fresnel limb tint
+                            // (shader type 13). Data-driven per planet;
+                            // airless bodies (atmosphere_color None or zero
+                            // alpha) never spawn one, and sub-8px discs skip
+                            // it (a shell thinner than a pixel just shimmers).
+                            if px >= 8.0 {
+                                if let Some(d) = def {
+                                    if let Some(ac) = d.atmosphere_color {
+                                        if ac[3] > 0.0 && d.atmosphere_scale > 0.0 {
+                                            let amat = if let Some(&m) =
+                                                state.planet_atmo_materials.get(&b.id)
+                                            {
+                                                m
+                                            } else {
+                                                let m = state.renderer.add_material_full(
+                                                    [ac[0], ac[1], ac[2], ac[3]],
+                                                    0.0,
+                                                    1.0,
+                                                    13.0,
+                                                    0.0,
+                                                );
+                                                state.planet_atmo_materials.insert(b.id.clone(), m);
+                                                m
+                                            };
+                                            // Smooth shell: the shared flat
+                                            // sphere cache at a fixed mid level.
+                                            let shell_level = 3.min(max_level);
+                                            let skey = ("_flat".to_string(), shell_level);
+                                            let shell_mesh = if let Some(&m) =
+                                                state.planet_mesh_cache.get(&skey)
+                                            {
+                                                m
+                                            } else {
+                                                let mut ico =
+                                                    crate::terrain::icosphere::Icosphere::new();
+                                                ico.subdivide_n(shell_level);
+                                                let m = state.renderer.add_mesh(Mesh::from_icosphere(
+                                                    &state.renderer.device,
+                                                    &ico,
+                                                    1.0,
+                                                ));
+                                                state.planet_mesh_cache.insert(skey, m);
+                                                m
+                                            };
+                                            celestial_transparent.push(RenderObject {
+                                                position,
+                                                rotation,
+                                                scale: Vec3::splat(
+                                                    visual_scale
+                                                        * (1.0 + d.atmosphere_scale.max(0.005) * 2.0),
+                                                ),
+                                                mesh: shell_mesh,
+                                                material: amat,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+
+                            // One-shot debug line so Earth's LOD params are
+                            // inspectable in the console/debug overlay.
+                            if b.id == "earth" {
+                                static LOGGED: std::sync::atomic::AtomicBool =
+                                    std::sync::atomic::AtomicBool::new(false);
+                                if !LOGGED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                                    crate::debug::push_debug(format!(
+                                        "Earth: dist={:.0}km, disc={:.0}px, LOD level {} ({} faces), procedural={}",
+                                        dist / 1000.0,
+                                        px,
+                                        level,
+                                        crate::terrain::icosphere::Icosphere::face_count_at_level(level),
+                                        def.is_some()
+                                    ));
+                                }
                             }
                         }
 
@@ -13875,7 +14007,7 @@ mod native_app {
                                     let d = state.sun_world_pos.normalize_or_zero();
                                     Vec3::new(d.x as f32, d.y as f32, d.z as f32)
                                 };
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, sun_dir_f, &view);
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

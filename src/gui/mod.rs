@@ -5780,6 +5780,16 @@ pub struct SettingsState {
     pub vsync: bool,
     pub fov: f32,
     pub render_distance: f32,
+    /// Master toggle for procedural sky-planet surfaces (v0.763). Off falls
+    /// back to smooth flat-colored spheres (the pre-v0.763 look).
+    pub planet_detail: bool,
+    /// Screen-size LOD base threshold in pixels: a sky body subdivides one
+    /// icosphere level each time its projected diameter doubles past this.
+    /// See terrain::planet::lod_level_for_pixels.
+    pub planet_lod_px: f32,
+    /// Max icosphere subdivision level for sky planets (0-7; level 6 is
+    /// ~82k faces). Stored as f32 for the slider; rounded at use.
+    pub planet_max_subdiv: f32,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -5828,6 +5838,9 @@ impl Default for SettingsState {
             vsync: true,
             fov: 90.0,
             render_distance: 500.0,
+            planet_detail: true,
+            planet_lod_px: 10.0,
+            planet_max_subdiv: 6.0,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

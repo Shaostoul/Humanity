@@ -122,3 +122,23 @@ impl ShaderLoader {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    /// Parse + validate the embedded PBR shader headlessly (naga front-end,
+    /// no GPU). Without this, a WGSL syntax/type error only surfaces at the
+    /// first app launch, taking every material down with it. Added v0.763
+    /// alongside the planet-surface material types (12/13).
+    #[test]
+    fn embedded_pbr_shader_parses_and_validates() {
+        let module = wgpu::naga::front::wgsl::parse_str(super::FALLBACK_SHADER)
+            .expect("pbr_simple.wgsl failed to parse");
+        let mut validator = wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        );
+        validator
+            .validate(&module)
+            .expect("pbr_simple.wgsl failed naga validation");
+    }
+}

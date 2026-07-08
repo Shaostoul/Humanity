@@ -341,12 +341,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var roughness = material.params.y;
     let material_type = material.params.z;
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
+    var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
 
     // Apply procedural material based on type:
     //   0 = Panel grid (walls, floors)    4 = Glass            8 = Crystal
     //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
     //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
     //   3 = Wood                          7 = Leather         11 = Lava
+    //  12 = Planet surface (vertex color packed in UV)
+    //  13 = Atmosphere shell (fresnel limb glow)
     if material_type < 0.5 {
         // Type 0: Default panel grid (walls, floors)
         if metallic < 0.1 && roughness > 0.3 {
@@ -439,6 +442,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         proc_emissive = vec3<f32>(1.0, 0.3, 0.0) * heat * 3.0; // glowing cracks
         roughness = mix(0.9, 0.3, heat);
         metallic = 0.0;
+    } else if material_type < 12.5 {
+        // Type 12: Planet surface (v0.763) -- per-face color packed into the UV
+        // channel by Mesh::from_planet_surface / terrain::planet_surface::
+        // pack_color_to_uv. uv.x holds two 8-bit channels as one exact integer
+        // (round(r*255)*256 + round(g*255)); uv.y holds blue as a plain float.
+        // All three corners of a flat-shaded face carry the SAME uv, so linear
+        // interpolation leaves the packed integer intact. Keep the decode in
+        // sync with terrain::planet_surface::unpack_uv_to_color (unit-tested).
+        let packed = u32(round(max(in.uv.x, 0.0)));
+        let pr = f32((packed >> 8u) & 255u) / 255.0;
+        let pg = f32(packed & 255u) / 255.0;
+        albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
+    } else if material_type < 13.5 {
+        // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
+        // oversized transparent sphere. Nearly invisible looking straight
+        // through the center, densest at the grazing-angle limb, so it reads as
+        // a thin halo of air hugging the planet. Airless bodies simply never
+        // spawn the shell.
+        let limb = pow(1.0 - abs(dot(normal, view_dir)), 2.0);
+        out_alpha = material.base_color.a * limb;
+        proc_emissive = albedo * limb * 0.6; // limb stays visible on the night side edge
+        roughness = 1.0;
+        metallic = 0.0;
     }
 
     // Fresnel reflectance at normal incidence
@@ -530,5 +556,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let e = 0.14;
     color = clamp((color * (a * color + vec3<f32>(b))) / (color * (c * color + vec3<f32>(d)) + vec3<f32>(e)), vec3<f32>(0.0), vec3<f32>(1.0));
 
-    return vec4<f32>(color, material.base_color.a);
+    return vec4<f32>(color, out_alpha);
 }

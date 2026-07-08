@@ -1,10 +1,20 @@
-//! Planet renderer with icosphere-based LOD.
+//! Planet definitions + icosphere LOD selection.
 //!
-//! Each planet is defined by a small data file (seed, radius, atmosphere, biomes).
-//! The engine generates terrain procedurally from those seeds at runtime.
-//! LOD is continuous: billboard at >100,000km, icosahedron at 10,000km,
-//! progressively subdivided icosphere as the camera approaches, down to
-//! 0.5m resolution heightmap at surface level.
+//! Each planet is defined by a small data file (data/planets/<id>.ron: seed,
+//! radius, atmosphere, palette). The engine generates everything procedurally
+//! from those seeds at runtime (see `terrain::planet_surface` for the fractal
+//! surface mesh).
+//!
+//! Two LOD choosers live here:
+//! - SCREEN-SIZE LOD (v0.763, `projected_pixel_diameter` +
+//!   `lod_level_for_pixels`): drives the sky planets seen from the homestead.
+//!   The subdivision level follows the body's projected pixel size, so a
+//!   speck stays a 20-face icosahedron and a looming planet subdivides up to
+//!   the settings cap. Both knobs are live in Settings -> Graphics -> Planets.
+//! - DISTANCE LOD (`PlanetLod` + `PlanetRenderer`): the original
+//!   altitude-banded ladder, kept as the seed of the future landing arc
+//!   (surface approach -> chunked near-surface subdivision -> walkable
+//!   0.5 m heightmap detail). Not currently wired into the sky path.
 
 use glam::{DVec3, Vec3};
 use serde::{Deserialize, Serialize};
@@ -55,11 +65,102 @@ pub struct PlanetDef {
     /// Axial tilt in radians.
     #[serde(default)]
     pub axial_tilt: f32,
+
+    // ── Procedural surface parameters (v0.763) ──
+    // Consumed by terrain::planet_surface to build the fractal sky-planet
+    // mesh. All serde-defaulted so pre-existing RON files keep loading.
+
+    /// Max outward displacement of land as a fraction of the radius.
+    /// Small values keep the silhouette round-ish (Earth ~0.02).
+    #[serde(default = "default_surface_relief")]
+    pub surface_relief: f32,
+    /// Base frequency of the elevation noise on the unit sphere. Higher =
+    /// more, smaller continents/features.
+    #[serde(default = "default_noise_frequency")]
+    pub noise_frequency: f32,
+    /// Octave count for the fine-detail noise layer (1-8). More octaves =
+    /// rougher small-scale texture.
+    #[serde(default = "default_noise_octaves")]
+    pub noise_octaves: u32,
+    /// Shoreline band color, just above sea level (water worlds only).
+    #[serde(default = "default_shore_color")]
+    pub shore_color: [f32; 4],
+    /// Mid-elevation land color (between lowland `land_color` and mountains).
+    #[serde(default = "default_highland_color")]
+    pub highland_color: [f32; 4],
+    /// High-elevation rock color.
+    #[serde(default = "default_mountain_color")]
+    pub mountain_color: [f32; 4],
+    /// Snow/ice cap color: polar caps + the very highest peaks.
+    #[serde(default = "default_cap_color")]
+    pub cap_color: [f32; 4],
+    /// Low-basin color for waterless worlds (lunar maria, Martian basins).
+    /// None derives a darkened `land_color`.
+    #[serde(default)]
+    pub basin_color: Option<[f32; 4]>,
+    /// Polar cap threshold on |sin(latitude)| (0.9 = caps above ~64 deg).
+    /// Values above 1.0 disable polar caps entirely (e.g. the Moon).
+    #[serde(default = "default_polar_cap_latitude")]
+    pub polar_cap_latitude: f32,
 }
 
 fn default_land_color() -> [f32; 4] { [0.3, 0.5, 0.2, 1.0] }
 fn default_water_color() -> [f32; 4] { [0.1, 0.3, 0.6, 1.0] }
 fn default_rotation_period() -> f64 { 86400.0 } // 24 hours
+fn default_surface_relief() -> f32 { 0.02 }
+fn default_noise_frequency() -> f32 { 2.2 }
+fn default_noise_octaves() -> u32 { 5 }
+fn default_shore_color() -> [f32; 4] { [0.76, 0.70, 0.50, 1.0] }
+fn default_highland_color() -> [f32; 4] { [0.45, 0.38, 0.24, 1.0] }
+fn default_mountain_color() -> [f32; 4] { [0.50, 0.48, 0.46, 1.0] }
+fn default_cap_color() -> [f32; 4] { [0.93, 0.95, 0.97, 1.0] }
+fn default_polar_cap_latitude() -> f32 { 0.90 }
+
+/// Hard ceiling for the sky-planet subdivision slider. Level 7 is 327,680
+/// faces; anything beyond that per body threatens frame rate for no visible
+/// gain at sky distances (near-surface detail is the future landing arc's
+/// chunked-subdivision problem, not this whole-sphere path's).
+pub const MAX_SKY_SUBDIVISION: u32 = 7;
+
+/// Projected on-screen diameter of a sphere, in pixels.
+///
+/// `radius` and `distance` share any unit (meters, render units) as long as
+/// they agree. Uses the true angular diameter (atan) so it stays finite when
+/// the camera is close, then maps angle to pixels through the vertical FOV.
+pub fn projected_pixel_diameter(
+    radius: f64,
+    distance: f64,
+    viewport_h_px: f32,
+    fov_y_deg: f32,
+) -> f32 {
+    if radius <= 0.0 || distance <= 0.0 {
+        return 0.0;
+    }
+    let angular_diameter = 2.0 * (radius / distance).atan();
+    let fov_y_rad = (fov_y_deg.max(1.0) as f64).to_radians();
+    ((angular_diameter / fov_y_rad) * viewport_h_px.max(1.0) as f64) as f32
+}
+
+/// Choose an icosphere subdivision level from a body's projected pixel size.
+///
+/// Doubling ladder: level 0 below `px_per_level` pixels, then each further
+/// doubling of on-screen size adds one subdivision level (each subdivision
+/// doubles linear mesh resolution, so faces keep a roughly constant pixel
+/// size). With the default `px_per_level = 10`:
+///   < 10 px  -> level 0 (20 faces)
+///   10-20 px -> level 1 (80 faces)
+///   20-40 px -> level 2 (320 faces)
+///   40-80 px -> level 3 (1,280 faces)  ... capped at `max_level`.
+/// Both knobs are runtime-adjustable from Settings -> Graphics -> Planets.
+pub fn lod_level_for_pixels(px: f32, px_per_level: f32, max_level: u32) -> u32 {
+    let base = px_per_level.max(1.0);
+    if !(px > base) {
+        // Also catches NaN: any comparison with NaN is false -> coarsest level.
+        return 0;
+    }
+    let level = (px / base).log2().floor() as i64 + 1;
+    (level.max(0) as u32).min(max_level.min(MAX_SKY_SUBDIVISION))
+}
 
 /// LOD level for rendering a planet based on camera distance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -201,5 +302,83 @@ impl PlanetRenderer {
     /// Get face count.
     pub fn face_count(&self) -> usize {
         self.icosphere.faces.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lod_level_zero_below_base_threshold() {
+        assert_eq!(lod_level_for_pixels(0.0, 10.0, 7), 0);
+        assert_eq!(lod_level_for_pixels(5.0, 10.0, 7), 0);
+        assert_eq!(lod_level_for_pixels(9.9, 10.0, 7), 0);
+        assert_eq!(lod_level_for_pixels(10.0, 10.0, 7), 0); // boundary stays coarse
+        assert_eq!(lod_level_for_pixels(f32::NAN, 10.0, 7), 0);
+    }
+
+    #[test]
+    fn lod_level_ladder_doubles_per_level() {
+        // base 10: level n starts at 10 * 2^(n-1) px.
+        assert_eq!(lod_level_for_pixels(11.0, 10.0, 7), 1);
+        assert_eq!(lod_level_for_pixels(19.9, 10.0, 7), 1);
+        assert_eq!(lod_level_for_pixels(21.0, 10.0, 7), 2);
+        assert_eq!(lod_level_for_pixels(39.0, 10.0, 7), 2);
+        assert_eq!(lod_level_for_pixels(41.0, 10.0, 7), 3);
+        assert_eq!(lod_level_for_pixels(81.0, 10.0, 7), 4);
+        assert_eq!(lod_level_for_pixels(161.0, 10.0, 7), 5);
+        assert_eq!(lod_level_for_pixels(321.0, 10.0, 7), 6);
+    }
+
+    #[test]
+    fn lod_level_respects_max_cap() {
+        assert_eq!(lod_level_for_pixels(100_000.0, 10.0, 3), 3);
+        assert_eq!(lod_level_for_pixels(100_000.0, 10.0, 0), 0);
+        // The hard ceiling wins even when the caller passes a bigger cap.
+        assert_eq!(
+            lod_level_for_pixels(1.0e12, 10.0, 99),
+            MAX_SKY_SUBDIVISION
+        );
+    }
+
+    #[test]
+    fn projected_pixels_halve_with_double_distance() {
+        let near = projected_pixel_diameter(6_371_000.0, 42_164_000.0, 1080.0, 60.0);
+        let far = projected_pixel_diameter(6_371_000.0, 84_328_000.0, 1080.0, 60.0);
+        assert!(near > 0.0);
+        // Small-angle regime: doubling distance should ~halve the pixel size.
+        let ratio = near / far;
+        assert!((ratio - 2.0).abs() < 0.1, "ratio {ratio} not ~2");
+        // Degenerate inputs are safe.
+        assert_eq!(projected_pixel_diameter(0.0, 1.0, 1080.0, 60.0), 0.0);
+        assert_eq!(projected_pixel_diameter(1.0, 0.0, 1080.0, 60.0), 0.0);
+    }
+
+    #[test]
+    fn planet_defs_parse_from_ron_data_files() {
+        // The shipped planet defs must keep deserializing as PlanetDef after
+        // any schema change (all new fields are serde-defaulted).
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("planets");
+        let mut parsed = 0;
+        for entry in std::fs::read_dir(&dir).expect("data/planets missing") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("ron") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("read planet ron");
+            let def: PlanetDef = ron::from_str(&text)
+                .unwrap_or_else(|e| panic!("{} failed to parse: {e}", path.display()));
+            assert!(def.radius > 0.0, "{} has non-positive radius", path.display());
+            assert!(
+                def.surface_relief >= 0.0 && def.surface_relief < 0.5,
+                "{} surface_relief out of sane range",
+                path.display()
+            );
+            parsed += 1;
+        }
+        assert!(parsed >= 3, "expected at least earth/mars/moon defs, got {parsed}");
     }
 }
