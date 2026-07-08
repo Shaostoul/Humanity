@@ -11,9 +11,9 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: EIGHT RUNGS SHIPPED (2026-07-07, Fable final day,
-> v0.745-v0.752).** The bible below is not just written - its ladder is
-> EXECUTING. Shipped, each with tests + full battery:
+> **>>> CLOSURE LADDER: NINE INCREMENTS SHIPPED (2026-07-07, Fable final
+> day, v0.745-v0.753).** The bible below is not just written - its ladder
+> is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
 >    death screen + respawn at the spawn room, EffectTick (poison bites,
 >    regeneration heals), attack-pulse on damage.
@@ -45,11 +45,17 @@
 >    broadcast-synced list, Publish via listing_create, Delete on own
 >    listings), GuiListing mirrors ListingData outright, wire contract
 >    pinned by a frame round-trip test.
+> 9. **v0.753 abilities are castable** (rung 8, abilities increment):
+>    spells.csv renamed abilities.csv + flavor column, AbilityRegistry
+>    loads all 110 rows, AbilitySystem validates gate/cost/cooldown
+>    (energy pays; level-1 gates baseline-open), v1 self-scoped healing
+>    casts (first_aid, cauterize, repair, heal), honest Abilities panel
+>    on Profile > Skills.
 > NEXT RUNGS: 5-rest (escrow trade flow + listing messages + reviews in
-> native - relay routes all exist), 8-rest (abilities: spells.csv ->
-> abilities.csv loader + hotbar per progression doc Part 2; armor-on-equip
-> when combat lands), 9 (zones, awaits decision-briefs.md Brief 1), 10
-> (community wiring). <<<**
+> native - relay routes all exist), 8-hotbar (1-9 keys casting from the
+> HUD), 9 (zones, awaits decision-briefs.md Brief 1), 10 (community
+> wiring). The combat arc unlocks offensive ability rows + creature loot
+> tables when it lands. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs

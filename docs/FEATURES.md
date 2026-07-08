@@ -331,6 +331,15 @@ Create and browse marketplace listings.
 - Web: `web/pages/market.html`, `web/pages/market-app.js`
 - Server: `src/relay/storage/marketplace.rs`
 
+### Native Market Sync (v0.752)
+The native Market page speaks the same WS listing protocol as web:
+`listing_browse` on view, broadcast-synced list (`listing_new` / `listing_updated` /
+`listing_deleted`), Publish via `listing_create` (client-minted id, the broadcast
+round-trip is the confirm), Delete on own listings. `GuiListing` mirrors the relay's
+`ListingData`; the wire contract is pinned by a frame round-trip test.
+- Native: `src/gui/pages/market.rs`, `src/gui/mod.rs` (`GuiListing::from_relay_json`),
+  lib.rs WS dispatch arms (`listing_list` / `listing_new` / `listing_updated` / `listing_deleted`)
+
 ### Listing Images
 Image upload with drag-and-drop galleries (max 5 per listing).
 - Server: `src/relay/storage/marketplace.rs`
@@ -876,7 +885,29 @@ Scaffolded system modules for expanded gameplay.
 
 ## Game Systems
 
-> **Registration status (corrected 2026-07-01, overnight loop; the 2026-05-29 "only 7" count below was stale):** **16** systems are actually registered + tick in the runtime (`src/lib.rs`, grep `system_runner.register`): Time/Day-Night, Weather, Solar, Electrical, Plumbing, Atmosphere, Player Controller, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Food, Drone, Skills, Quests. Every other system in this section below is **implemented but NOT registered**, so it never ticks -- and IS still accurate for those (Construction, AI native, Vehicles, Combat, Economy, Ecology, Hydrology, Disaster, Psychology, and the scaffold-tier systems). `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative live list (the build fails if a system is neither registered nor deferred-with-reason) -- always cross-check THAT before trusting any per-system note below, since these notes silently go stale as systems get registered over time (this correction found and fixed 4 stale ones: Weather, Atmosphere, Skills, Quests). `docs/STATUS.md` has the per-system status.
+> **Registration status (recounted 2026-07-07 after the closure-ladder sprint; older per-system notes below may be stale):** **22** systems are actually registered + tick in the runtime (`src/lib.rs`, grep `system_runner.register`): Time/Day-Night, Weather, Solar, Electrical, Plumbing, Atmosphere, Player Controller, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Construction, Manufacturing, Food, Drone, Vehicles, Livestock (v0.751), Ability (v0.753), Economy (v0.747), Skills, Quests. Systems still **implemented but NOT registered** never tick (AI native, Combat, Ecology, Hydrology, Disaster, Psychology, and the scaffold-tier systems). `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative live list (the build fails if a system is neither registered nor deferred-with-reason) -- always cross-check THAT before trusting any per-system note below, since these notes silently go stale as systems get registered over time. `docs/STATUS.md` has the per-system status.
+
+### Livestock (v0.751)
+CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`
+column: `item:amount:regrow_seconds`). Starter herd (chickens/goats/sheep) placed by
+`data/entities/livestock.ron` near the outdoor field plots, wandering on per-animal
+lissajous graze paths. Walk-up `[E]` collects the regrown product (egg/milk/wool)
+volume-gated into the pack, grants farming XP + a `harvest_<creature>` quest event.
+Placeholder block bodies sized from real species mass.
+- Native: `src/systems/livestock.rs` (registry, spawn list, collect, LivestockSystem),
+  `src/ecs/components.rs` (`Creature`, `Harvestable`), lib.rs walk-up + collect bridges + render pass
+- Data: `data/creatures.csv`, `data/entities/livestock.ron`, `wool_0` in `data/items.csv`
+
+### Abilities (v0.753)
+AbilityRegistry parses all 110 `data/abilities.csv` rows (renamed from spells.csv;
+new `flavor` column: real | tech | fantasy). AbilitySystem drains `ability_request`
+casts: skill gate (level-1 gates baseline-open), energy cost (mana + stamina columns
+both pay from the energy vital), live cooldowns. v1 effects are self-scoped healing
+(first_aid, cauterize, repair, heal...); offensive rows load but honestly wait for
+the combat arc. Profile > Skills gains the Abilities panel with Cast buttons.
+- Native: `src/systems/abilities.rs`, `src/gui/pages/profile.rs` (panel),
+  lib.rs bridge (`pending_cast`, `ability_status`, `ability_cooldowns`)
+- Data: `data/abilities.csv`
 
 ### Player Controller
 WASD movement, gravity, jump, ground detection via raycast.
