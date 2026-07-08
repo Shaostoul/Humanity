@@ -13028,6 +13028,72 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    // ── Listing thread + reviews (v0.755) ──
+                                    Some("listing_messages") => {
+                                        // History unicast for the thread we opened.
+                                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
+                                        if lid == state.gui_state.listing_thread_for {
+                                            if let Some(arr) = val.get("messages").and_then(|v| v.as_array()) {
+                                                state.gui_state.listing_thread = arr
+                                                    .iter()
+                                                    .map(crate::gui::GuiListingMsg::from_relay_json)
+                                                    .collect();
+                                            }
+                                        }
+                                    }
+                                    Some("listing_message_new") => {
+                                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
+                                        if lid == state.gui_state.listing_thread_for {
+                                            if let Some(m) = val.get("message") {
+                                                state
+                                                    .gui_state
+                                                    .listing_thread
+                                                    .push(crate::gui::GuiListingMsg::from_relay_json(m));
+                                            }
+                                        }
+                                    }
+                                    Some("review_created") => {
+                                        if let Some(r) = val.get("review") {
+                                            let gr = crate::gui::GuiReview::from_relay_json(r);
+                                            let lid = r
+                                                .get("listing_id")
+                                                .and_then(|v| v.as_str())
+                                                .unwrap_or("");
+                                            if lid == state.gui_state.listing_reviews_for {
+                                                state.gui_state.listing_reviews.push(gr);
+                                                // Keep the header honest without a refetch.
+                                                let n = state.gui_state.listing_reviews.len() as f32;
+                                                let sum: f32 = state
+                                                    .gui_state
+                                                    .listing_reviews
+                                                    .iter()
+                                                    .map(|x| x.rating as f32)
+                                                    .sum();
+                                                state.gui_state.listing_reviews_count =
+                                                    state.gui_state.listing_reviews.len() as i64;
+                                                state.gui_state.listing_reviews_avg =
+                                                    if n > 0.0 { sum / n } else { 0.0 };
+                                            }
+                                        }
+                                    }
+                                    Some("review_deleted") => {
+                                        let lid = val.get("listing_id").and_then(|v| v.as_str()).unwrap_or("");
+                                        let rid = val.get("review_id").and_then(|v| v.as_i64()).unwrap_or(-1);
+                                        if lid == state.gui_state.listing_reviews_for {
+                                            state.gui_state.listing_reviews.retain(|r| r.id != rid);
+                                            let n = state.gui_state.listing_reviews.len() as f32;
+                                            let sum: f32 = state
+                                                .gui_state
+                                                .listing_reviews
+                                                .iter()
+                                                .map(|x| x.rating as f32)
+                                                .sum();
+                                            state.gui_state.listing_reviews_count =
+                                                state.gui_state.listing_reviews.len() as i64;
+                                            state.gui_state.listing_reviews_avg =
+                                                if n > 0.0 { sum / n } else { 0.0 };
+                                        }
+                                    }
                                     Some("private") => {
                                         // Private server-to-user message (rate limit, errors, command responses)
                                         if let Some(msg) = val.get("message").and_then(|v| v.as_str()) {

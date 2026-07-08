@@ -523,6 +523,57 @@ impl GuiListing {
     }
 }
 
+/// One review on a listing, mirroring the relay's ReviewData (v0.755).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiReview {
+    pub id: i64,
+    pub reviewer_key: String,
+    pub reviewer_name: String,
+    pub rating: i32,
+    pub comment: String,
+    pub created_at: String,
+}
+
+#[cfg(feature = "native")]
+impl GuiReview {
+    /// Map one ReviewData JSON object (REST reviews list, review_created
+    /// frame). Null names become empty strings.
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        Self {
+            id: v.get("id").and_then(|x| x.as_i64()).unwrap_or(0),
+            reviewer_key: v.get("reviewer_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            reviewer_name: v.get("reviewer_name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            rating: v.get("rating").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            comment: v.get("comment").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            created_at: v.get("created_at").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        }
+    }
+}
+
+/// One buyer-seller message on a listing thread, mirroring the relay's
+/// ListingMessageData (v0.755).
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiListingMsg {
+    pub sender_key: String,
+    pub sender_name: String,
+    pub content: String,
+    pub timestamp: i64,
+}
+
+#[cfg(feature = "native")]
+impl GuiListingMsg {
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        Self {
+            sender_key: v.get("sender_key").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            sender_name: v.get("sender_name").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            content: v.get("content").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+            timestamp: v.get("timestamp").and_then(|x| x.as_i64()).unwrap_or(0),
+        }
+    }
+}
+
 #[cfg(all(test, feature = "native"))]
 mod listing_mapping_tests {
     use super::GuiListing;
@@ -604,6 +655,61 @@ mod listing_mapping_tests {
         assert_eq!(l.price, "3 SOL");
         assert_eq!(l.seller_name, "Ada");
         assert_eq!(l.condition, "");
+    }
+
+    /// Same wire pin for the v0.755 trade-flow frames: the relay's REAL
+    /// ListingMessages and ReviewCreated frames map through the native
+    /// dispatch path (a serde rename would silently empty the thread or
+    /// the reviews card).
+    #[test]
+    fn relay_thread_and_review_frames_round_trip_to_gui() {
+        use super::{GuiListingMsg, GuiReview};
+
+        let msgs = crate::relay::relay::RelayMessage::ListingMessages {
+            listing_id: "wire-1".into(),
+            messages: vec![crate::relay::relay::ListingMessageData {
+                id: 7,
+                listing_id: "wire-1".into(),
+                sender_key: "buyerkey".into(),
+                sender_name: Some("Ada".into()),
+                content: "Is this still available?".into(),
+                timestamp: 1_720_000_000_000,
+            }],
+            target: Some("buyerkey".into()),
+        };
+        let val: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&msgs).unwrap()).unwrap();
+        assert_eq!(val.get("type").and_then(|t| t.as_str()), Some("listing_messages"));
+        let arr = val.get("messages").and_then(|v| v.as_array()).unwrap();
+        let m = GuiListingMsg::from_relay_json(&arr[0]);
+        assert_eq!(m.sender_name, "Ada");
+        assert_eq!(m.content, "Is this still available?");
+        assert_eq!(m.timestamp, 1_720_000_000_000);
+
+        let review = crate::relay::relay::RelayMessage::ReviewCreated {
+            review: crate::relay::relay::ReviewData {
+                id: 3,
+                listing_id: "wire-1".into(),
+                reviewer_key: "buyerkey".into(),
+                reviewer_name: None,
+                rating: 4,
+                comment: "Solid tower.".into(),
+                created_at: "2026-07-08".into(),
+            },
+        };
+        let val: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&review).unwrap()).unwrap();
+        assert_eq!(val.get("type").and_then(|t| t.as_str()), Some("review_created"));
+        let r = GuiReview::from_relay_json(val.get("review").unwrap());
+        assert_eq!(r.id, 3);
+        assert_eq!(r.rating, 4);
+        assert_eq!(r.comment, "Solid tower.");
+        assert_eq!(r.reviewer_name, "", "null name maps to empty");
+        assert_eq!(
+            val.get("review").and_then(|v| v.get("listing_id")).and_then(|v| v.as_str()),
+            Some("wire-1"),
+            "the dispatch arm filters on review.listing_id"
+        );
     }
 }
 
@@ -1941,6 +2047,23 @@ pub struct GuiState {
     /// Detail-view selection by LISTING ID (not index: live broadcasts
     /// reorder the vector under the open detail view).
     pub listing_selected: Option<String>,
+    /// Reviews for the OPEN detail listing (v0.755), fetched over REST.
+    pub listing_reviews: Vec<GuiReview>,
+    /// Which listing the loaded reviews belong to ("" = none loaded).
+    pub listing_reviews_for: String,
+    /// In-flight REST fetch of the reviews list.
+    pub listing_reviews_rx:
+        Option<std::sync::mpsc::Receiver<Result<(Vec<GuiReview>, f32, i64), String>>>,
+    pub listing_reviews_avg: f32,
+    pub listing_reviews_count: i64,
+    /// Review form drafts (detail view).
+    pub review_rating_draft: i32,
+    pub review_comment_draft: String,
+    /// Buyer-seller thread for the OPEN detail listing (v0.755).
+    pub listing_thread: Vec<GuiListingMsg>,
+    pub listing_thread_for: String,
+    pub listing_thread_open: bool,
+    pub listing_msg_draft: String,
     pub listing_show_new_form: bool,
     pub listing_new_title: String,
     pub listing_new_description: String,
@@ -3448,6 +3571,17 @@ impl Default for GuiState {
             listing_search: String::new(),
             listing_filter_category: String::new(),
             listing_selected: None,
+            listing_reviews: Vec::new(),
+            listing_reviews_for: String::new(),
+            listing_reviews_rx: None,
+            listing_reviews_avg: 0.0,
+            listing_reviews_count: 0,
+            review_rating_draft: 5,
+            review_comment_draft: String::new(),
+            listing_thread: Vec::new(),
+            listing_thread_for: String::new(),
+            listing_thread_open: false,
+            listing_msg_draft: String::new(),
             listing_show_new_form: false,
             listing_new_title: String::new(),
             listing_new_description: String::new(),

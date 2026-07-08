@@ -88,6 +88,40 @@ fn seller_label(l: &GuiListing) -> String {
     }
 }
 
+/// Background REST fetch of a listing's reviews (public read endpoint; same
+/// worker-thread + mpsc pattern as Server Settings' federation panel). The
+/// review LIST rides REST like web does; creates/deletes ride the WS.
+fn spawn_reviews_fetch(state: &mut GuiState, listing_id: &str) {
+    let base = state.server_url.trim_end_matches('/').to_string();
+    let id = listing_id.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    state.listing_reviews_rx = Some(rx);
+    state.listing_reviews_for = listing_id.to_string();
+    state.listing_reviews.clear();
+    state.listing_reviews_avg = 0.0;
+    state.listing_reviews_count = 0;
+    std::thread::spawn(move || {
+        let fetch = || -> Result<(Vec<crate::gui::GuiReview>, f32, i64), String> {
+            let body = ureq::get(&format!("{base}/api/listings/{id}/reviews"))
+                .call()
+                .map_err(|e| format!("reviews: {e}"))?
+                .into_string()
+                .map_err(|e| format!("read: {e}"))?;
+            let val: serde_json::Value =
+                serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
+            let rows = val
+                .get("reviews")
+                .and_then(|v| v.as_array())
+                .map(|a| a.iter().map(crate::gui::GuiReview::from_relay_json).collect())
+                .unwrap_or_default();
+            let avg = val.get("avg_rating").and_then(|v| v.as_f64()).unwrap_or(0.0) as f32;
+            let count = val.get("review_count").and_then(|v| v.as_i64()).unwrap_or(0);
+            Ok((rows, avg, count))
+        };
+        let _ = tx.send(fetch());
+    });
+}
+
 fn category_color(category: &str) -> Color32 {
     match category {
         "Tools" => Color32::from_rgb(70, 130, 180),
@@ -123,6 +157,42 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // Deferred action out of the listing borrow below.
     let mut delete_listing_id: Option<String> = None;
 
+    // Reviews fetch lifecycle (v0.755): opening a detail view pulls that
+    // listing's reviews over REST; drain the worker when it lands.
+    if let Some(rx) = &state.listing_reviews_rx {
+        match rx.try_recv() {
+            Ok(Ok((rows, avg, count))) => {
+                state.listing_reviews = rows;
+                state.listing_reviews_avg = avg;
+                state.listing_reviews_count = count;
+                state.listing_reviews_rx = None;
+            }
+            Ok(Err(_)) => {
+                // Offline / server missing the route: reviews just stay empty.
+                state.listing_reviews_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.listing_reviews_rx = None;
+            }
+        }
+    }
+    if showing_detail {
+        let sel_id = state.listing_selected.clone().unwrap_or_default();
+        if state.listing_reviews_for != sel_id && state.listing_reviews_rx.is_none() {
+            spawn_reviews_fetch(state, &sel_id);
+            // A fresh detail view also resets the message thread.
+            state.listing_thread.clear();
+            state.listing_thread_open = false;
+            state.listing_thread_for.clear();
+            state.listing_msg_draft.clear();
+            state.review_rating_draft = 5;
+            state.review_comment_draft.clear();
+        }
+    }
+
     // Left sidebar: category filter
     egui::SidePanel::left("market_categories")
         .min_width(140.0)
@@ -155,7 +225,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 // ── Detail view ──
                 let sel_id = state.listing_selected.clone().unwrap_or_default();
                 let my_key = state.profile_public_key.clone();
-                if let Some(listing) = state.listings.iter().find(|l| l.id == sel_id) {
+                // Cloned (small struct) so the reviews/thread UI below can
+                // mutate GuiState form fields without fighting the borrow.
+                if let Some(listing) = state.listings.iter().find(|l| l.id == sel_id).cloned() {
                     ScrollArea::vertical().show(ui, |ui| {
                         // Back button
                         ui.horizontal(|ui| {
@@ -208,7 +280,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             ui.add_space(theme.spacing_xs);
                             ui.horizontal(|ui| {
                                 ui.label(RichText::new("Seller:").color(theme.text_muted()));
-                                ui.label(RichText::new(seller_label(listing)).color(theme.text_primary()));
+                                ui.label(RichText::new(seller_label(&listing)).color(theme.text_primary()));
                             });
                             for (label, value) in [
                                 ("Condition:", &listing.condition),
@@ -227,19 +299,227 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                         ui.add_space(theme.spacing_md);
 
-                        // Actions: your own listing can be removed; buying and
-                        // seller chat arrive with the trade-flow increment (the
-                        // relay routes exist) - no dead buttons until then.
+                        // ── Reviews (v0.755) ── list rides REST; creates ride
+                        // the WS; review_created broadcasts keep it live.
+                        ui.add_space(theme.spacing_sm);
+                        let mut delete_review_id: Option<i64> = None;
+                        widgets::card(ui, theme, |ui| {
+                            let header = if state.listing_reviews_count > 0 {
+                                format!(
+                                    "Reviews ({}) - {:.1} average",
+                                    state.listing_reviews_count, state.listing_reviews_avg
+                                )
+                            } else {
+                                "Reviews".to_string()
+                            };
+                            ui.label(RichText::new(header).size(theme.font_size_body).color(theme.text_secondary()));
+                            ui.add_space(theme.spacing_xs);
+                            if state.listing_reviews.is_empty() {
+                                ui.label(
+                                    RichText::new("No reviews yet.")
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            }
+                            for r in &state.listing_reviews {
+                                ui.horizontal(|ui| {
+                                    let stars = "⭐".repeat(r.rating.clamp(0, 5) as usize);
+                                    ui.label(RichText::new(stars).size(theme.font_size_small));
+                                    let who = if r.reviewer_name.is_empty() {
+                                        if r.reviewer_key.len() > 8 {
+                                            format!("{}...", &r.reviewer_key[..8])
+                                        } else {
+                                            r.reviewer_key.clone()
+                                        }
+                                    } else {
+                                        r.reviewer_name.clone()
+                                    };
+                                    ui.label(
+                                        RichText::new(who)
+                                            .color(theme.text_primary())
+                                            .size(theme.font_size_small),
+                                    );
+                                    if r.reviewer_key == my_key
+                                        && widgets::secondary_button(ui, theme, "Delete")
+                                    {
+                                        delete_review_id = Some(r.id);
+                                    }
+                                });
+                                if !r.comment.is_empty() {
+                                    ui.label(
+                                        RichText::new(&r.comment)
+                                            .color(theme.text_secondary())
+                                            .size(theme.font_size_small),
+                                    );
+                                }
+                            }
+                            // Leave a review on someone else's listing.
+                            if listing.seller_key != my_key {
+                                ui.add_space(theme.spacing_xs);
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new("Rate:")
+                                            .color(theme.text_muted())
+                                            .size(theme.font_size_small),
+                                    );
+                                    for i in 1..=5 {
+                                        let mark = if state.review_rating_draft >= i { "⭐" } else { "·" };
+                                        if ui.selectable_label(false, mark).clicked() {
+                                            state.review_rating_draft = i;
+                                        }
+                                    }
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut state.review_comment_draft)
+                                            .hint_text("Optional comment")
+                                            .desired_width(220.0),
+                                    );
+                                    if widgets::secondary_button(ui, theme, "Submit review") {
+                                        if connected {
+                                            if let Some(ws) = &state.ws_client {
+                                                ws.send(
+                                                    &serde_json::json!({
+                                                        "type": "review_create",
+                                                        "listing_id": listing.id,
+                                                        "rating": state.review_rating_draft,
+                                                        "comment": state.review_comment_draft.trim(),
+                                                    })
+                                                    .to_string(),
+                                                );
+                                            }
+                                            state.review_comment_draft.clear();
+                                            state.listing_status = "Review submitted.".to_string();
+                                        } else {
+                                            state.listing_status =
+                                                "Connect to a server to review listings.".to_string();
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                        if let Some(rid) = delete_review_id {
+                            if let Some(ws) = &state.ws_client {
+                                ws.send(
+                                    &serde_json::json!({
+                                        "type": "review_delete",
+                                        "listing_id": listing.id,
+                                        "review_id": rid,
+                                    })
+                                    .to_string(),
+                                );
+                            }
+                        }
+
+                        // ── Messages (v0.755) ── the buyer-seller thread the
+                        // relay already stores; history is pulled on open and
+                        // listing_message_new broadcasts keep it live.
+                        ui.add_space(theme.spacing_sm);
+                        widgets::card(ui, theme, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new("Messages")
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_secondary()),
+                                );
+                                if !state.listing_thread_open {
+                                    let label = if listing.seller_key == my_key {
+                                        "View messages"
+                                    } else {
+                                        "Contact Seller"
+                                    };
+                                    if connected && widgets::secondary_button(ui, theme, label) {
+                                        state.listing_thread_open = true;
+                                        state.listing_thread_for = listing.id.clone();
+                                        if let Some(ws) = &state.ws_client {
+                                            ws.send(
+                                                &serde_json::json!({
+                                                    "type": "listing_message_history",
+                                                    "listing_id": listing.id,
+                                                })
+                                                .to_string(),
+                                            );
+                                        }
+                                    }
+                                }
+                            });
+                            if !connected {
+                                ui.label(
+                                    RichText::new("Connect to a server to message the seller.")
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                );
+                            }
+                            if state.listing_thread_open {
+                                if state.listing_thread.is_empty() {
+                                    ui.label(
+                                        RichText::new("No messages yet - ask the seller anything.")
+                                            .color(theme.text_muted())
+                                            .size(theme.font_size_small),
+                                    );
+                                }
+                                for m in &state.listing_thread {
+                                    ui.horizontal_wrapped(|ui| {
+                                        let who = if m.sender_name.is_empty() {
+                                            if m.sender_key.len() > 8 {
+                                                format!("{}...", &m.sender_key[..8])
+                                            } else {
+                                                m.sender_key.clone()
+                                            }
+                                        } else {
+                                            m.sender_name.clone()
+                                        };
+                                        ui.label(
+                                            RichText::new(format!("{who}:"))
+                                                .color(theme.text_primary())
+                                                .size(theme.font_size_small),
+                                        );
+                                        ui.label(
+                                            RichText::new(&m.content)
+                                                .color(theme.text_secondary())
+                                                .size(theme.font_size_small),
+                                        );
+                                    });
+                                }
+                                ui.add_space(theme.spacing_xs);
+                                ui.horizontal(|ui| {
+                                    ui.add(
+                                        egui::TextEdit::singleline(&mut state.listing_msg_draft)
+                                            .hint_text("Write a message...")
+                                            .desired_width(220.0),
+                                    );
+                                    if widgets::secondary_button(ui, theme, "Send")
+                                        && !state.listing_msg_draft.trim().is_empty()
+                                    {
+                                        if connected {
+                                            if let Some(ws) = &state.ws_client {
+                                                ws.send(
+                                                    &serde_json::json!({
+                                                        "type": "listing_message_send",
+                                                        "listing_id": listing.id,
+                                                        "content": state.listing_msg_draft.trim(),
+                                                    })
+                                                    .to_string(),
+                                                );
+                                            }
+                                            state.listing_msg_draft.clear();
+                                        } else {
+                                            state.listing_status =
+                                                "Connect to a server to send messages.".to_string();
+                                        }
+                                    }
+                                });
+                            }
+                        });
+
+                        ui.add_space(theme.spacing_md);
+
+                        // Your own listing can be removed; escrow buying still
+                        // waits for the trade-flow follow-up (no dead buttons).
                         if listing.seller_key == my_key {
                             if widgets::secondary_button(ui, theme, "Delete Listing") {
                                 delete_listing_id = Some(listing.id.clone());
                             }
-                        } else {
-                            ui.label(
-                                RichText::new("Contact + escrow buying arrive with the trade-flow increment.")
-                                    .color(theme.text_muted())
-                                    .size(theme.font_size_small),
-                            );
                         }
                     });
                 } else {
