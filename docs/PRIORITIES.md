@@ -11,8 +11,8 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: SEVEN RUNGS SHIPPED (2026-07-07, Fable final day,
-> v0.745-v0.751).** The bible below is not just written - its ladder is
+> **>>> CLOSURE LADDER: EIGHT RUNGS SHIPPED (2026-07-07, Fable final day,
+> v0.745-v0.752).** The bible below is not just written - its ladder is
 > EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
 >    death screen + respawn at the spawn room, EffectTick (poison bites,
@@ -40,8 +40,13 @@
 >    (chickens/goats/sheep via data/entities/livestock.ron) grazing by the
 >    fields, walk-up [E] collect (egg/milk/wool) volume-gated with farming
 >    XP + harvest_<creature> quest events, block bodies sized from mass.
-> NEXT RUNGS: 5 (native market/trade pages speak to the relay - test
-> against a LOCAL relay first), 8-rest (abilities: spells.csv ->
+> 8. **v0.752 native market is live** (rung 5, first increment): the
+>    Market page speaks the relay marketplace protocol (browse on view,
+>    broadcast-synced list, Publish via listing_create, Delete on own
+>    listings), GuiListing mirrors ListingData outright, wire contract
+>    pinned by a frame round-trip test.
+> NEXT RUNGS: 5-rest (escrow trade flow + listing messages + reviews in
+> native - relay routes all exist), 8-rest (abilities: spells.csv ->
 > abilities.csv loader + hotbar per progression doc Part 2; armor-on-equip
 > when combat lands), 9 (zones, awaits decision-briefs.md Brief 1), 10
 > (community wiring). <<<**
