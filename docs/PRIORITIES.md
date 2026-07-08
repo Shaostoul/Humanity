@@ -81,16 +81,20 @@
 >    data-driven quorum/pass verdicts (hot-editable per request), the
 >    native governance page shows them per proposal (abstain counts
 >    toward quorum, not the pass ratio).
-> NEXT BIG ARCS (pick per operator direction): the combat arc (THREE
-> INCREMENTS IN: v0.760 fight-kill-loot, v0.761 hostiles fight back +
-> armor protects, v0.762 livestock flee predators + kills train
-> melee/ranged; the wolf-tier loop is COMPLETE - remaining options are
-> taste calls: melee/tool attack from the weapon damage columns, spawn
-> variety/respawn cadence, wall-aware pathfinding, aggro telegraphs),
-> T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
-> unwired), rung 9 zones (awaits decision-briefs.md Brief 1),
-> guild-scoped production pools (engagement mode 4), or operator
-> field-report fixes as they arrive. Journal follow-up still open: guild
+> PROCEDURAL PLANETS SHIPPED (v0.763, operator-directed): screen-size
+> icosphere LOD (d20 when tiny, doubling ladder, level-7 cap, cached
+> meshes), seeded FBM fractal surfaces (smooth oceans, dry-world basins,
+> polar caps), fresnel atmosphere shells, per-planet RON params, LIVE
+> Settings sliders (Graphics > Planets). Follow-ups documented: 1m
+> chunked landing subdivision, rivers, real craters, biomes.ron wiring.
+> NEXT BIG ARCS (pick per operator direction): the combat arc (wolf-tier
+> loop COMPLETE across v0.760-762; remaining are taste calls: melee/tool
+> attack, spawn variety, wall-aware pathfinding, aggro telegraphs), the
+> planet LANDING arc (chunked near-surface subdivision toward 1m, the
+> container-swap design), rung 9 zones (awaits decision-briefs.md
+> Brief 1), guild-scoped production pools (engagement mode 4), or
+> operator field-report fixes (planets field test: relaunch, look up,
+> tune the sliders, screenshot). Journal follow-up still open: guild
 > REST auth should ride the signed-auth helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
