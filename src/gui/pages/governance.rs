@@ -35,6 +35,8 @@ pub struct ProposalView {
 }
 
 /// Weighted tally (vote weight = trust score at vote time, capped 0.95).
+/// The rule fields (v0.759) come from the server's data-driven proposal-type
+/// rules; None against older servers that predate them.
 #[derive(Debug, Clone, Default)]
 pub struct TallyView {
     pub yes_weight: f64,
@@ -42,6 +44,10 @@ pub struct TallyView {
     pub abstain_weight: f64,
     pub total_weight: f64,
     pub vote_count: u64,
+    pub quorum_fraction: Option<f64>,
+    pub electorate: Option<i64>,
+    pub quorum_met: Option<bool>,
+    pub passing: Option<bool>,
 }
 
 /// Proposal types the form offers, (wire id, display label).
@@ -125,6 +131,14 @@ fn fetch_proposals_blocking(base: &str) -> Result<Vec<ProposalView>, String> {
         abstain_weight: f64,
         total_weight: f64,
         vote_count: u64,
+        #[serde(default)]
+        quorum_fraction: Option<f64>,
+        #[serde(default)]
+        electorate: Option<i64>,
+        #[serde(default)]
+        quorum_met: Option<bool>,
+        #[serde(default)]
+        passing: Option<bool>,
     }
     let get = |url: &str| -> Result<String, String> {
         ureq::get(url)
@@ -174,6 +188,10 @@ fn fetch_proposals_blocking(base: &str) -> Result<Vec<ProposalView>, String> {
                 abstain_weight: t.abstain_weight,
                 total_weight: t.total_weight,
                 vote_count: t.vote_count,
+                quorum_fraction: t.quorum_fraction,
+                electorate: t.electorate,
+                quorum_met: t.quorum_met,
+                passing: t.passing,
             });
         out.push(ProposalView {
             id: r.proposal_object_id,
@@ -592,6 +610,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             let mut meta = window_label.clone();
                             if let Some(t) = &p.tally {
                                 meta = format!("{meta} \u{00b7} {} votes", t.vote_count);
+                                // Data-driven verdicts (v0.759): the server's
+                                // proposal-type rules say what this needs.
+                                if let (Some(qm), Some(pass)) = (t.quorum_met, t.passing) {
+                                    let verdict = match (qm, pass) {
+                                        (true, true) => "quorum met \u{00b7} passing",
+                                        (true, false) => "quorum met \u{00b7} not passing",
+                                        (false, _) => "below quorum",
+                                    };
+                                    meta = format!("{meta} \u{00b7} {verdict}");
+                                }
                             }
                             ui.label(RichText::new(meta).color(theme.text_muted()).size(theme.font_size_small));
                         },
@@ -638,6 +666,18 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                                     .color(theme.text_muted())
                                     .size(theme.font_size_small),
                                 );
+                                // Data-driven quorum requirement (v0.759).
+                                if let (Some(qf), Some(el)) = (t.quorum_fraction, t.electorate) {
+                                    let needed = ((qf * el as f64).ceil() as i64).max(1);
+                                    ui.label(
+                                        RichText::new(format!(
+                                            "Quorum: {needed} of {el} members must vote ({} have)",
+                                            t.vote_count
+                                        ))
+                                        .color(theme.text_muted())
+                                        .size(theme.font_size_small),
+                                    );
+                                }
                             }
                             ui.add_space(theme.spacing_xs);
                             if let Some(choice) = &my_vote {

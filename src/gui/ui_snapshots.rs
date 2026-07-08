@@ -700,6 +700,10 @@ fn snapshot_governance() {
                         abstain_weight: 0.10,
                         total_weight: 3.25,
                         vote_count: 5,
+                        quorum_fraction: Some(0.10),
+                        electorate: Some(12),
+                        quorum_met: Some(true),
+                        passing: Some(true),
                     }),
                 },
                 ProposalView {
@@ -717,6 +721,10 @@ fn snapshot_governance() {
                         abstain_weight: 0.00,
                         total_weight: 4.10,
                         vote_count: 6,
+                        quorum_fraction: Some(0.05),
+                        electorate: Some(12),
+                        quorum_met: Some(true),
+                        passing: Some(false),
                     }),
                 },
             ];
