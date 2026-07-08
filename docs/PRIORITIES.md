@@ -81,14 +81,17 @@
 >    data-driven quorum/pass verdicts (hot-editable per request), the
 >    native governance page shows them per proposal (abstain counts
 >    toward quorum, not the pass ratio).
-> NEXT BIG ARCS (pick per operator direction): the combat arc (X1 -
-> unlocks offensive abilities, creature loot tables, armor-on-equip,
-> wild spawns from the same creature registry), T5 planet-landing
-> (PlanetRegistry + heightmap pipeline, written but unwired), rung 9
-> zones (awaits decision-briefs.md Brief 1), guild-scoped production
-> pools (engagement mode 4), or operator field-report fixes as they
-> arrive. Journal follow-up still open: guild REST auth should ride the
-> signed-auth helper before real users. <<<**
+> NEXT BIG ARCS (pick per operator direction): the combat arc (UNDERWAY:
+> v0.760 increment 1 shipped - CombatSystem registered, offensive
+> abilities cast at the faced creature, kills roll authored loot tables
+> into the pack, 128 loot items generated, corpses decay; NEXT
+> increments: hostile spawns + AISystem so something fights back,
+> armor-on-equip once hostiles hit back, melee/tool attack, combat death
+> cause), T5 planet-landing (PlanetRegistry + heightmap pipeline, written
+> but unwired), rung 9 zones (awaits decision-briefs.md Brief 1),
+> guild-scoped production pools (engagement mode 4), or operator
+> field-report fixes as they arrive. Journal follow-up still open: guild
+> REST auth should ride the signed-auth helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
