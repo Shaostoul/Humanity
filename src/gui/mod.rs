@@ -574,6 +574,75 @@ impl GuiListingMsg {
     }
 }
 
+/// The relay's aggregated civilization stats (GET /api/civilization, v0.757).
+/// Flattened from the nested population/infrastructure/economy/resources/
+/// social/activity JSON the relay serializes.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiCivStats {
+    pub total_members: u32,
+    pub online_now: u32,
+    pub new_this_week: u32,
+    pub channels: u32,
+    pub voice_channels: u32,
+    pub projects: u32,
+    pub total_messages: u32,
+    pub messages_today: u32,
+    pub active_listings: u32,
+    pub total_trades: u32,
+    pub total_reviews: u32,
+    pub total_tasks: u32,
+    pub tasks_completed: u32,
+    pub tasks_in_progress: u32,
+    pub tasks_open: u32,
+    pub total_follows: u32,
+    pub total_dms: u32,
+    pub most_active_channel: String,
+    pub peak_online: u32,
+}
+
+#[cfg(feature = "native")]
+impl GuiCivStats {
+    pub fn from_relay_json(v: &serde_json::Value) -> Self {
+        let n = |path: &[&str]| -> u32 {
+            let mut cur = v;
+            for k in path {
+                match cur.get(k) {
+                    Some(x) => cur = x,
+                    None => return 0,
+                }
+            }
+            cur.as_u64().unwrap_or(0) as u32
+        };
+        Self {
+            total_members: n(&["population", "total_members"]),
+            online_now: n(&["population", "online_now"]),
+            new_this_week: n(&["population", "new_this_week"]),
+            channels: n(&["infrastructure", "channels"]),
+            voice_channels: n(&["infrastructure", "voice_channels"]),
+            projects: n(&["infrastructure", "projects"]),
+            total_messages: n(&["infrastructure", "total_messages"]),
+            messages_today: n(&["infrastructure", "messages_today"]),
+            active_listings: n(&["economy", "active_listings"]),
+            total_trades: n(&["economy", "total_trades"]),
+            total_reviews: n(&["economy", "total_reviews"]),
+            total_tasks: n(&["resources", "total_tasks"]),
+            tasks_completed: n(&["resources", "tasks_completed"]),
+            tasks_in_progress: n(&["resources", "tasks_in_progress"]),
+            tasks_open: n(&["resources", "tasks_open"]),
+            total_follows: n(&["social", "total_follows"]),
+            total_dms: n(&["social", "total_dms"]),
+            most_active_channel: v
+                .get("activity")
+                .and_then(|a| a.get("most_active_channel"))
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .to_string(),
+            peak_online: n(&["activity", "peak_online"]),
+        }
+    }
+}
+
 /// One item on a side of a P2P trade, mirroring the relay's TradeItem (v0.756).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, Default)]
@@ -848,6 +917,44 @@ mod listing_mapping_tests {
             parse_hex_color("#ff0080"),
             Some(egui::Color32::from_rgb(255, 0, 128)) // theme-exempt: test fixture.
         );
+    }
+
+    /// Wire pin for the v0.757 civilization stats: the REAL nested shape the
+    /// relay serializes (CivilizationStats in storage/civilization.rs)
+    /// flattens into the dashboard row; missing sections read as zero.
+    #[test]
+    fn relay_civilization_stats_flatten_to_gui() {
+        use super::GuiCivStats;
+
+        let v: serde_json::Value = serde_json::from_str(
+            r#"{
+                "population": {"total_members": 12, "online_now": 3, "new_this_week": 2, "roles": {"member": 11, "admin": 1}},
+                "infrastructure": {"channels": 6, "voice_channels": 2, "projects": 4, "total_messages": 2375, "messages_today": 15},
+                "economy": {"active_listings": 5, "total_trades": 1, "total_reviews": 2},
+                "resources": {"total_tasks": 30, "tasks_completed": 21, "tasks_in_progress": 4, "tasks_open": 5},
+                "social": {"total_follows": 8, "total_dms": 9},
+                "activity": {"most_active_channel": "general", "messages_today": 15, "peak_online": 4}
+            }"#,
+        )
+        .unwrap();
+        let s = GuiCivStats::from_relay_json(&v);
+        assert_eq!(s.total_members, 12);
+        assert_eq!(s.online_now, 3);
+        assert_eq!(s.new_this_week, 2);
+        assert_eq!(s.total_messages, 2375);
+        assert_eq!(s.active_listings, 5);
+        assert_eq!(s.tasks_completed, 21);
+        assert_eq!(s.total_follows, 8);
+        assert_eq!(s.most_active_channel, "general");
+        assert_eq!(s.peak_online, 4);
+
+        // A partial payload (older server) degrades to zeros, not a panic.
+        let sparse: serde_json::Value =
+            serde_json::from_str(r#"{"population": {"total_members": 1}}"#).unwrap();
+        let s = GuiCivStats::from_relay_json(&sparse);
+        assert_eq!(s.total_members, 1);
+        assert_eq!(s.channels, 0);
+        assert_eq!(s.most_active_channel, "");
     }
 }
 
@@ -2273,16 +2380,12 @@ pub struct GuiState {
     pub notes_selected: Option<u64>,
     pub notes_next_id: u64,
 
-    // ── Civilization state ──
-    pub civ_population: u32,
-    pub civ_buildings: u32,
-    pub civ_resources: u32,
-    pub civ_tech_level: u32,
-    pub civ_food: f32,
-    pub civ_energy: f32,
-    pub civ_water: f32,
-    pub civ_happiness: f32,
-    pub civ_events: Vec<String>,
+    // ── Civilization state (live from GET /api/civilization, v0.757) ──
+    /// The relay's aggregated community stats; None until the fetch lands.
+    pub civ_stats: Option<GuiCivStats>,
+    pub civ_stats_loaded: bool,
+    pub civ_stats_rx: Option<std::sync::mpsc::Receiver<Result<GuiCivStats, String>>>,
+    pub civ_status: String,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -3808,15 +3911,10 @@ impl Default for GuiState {
             notes_next_id: 1,
 
             // Civilization defaults
-            civ_population: 0,
-            civ_buildings: 0,
-            civ_resources: 0,
-            civ_tech_level: 1,
-            civ_food: 0.5,
-            civ_energy: 0.5,
-            civ_water: 0.5,
-            civ_happiness: 0.5,
-            civ_events: Vec::new(),
+            civ_stats: None,
+            civ_stats_loaded: false,
+            civ_stats_rx: None,
+            civ_status: String::new(),
 
             // Wallet defaults
             wallet_balance: 0.0,

@@ -1,39 +1,141 @@
-//! Civilization dashboard — community stats. v0.197.0: previously
-//! branched on `context_real` to show "Community Dashboard" for real
-//! mode vs "Colony Dashboard" for sim mode. Operator removed the
-//! Real/Sim toggle — this page commits to the Real (community)
-//! framing. The colony / sim variant would live as a separate page
-//! reachable from inside the FPS gameplay if reintroduced later.
+//! Civilization dashboard - the community's REAL numbers from the connected
+//! relay (GET /api/civilization, v0.757 closure ladder rung 10). Members,
+//! messages, market, tasks, follows: every stat is what the server counts,
+//! with the week's growth as the trend. Replaced the fabricated static
+//! metrics (tech level, food/water/happiness percentages, hardcoded "+12"
+//! trends) that no system ever fed - those return as REAL sims wire in.
+//!
+//! v0.197.0 note kept: this page commits to the Real (community) framing;
+//! a colony/sim variant would be a separate in-world surface.
 
-use egui::{Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
+use crate::gui::{GuiCivStats, GuiState};
+use egui::{Frame, RichText, ScrollArea, Vec2};
+
+/// Background fetch of the aggregated stats (public endpoint; same
+/// worker-thread + mpsc pattern as the Guilds page).
+fn spawn_civ_fetch(state: &mut GuiState) {
+    let base = state.server_url.trim_end_matches('/').to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    state.civ_stats_rx = Some(rx);
+    state.civ_stats_loaded = true;
+    std::thread::spawn(move || {
+        let fetch = || -> Result<GuiCivStats, String> {
+            let body = ureq::get(&format!("{base}/api/civilization"))
+                .call()
+                .map_err(|e| format!("stats: {e}"))?
+                .into_string()
+                .map_err(|e| format!("read: {e}"))?;
+            let val: serde_json::Value =
+                serde_json::from_str(&body).map_err(|e| format!("parse: {e}"))?;
+            Ok(GuiCivStats::from_relay_json(&val))
+        };
+        let _ = tx.send(fetch());
+    });
+}
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    // Drain a finished fetch; first view pulls automatically.
+    if let Some(rx) = &state.civ_stats_rx {
+        match rx.try_recv() {
+            Ok(Ok(stats)) => {
+                state.civ_stats = Some(stats);
+                state.civ_status.clear();
+                state.civ_stats_rx = None;
+            }
+            Ok(Err(e)) => {
+                state.civ_status = e;
+                state.civ_stats_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(300));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                state.civ_stats_rx = None;
+            }
+        }
+    }
+    if !state.civ_stats_loaded && state.civ_stats_rx.is_none() {
+        spawn_civ_fetch(state);
+    }
+
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
-            ui.label(
-                RichText::new("Community Dashboard")
-                    .size(theme.font_size_title)
-                    .color(theme.text_primary()),
-            );
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Community Dashboard")
+                        .size(theme.font_size_title)
+                        .color(theme.text_primary()),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if widgets::secondary_button(ui, theme, "Refresh") {
+                        state.civ_stats_loaded = false;
+                    }
+                });
+            });
+            if !state.civ_status.is_empty() {
+                ui.label(
+                    RichText::new(&state.civ_status)
+                        .color(theme.text_secondary())
+                        .size(theme.font_size_small),
+                );
+            }
 
             ui.add_space(theme.spacing_md);
 
+            let Some(s) = state.civ_stats.clone() else {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(theme.spacing_xl);
+                    let hint = if state.civ_stats_rx.is_some() {
+                        "Loading community stats from the server..."
+                    } else {
+                        "Could not reach the server - Refresh to retry."
+                    };
+                    ui.label(
+                        RichText::new(hint)
+                            .size(theme.font_size_body)
+                            .color(theme.text_muted()),
+                    );
+                });
+                return;
+            };
+
             ScrollArea::vertical().show(ui, |ui| {
-                // Real-mode stats (community framing).
-                let stats: Vec<(&str, String, &str, f32)> = vec![
-                    ("Population", state.civ_population.to_string(), "+12", 0.0),
-                    ("Buildings Built", state.civ_buildings.to_string(), "+3", 0.0),
-                    ("Resources Gathered", state.civ_resources.to_string(), "+45", 0.0),
-                    ("Technology Level", format!("Level {}", state.civ_tech_level), "", civ_tech_progress(state.civ_tech_level)),
-                    ("Food Supply", format!("{:.0}%", state.civ_food * 100.0), "", state.civ_food),
-                    ("Energy Production", format!("{:.0}%", state.civ_energy * 100.0), "", state.civ_energy),
+                // Real stats, real trends: the week's growth is the trend.
+                let task_progress = if s.total_tasks > 0 {
+                    s.tasks_completed as f32 / s.total_tasks as f32
+                } else {
+                    0.0
+                };
+                let new_week = if s.new_this_week > 0 {
+                    format!("+{} this week", s.new_this_week)
+                } else {
+                    String::new()
+                };
+                let msgs_today = if s.messages_today > 0 {
+                    format!("+{} today", s.messages_today)
+                } else {
+                    String::new()
+                };
+                let stats: Vec<(&str, String, String, f32)> = vec![
+                    ("Members", s.total_members.to_string(), new_week, 0.0),
+                    ("Online Now", s.online_now.to_string(), String::new(), 0.0),
+                    ("Messages", s.total_messages.to_string(), msgs_today, 0.0),
+                    ("Channels", format!("{} (+{} voice)", s.channels, s.voice_channels), String::new(), 0.0),
+                    ("Projects", s.projects.to_string(), String::new(), 0.0),
+                    ("Market Listings", s.active_listings.to_string(), String::new(), 0.0),
+                    ("Trades Completed", s.total_trades.to_string(), String::new(), 0.0),
+                    (
+                        "Tasks Done",
+                        format!("{} of {}", s.tasks_completed, s.total_tasks),
+                        String::new(),
+                        task_progress,
+                    ),
+                    ("Follows", s.total_follows.to_string(), String::new(), 0.0),
                 ];
 
-                // 3-column stats grid
                 egui::Grid::new("civ_stats_grid_3col")
                     .num_columns(3)
                     .spacing(Vec2::new(theme.spacing_sm, theme.spacing_sm))
@@ -48,104 +150,42 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
                 ui.add_space(theme.spacing_md);
 
-                // Key metrics with progress bars (real-mode framing).
-                let metrics: Vec<(&str, f32)> = vec![
-                    ("Water Supply", state.civ_water),
-                    ("Happiness", state.civ_happiness),
-                ];
-
+                // Activity summary.
                 widgets::card(ui, theme, |ui| {
                     ui.label(
-                        RichText::new("Key Metrics")
+                        RichText::new("Activity")
                             .size(theme.font_size_heading)
                             .color(theme.text_primary()),
                     );
                     ui.add_space(theme.spacing_xs);
-                    for (label, value) in &metrics {
+                    let rows: Vec<(&str, String)> = vec![
+                        (
+                            "Most active channel",
+                            if s.most_active_channel.is_empty() {
+                                "-".to_string()
+                            } else {
+                                format!("#{}", s.most_active_channel)
+                            },
+                        ),
+                        ("Peak online", s.peak_online.to_string()),
+                        ("Tasks in progress", s.tasks_in_progress.to_string()),
+                        ("Tasks open", s.tasks_open.to_string()),
+                        ("Listing reviews", s.total_reviews.to_string()),
+                        ("Direct message threads", s.total_dms.to_string()),
+                    ];
+                    for (label, value) in rows {
                         ui.horizontal(|ui| {
-                            ui.set_min_width(120.0);
                             ui.label(
-                                RichText::new(*label)
+                                RichText::new(label)
                                     .size(theme.font_size_body)
                                     .color(theme.text_secondary()),
                             );
+                            ui.label(
+                                RichText::new(value)
+                                    .size(theme.font_size_body)
+                                    .color(theme.text_primary()),
+                            );
                         });
-                        let color = if *value >= 0.7 {
-                            theme.success()
-                        } else if *value >= 0.4 {
-                            theme.warning()
-                        } else {
-                            theme.danger()
-                        };
-                        let bar = egui::ProgressBar::new(value.clamp(0.0, 1.0))
-                            .fill(color)
-                            .text(format!("{:.0}%", value * 100.0));
-                        ui.add(bar);
-                        ui.add_space(theme.spacing_xs);
-                    }
-                });
-
-                ui.add_space(theme.spacing_md);
-
-                // Charts placeholder
-                widgets::card(ui, theme, |ui| {
-                    ui.label(
-                        RichText::new("Charts")
-                            .size(theme.font_size_heading)
-                            .color(theme.text_primary()),
-                    );
-                    ui.add_space(theme.spacing_sm);
-                    let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width().min(500.0), 120.0), egui::Sense::hover());
-                    ui.painter().rect_filled(rect, Rounding::same(8), theme.bg_sidebar());
-                    ui.painter().rect_stroke(rect, Rounding::same(8), Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
-                    ui.painter().text(
-                        rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        "Charts coming soon",
-                        egui::FontId::proportional(theme.font_size_body),
-                        theme.text_muted(),
-                    );
-                });
-
-                ui.add_space(theme.spacing_md);
-
-                // Recent events timeline
-                widgets::card(ui, theme, |ui| {
-                    ui.label(
-                        RichText::new("Recent Events")
-                            .size(theme.font_size_heading)
-                            .color(theme.text_primary()),
-                    );
-                    ui.add_space(theme.spacing_xs);
-
-                    if state.civ_events.is_empty() {
-                        ui.label(
-                            RichText::new("No recent events")
-                                .color(theme.text_muted()),
-                        );
-                    } else {
-                        ScrollArea::vertical()
-                            .id_salt("civ_events_scroll")
-                            .max_height(180.0)
-                            .show(ui, |ui| {
-                                for (i, event) in state.civ_events.iter().rev().enumerate() {
-                                    ui.horizontal(|ui| {
-                                        // Timeline dot
-                                        let (dot_rect, _) = ui.allocate_exact_size(
-                                            Vec2::new(8.0, 8.0),
-                                            egui::Sense::hover(),
-                                        );
-                                        let dot_color = if i == 0 { theme.accent() } else { theme.text_muted() };
-                                        ui.painter().circle_filled(dot_rect.center(), 4.0, dot_color);
-
-                                        ui.label(
-                                            RichText::new(event)
-                                                .size(theme.font_size_small)
-                                                .color(if i == 0 { theme.text_primary() } else { theme.text_secondary() }),
-                                        );
-                                    });
-                                }
-                            });
                     }
                 });
             });
@@ -195,11 +235,4 @@ pub(crate) fn draw_stat_card(ui: &mut egui::Ui, theme: &Theme, label: &str, valu
         }
         }); // end ui.vertical
     });
-}
-
-/// Calculate tech progress as a fraction for progress bar display.
-fn civ_tech_progress(level: u32) -> f32 {
-    // Show progress within current level (each level requires more)
-    let max_level = 10u32;
-    (level as f32 / max_level as f32).clamp(0.0, 1.0)
 }
