@@ -197,6 +197,32 @@
                         thickness: None,
                         layers: [],
                     ),
+                    // East door to the Commons corridor (increment C): sits on the
+                    // x=55 perimeter; the corridor row at the bottom of this file
+                    // references this door (home door index 6) and cuts the shell.
+                    (
+                        a: (55.0, 38.0),
+                        b: (55.0, 42.0),
+                        height: 3.0,
+                        material: 1,
+                        openings: [
+                            (
+                                kind: Door,
+                                at: 1.0,
+                                width: 2.0,
+                                sill: 0.0,
+                                height: 2.75,
+                                style: "slide",
+                                open_dist: 2.6,
+                                locked: false,
+                                auto_open: true,
+                                control_panel: false,
+                                locks: [],
+                            ),
+                        ],
+                        thickness: None,
+                        layers: [],
+                    ),
                 ],
                 shell_thickness: None,
                 lights: [
@@ -417,11 +443,123 @@
                 rail_edges: [],
             ),
         ),
+        // ── The Commons (increment C, the operator's mall) ──────────────────
+        // A shared community hall east of the home: a glass-roofed 34 x 55 hall
+        // (8 m airy ceiling), garden cluster in the center, three open-fronted
+        // market stalls along the east wall. Connected to the home by the glass
+        // corridor at the bottom of this file. Machines tagged zone "commons"
+        // live in data/machines/home.ron.
+        (
+            id: "commons",
+            label: "The Commons",
+            purpose: "commons",
+            origin: (65.0, 0.0, 20.0),
+            body: (
+                width: 34.0,
+                depth: 55.0,
+                height: 8.0,
+                shell_material: 1,
+                roof_material: 4,
+                walls: [
+                    // West door back to the home corridor (commons door index 0;
+                    // FIRST wall on purpose so later stall walls never shift it).
+                    (
+                        a: (0.0, 18.0),
+                        b: (0.0, 22.0),
+                        height: 3.0,
+                        material: 1,
+                        openings: [
+                            (
+                                kind: Door,
+                                at: 1.0,
+                                width: 2.0,
+                                sill: 0.0,
+                                height: 2.75,
+                                style: "slide",
+                                open_dist: 2.6,
+                                locked: false,
+                                auto_open: true,
+                                control_panel: false,
+                                locks: [],
+                            ),
+                        ],
+                        thickness: None,
+                        layers: [],
+                    ),
+                    // Market stall dividers: three open-fronted wooden bays along
+                    // the east wall (no doors - browse in from the hall).
+                    (
+                        a: (30.0, 8.0),
+                        b: (34.0, 8.0),
+                        height: 2.5,
+                        material: 3,
+                        openings: [],
+                        thickness: None,
+                        layers: [],
+                    ),
+                    (
+                        a: (30.0, 19.0),
+                        b: (34.0, 19.0),
+                        height: 2.5,
+                        material: 3,
+                        openings: [],
+                        thickness: None,
+                        layers: [],
+                    ),
+                    (
+                        a: (30.0, 33.0),
+                        b: (34.0, 33.0),
+                        height: 2.5,
+                        material: 3,
+                        openings: [],
+                        thickness: None,
+                        layers: [],
+                    ),
+                    (
+                        a: (30.0, 47.0),
+                        b: (34.0, 47.0),
+                        height: 2.5,
+                        material: 3,
+                        openings: [],
+                        thickness: None,
+                        layers: [],
+                    ),
+                ],
+                shell_thickness: None,
+                lights: [
+                    (
+                        type_id: "warm_lamp",
+                        pos: (17.0, 3.5, 27.5),
+                        dir: (0.0, -1.0, 0.0),
+                        on: true,
+                        color: None,
+                        intensity: None,
+                        range: None,
+                    ),
+                    (
+                        type_id: "warm_lamp",
+                        pos: (31.5, 2.2, 26.0),
+                        dir: (0.0, -1.0, 0.0),
+                        on: true,
+                        color: None,
+                        intensity: None,
+                        range: None,
+                    ),
+                ],
+                spawn: None,
+                structures: [],
+                rail_nodes: [],
+                rail_edges: [],
+            ),
+        ),
     ],
     // Generated corridors (increment B): straight tubes between two zones' DOOR openings.
     // Each row: (from_zone, from_opening, to_zone, to_opening, width, glass_top), where
     // from_opening/to_opening index that zone's doors (walls in order, openings in order,
-    // windows skipped). The two doors must face each other along one world axis. Example:
-    // (from_zone: "home", from_opening: 0, to_zone: "commons", to_opening: 0, width: 3.0, glass_top: true),
-    corridors: [],
+    // windows skipped). The two doors must face each other along one world axis.
+    corridors: [
+        // Home east door (index 6) to the Commons west door (index 0): a 10 m
+        // glass-topped gallery - stars over the walk to the mall.
+        (from_zone: "home", from_opening: 6, to_zone: "commons", to_opening: 0, width: 3.0, glass_top: true),
+    ],
 )

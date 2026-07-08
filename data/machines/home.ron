@@ -509,6 +509,20 @@
         (id: "kiln_1", machine: "kiln", room: "study", offset: (46.3, 0.0, 21.4)),
         (id: "anvil_1", machine: "anvil_station", room: "study", offset: (47.4, 0.0, 21.4)),
         (id: "loom_1", machine: "loom", room: "study", offset: (48.7, 0.0, 21.4)),
+
+        // ── The Commons (ship-superstructure increment C) ── the shared hall
+        // east of the home (zone "commons": world x 65-99, z 20-75; offsets
+        // are ABSOLUTE world metres clamped into that zone). Garden support
+        // cluster feeds the center tower array (see arrays below); three
+        // market stalls line the east wall under the stall dividers.
+        (id: "aqua_c1", machine: "aquaponic_tank", room: "commons", offset: (76.5, 0.0, 44.0), zone: "commons"),
+        (id: "composter_c1", machine: "composter", room: "commons", offset: (76.5, 0.0, 46.5), zone: "commons"),
+        (id: "mush_c1", machine: "mushroom_rack", room: "commons", offset: (76.5, 0.0, 49.0), zone: "commons"),
+        (id: "apoth_c1", machine: "aeroponic_tower_apothecary", room: "commons", offset: (86.5, 0.0, 44.0), zone: "commons"),
+        (id: "apoth_c2", machine: "aeroponic_tower_apothecary", room: "commons", offset: (86.5, 0.0, 52.0), zone: "commons"),
+        (id: "market_c1", machine: "trading_post", room: "commons", offset: (97.0, 0.0, 32.0), zone: "commons"),
+        (id: "market_c2", machine: "trading_post", room: "commons", offset: (97.0, 0.0, 46.0), zone: "commons"),
+        (id: "market_c3", machine: "trading_post", room: "commons", offset: (97.0, 0.0, 60.0), zone: "commons"),
     ],
 
     // Dense garden fill: grids expanded into instances at load (infinite-of-X, one line per
@@ -525,6 +539,9 @@
         (machine: "staple_grain_tray", room: "garden", id_prefix: "graintray", origin: (21.0, 0.0, 43.0),    rows: 2, cols: 4, spacing: (2.7, 2.0)),
         (machine: "aeroponic_tower_nutrition", room: "garden", id_prefix: "ntower", origin: (7.0, 0.0, 56.0), rows: 4, cols: 6, spacing: (2.2, 2.2)),
         (machine: "mushroom_rack",     room: "garden", id_prefix: "mush",      origin: (34.0, 0.0, 46.0),   rows: 6, cols: 1, spacing: (0.0, 2.0)),
+        // The Commons garden center (increment C): a 3x3 tower grove under the
+        // glass roof, mid-hall. World-absolute origin inside zone "commons".
+        (machine: "aeroponic_tower_nutrition", room: "commons", id_prefix: "ctower", origin: (79.0, 0.0, 44.0), rows: 3, cols: 3, spacing: (2.4, 2.4), zone: "commons"),
     ],
 
     // Connections as colored pipes/tubes: power = amber, water = blue, nutrient = brown,
@@ -583,6 +600,10 @@
         // (fish water + waste), so the towers are watered AND fertilized by the fish.
         (from: "irrigation_1", to: "potato_0", kind: "water"),
         (from: "aqua_1", to: "ntower_0", kind: "water"),
+        // Commons garden feeds (increment C): the hall's tank + composter
+        // anchor its tower grove, mirroring the home garden's loop.
+        (from: "aqua_c1", to: "ctower_0", kind: "water"),
+        (from: "composter_c1", to: "ctower_0", kind: "nutrient"),
         // Greywater recycle closes the water loop back to irrigation.
         (from: "composter_1", to: "irrigation_1", kind: "water"),
 
