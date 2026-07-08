@@ -11,9 +11,9 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: FOURTEEN INCREMENTS SHIPPED (v0.745-v0.758, started
-> Fable final day 2026-07-07).** The bible below is not just written - its
-> ladder is EXECUTING. Shipped, each with tests + full battery:
+> **>>> CLOSURE LADDER: FIFTEEN INCREMENTS SHIPPED (v0.745-v0.759, started
+> Fable final day 2026-07-07). Every unblocked rung has now shipped its
+> planned increments.** Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
 >    death screen + respawn at the spawn room, EffectTick (poison bites,
 >    regeneration heals), attack-pulse on damage.
@@ -76,13 +76,19 @@
 >    + real weekly trend, messages, market, task completion, follows,
 >    activity); the fabricated tech/food/water/happiness metrics and the
 >    Charts stub removed until real sims feed them.
-> NEXT: rung 10 rest (load data/governance/proposal_types.ron so vote
-> quorum/threshold rules are data; guild-scoped production pools later),
-> rung 9 (zones, awaits decision-briefs.md Brief 1). Follow-up noted in
-> the journal: guild REST auth should ride the signed-auth helper before
-> real users. The combat arc unlocks offensive ability rows + creature
-> loot tables + armor-on-equip when it lands. T5 planet-landing can be
-> pulled forward on operator say-so. <<<**
+> 15. **v0.759 vote rules are data** (rung 10, governance increment):
+>    proposal_types.ron finally loaded - the relay tally endpoint returns
+>    data-driven quorum/pass verdicts (hot-editable per request), the
+>    native governance page shows them per proposal (abstain counts
+>    toward quorum, not the pass ratio).
+> NEXT BIG ARCS (pick per operator direction): the combat arc (X1 -
+> unlocks offensive abilities, creature loot tables, armor-on-equip,
+> wild spawns from the same creature registry), T5 planet-landing
+> (PlanetRegistry + heightmap pipeline, written but unwired), rung 9
+> zones (awaits decision-briefs.md Brief 1), guild-scoped production
+> pools (engagement mode 4), or operator field-report fixes as they
+> arrive. Journal follow-up still open: guild REST auth should ride the
+> signed-auth helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
