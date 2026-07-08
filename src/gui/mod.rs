@@ -607,6 +607,30 @@ mod listing_mapping_tests {
     }
 }
 
+/// One castable (or honestly-locked) ability row for the Profile page's
+/// Abilities panel (v0.753, ladder rung 8). Bridged from the AbilityRegistry
+/// + PlayerSkills each frame while the page is open.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct GuiAbility {
+    pub id: String,
+    pub name: String,
+    pub school: String,
+    pub flavor: String,
+    /// Energy the cast costs (mana + stamina columns combined).
+    pub cost: f32,
+    pub cooldown_s: f32,
+    /// Seconds until castable again; 0 = ready.
+    pub cooldown_remaining: f32,
+    pub heals: f32,
+    /// True when the v1 pipeline can cast it right now (self-scoped effect
+    /// + skill gate met). Cooldown is shown separately.
+    pub castable_now: bool,
+    /// Honest reason a row is locked ("" when castable).
+    pub locked_reason: String,
+    pub description: String,
+}
+
 /// Planet data for the map viewer.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -1896,6 +1920,13 @@ pub struct GuiState {
     pub map_zoom: f32,
 
     // ── Market state ──
+    /// Abilities panel rows (v0.753), rebuilt while the Profile page is open.
+    pub abilities: Vec<GuiAbility>,
+    /// Cast click -> lib.rs bridges it into the ability_request channel.
+    pub pending_cast: Option<String>,
+    /// One-line cast feedback from AbilitySystem ("First Aid restores 35 health").
+    pub ability_status: String,
+
     pub listings: Vec<GuiListing>,
     /// Set once listing_browse has been sent this connection; cleared on
     /// disconnect so a reconnect re-syncs. (v0.752)
@@ -3404,6 +3435,9 @@ impl Default for GuiState {
             map_zoom: 1.0,
 
             // Market defaults
+            abilities: Vec::new(),
+            pending_cast: None,
+            ability_status: String::new(),
             listings: Vec::new(),
             listings_synced: false,
             listing_status: String::new(),

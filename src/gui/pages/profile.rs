@@ -395,6 +395,87 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         }
     });
 
+    // ── Abilities (v0.753, ladder rung 8) ── the activation layer: castable
+    // actions with an energy cost and a cooldown, gated by skills you level
+    // by doing. Healing abilities work today; offensive rows say honestly
+    // that they wait for the combat arc.
+    ui.add_space(theme.spacing_md);
+    ui.label(RichText::new("Abilities").size(theme.font_size_title).color(theme.text_primary()));
+    ui.add_space(theme.spacing_xs);
+    if !state.ability_status.is_empty() {
+        ui.label(
+            RichText::new(&state.ability_status)
+                .color(theme.text_secondary())
+                .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_xs);
+    }
+    widgets::card(ui, theme, |ui| {
+        if state.abilities.is_empty() {
+            ui.label(
+                RichText::new("Enter the world to see your abilities.")
+                    .size(theme.font_size_body)
+                    .color(theme.text_muted()),
+            );
+        } else {
+            let mut cast_id: Option<String> = None;
+            egui::Grid::new("abilities_grid")
+                .num_columns(4)
+                .spacing([16.0, theme.row_gap])
+                .show(ui, |ui| {
+                    for ab in state.abilities.iter() {
+                        ui.vertical(|ui| {
+                            ui.label(
+                                RichText::new(&ab.name)
+                                    .color(theme.text_primary())
+                                    .size(theme.font_size_body),
+                            )
+                            .on_hover_text(&ab.description);
+                            ui.label(
+                                RichText::new(format!("{} | {}", ab.school, ab.flavor))
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
+                        });
+                        let effect = if ab.heals > 0.0 {
+                            format!("heals {:.0}", ab.heals)
+                        } else {
+                            String::new()
+                        };
+                        ui.label(
+                            RichText::new(effect)
+                                .color(theme.text_secondary())
+                                .size(theme.font_size_small),
+                        );
+                        ui.label(
+                            RichText::new(format!("{:.0} energy", ab.cost))
+                                .color(theme.text_muted())
+                                .size(theme.font_size_small),
+                        );
+                        if !ab.castable_now {
+                            ui.label(
+                                RichText::new(&ab.locked_reason)
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
+                        } else if ab.cooldown_remaining > 0.0 {
+                            ui.label(
+                                RichText::new(format!("recharging {:.0}s", ab.cooldown_remaining.max(1.0)))
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                            );
+                        } else if widgets::Button::secondary("Cast").show(ui, theme) {
+                            cast_id = Some(ab.id.clone());
+                        }
+                        ui.end_row();
+                    }
+                });
+            if let Some(id) = cast_id {
+                state.pending_cast = Some(id);
+            }
+        }
+    });
+
     // Dev: max all skills (testing affordance — unlocks every #8b skill-gated
     // recipe in one click, mirroring "Dev: stock materials" for inventory).
     // Gated behind the dev-cheats toggle (Settings -> Animations -> Developer cheats).

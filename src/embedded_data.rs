@@ -133,6 +133,7 @@ pub const ECONOMY_RON: &str = include_str!("../data/economy.ron");
 pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
 pub const CREATURES_CSV: &str = include_str!("../data/creatures.csv");
 pub const LIVESTOCK_RON: &str = include_str!("../data/entities/livestock.ron");
+pub const ABILITIES_CSV: &str = include_str!("../data/abilities.csv");
 
 // ── Lookup helper ───────────────────────────────────────────────────
 
@@ -160,6 +161,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "asteroids/types.csv" => Some(ASTEROID_TYPES_CSV),
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
+        "abilities.csv" => Some(ABILITIES_CSV),
 
         // JSON
         "glossary.json" => Some(GLOSSARY_JSON),
@@ -382,6 +384,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "equipment.csv",
     "creatures.csv",
     "entities/livestock.ron",
+    "abilities.csv",
 ];
 
 #[cfg(test)]

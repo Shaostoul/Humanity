@@ -4501,6 +4501,15 @@ mod native_app {
             "creature_registry",
             crate::systems::livestock::CreatureRegistry::from_csv,
         );
+        // AbilityRegistry (v0.753, ladder rung 8): abilities.csv (formerly
+        // spells.csv) gets its loader. Read by AbilitySystem + the Profile
+        // page's Abilities panel.
+        load_csv_registry(
+            store,
+            data_dir.join("abilities.csv"),
+            "ability_registry",
+            crate::systems::abilities::AbilityRegistry::from_csv,
+        );
         store.insert(
             "quest_registry",
             QuestRegistry::from_ron_dir(&data_dir.join("quests")),
@@ -5343,6 +5352,19 @@ mod native_app {
             // LivestockSystem (v0.751, ladder rung 7): ages every Harvestable
             // toward ready and ambles the farm animals around their anchors.
             system_runner.register(crate::systems::livestock::LivestockSystem::new());
+            // AbilitySystem (v0.753, ladder rung 8): drains ability_request
+            // casts (validate skill gate + energy cost + cooldown, apply the
+            // self-scoped effect) and publishes live cooldowns for the GUI.
+            data_store.insert(
+                "ability_request",
+                std::sync::Mutex::new(Vec::<String>::new()),
+            );
+            data_store.insert("ability_status", std::sync::Mutex::new(String::new()));
+            data_store.insert(
+                "ability_cooldowns",
+                std::sync::Mutex::new(std::collections::HashMap::<String, f32>::new()),
+            );
+            system_runner.register(crate::systems::abilities::AbilitySystem::new());
             // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
             // passive income (1 CR per game day) into every Wallet — economy.ron's
             // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
@@ -9990,6 +10012,90 @@ mod native_app {
                                 Ok(msg) => msg,
                                 Err(e) => e,
                             };
+                        }
+                    }
+
+                    // ── Abilities bridge (v0.753, ladder rung 8) ──
+                    // Cast click -> the ability_request channel AbilitySystem
+                    // drains at its tick; the status line rides back the same
+                    // frame it lands.
+                    if let Some(id) = state.gui_state.pending_cast.take() {
+                        if let Some(req) = state
+                            .data_store
+                            .get::<std::sync::Mutex<Vec<String>>>("ability_request")
+                        {
+                            if let Ok(mut v) = req.lock() {
+                                v.push(id);
+                            }
+                        }
+                    }
+                    if let Some(s) = state
+                        .data_store
+                        .get::<std::sync::Mutex<String>>("ability_status")
+                    {
+                        if let Ok(slot) = s.lock() {
+                            if !slot.is_empty() {
+                                state.gui_state.ability_status = slot.clone();
+                            }
+                        }
+                    }
+                    // Panel rows, rebuilt while the Profile page is open
+                    // (cooldowns move every frame; gates change on level-up).
+                    if state.gui_state.active_page == GuiPage::Profile {
+                        if let Some(reg) = state
+                            .data_store
+                            .get::<crate::systems::abilities::AbilityRegistry>("ability_registry")
+                        {
+                            let cooldowns = state
+                                .data_store
+                                .get::<std::sync::Mutex<std::collections::HashMap<String, f32>>>(
+                                    "ability_cooldowns",
+                                )
+                                .and_then(|m| m.lock().ok().map(|g| g.clone()))
+                                .unwrap_or_default();
+                            let mut rows: Vec<crate::gui::GuiAbility> = Vec::new();
+                            {
+                                let mut q = state
+                                    .game_world
+                                    .world
+                                    .query::<(&PlayerSkills, &Controllable)>();
+                                if let Some((_e, (skills, _c))) = q.iter().next() {
+                                    for def in reg.defs.values() {
+                                        let gate_ok = def.skill_gate_met(skills);
+                                        let castable = def.self_castable() && gate_ok;
+                                        let locked_reason = if !def.self_castable() {
+                                            "Arrives with the combat arc".to_string()
+                                        } else if !gate_ok {
+                                            format!(
+                                                "Needs {} level {}",
+                                                def.skill_required, def.skill_level
+                                            )
+                                        } else {
+                                            String::new()
+                                        };
+                                        rows.push(crate::gui::GuiAbility {
+                                            id: def.id.clone(),
+                                            name: def.name.clone(),
+                                            school: def.school.clone(),
+                                            flavor: def.flavor.clone(),
+                                            cost: def.energy_cost(),
+                                            cooldown_s: def.cooldown_s,
+                                            cooldown_remaining: cooldowns
+                                                .get(&def.id)
+                                                .copied()
+                                                .unwrap_or(0.0),
+                                            heals: def.healing_base,
+                                            castable_now: castable,
+                                            locked_reason,
+                                            description: def.description.clone(),
+                                        });
+                                    }
+                                }
+                            }
+                            rows.sort_by(|a, b| {
+                                (!a.castable_now, &a.name).cmp(&(!b.castable_now, &b.name))
+                            });
+                            state.gui_state.abilities = rows;
                         }
                     }
 
