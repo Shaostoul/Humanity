@@ -822,7 +822,9 @@ level is screen-size-driven (one more level per doubling of projected pixel
 size; threshold + max level + master toggle live in Settings, Graphics,
 Planets, persisted in AppConfig). Meshes cache per (body, level). Colors ride
 packed in the UV channel (PBR shader material types 12/13), so no new vertex
-layout or pipeline.
+layout or pipeline. Planet defs HOT-RELOAD (v0.764): saving a
+`data/planets/<id>.ron` mid-game re-reads the defs + drops cached meshes, so
+palette/noise/sea-level tuning shows in the sky within a frame.
 - Native: `src/terrain/planet_surface.rs`, `src/terrain/planet.rs`
   (`lod_level_for_pixels`), `src/renderer/mesh.rs` (`from_planet_surface`),
   `assets/shaders/pbr_simple.wgsl` (types 12/13), sky loop in `src/lib.rs`
@@ -902,7 +904,29 @@ Scaffolded system modules for expanded gameplay.
 
 ## Game Systems
 
-> **Registration status (recounted 2026-07-07 after the closure-ladder sprint; older per-system notes below may be stale):** **22** systems are actually registered + tick in the runtime (`src/lib.rs`, grep `system_runner.register`): Time/Day-Night, Weather, Solar, Electrical, Plumbing, Atmosphere, Player Controller, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Construction, Manufacturing, Food, Drone, Vehicles, Livestock (v0.751), Ability (v0.753), Economy (v0.747), Skills, Quests. Systems still **implemented but NOT registered** never tick (AI native, Combat, Ecology, Hydrology, Disaster, Psychology, and the scaffold-tier systems). `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative live list (the build fails if a system is neither registered nor deferred-with-reason) -- always cross-check THAT before trusting any per-system note below, since these notes silently go stale as systems get registered over time. `docs/STATUS.md` has the per-system status.
+> **Registration status (recounted 2026-07-08 after the combat arc; older per-system notes below may be stale):** **24** systems are actually registered + tick in the runtime (`src/lib.rs`, grep `system_runner.register`): Time/Day-Night, Weather, Solar, Electrical, Plumbing, Atmosphere, Player Controller, Interaction, Farming, Inventory, ContainerCompatibility, Crafting, Construction, Manufacturing, Food, Drone, Vehicles, Livestock (v0.751), Ability (v0.753), Combat (v0.760), AI (v0.761), Economy (v0.747), Skills, Quests. Systems still **implemented but NOT registered** never tick (Ecology, Hydrology, Disaster, Psychology, and the scaffold-tier systems). `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS` is the authoritative live list (the build fails if a system is neither registered nor deferred-with-reason) -- always cross-check THAT before trusting any per-system note below, since these notes silently go stale as systems get registered over time. `docs/STATUS.md` has the per-system status.
+
+### Combat (v0.760 - v0.765)
+The X1 combat arc live end to end at the wolf tier. CombatSystem (registered
+v0.760): hits arrive via the `damage_events` channel, armor mitigates per
+damage type, death inserts Dead, kills roll the creature's authored loot table
+(chance-gated, min..=max counts) into the killer's pack when the PLAYER landed
+the blow, creature corpses decay after 20s. AISystem (registered v0.761):
+predators hunt prey INCLUDING the player, close distance under their own
+locomotion, and bite (~15% of beast health per 1.5s, kinetic). Combat deaths
+publish "killed by a Wolf" to the death screen. Armor-on-equip: worn
+equipment.csv armor columns rebuild the player Armor component every frame,
+per-type sums capped 0.85. Livestock flee living predators within 12m at
+double speed (v0.762). Kills train melee (kinetic) / ranged (else) via
+xp_grants. Melee (v0.765): F swings the worn hands-slot weapon (tool/blade
+equipment rows: axe 14, spear 15 at 3m, pickaxe 12...) or bare hands (3 dmg);
+offensive abilities cast at the faced creature (v0.760). Wild spawns are data.
+- Native: `src/systems/combat/` (system, `player_swing`, damage types),
+  `src/systems/ai/mod.rs` (behavior machine + bites), lib.rs bridges (swing,
+  loot settle, armor rebuild, cast targeting)
+- Data: `data/entities/wild_spawns.ron`, `data/creatures.csv` loot tables,
+  `data/equipment.csv` damage/armor columns, 128 generated loot items in
+  `data/items.csv` (`scripts/gen-loot-items.js`)
 
 ### Livestock (v0.751)
 CreatureRegistry parses all 92 `data/creatures.csv` species (new `renewable_product`

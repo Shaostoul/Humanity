@@ -90,15 +90,17 @@
 > within a frame - the visual tuning loop needs no relaunch. Follow-ups
 > documented: 1m chunked landing subdivision, rivers, real craters,
 > biomes.ron wiring, mesh-cache eviction.
-> NEXT BIG ARCS (pick per operator direction): the combat arc (wolf-tier
-> loop COMPLETE across v0.760-762; remaining are taste calls: melee/tool
-> attack, spawn variety, wall-aware pathfinding, aggro telegraphs), the
-> planet LANDING arc (chunked near-surface subdivision toward 1m, the
-> container-swap design), rung 9 zones (awaits decision-briefs.md
-> Brief 1), guild-scoped production pools (engagement mode 4), or
-> operator field-report fixes (planets field test: relaunch, look up,
-> tune the sliders, screenshot). Journal follow-up still open: guild
-> REST auth should ride the signed-auth helper before real users. <<<**
+> NEXT BIG ARCS (pick per operator direction): the combat arc (FOUR
+> increments in: v0.760-762 + v0.765 melee - F swings the worn hands
+> weapon, tool/blade equipment rows live, bare-hands fallback; remaining
+> taste calls: spawn variety/respawn, wall-aware pathfinding, aggro
+> telegraphs), the planet LANDING arc (chunked near-surface subdivision
+> toward 1m, the container-swap design), rung 9 zones (awaits
+> decision-briefs.md Brief 1), guild-scoped production pools (engagement
+> mode 4), or operator field-report fixes (planets field test pending:
+> relaunch, look up, tune sliders + RON live, screenshot). Journal
+> follow-up still open: guild REST auth should ride the signed-auth
+> helper before real users. <<<**
 
 > **>>> FABLE FINAL DAY (2026-07-07): THE GAMEPLAY DESIGN BIBLE. Fable's last
 > session produced the decided-design handoff so Opus executes against specs
