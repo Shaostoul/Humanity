@@ -11,7 +11,7 @@
 
 ## Active focus
 
-> **>>> CLOSURE LADDER: TEN INCREMENTS SHIPPED (v0.745-v0.754, started
+> **>>> CLOSURE LADDER: ELEVEN INCREMENTS SHIPPED (v0.745-v0.755, started
 > Fable final day 2026-07-07).** The bible below is not just written - its
 > ladder is EXECUTING. Shipped, each with tests + full battery:
 > 1. **v0.745 death & recovery** (rung 1): Dead at 0 HP with cause tracking,
@@ -56,8 +56,14 @@
 >    sweep + seconds per slot, 4s-fading cast feedback, decorative
 >    inventory slot numbers removed (keys that cast must not be numbered
 >    on a row that ignores them).
-> NEXT RUNGS: 5-rest (escrow trade flow + listing messages + reviews in
-> native - relay routes all exist), 9 (zones, awaits decision-briefs.md
+> 11. **v0.755 native reviews + threads** (rung 5, trade-flow increment):
+>    Market detail view gains reviews (REST list + WS create/delete,
+>    star rows, live average) and the buyer-seller message thread
+>    (Contact Seller pulls history, broadcasts append live, draft box
+>    sends). Wire frames pinned by tests.
+> NEXT RUNGS: 5-escrow (the native order-book buy/settle against
+> relay trading.rs - the ONE unshipped T3 native piece; no dead Buy
+> button shipped meanwhile), 9 (zones, awaits decision-briefs.md
 > Brief 1), 10 (community wiring). The combat arc unlocks offensive
 > ability rows + creature loot tables + armor-on-equip when it lands.
 > T5 planet-landing (PlanetRegistry + heightmap pipeline, written but
