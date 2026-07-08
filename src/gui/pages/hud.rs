@@ -372,6 +372,30 @@ pub fn draw(
                     theme.accent(),
                 );
             }
+            // Livestock prompt (v0.751): "[E] collect Egg (Chicken)" when the
+            // faced animal is ready, or the regrow countdown while it is not.
+            if !state.livestock_prompt.is_empty() {
+                let ready = state.livestock_prompt.starts_with("[E]");
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 54.0),
+                    Align2::CENTER_TOP,
+                    &state.livestock_prompt,
+                    13.0,
+                    if ready { theme.accent() } else { theme.text_secondary() },
+                );
+            }
+            // Collect feedback ("+1 Egg from Chicken"); lib.rs fades it after 3 s.
+            if !state.livestock_notice.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 72.0),
+                    Align2::CENTER_TOP,
+                    &state.livestock_notice,
+                    13.0,
+                    theme.text_primary(),
+                );
+            }
             // Pinned (E-opened) machine card: CENTERED on screen (upper third,
             // clear of the crosshair) — was pinned tiny at the top-left, which
             // the operator reported as invisible-in-practice (v0.730).

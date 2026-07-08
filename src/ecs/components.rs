@@ -267,6 +267,29 @@ pub struct Harvestable {
     pub time_since_harvest: f32,
 }
 
+/// A living animal in the world (v0.751, closure ladder rung 7). Spawned from
+/// data/entities/livestock.ron rows against creatures.csv definitions; the
+/// LivestockSystem wanders it around its anchor and ages its Harvestable.
+/// Presentation fields (tint, body_side) are copied in at spawn so the render
+/// pass never needs a registry lookup per frame.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Creature {
+    /// creatures.csv id (e.g. "chicken").
+    pub def_id: String,
+    /// Home point the animal grazes around (world space).
+    pub anchor: Vec3,
+    /// Max wander distance from the anchor (metres).
+    pub range: f32,
+    /// Per-animal phase offset so a flock does not move in lockstep.
+    pub phase: f32,
+    /// Amble speed (m/s) - a fraction of the species' movement_speed.
+    pub speed: f32,
+    /// Placeholder body colour until real models land.
+    pub tint: [f32; 3],
+    /// Body-box side length (metres), derived from the species' weight.
+    pub body_side: f32,
+}
+
 // ── Farming ──────────────────────────────────────────────────
 
 /// Default growth stages used when a plant definition doesn't specify its own.

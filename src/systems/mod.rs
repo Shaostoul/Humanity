@@ -12,6 +12,7 @@ pub mod combat;
 pub mod quests;
 pub mod crafting;
 pub mod vehicles;
+pub mod livestock;
 pub mod ai;
 pub mod skills;
 pub mod ecology;

@@ -3870,6 +3870,10 @@ mod native_app {
                 // Electrical + plumbing island per machine, so spawned entities flow on their circuit. (v0.607/v0.608)
                 let power_islands = home.electrical_islands(&all_instances);
                 let water_islands = home.water_islands(&all_instances);
+                // Instance id -> world position, for anchoring the starter
+                // livestock near the fields below. (v0.751, ladder rung 7)
+                let mut machine_world_pos: std::collections::HashMap<String, Vec3> =
+                    std::collections::HashMap::new();
                 for inst in &all_instances {
                     let Some(def) = home.catalog.get(&inst.machine) else { continue };
                     // Position formula mirrored by the tested MachineHome::placements (the editor's
@@ -3921,6 +3925,7 @@ mod native_app {
                     } else {
                         pos
                     };
+                    machine_world_pos.insert(inst.id.clone(), pos);
                     state.machine_objects.push((mesh_idx, mat, draw_pos, inst.rotation));
                     // Floating label anchor: just above the machine's top.
                     let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
@@ -3951,6 +3956,83 @@ mod native_app {
                     placed += 1;
                 }
                 log::info!("Machines: placed {placed} machines");
+
+                // ── Starter livestock (v0.751, ladder rung 7) ── farm animals
+                // near the outdoor fields, from data/entities/livestock.ron rows
+                // against creatures.csv species. Spawned READY to collect so a
+                // fresh homestead demonstrates the loop immediately. Idempotent
+                // across world reloads (previous herd despawns first).
+                {
+                    let old: Vec<hecs::Entity> = state
+                        .game_world
+                        .world
+                        .query::<&crate::ecs::components::Creature>()
+                        .iter()
+                        .map(|(e, _)| e)
+                        .collect();
+                    for e in old {
+                        let _ = state.game_world.world.despawn(e);
+                    }
+                    let mut bundles = Vec::new();
+                    if let (Some(reg), Some(list)) = (
+                        state
+                            .data_store
+                            .get::<crate::systems::livestock::CreatureRegistry>("creature_registry"),
+                        state
+                            .data_store
+                            .get::<crate::systems::livestock::LivestockSpawnList>("livestock_spawn_list"),
+                    ) {
+                        for (pi, p) in list.animals.iter().enumerate() {
+                            let Some(def) = reg.get(&p.creature) else {
+                                log::warn!("livestock.ron: unknown creature {}", p.creature);
+                                continue;
+                            };
+                            let Some(product) = def.renewable() else {
+                                log::warn!("livestock.ron: {} has no renewable product", p.creature);
+                                continue;
+                            };
+                            let Some(&anchor) = machine_world_pos.get(&p.near) else {
+                                log::warn!("livestock.ron: anchor {} not placed", p.near);
+                                continue;
+                            };
+                            for i in 0..p.count {
+                                // Golden-angle scatter: deterministic, spread out.
+                                let a = i as f32 * 2.399_963 + pi as f32 * 1.7;
+                                let r = p.spread * (0.45 + 0.55 * (i as f32 + 1.0) / p.count as f32);
+                                let pos = anchor + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
+                                bundles.push((
+                                    crate::ecs::components::Creature {
+                                        def_id: def.id.clone(),
+                                        anchor,
+                                        range: p.spread,
+                                        phase: pi as f32 * 0.9 + i as f32 * 1.7,
+                                        speed: (def.movement_speed * 0.35).max(0.2),
+                                        tint: [p.tint.0, p.tint.1, p.tint.2],
+                                        body_side: def.body_side(),
+                                    },
+                                    Transform {
+                                        position: pos,
+                                        ..Default::default()
+                                    },
+                                    Name(def.name.clone()),
+                                    crate::ecs::components::Harvestable {
+                                        resource: product.item.clone(),
+                                        amount: product.amount as f32,
+                                        regrow_time: product.regrow_s,
+                                        time_since_harvest: product.regrow_s, // ready on arrival
+                                    },
+                                ));
+                            }
+                        }
+                    }
+                    let herd = bundles.len();
+                    for b in bundles {
+                        state.game_world.world.spawn(b);
+                    }
+                    if herd > 0 {
+                        log::info!("Livestock: spawned {herd} animals near the fields");
+                    }
+                }
             }
         }
         // The home's sealed air space for the live AtmosphereSystem readout (v0.617).
@@ -4411,6 +4493,14 @@ mod native_app {
             "equipment_registry",
             crate::systems::economy::EquipmentRegistry::from_csv,
         );
+        // CreatureRegistry (v0.751, ladder rung 7): creatures.csv finally gets
+        // its loader. Read by the livestock spawn + walk-up collect bridges.
+        load_csv_registry(
+            store,
+            data_dir.join("creatures.csv"),
+            "creature_registry",
+            crate::systems::livestock::CreatureRegistry::from_csv,
+        );
         store.insert(
             "quest_registry",
             QuestRegistry::from_ron_dir(&data_dir.join("quests")),
@@ -4431,6 +4521,18 @@ mod native_app {
             None => log::warn!(
                 "blueprints/basic.ron not found (no embedded copy); blueprint_registry unavailable (ConstructionSystem idle)"
             ),
+        }
+        // LivestockSpawnList (v0.751, ladder rung 7): which starter animals the
+        // homestead gets and near which field. Read by load_world's spawn pass.
+        match crate::embedded_data::read_data_or_embedded(data_dir, "entities/livestock.ron") {
+            Some(text) => match crate::systems::livestock::LivestockSpawnList::from_ron(text.as_bytes()) {
+                Ok(list) => {
+                    log::info!("Loaded {} livestock placements from entities/livestock.ron", list.animals.len());
+                    store.insert("livestock_spawn_list", list);
+                }
+                Err(e) => log::warn!("Failed to parse entities/livestock.ron: {e}"),
+            },
+            None => log::warn!("entities/livestock.ron not found (no embedded copy); no starter animals"),
         }
         // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
         // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
@@ -4679,6 +4781,13 @@ mod native_app {
         /// The vehicle the crosshair currently targets (within reach + look cone).
         targeted_vehicle: Option<hecs::Entity>,
         vehicle_mats: Option<[usize; 3]>, // [body paint, cabin glass, wheel rubber]
+        /// Animal in reach + look cone (v0.751): drives the "[E] collect" prompt.
+        targeted_livestock: Option<hecs::Entity>,
+        /// E pressed on a targeted animal; the frame bridge settles the collect.
+        pending_livestock_harvest: Option<hecs::Entity>,
+        /// Placeholder animal bodies: one lazy unit box + a material per tint.
+        livestock_mesh: Option<usize>,
+        livestock_mats: std::collections::HashMap<u64, usize>,
         /// Rainbow emissive materials (v0.623) cycled along the SELECTED connection's flow markers, so
         /// the active line reads as highlighted/animated. Created once on the first rebuild.
         flow_rgb_mats: Vec<usize>,
@@ -5231,6 +5340,9 @@ mod native_app {
             // world). The enter/exit/mech arms it also carries are dormant until
             // Stage 3 wires an interaction that publishes their commands.
             system_runner.register(crate::systems::vehicles::VehicleSystem::new());
+            // LivestockSystem (v0.751, ladder rung 7): ages every Harvestable
+            // toward ready and ambles the farm animals around their anchors.
+            system_runner.register(crate::systems::livestock::LivestockSystem::new());
             // EconomySystem (v0.747, ladder rung 3, FIRST registration): pays the
             // passive income (1 CR per game day) into every Wallet — economy.ron's
             // "nobody is ever stuck at zero". Vendor buy/sell runs in the frame
@@ -5553,6 +5665,10 @@ mod native_app {
                 follow_vehicle: None,
                 targeted_vehicle: None,
                 vehicle_mats: None,
+                targeted_livestock: None,
+                pending_livestock_harvest: None,
+                livestock_mesh: None,
+                livestock_mats: std::collections::HashMap::new(),
                 drone_dock_mats: None,
                 drone_dock_anim: 1.0,
                 flow_rgb_mats: Vec::new(),
@@ -5927,6 +6043,10 @@ mod native_app {
                                     }
                                     state.driving_vehicle = Some(veh);
                                 }
+                            } else if let Some(animal) = state.targeted_livestock {
+                                // Walk-up collect from a farm animal (v0.751):
+                                // the frame bridge settles it against the pack.
+                                state.pending_livestock_harvest = Some(animal);
                             } else
  if let Some(cp) = state.gui_state.targeted_control_panel {
                                 // Looking at a door control panel (v0.567 + v0.570 locks): if the door
@@ -6788,6 +6908,66 @@ mod native_app {
                                 None => String::new(),
                             };
                         }
+                    }
+
+                    // Walk-up to an ANIMAL (v0.751, ladder rung 7): the nearest
+                    // Creature within reach inside the look cone. Ready shows
+                    // "[E] collect Egg (Chicken)"; regrowing shows the countdown.
+                    {
+                        let cp = state.camera.position;
+                        let cf = state.camera.forward();
+                        let mut best: Option<(hecs::Entity, f32)> = None;
+                        for (e, (c, tf, _h)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Creature,
+                                &crate::ecs::components::Transform,
+                                &crate::ecs::components::Harvestable,
+                            )>()
+                            .iter()
+                        {
+                            let to = tf.position + Vec3::Y * (c.body_side * 0.8) - cp;
+                            let dist = to.length();
+                            if !(0.3..=4.0).contains(&dist) {
+                                continue;
+                            }
+                            // Wider cone than machines: animals are small and moving.
+                            if (to / dist).dot(cf) < 0.8 {
+                                continue;
+                            }
+                            if best.map_or(true, |b| dist < b.1) {
+                                best = Some((e, dist));
+                            }
+                        }
+                        state.targeted_livestock = best.map(|b| b.0);
+                        state.gui_state.livestock_prompt = match best {
+                            Some((e, _)) => {
+                                let world = &state.game_world.world;
+                                let name = world
+                                    .get::<&Name>(e)
+                                    .map(|n| n.0.clone())
+                                    .unwrap_or_else(|_| "animal".to_string());
+                                match world.get::<&crate::ecs::components::Harvestable>(e) {
+                                    Ok(h) => {
+                                        let item_name = state
+                                            .data_store
+                                            .get::<ItemRegistry>("item_registry")
+                                            .and_then(|items| items.items.get(&h.resource))
+                                            .map(|d| d.name.clone())
+                                            .unwrap_or_else(|| h.resource.clone());
+                                        if h.time_since_harvest + f32::EPSILON >= h.regrow_time {
+                                            format!("[E] collect {item_name} ({name})")
+                                        } else {
+                                            let wait = (h.regrow_time - h.time_since_harvest).ceil();
+                                            format!("{name} ({item_name} in {wait:.0}s)")
+                                        }
+                                    }
+                                    Err(_) => String::new(),
+                                }
+                            }
+                            None => String::new(),
+                        };
                     }
 
                     // Walk-up to a door you can interact with (v0.567 control panel + v0.570 locks): the
@@ -9537,6 +9717,109 @@ mod native_app {
                         state.gui_state.attack_pulse_active = false;
                     }
 
+                    // ── Livestock collect bridge (v0.751, ladder rung 7) ──
+                    // E on a ready animal moves its product into the pack,
+                    // volume-gated: a full pack refuses and the yield stays
+                    // on the animal (never lost, same rule as vendor_buy).
+                    if let Some(animal) = state.pending_livestock_harvest.take() {
+                        let mut notice = String::new();
+                        if state.game_world.world.contains(animal) {
+                            let animal_name = state
+                                .game_world
+                                .world
+                                .get::<&Name>(animal)
+                                .map(|n| n.0.clone())
+                                .unwrap_or_else(|_| "animal".to_string());
+                            let creature_id = state
+                                .game_world
+                                .world
+                                .get::<&crate::ecs::components::Creature>(animal)
+                                .map(|c| c.def_id.clone())
+                                .unwrap_or_default();
+                            let yielded = state
+                                .game_world
+                                .world
+                                .get::<&mut crate::ecs::components::Harvestable>(animal)
+                                .ok()
+                                .and_then(|mut h| {
+                                    crate::systems::livestock::collect(&mut h)
+                                        .map(|n| (h.resource.clone(), n))
+                                });
+                            match yielded {
+                                Some((item, n)) => {
+                                    let mut player: Option<hecs::Entity> = None;
+                                    for (e, _c) in
+                                        state.game_world.world.query::<&Controllable>().iter()
+                                    {
+                                        player = Some(e);
+                                        break;
+                                    }
+                                    let items =
+                                        state.data_store.get::<ItemRegistry>("item_registry");
+                                    let max_stack =
+                                        items.map(|r| r.max_stack_for(&item)).unwrap_or(99);
+                                    let unit_vol =
+                                        items.map(|r| r.volume_for(&item)).unwrap_or(0.0);
+                                    let item_name = items
+                                        .and_then(|r| r.items.get(&item))
+                                        .map(|d| d.name.clone())
+                                        .unwrap_or_else(|| item.clone());
+                                    let fit = player.and_then(|e| {
+                                        state.game_world.world.get::<&mut Inventory>(e).ok().map(
+                                            |mut inv| {
+                                                let lost = inv.add_item_volume_gated(
+                                                    &item, n, max_stack, unit_vol,
+                                                );
+                                                if lost > 0 {
+                                                    inv.remove_item(&item, n - lost);
+                                                }
+                                                lost == 0
+                                            },
+                                        )
+                                    });
+                                    if fit == Some(true) {
+                                        crate::systems::skills::award_skill_xp(
+                                            &state.data_store,
+                                            "farming",
+                                            5,
+                                        );
+                                        if let Some(events) = state
+                                            .data_store
+                                            .get::<std::sync::Mutex<Vec<String>>>("quest_events")
+                                        {
+                                            if let Ok(mut ev) = events.lock() {
+                                                ev.push(format!("harvest_{creature_id}"));
+                                            }
+                                        }
+                                        notice = format!("+{n} {item_name} from {animal_name}");
+                                    } else {
+                                        // Refused: put the yield back on the animal.
+                                        if let Ok(mut h) = state
+                                            .game_world
+                                            .world
+                                            .get::<&mut crate::ecs::components::Harvestable>(animal)
+                                        {
+                                            h.time_since_harvest = h.regrow_time;
+                                        }
+                                        notice = "Your pack is full".to_string();
+                                    }
+                                }
+                                None => {
+                                    notice = format!("{animal_name} has nothing to collect yet");
+                                }
+                            }
+                        }
+                        state.gui_state.livestock_notice = notice;
+                        state.gui_state.livestock_notice_at = now_s;
+                    }
+                    // The collect notice fades after 3 game-seconds (same clock
+                    // as the attack pulse above).
+                    if !state.gui_state.livestock_notice.is_empty()
+                        && now_s - state.gui_state.livestock_notice_at > 3.0
+                    {
+                        state.gui_state.livestock_notice.clear();
+                    }
+
                     // ── Blueprint building bridges (v0.746, ladder rung 2) ──
                     // Build clicked: place 4 m in front of the camera at floor
                     // level; ConstructionSystem snaps to the metre grid, checks
@@ -10428,6 +10711,80 @@ mod native_app {
                                 mesh: unit_box,
                                 material: mat_for(&s.blueprint_id),
                             });
+                        }
+                    }
+
+                    // ── Livestock render (v0.751, ladder rung 7) ── placeholder
+                    // block bodies until real models: body + head + 4 legs from
+                    // one lazy unit box, sized from the species' mass, tinted per
+                    // livestock.ron. Head sits at rotation * +Z to match the
+                    // graze amble's facing convention.
+                    {
+                        if state.livestock_mesh.is_none() {
+                            state.livestock_mesh = Some(
+                                state
+                                    .renderer
+                                    .add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0)),
+                            );
+                        }
+                        let unit_box = state.livestock_mesh.unwrap();
+                        let animals: Vec<(Vec3, Quat, f32, [f32; 3])> = state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Creature,
+                                &crate::ecs::components::Transform,
+                            )>()
+                            .iter()
+                            .map(|(_e, (c, tf))| (tf.position, tf.rotation, c.body_side, c.tint))
+                            .collect();
+                        let mats = &mut state.livestock_mats;
+                        let renderer = &mut state.renderer;
+                        for (pos, rot, s, tint) in animals {
+                            // One material per distinct tint, built on first sight.
+                            let key = ((tint[0] * 255.0) as u64) << 16
+                                | ((tint[1] * 255.0) as u64) << 8
+                                | (tint[2] * 255.0) as u64;
+                            let body_mat = *mats.entry(key).or_insert_with(|| {
+                                renderer.add_material_typed(
+                                    [tint[0], tint[1], tint[2], 1.0],
+                                    0.0,
+                                    0.9,
+                                    0.0,
+                                )
+                            });
+                            let leg_h = s * 0.5;
+                            // Body: bottom-origin box riding on the legs.
+                            all_objects.push(RenderObject {
+                                position: pos + Vec3::Y * leg_h,
+                                rotation: rot,
+                                scale: Vec3::new(s * 0.9, s, s * 1.6),
+                                mesh: unit_box,
+                                material: body_mat,
+                            });
+                            // Head at the front (+Z), above the body line.
+                            all_objects.push(RenderObject {
+                                position: pos + rot * Vec3::new(0.0, leg_h + s * 0.75, s * 0.95),
+                                rotation: rot,
+                                scale: Vec3::splat(s * 0.55),
+                                mesh: unit_box,
+                                material: body_mat,
+                            });
+                            // Four legs at the body corners.
+                            for (dx, dz) in [
+                                (s * 0.3, s * 0.55),
+                                (s * 0.3, -s * 0.55),
+                                (-s * 0.3, s * 0.55),
+                                (-s * 0.3, -s * 0.55),
+                            ] {
+                                all_objects.push(RenderObject {
+                                    position: pos + rot * Vec3::new(dx, 0.0, dz),
+                                    rotation: rot,
+                                    scale: Vec3::new(s * 0.18, leg_h, s * 0.18),
+                                    mesh: unit_box,
+                                    material: body_mat,
+                                });
+                            }
                         }
                     }
 

@@ -665,6 +665,7 @@ produce_dahlia_0,Dahlia,food,decorative,plant_fiber,0.3,20,0,Fresh harvested dah
 produce_marigold_0,Marigold,food,decorative,plant_fiber,0.3,20,0,Fresh harvested marigold,solid,0.45
 produce_jasmine_0,Jasmine,food,decorative,plant_fiber,0.3,20,0,Fresh harvested jasmine,solid,0.45
 fiber_cotton_0,Cotton,material,fiber,plant_fiber,0.3,20,0,Harvested cotton fiber bundle,solid,0.45
+wool_0,Wool,material,fiber,wool,0.4,20,0,Shorn sheep's wool fleece,solid,1.2
 fiber_flax_0,Flax,material,fiber,plant_fiber,0.3,20,0,Harvested flax fiber bundle,solid,0.45
 fiber_rubber_tree_0,Rubber Tree,material,fiber,plant_fiber,0.3,20,0,Harvested rubber tree fiber bundle,solid,0.45
 fiber_sugarcane_0,Sugarcane,material,fiber,plant_fiber,0.3,20,0,Harvested sugarcane fiber bundle,solid,0.45

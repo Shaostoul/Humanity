@@ -1,0 +1,17 @@
+// Starter livestock for the homestead (v0.751, closure ladder rung 7).
+//
+// Each entry places `count` animals of a creatures.csv species near a machine
+// instance from data/machines/home.ron (the outdoor field plots), scattered
+// within `spread` metres. What each animal yields on walk-up + E comes from
+// the creature's renewable_product column in creatures.csv (egg, milk, wool),
+// NOT from this file - this file is placement only.
+//
+// tint is the placeholder body colour [r, g, b] until real models land.
+// Adding an animal species to the homestead = adding a row here.
+(
+    animals: [
+        (creature: "chicken", count: 3, near: "grain_field_1", spread: 2.5, tint: (0.92, 0.88, 0.80)),
+        (creature: "goat", count: 2, near: "tuber_field_1", spread: 3.0, tint: (0.62, 0.52, 0.38)),
+        (creature: "sheep", count: 2, near: "legume_field_1", spread: 3.0, tint: (0.88, 0.86, 0.82)),
+    ],
+)

@@ -1614,6 +1614,13 @@ pub struct GuiState {
     /// Crosshair prompt for the vehicle the player faces ("[E] drive Rover") or
     /// "[E] exit vehicle" while driving. Precomputed in lib.rs like the door prompt.
     pub vehicle_prompt: String,
+    /// Crosshair prompt for the farm animal the player faces (v0.751):
+    /// "[E] collect Egg (Chicken)" when ready, the regrow countdown otherwise.
+    pub livestock_prompt: String,
+    /// Transient collect feedback ("+1 Egg from Chicken" / "Your pack is full").
+    pub livestock_notice: String,
+    /// game_time when livestock_notice was set; lib.rs clears it after 3 s.
+    pub livestock_notice_at: f64,
     /// Index into `door_panels` of the door CONTROL PANEL the player is looking at within
     /// arm's reach (v0.567). Drives the "[E] open/close door" prompt; E toggles the door.
     /// Recomputed each frame in first person. Mirrors `targeted_machine`.
@@ -3205,6 +3212,9 @@ impl Default for GuiState {
             machine_labels: Vec::new(),
             targeted_machine: None,
             vehicle_prompt: String::new(),
+            livestock_prompt: String::new(),
+            livestock_notice: String::new(),
+            livestock_notice_at: 0.0,
             targeted_control_panel: None,
             control_panel_prompt: String::new(),
             selected_machine: None,
