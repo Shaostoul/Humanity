@@ -16,6 +16,14 @@ const SLOTS: [&str; 6] = ["head", "chest", "legs", "feet", "hands", "back"];
 /// Display name for the implicit "no saves yet, enter a fresh homestead" row.
 const NEW_HOMESTEAD: &str = "My Homestead";
 
+/// Sentinel id for the VIRTUAL "server you are connected to right now" row in
+/// the launcher's Servers list (v0.775). The app auto-connects to `server_url`
+/// (united-humanity.us by default) for chat, but that live connection was never
+/// shown here -- only explicitly-saved `chat_servers` were -- so the operator
+/// saw "No servers yet" while actually connected. This id is not a real saved
+/// server; draw_server_details special-cases it to read `server_url` directly.
+const CONNECTED_SERVER_ID: &str = "__connected__";
+
 pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     // Land any finished server-info fetch into the cache (v0.478).
     drain_server_info(state);
@@ -144,11 +152,31 @@ fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     let selected = state.launcher_selected.clone();
     let selected_kind = state.launcher_selected_kind;
     let default_name = state.launcher_default_character.clone();
-    let servers: Vec<(String, String, bool)> = state
+    // Servers list: the LIVE connection you are on right now (virtual, v0.775)
+    // first, then your explicitly-saved bookmarks. The virtual row is what the
+    // operator was missing -- the app auto-connects to server_url for chat, but
+    // only saved chat_servers were listed here, so a connected user saw "No
+    // servers yet". Deduped against saved servers by url so it never doubles.
+    let ws_connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    let primary_url = state.server_url.trim_end_matches('/').to_string();
+    let already_saved = state
         .chat_servers
         .iter()
-        .map(|s| (s.id.clone(), s.name.clone(), s.connected))
-        .collect();
+        .any(|s| s.url.trim_end_matches('/') == primary_url);
+    let mut servers: Vec<(String, String, bool)> = Vec::new();
+    if ws_connected && !primary_url.is_empty() && !already_saved {
+        servers.push((
+            CONNECTED_SERVER_ID.to_string(),
+            crate::gui::pages::chat::server_display_name(&state.server_url),
+            true,
+        ));
+    }
+    servers.extend(
+        state
+            .chat_servers
+            .iter()
+            .map(|s| (s.id.clone(), s.name.clone(), s.connected)),
+    );
     let selected_server = state.launcher_selected_server.clone();
 
     // Deferred mutations (applied after the closure so we never alias state).
@@ -242,24 +270,38 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new("Pick a server on the left.").color(theme.text_muted()));
         return;
     };
-    let Some(server) = state.chat_servers.iter().find(|s| s.id == id).cloned() else {
-        ui.label(RichText::new("That server is no longer in your list.").color(theme.text_muted()));
-        return;
+    // Resolve the selection to (name, url, connected). The virtual
+    // CONNECTED_SERVER_ID row reads server_url directly -- it is the LIVE
+    // connection, not a saved bookmark; everything else looks up chat_servers.
+    let (svr_name, svr_url, svr_connected) = if id == CONNECTED_SERVER_ID {
+        (
+            crate::gui::pages::chat::server_display_name(&state.server_url),
+            state.server_url.clone(),
+            state.ws_client.as_ref().map_or(false, |c| c.is_connected()),
+        )
+    } else {
+        match state.chat_servers.iter().find(|s| s.id == id) {
+            Some(s) => (s.name.clone(), s.url.clone(), s.connected),
+            None => {
+                ui.label(RichText::new("That server is no longer in your list.").color(theme.text_muted()));
+                return;
+            }
+        }
     };
 
     // Kick off a one-time fetch of this server's info if we don't have it.
     if !state.server_info_cache.contains_key(&id) {
-        fetch_server_info(state, &id, &server.url);
+        fetch_server_info(state, &id, &svr_url);
     }
     let info = state.server_info_cache.get(&id).cloned();
 
     // Name: the fetched name if we have it, else the locally-known one.
-    let title = info.as_ref().map(|i| i.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| server.name.clone());
+    let title = info.as_ref().map(|i| i.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| svr_name.clone());
     ui.label(RichText::new(title).size(theme.font_size_heading).strong().color(theme.text_primary()));
     ui.add_space(theme.spacing_xs);
 
-    detail_row(ui, theme, "Address", &server.url);
-    detail_row(ui, theme, "Status", if server.connected { "Connected" } else { "Not connected" });
+    detail_row(ui, theme, "Address", &svr_url);
+    detail_row(ui, theme, "Status", if svr_connected { "Connected" } else { "Not connected" });
 
     match &info {
         None => {
@@ -283,18 +325,37 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // The description is EDITED in Server Settings (the admin's home for their
     // server), not here. For the server you are connected to, point the way.
     let connected_here = !state.server_url.is_empty()
-        && server.url.trim_end_matches('/') == state.server_url.trim_end_matches('/');
+        && svr_url.trim_end_matches('/') == state.server_url.trim_end_matches('/');
     if connected_here {
         ui.add_space(theme.spacing_sm);
         hint(ui, theme, "Admins: edit this server's description in Server Settings (server cog in Chat).");
     }
 
     ui.add_space(theme.spacing_md);
-    ui.add_enabled(
-        false,
-        egui::Button::new(RichText::new("Connect").size(theme.font_size_body).strong()),
-    )
-    .on_disabled_hover_text("Joining servers in-game arrives with multiplayer.");
+    // Enter the shared world ON this server (v0.775). The game auto-joins the
+    // shared world over the live connection whenever you are in-world (v0.472+),
+    // so entering the server you are connected to drops you straight in with
+    // co-presence active -- you will see others who are also present, tracked in
+    // the top-left roster. Only enabled for the server you are actually
+    // connected to; switching the live connection to a DIFFERENT saved server
+    // from here is the multiplayer-future step.
+    if svr_connected && connected_here {
+        if ui
+            .button(RichText::new("Enter World").size(theme.font_size_body).strong())
+            .on_hover_text("Drop into the shared world. You'll see others who are here too.")
+            .clicked()
+        {
+            state.showroom_confirm = true;
+        }
+        ui.add_space(theme.spacing_xs);
+        hint(ui, theme, "Connected. Enter to join the shared world; the top-left roster shows who else is here.");
+    } else {
+        ui.add_enabled(
+            false,
+            egui::Button::new(RichText::new("Enter World").size(theme.font_size_body).strong()),
+        )
+        .on_disabled_hover_text("Connect to this server in the Chat sidebar first, then enter.");
+    }
 }
 
 /// Spawn a background blocking fetch of GET {url}/api/server-info. Stores the

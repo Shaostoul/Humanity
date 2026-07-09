@@ -6305,7 +6305,7 @@ fn viewer_role(state: &GuiState) -> String {
 }
 
 /// Extract a display name from a server URL.
-fn server_display_name(url: &str) -> String {
+pub(crate) fn server_display_name(url: &str) -> String {
     let cleaned = url
         .replace("https://", "")
         .replace("http://", "")
