@@ -53,5 +53,6 @@ pub mod cosmos;
 // agent_sessions table) is unaffected — only the UI surface is gone.
 pub mod testing;
 pub mod browser;
+pub mod dev;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).

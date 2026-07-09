@@ -7693,6 +7693,81 @@ mod native_app {
                             }
                         }
                     }
+
+                    // Dev spawn tool (v0.777, Platform > Dev): spawn any creature/
+                    // NPC ~2 m in front of the player, despawn them all, and
+                    // publish the live count for the Dev page. Reads the camera
+                    // pose (published earlier this frame) and the CreatureRegistry
+                    // the game already loaded, so the spawned entity is identical
+                    // to a placed one (renders + walk-up + combat all work).
+                    if let Some(def_id) = state.gui_state.pending_dev_spawn.take() {
+                        let cam = state
+                            .data_store
+                            .get::<Vec3>("camera_position")
+                            .copied()
+                            .unwrap_or(Vec3::ZERO);
+                        let fwd = state
+                            .data_store
+                            .get::<Vec3>("camera_forward")
+                            .copied()
+                            .unwrap_or(Vec3::NEG_Z);
+                        // Flatten to horizontal so it lands beside you, not in the air.
+                        let flat = Vec3::new(fwd.x, 0.0, fwd.z);
+                        let flat = if flat.length_squared() > 1e-4 {
+                            flat.normalize()
+                        } else {
+                            Vec3::NEG_Z
+                        };
+                        // Ground it at the player's feet (Controllable transform), else 0.
+                        let feet_y = state
+                            .game_world
+                            .world
+                            .query::<(&Controllable, &Transform)>()
+                            .iter()
+                            .next()
+                            .map(|(_, (_, t))| t.position.y)
+                            .unwrap_or(0.0);
+                        let pos = Vec3::new(cam.x + flat.x * 2.0, feet_y, cam.z + flat.z * 2.0);
+                        let items = state.data_store.get::<ItemRegistry>("item_registry");
+                        if let Some(reg) = state
+                            .data_store
+                            .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
+                        {
+                            if let Some(def) = reg.get(&def_id) {
+                                let e = crate::systems::livestock::spawn_creature_at(
+                                    &mut state.game_world.world,
+                                    def,
+                                    items,
+                                    pos,
+                                    [0.7, 0.6, 0.5],
+                                );
+                                log::info!("Dev: spawned {} ({:?}) at {:?}", def.name, e, pos);
+                            } else {
+                                log::warn!("Dev spawn: unknown creature id {def_id}");
+                            }
+                        }
+                    }
+                    if std::mem::take(&mut state.gui_state.pending_dev_despawn_creatures) {
+                        let all: Vec<hecs::Entity> = state
+                            .game_world
+                            .world
+                            .query::<&crate::ecs::components::Creature>()
+                            .iter()
+                            .map(|(e, _)| e)
+                            .collect();
+                        let n = all.len();
+                        for e in all {
+                            let _ = state.game_world.world.despawn(e);
+                        }
+                        log::info!("Dev: despawned {n} creatures");
+                    }
+                    // Live creature count for the Dev page (cheap; a handful of entities).
+                    state.gui_state.dev_creature_count = state
+                        .game_world
+                        .world
+                        .query::<&crate::ecs::components::Creature>()
+                        .iter()
+                        .count();
                     // Vehicles: bridge the Vehicles section's Summon action (Stage 3).
                     if let Some(bits) = state.gui_state.pending_summon_vehicle.take() {
                         if let Some(slot) = state

@@ -216,6 +216,68 @@ impl WildSpawnList {
     }
 }
 
+/// Spawn a fully-formed creature of `def` into the world at `pos` (v0.777, the
+/// dev spawn tool). Gives it the full treatment so it both behaves and can be
+/// harvested/fought: Creature + Transform + Name + Health + LootTable +
+/// AIBehavior (wandering/hostile per the species) + Velocity, plus Harvestable
+/// when the species has a renewable product. Mirrors load_world's homestead +
+/// wild bundles (src/lib.rs) so a dev-spawned animal is identical to a placed
+/// one -- rendering + walk-up + combat all work with no extra registration.
+/// Returns the new entity.
+pub fn spawn_creature_at(
+    world: &mut hecs::World,
+    def: &CreatureDef,
+    items: Option<&crate::systems::inventory::ItemRegistry>,
+    pos: Vec3,
+    tint: [f32; 3],
+) -> hecs::Entity {
+    use crate::ecs::components::{AIBehavior, Health, LootTable, Name, Velocity};
+    let hp = def.health_base.max(1.0);
+    let e = world.spawn((
+        Creature {
+            def_id: def.id.clone(),
+            anchor: pos,
+            range: 6.0,
+            phase: 0.0,
+            speed: (def.movement_speed * 0.35).max(0.2),
+            tint,
+            body_side: def.body_side(),
+        },
+        Transform {
+            position: pos,
+            ..Default::default()
+        },
+        Name(def.name.clone()),
+        Health {
+            current: hp,
+            max: hp,
+        },
+        LootTable {
+            entries: def.loot_entries(items),
+        },
+        AIBehavior {
+            behavior_type: behavior_type_for(def).to_string(),
+            state: "idle".to_string(),
+            target: None,
+        },
+        Velocity::default(),
+    ));
+    // Renewable-yield species (hen/goat/sheep) also get the Harvestable so a
+    // dev-spawned one supports walk-up + E collection like a placed one.
+    if let Some(p) = def.renewable() {
+        let _ = world.insert_one(
+            e,
+            Harvestable {
+                resource: p.item,
+                amount: p.amount as f32,
+                regrow_time: p.regrow_s,
+                time_since_harvest: p.regrow_s,
+            },
+        );
+    }
+    e
+}
+
 /// Map a creatures.csv ai_behavior string onto the AISystem's behavior_type
 /// state machine. hunt-class rows become predators (they count the player as
 /// prey); ambush/aggressive rows are aggressive; everything else wanders as

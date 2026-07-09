@@ -1982,6 +1982,18 @@ pub struct GuiState {
     /// when someone else joins.
     pub copresence_active: bool,
     pub copresence_names: Vec<String>,
+    /// Dev spawn tool (v0.777, Platform > Dev): when Some(def_id), lib.rs spawns
+    /// that creature/NPC in front of the player next frame and clears it. The
+    /// generic "spawn any creature/NPC" the operator asked for; species come
+    /// from CreatureRegistry (data/creatures.csv, 92 rows).
+    pub pending_dev_spawn: Option<String>,
+    /// Dev spawn tool: despawn every Creature in the world next frame (cleanup).
+    pub pending_dev_despawn_creatures: bool,
+    /// Search box text on the Dev page's species list.
+    pub dev_spawn_filter: String,
+    /// Live count of Creature entities, mirrored from the ECS each frame so the
+    /// Dev page can show "N creatures in the world" without a world handle.
+    pub dev_creature_count: usize,
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
@@ -3759,6 +3771,10 @@ impl Default for GuiState {
             chat_input_focus_pending: false,
             copresence_active: false,
             copresence_names: Vec::new(),
+            pending_dev_spawn: None,
+            pending_dev_despawn_creatures: false,
+            dev_spawn_filter: String::new(),
+            dev_creature_count: 0,
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
