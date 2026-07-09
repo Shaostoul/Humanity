@@ -33,10 +33,19 @@
 >    modes inside the in-world panel (all-chat / DMs / group chats /
 >    options - today the full Chat page nav tab is still the home for those),
 >    then the server-join flow so the VPS appears in the launcher Servers list.
-> 2. SHARED-WORLD CO-PRESENCE - actually see other avatars. NetSyncSystem
->    + RemotePlayer render already exist; needs the launcher join flow wired
->    and a TWO-CLIENT live test on the VPS. This is the mission-critical
->    proof; if it is broken it is the single highest-value fix.
+> 2. SHARED-WORLD CO-PRESENCE - actually see other avatars. FINDING (v0.774):
+>    the mechanism is ALREADY BUILT END-TO-END. In-world + connected, the
+>    client auto-sends game_join over the chat socket, streams position 15Hz,
+>    and net_sync renders remote avatars; the relay validates + broadcasts
+>    welcome/joined/position/left. There is NO launcher join step - it is
+>    automatic (the "needs join flow wired" note was stale). What was missing:
+>    it was INVISIBLE. v0.774 made it legible - a HUD top-left indicator
+>    ("Shared world - <host>" + a live roster of who else is present) + real
+>    names both directions. REMAINING = the actual TWO-CLIENT LIVE TEST: two
+>    native instances with DISTINCT identities, both in-world + connected to
+>    united-humanity.us, should see each other's avatars and the roster count
+>    tick up (web chat is NOT a co-presence participant - no game_join/position).
+>    This is the mission-critical proof; the test needs a second client/person.
 > 3. FIELD-REPORT CADENCE - operator plays, reports what is broken/ugly, I
 >    fix. The corridor rework belongs here: corridors should OWN their door
 >    mouths (not reference a pre-drawn door by index) - fixes BOTH the
