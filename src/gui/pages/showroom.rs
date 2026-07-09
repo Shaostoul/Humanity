@@ -317,6 +317,9 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             if !i.version.is_empty() { detail_row(ui, theme, "Version", &i.version); }
             detail_row(ui, theme, "Members", &i.member_count.to_string());
             detail_row(ui, theme, "Online now", &i.users_online.to_string());
+            // In-world co-presence count (v0.776): avatars actually in the
+            // shared world right now, distinct from chat "Online now".
+            detail_row(ui, theme, "In world", &i.game_players.to_string());
             detail_row(ui, theme, "Channels", &i.channels.len().to_string());
             detail_row(ui, theme, "Accord", if i.accord_compliant { "Compliant" } else { "Not declared" });
         }

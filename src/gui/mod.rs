@@ -228,6 +228,10 @@ pub struct ServerInfo {
     pub version: String,
     #[serde(default)]
     pub users_online: u64,
+    /// Players currently in the shared GAME world (v0.776, co-presence): the
+    /// count of in-world avatars, distinct from users_online (chat/WS peers).
+    #[serde(default)]
+    pub game_players: u64,
     #[serde(default)]
     pub member_count: u64,
     #[serde(default)]

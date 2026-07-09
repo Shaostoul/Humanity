@@ -1500,6 +1500,11 @@ pub struct ServerInfoResponse {
     pub version: &'static str,
     pub channels: Vec<String>,
     pub users_online: usize,
+    /// Players currently in the shared GAME world (v0.776). users_online counts
+    /// chat/WS connections; this counts avatars actually in-world (co-presence).
+    /// The public, unauthenticated mirror of the in-world roster (v0.774), so
+    /// co-presence can be confirmed from outside without an admin signature.
+    pub game_players: usize,
     pub accord_compliant: bool,
     pub public_key: String,
     pub owner_key: String,
@@ -1519,6 +1524,7 @@ pub async fn get_server_info(
         .map(|(id, _, _, _)| id)
         .collect();
     let users_online = state.peers.read().await.len();
+    let game_players = state.game_world.read().await.player_count();
     let member_count = state.db.get_member_count(None).unwrap_or(0);
 
     // Pull server name/description from config, fall back to env then defaults.
@@ -1565,6 +1571,7 @@ pub async fn get_server_info(
         version: env!("BUILD_VERSION"),
         channels,
         users_online,
+        game_players,
         accord_compliant: accord,
         public_key: pk,
         owner_key,
