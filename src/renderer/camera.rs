@@ -552,6 +552,19 @@ impl CameraController {
         }
     }
 
+    /// Clear all held movement keys (v0.773). Called when a modal like the
+    /// in-world chat panel opens: its early-return swallows the key-RELEASE
+    /// events, so without this a key held at open-time (e.g. W while running)
+    /// stays logically pressed and the player drifts after the panel closes.
+    pub fn stop_movement(&mut self) {
+        self.forward = false;
+        self.backward = false;
+        self.left = false;
+        self.right = false;
+        self.ascend = false;
+        self.descend = false;
+    }
+
     /// Process a mouse button event from winit.
     #[cfg(feature = "native")]
     pub fn process_mouse_button(

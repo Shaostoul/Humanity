@@ -6204,6 +6204,24 @@ mod native_app {
                             // reads this every frame.
                             state.alt_held = pressed;
                         }
+
+                        // In-world chat panel open (v0.773): the TextEdit owns the
+                        // keyboard. egui already received this event above
+                        // (on_window_event), so the character types into the box;
+                        // here we must run NO gameplay key handler (inventory 'i',
+                        // the 1-9 hotbar, tool/build keys, the menu-Esc) — that was
+                        // the "typing 'i' opens the inventory" bug. Esc closes the
+                        // panel so the global menu-Esc below never fires. Everything
+                        // else is swallowed. Modifier state above still tracks so a
+                        // held Ctrl/Shift/Alt can't get stuck.
+                        if state.gui_state.chat_input_active {
+                            if key == KeyCode::Escape && pressed {
+                                state.gui_state.chat_input_active = false;
+                                state.gui_state.chat_input_focus_pending = false;
+                            }
+                            return;
+                        }
+
                         // Undo/redo in the construction editor (v0.575): Ctrl+Z undo, Ctrl+Shift+Z (or
                         // Ctrl+Y) redo. Gated to build mode so it never fights the chat Ctrl+V path.
                         if pressed && state.ctrl_held && state.gui_state.construction_active {
@@ -6362,6 +6380,13 @@ mod native_app {
                         {
                             state.gui_state.chat_input_active = true;
                             state.gui_state.chat_input_focus_pending = true;
+                            // Clear held movement so opening the panel mid-run doesn't
+                            // leave the player drifting (the panel's early-return above
+                            // swallows the key-release events). Zero BOTH movers: the
+                            // camera controller (FPS look/walk) AND the InputState the
+                            // ECS PlayerController reads to drive the rigid body. (v0.773)
+                            state.controller.stop_movement();
+                            state.data_store.insert("input_state", InputState::default());
                         }
 
                         // Tab = HOLD to reveal hidden labels (v0.429): peek markers
@@ -6686,6 +6711,14 @@ mod native_app {
                     let left = button == MouseButton::Left;
                     let right = button == MouseButton::Right;
                     let pressed = btn_state == ElementState::Pressed;
+                    // In-world chat panel open (v0.773): clicks belong to the panel.
+                    // egui still receives this click (on_window_event, above) so the
+                    // panel's buttons work AND draw_ingame_chat's click-away close
+                    // fires; but the game must NOT also swing a tool / place a
+                    // machine / interact when you click the world to dismiss it.
+                    if state.gui_state.chat_input_active {
+                        return;
+                    }
                     if left {
                         state.lmb_held = pressed; // undo drag-coalescing (v0.575)
                     }

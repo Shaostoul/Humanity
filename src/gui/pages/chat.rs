@@ -4010,7 +4010,7 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     let mut close = false;
     let mut switch_to: Option<String> = None;
 
-    egui::Area::new(egui::Id::new("ingame_chat_panel"))
+    let area = egui::Area::new(egui::Id::new("ingame_chat_panel"))
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(12.0, -12.0))
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style())
@@ -4129,11 +4129,20 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                 });
         });
 
+    // Click-away closes the panel but KEEPS the typed text (v0.773): the big
+    // panel shouldn't linger over the world (it blocks the view in combat). A
+    // click whose position falls OUTSIDE the panel rect returns to gameplay;
+    // chat_input is left intact so reopening (Enter) resumes the message.
+    let clicked_outside = ctx.input(|i| i.pointer.any_click())
+        && ctx
+            .input(|i| i.pointer.interact_pos())
+            .map_or(false, |p| !area.response.rect.contains(p));
+
     if let Some(id) = switch_to {
         state.chat_active_channel = id;
         state.history_fetched = false; // trigger the new channel's history fetch
     }
-    if close {
+    if close || clicked_outside {
         state.chat_input_active = false;
         state.chat_input_focus_pending = false;
     }
