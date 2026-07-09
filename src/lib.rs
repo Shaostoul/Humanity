@@ -742,6 +742,8 @@ mod native_app {
             || state.alt_held
             // In-world chat panel open (v0.772): the cursor must reach its input + buttons.
             || state.gui_state.chat_input_active
+            // Walk-up creature editor open (v0.778): cursor needs its sliders/fields.
+            || state.gui_state.dev_edit_target.is_some()
             // Dead = the death screen is up; its Respawn button needs the cursor.
             || state.gui_state.player_death_cause.is_some();
         if want_free == state.cursor_free {
@@ -6214,19 +6216,22 @@ mod native_app {
                             state.alt_held = pressed;
                         }
 
-                        // In-world chat panel open (v0.773): the TextEdit owns the
-                        // keyboard. egui already received this event above
-                        // (on_window_event), so the character types into the box;
-                        // here we must run NO gameplay key handler (inventory 'i',
-                        // the 1-9 hotbar, tool/build keys, the menu-Esc) — that was
-                        // the "typing 'i' opens the inventory" bug. Esc closes the
-                        // panel so the global menu-Esc below never fires. Everything
-                        // else is swallowed. Modifier state above still tracks so a
-                        // held Ctrl/Shift/Alt can't get stuck.
-                        if state.gui_state.chat_input_active {
+                        // In-world modal panels own the keyboard (v0.773 chat,
+                        // v0.778 creature editor). egui already received this event
+                        // above (on_window_event), so text still types into the
+                        // panel's fields; here we must run NO gameplay key handler
+                        // (inventory 'i', the 1-9 hotbar, tool/build keys, the
+                        // menu-Esc) -- that was the "typing 'i' opens the inventory"
+                        // bug. Esc closes whichever panel is open so the global
+                        // menu-Esc below never fires. Modifier state above still
+                        // tracks so a held Ctrl/Shift/Alt can't get stuck.
+                        if state.gui_state.chat_input_active
+                            || state.gui_state.dev_edit_target.is_some()
+                        {
                             if key == KeyCode::Escape && pressed {
                                 state.gui_state.chat_input_active = false;
                                 state.gui_state.chat_input_focus_pending = false;
+                                state.gui_state.dev_edit_target = None;
                             }
                             return;
                         }
@@ -6572,6 +6577,26 @@ mod native_app {
                             state.gui_state.pending_swing = true;
                         }
 
+                        // G opens the walk-up creature EDITOR for the creature
+                        // you're facing (dev tool, v0.778; cheats-gated). The
+                        // actual snapshot of its values into the edit buffers
+                        // runs next frame in the main loop (queries live there);
+                        // opening frees the cursor + disables look/move via the
+                        // modal guard above.
+                        if key == KeyCode::KeyG
+                            && pressed
+                            && state.gui_state.active_page == GuiPage::None
+                            && !state.gui_state.showroom_active
+                            && state.theme.cheats_enabled
+                        {
+                            if let Some(ent) = state.targeted_livestock {
+                                state.gui_state.dev_edit_target = Some(u64::from(ent.to_bits()));
+                                state.gui_state.dev_edit_snapshot_pending = true;
+                                state.controller.stop_movement();
+                                state.data_store.insert("input_state", InputState::default());
+                            }
+                        }
+
                         // R toggles the home roof/ceiling (construction mode, v0.453). Off by
                         // default so the sky (stars + the real solar system) shows through the
                         // open top; on for a sealed look or atmosphere tests. Also exposed as a
@@ -6720,12 +6745,13 @@ mod native_app {
                     let left = button == MouseButton::Left;
                     let right = button == MouseButton::Right;
                     let pressed = btn_state == ElementState::Pressed;
-                    // In-world chat panel open (v0.773): clicks belong to the panel.
-                    // egui still receives this click (on_window_event, above) so the
-                    // panel's buttons work AND draw_ingame_chat's click-away close
-                    // fires; but the game must NOT also swing a tool / place a
-                    // machine / interact when you click the world to dismiss it.
-                    if state.gui_state.chat_input_active {
+                    // In-world modal panels own clicks (v0.773 chat, v0.778 creature
+                    // editor). egui still receives the click (on_window_event, above)
+                    // so the panel's buttons work; but the game must NOT also swing a
+                    // tool / place a machine / interact while a panel is up.
+                    if state.gui_state.chat_input_active
+                        || state.gui_state.dev_edit_target.is_some()
+                    {
                         return;
                     }
                     if left {
@@ -7768,6 +7794,88 @@ mod native_app {
                         .query::<&crate::ecs::components::Creature>()
                         .iter()
                         .count();
+
+                    // Walk-up creature editor (v0.778): snapshot on open, write the
+                    // edit buffers back to the entity live, and despawn on request.
+                    if let Some(bits) = state.gui_state.dev_edit_target {
+                        match hecs::Entity::from_bits(bits) {
+                            Some(ent) if state.game_world.world.contains(ent) => {
+                                use crate::ecs::components::{AIBehavior, Creature, Health, Name};
+                                let w = &mut state.game_world.world;
+                                if state.gui_state.dev_edit_snapshot_pending {
+                                    // Fill the buffers from the creature's current state (each
+                                    // get is its own statement so the borrow releases between).
+                                    state.gui_state.dev_edit_snapshot_pending = false;
+                                    state.gui_state.dev_edit_name =
+                                        w.get::<&Name>(ent).map(|n| n.0.clone()).unwrap_or_default();
+                                    if let Ok(h) = w.get::<&Health>(ent) {
+                                        state.gui_state.dev_edit_health = h.current;
+                                        state.gui_state.dev_edit_health_max = h.max;
+                                    }
+                                    if let Ok(c) = w.get::<&Creature>(ent) {
+                                        state.gui_state.dev_edit_tint = c.tint;
+                                        state.gui_state.dev_edit_scale = c.body_side;
+                                        state.gui_state.dev_edit_species = c.def_id.clone();
+                                    }
+                                    state.gui_state.dev_edit_hostile = w
+                                        .get::<&AIBehavior>(ent)
+                                        .map(|a| a.behavior_type != "passive")
+                                        .unwrap_or(false);
+                                } else {
+                                    // Write the buffers back live.
+                                    if let Ok(mut n) = w.get::<&mut Name>(ent) {
+                                        if n.0 != state.gui_state.dev_edit_name {
+                                            n.0 = state.gui_state.dev_edit_name.clone();
+                                        }
+                                    }
+                                    let hmax = state.gui_state.dev_edit_health_max.max(1.0);
+                                    if let Ok(mut h) = w.get::<&mut Health>(ent) {
+                                        h.max = hmax;
+                                        h.current = state.gui_state.dev_edit_health.clamp(0.0, hmax);
+                                    }
+                                    if let Ok(mut c) = w.get::<&mut Creature>(ent) {
+                                        c.tint = state.gui_state.dev_edit_tint;
+                                        c.body_side = state.gui_state.dev_edit_scale.clamp(0.05, 5.0);
+                                    }
+                                    let want = if state.gui_state.dev_edit_hostile {
+                                        "aggressive"
+                                    } else {
+                                        "passive"
+                                    };
+                                    let had_ai = w
+                                        .get::<&mut AIBehavior>(ent)
+                                        .map(|mut a| a.behavior_type = want.to_string())
+                                        .is_ok();
+                                    if !had_ai {
+                                        // A placed passive animal has no AIBehavior; add one so
+                                        // the hostile toggle can make it fight (or stay passive).
+                                        let _ = w.insert_one(
+                                            ent,
+                                            AIBehavior {
+                                                behavior_type: want.to_string(),
+                                                state: "idle".to_string(),
+                                                target: None,
+                                            },
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {
+                                // Entity gone (despawned elsewhere) - close the editor.
+                                state.gui_state.dev_edit_target = None;
+                                state.gui_state.dev_edit_snapshot_pending = false;
+                            }
+                        }
+                    }
+                    if std::mem::take(&mut state.gui_state.pending_dev_edit_despawn) {
+                        if let Some(bits) = state.gui_state.dev_edit_target.take() {
+                            if let Some(ent) = hecs::Entity::from_bits(bits) {
+                                let _ = state.game_world.world.despawn(ent);
+                                log::info!("Dev: despawned edited creature {ent:?}");
+                            }
+                        }
+                        state.gui_state.dev_edit_snapshot_pending = false;
+                    }
                     // Vehicles: bridge the Vehicles section's Summon action (Stage 3).
                     if let Some(bits) = state.gui_state.pending_summon_vehicle.take() {
                         if let Some(slot) = state
@@ -14791,6 +14899,19 @@ mod native_app {
                                     chat::draw_ingame_chat(ctx, &state.theme, &mut state.gui_state);
                                 }
 
+                                // Walk-up creature editor (v0.778): G opens it for the
+                                // creature you face; edits write back live (see the
+                                // consumer above). Cursor-free like the chat panel.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.dev_edit_target.is_some()
+                                {
+                                    crate::gui::pages::dev::draw_creature_editor(
+                                        ctx,
+                                        &state.theme,
+                                        &mut state.gui_state,
+                                    );
+                                }
+
                                 // Passphrase modal overlay (blocks interaction until resolved)
                                 if state.gui_state.passphrase_needed {
                                     crate::gui::pages::passphrase_modal::draw(ctx, &state.theme, &mut state.gui_state);
@@ -15056,6 +15177,7 @@ mod native_app {
                 if state.gui_state.active_page == GuiPage::None
                     && !state.alt_held
                     && !state.gui_state.chat_input_active
+                    && state.gui_state.dev_edit_target.is_none()
                     && state.gui_state.player_death_cause.is_none()
                 {
                     state.controller.process_mouse_motion(delta.0, delta.1);

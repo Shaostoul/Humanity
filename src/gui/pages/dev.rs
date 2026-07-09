@@ -90,6 +90,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .size(theme.font_size_small)
                     .color(theme.text_muted()),
                 );
+                ui.label(
+                    RichText::new(
+                        "Edit an existing one: in the world, look at any creature and press G \
+                         to open its editor (rename, health, hostility, size, tint, despawn).",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+                );
             });
             ui.add_space(theme.spacing_sm);
 
@@ -156,4 +164,81 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 state.pending_dev_spawn = Some(id);
             }
         });
+}
+
+/// Walk-up creature editor (v0.778): a cursor-free panel (bottom-right, so it
+/// clears the bottom-left chat feed) for the creature you're facing. Opened by
+/// pressing G while looking at a creature with dev/cheats on. It edits GuiState
+/// buffers that lib.rs snapshots on open and writes back to the entity live each
+/// frame; Despawn removes it; Close or Esc returns to gameplay. Answers the
+/// operator's "I can't walk up to them in FPS mode ... to edit them".
+pub fn draw_creature_editor(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.dev_edit_target.is_none() {
+        return;
+    }
+    let mut close = false;
+    let mut despawn = false;
+    let hmax = state.dev_edit_health_max.max(1.0);
+
+    egui::Area::new(egui::Id::new("dev_creature_editor"))
+        .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -12.0))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style())
+                .inner_margin(egui::Margin::same(10))
+                .show(ui, |ui| {
+                    ui.set_width(300.0);
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Edit creature").strong().color(theme.accent()));
+                        if !state.dev_edit_species.is_empty() {
+                            ui.label(
+                                RichText::new(&state.dev_edit_species)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        }
+                    });
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Name").color(theme.text_secondary()));
+                        ui.text_edit_singleline(&mut state.dev_edit_name);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Health").color(theme.text_secondary()));
+                        ui.add(egui::Slider::new(&mut state.dev_edit_health, 0.0..=hmax));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Max HP").color(theme.text_secondary()));
+                        ui.add(egui::DragValue::new(&mut state.dev_edit_health_max).speed(1.0));
+                    });
+                    ui.checkbox(&mut state.dev_edit_hostile, "Hostile (attacks the player)");
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Size").color(theme.text_secondary()));
+                        ui.add(egui::Slider::new(&mut state.dev_edit_scale, 0.1..=3.0));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new("Tint").color(theme.text_secondary()));
+                        ui.color_edit_button_rgb(&mut state.dev_edit_tint);
+                    });
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button("Despawn").clicked() {
+                            despawn = true;
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.button("Close (Esc)").clicked() {
+                                close = true;
+                            }
+                        });
+                    });
+                });
+        });
+
+    // Despawn KEEPS dev_edit_target so lib.rs can resolve + remove the entity
+    // next frame; the consumer clears it. Close just returns to gameplay.
+    if despawn {
+        state.pending_dev_edit_despawn = true;
+    }
+    if close {
+        state.dev_edit_target = None;
+    }
 }

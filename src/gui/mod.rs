@@ -1994,6 +1994,28 @@ pub struct GuiState {
     /// Live count of Creature entities, mirrored from the ECS each frame so the
     /// Dev page can show "N creatures in the world" without a world handle.
     pub dev_creature_count: usize,
+    /// Walk-up creature editor (v0.778): the entity (as bits) being edited, or
+    /// None when the editor is closed. Set by pressing G while facing a creature
+    /// (dev/cheats on). While Some, the editor panel is open, the cursor is
+    /// freed, and look/move are disabled (same plumbing as the chat panel). The
+    /// edit-buffer fields below are snapshotted from the creature on open and
+    /// written back live each frame by lib.rs (edit-buffer-then-sync).
+    pub dev_edit_target: Option<u64>,
+    /// One-shot: fill the edit buffers from the target's components next frame
+    /// (set on open; lib.rs clears it after the snapshot).
+    pub dev_edit_snapshot_pending: bool,
+    pub dev_edit_name: String,
+    pub dev_edit_health: f32,
+    pub dev_edit_health_max: f32,
+    /// True = hostile (AIBehavior aggressive), false = passive.
+    pub dev_edit_hostile: bool,
+    pub dev_edit_tint: [f32; 3],
+    /// Body-box side length (metres); Creature.body_side.
+    pub dev_edit_scale: f32,
+    /// Read-only species id label for the editor header.
+    pub dev_edit_species: String,
+    /// Despawn the edited creature next frame (from the editor's Despawn button).
+    pub pending_dev_edit_despawn: bool,
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
@@ -3775,6 +3797,16 @@ impl Default for GuiState {
             pending_dev_despawn_creatures: false,
             dev_spawn_filter: String::new(),
             dev_creature_count: 0,
+            dev_edit_target: None,
+            dev_edit_snapshot_pending: false,
+            dev_edit_name: String::new(),
+            dev_edit_health: 100.0,
+            dev_edit_health_max: 100.0,
+            dev_edit_hostile: false,
+            dev_edit_tint: [0.7, 0.6, 0.5],
+            dev_edit_scale: 0.5,
+            dev_edit_species: String::new(),
+            pending_dev_edit_despawn: false,
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
