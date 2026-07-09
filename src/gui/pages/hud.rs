@@ -113,6 +113,41 @@ pub fn draw(
                 theme.accent(),
             );
 
+            // ── Shared-world co-presence (top-left, under credits, v0.774) ──
+            // Only shown once we've joined the relay's shared game world (in-world
+            // + connected). Makes the mission-critical co-presence legible: you can
+            // see you're in the VPS shared session and watch when someone else
+            // joins. The roster comes from GuiState, mirrored from the ECS each
+            // frame by the multiplayer block in lib.rs.
+            if state.copresence_active {
+                let host = state
+                    .server_url
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://")
+                    .trim_start_matches("wss://")
+                    .trim_start_matches("ws://")
+                    .split('/')
+                    .next()
+                    .unwrap_or("");
+                let header = if host.is_empty() {
+                    "Shared world".to_string()
+                } else {
+                    format!("Shared world · {host}")
+                };
+                text_shadowed(painter, Pos2::new(16.0, 56.0), Align2::LEFT_TOP, &header, 12.0, theme.accent());
+                let others = state.copresence_names.len();
+                let (roster, col) = if others == 0 {
+                    ("no one else here yet".to_string(), theme.text_muted())
+                } else {
+                    let mut names = state.copresence_names.join(", ");
+                    if names.chars().count() > 48 {
+                        names = format!("{}...", names.chars().take(45).collect::<String>());
+                    }
+                    (format!("{others} here: {names}"), theme.success())
+                };
+                text_shadowed(painter, Pos2::new(16.0, 72.0), Align2::LEFT_TOP, &roster, 11.0, col);
+            }
+
             // ── FPS counter (top-right) ──
             text_shadowed(
                 painter,

@@ -3449,6 +3449,18 @@ pub async fn handle_game_join(
         Err(e) => tracing::warn!("Could not load player progress for {}: {e}", my_key),
     }
 
+    // Stamp the display name onto the player entity (v0.774) so the world
+    // snapshot a LATER joiner receives carries real names for people already
+    // present -- without this they'd all read "Player" until they moved. The
+    // game_player_joined broadcast already carries the name for the join-after
+    // case; this closes the join-before (snapshot) case. Additive component,
+    // backward-compatible with existing persisted snapshots.
+    if let Some(e) = world.entities.get_mut(&player_id) {
+        if let Some(obj) = e.components.as_object_mut() {
+            obj.insert("name".to_string(), serde_json::json!(player_name));
+        }
+    }
+
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
     let game_time = world.game_time;

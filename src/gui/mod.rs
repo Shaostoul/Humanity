@@ -1969,6 +1969,15 @@ pub struct GuiState {
     /// keyboard focus for its input exactly once (re-focusing every frame
     /// would steal focus from the channel buttons). (v0.772)
     pub chat_input_focus_pending: bool,
+    /// Shared-world co-presence status (v0.774), mirrored from the ECS each
+    /// frame by the multiplayer block in lib.rs so the paint-only HUD can show
+    /// it. `copresence_active` = we've joined the relay's shared game world
+    /// (in-world + connected). `copresence_names` = the OTHER players currently
+    /// present (RemotePlayer entities). Makes the mission-critical co-presence
+    /// visible: without this you can't tell you're in a shared world, or see
+    /// when someone else joins.
+    pub copresence_active: bool,
+    pub copresence_names: Vec<String>,
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
@@ -3744,6 +3753,8 @@ impl Default for GuiState {
             show_chat: false,
             chat_input_active: false,
             chat_input_focus_pending: false,
+            copresence_active: false,
+            copresence_names: Vec::new(),
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),

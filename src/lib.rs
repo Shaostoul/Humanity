@@ -3749,9 +3749,18 @@ mod native_app {
                                 continue; // skip ourselves
                             }
                             let Some(pos) = e.get("position").and_then(&arr3) else { continue; };
+                            // Real name from the entity's `name` component (v0.774,
+                            // relay stamps it at join); "Player" only if an older
+                            // snapshot lacks it.
+                            let name = e
+                                .get("components")
+                                .and_then(|c| c.get("name"))
+                                .and_then(|n| n.as_str())
+                                .unwrap_or("Player")
+                                .to_string();
                             msgs.push(NetMessage::PlayerJoined {
                                 player_id: eid as u32,
-                                name: "Player".to_string(),
+                                name,
                                 position: pos,
                             });
                         }
@@ -8023,9 +8032,27 @@ mod native_app {
                                 dt,
                                 &state.data_store,
                             );
+                            // Mirror the shared-world roster into GuiState so the
+                            // paint-only HUD can show co-presence (v0.774): who else
+                            // is here right now. Names come from the RemotePlayer
+                            // entities net_sync maintains; a snapshot-prefilled player
+                            // reads a placeholder until it sends a named position/join.
+                            let mut names: Vec<String> = state
+                                .game_world
+                                .world
+                                .query::<&crate::net::sync::RemotePlayer>()
+                                .iter()
+                                .map(|(_, r)| r.name.clone())
+                                .collect();
+                            names.sort();
+                            names.dedup();
+                            state.gui_state.copresence_active = true;
+                            state.gui_state.copresence_names = names;
                         } else if state.game_joined {
                             // Left the world: allow a fresh join next time + clear remote avatars.
                             state.game_joined = false;
+                            state.gui_state.copresence_active = false;
+                            state.gui_state.copresence_names.clear();
                             let remotes: Vec<hecs::Entity> = state
                                 .game_world
                                 .world
