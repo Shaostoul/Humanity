@@ -324,6 +324,14 @@ pub struct AppConfig {
     #[serde(default)]
     pub chat_studio_collapsed: bool,
 
+    // In-world chat panel (unified-chat increment 1c): the passive
+    // bottom-left feed toggle + the interactive panel's message-list height.
+    // Both are set from the panel's Options tab (GUI-first configurability).
+    #[serde(default = "default_true")]
+    pub hud_chat_feed_visible: bool,
+    #[serde(default = "default_ingame_chat_panel_height")]
+    pub ingame_chat_panel_height: f32,
+
     // Chat panel resize/lock state
     #[serde(default)]
     pub chat_left_panel_locked: bool,
@@ -397,6 +405,10 @@ fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
 fn default_panel_width() -> f32 { 220.0 }
+// In-world chat panel message-list height (unified-chat increment 1c).
+// Matches the v0.772 hardcoded ScrollArea max_height so existing installs
+// see no visual change until they move the Options-tab slider.
+fn default_ingame_chat_panel_height() -> f32 { 160.0 }
 // v0.488 voice input prefs: unity gain, "V" push key, a modest activation floor.
 /// Prettify a stored winit-KeyCode name for display, e.g. "KeyV" -> "V",
 /// "Digit1" -> "1", "CapsLock" -> "CapsLock", "Space" -> "Space".
@@ -671,6 +683,8 @@ impl AppConfig {
             chat_friends_collapsed: state.chat_friends_collapsed,
             chat_members_collapsed: state.chat_members_collapsed,
             chat_studio_collapsed: state.chat_studio_collapsed,
+            hud_chat_feed_visible: state.hud_chat_feed_visible,
+            ingame_chat_panel_height: state.ingame_chat_panel_height,
             chat_left_panel_locked: state.chat_left_panel_locked,
             chat_right_panel_locked: state.chat_right_panel_locked,
             chat_left_panel_width: state.chat_left_panel_width,
@@ -756,6 +770,14 @@ impl AppConfig {
         state.chat_friends_collapsed = self.chat_friends_collapsed;
         state.chat_members_collapsed = self.chat_members_collapsed;
         state.chat_studio_collapsed = self.chat_studio_collapsed;
+        state.hud_chat_feed_visible = self.hud_chat_feed_visible;
+        // Guard a corrupted saved value: a tiny/zero height would collapse the
+        // in-world panel's message list into an unusable sliver.
+        state.ingame_chat_panel_height = if self.ingame_chat_panel_height >= 80.0 {
+            self.ingame_chat_panel_height.min(400.0)
+        } else {
+            default_ingame_chat_panel_height()
+        };
         state.chat_left_panel_locked = self.chat_left_panel_locked;
         state.chat_right_panel_locked = self.chat_right_panel_locked;
         state.chat_left_panel_width = self.chat_left_panel_width;

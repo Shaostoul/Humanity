@@ -3989,14 +3989,90 @@ pub(crate) fn channel_display_label(channel: &str) -> String {
     }
 }
 
-/// In-world chat panel (v0.772, unified-chat increment 1b): opened with Enter
-/// while playing the 3D world (which sets `chat_input_active`, freeing the
-/// cursor + disabling look/move in lib.rs). A compact bottom-left panel over
-/// the world: the active channel's recent messages + a channel switcher + a
-/// focused input, so you read and post to the SAME relay chat as the Chat page
-/// and the website without leaving the world. Esc or Close returns to gameplay.
-/// The full Chat page (nav tab) remains the place for DMs, groups, and options
-/// (the all-chat / dms / groups view modes here are the next increment).
+/// Ordering for the in-world DM list: most recent first (increment 1c).
+/// `ChatDm.timestamp` is a DISPLAY string (see `format_timestamp`), not epoch
+/// millis -- but every entry alive at one moment was formatted with the SAME
+/// app-wide format, and each of those formats orders lexicographically within
+/// itself ("2026-05-29 17:42 UTC" is ISO-ordered; "17:42 UTC" orders within a
+/// day). A descending lexicographic sort of the display strings is therefore
+/// the correct recency order in practice, WITHOUT duplicating the DM store or
+/// threading epoch millis through ChatDm (the "reuse the Chat page's state,
+/// don't build a second store" rule). Entries with NO timestamp (a
+/// conversation opened but never messaged) sink to the end. Stable: ties keep
+/// their incoming order (alphabetical -- the Chat page sorts the store).
+/// Returns indices into `timestamps`.
+pub(crate) fn dm_recency_order(timestamps: &[&str]) -> Vec<usize> {
+    let mut idx: Vec<usize> = (0..timestamps.len()).collect();
+    idx.sort_by(|&a, &b| {
+        let (ta, tb) = (timestamps[a], timestamps[b]);
+        match (ta.is_empty(), tb.is_empty()) {
+            (true, true) => std::cmp::Ordering::Equal,
+            // Timestamp-less conversations sink below every dated one.
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            // Descending string compare = most recent first (see doc above).
+            (false, false) => tb.cmp(ta),
+        }
+    });
+    idx
+}
+
+/// Header title for the in-world chat panel, resolved per view mode: the
+/// active channel label in Channels mode, the DM partner's NAME (not the raw
+/// key prefix `channel_display_label` falls back to) in DMs mode, the group's
+/// name in Groups mode, and a static caption for the list/options views.
+fn ingame_panel_title(state: &GuiState) -> String {
+    let ac = &state.chat_active_channel;
+    match state.ingame_chat_mode {
+        crate::gui::IngameChatMode::Channels => channel_display_label(ac),
+        crate::gui::IngameChatMode::Dms => {
+            if let Some(pk) = ac.strip_prefix("dm:") {
+                let name = state
+                    .chat_dms
+                    .iter()
+                    .find(|d| d.user_key == pk)
+                    .map(|d| d.user_name.clone())
+                    // Unknown partner (store not synced yet): short key prefix,
+                    // chars-safe like channel_display_label.
+                    .unwrap_or_else(|| pk.chars().take(8).collect());
+                format!("DM {name}")
+            } else {
+                "Direct Messages".to_string()
+            }
+        }
+        crate::gui::IngameChatMode::Groups => {
+            if let Some(gid) = ac.strip_prefix("p2pgroup:") {
+                state
+                    .p2p_groups
+                    .iter()
+                    .find(|g| g.group_id == gid)
+                    .map(|g| g.name.clone())
+                    .unwrap_or_else(|| "Group".to_string())
+            } else if let Some(gid) = ac.strip_prefix("group:") {
+                state
+                    .chat_groups
+                    .iter()
+                    .find(|g| g.id == gid)
+                    .map(|g| g.name.clone())
+                    .unwrap_or_else(|| "Group".to_string())
+            } else {
+                "Groups".to_string()
+            }
+        }
+        crate::gui::IngameChatMode::Options => "Chat Options".to_string(),
+    }
+}
+
+/// In-world chat panel (v0.772, unified-chat increment 1b; view modes added in
+/// increment 1c): opened with Enter while playing the 3D world (which sets
+/// `chat_input_active`, freeing the cursor + disabling look/move in lib.rs).
+/// A compact bottom-left panel over the world with a mode tab row --
+/// [Chat] [DMs] [Groups] [...] -- so channels, DM conversations, group chats,
+/// and a tiny options slice are all reachable without leaving the world. Every
+/// conversation store and send path is SHARED with the Chat page
+/// (`send_composed_content` routes channel / E2EE-DM / group / P2P-group), so
+/// the two surfaces can never drift. Esc or Close returns to gameplay; the
+/// mode is session-persistent so the panel reopens where you left off.
 pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     // (Esc-close is owned by the winit modal guard in lib.rs, which fires
     // before egui sees the key -- one close path, shared with the creature
@@ -4004,7 +4080,17 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     let active = state.chat_active_channel.clone();
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let mut close = false;
-    let mut switch_to: Option<String> = None;
+    // Deferred actions, applied after the Area closure so the render pass
+    // never mutates the lists it is iterating (same pattern as the Chat page).
+    let mut switch_to: Option<String> = None; // public channel id
+    let mut open_dm: Option<String> = None; // DM partner key
+    let mut open_legacy_group: Option<String> = None; // ChatGroup.id
+    let mut open_p2p_group: Option<String> = None; // P2pGroupInfo.group_id
+    let mut open_full_chat = false;
+
+    // Which mode has an active conversation the message list + input serve.
+    let dm_open = active.starts_with("dm:");
+    let group_open = active.starts_with("p2pgroup:") || active.starts_with("group:");
 
     let area = egui::Area::new(egui::Id::new("ingame_chat_panel"))
         .anchor(egui::Align2::LEFT_BOTTOM, egui::vec2(12.0, -12.0))
@@ -4013,10 +4099,10 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                 .inner_margin(egui::Margin::same(8))
                 .show(ui, |ui| {
                     ui.set_width(470.0);
-                    // Header: active channel + connection state + close.
+                    // Header: mode-resolved title + connection state + close.
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new(channel_display_label(&active))
+                            RichText::new(ingame_panel_title(state))
                                 .strong()
                                 .color(theme.accent()),
                         );
@@ -4032,97 +4118,398 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         });
                     });
 
-                    // Channel switcher: the server's channels, as-is (no invented
-                    // fallback rows -- a fabricated #announcements button on a
-                    // server without that channel would switch you into a channel
-                    // that does not exist; the Chat page sidebar renders the same
-                    // list unpadded. Empty list = no switcher row. v0.779).
-                    let chans: Vec<(String, String)> = state
-                        .chat_channels
-                        .iter()
-                        .map(|c| (c.id.clone(), c.name.clone()))
-                        .collect();
-                    ui.horizontal_wrapped(|ui| {
-                        for (id, name) in &chans {
-                            let is_active = active == *id;
-                            if ui.selectable_label(is_active, format!("#{name}")).clicked() && !is_active {
-                                switch_to = Some(id.clone());
+                    // Mode tab row (increment 1c): [Chat] [DMs] [Groups] [...].
+                    // Same visual family as the channel switcher below
+                    // (selectable labels), with a small unread dot painted on a
+                    // tab whose section has activity you haven't seen.
+                    ui.horizontal(|ui| {
+                        for m in crate::gui::IngameChatMode::ALL {
+                            let selected = state.ingame_chat_mode == m;
+                            let resp = ui.selectable_label(selected, m.label());
+                            let has_unread = match m {
+                                crate::gui::IngameChatMode::Channels => {
+                                    state.chat_channels.iter().any(|c| c.unread)
+                                }
+                                crate::gui::IngameChatMode::Dms => {
+                                    state.chat_dms.iter().any(|d| d.unread)
+                                }
+                                // P2P groups carry no unread flag (the
+                                // projection has no read tracking yet), so the
+                                // dot covers legacy relay groups only.
+                                crate::gui::IngameChatMode::Groups => {
+                                    state.chat_groups.iter().any(|g| g.unread)
+                                }
+                                crate::gui::IngameChatMode::Options => false,
+                            };
+                            if has_unread {
+                                // Top-right corner dot, same red family as the
+                                // sidebar unread dots but via the theme token.
+                                ui.painter().circle_filled(
+                                    resp.rect.right_top() + egui::vec2(-2.0, 4.0),
+                                    2.5,
+                                    theme.danger(),
+                                );
+                            }
+                            if resp.clicked() && !selected {
+                                state.ingame_chat_mode = m;
+                                // Entering Channels with a private conversation
+                                // still active would render DM/group text under
+                                // the public tab -- snap back to a public
+                                // channel (first known, else #general) exactly
+                                // like the v0.779 open-guard did.
+                                if m == crate::gui::IngameChatMode::Channels
+                                    && (active.starts_with("dm:")
+                                        || active.starts_with("p2pgroup:")
+                                        || active.starts_with("group:"))
+                                {
+                                    let fallback = state
+                                        .chat_channels
+                                        .first()
+                                        .map(|c| c.id.clone())
+                                        .unwrap_or_else(|| "general".to_string());
+                                    switch_to = Some(fallback);
+                                }
                             }
                         }
                     });
                     ui.separator();
 
-                    // Message list for the active channel (scrollable, newest at bottom).
-                    egui::ScrollArea::vertical()
-                        .max_height(160.0)
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            let msgs: Vec<(&str, &str)> = state
-                                .chat_messages
+                    // Computed AFTER the tab row so a tab click renders its
+                    // mode's full layout (list + messages + input) in the same
+                    // frame instead of one frame of mixed content. Channels
+                    // requires a PUBLIC active channel: on the click frame of a
+                    // Chat-tab snap-back the private channel is still active
+                    // (switch_to applies after the Area), and rendering its
+                    // rows under the public tab -- even for one frame -- would
+                    // leak private text.
+                    let show_messages = match state.ingame_chat_mode {
+                        crate::gui::IngameChatMode::Channels => !dm_open && !group_open,
+                        crate::gui::IngameChatMode::Dms => dm_open,
+                        crate::gui::IngameChatMode::Groups => group_open,
+                        crate::gui::IngameChatMode::Options => false,
+                    };
+                    let show_input = show_messages;
+
+                    match state.ingame_chat_mode {
+                        crate::gui::IngameChatMode::Channels => {
+                            // Channel switcher: the server's channels, as-is (no
+                            // invented fallback rows -- a fabricated #announcements
+                            // button on a server without that channel would switch
+                            // you into a channel that does not exist; the Chat page
+                            // sidebar renders the same list unpadded. Empty list =
+                            // no switcher row. v0.779).
+                            let chans: Vec<(String, String, bool)> = state
+                                .chat_channels
                                 .iter()
-                                .filter(|m| m.channel == active)
-                                .map(|m| {
+                                .map(|c| (c.id.clone(), c.name.clone(), c.unread))
+                                .collect();
+                            ui.horizontal_wrapped(|ui| {
+                                for (id, name, unread) in &chans {
+                                    let is_active = active == *id;
+                                    let resp = ui.selectable_label(is_active, format!("#{name}"));
+                                    if *unread && !is_active {
+                                        ui.painter().circle_filled(
+                                            resp.rect.right_top() + egui::vec2(-2.0, 4.0),
+                                            2.5,
+                                            theme.danger(),
+                                        );
+                                    }
+                                    if resp.clicked() && !is_active {
+                                        switch_to = Some(id.clone());
+                                    }
+                                }
+                            });
+                        }
+                        crate::gui::IngameChatMode::Dms => {
+                            // DM conversation switcher: most recent first (the
+                            // Chat page sidebar is alphabetical; in-world you
+                            // want "who talked to me last" at the front). Rows
+                            // come straight from the Chat page's store --
+                            // clicking one runs the SAME open path (dm_open +
+                            // history fetch), so read-state stays in sync.
+                            let dms: Vec<(String, String, bool, String)> = state
+                                .chat_dms
+                                .iter()
+                                .map(|d| {
                                     (
-                                        if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
-                                        m.content.as_str(),
+                                        d.user_key.clone(),
+                                        d.user_name.clone(),
+                                        d.unread,
+                                        d.timestamp.clone(),
                                     )
                                 })
                                 .collect();
-                            if msgs.is_empty() {
+                            if dms.is_empty() {
                                 ui.label(
-                                    RichText::new("No messages yet.")
+                                    RichText::new(
+                                        "No conversations yet. Start one from a member's profile on the Chat page.",
+                                    )
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                                );
+                            } else {
+                                let ts_refs: Vec<&str> =
+                                    dms.iter().map(|d| d.3.as_str()).collect();
+                                let order = dm_recency_order(&ts_refs);
+                                ui.horizontal_wrapped(|ui| {
+                                    for i in order {
+                                        let (key, name, unread, _) = &dms[i];
+                                        let is_active = active == format!("dm:{key}");
+                                        let resp =
+                                            ui.selectable_label(is_active, format!("@ {name}"));
+                                        if *unread && !is_active {
+                                            ui.painter().circle_filled(
+                                                resp.rect.right_top() + egui::vec2(-2.0, 4.0),
+                                                2.5,
+                                                theme.danger(),
+                                            );
+                                        }
+                                        if resp.clicked() && !is_active {
+                                            open_dm = Some(key.clone());
+                                        }
+                                    }
+                                });
+                            }
+                            // Locked/absent identity guidance -- same wording
+                            // family as the Chat page's connect panel, because
+                            // DMs need the seed for the post-quantum key. The
+                            // unlock button routes to the SAME passphrase/PIN
+                            // modal (it draws over everything, world included).
+                            let identity_locked = state.private_key_bytes.is_none()
+                                && !state.encrypted_private_key.is_empty();
+                            if identity_locked {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new(
+                                        "Identity locked. Your seed is encrypted; unlock it to send DMs (they need it for the post-quantum key).",
+                                    )
+                                    .color(theme.warning())
+                                    .size(theme.font_size_small),
+                                );
+                                let (btn_label, target_mode) = match state.auto_unlock_mode {
+                                    crate::auto_unlock::AutoUnlockMode::KeychainPin
+                                        if !state.pin_encrypted_seed.is_empty() =>
+                                    {
+                                        ("Unlock with PIN", crate::gui::PassphraseMode::PinUnlock)
+                                    }
+                                    _ => ("Unlock with Passphrase", crate::gui::PassphraseMode::Unlock),
+                                };
+                                if ui.button(btn_label).clicked() {
+                                    state.passphrase_needed = true;
+                                    state.passphrase_mode = target_mode;
+                                }
+                            } else if state.private_key_bytes.is_none() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new(
+                                        "No identity on this device yet. Set one up on the Chat page (Connect) to use DMs.",
+                                    )
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                                );
+                            }
+                            if !dm_open && !dms.is_empty() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new("Select a conversation above.")
                                         .color(theme.text_muted())
                                         .size(theme.font_size_small),
                                 );
                             }
-                            for (name, content) in msgs.iter().rev().take(40).rev() {
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.label(
-                                        RichText::new(format!("{name}:"))
-                                            .strong()
-                                            .color(theme.text_primary())
-                                            .size(theme.font_size_small),
-                                    );
-                                    ui.label(
-                                        RichText::new(*content)
-                                            .color(theme.text_secondary())
-                                            .size(theme.font_size_small),
-                                    );
-                                });
-                            }
-                        });
-
-                    // Input line: auto-focused on open, Enter or Send posts to
-                    // the active channel via the same path the Chat page uses.
-                    ui.horizontal(|ui| {
-                        let resp = ui.add(
-                            egui::TextEdit::singleline(&mut state.chat_input)
-                                .desired_width(390.0)
-                                .hint_text("Message... (Enter to send, Esc to close)"),
-                        );
-                        if state.chat_input_focus_pending {
-                            resp.request_focus();
-                            state.chat_input_focus_pending = false;
                         }
-                        let enter_send =
-                            resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        let button_send = ui.button("Send").clicked();
-                        if enter_send || button_send {
-                            let text = state.chat_input.trim().to_string();
-                            if !text.is_empty() {
-                                // Respect the abort contract (v0.779): false means
-                                // the send did NOT go out (unencryptable DM stashed
-                                // for the confirm modal, failed P2P-group send) --
-                                // keep the typed text so it isn't destroyed, same
-                                // as the Chat page composer.
-                                if send_composed_content(state, &text) {
-                                    state.chat_input.clear();
+                        crate::gui::IngameChatMode::Groups => {
+                            // Group switcher: P2P (signed-object) groups first,
+                            // then legacy relay groups -- the same two stores
+                            // the Chat page sidebar renders, clicked open via
+                            // the same load paths (spawn_group_load /
+                            // group_history_request).
+                            let p2p: Vec<(String, String)> = state
+                                .p2p_groups
+                                .iter()
+                                .map(|g| (g.group_id.clone(), g.name.clone()))
+                                .collect();
+                            let legacy: Vec<(String, String, String, bool)> = state
+                                .chat_groups
+                                .iter()
+                                .map(|g| {
+                                    (
+                                        g.id.clone(),
+                                        g.name.clone(),
+                                        // Single channel today ("group:<id>", see the
+                                        // group_list handler in lib.rs); fall back to
+                                        // the same shape if a payload had none.
+                                        g.channels
+                                            .first()
+                                            .map(|c| c.id.clone())
+                                            .unwrap_or_else(|| format!("group:{}", g.id)),
+                                        g.unread,
+                                    )
+                                })
+                                .collect();
+                            if p2p.is_empty() && legacy.is_empty() {
+                                ui.label(
+                                    RichText::new(
+                                        "No groups yet. Create or join one on the Chat page.",
+                                    )
+                                    .color(theme.text_muted())
+                                    .size(theme.font_size_small),
+                                );
+                            } else {
+                                ui.horizontal_wrapped(|ui| {
+                                    for (gid, name) in &p2p {
+                                        let is_active = active == format!("p2pgroup:{gid}");
+                                        let resp = ui.selectable_label(is_active, name);
+                                        if resp.clicked() && !is_active {
+                                            open_p2p_group = Some(gid.clone());
+                                        }
+                                    }
+                                    for (gid, name, channel_id, unread) in &legacy {
+                                        let is_active = active == *channel_id;
+                                        let resp = ui.selectable_label(is_active, name);
+                                        if *unread && !is_active {
+                                            ui.painter().circle_filled(
+                                                resp.rect.right_top() + egui::vec2(-2.0, 4.0),
+                                                2.5,
+                                                theme.danger(),
+                                            );
+                                        }
+                                        if resp.clicked() && !is_active {
+                                            open_legacy_group = Some(gid.clone());
+                                        }
+                                    }
+                                });
+                                if !group_open {
+                                    ui.add_space(theme.spacing_xs);
+                                    ui.label(
+                                        RichText::new("Select a group above.")
+                                            .color(theme.text_muted())
+                                            .size(theme.font_size_small),
+                                    );
                                 }
                             }
-                            // Keep the panel open + refocused so you can keep chatting.
-                            resp.request_focus();
                         }
-                    });
+                        crate::gui::IngameChatMode::Options => {
+                            // Tiny settings slice -- the panel's own knobs only;
+                            // everything else lives on the full Chat page.
+                            if ui
+                                .checkbox(
+                                    &mut state.hud_chat_feed_visible,
+                                    "Show chat feed in world (bottom-left)",
+                                )
+                                .on_hover_text(
+                                    "The passive read-only message feed painted on the HUD while you play.",
+                                )
+                                .changed()
+                            {
+                                crate::config::AppConfig::from_gui_state(state).save();
+                            }
+                            ui.add_space(theme.spacing_xs);
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    RichText::new("Panel height")
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_secondary()),
+                                );
+                                let resp = ui.add(
+                                    egui::Slider::new(
+                                        &mut state.ingame_chat_panel_height,
+                                        100.0..=320.0,
+                                    )
+                                    .suffix(" px"),
+                                );
+                                // Persist on release, not every drag frame --
+                                // config save hits the disk.
+                                if resp.drag_stopped() {
+                                    crate::config::AppConfig::from_gui_state(state).save();
+                                }
+                            });
+                            ui.add_space(theme.spacing_sm);
+                            if ui.button("Open full Chat page").clicked() {
+                                open_full_chat = true;
+                            }
+                        }
+                    }
+
+                    if show_messages {
+                        ui.separator();
+                        // Message list for the active conversation (scrollable,
+                        // newest at bottom). DM content is already decrypted at
+                        // receive time (lib.rs), so rendering is uniform.
+                        egui::ScrollArea::vertical()
+                            .max_height(state.ingame_chat_panel_height)
+                            .stick_to_bottom(true)
+                            .show(ui, |ui| {
+                                let msgs: Vec<(&str, &str)> = state
+                                    .chat_messages
+                                    .iter()
+                                    .filter(|m| m.channel == active)
+                                    .map(|m| {
+                                        (
+                                            if m.sender_name.is_empty() { "?" } else { m.sender_name.as_str() },
+                                            m.content.as_str(),
+                                        )
+                                    })
+                                    .collect();
+                                if msgs.is_empty() {
+                                    ui.label(
+                                        RichText::new("No messages yet.")
+                                            .color(theme.text_muted())
+                                            .size(theme.font_size_small),
+                                    );
+                                }
+                                for (name, content) in msgs.iter().rev().take(40).rev() {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(
+                                            RichText::new(format!("{name}:"))
+                                                .strong()
+                                                .color(theme.text_primary())
+                                                .size(theme.font_size_small),
+                                        );
+                                        ui.label(
+                                            RichText::new(*content)
+                                                .color(theme.text_secondary())
+                                                .size(theme.font_size_small),
+                                        );
+                                    });
+                                }
+                            });
+                    }
+
+                    if show_input {
+                        // Input line: auto-focused on open, Enter or Send posts
+                        // to the active conversation via the same path the Chat
+                        // page uses (send_composed_content routes channel /
+                        // E2EE-DM / group / P2P-group identically).
+                        ui.horizontal(|ui| {
+                            let resp = ui.add(
+                                egui::TextEdit::singleline(&mut state.chat_input)
+                                    .desired_width(390.0)
+                                    .hint_text("Message... (Enter to send, Esc to close)"),
+                            );
+                            if state.chat_input_focus_pending {
+                                resp.request_focus();
+                                state.chat_input_focus_pending = false;
+                            }
+                            let enter_send =
+                                resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                            let button_send = ui.button("Send").clicked();
+                            if enter_send || button_send {
+                                let text = state.chat_input.trim().to_string();
+                                if !text.is_empty() {
+                                    // Respect the abort contract (v0.779): false means
+                                    // the send did NOT go out (unencryptable DM stashed
+                                    // for the confirm modal, failed P2P-group send) --
+                                    // keep the typed text so it isn't destroyed, same
+                                    // as the Chat page composer.
+                                    if send_composed_content(state, &text) {
+                                        state.chat_input.clear();
+                                    }
+                                }
+                                // Keep the panel open + refocused so you can keep chatting.
+                                resp.request_focus();
+                            }
+                        });
+                    }
                 });
         });
 
@@ -4130,10 +4517,15 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     // panel shouldn't linger over the world (it blocks the view in combat). A
     // click whose position falls OUTSIDE the panel rect returns to gameplay;
     // chat_input is left intact so reopening (Enter) resumes the message.
+    // Suppressed while an overlay modal owns the screen (the unencrypted-DM
+    // confirm or the passphrase prompt): those windows sit OUTSIDE the panel
+    // rect, and clicking their buttons must not also close the panel.
     let clicked_outside = ctx.input(|i| i.pointer.any_click())
         && ctx
             .input(|i| i.pointer.interact_pos())
-            .map_or(false, |p| !area.response.rect.contains(p));
+            .map_or(false, |p| !area.response.rect.contains(p))
+        && state.dm_unencrypted_confirm.is_none()
+        && !state.passphrase_needed;
 
     if let Some(id) = switch_to {
         state.chat_active_channel = id.clone();
@@ -4147,10 +4539,81 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
             c.unread = false;
         }
     }
+    if let Some(key) = open_dm {
+        // SAME open path as the Chat page's DM row click (draw_dm_section):
+        // switch the channel, clear the shared message vec for the history
+        // re-fetch, clear the unread mark, and ask the relay for the DM log.
+        state.chat_active_channel = format!("dm:{key}");
+        state.chat_messages.clear();
+        state.history_fetched = false;
+        if let Some(d) = state.chat_dms.iter_mut().find(|d| d.user_key == key) {
+            d.unread = false;
+        }
+        if let Some(ref client) = state.ws_client {
+            if client.is_connected() {
+                let msg = serde_json::json!({
+                    "type": "dm_open",
+                    "partner": key,
+                });
+                client.send(&msg.to_string());
+            }
+        }
+    }
+    if let Some(gid) = open_legacy_group {
+        // SAME open path as the Chat page's group channel-row click: the
+        // single channel id is "group:<id>" (see the group_list handler).
+        let channel_id = state
+            .chat_groups
+            .iter()
+            .find(|g| g.id == gid)
+            .and_then(|g| g.channels.first().map(|c| c.id.clone()))
+            .unwrap_or_else(|| format!("group:{gid}"));
+        state.chat_active_channel = channel_id;
+        state.chat_messages.clear();
+        state.history_fetched = false;
+        if let Some(g) = state.chat_groups.iter_mut().find(|g| g.id == gid) {
+            g.unread = false;
+        }
+        if let Some(ref client) = state.ws_client {
+            if client.is_connected() {
+                let msg = serde_json::json!({
+                    "type": "group_history_request",
+                    "group_id": gid,
+                });
+                client.send(&msg.to_string());
+            }
+        }
+    }
+    if let Some(gid) = open_p2p_group {
+        // SAME open path as the Chat page's P2P group row click: switch the
+        // channel instantly, then load + decrypt on a background thread
+        // (spawn_group_load) so the world render never freezes.
+        state.chat_active_channel = format!("p2pgroup:{gid}");
+        state.p2p_group_invite_status.clear();
+        state.chat_reply_to = None;
+        // Drop the previous group's rows immediately so we don't briefly
+        // show stale history under the new header.
+        state.chat_messages.retain(|m| !m.channel.starts_with("p2pgroup:"));
+        spawn_group_load(state, &gid, true);
+    }
+    if open_full_chat {
+        // Hand off to the full Chat page: close the panel (keeping the typed
+        // text, same as click-away) and navigate. The per-frame cursor
+        // reconciliation in lib.rs handles the page-mode cursor.
+        state.active_page = crate::gui::GuiPage::Chat;
+        state.chat_input_active = false;
+        state.chat_input_focus_pending = false;
+    }
     if close || clicked_outside {
         state.chat_input_active = false;
         state.chat_input_focus_pending = false;
     }
+
+    // The E2EE fail-closed confirm (an unencryptable DM was stashed instead of
+    // sent) must be able to render HERE too, now that DMs can be sent from the
+    // world: the Chat page's draw() isn't running while active_page is None.
+    // Same function, so the two surfaces can't drift. (increment 1c)
+    draw_unencrypted_dm_modal(ctx, theme, state);
 }
 
 /// THE single content-routing authority for native chat (v0.708), mirroring
@@ -7449,5 +7912,74 @@ mod group_admin_tests {
         assert!(!is_group_admin(""));
         assert!(!is_group_admin("Admin")); // case-sensitive: no silent upgrade
         assert!(!is_group_admin("owner")); // a plausible-sounding but wrong value
+    }
+}
+
+#[cfg(test)]
+mod ingame_chat_mode_tests {
+    use super::dm_recency_order;
+    use crate::gui::IngameChatMode;
+
+    #[test]
+    fn mode_cycle_visits_every_mode_and_wraps() {
+        // Walking next() from Channels must visit all 4 modes exactly once
+        // and land back on Channels -- the tab row, a future cycle hotkey,
+        // and this test all share the single ALL ordering.
+        let mut m = IngameChatMode::Channels;
+        let mut seen = Vec::new();
+        for _ in 0..IngameChatMode::ALL.len() {
+            seen.push(m);
+            m = m.next();
+        }
+        assert_eq!(seen, IngameChatMode::ALL.to_vec());
+        assert_eq!(m, IngameChatMode::Channels); // wrapped
+    }
+
+    #[test]
+    fn mode_labels_are_distinct_and_nonempty() {
+        let labels: Vec<&str> = IngameChatMode::ALL.iter().map(|m| m.label()).collect();
+        for l in &labels {
+            assert!(!l.is_empty());
+        }
+        let unique: std::collections::HashSet<&&str> = labels.iter().collect();
+        assert_eq!(unique.len(), labels.len(), "tab labels must not collide");
+    }
+
+    #[test]
+    fn dm_recency_most_recent_first_hour_min_format() {
+        // Same-format display strings ("HH:MM UTC") order lexicographically;
+        // descending = most recent first.
+        let ts = ["09:15 UTC", "17:42 UTC", "12:00 UTC"];
+        assert_eq!(dm_recency_order(&ts), vec![1, 2, 0]);
+    }
+
+    #[test]
+    fn dm_recency_most_recent_first_date_format() {
+        // ISO date-bearing strings also order lexicographically.
+        let ts = [
+            "2026-05-29 17:42 UTC",
+            "2026-07-10 08:00 UTC",
+            "2026-01-02 23:59 UTC",
+        ];
+        assert_eq!(dm_recency_order(&ts), vec![1, 0, 2]);
+    }
+
+    #[test]
+    fn dm_recency_empty_timestamps_sink_to_end() {
+        // A conversation opened but never messaged has no timestamp -- it must
+        // trail every dated conversation, never lead the list.
+        let ts = ["", "17:42 UTC", "", "09:15 UTC"];
+        assert_eq!(dm_recency_order(&ts), vec![1, 3, 0, 2]);
+    }
+
+    #[test]
+    fn dm_recency_ties_keep_incoming_order() {
+        // Stable sort: equal timestamps (and the all-empty case) preserve the
+        // store's existing order (the Chat page keeps it alphabetical).
+        let ts = ["12:00 UTC", "12:00 UTC", "12:00 UTC"];
+        assert_eq!(dm_recency_order(&ts), vec![0, 1, 2]);
+        let empty = ["", "", ""];
+        assert_eq!(dm_recency_order(&empty), vec![0, 1, 2]);
+        assert_eq!(dm_recency_order(&[]), Vec::<usize>::new());
     }
 }

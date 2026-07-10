@@ -1421,6 +1421,56 @@ pub struct ChannelDraft {
     pub voice_enabled: bool,
 }
 
+/// View mode of the in-world chat panel (unified-chat increment 1c). The
+/// Enter-opened panel over the 3D world can show public channels (the v0.772
+/// behavior), DM conversations, group chats, or a tiny options slice --
+/// selected by the compact tab row at the top of the panel. Session-only on
+/// purpose (a GuiState field, not AppConfig): the panel reopens in the last
+/// mode used this session, and a fresh launch always starts on the public
+/// Channels view so private text is never the first thing on screen.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IngameChatMode {
+    /// Public server channels + the channel switcher (today's behavior).
+    Channels,
+    /// DM conversations -- same store + send path as the Chat page.
+    Dms,
+    /// Group chats (P2P signed-object groups + legacy relay groups).
+    Groups,
+    /// Tiny settings slice: feed visibility, panel height, open full Chat page.
+    Options,
+}
+
+#[cfg(feature = "native")]
+impl IngameChatMode {
+    /// Tab order as rendered left-to-right in the panel's mode row.
+    pub const ALL: [IngameChatMode; 4] = [
+        IngameChatMode::Channels,
+        IngameChatMode::Dms,
+        IngameChatMode::Groups,
+        IngameChatMode::Options,
+    ];
+
+    /// Compact tab label. Options is "..." on purpose: it reads as "more"
+    /// and keeps the row narrow (the panel is only ~470 px wide).
+    pub fn label(self) -> &'static str {
+        match self {
+            IngameChatMode::Channels => "Chat",
+            IngameChatMode::Dms => "DMs",
+            IngameChatMode::Groups => "Groups",
+            IngameChatMode::Options => "...",
+        }
+    }
+
+    /// The next mode in tab order, wrapping at the end. Pure cycling helper
+    /// so a future hotkey (and the unit tests) walk the modes through ONE
+    /// definition of the order instead of duplicating `ALL`.
+    pub fn next(self) -> IngameChatMode {
+        let i = Self::ALL.iter().position(|&m| m == self).unwrap_or(0);
+        Self::ALL[(i + 1) % Self::ALL.len()]
+    }
+}
+
 /// A DM conversation entry for the left panel.
 #[cfg(feature = "native")]
 #[derive(Debug, Clone)]
@@ -1972,6 +2022,17 @@ pub struct GuiState {
     /// keyboard focus for its input exactly once (re-focusing every frame
     /// would steal focus from the channel buttons). (v0.772)
     pub chat_input_focus_pending: bool,
+    /// Which view the in-world chat panel shows (increment 1c): Channels /
+    /// Dms / Groups / Options. Session-persistent -- Esc-close keeps it, so
+    /// the panel reopens where you left off; see `IngameChatMode`.
+    pub ingame_chat_mode: IngameChatMode,
+    /// Show the passive bottom-left chat feed while playing (hud.rs). Toggled
+    /// from the in-world panel's Options tab; persisted in AppConfig so the
+    /// preference survives restarts (GUI-first configurability).
+    pub hud_chat_feed_visible: bool,
+    /// Max height (px) of the in-world chat panel's message list. Adjustable
+    /// from the Options tab (slider); persisted in AppConfig.
+    pub ingame_chat_panel_height: f32,
     /// Shared-world co-presence status (v0.774), mirrored from the ECS each
     /// frame by the multiplayer block in lib.rs so the paint-only HUD can show
     /// it. `copresence_active` = we've joined the relay's shared game world
@@ -3917,6 +3978,9 @@ impl Default for GuiState {
             nav_back_stack: Vec::new(),
             chat_input_active: false,
             chat_input_focus_pending: false,
+            ingame_chat_mode: IngameChatMode::Channels,
+            hud_chat_feed_visible: true,
+            ingame_chat_panel_height: 160.0,
             copresence_active: false,
             copresence_names: Vec::new(),
             pending_dev_spawn: None,

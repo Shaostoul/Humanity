@@ -7304,17 +7304,24 @@ mod native_app {
                         {
                             state.gui_state.chat_input_active = true;
                             state.gui_state.chat_input_focus_pending = true;
-                            // The in-world panel is a PUBLIC-channel surface: if a DM
-                            // or group was left active on the Chat page, switch to
-                            // #general so private text is never shown/sent from the
-                            // world overlay (DMs stay on the Chat page, where the
-                            // E2EE confirm modal can actually render). (v0.779)
-                            if state.gui_state.chat_active_channel.starts_with("dm:")
-                                || state.gui_state.chat_active_channel.starts_with("p2pgroup:")
-                            {
-                                state.gui_state.chat_active_channel = "general".to_string();
-                                state.gui_state.chat_messages.clear();
-                                state.gui_state.history_fetched = false;
+                            // View modes (increment 1c): the panel reopens in the
+                            // last mode used this session. A private conversation
+                            // left active (from the Chat page or a previous panel
+                            // session) opens under its OWN tab -- DMs or Groups --
+                            // so it can never render inside the public Channels
+                            // view. This replaces the v0.779 force-to-#general
+                            // guard: the panel now serves DMs/groups deliberately
+                            // (same stores + send paths as the Chat page, and the
+                            // E2EE confirm modal renders from the panel too). The
+                            // PASSIVE feed keeps its own public-only guard in
+                            // hud.rs -- it is unattended; the panel is not.
+                            let ch = state.gui_state.chat_active_channel.clone();
+                            if ch.starts_with("dm:") {
+                                state.gui_state.ingame_chat_mode =
+                                    crate::gui::IngameChatMode::Dms;
+                            } else if ch.starts_with("p2pgroup:") || ch.starts_with("group:") {
+                                state.gui_state.ingame_chat_mode =
+                                    crate::gui::IngameChatMode::Groups;
                             }
                             // Clear held movement so opening the panel mid-run doesn't
                             // leave the player drifting (the panel's early-return above

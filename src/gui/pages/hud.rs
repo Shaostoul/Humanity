@@ -616,7 +616,9 @@ pub fn draw(
             // channels. Suppressed while that panel is open (it shows instead).
             // Follows `chat_active_channel`, so switching channels there (or on
             // the Chat page) updates this header + messages. Paint-only.
-            if !state.chat_input_active {
+            // `hud_chat_feed_visible` (increment 1c) is the user's off switch,
+            // toggled from the in-world panel's Options tab (persisted).
+            if !state.chat_input_active && state.hud_chat_feed_visible {
                 // PRIVACY (v0.779): the always-on feed shows PUBLIC channels
                 // only. A DM or group conversation left active on the Chat page
                 // must never paint private text on the world overlay (visible
