@@ -1770,8 +1770,9 @@ fn draw_night_sky_view(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let star_by_name: std::collections::HashMap<&str, &BrightStar> =
         stars.iter().map(|s| (s.name.as_str(), s)).collect();
 
-    // Constellation lines first (drawn under the stars).
-    let const_color = Color32::from_rgb(60, 80, 130);  // theme-exempt: constellation line — faint backdrop element
+    // Constellation lines first (drawn under the stars). Same theme token as
+    // the 3D sky's figures (v0.786) so one Appearance color drives both.
+    let const_color = theme.constellation_line();
     let cons = constellations();
     let hover_pos = ui.input(|i| i.pointer.hover_pos());
     let mut hovered_constellation: Option<&Constellation> = None;

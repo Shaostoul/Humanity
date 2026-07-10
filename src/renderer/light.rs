@@ -96,6 +96,17 @@ impl RoomLight {
         Self { pos, color, intensity, range, dir: Vec3::NEG_Y, cos_inner: -1.0, cos_outer: -1.0 }
     }
 
+    /// A LINE light (v0.786): the whole segment `a`..`b` emits. The shader
+    /// lights each fragment from the CLOSEST point on the segment (the
+    /// "capsule light" representative-point technique), so a light strip
+    /// washes the full length of a wall instead of pooling at one point.
+    /// Wire packing: pos = `a`, the `dir`/spot slot carries `b`, and
+    /// `cos_outer = -2.0` is the LINE sentinel (< -1.5 in the shader; the
+    /// plain point sentinel stays -1.0, a real spot is > -1.0).
+    pub fn line(a: Vec3, b: Vec3, color: [f32; 3], intensity: f32, range: f32) -> Self {
+        Self { pos: a, color, intensity, range, dir: b, cos_inner: -1.0, cos_outer: -2.0 }
+    }
+
     /// A spot light aimed along `dir` (normalized on construction; a zero-length input falls back
     /// to straight down so a light with an unset `PlacedLight::dir` still renders instead of NaN-ing
     /// the cone math), with `cone_inner_deg`/`cone_outer_deg` from the light's `LightType`.
@@ -167,6 +178,17 @@ pub fn sample_strip_path(points: &[Vec3], smooth: bool) -> Vec<Vec3> {
     }
     out.push(points[n - 1]);
     out
+}
+
+/// The point on segment `a`..`b` closest to `fragment` (v0.786) -- the LINE
+/// light's representative emission point. Pure-Rust mirror of the WGSL clamp
+/// in `pbr_simple.wgsl`'s light loop, kept in lockstep so it is unit-testable
+/// without a GPU (same pattern as `spot_cone_attenuation`).
+pub fn line_light_closest_point(a: Vec3, b: Vec3, fragment: Vec3) -> Vec3 {
+    let ab = b - a;
+    let denom = ab.dot(ab).max(1e-6);
+    let t = ((fragment - a).dot(ab) / denom).clamp(0.0, 1.0);
+    a + ab * t
 }
 
 /// Cone attenuation factor in [0, 1] for a fragment at direction `light_to_fragment` (normalized,
@@ -271,6 +293,37 @@ mod tests {
         // A zero-length dir must not NaN the light -- falls back to straight down.
         let degenerate = RoomLight::spot(Vec3::ZERO, [1.0, 1.0, 1.0], 5.0, 3.0, Vec3::ZERO, 20.0, 40.0);
         assert_eq!(degenerate.dir, Vec3::NEG_Y);
+    }
+
+    /// LINE light representative point (v0.786): fragments beside the segment
+    /// light from the perpendicular foot; fragments past an end light from
+    /// that endpoint (clamped). A degenerate zero-length segment behaves as a
+    /// point light at `a`. Mirrors the WGSL clamp exactly.
+    #[test]
+    fn line_light_closest_point_clamps_to_segment() {
+        let a = Vec3::new(0.0, 2.0, 0.0);
+        let b = Vec3::new(4.0, 2.0, 0.0);
+        // Beside the middle of the bar -> the perpendicular foot.
+        let mid = line_light_closest_point(a, b, Vec3::new(2.0, 0.0, 1.0));
+        assert!((mid - Vec3::new(2.0, 2.0, 0.0)).length() < 1e-5);
+        // Way past the B end -> clamped to B.
+        let past = line_light_closest_point(a, b, Vec3::new(9.0, 0.0, 0.0));
+        assert!((past - b).length() < 1e-5);
+        // Before the A end -> clamped to A.
+        let before = line_light_closest_point(a, b, Vec3::new(-3.0, 2.0, 2.0));
+        assert!((before - a).length() < 1e-5);
+        // Zero-length segment -> a point light at A (no NaN from the 1e-6 floor).
+        let degen = line_light_closest_point(a, a, Vec3::new(7.0, 7.0, 7.0));
+        assert!((degen - a).length() < 1e-5);
+
+        // The line-light RoomLight carries the packing contract: pos=a, dir=b,
+        // cos_outer=-2.0 (the LINE sentinel the shader tests with < -1.5).
+        let l = RoomLight::line(a, b, [1.0, 1.0, 1.0], 6.0, 5.0);
+        assert_eq!(l.pos, a);
+        assert_eq!(l.dir, b);
+        assert!(l.cos_outer < -1.5 && l.cos_outer > -2.5);
+        // And spot cone math must SKIP it (sentinel is not a real cone).
+        assert_eq!(spot_cone_attenuation(Vec3::X, Vec3::X, l.cos_inner, l.cos_outer), 1.0);
     }
 
     /// Strip path tessellation (v0.781): sharp = points verbatim; smooth = a

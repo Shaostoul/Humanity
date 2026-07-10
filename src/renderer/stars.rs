@@ -38,6 +38,15 @@ pub struct StarRenderer {
     line_pipeline: Option<wgpu::RenderPipeline>,
     constellation_buffer: Option<wgpu::Buffer>,
     constellation_vertex_count: u32,
+    /// CPU copy of the constellation line verts (v0.786) so the color can be
+    /// re-applied from the theme's `constellation_line` token without
+    /// re-reading the 34 MB stars.csv.
+    constellation_verts: Vec<StarVertex>,
+    /// Current baked line color; `set_constellation_style` rebuilds the GPU
+    /// buffer only when this changes.
+    constellation_rgba: [f32; 4],
+    /// Draw the figures at all? (Settings > Graphics > Constellation figures.)
+    pub show_constellations: bool,
 }
 
 impl StarRenderer {
@@ -271,7 +280,37 @@ impl StarRenderer {
             line_pipeline,
             constellation_buffer,
             constellation_vertex_count,
+            constellation_verts: constell_verts,
+            constellation_rgba: [0.133, 0.267, 0.267, 1.0], // load_constellations' baked default
+            show_constellations: true,
         })
+    }
+
+    /// Apply the Sky settings to the constellation figures (v0.786): the
+    /// visibility toggle + the theme's `constellation_line` color. The GPU
+    /// buffer is only rebuilt when the color actually changes (colors are
+    /// baked per-vertex), so calling this every frame is nearly free.
+    pub fn set_constellation_style(
+        &mut self,
+        device: &wgpu::Device,
+        show: bool,
+        rgba: [f32; 4],
+    ) {
+        self.show_constellations = show;
+        if rgba == self.constellation_rgba || self.constellation_verts.is_empty() {
+            return;
+        }
+        self.constellation_rgba = rgba;
+        for v in &mut self.constellation_verts {
+            v.color_brightness = rgba;
+        }
+        self.constellation_buffer = Some(device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Constellation Line Buffer"),
+                contents: bytemuck::cast_slice(&self.constellation_verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            },
+        ));
     }
 
     /// Update the star camera uniform with a rotation-only view-projection.
@@ -321,6 +360,10 @@ impl StarRenderer {
 
         // Constellation figures — same rotation-only camera, drawn over
         // the stars. Faint, so they read as figures without competing.
+        // Gated by the Sky settings toggle (v0.786).
+        if !self.show_constellations {
+            return;
+        }
         if let (Some(lp), Some(buf)) = (&self.line_pipeline, &self.constellation_buffer) {
             render_pass.set_pipeline(lp);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);

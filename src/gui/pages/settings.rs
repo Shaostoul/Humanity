@@ -852,6 +852,8 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Warning", &mut theme.warning as *mut _),
                     ("Danger", &mut theme.danger as *mut _),
                     ("Info", &mut theme.info as *mut _),
+                    ("Sky: orbit lines", &mut theme.orbit_line as *mut _),
+                    ("Sky: constellation lines", &mut theme.constellation_line as *mut _),
                     ("Badge: admin", &mut theme.badge_admin as *mut _),
                     ("Badge: mod", &mut theme.badge_mod as *mut _),
                     ("Badge: verified", &mut theme.badge_verified as *mut _),
@@ -1800,6 +1802,38 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         if widgets::labeled_slider(ui, theme, "Max subdivision level", &mut state.settings.planet_max_subdiv, 0.0..=7.0) {
+            state.settings_dirty = true;
+        }
+
+        // ── Sky / map lines (v0.786, operator sky settings) ──
+        ui.add_space(theme.spacing_md);
+        ui.label(RichText::new("Sky / map lines").color(theme.text_secondary()).strong());
+        ui.label(
+            RichText::new(
+                "The line overlays in the night sky. Colors live in Appearance \
+                 (Sky: orbit lines / Sky: constellation lines). Vessel orbits, \
+                 collision-course flags, and selected-object modes arrive as \
+                 those systems come online.",
+            )
+            .color(theme.text_muted())
+            .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_xs);
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Orbit rings").color(theme.text_secondary()));
+            for (val, label) in [
+                ("off", "Off"),
+                ("planets", "Planets"),
+                ("planets_moons", "Planets + moons"),
+            ] {
+                let sel = state.settings.sky_orbit_mode == val;
+                if ui.selectable_label(sel, RichText::new(label).size(theme.font_size_small)).clicked() && !sel {
+                    state.settings.sky_orbit_mode = val.to_string();
+                    state.settings_dirty = true;
+                }
+            }
+        });
+        if widgets::toggle(ui, theme, "Constellation figures", &mut state.settings.sky_constellations) {
             state.settings_dirty = true;
         }
 

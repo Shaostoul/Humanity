@@ -187,6 +187,12 @@ pub struct AppConfig {
     /// flat-colored spheres.
     #[serde(default = "default_true")]
     pub planet_detail: bool,
+    /// Sky orbit-ring visibility (v0.786): "off" | "planets" | "planets_moons".
+    #[serde(default = "default_sky_orbit_mode")]
+    pub sky_orbit_mode: String,
+    /// Show constellation figures in the FPS sky (v0.786).
+    #[serde(default = "default_true")]
+    pub sky_constellations: bool,
     /// Screen-size LOD base threshold in pixels for sky planets: one more
     /// icosphere subdivision each time the projected diameter doubles past
     /// this. See `terrain::planet::lod_level_for_pixels`.
@@ -375,6 +381,7 @@ fn default_mouse_sensitivity() -> f32 { 0.25 }
 fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
+fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
 fn default_planet_lod_px() -> f32 { 10.0 }
@@ -620,6 +627,8 @@ impl AppConfig {
             window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
             planet_detail: state.settings.planet_detail,
+            sky_orbit_mode: state.settings.sky_orbit_mode.clone(),
+            sky_constellations: state.settings.sky_constellations,
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             home_variant: state.settings.home_variant.clone(),
@@ -699,6 +708,8 @@ impl AppConfig {
         state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
         state.settings.planet_detail = self.planet_detail;
+        state.settings.sky_orbit_mode = self.sky_orbit_mode.clone();
+        state.settings.sky_constellations = self.sky_constellations;
         // Guard a corrupted saved value (a 0/negative threshold would pin
         // every body at max subdivision).
         state.settings.planet_lod_px = if self.planet_lod_px >= 1.0 {

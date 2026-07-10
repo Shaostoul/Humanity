@@ -5938,6 +5938,12 @@ pub struct SettingsState {
     /// Master toggle for procedural sky-planet surfaces (v0.763). Off falls
     /// back to smooth flat-colored spheres (the pre-v0.763 look).
     pub planet_detail: bool,
+    /// Sky orbit-ring visibility (v0.786): "off" | "planets" | "planets_moons".
+    /// Future modes (owned vessels, collision-course asteroids, selected
+    /// objects) land when their data exists -- see PRIORITIES.
+    pub sky_orbit_mode: String,
+    /// Show constellation figures in the FPS sky (v0.786).
+    pub sky_constellations: bool,
     /// Screen-size LOD base threshold in pixels: a sky body subdivides one
     /// icosphere level each time its projected diameter doubles past this.
     /// See terrain::planet::lod_level_for_pixels.
@@ -5994,6 +6000,8 @@ impl Default for SettingsState {
             fov: 90.0,
             render_distance: 500.0,
             planet_detail: true,
+            sky_orbit_mode: "planets".to_string(),
+            sky_constellations: true,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,
             master_volume: 0.8,

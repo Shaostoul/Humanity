@@ -28,6 +28,14 @@ pub struct Theme {
     pub warning: C,
     pub danger: C,
     pub info: C,
+    /// Solar-system orbit ring color in the FPS sky (v0.786, operator sky
+    /// settings). Default = the near-black #020305 the rings always used.
+    #[serde(default = "default_orbit_line")]
+    pub orbit_line: C,
+    /// Constellation figure line color in the FPS sky + Cosmos night-sky
+    /// (v0.786). Default = the operator-chosen teal #224444.
+    #[serde(default = "default_constellation_line")]
+    pub constellation_line: C,
     pub border: C,
     pub border_focus: C,
     pub badge_admin: C,
@@ -352,6 +360,8 @@ impl Theme {
     pub fn warning(&self) -> Color32 { Self::c32(&self.warning) }
     pub fn danger(&self) -> Color32 { Self::c32(&self.danger) }
     pub fn info(&self) -> Color32 { Self::c32(&self.info) }
+    pub fn orbit_line(&self) -> Color32 { Self::c32(&self.orbit_line) }
+    pub fn constellation_line(&self) -> Color32 { Self::c32(&self.constellation_line) }
     pub fn border(&self) -> Color32 { Self::c32(&self.border) }
     pub fn border_focus(&self) -> Color32 { Self::c32(&self.border_focus) }
 
@@ -609,6 +619,8 @@ fn default_cell_name_width() -> f32 { 150.0 }
 fn default_button_pad_y() -> f32 { 3.0 }
 fn default_bg_panel() -> C { (0.078, 0.078, 0.098, 1.0) }      // rgb(20, 20, 25)
 fn default_row_stripe() -> C { (0.0157, 0.0157, 0.0157, 1.0) } // #040404
+fn default_orbit_line() -> C { (0.0078, 0.0118, 0.0196, 1.0) } // #020305 near-black
+fn default_constellation_line() -> C { (0.133, 0.267, 0.267, 1.0) } // #224444 teal
 fn default_bg_sidebar() -> C { (0.086, 0.086, 0.110, 1.0) }    // rgb(22, 22, 28)
 fn default_bg_sidebar_dark() -> C { (0.118, 0.118, 0.141, 1.0) } // rgb(30, 30, 36)
 fn default_badge_padding() -> f32 { 6.0 }
@@ -683,6 +695,8 @@ fn default_theme() -> Theme {
         warning: (0.95, 0.75, 0.1, 1.0),
         danger: (0.9, 0.25, 0.2, 1.0),
         info: (0.2, 0.5, 0.9, 1.0),
+        orbit_line: default_orbit_line(),
+        constellation_line: default_constellation_line(),
         border: (0.165, 0.165, 0.208, 1.0),            // #2a2a35
         border_focus: (0.929, 0.549, 0.141, 1.0),      // #ED8C24
         badge_admin: (0.9, 0.5, 0.13, 1.0),

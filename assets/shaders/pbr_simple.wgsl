@@ -501,10 +501,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // fill cost, not a software cap.
     let num_lights = i32(camera.light_count.x);
     for (var i = 0; i < num_lights; i = i + 1) {
-        let light_pos = scene_lights[i].pos_intensity.xyz;
+        var light_pos = scene_lights[i].pos_intensity.xyz;
         let intensity = scene_lights[i].pos_intensity.w;
         let light_color = scene_lights[i].color_range.xyz;
         let radius = scene_lights[i].color_range.w;
+        let sent = scene_lights[i].spot.w;
+
+        // LINE light (v0.786, sentinel cos_outer == -2.0): the whole segment
+        // [pos, spot.xyz] emits -- light each fragment from the CLOSEST point
+        // on the segment (capsule-light representative point), so a strip
+        // washes the full wall instead of pooling at one point. Rust mirror +
+        // tests: light::line_light_closest_point.
+        if (sent < -1.5) {
+            let a = light_pos;
+            let b = scene_lights[i].spot.xyz;
+            let ab = b - a;
+            let t = clamp(dot(in.world_position - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+            light_pos = a + ab * t;
+        }
 
         let to_light = light_pos - in.world_position;
         let dist = length(to_light);

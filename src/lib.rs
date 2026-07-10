@@ -1830,27 +1830,57 @@ mod native_app {
                         z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
                             let t = crate::renderer::light::light_type(&l.type_id)?;
                             let c = l.color.unwrap_or(t.color);
-                            let mut pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
-                            // A path STRIP emits from its path centroid (v0.781) so
-                            // the light sits along the strip, not at one end. (One
-                            // GPU light per strip until the light budget is raised.)
-                            if t.kind == LightKind::Bar && !l.path.is_empty() {
-                                let mut sum = pos;
-                                for p in &l.path {
-                                    sum += Vec3::new(p.0, p.1, p.2) + o;
-                                }
-                                pos = sum / (l.path.len() as f32 + 1.0);
-                            }
+                            let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
                             let color = [c.0, c.1, c.2];
                             let intensity = l.intensity.unwrap_or(t.intensity);
                             let range = l.range.unwrap_or(t.range);
-                            Some(if t.kind == LightKind::Spot {
-                                let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
-                                RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)
-                            } else {
-                                RoomLight::point(pos, color, intensity, range)
+                            Some(match t.kind {
+                                LightKind::Spot => {
+                                    let dir = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
+                                    vec![RoomLight::spot(pos, color, intensity, range, dir, t.cone_inner_deg, t.cone_outer_deg)]
+                                }
+                                // A strip is a LINE LIGHT (v0.786, operator: "make the
+                                // full length of the bar emit light onto surfaces"):
+                                // one segment light per control-path leg, each lit
+                                // from its closest point in the shader. Intensity is
+                                // split across legs by length so the strip's total
+                                // output matches its dial (energy conservation).
+                                // Lighting uses the CONTROL polyline, not the smooth
+                                // tessellation -- visually indistinguishable, far
+                                // fewer lights.
+                                LightKind::Bar => {
+                                    let pts: Vec<Vec3> = if l.path.is_empty() {
+                                        // Pathless: the classic straight bar of the
+                                        // type's length along the horizontal dir.
+                                        let flat = Vec3::new(l.dir.0, 0.0, l.dir.2);
+                                        let axis = if flat.length_squared() > 1e-4 {
+                                            flat.normalize()
+                                        } else {
+                                            Vec3::X
+                                        };
+                                        let half = t.length_m.max(0.3) * 0.5;
+                                        vec![pos - axis * half, pos + axis * half]
+                                    } else {
+                                        std::iter::once(pos)
+                                            .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
+                                            .collect()
+                                    };
+                                    let total: f32 = pts
+                                        .windows(2)
+                                        .map(|w| (w[1] - w[0]).length())
+                                        .sum::<f32>()
+                                        .max(1e-3);
+                                    pts.windows(2)
+                                        .map(|w| {
+                                            let frac = (w[1] - w[0]).length() / total;
+                                            RoomLight::line(w[0], w[1], color, intensity * frac, range)
+                                        })
+                                        .collect()
+                                }
+                                _ => vec![RoomLight::point(pos, color, intensity, range)],
                             })
                         })
+                        .flatten()
                     })
                     .collect()
             })
@@ -4624,10 +4654,14 @@ mod native_app {
         // that the depth buffer occludes behind planets. 96 samples is
         // plenty smooth for an ellipse and a fraction of the tube verts.
         for b in crate::cosmos::sol_bodies() {
-            // Direct sun-orbiters (planets, dwarfs, named belt) + Moon.
-            // Sun has no orbit (sample empty) → skipped naturally.
-            let direct_solar = b.parent.as_deref() == Some("sun");
-            if !direct_solar && b.id != "moon" { continue; }
+            // Cache EVERY orbiting body's ring, tagged planet/moon so the Sky
+            // settings filter at draw time (v0.786). Direct sun-orbiters =
+            // planets/dwarfs; everything else = a moon around its planet.
+            // (Fixes the latent v0.262 bug where the lone intended moon ring
+            // never drew: the guard checked id "moon" but the data id is
+            // "luna".) Sun has no orbit (sample empty) → skipped naturally.
+            let Some(parent) = b.parent.clone() else { continue };
+            let kind = if parent == "sun" { "planet" } else { "moon" };
             let pts_au = crate::cosmos::sample_orbit_points(b, 96);
             if pts_au.len() < 3 { continue; }
             let pts_m: Vec<[f32; 3]> = pts_au
@@ -4640,9 +4674,7 @@ mod native_app {
                     ]
                 })
                 .collect();
-            state
-                .solar_orbit_paths
-                .push((pts_m, b.parent.clone().unwrap_or_else(|| "sun".to_string())));
+            state.solar_orbit_paths.push((pts_m, parent, kind.to_string()));
         }
         log::info!("Map-sync: cached {} FPS orbit paths (thin lines)", state.solar_orbit_paths.len());
 
@@ -5087,7 +5119,9 @@ mod native_app {
         /// per frame they're offset to the parent's Earth-relative
         /// position and drawn as a single-edge LineList that is
         /// depth-occluded behind planets.
-        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String)>,
+        /// (ellipse points in parent-frame metres, parent body id, kind
+        /// "planet"|"moon") -- the Sky settings filter by kind at draw time.
+        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Placeholder world objects (mesh_idx, material_idx, world position) drawn
@@ -10792,17 +10826,29 @@ mod native_app {
                         // draw_lines_onto depth-occludes any segment that
                         // passes behind a planet — the directional cue
                         // the operator asked for, via real occlusion.
-                        // Operator-chosen near-black #020305 (barely
-                        // there). Full alpha — the colour itself is the
-                        // dimness, not the blend.
-                        const ORBIT_RGBA: [f32; 4] =
-                            [0.0078, 0.0118, 0.0196, 1.0];
+                        // Color from the THEME (v0.786 sky settings; default =
+                        // the near-black #020305 the rings always used). Mode
+                        // from Settings > Graphics: off / planets / +moons.
+                        let oc = state.theme.orbit_line();
+                        let orbit_rgba: [f32; 4] = [
+                            oc.r() as f32 / 255.0,
+                            oc.g() as f32 / 255.0,
+                            oc.b() as f32 / 255.0,
+                            oc.a() as f32 / 255.0,
+                        ];
+                        let orbit_mode = state.gui_state.settings.sky_orbit_mode.as_str();
                         // Skip the rings in the showroom (no AU-scale sky-rings in the
                         // void — they'd reappear now that the celestial pass un-clips
                         // them). v0.451. The bodies are already showroom-gated above.
-                        for (pts_m, parent_id) in
+                        for (pts_m, parent_id, kind) in
                             state.solar_orbit_paths.iter().filter(|_| !showroom)
                         {
+                            if orbit_mode == "off" {
+                                break;
+                            }
+                            if kind == "moon" && orbit_mode != "planets_moons" {
+                                continue;
+                            }
                             let parent_helio_au = if parent_id == "sun" {
                                 glam::DVec3::ZERO
                             } else {
@@ -10819,11 +10865,11 @@ mod native_app {
                                 let b = [seg[1][0] + off[0], seg[1][1] + off[1], seg[1][2] + off[2]];
                                 orbit_lines.push(crate::renderer::line::LineVertex {
                                     position: a,
-                                    color: ORBIT_RGBA,
+                                    color: orbit_rgba,
                                 });
                                 orbit_lines.push(crate::renderer::line::LineVertex {
                                     position: b,
-                                    color: ORBIT_RGBA,
+                                    color: orbit_rgba,
                                 });
                             }
                         }
@@ -15009,7 +15055,21 @@ mod native_app {
                         match state.renderer.acquire_surface() {
                             Ok((output, view)) => {
                                 // Pass 1: Stars (clear to black + draw star points)
-                                if let Some(ref star_r) = state.star_renderer {
+                                if let Some(ref mut star_r) = state.star_renderer {
+                                    // Sky settings (v0.786): constellation toggle +
+                                    // theme color. Rebuilds the line buffer only
+                                    // when the color actually changed.
+                                    let cc = state.theme.constellation_line();
+                                    star_r.set_constellation_style(
+                                        &state.renderer.device,
+                                        state.gui_state.settings.sky_constellations,
+                                        [
+                                            cc.r() as f32 / 255.0,
+                                            cc.g() as f32 / 255.0,
+                                            cc.b() as f32 / 255.0,
+                                            cc.a() as f32 / 255.0,
+                                        ],
+                                    );
                                     star_r.update_camera(&state.renderer.queue, &state.camera);
                                     let mut encoder = state.renderer.device.create_command_encoder(
                                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
