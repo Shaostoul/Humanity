@@ -7553,11 +7553,11 @@ mod native_app {
                         }
 
                         // G opens the walk-up creature EDITOR for the creature
-                        // you're facing (dev tool, v0.778; cheats-gated). The
-                        // actual snapshot of its values into the edit buffers
-                        // runs next frame in the main loop (queries live there);
-                        // opening frees the cursor + disables look/move via the
-                        // modal guard above.
+                        // you're facing (dev tool, v0.778; Dev play mode +
+                        // cheats switch since task #50). The actual snapshot of
+                        // its values into the edit buffers runs next frame in
+                        // the main loop (queries live there); opening frees the
+                        // cursor + disables look/move via the modal guard above.
                         if key == KeyCode::KeyG
                             && pressed
                             && state.gui_state.active_page == GuiPage::None
@@ -7566,7 +7566,7 @@ mod native_app {
                             // its own clicks, and the death screen keeps the keyboard.
                             && !state.gui_state.construction_active
                             && state.gui_state.player_death_cause.is_none()
-                            && state.theme.cheats_enabled
+                            && state.gui_state.dev_cheats_active(&state.theme)
                         {
                             if let Some(ent) = state.targeted_livestock {
                                 state.gui_state.dev_edit_target = Some(u64::from(ent.to_bits()));
@@ -7933,8 +7933,9 @@ mod native_app {
                         // is on in first person the wheel is otherwise unused
                         // (FP ignores scroll_delta), so it steps the fly speed
                         // multiplier one decade per notch, clamped 1x..1e9x.
-                        // dev_fly_mode is forced off when cheats are off, so
-                        // this path is inert for normal players.
+                        // dev_fly_mode is forced off when dev tooling is off
+                        // (Dev play mode + cheats switch, task #50), so this
+                        // path is inert for normal players.
                         if state.gui_state.dev_fly_mode
                             && state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         {
@@ -8028,12 +8029,17 @@ mod native_app {
 
                     // Dev travel sync (v0.791.x): mirror the Dev page's fly/FTL
                     // state into the camera controller each frame (same pattern
-                    // as speed_multiplier above). Forced OFF when cheats are
-                    // off, and in a shared world -- flying at km/s (or moving
-                    // ship_world_pos under a joined session) would fight the
-                    // relay's co-presence position sync and its anti-teleport
-                    // validation, so travel is offline/local only.
-                    if !state.theme.cheats_enabled || state.gui_state.copresence_active {
+                    // as speed_multiplier above). Forced OFF when dev tooling is
+                    // off (Dev play mode + cheats switch, task #50 -- a LIVE
+                    // per-frame gate, so switching the mode in Settings lands
+                    // you back on your feet the same frame), and in a shared
+                    // world -- flying at km/s (or moving ship_world_pos under a
+                    // joined session) would fight the relay's co-presence
+                    // position sync and its anti-teleport validation, so travel
+                    // is offline/local only.
+                    if !state.gui_state.dev_cheats_active(&state.theme)
+                        || state.gui_state.copresence_active
+                    {
                         state.gui_state.dev_fly_mode = false;
                     }
                     state.controller.fly_mode = state.gui_state.dev_fly_mode;
@@ -9307,6 +9313,20 @@ mod native_app {
                     // Creative/survival mode: mirror the flag EVERY frame (not
                     // one-shot) so the farming + crafting systems see the current
                     // mode. Creative = skip resource requirements + consumption.
+                    // PLAY-MODE ENFORCEMENT (task #50): Normal is survival,
+                    // period -- force the flag off each frame so no stale
+                    // toggle, old config, or future code path can leave free
+                    // resources on for a Normal player. Creative/Dev keep the
+                    // Inventory page's Creative toggle as a live fine-tune
+                    // (testing real consumption while in Dev is legitimate).
+                    if !state
+                        .gui_state
+                        .settings
+                        .play_mode
+                        .allows(crate::config::Capability::FreeResources)
+                    {
+                        state.gui_state.creative_mode = false;
+                    }
                     if let Some(slot) =
                         state.data_store.get::<std::sync::Mutex<bool>>("creative_mode")
                     {

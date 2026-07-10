@@ -308,6 +308,9 @@ pub struct Theme {
     /// max skills). ON during development so every loop is testable in one click;
     /// turn OFF for a clean demo or a public server where players shouldn't be
     /// able to conjure resources. Toggle in Settings -> Animations -> Developer cheats.
+    /// Since the play-mode system (task #50) every dev tool ALSO requires
+    /// PlayMode::Dev (Settings > Gameplay), see `GuiState::dev_cheats_active`;
+    /// this flag remains the extra kill-switch on top of the mode.
     #[serde(default = "default_cheats_enabled")]
     pub cheats_enabled: bool,
 }

@@ -2401,12 +2401,18 @@ pub struct GuiState {
     /// computed once from the plant registry in the crop sync. The "make sure
     /// they grow together" check shown on the Home page.
     pub tower_compat: Vec<TowerCompat>,
-    /// Creative mode (default ON during early dev): resource-consuming actions
-    /// (planting seeds, fertilizing, crafting) skip the inventory requirement and
-    /// consumption, so the seed/material economy can be built out before it bites.
-    /// OFF = survival (consume normally). Bridged to the DataStore each frame so the
-    /// farming + crafting systems read it. Not persisted yet: defaults Creative on
-    /// every launch, which is exactly the early-dev default the operator wants.
+    /// Creative mode: resource-consuming actions (planting seeds, fertilizing,
+    /// crafting) skip the inventory requirement and consumption. OFF = survival
+    /// (consume normally). Bridged to the DataStore "creative_mode" slot each
+    /// frame so the farming + crafting + vehicle systems read it.
+    ///
+    /// OWNED by the play mode since task #50 (see `crate::config::PlayMode`):
+    /// Normal FORCES it off every frame (the lib.rs bridge enforces survival);
+    /// picking Creative/Dev presets it on, after which the Inventory page's
+    /// toggle remains a live fine-tune inside those modes (testing real
+    /// consumption while in Dev is legitimate). Default true matches the
+    /// default Dev mode; AppConfig::apply_to_gui_state re-presets it from the
+    /// persisted mode at startup.
     pub creative_mode: bool,
     /// Which section the merged Real tab shows — either a Profile section id
     /// ("body"/"identity"/"notes"/…) or a page id ("inventory"/"wallet"/
@@ -3876,6 +3882,19 @@ impl GuiState {
     /// bug). (v0.779; NPC talk card joined v0.797)
     pub fn in_world_modal_open(&self) -> bool {
         self.chat_input_active || self.dev_edit_target.is_some() || self.npc_talk_target.is_some()
+    }
+
+    /// THE dev-tooling gate (task #50): the play mode must grant DevTools
+    /// (mode == Dev) AND the Settings "Developer cheats" switch must be on.
+    /// Every dev affordance funnels through this one predicate -- the Dev
+    /// page (spawn/travel), the G walk-up creature editor, the "Dev:"
+    /// provisioning buttons (stock materials/seeds, grow all, max skills),
+    /// and the fly/FTL per-frame sync -- so the surfaces can't drift apart.
+    /// Both flags stay independently togglable (forever-dev norm: the mode
+    /// is the master, cheats_enabled the extra kill-switch for demos).
+    pub fn dev_cheats_active(&self, theme: &theme::Theme) -> bool {
+        self.settings.play_mode.allows(crate::config::Capability::DevTools)
+            && theme.cheats_enabled
     }
 
     /// Close every in-world modal panel (Esc, death, or a mode change). One
@@ -6087,12 +6106,20 @@ pub struct SettingsState {
     /// Default OFF pre-launch (v0.791, operator: "disable the wolves") -- the
     /// Dev spawn page still places any creature deliberately. Turning it off
     /// mid-session despawns live hostiles; turning it on repopulates on the
-    /// next world load. Revisit the default when the Normal/Creative/Dev mode
-    /// system lands (task #50).
+    /// next world load. The play-mode system (task #50) deliberately leaves
+    /// this INDEPENDENT of the mode: hostile wildlife is a difficulty choice
+    /// in every mode, not a cheat, so switching modes never flips it.
     pub hostile_wildlife: bool,
     /// Survival-needs speed: scales hunger/thirst/energy decay in the food
     /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
     pub vitals_drain: f32,
+    /// Play mode (task #50): Normal | Creative | Dev -- one ladder for every
+    /// cheat/scope gate (see `crate::config::PlayMode` + `Capability` for the
+    /// tested truth table). Persisted in AppConfig; edited as radios in
+    /// Settings > Gameplay; shown as a HUD tag when not Normal. Dev is the
+    /// pre-launch default (the operator IS the dev); flips to Normal at
+    /// launch.
+    pub play_mode: crate::config::PlayMode,
     // Wallet
     pub wallet_network: WalletNetwork,
     pub custom_rpc_url: String,
@@ -6138,6 +6165,7 @@ impl Default for SettingsState {
             home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
+            play_mode: crate::config::PlayMode::default(),
             wallet_network: WalletNetwork::Devnet,
             custom_rpc_url: String::new(),
             profile_visible: true,

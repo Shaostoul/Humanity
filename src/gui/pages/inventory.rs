@@ -1303,19 +1303,32 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             ui.label(RichText::new("Inventory").size(theme.font_size_title).color(theme.text_primary()));
             ui.add_space(theme.spacing_xs);
 
-            // Creative / survival mode (default Creative during early dev): in
-            // Creative, planting + crafting don't need or consume resources, so the
-            // seed/material economy can be built out before it actually bites.
-            widgets::toggle(ui, theme, "Creative mode", &mut state.creative_mode);
-            ui.label(
-                RichText::new(if state.creative_mode {
-                    "Creative: plant + craft freely, nothing consumed."
-                } else {
-                    "Survival: planting + crafting consume seeds + materials."
-                })
-                .size(theme.font_size_small)
-                .color(theme.text_muted()),
-            );
+            // Creative / survival fine-tune. The PLAY MODE owns this flag since
+            // task #50: Normal pins it off (survival, no cheats -- the per-frame
+            // bridge in lib.rs enforces it, so no toggle is shown), while
+            // Creative/Dev preset it on but keep this toggle live so resource
+            // consumption can be tested without leaving the mode.
+            if state.settings.play_mode.allows(crate::config::Capability::FreeResources) {
+                widgets::toggle(ui, theme, "Creative mode", &mut state.creative_mode);
+                ui.label(
+                    RichText::new(if state.creative_mode {
+                        "Creative: plant + craft freely, nothing consumed."
+                    } else {
+                        "Survival: planting + crafting consume seeds + materials."
+                    })
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
+            } else {
+                ui.label(
+                    RichText::new(
+                        "Survival (Normal play mode): planting + crafting consume \
+                         seeds + materials. Change the play mode in Settings > Gameplay.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+                );
+            }
             ui.add_space(theme.spacing_sm);
 
             // Collapse/Expand/Start-collapsed controls (operator 2026-06-08): ONE
@@ -1785,7 +1798,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 ui.horizontal_wrapped(|ui| {
                     // Dev: grant the starter seed set (one of each tower variety), so
                     // survival-mode planting is testable now. Creative ignores seeds.
-                    if theme.cheats_enabled && widgets::secondary_button(ui, theme, "Dev: stock seeds") {
+                    // Dev play mode + cheats switch, both required (task #50 gate).
+                    if state.dev_cheats_active(theme) && widgets::secondary_button(ui, theme, "Dev: stock seeds") {
                         let mut seeds: Vec<String> = Vec::new();
                         for t in &state.tower_configs {
                             for p in &t.plantings {
@@ -1809,7 +1823,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             action_stock_seeds = Some(seeds);
                         }
                     }
-                    if theme.cheats_enabled && !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
+                    if state.dev_cheats_active(theme) && !state.crops.is_empty() && widgets::secondary_button(ui, theme, "Dev: grow all") {
                         action_dev_grow = true;
                     }
                 });

@@ -1184,8 +1184,9 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         ui.label(RichText::new(
             "Show the in-app cheat buttons (stock all materials, stock seeds, \
              grow all crops, max skills) that let you test every loop instantly. \
-             On during development; turn OFF for a clean demo or a public server \
-             so players can't conjure resources."
+             Since the play-mode system (task #50) these ALSO require the Dev \
+             play mode (Settings > Gameplay); this switch is the extra \
+             kill-switch for a clean demo on a Dev-mode install."
         ).size(small_size).color(text_muted));
         if widgets::toggle(ui, theme, "Enable dev cheats", &mut cheats_on) {
             changed = true;
@@ -1869,6 +1870,66 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 /// Born from an operator field report ("disable the wolves... extend the
 /// dehydration time. I keep getting killed and its annoying").
 pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // ── Play mode (task #50): Normal | Creative | Dev ──
+    // The one ladder every cheat/scope gate hangs off; see
+    // crate::config::PlayMode for the full design + tested truth table.
+    // Applies LIVE: the gates (construction scope, Dev page, creative flag,
+    // fly/FTL) read the mode per frame, no world reload needed.
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Play mode").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new(
+                "Who gets which powers. Applies immediately: building scope, \
+                 the Dev page, and free materials all follow the mode. When \
+                 the mode is not Normal, a CREATIVE / DEV tag shows on the \
+                 HUD so screenshots stay honest.",
+            )
+            .color(theme.text_muted())
+            .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_sm);
+        for mode in crate::config::PlayMode::ALL {
+            let selected = state.settings.play_mode == mode;
+            if ui.radio(selected, RichText::new(mode.label()).color(theme.text_primary())).clicked()
+                && !selected
+            {
+                state.settings.play_mode = mode;
+                // The mode PRESETS the creative (free resources) flag right
+                // now; the per-frame bridge in lib.rs keeps Normal honest even
+                // if something else flips the flag later. Deliberately does
+                // NOT touch the Vitals drain slider below -- vitals stay a
+                // separate knob you pair with Creative if you want needs
+                // paused (per the mode's own description).
+                state.creative_mode =
+                    mode.allows(crate::config::Capability::FreeResources);
+                state.settings_dirty = true; // persists play_mode to config.json
+            }
+            ui.label(
+                RichText::new(mode.hint())
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+            );
+            ui.add_space(theme.spacing_xs);
+        }
+        // Multiplayer honesty note (task #50): in a shared world the relay is
+        // the authority on shared state, so Dev tools keep working for now;
+        // per-player server-enforced permissions are the follow-up when real
+        // players arrive. The HUD tag is force-shown so nobody can pass off a
+        // Dev-mode screenshot as survival play.
+        if state.copresence_active {
+            ui.label(
+                RichText::new(
+                    "You are in a shared world: the mode tag stays visible on \
+                     the HUD, and the server remains the authority on shared \
+                     state.",
+                )
+                .color(theme.warning())
+                .size(theme.font_size_small),
+            );
+        }
+    });
+    ui.add_space(theme.spacing_md);
     widgets::card(ui, theme, |ui| {
         ui.label(RichText::new("Survival").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);

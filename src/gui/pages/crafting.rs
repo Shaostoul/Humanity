@@ -252,12 +252,14 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             // Dev/creative provisioning (the "develop as if 100% unlocked" posture):
             // stock the player with one stack of every recipe input (raws AND
             // intermediates) so EVERY recipe is craftable in one click right now.
-            // Gated/removed once progression lands.
-            if theme.cheats_enabled && widgets::primary_button(ui, theme, "Dev: stock all materials") {
+            // Dev play mode + cheats switch, both required (task #50 gate).
+            if state.dev_cheats_active(theme)
+                && widgets::primary_button(ui, theme, "Dev: stock all materials")
+            {
                 state.dev_stock_materials = true;
                 state.craft_status = "Stocking all materials...".to_string();
             }
-            if theme.cheats_enabled {
+            if state.dev_cheats_active(theme) {
                 ui.add_space(theme.spacing_sm);
             }
 
