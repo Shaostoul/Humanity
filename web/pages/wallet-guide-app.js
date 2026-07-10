@@ -28,7 +28,7 @@
       title: '2. Your HumanityOS Wallet',
       content: function () {
         return '<p>Here is the good news: <strong>you already have a wallet.</strong></p>' +
-          '<p>Your HumanityOS identity uses post-quantum cryptography (Dilithium3). For optional crypto payments, the system can derive a separate Solana wallet (Ed25519) from the same 24-word BIP39 seed phrase, via a distinct KDF path (<code>hum/solana/v1</code>).</p>' +
+          '<p>Your HumanityOS identity uses post-quantum cryptography (Dilithium3). For optional crypto payments, the same 24-word BIP39 seed phrase also yields an Ed25519 keypair that doubles as a Solana wallet - a separate key from your chat identity.</p>' +
           '<p>That means one seed phrase backs up <strong>both</strong> your identity AND your wallet, with no coupling between them. You can ignore Solana entirely if you never want to use blockchain.</p>' +
           '<ul>' +
           '<li>Your seed phrase derives both your DID and (optionally) your Solana wallet</li>' +

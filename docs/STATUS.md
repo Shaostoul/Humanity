@@ -509,36 +509,25 @@ actual binary.
 
 **This section is a pointer, not a plan.** The authoritative ranked backlog is
 **`docs/PRIORITIES.md`**, read it for the current top item and full ordering.
-The summary below reflects PRIORITIES as of 2026-05-28; if it has drifted from
+The summary below reflects PRIORITIES as of 2026-07-10; if it has drifted from
 PRIORITIES.md, trust PRIORITIES.md.
 
-- **Currently active (Track W):** clean rebuild of the web chat *view* to mirror
-  native 1:1, keeping the proven JS engine (WS/crypto/WebRTC). Spec:
-  `docs/design/chat-layout.md`.
-- **TIER 0, pre-public-launch blockers:** the only open item is fixing nginx
-  `/health` routing (public `https://united-humanity.us/health` returns 404 while
-  internal returns 200). Everything else in TIER 0 is DONE (off-site backup,
-  release-mirror retention, Inc6 wipe, orphan-admin cleanup, TLS auto-renew, etc.).
-- **TIER 1, hardening:** effectively closed (fail2ban, watchdog+alerting,
-  SQLite corruption recovery all shipped; off-box monitor skipped by operator).
-- **TIER 2, big-feature gaps (weeks each):** web↔native parity (Track W),
-  Studio+streaming, in-app ops console, **native voice - BUILT end-to-end
-  (arc v0.485-495: pure-Rust capture/Opus/`str0m` WebRTC, per-channel rooms, live
-  audio web↔native, DSP, transmit modes); remaining tail = native per-peer
-  volume/mute/squelch UI + a web transmit-mode UI + an in-process two-`str0m`
-  WebRTC test harness for CI + graceful relay restart so deploys don't drop
-  voice**, federation *activation* (designed, dormant=safe, not turned on),
-  native trade UI completion (events not dispatched), Litestream continuous
-  backup, mobile clients (Android/iOS), device mesh, federated Library, and
-  **P2P groups phases 3–5** (P2P transport / relay-independence / mDNS-DHT, 
-  phases 1–2 are done: create/invite/join/E2EE-chat/leave/disband work on both
-  clients as of v0.301–v0.304).
-- **TIER 3, ELI5 accessibility mandate:** tooltip pass, first-5-minutes
-  onboarding flow, localization expansion (5→11+ languages), full WCAG 2.1 AA
-  audit, native glossary widget. Largely NOT done.
-- **TIER 4, long horizon:** LoRa hardware, STARK selective disclosure, deep
-  game-world simulation, AI-agent governance enforcement, distribution beyond
-  GitHub/Forgejo.
+- **The pivot (operator, 2026-07-08): VALIDATION + REAL CO-PRESENCE, not more
+  breadth.** Get a second real human into the shared world and prove what
+  exists holds up when a person touches it. The near-term bar is playable
+  multiplayer on the VPS.
+- **Active cadence:** unified chat (in-game panel shipped; view modes next),
+  shared-world co-presence (mechanism live end-to-end; two-client proof is the
+  open item), and the operator field-report loop (play, report, fix, ship -
+  the corridor rework, uncapped lights, real constellations, save safety, dev
+  travel, and the gameplay Settings section all came from it).
+- **Queued:** corridor mouth door panels, NPC walk-up interaction, the big
+  star-catalog ladder (binary format, ATHYG 2.5M, Gaia glow bake),
+  Dev/Creative/Normal mode system, federation activation (built, fail-closed,
+  dormant until peer servers exist), mobile clients, P2P groups phases 3-5.
+- **Standing mandates:** ELI5 accessibility (tooltips, onboarding,
+  localization, WCAG audit) and the long horizon (LoRa mesh, STARK selective
+  disclosure, deeper simulation, AI-agent governance enforcement).
 
 ---
 

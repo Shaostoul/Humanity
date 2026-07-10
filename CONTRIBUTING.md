@@ -2,7 +2,7 @@
 
 Thank you for your interest. This guide gets you from zero to making real contributions.
 
-**New here?** Start with [ONBOARDING.md](ONBOARDING.md) for the full picture. Come back here when you're ready to contribute code or content.
+**New here?** Start with [docs/README.md](docs/README.md) (pick your path) or jump straight to [docs/contributor/00-START-HERE.md](docs/contributor/00-START-HERE.md). Come back here when you're ready to contribute code or content.
 
 ---
 
@@ -80,8 +80,7 @@ Humanity/
 │   │   ├── settings.js     ← Theme/font persistence.
 │   │   └── theme.css       ← Auto-generated from data/gui/theme.ron — do not hand-edit colors.
 │   ├── chat/               ← Chat client (app.js, crypto.js, chat-*.js).
-│   ├── pages/              ← Standalone pages (tasks, maps, settings, etc.).
-│   └── activities/         ← Game + real-world tools (gardening, download, etc.).
+│   └── pages/              ← Standalone pages (tasks, maps, settings, etc.).
 ├── data/                   ← Hot-reloadable game/config data (CSV/TOML/RON/JSON, ~108 files).
 ├── schemas/                ← TOML schema definitions for data files.
 ├── assets/                 ← Shared media (icons, shaders, models, textures, audio).
@@ -100,9 +99,9 @@ relay-only mode (VPS, Raspberry Pi); default mode loads the full desktop client.
 
 ## Adding a New Page
 
-Every page follows the same pattern. Copy an existing simple page (like `logbook.html`) and:
+Every page follows the same pattern. Copy an existing simple page from `web/pages/` (like `notes.html`) and:
 
-1. **Create the HTML file** at the repo root: `yourpage.html`
+1. **Create the HTML file** in `web/pages/`: `web/pages/yourpage.html`
    ```html
    <!-- Required in <head>: -->
    <script src="/shared/shell.js" data-active="yourkey"></script>
@@ -110,22 +109,14 @@ Every page follows the same pattern. Copy an existing simple page (like `logbook
    ```
    The `data-active` value is a short identifier used to highlight the nav button.
 
-2. **Add the nav button** in `web/shared/shell.js` (two places):
-   ```js
-   // Desktop nav (around line 394):
-   navTab('/yourpage', 'icon.png', 'Your Page', 'yourkey') +
-
-   // Mobile drawer (around line 453):
-   mobileLink('/yourpage', 'Your Page') +
-   ```
+2. **Add the nav button** in `web/shared/shell.js` (desktop nav + mobile drawer entries).
    Icon files live in `assets/icons/`. Use an emoji string instead of a PNG if no icon exists yet.
 
-3. **Add a nginx route** on the server:
-   ```nginx
-   location = /yourpage { try_files /yourpage.html =404; }
-   ```
+3. **Register the page** in `docs/PAGES.md` in the same commit - the page-registry lint fails the build on an unregistered page.
 
-4. **Deploy**: `scp yourpage.html server:/var/www/humanity/`
+4. **Mirror-check**: does the native (egui) app need the same page? The project rule is dual-UI parity - web mirrors native. If native doesn't need it, note why in the design doc.
+
+5. **Deploy**: push to `main`. CI syncs the VPS automatically (no scp needed).
 
 That's the complete recipe. The nav auto-highlights the correct button because `shell.js` reads the `data-active` attribute.
 
@@ -137,7 +128,7 @@ The chat client lives in `web/chat/`. It's split into modules loaded in order:
 
 | File | Responsibility |
 |------|---------------|
-| `crypto.js` | Ed25519, ECDH, AES — all cryptographic primitives |
+| `crypto.js` | BIP39 seed, Ed25519 (seed source + Solana wallet), AES-GCM vault, post-quantum identity glue (Dilithium3 chat identity, Kyber768 DMs - see CLAUDE.md "Cryptography" for the canonical table) |
 | `app.js` | Core state, WebSocket connection, `handleMessage()`, `sendMessage()`, `switchChannel()`, peer/channel list management |
 | `chat-messages.js` | Reactions, editing, pins, typing indicator, image upload, threads |
 | `chat-dms.js` | DM state, `openDmConversation()`, `addDmMessage()`, conversation list |
@@ -219,7 +210,7 @@ In practice: if you're adding a feature, check `docs/design/` for relevant specs
 ## Code Style
 
 - **JS**: No TypeScript, no bundler, no framework. Vanilla JS. Existing patterns over new ones.
-- **Rust**: Standard `rustfmt` formatting. `cargo check` must pass before submitting.
+- **Rust**: Match the surrounding style by hand - do NOT run `cargo fmt` across the crate (it breaks inline lint-exempt comments; see CLAUDE.md gotchas). Both `cargo check --features native` and `cargo check --features relay --no-default-features` must pass before submitting.
 - **CSS**: Component files (`messages.css`, `sidebar.css`, etc.) — keep styles with the component they style.
 - **HTML**: Each page is a standalone file. Keep the `<head>` consistent with existing pages.
 - **Comments**: Explain *why*, not *what*. Use `// ── Section Name ──` for section headers.

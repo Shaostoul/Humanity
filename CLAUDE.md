@@ -10,7 +10,7 @@ SSH alias: `humanity-vps` (server1.shaostoul.com)
 > 2. **READ `data/coordination/orchestrator_state.json`** — running session journal. Tells you what the previous orchestrator was doing, what decisions were made, what scopes have active claims, what NOT to redo.
 > 3. **Run `node scripts/agent-status.js`** — per-scope coordinator-friendly summary aggregating `data/coordination/sessions/*.json`.
 > 4. Read `docs/FEATURES.md` for complete feature inventory with file paths (never rebuild what exists)
-> 5. Read `docs/PAGES.md` for the canonical UI page registry (32 native + 38 web, with purpose / audience / parity)
+> 5. Read `docs/PAGES.md` for the canonical UI page registry (its heading carries the live native/web page counts; don't trust copies of the numbers elsewhere)
 > 6. Read `docs/STATUS.md` for what's built vs planned (never re-plan completed work)
 > 7. Read `docs/BUGS.md` for resolved bugs (never re-fix a fixed bug)
 > 8. Read `docs/SOP.md` for version sync, deploy, and development procedures

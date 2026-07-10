@@ -114,6 +114,7 @@ differently:
 | `game_admin.rs` | Game-world ban management, folded into `ServerSettings` > ADMIN as a subsection (v0.479; the old standalone `GameAdmin` variant was removed). |
 | `onboarding.rs` | Shared drawing helper (`onboarding::draw_quests`) consumed by `Quests`; not a standalone page since the `Onboarding` variant was removed (v.415.0). |
 | `hud.rs` | In-game HUD (health, hotbar, crosshair, compass, FPS, weather), drawn during gameplay, not a menu page. |
+| `vendor.rs` | Trading-post buy/sell modal (v0.747, closure ladder rung 3). Opened from the trading post machine's walk-up card, gated by `GuiState.vendor_open`; prices from `data/trade_goods.ron`, settles via `economy::vendor_buy/sell` in lib.rs's frame bridge. |
 | `escape_menu.rs` | Shared nav bar (colour-coded by category) rendered across all tool pages. (Its dead `top_categories()`/`sub_pages_for()` category-browse helpers were removed v0.699.0 with the Overview pages.) |
 | `placeholder.rs` | Utility stub for a not-yet-built page. |
 | `mod.rs` | Module root, re-exports. |
