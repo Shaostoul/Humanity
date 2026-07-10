@@ -679,8 +679,9 @@ fn draw_wall_editor(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                 // editor is editing. Every tool below (walls, openings, lights, machines, spawn)
                 // operates on the selected zone; the whole ship stays visible in the viewport.
                 draw_ship_zone_selector(ui, theme, state);
-                // CORRIDORS (increment B): ship-level rows connecting two zones' doors -- they
-                // belong to no single zone, so they live here beside the zone selector.
+                // CORRIDORS (increment B): ship-level rows connecting two zones (each row owns
+                // its door mouths) -- they belong to no single zone, so they live here beside
+                // the zone selector.
                 draw_corridor_section(ui, theme, state);
                 if let Some(hs) = zone_body(&state.ship_structure, state.construction_zone) {
                     ui.label(RichText::new(format!("Fixed box  {:.0} x {:.0} x {:.0} m", hs.width, hs.depth, hs.height))
@@ -1721,13 +1722,15 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
 
 /// CORRIDORS section (ship-superstructure increment B), directly under the zone selector: lists the
 /// ship's corridors (each with a delete X and, when broken, the honest reason it cannot generate)
-/// and an "Add corridor" flow -- pick zone A + one of its DOOR openings, zone B + one of its doors,
-/// a width drag, a glass-top checkbox, Create. Creation validates through
-/// `ShipStructure::corridor_geometry` (the same resolver mesh + collision use) and shows the error
-/// verbatim on failure. Creating/deleting flags `construction_structure_dirty`, the same live
-/// rebuild every zone edit takes.
+/// and an "Add corridor" flow -- pick zone A and zone B, drag the world `lat` centreline (or hit
+/// Center to snap it to the middle of the zones' shared span), size the door mouth, set the tube
+/// width + glass top, Create. The corridor OWNS its door mouths since the rework (the old per-zone
+/// door dropdowns indexed authored doors by ordinal, which desynced on every door edit). Creation
+/// validates through `ShipStructure::corridor_geometry` (the same resolver mesh + collision use)
+/// and shows the error verbatim on failure. Creating/deleting flags
+/// `construction_structure_dirty`, the same live rebuild every zone edit takes.
 fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    use crate::ship::ship_structure::{zone_door_refs, ShipCorridor};
+    use crate::ship::ship_structure::ShipCorridor;
     let Some(ship) = state.ship_structure.as_ref() else {
         return;
     };
@@ -1742,34 +1745,43 @@ fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         .iter()
         .map(|c| {
             let label = format!(
-                "{} door {} -> {} door {}  ({:.1} m{})",
+                "{} -> {}  (lat {:.1} m, tube {:.1} m, door {:.1} x {:.1} m{})",
                 c.from_zone,
-                c.from_opening,
                 c.to_zone,
-                c.to_opening,
+                c.lat,
                 c.width,
+                c.door_width,
+                c.door_height,
                 if c.glass_top { ", glass" } else { "" }
             );
             (label, ship.corridor_geometry(c).err())
         })
         .collect();
-    // Zone names + the SELECTED zones' door lists (labels by canonical door index).
     let zone_names: Vec<String> = ship.zones.iter().map(|z| z.id.clone()).collect();
     let n_zones = zone_names.len();
     state.construction_corridor_from_zone = state.construction_corridor_from_zone.min(n_zones - 1);
     state.construction_corridor_to_zone = state.construction_corridor_to_zone.min(n_zones - 1);
-    let door_labels = |zi: usize| -> Vec<String> {
-        zone_door_refs(&ship.zones[zi].body)
-            .iter()
-            .map(|d| format!("door {} (wall {}, {:.1} m)", d.opening_index, d.wall_index, d.width))
-            .collect()
-    };
-    let from_doors = door_labels(state.construction_corridor_from_zone);
-    let to_doors = door_labels(state.construction_corridor_to_zone);
     let (from_id, to_id) = (
         zone_names[state.construction_corridor_from_zone].clone(),
         zone_names[state.construction_corridor_to_zone].clone(),
     );
+    // The Center suggestion: midpoint of the two SELECTED zones' overlapping span on the axis
+    // ACROSS the run. The run axis picks itself from the larger clear gap between the boxes,
+    // mirroring `corridor_geometry` exactly so the button never disagrees with the validator.
+    let center_lat = {
+        let zf = &ship.zones[state.construction_corridor_from_zone];
+        let zt = &ship.zones[state.construction_corridor_to_zone];
+        let (fo, to) = (zf.origin_vec(), zt.origin_vec());
+        let gap_x = (to.x - (fo.x + zf.body.width)).max(fo.x - (to.x + zt.body.width));
+        let gap_z = (to.z - (fo.z + zf.body.depth)).max(fo.z - (to.z + zt.body.depth));
+        if gap_x >= gap_z {
+            // X run: centre the tube on the shared z span.
+            (fo.z.max(to.z) + (fo.z + zf.body.depth).min(to.z + zt.body.depth)) * 0.5
+        } else {
+            // Z run: centre on the shared x span.
+            (fo.x.max(to.x) + (fo.x + zf.body.width).min(to.x + zt.body.width)) * 0.5
+        }
+    };
     let mut delete: Option<usize> = None;
     for (i, (label, err)) in rows.iter().enumerate() {
         ui.horizontal(|ui| {
@@ -1786,10 +1798,11 @@ fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
         }
     }
     if rows.is_empty() {
-        ui.label(RichText::new("None yet. A corridor is a straight tube between two zones' doors.")
+        ui.label(RichText::new("None yet. A corridor is a straight tube between two zones; it cuts its own door mouths.")
             .size(theme.font_size_small).color(theme.text_muted()));
     }
-    // Add flow: from zone + door, to zone + door, width, glass top, Create.
+    // Add flow: from zone, to zone, lat centreline (+ Center helper), door mouth, width, glass
+    // top, Create.
     let mut clear_error = false;
     ui.horizontal(|ui| {
         ui.label(RichText::new("From").size(theme.font_size_small).color(theme.text_muted()));
@@ -1800,31 +1813,10 @@ fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                 for (i, name) in zone_names.iter().enumerate() {
                     if ui.selectable_label(i == state.construction_corridor_from_zone, name).clicked() {
                         state.construction_corridor_from_zone = i;
-                        state.construction_corridor_from_door = 0;
                         clear_error = true;
                     }
                 }
             });
-        state.construction_corridor_from_door =
-            state.construction_corridor_from_door.min(from_doors.len().saturating_sub(1));
-        egui::ComboBox::from_id_salt("corridor_from_door")
-            .selected_text(
-                from_doors
-                    .get(state.construction_corridor_from_door)
-                    .cloned()
-                    .unwrap_or_else(|| "no doors".to_string()),
-            )
-            .width(140.0)
-            .show_ui(ui, |ui| {
-                for (i, name) in from_doors.iter().enumerate() {
-                    if ui.selectable_label(i == state.construction_corridor_from_door, name).clicked() {
-                        state.construction_corridor_from_door = i;
-                        clear_error = true;
-                    }
-                }
-            });
-    });
-    ui.horizontal(|ui| {
         ui.label(RichText::new("To").size(theme.font_size_small).color(theme.text_muted()));
         egui::ComboBox::from_id_salt("corridor_to_zone")
             .selected_text(to_id.clone())
@@ -1833,29 +1825,45 @@ fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
                 for (i, name) in zone_names.iter().enumerate() {
                     if ui.selectable_label(i == state.construction_corridor_to_zone, name).clicked() {
                         state.construction_corridor_to_zone = i;
-                        state.construction_corridor_to_door = 0;
                         clear_error = true;
                     }
                 }
             });
-        state.construction_corridor_to_door =
-            state.construction_corridor_to_door.min(to_doors.len().saturating_sub(1));
-        egui::ComboBox::from_id_salt("corridor_to_door")
-            .selected_text(
-                to_doors
-                    .get(state.construction_corridor_to_door)
-                    .cloned()
-                    .unwrap_or_else(|| "no doors".to_string()),
-            )
-            .width(140.0)
-            .show_ui(ui, |ui| {
-                for (i, name) in to_doors.iter().enumerate() {
-                    if ui.selectable_label(i == state.construction_corridor_to_door, name).clicked() {
-                        state.construction_corridor_to_door = i;
-                        clear_error = true;
-                    }
-                }
-            });
+    });
+    ui.horizontal(|ui| {
+        // The centreline in WORLD metres (z for an X-run corridor, x for a Z-run) -- the corridor
+        // owns this position; no authored door is consulted.
+        ui.label(RichText::new("Lat").size(theme.font_size_small).color(theme.text_muted()));
+        if ui
+            .add(egui::DragValue::new(&mut state.construction_corridor_lat).speed(0.1).suffix(" m"))
+            .changed()
+        {
+            clear_error = true;
+        }
+        if ui
+            .small_button("Center")
+            .on_hover_text("Snap the centreline to the middle of the two zones' shared span")
+            .clicked()
+        {
+            state.construction_corridor_lat = center_lat;
+            clear_error = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Door").size(theme.font_size_small).color(theme.text_muted()));
+        ui.add(
+            egui::DragValue::new(&mut state.construction_corridor_door_w)
+                .speed(0.1)
+                .range(0.8..=6.0)
+                .suffix(" m"),
+        );
+        ui.label(RichText::new("x").size(theme.font_size_small).color(theme.text_muted()));
+        ui.add(
+            egui::DragValue::new(&mut state.construction_corridor_door_h)
+                .speed(0.1)
+                .range(1.8..=4.0)
+                .suffix(" m"),
+        );
     });
     let mut create = false;
     ui.horizontal(|ui| {
@@ -1875,10 +1883,11 @@ fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     if create {
         let candidate = ShipCorridor {
             from_zone: from_id,
-            from_opening: state.construction_corridor_from_door,
             to_zone: to_id,
-            to_opening: state.construction_corridor_to_door,
+            lat: state.construction_corridor_lat,
             width: state.construction_corridor_width,
+            door_width: state.construction_corridor_door_w,
+            door_height: state.construction_corridor_door_h,
             glass_top: state.construction_corridor_glass,
         };
         // Validate through the SAME resolver generation uses; show the failure verbatim.

@@ -356,26 +356,23 @@ mod tests {
         assert!(out.z < 4.9, "blocked on the near side of the wall, got z={}", out.z);
     }
 
-    /// A zone body with one door-carrying wall along a +Z line at x = `wall_x` (the ship-structure
-    /// corridor-test shape): door 1 m wide centred at z = `door_z`.
-    fn body_with_door(w: f32, d: f32, h: f32, wall_x: f32, z1: f32, z2: f32, door_z: f32) -> HomeStructure {
-        ron::from_str(&format!(
-            "(width: {w}, depth: {d}, height: {h}, walls: [(a: ({wall_x}, {z1}), b: ({wall_x}, {z2}), \
-             height: {h}, material: 1, openings: [(kind: Door, at: {}, width: 1.0, sill: 0.0, \
-             height: 2.1, style: \"swing\", open_dist: 2.6, locked: false, auto_open: true, \
-             control_panel: false, locks: [])])])",
-            door_z - z1 - 0.5
-        ))
-        .expect("corridor test body parses")
+    /// A plain zone body (no interior walls): since the corridor rework, corridors own their door
+    /// mouths, so the collision fixture needs nothing but the boxes.
+    fn plain_body(w: f32, d: f32, h: f32) -> HomeStructure {
+        ron::from_str(&format!("(width: {w}, depth: {d}, height: {h})"))
+            .expect("corridor test body parses")
     }
 
     /// Increment B: a corridor's SIDE walls block, its RUN is open end to end (the perimeter shells
-    /// gain door-width gaps where the tube meets them), and off-door perimeter still blocks.
+    /// gain door-width gaps where the tube meets them), and off-mouth perimeter still blocks. The
+    /// mouths are the corridor's OWN cuts (1 m about world z = 5) -- no authored door walls exist,
+    /// which is the point: the old coincident door wall at each mouth z-fought the shell and let
+    /// the player clip through one of the two coplanar surfaces.
     #[test]
     fn corridor_sides_block_but_the_run_is_open_end_to_end() {
         use crate::ship::ship_structure::{ShipCorridor, ShipStructure, ShipZone};
-        // Home 10x10x3 at the origin, door on its x=10 edge at world z=5; commons 8x8x6 at
-        // (20, 0, 2), door on its x=0 edge (world x=20) at world z=5. Tube: x 10..20, width 3.
+        // Home 10x10x3 at the origin; commons 8x8x6 at (20, 0, 2). Tube: x 10..20, width 3,
+        // centreline at world z = 5, mouth 1 m wide.
         let ship = ShipStructure {
             zones: vec![
                 ShipZone {
@@ -383,22 +380,23 @@ mod tests {
                     label: String::new(),
                     purpose: "residence".into(),
                     origin: (0.0, 0.0, 0.0),
-                    body: body_with_door(10.0, 10.0, 3.0, 10.0, 3.0, 7.0, 5.0),
+                    body: plain_body(10.0, 10.0, 3.0),
                 },
                 ShipZone {
                     id: "commons".into(),
                     label: String::new(),
                     purpose: "commons".into(),
                     origin: (20.0, 0.0, 2.0),
-                    body: body_with_door(8.0, 8.0, 6.0, 0.0, 1.0, 5.0, 3.0),
+                    body: plain_body(8.0, 8.0, 6.0),
                 },
             ],
             corridors: vec![ShipCorridor {
                 from_zone: "home".into(),
-                from_opening: 0,
                 to_zone: "commons".into(),
-                to_opening: 0,
+                lat: 5.0,
                 width: 3.0,
+                door_width: 1.0,
+                door_height: 2.1,
                 glass_top: false,
             }],
         };

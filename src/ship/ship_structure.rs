@@ -10,10 +10,16 @@
 //! zone-LOCAL (metres from the zone box's min corner); the `origin` places the box in the world.
 //!
 //! Increment B (this file): GENERATED CORRIDORS. A `corridors: [...]` list beside `zones`;
-//! each row references two zones' DOOR openings and extrudes a straight, axis-aligned box tube
-//! between them (floor slab + two side walls + a glass-or-shell lid), cuts a door-sized aperture
-//! through each zone's perimeter shell where the tube meets it (mesh AND collision, so the hallway
-//! is genuinely walkable, not decoration), and registers a walkable room bound per corridor.
+//! each row names two zones and extrudes a straight, axis-aligned box tube between their facing
+//! perimeter planes (floor slab + two side walls + a glass-or-shell lid), cuts a door-sized
+//! aperture through each zone's perimeter shell where the tube meets it (mesh AND collision, so
+//! the hallway is genuinely walkable, not decoration), and registers a walkable room bound per
+//! corridor. The corridor OWNS its door mouths (`lat` + `door_width`/`door_height` on the row);
+//! it deliberately does NOT reference authored doors. The first cut of increment B indexed each
+//! zone's door list by ordinal, and the operator hit both failure modes: moving/adding/removing
+//! ANY door silently retargeted every corridor (positional indices into a filtered,
+//! order-dependent list), and the authored door wall sat coplanar with the generated perimeter
+//! shell at the mouth (two walls where one belongs: z-fighting + a walk-through-wall seam).
 //! Increment C (the Commons authoring) is pure data on top: a big glass-roofed zone + machines +
 //! corridor rows -- no schema change needed here.
 //!
@@ -23,7 +29,7 @@
 
 use crate::renderer::mesh::Vertex;
 use crate::ship::fibonacci::{floor_quad, wall_box, HomesteadMeshes, RoomInfo};
-use crate::ship::home_structure::{HomeStructure, OpeningKind, ShellCut};
+use crate::ship::home_structure::{HomeStructure, ShellCut};
 use glam::Vec3;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -36,90 +42,60 @@ fn default_corridor_width() -> f32 {
     3.0
 }
 
+fn default_corridor_door_width() -> f32 {
+    2.0
+}
+
+fn default_corridor_door_height() -> f32 {
+    2.2
+}
+
 /// Corridor side-wall thickness (metres) -- matches the legacy interior-wall default (0.15 m).
 pub const CORRIDOR_WALL_THICKNESS: f32 = 0.15;
 /// Tiny vertical clearance so a tube's floor/lid never sit COPLANAR with a zone's floor/ceiling
 /// where the tube overlaps the zone footprint (coplanar quads z-fight). 1 cm: imperceptible, and
 /// collision is a 2D XZ push-out so it changes nothing gameplay-side.
 const CORRIDOR_SURFACE_EPS: f32 = 0.01;
-/// Lateral misalignment allowed between the two openings' centres, as a fraction of the corridor
-/// width (the tube centreline splits the difference; the doors still land inside the tube mouth).
-const CORRIDOR_LATERAL_TOL_FRAC: f32 = 0.25;
-/// |sin| of the max angle a door's wall may deviate from perpendicular to the run (~5 degrees) --
-/// v1 corridors meet their openings head-on.
-const CORRIDOR_WALL_ALIGN_TOL: f32 = 0.09;
-/// Minimum run length (metres): two openings closer than this are a doorway, not a corridor.
+/// Minimum run length (metres): the clear gap between the two zone boxes must be at least this,
+/// or the "corridor" is really a doorway between touching (or overlapping) boxes.
 const CORRIDOR_MIN_RUN: f32 = 0.25;
 /// Minimum corridor width (metres): narrower than this is not walkable (player radius 0.3).
 const CORRIDOR_MIN_WIDTH: f32 = 0.5;
+/// Minimum door-mouth height (metres): lower than this reads as a crawl vent, not a doorway.
+const CORRIDOR_MIN_DOOR_HEIGHT: f32 = 1.0;
 
-/// One generated corridor (ship-superstructure increment B): a straight, axis-aligned tube between
-/// two zones' DOOR openings. `from_opening`/`to_opening` index that zone's door list in the
-/// canonical `zone_door_refs` order (walls in declaration order, openings in declaration order,
-/// windows skipped -- a corridor can only meet a door). v1 corridors are STRAIGHT: validation
-/// rejects opening pairs that do not face each other along one world axis (L-bends are a
-/// documented follow-up: two segments + an elbow).
+/// One generated corridor (ship-superstructure increment B, reworked): a straight, axis-aligned
+/// tube between two zones. The corridor OWNS its door mouths instead of referencing authored
+/// doors: `lat` places the tube centreline in WORLD coordinates on the axis across the run, and
+/// `door_width`/`door_height` size the aperture it cuts through EACH zone's perimeter shell. The
+/// run axis is not stored -- it derives from the clear gap between the two zone boxes, so dragging
+/// a zone origin re-resolves honestly instead of desyncing. (The original schema indexed each
+/// zone's door list by ordinal; the operator hit both consequences: any door edit silently
+/// retargeted every corridor, and the authored door wall z-fought the generated shell at the
+/// mouth.) v1 corridors are STRAIGHT: validation rejects zone pairs with no clear axis gap
+/// (L-bends are a documented follow-up: two segments + an elbow).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShipCorridor {
     pub from_zone: String,
-    /// Index into the from-zone's door openings (doors only, not windows -- `zone_door_refs`).
-    pub from_opening: usize,
     pub to_zone: String,
-    pub to_opening: usize,
+    /// The tube centreline's lateral position in WORLD coordinates: world z for an X-run
+    /// corridor, world x for a Z-run. Validation requires the whole door mouth
+    /// (`lat` +/- `door_width`/2) to land inside BOTH zones' spans on that axis.
+    pub lat: f32,
     /// Tube width in metres (outer, across the run). Side walls sit AT the edges, so the clear
     /// interior is width minus one wall thickness.
     #[serde(default = "default_corridor_width")]
     pub width: f32,
+    /// Width of the door mouth this corridor cuts through each zone's perimeter shell.
+    #[serde(default = "default_corridor_door_width")]
+    pub door_width: f32,
+    /// Height of the door mouth (clamped to the tube height at resolve time).
+    #[serde(default = "default_corridor_door_height")]
+    pub door_height: f32,
     /// Glass lid (rides the transparent always-visible ceiling pass, exactly like a glass zone
     /// roof); false = an opaque lid in the show-roof-gated opaque pass, like a steel zone roof.
     #[serde(default)]
     pub glass_top: bool,
-}
-
-/// One DOOR opening of a zone body, in the CANONICAL corridor-indexing order: walls in declaration
-/// order, openings in declaration order, WINDOWS skipped, degenerate widths (<= 0.01 m, matching
-/// `panel_placements`' guard) skipped. `ShipCorridor::{from,to}_opening` index into this list, the
-/// editor's door combos display it, and `corridor_geometry` resolves through it. Zone-LOCAL coords.
-#[derive(Debug, Clone, PartialEq)]
-pub struct DoorRef {
-    pub wall_index: usize,
-    pub opening_index: usize,
-    /// Aperture centre on the wall line (x, z), zone-local metres.
-    pub center: (f32, f32),
-    /// Unit direction ALONG the wall (a -> b).
-    pub along: (f32, f32),
-    pub width: f32,
-    pub height: f32,
-    pub sill: f32,
-}
-
-/// Enumerate a zone body's DOOR openings in the canonical corridor-indexing order (see `DoorRef`).
-pub fn zone_door_refs(body: &HomeStructure) -> Vec<DoorRef> {
-    let mut out = Vec::new();
-    for (wi, wall) in body.walls.iter().enumerate() {
-        let (dx, dz) = (wall.b.0 - wall.a.0, wall.b.1 - wall.a.1);
-        let len = (dx * dx + dz * dz).sqrt();
-        if len < 1e-4 {
-            continue;
-        }
-        let dir = (dx / len, dz / len);
-        for (oi, op) in wall.openings.iter().enumerate() {
-            if op.kind != OpeningKind::Door || op.width <= 0.01 {
-                continue;
-            }
-            let s = (op.at + op.width * 0.5).clamp(0.0, len);
-            out.push(DoorRef {
-                wall_index: wi,
-                opening_index: oi,
-                center: (wall.a.0 + dir.0 * s, wall.a.1 + dir.1 * s),
-                along: dir,
-                width: op.width,
-                height: op.height,
-                sill: op.sill,
-            });
-        }
-    }
-    out
 }
 
 /// The world axis a v1 corridor runs along (straight + axis-aligned; the design doc's L-bends are
@@ -145,25 +121,27 @@ impl CorridorAxis {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CorridorGeom {
     pub axis: CorridorAxis,
-    /// World span along the run axis (start < end): the two openings' axis coordinates.
+    /// World span along the run axis (start < end): the two zones' FACING perimeter planes.
     pub start: f32,
     pub end: f32,
-    /// World lateral centreline (z when axis = X; x when axis = Z): the midpoint of the two
-    /// openings' lateral coordinates (they may differ by up to width * CORRIDOR_LATERAL_TOL_FRAC).
+    /// World lateral centreline (z when axis = X; x when axis = Z): the row's own `lat`,
+    /// validated to keep the whole door mouth inside both zones' spans on that axis.
     pub lat: f32,
-    /// World floor (deck) height: the openings' shared sill y.
+    /// World floor (deck) height: the zones' shared origin y (v1 corridors are level).
     pub floor_y: f32,
     /// Interior tube height: the SHORTER zone's box height, so the lid never rises above either
-    /// roofline and every door (door height <= zone height) always fits.
+    /// roofline and the door mouth (clamped to this) always fits.
     pub height: f32,
     pub width: f32,
     pub glass_top: bool,
-    /// The two openings' world centres at sill level -- the tube's endpoints.
+    /// The two mouth centres at floor level, one on each zone's facing perimeter plane -- the
+    /// tube's endpoints.
     pub end_from: Vec3,
     pub end_to: Vec3,
     pub from_zone_idx: usize,
     pub to_zone_idx: usize,
-    /// The from/to door apertures' (width, height) -- what the shell cuts open.
+    /// The from/to door apertures' (width, height) -- what the shell cuts open. Both mouths are
+    /// the corridor's own door size now (kept as a pair so consumers stay shape-stable).
     pub door_from: (f32, f32),
     pub door_to: (f32, f32),
 }
@@ -199,8 +177,9 @@ impl ShipZone {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShipStructure {
     pub zones: Vec<ShipZone>,
-    /// Generated corridors between zones' door openings (increment B). Serde-defaulted so every
-    /// pre-B ship_structure.ron (no `corridors` field) keeps loading unchanged.
+    /// Generated corridors between zones (increment B; each row owns its door mouths -- see
+    /// `ShipCorridor`). Serde-defaulted so every pre-B ship_structure.ron (no `corridors` field)
+    /// keeps loading unchanged.
     #[serde(default)]
     pub corridors: Vec<ShipCorridor>,
 }
@@ -230,10 +209,11 @@ pub fn zone_origin(ship: &Option<ShipStructure>, idx: usize) -> Vec3 {
 
 impl ShipStructure {
     /// Structural sanity: at least one zone, every id non-empty and unique, every corridor
-    /// resolvable (zones exist, door indices in range, from != to, openings facing + aligned).
-    /// Run on every load so a hand-edited file fails loudly instead of machines clamping into the
-    /// wrong box or a hallway floating unattached. (The in-editor SAVE path prunes broken corridor
-    /// rows first -- `prune_invalid_corridors` -- so a file written by the editor always re-loads.)
+    /// resolvable (zones exist, from != to, a clear axis gap between the boxes, the door mouth
+    /// inside both zones' shared lateral span). Run on every load so a hand-edited file fails
+    /// loudly instead of machines clamping into the wrong box or a hallway floating unattached.
+    /// (The in-editor SAVE path prunes broken corridor rows first -- `prune_invalid_corridors` --
+    /// so a file written by the editor always re-loads.)
     pub fn validate(&self) -> Result<(), String> {
         if self.zones.is_empty() {
             return Err("ship_structure has no zones (at least one is required)".to_string());
@@ -257,6 +237,11 @@ impl ShipStructure {
     /// Resolve a corridor row to world geometry, or the honest reason it cannot exist. This IS the
     /// corridor validator: `validate` (load), the editor's Create button, mesh generation, and
     /// collision all go through it, so they can never disagree about what a corridor is.
+    ///
+    /// The resolve is PURELY box-vs-box: run axis = the axis with the larger clear gap between the
+    /// two zone footprints, start/end = the facing perimeter planes, centreline = the row's own
+    /// `lat`. Authored doors never enter the computation -- that independence is the whole point
+    /// of the rework (the operator's desync bug: door-list indices shifted under every door edit).
     pub fn corridor_geometry(&self, c: &ShipCorridor) -> Result<CorridorGeom, String> {
         let from_idx = self
             .zone_index(&c.from_zone)
@@ -273,104 +258,128 @@ impl ShipStructure {
                 c.width
             ));
         }
+        if c.door_width < CORRIDOR_MIN_WIDTH {
+            return Err(format!(
+                "door width {:.2} m is below the {CORRIDOR_MIN_WIDTH} m minimum",
+                c.door_width
+            ));
+        }
+        if c.door_width > c.width + 1e-4 {
+            return Err(format!(
+                "door width {:.2} m exceeds the tube width {:.2} m; the tube must enclose its own mouth",
+                c.door_width, c.width
+            ));
+        }
+        if c.door_height < CORRIDOR_MIN_DOOR_HEIGHT {
+            return Err(format!(
+                "door height {:.2} m is below the {CORRIDOR_MIN_DOOR_HEIGHT} m minimum",
+                c.door_height
+            ));
+        }
         let zf = &self.zones[from_idx];
         let zt = &self.zones[to_idx];
-        let doors_f = zone_door_refs(&zf.body);
-        let doors_t = zone_door_refs(&zt.body);
-        let df = doors_f.get(c.from_opening).ok_or_else(|| {
-            format!(
-                "zone '{}' has {} door opening(s); from_opening {} is out of range",
-                c.from_zone,
-                doors_f.len(),
-                c.from_opening
-            )
-        })?;
-        let dt = doors_t.get(c.to_opening).ok_or_else(|| {
-            format!(
-                "zone '{}' has {} door opening(s); to_opening {} is out of range",
-                c.to_zone,
-                doors_t.len(),
-                c.to_opening
-            )
-        })?;
         let of = zf.origin_vec();
         let ot = zt.origin_vec();
-        let end_from = Vec3::new(of.x + df.center.0, of.y + df.sill, of.z + df.center.1);
-        let end_to = Vec3::new(ot.x + dt.center.0, ot.y + dt.sill, ot.z + dt.center.1);
-        if (end_from.y - end_to.y).abs() > 0.01 {
+        if (of.y - ot.y).abs() > 0.01 {
             return Err(format!(
-                "openings are at different deck heights ({:.2} vs {:.2} m); v1 corridors are level",
-                end_from.y, end_to.y
+                "zones are at different deck heights ({:.2} vs {:.2} m); v1 corridors are level",
+                of.y, ot.y
             ));
         }
-        let (dx, dz) = (end_to.x - end_from.x, end_to.z - end_from.z);
-        let (axis, run, lateral) = if dx.abs() >= dz.abs() {
-            (CorridorAxis::X, dx, dz)
-        } else {
-            (CorridorAxis::Z, dz, dx)
+        // World-XZ footprints (min, max) of both zone boxes -- the ONLY inputs to the run.
+        let (f_min, f_max) = ((of.x, of.z), (of.x + zf.body.width, of.z + zf.body.depth));
+        let (t_min, t_max) = ((ot.x, ot.z), (ot.x + zt.body.width, ot.z + zt.body.depth));
+        // Clear gap per axis: positive when the boxes have open air between them on that axis
+        // (whichever side the other zone is on), negative when their spans overlap.
+        let gap_x = (t_min.0 - f_max.0).max(f_min.0 - t_max.0);
+        let gap_z = (t_min.1 - f_max.1).max(f_min.1 - t_max.1);
+        let axis = if gap_x >= gap_z { CorridorAxis::X } else { CorridorAxis::Z };
+        if gap_x.max(gap_z) < CORRIDOR_MIN_RUN {
+            return Err(format!(
+                "zones '{}' and '{}' overlap or touch -- no corridor run (a straight tube needs a \
+                 clear gap of at least {CORRIDOR_MIN_RUN} m on one world axis)",
+                c.from_zone, c.to_zone
+            ));
+        }
+        // start/end = the two FACING perimeter planes on the run axis (start < end always);
+        // remember which plane belongs to the from zone so end_from lands on ITS shell.
+        let (start, end, from_at_start) = match axis {
+            CorridorAxis::X if t_min.0 - f_max.0 >= f_min.0 - t_max.0 => (f_max.0, t_min.0, true),
+            CorridorAxis::X => (t_max.0, f_min.0, false),
+            CorridorAxis::Z if t_min.1 - f_max.1 >= f_min.1 - t_max.1 => (f_max.1, t_min.1, true),
+            CorridorAxis::Z => (t_max.1, f_min.1, false),
         };
-        if run.abs() < CORRIDOR_MIN_RUN {
-            return Err(format!(
-                "openings are only {:.2} m apart along the run; too short for a corridor",
-                run.abs()
-            ));
-        }
-        let lat_tol = c.width * CORRIDOR_LATERAL_TOL_FRAC;
-        if lateral.abs() > lat_tol {
-            return Err(format!(
-                "openings are offset {:.2} m sideways (allowed: width/4 = {:.2} m); v1 corridors are \
-                 straight and axis-aligned -- move a door or a zone origin (L-bends are a follow-up)",
-                lateral.abs(),
-                lat_tol
-            ));
-        }
-        // Each door's wall must run PERPENDICULAR to the corridor axis, so the door faces down the
-        // tube instead of sideways into a tube wall.
-        let misaligned = |along: (f32, f32)| match axis {
-            CorridorAxis::X => along.0.abs() > CORRIDOR_WALL_ALIGN_TOL,
-            CorridorAxis::Z => along.1.abs() > CORRIDOR_WALL_ALIGN_TOL,
+        // The centreline must land the WHOLE door mouth inside both zones' spans on the axis
+        // across the run, or a cut would run off the end of a perimeter wall.
+        let (f_lo, f_hi, t_lo, t_hi, perp) = match axis {
+            CorridorAxis::X => (f_min.1, f_max.1, t_min.1, t_max.1, "z"),
+            CorridorAxis::Z => (f_min.0, f_max.0, t_min.0, t_max.0, "x"),
         };
-        if misaligned(df.along) {
+        let (lo, hi) = (f_lo.max(t_lo), f_hi.min(t_hi));
+        if hi <= lo {
             return Err(format!(
-                "the from opening's wall is not perpendicular to the corridor's {} run; v1 corridors \
-                 meet openings head-on",
+                "the zones do not overlap on the {perp} axis; a straight {} corridor cannot \
+                 connect them (L-bends are a follow-up)",
                 axis.name()
             ));
         }
-        if misaligned(dt.along) {
+        let half_door = c.door_width * 0.5;
+        let (lat_lo, lat_hi) = (lo + half_door, hi - half_door);
+        if lat_hi < lat_lo {
             return Err(format!(
-                "the to opening's wall is not perpendicular to the corridor's {} run; v1 corridors \
-                 meet openings head-on",
-                axis.name()
+                "the zones share only {:.2} m of {perp} span; too narrow for a {:.2} m door",
+                hi - lo,
+                c.door_width
             ));
         }
-        let (fa, ta, fl, tl) = match axis {
-            CorridorAxis::X => (end_from.x, end_to.x, end_from.z, end_to.z),
-            CorridorAxis::Z => (end_from.z, end_to.z, end_from.x, end_to.x),
+        if c.lat < lat_lo - 1e-4 || c.lat > lat_hi + 1e-4 {
+            return Err(format!(
+                "lat {:.2} m puts the door mouth outside the zones' shared {perp} span; valid: \
+                 {:.2} to {:.2} m",
+                c.lat, lat_lo, lat_hi
+            ));
+        }
+        let floor_y = of.y;
+        let height = zf.body.height.min(zt.body.height).max(1.0);
+        // Both mouths are the corridor's OWN door, clamped so the header never pokes above the lid.
+        let door = (c.door_width, c.door_height.min(height));
+        let (fa, ta) = if from_at_start { (start, end) } else { (end, start) };
+        let (end_from, end_to) = match axis {
+            CorridorAxis::X => (
+                Vec3::new(fa, floor_y, c.lat),
+                Vec3::new(ta, floor_y, c.lat),
+            ),
+            CorridorAxis::Z => (
+                Vec3::new(c.lat, floor_y, fa),
+                Vec3::new(c.lat, floor_y, ta),
+            ),
         };
         Ok(CorridorGeom {
             axis,
-            start: fa.min(ta),
-            end: fa.max(ta),
-            lat: (fl + tl) * 0.5,
-            floor_y: end_from.y,
-            height: zf.body.height.min(zt.body.height).max(1.0),
+            start,
+            end,
+            lat: c.lat,
+            floor_y,
+            height,
             width: c.width,
             glass_top: c.glass_top,
             end_from,
             end_to,
             from_zone_idx: from_idx,
             to_zone_idx: to_idx,
-            door_from: (df.width, df.height),
-            door_to: (dt.width, dt.height),
+            door_from: door,
+            door_to: door,
         })
     }
 
     /// The corridor APERTURES through zone `zi`'s perimeter shell: for each valid corridor ending
     /// in this zone, one door-sized cut through the perimeter face its tube leaves by (the face in
-    /// the run direction toward the other zone). Door-sized -- the walkable opening IS the door;
-    /// the tube (which may be wider) encloses the cut from outside. Fed to
-    /// `generate_meshes_with_shell_cuts` (mesh) and `wall_segments_with_shell_cuts` (collision).
+    /// the run direction toward the other zone). The cut is the corridor's OWN door mouth
+    /// (`door_width` centred on `lat`) -- since the rework, the generated shell aperture IS the
+    /// only wall at the mouth (the coincident authored door walls were deleted with it, killing
+    /// the operator's z-fighting + walk-through-wall bug). The tube (which may be wider) encloses
+    /// the cut from outside. Fed to `generate_meshes_with_shell_cuts` (mesh) and
+    /// `wall_segments_with_shell_cuts` (collision).
     pub fn shell_cuts_for_zone(&self, zi: usize) -> Vec<ShellCut> {
         let Some(zone) = self.zones.get(zi) else {
             return Vec::new();
@@ -382,22 +391,26 @@ impl ShipStructure {
             let Ok(g) = self.corridor_geometry(c) else {
                 continue; // broken rows cut nothing (the corridors panel shows why)
             };
-            // Which end of this corridor (if either) lands in zone `zi`, and the door aperture there.
-            let (end, other, (dw, dh)) = if g.from_zone_idx == zi {
-                (g.end_from, g.end_to, g.door_from)
+            // Which end of this corridor (if either) lands in zone `zi`. Both mouths share the
+            // corridor-owned door size (door_from == door_to since the rework).
+            let (end, other) = if g.from_zone_idx == zi {
+                (g.end_from, g.end_to)
             } else if g.to_zone_idx == zi {
-                (g.end_to, g.end_from, g.door_to)
+                (g.end_to, g.end_from)
             } else {
                 continue;
             };
+            let (dw, dh) = g.door_from;
             // The tube leaves the zone through the perimeter face in the run direction toward the
-            // other end. Edge indices + along-edge params follow the perimeter winding documented
-            // on `ShellCut` (0: z=0, 1: x=w, 2: z=d, 3: x=0).
+            // other end. `at` converts the world `lat` centreline to edge-local metres, honouring
+            // each edge's WINDING (verified against `generate_meshes_with_shell_cuts`'s perimeter
+            // build order, documented on `ShellCut`): 0 runs +x along z=0, 1 runs +z along x=w,
+            // 2 runs -x along z=d, 3 runs -z along x=0.
             let (edge, at) = match g.axis {
-                CorridorAxis::X if other.x > end.x => (1usize, (end.z - o.z) - dw * 0.5),
-                CorridorAxis::X => (3, d - ((end.z - o.z) + dw * 0.5)),
-                CorridorAxis::Z if other.z > end.z => (2, w - ((end.x - o.x) + dw * 0.5)),
-                CorridorAxis::Z => (0, (end.x - o.x) - dw * 0.5),
+                CorridorAxis::X if other.x > end.x => (1usize, (g.lat - o.z) - dw * 0.5),
+                CorridorAxis::X => (3, d - ((g.lat - o.z) + dw * 0.5)),
+                CorridorAxis::Z if other.z > end.z => (2, w - ((g.lat - o.x) + dw * 0.5)),
+                CorridorAxis::Z => (0, (g.lat - o.x) - dw * 0.5),
             };
             cuts.push(ShellCut {
                 edge,
@@ -409,8 +422,9 @@ impl ShipStructure {
         cuts
     }
 
-    /// Drop corridor rows that no longer resolve (a referenced zone/door was deleted, or an edit
-    /// moved the openings out of alignment). Returns how many were dropped. Called by the engine's
+    /// Drop corridor rows that no longer resolve (a referenced zone was deleted/renamed, or an
+    /// edit dragged the boxes to overlap / the mouth out of the shared span). Returns how many
+    /// were dropped. Called by the engine's
     /// SAVE path so a written ship_structure.ron ALWAYS re-loads (`validate` rejects the whole file
     /// on a bad corridor); LIVE editing deliberately keeps invalid rows (mesh + collision skip
     /// them, the corridors panel shows the error) so a transient misalignment while dragging a
@@ -610,8 +624,10 @@ impl ShipStructure {
              // placed interior walls (the proven home model, now plural). Each zone: id, label,\n\
              // purpose (residence|commons|bay|agriculture|corridor), a world `origin` for its box\n\
              // min corner, and the full home `body` in zone-local metres. `corridors` rows generate\n\
-             // straight tubes between two zones' door openings, e.g.\n\
-             // (from_zone: \"home\", from_opening: 0, to_zone: \"commons\", to_opening: 0, width: 3.0, glass_top: true).\n\
+             // straight tubes between two zones; each row owns its door mouths (lat = the tube\n\
+             // centreline's WORLD coordinate across the run; door_width/door_height = the aperture\n\
+             // cut through each zone's shell), e.g.\n\
+             // (from_zone: \"home\", to_zone: \"commons\", lat: 40.0, width: 3.0, door_width: 2.0, door_height: 2.2, glass_top: true).\n\
              // Design doc: docs/design/ship-superstructure.md (increments A + B).\n\n"
                 .to_string()
         });
@@ -682,7 +698,8 @@ impl ShipStructure {
             }
         }
         // GENERATED CORRIDORS (increment B): each valid corridor extrudes a straight box tube
-        // between its two door openings -- a floor slab, two side walls, and a lid. The pieces
+        // between the two zones' facing perimeter planes -- a floor slab, two side walls, and a
+        // lid. The pieces
         // merge into the SAME mesh families as zone geometry (floors / material_walls / ceilings
         // or ceilings_opaque), so the apply path, the render slots, and the transparent-glass pass
         // are all untouched. Each corridor also registers a RoomInfo ("corridor_<i>") so room
@@ -816,22 +833,21 @@ mod tests {
         }
     }
 
-    /// A zone body with one wall along its x = `wall_x` line (running +Z from z1 to z2) carrying a
-    /// single door centred at `door_z` -- the corridor-test workhorse (doors facing along X).
-    fn body_with_door(w: f32, d: f32, h: f32, wall_x: f32, z1: f32, z2: f32, door_z: f32, door_w: f32) -> HomeStructure {
-        let mut b = body(w, d, h);
-        let at = door_z - z1 - door_w * 0.5;
-        b.walls = vec![ron::from_str(&format!(
-            "(a: ({wall_x}, {z1}), b: ({wall_x}, {z2}), height: {h}, material: 1, openings: [\
-             (kind: Door, at: {at}, width: {door_w}, sill: 0.0, height: 2.1, style: \"swing\", \
+    /// An interior wall carrying one door -- for the desync REGRESSION tests (authored doors must
+    /// never influence corridor geometry since the rework).
+    fn door_wall(x1: f32, z1: f32, x2: f32, z2: f32) -> crate::ship::home_structure::InteriorWall {
+        ron::from_str(&format!(
+            "(a: ({x1}, {z1}), b: ({x2}, {z2}), height: 3.0, material: 1, openings: [\
+             (kind: Door, at: 1.0, width: 1.5, sill: 0.0, height: 2.1, style: \"swing\", \
              open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: [])])"
         ))
-        .expect("door wall literal parses")];
-        b
+        .expect("door wall literal parses")
     }
 
-    /// Two 10 x 10 zones, 10 m apart along +X, each with a door ON its facing perimeter edge at
-    /// world z = 5: home's door on its x = 10 edge, commons' door on its x = 0 edge (world x = 20).
+    /// Two plain zone boxes, 10 m apart along +X, joined by a corridor at world z = 5. No authored
+    /// doors anywhere -- since the rework the corridor OWNS its mouths (1 m wide, 2.1 m tall),
+    /// so the fixture needs nothing but the boxes. Home spans z 0..10, commons z 2..10, so the
+    /// shared z span is 2..10 and lat 5 sits comfortably inside it.
     fn corridor_ship() -> ShipStructure {
         ShipStructure {
             zones: vec![
@@ -840,23 +856,23 @@ mod tests {
                     label: "Player Home".to_string(),
                     purpose: "residence".to_string(),
                     origin: (0.0, 0.0, 0.0),
-                    body: body_with_door(10.0, 10.0, 3.0, 10.0, 3.0, 7.0, 5.0, 1.0),
+                    body: body(10.0, 10.0, 3.0),
                 },
                 ShipZone {
                     id: "commons".to_string(),
                     label: "The Commons".to_string(),
                     purpose: "commons".to_string(),
                     origin: (20.0, 0.0, 2.0),
-                    // Door at LOCAL z = 3 -> world z = 5 (origin.z = 2), on the x = 0 edge.
-                    body: body_with_door(8.0, 8.0, 6.0, 0.0, 1.0, 5.0, 3.0, 1.0),
+                    body: body(8.0, 8.0, 6.0),
                 },
             ],
             corridors: vec![ShipCorridor {
                 from_zone: "home".to_string(),
-                from_opening: 0,
                 to_zone: "commons".to_string(),
-                to_opening: 0,
+                lat: 5.0,
                 width: 3.0,
+                door_width: 1.0,
+                door_height: 2.1,
                 glass_top: false,
             }],
         }
@@ -1047,6 +1063,8 @@ mod tests {
 
     #[test]
     fn corridors_round_trip_through_ron() {
+        // Required by the rework: every corridor-owned field (lat + door mouth dims) survives a
+        // save/load cycle byte-faithfully.
         let ship = corridor_ship();
         let dir = temp_path("corridor_roundtrip");
         std::fs::create_dir_all(&dir).unwrap();
@@ -1056,8 +1074,28 @@ mod tests {
         assert_eq!(back.corridors.len(), 1);
         assert_eq!(back.corridors[0].from_zone, "home");
         assert_eq!(back.corridors[0].to_zone, "commons");
+        assert!((back.corridors[0].lat - 5.0).abs() < 1e-6);
         assert!((back.corridors[0].width - 3.0).abs() < 1e-6);
+        assert!((back.corridors[0].door_width - 1.0).abs() < 1e-6);
+        assert!((back.corridors[0].door_height - 2.1).abs() < 1e-6);
+        assert!(!back.corridors[0].glass_top);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn corridor_door_fields_default_when_omitted() {
+        // A row without door_width/door_height gets the serde defaults (2.0 x 2.2 m mouth).
+        let ship: ShipStructure = ron::from_str(
+            "(zones: [\
+             (id: \"home\", body: (width: 10.0, depth: 10.0, height: 3.0)),\
+             (id: \"commons\", origin: (20.0, 0.0, 0.0), body: (width: 8.0, depth: 8.0, height: 6.0))],\
+             corridors: [(from_zone: \"home\", to_zone: \"commons\", lat: 5.0)])",
+        )
+        .expect("a defaults-only corridor row parses");
+        assert!((ship.corridors[0].width - 3.0).abs() < 1e-6);
+        assert!((ship.corridors[0].door_width - 2.0).abs() < 1e-6);
+        assert!((ship.corridors[0].door_height - 2.2).abs() < 1e-6);
+        assert!(ship.validate().is_ok());
     }
 
     #[test]
@@ -1067,38 +1105,32 @@ mod tests {
         ship.corridors[0].to_zone = "nowhere".to_string();
         let e = ship.validate().unwrap_err();
         assert!(e.contains("unknown zone 'nowhere'"), "got: {e}");
-        // Out-of-range door index (each test zone has exactly one door).
-        let mut ship = corridor_ship();
-        ship.corridors[0].from_opening = 5;
-        let e = ship.validate().unwrap_err();
-        assert!(e.contains("out of range"), "got: {e}");
         // Same zone on both ends.
         let mut ship = corridor_ship();
         ship.corridors[0].to_zone = "home".to_string();
         let e = ship.validate().unwrap_err();
         assert!(e.contains("itself"), "got: {e}");
+        // A door mouth wider than the tube (the tube must enclose its own cut).
+        let mut ship = corridor_ship();
+        ship.corridors[0].door_width = 5.0;
+        let e = ship.validate().unwrap_err();
+        assert!(e.contains("exceeds the tube width"), "got: {e}");
     }
 
     #[test]
-    fn corridor_validation_rejects_non_facing_openings() {
-        // Slide the commons sideways so the two door centres are offset 4 m laterally (> width/4).
+    fn corridor_validation_rejects_unbridgeable_zone_pairs() {
+        // Overlapping boxes: slide the commons INTO the home footprint -- no clear gap, no run.
         let mut ship = corridor_ship();
-        ship.zones[1].origin.2 += 4.0;
+        ship.zones[1].origin = (5.0, 0.0, 2.0);
         let e = ship.validate().unwrap_err();
-        assert!(e.contains("sideways"), "lateral offset rejected honestly, got: {e}");
-        // Turn the from door's wall PARALLEL to the run (a wall along +X at z = 5, so the door
-        // centre stays on the corridor line at world (5, 0, 5) but faces +Z): the corridor still
-        // runs along X, but the door no longer faces down it.
+        assert!(e.contains("overlap or touch"), "got: {e}");
+        // Diagonal zones: gaps on both axes, but no shared span on the cross axis -- the larger
+        // gap picks the run (z here), and the x spans (0..10 vs 20..28) never overlap.
         let mut ship = corridor_ship();
-        ship.zones[0].body.walls = vec![ron::from_str(
-            "(a: (3.0, 5.0), b: (7.0, 5.0), height: 3.0, material: 1, openings: [\
-             (kind: Door, at: 1.5, width: 1.0, sill: 0.0, height: 2.1, style: \"swing\", \
-             open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: [])])",
-        )
-        .unwrap()];
+        ship.zones[1].origin = (20.0, 0.0, 40.0);
         let e = ship.validate().unwrap_err();
-        assert!(e.contains("not perpendicular"), "misaligned wall rejected honestly, got: {e}");
-        // Different deck heights.
+        assert!(e.contains("do not overlap on the x axis"), "got: {e}");
+        // Different deck heights (v1 corridors are level).
         let mut ship = corridor_ship();
         ship.zones[1].origin.1 = 2.5;
         let e = ship.validate().unwrap_err();
@@ -1106,17 +1138,57 @@ mod tests {
     }
 
     #[test]
-    fn corridor_geometry_endpoints_match_the_openings_world_positions() {
+    fn a_lat_outside_the_shared_span_errors() {
+        // The shared z span is 2..10; a 1 m door needs lat in 2.5..9.5. Just past the top:
+        let mut ship = corridor_ship();
+        ship.corridors[0].lat = 9.8;
+        let e = ship.validate().unwrap_err();
+        assert!(e.contains("outside the zones' shared z span"), "got: {e}");
+        assert!(e.contains("2.50 to 9.50"), "the error names the valid range, got: {e}");
+        // Below the bottom margin too.
+        ship.corridors[0].lat = 2.2;
+        assert!(ship.validate().is_err());
+        // And exactly at the margin is fine.
+        ship.corridors[0].lat = 2.5;
+        assert!(ship.validate().is_ok(), "lat at the margin boundary is accepted");
+    }
+
+    #[test]
+    fn corridor_geometry_spans_the_facing_perimeter_planes() {
         let ship = corridor_ship();
         let g = ship.corridor_geometry(&ship.corridors[0]).expect("valid corridor resolves");
-        // Home door: wall x = 10, door centre z = 5, origin (0,0,0) -> world (10, 0, 5).
+        // Home's facing plane: x = 10 (its +x face); commons' facing plane: x = 20 (its origin).
         assert_eq!(g.end_from, Vec3::new(10.0, 0.0, 5.0));
-        // Commons door: wall x = 0 local, centre z = 3 local, origin (20, 0, 2) -> world (20, 0, 5).
         assert_eq!(g.end_to, Vec3::new(20.0, 0.0, 5.0));
         assert_eq!(g.axis, CorridorAxis::X);
         assert!((g.start - 10.0).abs() < 1e-4 && (g.end - 20.0).abs() < 1e-4);
         assert!((g.lat - 5.0).abs() < 1e-4);
         assert!((g.height - 3.0).abs() < 1e-4, "the SHORTER zone's height (3 vs 6), got {}", g.height);
+        assert_eq!(g.door_from, g.door_to, "both mouths are the corridor's own door");
+        assert_eq!(g.door_from, (1.0, 2.1));
+    }
+
+    #[test]
+    fn authored_door_edits_never_move_the_corridor() {
+        // THE desync regression (operator bug 1): the old schema referenced doors by ordinal index
+        // into a filtered wall/opening walk, so moving/adding/removing ANY door retargeted every
+        // corridor. Since the rework, corridor geometry must be bit-identical no matter what
+        // happens to authored doors.
+        let ship = corridor_ship();
+        let before = ship.corridor_geometry(&ship.corridors[0]).expect("resolves");
+        // Add a door-carrying wall at the FRONT of the home's wall list (the exact edit that used
+        // to shift every door index) and another at the back of the commons.
+        let mut edited = corridor_ship();
+        edited.zones[0].body.walls.insert(0, door_wall(2.0, 2.0, 2.0, 8.0));
+        edited.zones[1].body.walls.push(door_wall(1.0, 1.0, 7.0, 1.0));
+        let after = edited.corridor_geometry(&edited.corridors[0]).expect("still resolves");
+        assert_eq!(before, after, "adding doors must not change corridor geometry");
+        // Removing every wall (doors and all) changes nothing either.
+        let mut stripped = edited;
+        stripped.zones[0].body.walls.clear();
+        stripped.zones[1].body.walls.clear();
+        let after = stripped.corridor_geometry(&stripped.corridors[0]).expect("resolves");
+        assert_eq!(before, after, "removing doors must not change corridor geometry");
     }
 
     #[test]
@@ -1171,8 +1243,8 @@ mod tests {
     #[test]
     fn shell_cuts_open_the_perimeter_where_the_tube_meets_each_zone() {
         let ship = corridor_ship();
-        // Home (zone 0): the tube leaves through its x = w (edge 1) face; the cut is door-sized
-        // (1 m wide about z = 5 -> at = 4.5) and door-height.
+        // Home (zone 0): the tube leaves through its x = w (edge 1) face; the cut is the
+        // corridor's own 1 m mouth about lat = 5 -> at = 4.5, door-height 2.1.
         let cuts = ship.shell_cuts_for_zone(0);
         assert_eq!(cuts.len(), 1);
         assert_eq!(cuts[0].edge, 1);
@@ -1180,7 +1252,7 @@ mod tests {
         assert!((cuts[0].width - 1.0).abs() < 1e-4);
         assert!((cuts[0].height - 2.1).abs() < 1e-4);
         // Commons (zone 1): the tube enters through its x = 0 (edge 3) face. Edge 3 runs from
-        // (0, d) to (0, 0), so at = d - (local z + w/2) = 8 - 3.5 = 4.5.
+        // (0, d) to (0, 0), so at = d - (local lat + w/2) = 8 - 3.5 = 4.5.
         let cuts = ship.shell_cuts_for_zone(1);
         assert_eq!(cuts.len(), 1);
         assert_eq!(cuts[0].edge, 3);
@@ -1198,28 +1270,92 @@ mod tests {
         let commons = ship.zone_index("commons").unwrap();
         assert!(ship.remove_zone(commons));
         assert!(ship.corridors.is_empty(), "the dangling corridor went with its zone");
-        // prune_invalid_corridors drops a row whose door vanished, keeps the valid shape.
+        // prune_invalid_corridors drops a row whose mouth was dragged out of the shared span,
+        // keeps the valid shape.
         let mut ship = corridor_ship();
         assert_eq!(ship.prune_invalid_corridors(), 0, "a valid corridor is kept");
-        ship.zones[0].body.walls.clear(); // the from door is gone
+        ship.corridors[0].lat = 100.0; // far outside the shared z span (2..10)
         assert_eq!(ship.prune_invalid_corridors(), 1, "the broken row is dropped");
         assert!(ship.corridors.is_empty());
         assert!(ship.validate().is_ok(), "post-prune the ship always validates");
     }
 
+    // ── Shipped-data migration locks (the corridor rework, world coords from the old system) ──
+
+    fn shipped_ship() -> ShipStructure {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("blueprints")
+            .join("ship_structure.ron");
+        ShipStructure::load(&path).expect("ship_structure.ron parses + validates")
+    }
+
     #[test]
-    fn zone_door_refs_skip_windows_and_keep_declaration_order() {
-        let mut b = body_with_door(10.0, 10.0, 3.0, 10.0, 3.0, 7.0, 5.0, 1.0);
-        // Prepend a WINDOW on the same wall: door indexing must skip it.
-        let win: crate::ship::home_structure::Opening = ron::from_str(
-            "(kind: Window, at: 0.2, width: 0.8, sill: 1.0, height: 1.2, style: \"fixed\", \
-             open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: [])",
-        )
-        .unwrap();
-        b.walls[0].openings.insert(0, win);
-        let doors = zone_door_refs(&b);
-        assert_eq!(doors.len(), 1, "only the door counts");
-        assert_eq!(doors[0].opening_index, 1, "the raw opening index is preserved for display");
-        assert!((doors[0].center.0 - 10.0).abs() < 1e-4 && (doors[0].center.1 - 5.0).abs() < 1e-4);
+    fn the_shipped_corridor_resolves_where_the_old_door_pair_did() {
+        // Migration lock: pre-rework, the shipped row resolved through home's authored door at
+        // world (55, 0, 40) and commons' at (65, 0, 40). The new lat-owned row must produce the
+        // SAME tube, or the migration silently moved the hallway.
+        let ship = shipped_ship();
+        assert_eq!(ship.corridors.len(), 1);
+        let g = ship.corridor_geometry(&ship.corridors[0]).expect("the shipped corridor resolves");
+        assert_eq!(g.axis, CorridorAxis::X);
+        assert!((g.start - 55.0).abs() < 1e-4, "got start {}", g.start);
+        assert!((g.end - 65.0).abs() < 1e-4, "got end {}", g.end);
+        assert!((g.lat - 40.0).abs() < 1e-4, "got lat {}", g.lat);
+        assert_eq!(g.end_from, Vec3::new(55.0, 0.0, 40.0));
+        assert_eq!(g.end_to, Vec3::new(65.0, 0.0, 40.0));
+        assert!((g.height - 3.0).abs() < 1e-4, "the home deck height caps the tube");
+        assert!(g.glass_top, "the shipped corridor keeps its glass lid");
+    }
+
+    #[test]
+    fn the_shipped_corridor_cuts_both_zone_shells_at_the_mouths() {
+        // Migration lock, mesh/collision side: the corridor's own 2 m x 2.2 m mouth cuts the home
+        // shell on its x = 55 face (edge 1, at = lat - door/2 = 39) and the commons shell on its
+        // x = 0 face (edge 3; at = d - (local lat + door/2) = 55 - (20 + 1) = 34). These cuts are
+        // now the ONLY walls at the mouths -- the coincident authored door walls were deleted
+        // from the RON (operator bug 2: two coplanar walls z-fought and one lacked collision).
+        let ship = shipped_ship();
+        let home = ship.zone_index("home").expect("home zone exists");
+        let cuts = ship.shell_cuts_for_zone(home);
+        assert_eq!(cuts.len(), 1);
+        assert_eq!(cuts[0].edge, 1);
+        assert!((cuts[0].at - 39.0).abs() < 1e-4, "got {}", cuts[0].at);
+        assert!((cuts[0].width - 2.0).abs() < 1e-4);
+        assert!((cuts[0].height - 2.2).abs() < 1e-4);
+        let commons = ship.zone_index("commons").expect("commons zone exists");
+        let cuts = ship.shell_cuts_for_zone(commons);
+        assert_eq!(cuts.len(), 1);
+        assert_eq!(cuts[0].edge, 3);
+        assert!((cuts[0].at - 34.0).abs() < 1e-4, "got {}", cuts[0].at);
+    }
+
+    #[test]
+    fn the_shipped_ron_has_no_wall_coplanar_with_a_corridor_mouth() {
+        // Guards the other half of the migration: the two authored door walls that used to sit ON
+        // the perimeter at the corridor mouths (home (55,38)-(55,42), commons (0,18)-(0,22)) are
+        // gone. If someone re-authors a wall flush with a mouth, the z-fight comes back.
+        let ship = shipped_ship();
+        let g = ship.corridor_geometry(&ship.corridors[0]).expect("resolves");
+        for zi in [g.from_zone_idx, g.to_zone_idx] {
+            let z = &ship.zones[zi];
+            let o = z.origin_vec();
+            for wall in &z.body.walls {
+                // A wall lying along the mouth plane (constant world x = the tube end) that spans
+                // the mouth's z range would be coplanar with the generated shell cut.
+                let (wx1, wx2) = (o.x + wall.a.0, o.x + wall.b.0);
+                for plane in [g.start, g.end] {
+                    let on_plane = (wx1 - plane).abs() < 1e-3 && (wx2 - plane).abs() < 1e-3;
+                    let (z1, z2) = (o.z + wall.a.1, o.z + wall.b.1);
+                    let overlaps_mouth = z1.min(z2) < g.lat + g.door_from.0 * 0.5
+                        && z1.max(z2) > g.lat - g.door_from.0 * 0.5;
+                    assert!(
+                        !(on_plane && overlaps_mouth),
+                        "zone '{}' has an authored wall coplanar with the corridor mouth at x = {plane}",
+                        z.id
+                    );
+                }
+            }
+        }
     }
 }

@@ -2865,12 +2865,15 @@ pub struct GuiState {
     /// click, executed by "Confirm delete", cleared on cancel / zone switch.
     pub construction_zone_delete_arm: bool,
     /// Corridor add-flow state (ship-superstructure increment B, the "Corridors" section under the
-    /// zone selector): pending from/to zone indices + door indices (into `zone_door_refs` order),
-    /// tube width, glass-top flag, and the last validation error ("" = none) shown under Create.
+    /// zone selector): pending from/to zone indices, the world `lat` centreline, the door-mouth
+    /// width/height the corridor cuts through each zone's shell, tube width, glass-top flag, and
+    /// the last validation error ("" = none) shown under Create. (The corridor rework replaced the
+    /// old per-zone door pickers: corridors own their mouths instead of indexing authored doors.)
     pub construction_corridor_from_zone: usize,
-    pub construction_corridor_from_door: usize,
     pub construction_corridor_to_zone: usize,
-    pub construction_corridor_to_door: usize,
+    pub construction_corridor_lat: f32,
+    pub construction_corridor_door_w: f32,
+    pub construction_corridor_door_h: f32,
     pub construction_corridor_width: f32,
     pub construction_corridor_glass: bool,
     pub construction_corridor_error: String,
@@ -4207,9 +4210,10 @@ impl Default for GuiState {
             construction_zone: 0,
             construction_zone_delete_arm: false,
             construction_corridor_from_zone: 0,
-            construction_corridor_from_door: 0,
             construction_corridor_to_zone: 0,
-            construction_corridor_to_door: 0,
+            construction_corridor_lat: 0.0,
+            construction_corridor_door_w: 2.0,
+            construction_corridor_door_h: 2.2,
             construction_corridor_width: 3.0,
             construction_corridor_glass: false,
             construction_corridor_error: String::new(),

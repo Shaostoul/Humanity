@@ -5,7 +5,11 @@
 // (y = deck height), and the full home body in zone-local metres. The former
 // data/blueprints/home_structure.ron migrated outright into zone 'home' below.
 // `corridors` (bottom of the file) generates straight walk-through tubes between
-// two zones' door openings -- see the comment there for the row shape.
+// two zones. Each row OWNS its door mouths: lat = the tube centreline's WORLD
+// coordinate on the axis across the run (world z for an X run, world x for a Z run);
+// door_width/door_height = the aperture the corridor cuts through each zone's shell.
+// Corridors never reference authored door walls -- do not author a wall flush with a
+// corridor mouth (two coplanar walls z-fight and one of them has no collision).
 //
 // AI + human friendly: add a zone by adding an entry to zones; add a wall by adding an
 // InteriorWall line inside a zone body. The construction editor edits the same data
@@ -194,29 +198,6 @@
                         height: 3.0,
                         material: 8,
                         openings: [],
-                        thickness: None,
-                        layers: [],
-                    ),
-                    (
-                        a: (55.0, 38.0),
-                        b: (55.0, 42.0),
-                        height: 3.0,
-                        material: 1,
-                        openings: [
-                            (
-                                kind: Door,
-                                at: 1.0,
-                                width: 2.0,
-                                sill: 0.0,
-                                height: 2.75,
-                                style: "slide",
-                                open_dist: 2.6,
-                                locked: false,
-                                auto_open: true,
-                                control_panel: false,
-                                locks: [],
-                            ),
-                        ],
                         thickness: None,
                         layers: [],
                     ),
@@ -453,29 +434,6 @@
                 roof_material: 4,
                 walls: [
                     (
-                        a: (0.0, 18.0),
-                        b: (0.0, 22.0),
-                        height: 3.0,
-                        material: 1,
-                        openings: [
-                            (
-                                kind: Door,
-                                at: 1.0,
-                                width: 2.0,
-                                sill: 0.0,
-                                height: 2.75,
-                                style: "slide",
-                                open_dist: 2.6,
-                                locked: false,
-                                auto_open: true,
-                                control_panel: false,
-                                locks: [],
-                            ),
-                        ],
-                        thickness: None,
-                        layers: [],
-                    ),
-                    (
                         a: (30.0, 8.0),
                         b: (34.0, 8.0),
                         height: 2.5,
@@ -546,10 +504,11 @@
     corridors: [
         (
             from_zone: "home",
-            from_opening: 6,
             to_zone: "commons",
-            to_opening: 0,
+            lat: 40.0,
             width: 3.0,
+            door_width: 2.0,
+            door_height: 2.2,
             glass_top: true,
         ),
     ],

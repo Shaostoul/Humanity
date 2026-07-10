@@ -702,21 +702,8 @@ mod tests {
         }
     }
 
-    /// A zone body with one door on a wall along x = `wall_x` (the corridor-fixture pattern
-    /// from ship_structure's tests).
-    fn body_with_door(w: f32, d: f32, h: f32, wall_x: f32, z1: f32, z2: f32, door_z: f32, door_w: f32) -> HomeStructure {
-        let mut b = body(w, d, h);
-        let at = door_z - z1 - door_w * 0.5;
-        b.walls = vec![ron::from_str(&format!(
-            "(a: ({wall_x}, {z1}), b: ({wall_x}, {z2}), height: {h}, material: 1, openings: [\
-             (kind: Door, at: {at}, width: {door_w}, sill: 0.0, height: 2.1, style: \"swing\", \
-             open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: [])])"
-        ))
-        .expect("door wall literal parses")];
-        b
-    }
-
-    /// Two small zones joined by a glass-topped corridor (doors face along X at world z = 5).
+    /// Two small zones joined by a glass-topped corridor running along X at world z = 5. The
+    /// corridor owns its door mouths (the rework), so plain boxes suffice -- no authored doors.
     fn corridor_ship() -> ShipStructure {
         ShipStructure {
             zones: vec![
@@ -725,22 +712,23 @@ mod tests {
                     label: "Home".to_string(),
                     purpose: "residence".to_string(),
                     origin: (0.0, 0.0, 0.0),
-                    body: body_with_door(10.0, 10.0, 3.0, 10.0, 3.0, 7.0, 5.0, 1.0),
+                    body: body(10.0, 10.0, 3.0),
                 },
                 ShipZone {
                     id: "commons".to_string(),
                     label: "Commons".to_string(),
                     purpose: "commons".to_string(),
                     origin: (20.0, 0.0, 2.0),
-                    body: body_with_door(8.0, 8.0, 6.0, 0.0, 1.0, 5.0, 3.0, 1.0),
+                    body: body(8.0, 8.0, 6.0),
                 },
             ],
             corridors: vec![ShipCorridor {
                 from_zone: "home".to_string(),
-                from_opening: 0,
                 to_zone: "commons".to_string(),
-                to_opening: 0,
+                lat: 5.0,
                 width: 3.0,
+                door_width: 1.0,
+                door_height: 2.1,
                 glass_top: true,
             }],
         }
