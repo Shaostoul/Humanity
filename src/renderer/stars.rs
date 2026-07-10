@@ -353,23 +353,23 @@ impl StarRenderer {
     /// Call this BEFORE the main scene pass. The caller should have already
     /// begun a render pass that clears to black.
     pub fn render_pass<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        // Constellation figures FIRST, stars on top (v0.787, operator: darker
+        // lines were painting over star points and made them flicker as the
+        // camera rotated). Lines sit BEHIND the stars now; the celestial pass
+        // (orbit rings) draws later in the frame, so it stays in front.
+        if self.show_constellations {
+            if let (Some(lp), Some(buf)) = (&self.line_pipeline, &self.constellation_buffer) {
+                render_pass.set_pipeline(lp);
+                render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, buf.slice(..));
+                render_pass.draw(0..self.constellation_vertex_count, 0..1);
+            }
+        }
+
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..self.star_count, 0..1);
-
-        // Constellation figures — same rotation-only camera, drawn over
-        // the stars. Faint, so they read as figures without competing.
-        // Gated by the Sky settings toggle (v0.786).
-        if !self.show_constellations {
-            return;
-        }
-        if let (Some(lp), Some(buf)) = (&self.line_pipeline, &self.constellation_buffer) {
-            render_pass.set_pipeline(lp);
-            render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, buf.slice(..));
-            render_pass.draw(0..self.constellation_vertex_count, 0..1);
-        }
     }
 }
 

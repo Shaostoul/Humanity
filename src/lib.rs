@@ -4674,7 +4674,7 @@ mod native_app {
                     ]
                 })
                 .collect();
-            state.solar_orbit_paths.push((pts_m, parent, kind.to_string()));
+            state.solar_orbit_paths.push((pts_m, parent, kind.to_string(), b.id.clone()));
         }
         log::info!("Map-sync: cached {} FPS orbit paths (thin lines)", state.solar_orbit_paths.len());
 
@@ -5120,8 +5120,10 @@ mod native_app {
         /// position and drawn as a single-edge LineList that is
         /// depth-occluded behind planets.
         /// (ellipse points in parent-frame metres, parent body id, kind
-        /// "planet"|"moon") -- the Sky settings filter by kind at draw time.
-        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String, String)>,
+        /// "planet"|"moon", body id) -- the Sky settings filter by kind at
+        /// draw time; the body id anchors the direction-of-motion trail fade
+        /// (v0.787) to the body's live position on its ring.
+        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String, String, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Placeholder world objects (mesh_idx, material_idx, world position) drawn
@@ -10840,7 +10842,7 @@ mod native_app {
                         // Skip the rings in the showroom (no AU-scale sky-rings in the
                         // void — they'd reappear now that the celestial pass un-clips
                         // them). v0.451. The bodies are already showroom-gated above.
-                        for (pts_m, parent_id, kind) in
+                        for (pts_m, parent_id, kind, body_id) in
                             state.solar_orbit_paths.iter().filter(|_| !showroom)
                         {
                             if orbit_mode == "off" {
@@ -10860,16 +10862,58 @@ mod native_app {
                                 * crate::cosmos::M_PER_AU
                                 - state.ship_world_pos;
                             let off = [off.x as f32, off.y as f32, off.z as f32];
-                            for seg in pts_m.windows(2) {
+                            // Direction-of-motion trail fade (v0.787, operator): the
+                            // arc immediately BEHIND the body's live position fades
+                            // to black as it reaches the body, so the ring reads as
+                            // "the planet is HERE, moving THAT way" at a glance.
+                            // Find the sample index nearest the body's parent-frame
+                            // position (orbit samples advance with true anomaly, so
+                            // lower indices trail the body).
+                            let body_i0: Option<usize> = crate::cosmos::find_body(body_id)
+                                .map(|b| {
+                                    let bp = (crate::cosmos::body_world_position_3d_au(b, sim_t)
+                                        - parent_helio_au)
+                                        * crate::cosmos::M_PER_AU;
+                                    let bp = [bp.x as f32, bp.y as f32, bp.z as f32];
+                                    let mut best = 0usize;
+                                    let mut best_d = f32::MAX;
+                                    for (i, p) in pts_m.iter().enumerate() {
+                                        let d = (p[0] - bp[0]).powi(2)
+                                            + (p[1] - bp[1]).powi(2)
+                                            + (p[2] - bp[2]).powi(2);
+                                        if d < best_d {
+                                            best_d = d;
+                                            best = i;
+                                        }
+                                    }
+                                    best
+                                });
+                            // ~10 of 96 samples = a ~38 degree fading wake.
+                            const FADE_SAMPLES: usize = 10;
+                            let n = pts_m.len();
+                            let fade = |i: usize| -> f32 {
+                                let Some(i0) = body_i0 else { return 1.0 };
+                                let behind = (i0 + n - i) % n;
+                                (behind.min(FADE_SAMPLES) as f32) / FADE_SAMPLES as f32
+                            };
+                            let tint = |f: f32| -> [f32; 4] {
+                                [
+                                    orbit_rgba[0] * f,
+                                    orbit_rgba[1] * f,
+                                    orbit_rgba[2] * f,
+                                    orbit_rgba[3],
+                                ]
+                            };
+                            for (si, seg) in pts_m.windows(2).enumerate() {
                                 let a = [seg[0][0] + off[0], seg[0][1] + off[1], seg[0][2] + off[2]];
                                 let b = [seg[1][0] + off[0], seg[1][1] + off[1], seg[1][2] + off[2]];
                                 orbit_lines.push(crate::renderer::line::LineVertex {
                                     position: a,
-                                    color: orbit_rgba,
+                                    color: tint(fade(si)),
                                 });
                                 orbit_lines.push(crate::renderer::line::LineVertex {
                                     position: b,
-                                    color: orbit_rgba,
+                                    color: tint(fade(si + 1)),
                                 });
                             }
                         }
