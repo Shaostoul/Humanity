@@ -60,14 +60,22 @@
 >    DONE from that queue: lights UNCAPPED entirely (v0.782 storage buffer -
 >    the 8-light raise became a full removal), real constellations (v0.783,
 >    594 segments), palette light placement + RGB launcher cards (v0.784).
->    QUEUED (renderer/data): the BIG STAR CATALOG arc - (1) binary star format
->    + single parse (the 34 MB HYG CSV parses TWICE at startup today), then
->    (2) ATHYG import (astronexus/ATHYG: HYG author's Tycho-2 + Gaia merge,
->    ~2.5M stars, same schema, magnitude-capped download as an in-app
->    "extended star catalog" fetch - too big to commit to the repo), then
->    optional per-point light sampling along strip paths. LATER R&D: sky
->    FILTER modes (UV / H-alpha / infrared layers for gas clouds + nebulae -
->    render as additional emissive sky layers toggled like the dev overlays).
+>    QUEUED (renderer/data): the BIG STAR CATALOG arc. Key analysis
+>    (2026-07-10): Gaia DR3's terabytes are ~99% metadata; the 4 render
+>    fields (position/mag/color) pack to ~8-16 bytes/star, and ESA's TAP
+>    service does COLUMN SELECTION server-side, so we never download the
+>    terabytes. But 1.8B individual GPU points is pointless: below ~mag
+>    13-14 stars are sub-pixel and merge into diffuse glow - the RIGHT end
+>    state is points + a BAKED all-sky glow map (that glow IS the visible
+>    galaxy). Ladder: (1) binary star format + single parse (34 MB HYG CSV
+>    parses TWICE at startup today); (2) ATHYG ~2.5M stars (same schema,
+>    in-app "extended catalog" download, ~40 MB binary); (3) Gaia extract
+>    G<14 (~25M points, ~300-500 MB, chunked TAP pulls of 4 columns) + a
+>    baked HDR glow cubemap integrating the remaining ~1.77B faint stars -
+>    visually equivalent to rendering all 1.8B at ~1/50th the size. Also:
+>    pack StarVertex 28B -> ~12B before step 3. LATER R&D: sky FILTER modes
+>    (UV / H-alpha / infrared layers for gas clouds + nebulae as additional
+>    emissive sky layers); per-point light sampling along strip paths.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
