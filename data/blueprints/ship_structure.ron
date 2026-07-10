@@ -213,7 +213,7 @@
                         intensity: None,
                         range: None,
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "warm_lamp",
@@ -224,7 +224,7 @@
                         intensity: Some(6.3),
                         range: Some(7.4),
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "cool_panel",
@@ -235,7 +235,7 @@
                         intensity: None,
                         range: None,
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "spotlight",
@@ -246,7 +246,7 @@
                         intensity: Some(39.0),
                         range: Some(30.5),
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "strip",
@@ -257,7 +257,7 @@
                         intensity: None,
                         range: Some(9.9),
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "strip",
@@ -268,7 +268,7 @@
                         intensity: None,
                         range: Some(6.0),
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "ceiling_panel",
@@ -279,7 +279,7 @@
                         intensity: Some(11.0),
                         range: Some(7.7),
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "strip",
@@ -298,7 +298,7 @@
                             (23.0, 1.0, 50.75),
                             (22.0, 1.0, 52.5),
                         ],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                 ],
                 spawn: Some((36.756874, 25.230675)),
@@ -505,7 +505,7 @@
                         intensity: None,
                         range: None,
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                     (
                         type_id: "warm_lamp",
@@ -516,7 +516,7 @@
                         intensity: None,
                         range: None,
                         path: [],
-                        smooth: false,
+                        subdivision: 0,
                     ),
                 ],
                 spawn: None,

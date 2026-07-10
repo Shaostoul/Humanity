@@ -2905,6 +2905,11 @@ pub struct GuiState {
     /// Index into home_structure.lights of the light selected in the editor (clicked its diamond gizmo),
     /// or None. The right panel shows its detail. Mutually exclusive with wall/machine selection. (v0.576)
     pub construction_light_selected: Option<usize>,
+    /// Which of the SELECTED light's rotation rings the build-mode cursor ray is hovering
+    /// (0 = X/red, 1 = Y/green, 2 = Z/blue), or None. Recomputed every frame from the SAME
+    /// pick test a click uses, so the ring that brightens is exactly the ring a press would
+    /// grab (idle -> hover -> active, like the other gizmos). (v0.792)
+    pub construction_light_ring_hover: Option<u8>,
     /// Where the player avatar stands in BUILD mode (x, z in box coords), draggable by its pyramid
     /// gizmo. Leaving build mode drops you into first person right here. (v0.557)
     pub build_char_pos: Option<(f32, f32)>,
@@ -4231,6 +4236,7 @@ impl Default for GuiState {
             construction_wall_selected: None,
             construction_machine_selected: None,
             construction_light_selected: None,
+            construction_light_ring_hover: None,
             build_char_pos: None,
             construction_grid_snap: true,
             construction_dev_overlay: false,

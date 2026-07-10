@@ -132,16 +132,27 @@ impl RoomLight {
     }
 }
 
-/// Tessellate a STRIP light's control path into render points (v0.781). The
-/// authoring model is a Blender-style path: `points` are the control points
-/// (world coords, first = the light's pos), and `smooth` picks the corner
-/// style. Sharp = the points verbatim (hard mitered corners between straight
-/// tube segments). Smooth = a Catmull-Rom curve THROUGH every control point
-/// (the same basis as the road centerlines), 8 samples per span, with the end
-/// control points mirrored so the curve still starts/ends exactly at the first
-/// and last points. Fewer than 2 points can't make a strip -> returned as-is.
-pub fn sample_strip_path(points: &[Vec3], smooth: bool) -> Vec<Vec3> {
-    if points.len() < 2 || !smooth {
+/// Hard clamp for a strip's corner subdivision (v0.792): the panel's drag
+/// value stops at 100, and the samplers below clamp again so a hand-edited
+/// save can't request a million samples per span.
+pub const MAX_STRIP_SUBDIVISION: u32 = 100;
+
+/// Tessellate a STRIP light's control path into render points (v0.781;
+/// subdivision steps v0.792). The authoring model is a Blender-style path:
+/// `points` are the control points (world coords, first = the light's pos),
+/// and `subdivision` picks the corner style (operator: "like 1, 2, 3, up to
+/// 100? 0 is sharp corners, everything after that is smooth"). 0 = the points
+/// verbatim (hard mitered corners between straight tube segments). N >= 1 = a
+/// Catmull-Rom curve THROUGH every control point (the same basis as the road
+/// centerlines) with N EXTRA samples inserted per span (clamped to 100), the
+/// end control points mirrored so the curve still starts/ends exactly at the
+/// first and last points. It is N extra samples (N + 1 per span) rather than
+/// N total because a single sample per span just re-emits the span's start
+/// control point -- the sharp polyline again, the opposite of the operator's
+/// "everything after 0 is smooth". Fewer than 2 points can't make a strip ->
+/// returned as-is.
+pub fn sample_strip_path(points: &[Vec3], subdivision: u32) -> Vec<Vec3> {
+    if points.len() < 2 || subdivision == 0 {
         return points.to_vec();
     }
     let n = points.len();
@@ -155,15 +166,15 @@ pub fn sample_strip_path(points: &[Vec3], smooth: bool) -> Vec<Vec3> {
             points[i as usize]
         }
     };
-    const SAMPLES: usize = 8;
-    let mut out = Vec::with_capacity((n - 1) * SAMPLES + 1);
+    let steps = subdivision.min(MAX_STRIP_SUBDIVISION) as usize + 1;
+    let mut out = Vec::with_capacity((n - 1) * steps + 1);
     for seg in 0..(n - 1) {
         let p0 = get(seg as isize - 1);
         let p1 = get(seg as isize);
         let p2 = get(seg as isize + 1);
         let p3 = get(seg as isize + 2);
-        for s in 0..SAMPLES {
-            let t = s as f32 / SAMPLES as f32;
+        for s in 0..steps {
+            let t = s as f32 / steps as f32;
             let t2 = t * t;
             let t3 = t2 * t;
             // Catmull-Rom basis (same coefficients as road_edge_centerline).
@@ -178,6 +189,42 @@ pub fn sample_strip_path(points: &[Vec3], smooth: bool) -> Vec<Vec3> {
     }
     out.push(points[n - 1]);
     out
+}
+
+/// Hard ceiling on LINE-light segments emitted per strip (v0.792). The lights
+/// storage buffer is uncapped (v0.782), so this is not a correctness limit --
+/// it stops a 100-subdivision strip with many control points from pushing
+/// thousands of per-fragment light evaluations for zero visible gain. Past the
+/// ceiling only the EMISSION subdivision coarsens; the tube MESH keeps the
+/// full subdivision (mesh vertices are cheap, shader lights are not).
+pub const MAX_STRIP_EMISSION_SEGMENTS: usize = 256;
+
+/// The line-light EMISSION segments for a strip (v0.792): `(a, b, share)` per
+/// segment, sampled along the SAME curve the tube mesh renders. This is the
+/// fix for the operator's screenshot complaint -- emission used to follow the
+/// straight CONTROL polyline, so a curved strip's rounded sections floated
+/// dark, lighting nothing. Each segment's `share` is its length fraction of
+/// the whole sampled strip (shares sum to 1), so multiplying by the light's
+/// intensity conserves total output no matter the subdivision. Pure math (no
+/// GPU, no PlacedLight) so the split is unit-testable.
+pub fn strip_emission_segments(points: &[Vec3], subdivision: u32) -> Vec<(Vec3, Vec3, f32)> {
+    if points.len() < 2 {
+        return Vec::new();
+    }
+    // Clamp the emission subdivision so total segments stay under the ceiling:
+    // spans * (sub + 1) segments, so the largest sub that fits is
+    // ceiling/spans - 1. A pathological strip with MORE control points than
+    // the ceiling can't be coarsened below its own polyline (that would change
+    // its shape), so it just emits one segment per span and eats the cost.
+    let spans = points.len() - 1;
+    let cap = ((MAX_STRIP_EMISSION_SEGMENTS / spans).max(1) - 1) as u32;
+    let sub = subdivision.min(MAX_STRIP_SUBDIVISION).min(cap);
+    let sampled = sample_strip_path(points, sub);
+    let total: f32 = sampled.windows(2).map(|w| (w[1] - w[0]).length()).sum::<f32>().max(1e-3);
+    sampled
+        .windows(2)
+        .map(|w| (w[0], w[1], (w[1] - w[0]).length() / total))
+        .collect()
 }
 
 /// The point on segment `a`..`b` closest to `fragment` (v0.786) -- the LINE
@@ -326,43 +373,107 @@ mod tests {
         assert_eq!(spot_cone_attenuation(Vec3::X, Vec3::X, l.cos_inner, l.cos_outer), 1.0);
     }
 
-    /// Strip path tessellation (v0.781): sharp = points verbatim; smooth = a
-    /// Catmull-Rom curve that still STARTS and ENDS exactly on the first/last
-    /// control points (mirrored ends), passes through the middle control
-    /// points, and produces 8 samples per span. An L-shaped smooth strip must
-    /// actually round the corner (its curve deviates from the sharp corner
-    /// point at the corner's parameter midpoint neighborhood).
+    /// Strip path tessellation (v0.781, subdivision steps v0.792): 0 = points
+    /// verbatim (sharp); N >= 1 = a Catmull-Rom curve that still STARTS and
+    /// ENDS exactly on the first/last control points (mirrored ends), passes
+    /// through the middle control points, and produces N + 1 samples per span.
+    /// An L-shaped smooth strip must actually round the corner (its curve
+    /// deviates from the straight legs near the corner).
     #[test]
-    fn strip_path_sampling_sharp_and_smooth() {
+    fn strip_path_sampling_sharp_and_subdivided() {
         let l_shape = vec![
             Vec3::new(0.0, 2.0, 0.0),
             Vec3::new(4.0, 2.0, 0.0),
             Vec3::new(4.0, 2.0, 4.0),
         ];
 
-        // Sharp: verbatim.
-        let sharp = sample_strip_path(&l_shape, false);
+        // Subdivision 0: verbatim (sharp corners).
+        let sharp = sample_strip_path(&l_shape, 0);
         assert_eq!(sharp, l_shape);
 
-        // Smooth: 2 spans * 8 + terminal point.
-        let smooth = sample_strip_path(&l_shape, true);
-        assert_eq!(smooth.len(), 2 * 8 + 1);
+        // Subdivision 8 (the serde default / old smooth look): 2 spans * 9 + terminal point.
+        let smooth = sample_strip_path(&l_shape, 8);
+        assert_eq!(smooth.len(), 2 * 9 + 1);
         assert!((smooth[0] - l_shape[0]).length() < 1e-4, "curve starts at the first point");
-        assert!((smooth[16] - l_shape[2]).length() < 1e-4, "curve ends at the last point");
+        assert!((smooth[18] - l_shape[2]).length() < 1e-4, "curve ends at the last point");
         // The corner control point is ON the curve (Catmull-Rom interpolates).
-        assert!((smooth[8] - l_shape[1]).length() < 1e-4, "curve passes through the corner point");
-        // But near the corner the curve bows INSIDE the sharp L (rounding):
-        // the sample midway along the second half of span 0 is pulled off the
-        // straight segment toward the inside of the turn.
-        let straight_pt = Vec3::new(3.0, 2.0, 0.0); // 75% along the sharp first leg
-        let curved_pt = smooth[6]; // t = 0.75 of span 0
+        assert!((smooth[9] - l_shape[1]).length() < 1e-4, "curve passes through the corner point");
+        // But near the corner the curve bows off the sharp L (rounding): the
+        // sample two-thirds along span 0 is pulled off the straight segment.
+        let straight_pt = Vec3::new(4.0 * (6.0 / 9.0), 2.0, 0.0); // 2/3 along the sharp first leg
+        let curved_pt = smooth[6]; // t = 6/9 of span 0
         assert!(
             (curved_pt - straight_pt).length() > 0.05,
             "smooth curve must deviate from the sharp corner path (got {curved_pt:?})"
         );
 
+        // Subdivision 1 must ALREADY round (operator: "0 is sharp corners,
+        // everything after that is smooth"): one extra sample per span, and
+        // that midpoint sample sits off the straight leg.
+        let sub1 = sample_strip_path(&l_shape, 1);
+        assert_eq!(sub1.len(), 2 * 2 + 1);
+        let mid = sub1[1]; // t = 0.5 of span 0
+        assert!(
+            (mid - Vec3::new(2.0, 2.0, 0.0)).length() > 0.05,
+            "subdivision 1 must visibly round the corner (got {mid:?})"
+        );
+
+        // Out-of-range subdivision clamps to 100 (2 spans * 101 + terminal).
+        let clamped = sample_strip_path(&l_shape, 5000);
+        assert_eq!(clamped.len(), 2 * 101 + 1);
+
         // Degenerate inputs pass through untouched.
-        assert_eq!(sample_strip_path(&l_shape[..1], true).len(), 1);
-        assert!(sample_strip_path(&[], true).is_empty());
+        assert_eq!(sample_strip_path(&l_shape[..1], 8).len(), 1);
+        assert!(sample_strip_path(&[], 8).is_empty());
+    }
+
+    /// Strip EMISSION segments (v0.792): the light segments follow the SAME
+    /// sampled curve as the tube mesh, split the intensity by length share
+    /// (shares sum to 1 -- energy conservation), and never exceed the
+    /// per-strip segment ceiling however high the subdivision goes.
+    #[test]
+    fn strip_emission_segments_split_intensity_by_length() {
+        // Sharp two-leg path: 1 m then 3 m -> shares 0.25 / 0.75 exactly.
+        let path = vec![
+            Vec3::new(0.0, 2.0, 0.0),
+            Vec3::new(1.0, 2.0, 0.0),
+            Vec3::new(4.0, 2.0, 0.0),
+        ];
+        let segs = strip_emission_segments(&path, 0);
+        assert_eq!(segs.len(), 2, "subdivision 0 emits one segment per control leg");
+        assert!((segs[0].2 - 0.25).abs() < 1e-4, "1 m of 4 m total = 0.25, got {}", segs[0].2);
+        assert!((segs[1].2 - 0.75).abs() < 1e-4, "3 m of 4 m total = 0.75, got {}", segs[1].2);
+        assert_eq!(segs[0].0, path[0]);
+        assert_eq!(segs[1].1, path[2]);
+
+        // Subdivided: segments follow the sampled curve, shares still sum to 1.
+        let l_shape = vec![
+            Vec3::new(0.0, 2.0, 0.0),
+            Vec3::new(4.0, 2.0, 0.0),
+            Vec3::new(4.0, 2.0, 4.0),
+        ];
+        let segs = strip_emission_segments(&l_shape, 8);
+        assert_eq!(segs.len(), 2 * 9, "one segment per sampled step");
+        let sum: f32 = segs.iter().map(|s| s.2).sum();
+        assert!((sum - 1.0).abs() < 1e-3, "shares must sum to 1, got {sum}");
+        // Consecutive segments are CONTIGUOUS (each starts where the last ended)
+        // so the emitted line lights trace one unbroken curve.
+        for w in segs.windows(2) {
+            assert!((w[0].1 - w[1].0).length() < 1e-5, "segments must chain end-to-start");
+        }
+
+        // The ceiling: 8 control points (7 spans) at subdivision 100 would be
+        // 7 * 101 = 707 segments raw; the emission clamp coarsens it under 256
+        // while the shares still cover the whole strip.
+        let long: Vec<Vec3> = (0..8).map(|i| Vec3::new(i as f32 * 2.0, 2.0, (i % 2) as f32)).collect();
+        let segs = strip_emission_segments(&long, 100);
+        assert!(segs.len() <= MAX_STRIP_EMISSION_SEGMENTS, "capped, got {}", segs.len());
+        assert!(segs.len() > 7, "still subdivided (not collapsed to the control legs)");
+        let sum: f32 = segs.iter().map(|s| s.2).sum();
+        assert!((sum - 1.0).abs() < 1e-3, "capped shares still sum to 1, got {sum}");
+
+        // Degenerate: fewer than 2 points emit nothing.
+        assert!(strip_emission_segments(&l_shape[..1], 8).is_empty());
+        assert!(strip_emission_segments(&[], 8).is_empty());
     }
 }
