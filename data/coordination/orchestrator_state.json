@@ -558,6 +558,13 @@
       "decision": "v0.795-796 loop increments: corridor mouths got real pocket DOORS (two half-panels sliding into the shell, ~3m proximity open for nearest actor incl. remote players + creatures, live colliders riding the existing v0.537 door pipeline; worktree agent, independently verified, 905 tests) and the roster-name race fix (position updates outran the join broadcast -> lazy-spawn placeholder Player N stuck forever; duplicate PlayerJoined now updates the name; 906 tests). NPC walk-up dialogue (first increment) + star catalog rung 1 (binary stars.bin, single parse) dispatched to two worktree agents.",
       "why": "Loop mode working the queue after the co-presence proof. Both co-presence bugs (identify race, roster name) came out of the autopilot test - validation catching what tests could not.",
       "verification": "v0.795.1 + v0.796.1 boot-checked; 905/906 lib tests; relay checks; four lints each ship"
+    },
+    {
+      "id": 5,
+      "date": "2026-07-10",
+      "decision": "v0.797-798: NPC walk-up dialogue (E-talk card with relay-authored greetings/lines via game_welcome snapshot capture; bonus: dwelling crew now visible to fresh joiners) and star catalog RUNG 1 (data/stars.bin HOSSTAR1, 15 B/star, ONE 1ms parse replacing two 291ms CSV passes; bit-identical stars, 594/594 constellations; scripts/build-stars-bin.js + just build-stars).",
+      "why": "Loop queue continuation. Star rung 1 is the foundation for rung 2 (ATHYG 2.5M) - the format scales and parse time no longer matters. NPC dialog literals still live in relay populate_ship (infinite-of-X follow-up noted). Next: chat 1c view modes, mode system (task #50), star rung 2.",
+      "verification": "v0.798.1 exe: autopilot-driven world load logged stars.bin 1ms + 594/594 + 0 PANIC; 912 lib tests; relay check; validate-data; six lints"
     }
   ],
   "active_scopes_to_avoid": [
