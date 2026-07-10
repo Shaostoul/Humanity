@@ -47,11 +47,20 @@
 >    tick up (web chat is NOT a co-presence participant - no game_join/position).
 >    This is the mission-critical proof; the test needs a second client/person.
 > 3. FIELD-REPORT CADENCE - operator plays, reports what is broken/ugly, I
->    fix. The corridor rework belongs here: corridors should OWN their door
->    mouths (not reference a pre-drawn door by index) - fixes BOTH the
->    move-the-door-desync AND the coincident-wall z-fighting. Plus a
+>    fix. DONE from this cadence: dev spawn + walk-up creature editor
+>    (v0.777-778), the 15-fix review sweep (v0.779), lighting arc (v0.780-781:
+>    glass night-glow fix, caps 500/200m, physical fixtures, real strip lights
+>    with sharp/smooth corner paths). NEXT UP from it: the corridor rework -
+>    corridors should OWN their door mouths (not reference a pre-drawn door by
+>    index) - fixes BOTH the move-the-door-desync AND the coincident-wall
+>    z-fighting (note: the operator's editor save now strips RON comments and
+>    the corridor still cites "home door 6" by index - live fragility). Plus a
 >    Dev/Creative/Normal MODE system so the operator builds the whole
 >    mothership in-game while normal players are limited to their homestead.
+>    QUEUED (renderer): raise the 8-light GPU budget to 16 - its own careful
+>    release; every camera-uniform byte offset after the light block shifts
+>    (sun/fill + the WGSL struct), verify with just snapshots. Then optional
+>    per-point light sampling along strip paths.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
