@@ -2756,6 +2756,8 @@ pub struct GuiState {
     /// relevant overlay is open, so they cost nothing when hidden). entity_count
     /// = ECS entities, mem_mb = process RSS, uptime_secs = since launch.
     pub diag_entity_count: usize,
+    /// Live GPU light count for the F2 overlay (v0.782, uncapped lights).
+    pub diag_light_count: usize,
     pub diag_mem_mb: f32,
     pub diag_uptime_secs: u64,
     /// Index into construction_rooms of the room selected/grabbed in the 3D astral editor, for
@@ -4187,6 +4189,7 @@ impl Default for GuiState {
             voice_ptt_held: false,
             voice_binding_key: false,
             diag_entity_count: 0,
+            diag_light_count: 0,
             diag_mem_mb: 0.0,
             diag_uptime_secs: 0,
             keymaps: Vec::new(),

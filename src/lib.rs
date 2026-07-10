@@ -10847,6 +10847,7 @@ mod native_app {
                     }
                     if state.gui_state.show_perf_overlay {
                         state.gui_state.diag_entity_count = state.game_world.world.iter().count();
+                        state.gui_state.diag_light_count = state.renderer.light_count();
                     }
                     if state.gui_state.show_system_overlay {
                         if let Some(u) = memory_stats::memory_stats() {

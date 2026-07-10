@@ -74,6 +74,11 @@ pub struct Renderer {
     line_pipeline: wgpu::RenderPipeline,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
+    /// Uncapped scene-light list (v0.782): a storage buffer of 64-byte GpuLight
+    /// entries; grows by doubling (bind group recreated) when the count exceeds
+    /// capacity. The shader loops over `light_count` of these.
+    lights_buffer: wgpu::Buffer,
+    lights_capacity: usize,
     /// Pre-allocated object uniform buffer, reused each frame via write_buffer.
     object_buffer: wgpu::Buffer,
     object_bind_group: wgpu::BindGroup,
@@ -252,13 +257,29 @@ impl Renderer {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        // Uncapped light storage buffer (v0.782): starts with room for 1024
+        // lights (64 KB) and doubles on demand (recreating the bind group).
+        let lights_capacity = 1024_usize;
+        let lights_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Scene Lights Storage Buffer"),
+            size: (lights_capacity * 64) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Camera Bind Group"),
             layout: &pipeline.camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: camera_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: lights_buffer.as_entire_binding(),
+                },
+            ],
         });
 
         // Dynamic object uniform buffer — holds up to MAX_OBJECTS entries (module const).
@@ -295,6 +316,8 @@ impl Renderer {
             line_pipeline,
             camera_buffer,
             camera_bind_group,
+            lights_buffer,
+            lights_capacity,
             object_buffer,
             object_bind_group,
             meshes: Vec::new(),
@@ -462,56 +485,74 @@ impl Renderer {
         self.update_material_full(idx, base_color, metallic, roughness, material_type, 0.0);
     }
 
-    /// Set room lights for the next render call. Up to 8 supported, each either a point light
-    /// or a spot with a real cone (v0.639, see `light::RoomLight`).
+    /// Set room lights for the next render call — UNCAPPED (v0.782). Lights go
+    /// to a storage buffer (64 bytes each: pos+intensity, color+range, spot,
+    /// cone), which doubles in capacity (recreating the camera bind group) when
+    /// exceeded; only `light_count` in the camera uniform bounds the shader
+    /// loop. Each light is a point light or a spot with a real cone (v0.639).
+    /// There is deliberately no software cap: the practical ceiling is GPU
+    /// fill cost, visible in the F2 overlay's live light count + FPS.
     pub fn set_point_lights(&mut self, lights: &[light::RoomLight]) {
-        let mut light_positions = [[0.0_f32; 4]; 8];
-        let mut light_colors = [[0.0_f32; 4]; 8];
-        let mut light_spot = [[0.0_f32, -1.0, 0.0, -1.0]; 8];
-        let mut light_cone_inner = [[0.0_f32; 4]; 8];
-        let count = lights.len().min(8);
-        for (i, l) in lights.iter().take(8).enumerate() {
-            light_positions[i] = [l.pos.x, l.pos.y, l.pos.z, l.intensity];
-            light_colors[i] = [l.color[0], l.color[1], l.color[2], l.range];
-            light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
-            light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
+        // Grow the storage buffer by doubling if needed (bind groups are
+        // immutable, so a grow recreates the camera bind group too).
+        if lights.len() > self.lights_capacity {
+            let mut cap = self.lights_capacity.max(1);
+            while cap < lights.len() {
+                cap *= 2;
+            }
+            self.lights_capacity = cap;
+            self.lights_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Scene Lights Storage Buffer"),
+                size: (cap * 64) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            self.camera_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Camera Bind Group"),
+                layout: &self.pipeline.camera_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.camera_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: self.lights_buffer.as_entire_binding(),
+                    },
+                ],
+            });
         }
-        // Write just the light data portion of the camera uniform buffer.
-        // Offset past view_proj (64 bytes) + view_pos (16 bytes) = 80 bytes.
-        let light_data_offset = 80_u64;
-        // light_positions: 8 * 16 = 128 bytes
+        // Pack ALL lights: [pos.xyz, intensity][color.rgb, range][spot dir.xyz,
+        // cos_outer][cos_inner, 0, 0, 0] — matches the WGSL GpuLight struct.
+        if !lights.is_empty() {
+            let packed: Vec<[f32; 16]> = lights
+                .iter()
+                .map(|l| {
+                    [
+                        l.pos.x, l.pos.y, l.pos.z, l.intensity,
+                        l.color[0], l.color[1], l.color[2], l.range,
+                        l.dir.x, l.dir.y, l.dir.z, l.cos_outer,
+                        l.cos_inner, 0.0, 0.0, 0.0,
+                    ]
+                })
+                .collect();
+            self.queue
+                .write_buffer(&self.lights_buffer, 0, bytemuck::cast_slice(&packed));
+        }
+        // light_count still lives in the camera uniform: offset past view_proj
+        // (64) + view_pos (16) + the four legacy [8] light arrays (4 * 128) =
+        // 592 bytes. (The legacy arrays are no longer written — the shader
+        // reads the storage buffer — but they stay allocated so no offset
+        // after them shifts.)
+        let light_count = [lights.len() as f32, 0.0_f32, 0.0, 0.0];
         self.queue.write_buffer(
             &self.camera_buffer,
-            light_data_offset,
-            bytemuck::cast_slice(&light_positions),
-        );
-        // light_colors: offset 80 + 128 = 208
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            light_data_offset + 128,
-            bytemuck::cast_slice(&light_colors),
-        );
-        // light_spot: offset 80 + 128 + 128 = 336
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            light_data_offset + 256,
-            bytemuck::cast_slice(&light_spot),
-        );
-        // light_cone_inner: offset 80 + 128 + 128 + 128 = 464
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            light_data_offset + 384,
-            bytemuck::cast_slice(&light_cone_inner),
-        );
-        // light_count: offset 80 + 128 + 128 + 128 + 128 = 592
-        let light_count = [count as f32, 0.0_f32, 0.0, 0.0];
-        self.queue.write_buffer(
-            &self.camera_buffer,
-            light_data_offset + 512,
+            592,
             bytemuck::cast_slice(&light_count),
         );
-        // Store for re-injection by the home passes (the direct writes above get clobbered by the
-        // full camera-uniform write at offset 0; this is the authoritative copy). (v0.571)
+        // Store for re-injection by the home passes (the count in the uniform
+        // gets clobbered by the full camera-uniform write at offset 0; this is
+        // the authoritative copy). (v0.571)
         self.cur_lights = lights.to_vec();
     }
 
@@ -520,18 +561,15 @@ impl Renderer {
     /// full-uniform write at offset 0 carries the real lights instead of `camera.uniforms()`'s
     /// empty/default set.
     fn lit_uniform(&self, mut u: camera::CameraUniforms) -> camera::CameraUniforms {
-        let count = self.cur_lights.len().min(8);
+        // v0.782: lights live in the storage buffer now; the legacy [8] uniform
+        // arrays are left zeroed (kept only so no byte offset shifts). The
+        // COUNT is the full uncapped list — it bounds the shader's storage-
+        // buffer loop.
         u.light_positions = [[0.0; 4]; 8];
         u.light_colors = [[0.0; 4]; 8];
         u.light_spot = [[0.0, -1.0, 0.0, -1.0]; 8];
         u.light_cone_inner = [[0.0; 4]; 8];
-        for (i, l) in self.cur_lights.iter().take(8).enumerate() {
-            u.light_positions[i] = [l.pos.x, l.pos.y, l.pos.z, l.intensity];
-            u.light_colors[i] = [l.color[0], l.color[1], l.color[2], l.range];
-            u.light_spot[i] = [l.dir.x, l.dir.y, l.dir.z, l.cos_outer];
-            u.light_cone_inner[i] = [l.cos_inner, 0.0, 0.0, 0.0];
-        }
-        u.light_count = [count as f32, 0.0, 0.0, 0.0];
+        u.light_count = [self.cur_lights.len() as f32, 0.0, 0.0, 0.0];
         let (sd, sc, si) = self.cur_sun;
         u.sun_direction = [sd[0], sd[1], sd[2], si];
         u.sun_color = [sc[0], sc[1], sc[2], 0.0];
@@ -539,6 +577,12 @@ impl Renderer {
         u.fill_direction = [fd[0], fd[1], fd[2], fi];
         u.fill_color = [fc[0], fc[1], fc[2], 0.0];
         u
+    }
+
+    /// How many scene lights are currently uploaded (v0.782): feeds the F2
+    /// overlay so the operator can watch the uncapped count against FPS.
+    pub fn light_count(&self) -> usize {
+        self.cur_lights.len()
     }
 
     /// Set the directional sun light for the next render call.

@@ -44,22 +44,40 @@ impl Pipeline {
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
     ) -> Self {
-        // Group 0: Camera uniforms
+        // Group 0: Camera uniforms + the UNCAPPED light list (v0.782). Lights
+        // moved from fixed [8] uniform arrays to a read-only STORAGE buffer so
+        // the count is data-driven -- no arbitrary light limit; the practical
+        // ceiling is GPU fill cost, found empirically (F2 overlay shows the
+        // live count). The old light0..7 uniform fields stay in CameraUniforms
+        // (unused) so no byte offset anywhere shifts.
         let camera_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Camera Bind Group Layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<CameraUniforms>() as u64,
-                        ),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                std::mem::size_of::<CameraUniforms>() as u64,
+                            ),
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            // One GpuLight = 4 x vec4<f32> = 64 bytes.
+                            min_binding_size: wgpu::BufferSize::new(64),
+                        },
+                        count: None,
+                    },
+                ],
             });
 
         // Group 1: Object uniforms (model + normal matrix) with dynamic offset

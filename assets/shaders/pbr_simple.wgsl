@@ -68,7 +68,21 @@ struct MaterialUniforms {
     params: vec4<f32>,
 };
 
+// One scene light in the UNCAPPED storage-buffer list (v0.782). Packing
+// matches Renderer::set_point_lights: pos_intensity = [pos.xyz, intensity],
+// color_range = [rgb, range], spot = [aim.xyz, cos_outer (-1 = no cone)],
+// cone_inner = [cos_inner, 0, 0, 0]. The light0..7 fields above are legacy
+// (unused, kept so no uniform byte offset shifts); camera.light_count.x
+// bounds the loop over this buffer.
+struct GpuLight {
+    pos_intensity: vec4<f32>,
+    color_range: vec4<f32>,
+    spot: vec4<f32>,
+    cone_inner: vec4<f32>,
+};
+
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(1) var<storage, read> scene_lights: array<GpuLight>;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 @group(2) @binding(0) var<uniform> material: MaterialUniforms;
 
@@ -481,33 +495,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         camera.fill_direction.xyz, camera.fill_color.rgb, camera.fill_direction.w,
         normal, view_dir, albedo, metallic, roughness, f0);
 
-    // Point + spot lights
-    let positions = array<vec4<f32>, 8>(
-        camera.light0, camera.light1, camera.light2, camera.light3,
-        camera.light4, camera.light5, camera.light6, camera.light7,
-    );
-    let colors = array<vec4<f32>, 8>(
-        camera.light0_color, camera.light1_color, camera.light2_color, camera.light3_color,
-        camera.light4_color, camera.light5_color, camera.light6_color, camera.light7_color,
-    );
-    let spots = array<vec4<f32>, 8>(
-        camera.light0_spot, camera.light1_spot, camera.light2_spot, camera.light3_spot,
-        camera.light4_spot, camera.light5_spot, camera.light6_spot, camera.light7_spot,
-    );
-    let cone_inners = array<vec4<f32>, 8>(
-        camera.light0_cone_inner, camera.light1_cone_inner, camera.light2_cone_inner, camera.light3_cone_inner,
-        camera.light4_cone_inner, camera.light5_cone_inner, camera.light6_cone_inner, camera.light7_cone_inner,
-    );
+    // Point + spot lights — UNCAPPED (v0.782): the storage buffer holds every
+    // scene light; light_count bounds the loop. The early range/attenuation
+    // rejection keeps far lights nearly free, so the practical ceiling is GPU
+    // fill cost, not a software cap.
     let num_lights = i32(camera.light_count.x);
-    for (var i = 0; i < 8; i = i + 1) {
-        if (i >= num_lights) { break; }
-        let light_pos = positions[i].xyz;
-        let intensity = positions[i].w;
-        let light_color = colors[i].xyz;
-        let radius = colors[i].w;
+    for (var i = 0; i < num_lights; i = i + 1) {
+        let light_pos = scene_lights[i].pos_intensity.xyz;
+        let intensity = scene_lights[i].pos_intensity.w;
+        let light_color = scene_lights[i].color_range.xyz;
+        let radius = scene_lights[i].color_range.w;
 
         let to_light = light_pos - in.world_position;
         let dist = length(to_light);
+
+        // Cheap reject: outside the light's range, contribution is exactly 0
+        // (the linear range window below hits zero at dist == radius).
+        if (dist >= radius) { continue; }
+
         let light_dir = to_light / max(dist, 0.001);
 
         // Attenuation: inverse square with radius falloff
@@ -515,10 +520,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
         // Spot cone (v0.639): cos_outer == -1.0 is the Point/Bar sentinel, so this only narrows
         // an actual spot light -- zero extra cost/behavior change for every other light.
-        let spot = spots[i];
+        let spot = scene_lights[i].spot;
         let cos_outer = spot.w;
         if (cos_outer > -1.0) {
-            let cos_inner = cone_inners[i].x;
+            let cos_inner = scene_lights[i].cone_inner.x;
             // spot.xyz is the aim direction in the light-to-fragment sense; -light_dir (which
             // points fragment-to-light) flips to the same sense for the dot product.
             let cos_angle = dot(normalize(spot.xyz), -light_dir);

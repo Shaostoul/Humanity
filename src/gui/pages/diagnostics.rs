@@ -70,6 +70,9 @@ fn draw_perf(ui: &mut egui::Ui, theme: &Theme, state: &GuiState) {
     row(ui, theme, "Frame", format!("{frame_ms:.1} ms"));
     draw_frame_graph(ui, theme, &state.frame_times);
     row(ui, theme, "Entities", state.diag_entity_count.to_string());
+    // Live GPU light count (v0.782): lights are uncapped now, so this + FPS is
+    // how you find your GPU's real ceiling empirically.
+    row(ui, theme, "Lights", state.diag_light_count.to_string());
 }
 
 /// A small frame-time sparkline. Bars scale to a fixed 33 ms ceiling (30 FPS);
