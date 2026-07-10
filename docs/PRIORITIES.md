@@ -45,7 +45,11 @@
 >    native instances with DISTINCT identities, both in-world + connected to
 >    united-humanity.us, should see each other's avatars and the roster count
 >    tick up (web chat is NOT a co-presence participant - no game_join/position).
->    This is the mission-critical proof; the test needs a second client/person.
+>    This is the mission-critical proof; a second HUMAN remains wanted, but the
+>    v0.793 dev AUTOPILOT (debug/autopilot_request.json: zero-click ephemeral
+>    identity -> connect -> enter world) makes a scripted two-instance proof on
+>    one machine possible without one - see the co-presence test procedure in
+>    the journal.
 > 3. FIELD-REPORT CADENCE - operator plays, reports what is broken/ugly, I
 >    fix. DONE from this cadence: dev spawn + walk-up creature editor
 >    (v0.777-778), the 15-fix review sweep (v0.779), lighting arc (v0.780-781:
