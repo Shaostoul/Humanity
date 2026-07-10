@@ -285,7 +285,8 @@ To add a new material type: add an `else if` branch in `fs_main()` checking `mat
 | components.csv | 102 components | CSV | Yes | CraftingSystem |
 | plants.csv | 52 plants | CSV | Yes | FarmingSystem |
 | chemistry/*.csv | 396 entries | CSV | Yes | Content reference |
-| stars.csv | 119,627 stars | CSV | Yes | Stars renderer |
+| stars.bin | 119,625 stars | Binary (HOSSTAR1) | No | Stars renderer + constellation resolver (parsed once at world load; generated from stars.csv by `just build-stars`) |
+| stars.csv | 119,625 stars | CSV | No | Source of truth for stars.bin; runtime fallback when the .bin is absent |
 | solar_system/bodies.json | 70+ bodies | JSON | Yes | Hologram, navigation |
 | world/solar_system.ron | 645 lines | RON | Yes | World spawning |
 | world/spawn.ron | 19 lines | RON | Yes | Player spawn point |

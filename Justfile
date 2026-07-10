@@ -43,6 +43,14 @@ ship msg="chore: update":
     @just _commit "{{msg}}"
     @just sync
 
+# Regenerate data/stars.bin (compact binary star catalog, ~1.8 MB) from
+# data/stars.csv (HYG, 34 MB). The native renderer parses the .bin at startup;
+# the CSV stays as the human-readable source of truth. Self-verifying: the
+# script cross-checks sampled stars against the CSV before reporting success.
+# Run after ANY edit to data/stars.csv and commit the regenerated .bin.
+build-stars:
+    node scripts/build-stars-bin.js
+
 # Regenerate web/shared/theme.css + web/shared/settings.js theme-preset block
 # from data/gui/theme.ron + data/themes/presets.json (one-source theme rule).
 # Idempotent — running twice produces no diff. Wired into `just ship`.
