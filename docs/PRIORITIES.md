@@ -55,10 +55,25 @@
 >    glass_top; cuts its own apertures; no authored-door references; BOTH the
 >    move-the-door-desync AND the coincident-wall z-fight/walk-through fixed
 >    at the root; shipped RON migrated; regression tests encode both bugs).
+>    DONE (2026-07-10, v0.789-791): corridor punches through intervening
+>    zone shells + zone-drag guard (v0.789); build-mode gizmos - corridor
+>    mouth diamonds, strip point handles, spotlight rings (v0.790); SAVE
+>    SAFETY (v0.791: ship-structure 60s autosave + close flush, resilient
+>    load prunes bad corridors instead of reverting the whole ship,
+>    quarantine for unloadable files), Settings > Gameplay (hostile-wildlife
+>    toggle default OFF, vitals-drain slider + slowed base decay), orbit
+>    rings f64 + exact body splice (Earth sits ON its ring now).
+>    IN FLIGHT (two worktree agents, verify before merge): strip corner
+>    SUBDIVISION 0..100 + light emission along the curved tube (not the
+>    control polygon), gizmo redesign (rings = rotation-only at fixed
+>    viewport size + hover highlight; radius shown as icosphere wireframe),
+>    and Dev-page TELEPORT to any planet + FTL fly multiplier.
 >    NEXT UP from the cadence: corridor mouth door PANELS (animated doors +
 >    live colliders at the mouths - today they are open apertures). Plus a
 >    Dev/Creative/Normal MODE system so the operator builds the whole
 >    mothership in-game while normal players are limited to their homestead.
+>    Plus NPC INTERACTION (operator: "I can't interact with NPCs at all") -
+>    the npcs.ron dialogue arc; today crew NPCs have no walk-up action.
 >    DONE from that queue: lights UNCAPPED entirely (v0.782 storage buffer -
 >    the 8-light raise became a full removal), real constellations (v0.783,
 >    594 segments), palette light placement + RGB launcher cards (v0.784).
