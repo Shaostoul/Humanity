@@ -121,6 +121,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                 ("Wallet", SettingsCategory::Wallet),
                 ("Audio", SettingsCategory::Audio),
                 ("Graphics", SettingsCategory::Graphics),
+                ("Gameplay", SettingsCategory::Gameplay),
                 ("Controls", SettingsCategory::Controls),
                 ("Privacy", SettingsCategory::Privacy),
                 ("Data", SettingsCategory::Data),
@@ -172,6 +173,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                         SettingsCategory::Wallet,
                         SettingsCategory::Audio,
                         SettingsCategory::Graphics,
+                        SettingsCategory::Gameplay,
                         SettingsCategory::Controls,
                         SettingsCategory::Privacy,
                         SettingsCategory::Data,
@@ -195,6 +197,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                             SettingsCategory::Wallet => "Wallet",
                             SettingsCategory::Audio => "Audio",
                             SettingsCategory::Graphics => "Graphics",
+                            SettingsCategory::Gameplay => "Gameplay",
                             SettingsCategory::Controls => "Controls",
                             SettingsCategory::Privacy => "Privacy",
                             SettingsCategory::Data => "Data",
@@ -218,6 +221,7 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
                             SettingsCategory::Wallet => draw_wallet_content(ui, theme, state),
                             SettingsCategory::Audio => draw_audio_content(ui, theme, state),
                             SettingsCategory::Graphics => draw_graphics_content(ui, theme, state),
+                            SettingsCategory::Gameplay => draw_gameplay_content(ui, theme, state),
                             SettingsCategory::Controls => draw_controls_content(ui, theme, state),
                             SettingsCategory::Privacy => draw_privacy_content(ui, theme, state),
                             SettingsCategory::Data => draw_data_content(ui, theme, state),
@@ -1861,6 +1865,65 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
     });
 }
 
+/// Settings > Gameplay (v0.791): survival tuning + which home design loads.
+/// Born from an operator field report ("disable the wolves... extend the
+/// dehydration time. I keep getting killed and its annoying").
+pub(crate) fn draw_gameplay_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::card(ui, theme, |ui| {
+        ui.label(RichText::new("Survival").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        if widgets::toggle(ui, theme, "Hostile wildlife", &mut state.settings.hostile_wildlife) {
+            state.settings_dirty = true;
+        }
+        ui.label(
+            RichText::new(
+                "Wolf packs and other predators in the wilds. Off removes them \
+                 immediately; turning it on repopulates next time you enter the \
+                 world. The Dev spawn page can always place any creature.",
+            )
+            .color(theme.text_muted())
+            .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_sm);
+        if widgets::labeled_slider(ui, theme, "Vitals drain", &mut state.settings.vitals_drain, 0.0..=3.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(
+            RichText::new(
+                "How fast hunger, thirst, and energy fall. 1.0 = normal (about \
+                 half an hour from full to empty), 0 = survival needs paused.",
+            )
+            .color(theme.text_muted())
+            .size(theme.font_size_small),
+        );
+
+        ui.add_space(theme.spacing_lg);
+        // Household size (2026-07-01, moved here from Data in v0.791): which home design
+        // data/machines/*.ron loads. Two real, fully-authored designs exist -- the default
+        // family-scale home.ron and a one-person self-sufficient design (home_solo.ron,
+        // see docs/design/homestead-solo-design.md) sized to real one-person kWh/L/kcal
+        // needs. GUI-first per the project's own rule.
+        ui.label(RichText::new("Home Design").color(theme.text_secondary()).strong());
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
+        );
+        ui.add_space(theme.spacing_sm);
+        let mut is_family = state.settings.home_variant != "home_solo";
+        let mut is_solo = state.settings.home_variant == "home_solo";
+        if ui.radio_value(&mut is_family, true, "Family (default) -- 3-person self-sufficient design").changed() && is_family {
+            state.settings.home_variant = "home".to_string();
+            state.settings_dirty = true;
+        }
+        if ui.radio_value(&mut is_solo, true, "Solo -- 1-person self-sufficient design").changed() && is_solo {
+            state.settings.home_variant = "home_solo".to_string();
+            state.settings_dirty = true;
+        }
+    });
+}
+
 pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         // Range max 1.0 keeps the slider in the usable band AND selects the widget's
@@ -2076,32 +2139,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
         }
 
         ui.add_space(theme.spacing_lg);
-        // Household size (2026-07-01): which home design data/machines/*.ron loads. Two
-        // real, fully-authored designs exist -- the default family-scale home.ron and a
-        // one-person self-sufficient design (home_solo.ron, see
-        // docs/design/homestead-solo-design.md) sized to real one-person kWh/L/kcal needs.
-        // GUI-first per the project's own rule: this used to be impossible to change at
-        // all (the loader had ONE hardcoded path), now it's a real, discoverable toggle.
-        ui.label(RichText::new("Home Design").color(theme.text_secondary()).strong());
-        ui.add_space(theme.spacing_xs);
-        ui.label(
-            RichText::new("Which pre-built homestead loads. Takes effect next time you enter the world (restart HumanityOS to apply immediately).")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
-        ui.add_space(theme.spacing_sm);
-        let mut is_family = state.settings.home_variant != "home_solo";
-        let mut is_solo = state.settings.home_variant == "home_solo";
-        if ui.radio_value(&mut is_family, true, "Family (default) -- 3-person self-sufficient design").changed() && is_family {
-            state.settings.home_variant = "home".to_string();
-            state.settings_dirty = true;
-        }
-        if ui.radio_value(&mut is_solo, true, "Solo -- 1-person self-sufficient design").changed() && is_solo {
-            state.settings.home_variant = "home_solo".to_string();
-            state.settings_dirty = true;
-        }
-
-        ui.add_space(theme.spacing_lg);
+        // (Home Design moved to Settings > Gameplay in v0.791.)
 
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);

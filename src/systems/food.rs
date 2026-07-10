@@ -58,10 +58,14 @@ const CANNED_MULT: f32 = 100.0;
 
 // ── Nutrition tuning (real-time seconds; dev values, tunable — could move to
 //    food_system.ron config later). Vitals run 0..100. ──────────────────────
-/// Satiation lost per real second (full -> hungry threshold in ~12 min).
-const SATIATION_DECAY_PER_SEC: f32 = 0.10;
-/// Hydration lost per real second (slightly faster than hunger; ~10 min).
-const HYDRATION_DECAY_PER_SEC: f32 = 0.13;
+/// Satiation lost per real second (full -> hungry threshold in ~31 min).
+/// v0.791: slowed 0.10 -> 0.04 (operator: dying to vitals mid-exploration is
+/// annoying, not fun). Scaled live by the Settings > Gameplay "Vitals drain"
+/// slider (the "vitals_drain_scale" DataStore slot).
+const SATIATION_DECAY_PER_SEC: f32 = 0.04;
+/// Hydration lost per real second (slightly faster than hunger; full -> empty
+/// in ~33 min). v0.791: slowed 0.13 -> 0.05, same operator report.
+const HYDRATION_DECAY_PER_SEC: f32 = 0.05;
 /// Below this satiation the `hungry` condition applies.
 const HUNGRY_THRESHOLD: f32 = 25.0;
 /// Below this hydration the `thirsty` condition applies.
@@ -426,6 +430,14 @@ impl System for FoodSystem {
         // insulated coat halves freezing damage. Same stat grammar as buffs.
         let equipment = data
             .get::<crate::systems::economy::EquipmentRegistry>("equipment_registry");
+        // Settings > Gameplay "Vitals drain" slider (v0.791): scales how fast
+        // hunger/thirst/energy fall. 1.0 = normal, 0.0 = paused survival needs.
+        // Written every frame by lib.rs from the persisted setting.
+        let drain_scale = data
+            .get::<std::sync::Mutex<f32>>("vitals_drain_scale")
+            .and_then(|m| m.lock().ok().map(|g| *g))
+            .unwrap_or(1.0)
+            .clamp(0.0, 5.0);
         for (e, (vitals, effects, health, ctrl, dead, outfit)) in world.query_mut::<(
             &mut Vitals,
             &mut StatusEffects,
@@ -453,8 +465,10 @@ impl System for FoodSystem {
             // ("You died: starvation") if this is the tick that reaches zero.
             let mut worst: (&str, f32) = ("", 0.0);
 
-            vitals.satiation = (vitals.satiation - SATIATION_DECAY_PER_SEC * dt).max(0.0);
-            vitals.hydration = (vitals.hydration - HYDRATION_DECAY_PER_SEC * dt).max(0.0);
+            vitals.satiation =
+                (vitals.satiation - SATIATION_DECAY_PER_SEC * drain_scale * dt).max(0.0);
+            vitals.hydration =
+                (vitals.hydration - HYDRATION_DECAY_PER_SEC * drain_scale * dt).max(0.0);
             if vitals.satiation < HUNGRY_THRESHOLD {
                 effects.apply("hungry", CONDITION_LINGER);
             } else {
@@ -481,7 +495,7 @@ impl System for FoodSystem {
             }
 
             // Energy drains while awake; low energy -> fatigued (speed debuff, #3b).
-            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * dt).max(0.0);
+            vitals.energy = (vitals.energy - ENERGY_DECAY_PER_SEC * drain_scale * dt).max(0.0);
             if vitals.energy < FATIGUED_THRESHOLD {
                 effects.apply("fatigued", CONDITION_LINGER);
             } else {
@@ -733,6 +747,40 @@ mod nutrition_tests {
         }
     }
 
+    /// v0.791 Settings > Gameplay "Vitals drain": the slider scales hunger/
+    /// thirst/energy decay; 0 pauses survival needs entirely.
+    #[test]
+    fn vitals_drain_scale_slows_and_pauses_decay() {
+        let mut sys = FoodSystem::new(data_dir());
+        let mut data = make_store();
+        data.insert("vitals_drain_scale", std::sync::Mutex::new(0.0_f32));
+        let mut world = hecs::World::new();
+        let e = world.spawn((
+            Inventory::new(4),
+            vitals(50.0, 50.0),
+            StatusEffects::default(),
+            Health { current: 100.0, max: 100.0 },
+        ));
+        // Scale 0: an hour passes, nothing drains.
+        sys.tick(&mut world, 3600.0, &data);
+        {
+            let v = world.get::<&Vitals>(e).unwrap();
+            assert_eq!(v.satiation, 50.0, "satiation paused at scale 0");
+            assert_eq!(v.hydration, 50.0, "hydration paused at scale 0");
+            assert_eq!(v.energy, 100.0, "energy paused at scale 0");
+        }
+        // Scale 2: decays exactly twice the base rate.
+        *data
+            .get::<std::sync::Mutex<f32>>("vitals_drain_scale")
+            .unwrap()
+            .lock()
+            .unwrap() = 2.0;
+        sys.tick(&mut world, 10.0, &data);
+        let v = world.get::<&Vitals>(e).unwrap();
+        assert!((v.hydration - (50.0 - HYDRATION_DECAY_PER_SEC * 2.0 * 10.0)).abs() < 1e-3);
+        assert!((v.satiation - (50.0 - SATIATION_DECAY_PER_SEC * 2.0 * 10.0)).abs() < 1e-3);
+    }
+
     /// v0.750 GEAR RESISTS (ladder rung 8): a winter coat (cold_resist 0.6)
     /// takes 60 percent off the freezing health drain — clothing is survival
     /// equipment now, not a cosmetic.
@@ -835,7 +883,7 @@ mod nutrition_tests {
         ));
 
         // Starvation drains 1 HP/s; 2 HP is gone within three 1s ticks, while
-        // hydration (80, decaying 0.13/s) stays far from zero — so the cause
+        // hydration (80, decaying slowly) stays far from zero — so the cause
         // is unambiguously starvation.
         for _ in 0..3 {
             sys.tick(&mut world, 1.0, &data);

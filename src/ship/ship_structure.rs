@@ -640,22 +640,65 @@ impl ShipStructure {
         }
     }
 
-    /// Load from RON, validating. None (with a warning) on a missing/invalid file -- the caller
-    /// falls back exactly as it did for a broken home_structure.ron.
+    /// Load from RON. None (with a loud warning + quarantine) only when the file is truly
+    /// unusable -- the caller falls back exactly as it did for a broken home_structure.ron.
+    ///
+    /// RESILIENCE (v0.791, the v0.788-migration lesson): a rejected load silently reverts the
+    /// player's ENTIRE ship to the shipped default, which reads as "all my saves are gone".
+    /// So a validate failure no longer costs the whole file: unresolvable corridors are
+    /// pruned (same rule as save) and every zone is kept. Only a parse error or zone-level
+    /// invalidity (duplicate/empty ids -- unreachable through the editor) still falls back,
+    /// and then the bad file is QUARANTINED (renamed, never overwritten) so the player's
+    /// data stays recoverable instead of being clobbered by the next Save.
     pub fn load(path: &Path) -> Option<Self> {
         let text = std::fs::read_to_string(path).ok()?;
         match ron::from_str::<ShipStructure>(&text) {
-            Ok(s) => match s.validate() {
+            Ok(mut s) => match s.validate() {
                 Ok(()) => Some(s),
                 Err(e) => {
-                    log::warn!("ship_structure: {} is invalid: {e}", path.display());
-                    None
+                    let pruned = s.prune_invalid_corridors();
+                    match s.validate() {
+                        Ok(()) => {
+                            log::warn!(
+                                "ship_structure: {} had {pruned} unresolvable corridor(s) ({e}); dropped them and kept every zone",
+                                path.display()
+                            );
+                            Some(s)
+                        }
+                        Err(e2) => {
+                            Self::quarantine(path, &format!("invalid beyond corridor pruning: {e2}"));
+                            None
+                        }
+                    }
                 }
             },
             Err(e) => {
-                log::warn!("ship_structure: failed to parse {}: {e}", path.display());
+                Self::quarantine(path, &format!("failed to parse: {e}"));
                 None
             }
+        }
+    }
+
+    /// Move an unloadable structure file aside (`ship_structure.invalid-<unix>.ron`) so the
+    /// fallback default can never overwrite the player's data, and the file stays on disk
+    /// for hand recovery. Best-effort: a failed rename leaves the file in place (still safe
+    /// -- Save only writes when a structure actually loaded).
+    fn quarantine(path: &Path, why: &str) {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let dest = path.with_extension(format!("invalid-{stamp}.ron"));
+        match std::fs::rename(path, &dest) {
+            Ok(()) => log::error!(
+                "ship_structure: {} {why}; QUARANTINED to {} (your build data is preserved there; the shipped default loads instead)",
+                path.display(),
+                dest.display()
+            ),
+            Err(re) => log::error!(
+                "ship_structure: {} {why}; quarantine rename also failed ({re}) -- file left in place",
+                path.display()
+            ),
         }
     }
 
@@ -1165,6 +1208,56 @@ mod tests {
         assert!((back.corridors[0].door_width - 1.0).abs() < 1e-6);
         assert!((back.corridors[0].door_height - 2.1).abs() < 1e-6);
         assert!(!back.corridors[0].glass_top);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_bad_corridor_no_longer_costs_the_whole_ship_on_load() {
+        // The v0.788-migration lesson: validate() rejecting one unresolvable corridor used to
+        // return None -> the caller silently reverted the player's ENTIRE ship to the shipped
+        // default ("all my saves are gone"). Load now prunes the bad row and keeps every zone.
+        let mut ship = two_zone_ship();
+        ship.corridors.push(ShipCorridor {
+            from_zone: "home".to_string(),
+            to_zone: "nonexistent".to_string(),
+            lat: 5.0,
+            width: 3.0,
+            door_width: 2.0,
+            door_height: 2.2,
+            glass_top: false,
+        });
+        let dir = temp_path("bad_corridor_load");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("ship_structure.ron");
+        // Write WITHOUT save()'s pruning (raw serialize) to simulate a stale/migrated file.
+        let body = ron::ser::to_string_pretty(
+            &ship,
+            ron::ser::PrettyConfig::default().struct_names(false),
+        )
+        .unwrap();
+        std::fs::write(&path, body).unwrap();
+        let back = ShipStructure::load(&path).expect("zones survive a bad corridor row");
+        assert_eq!(back.zones.len(), 2, "every zone kept");
+        assert!(back.corridors.is_empty(), "the unresolvable corridor was pruned");
+        assert!(path.exists(), "a recoverable file is never quarantined");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_unparseable_file_is_quarantined_not_left_to_be_clobbered() {
+        // Parse garbage -> load falls back, but the file must be MOVED ASIDE so a later Save
+        // (writing the fallback default) can never overwrite the player's only copy.
+        let dir = temp_path("quarantine_load");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("ship_structure.ron");
+        std::fs::write(&path, "(zones: [this is not valid RON").unwrap();
+        assert!(ShipStructure::load(&path).is_none(), "garbage does not load");
+        assert!(!path.exists(), "the bad file was renamed away");
+        let quarantined = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .any(|e| e.file_name().to_string_lossy().starts_with("ship_structure.invalid-"));
+        assert!(quarantined, "the bad file is preserved under ship_structure.invalid-<ts>.ron");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

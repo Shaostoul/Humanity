@@ -210,6 +210,15 @@ pub struct AppConfig {
     /// back to `"home"` at load time (see `MachineHome::load`'s caller), never panics.
     #[serde(default = "default_home_variant")]
     pub home_variant: String,
+    /// Spawn hostile wild creatures (wild_spawns.ron predator rows). Default
+    /// OFF pre-launch (v0.791, operator: "disable the wolves"); the Dev spawn
+    /// page still places hostiles deliberately.
+    #[serde(default)]
+    pub hostile_wildlife: bool,
+    /// Survival-needs speed: scales hunger/thirst/energy decay (1.0 = normal,
+    /// 0 = paused). Settings > Gameplay slider (v0.791).
+    #[serde(default = "default_vitals_drain")]
+    pub vitals_drain: f32,
 
     // ── v0.488: native voice input prefs ────────────────────────────────
     // The mic device + speaker device the user picked (empty => system
@@ -384,6 +393,7 @@ fn default_sfx_volume() -> f32 { 0.7 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
+fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
 fn default_panel_width() -> f32 { 220.0 }
@@ -632,6 +642,8 @@ impl AppConfig {
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             home_variant: state.settings.home_variant.clone(),
+            hostile_wildlife: state.settings.hostile_wildlife,
+            vitals_drain: state.settings.vitals_drain,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
             voice_input_device: state.audio_input_device.clone(),
             voice_output_device: state.audio_output_device.clone(),
@@ -721,6 +733,8 @@ impl AppConfig {
             .planet_max_subdiv
             .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
         state.settings.home_variant = self.home_variant.clone();
+        state.settings.hostile_wildlife = self.hostile_wildlife;
+        state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
         // v0.488 voice input prefs.
         state.audio_input_device = self.voice_input_device.clone();
         state.audio_output_device = self.voice_output_device.clone();

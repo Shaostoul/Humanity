@@ -1344,6 +1344,53 @@ mod native_app {
     /// connect) shows immediately instead of only on the next world entry. Positions come from the
     /// tested MachineHome::placements. The live ECS is kept in sync too as of v0.730 (see
     /// sync_machine_entities above); the connection pipes rebuild via rebuild_connection_objects.
+    /// Flush unsaved ship-structure + machine edits to disk (v0.791). Runs on the 60 s
+    /// autosave tick and on window close, so build edits survive a quit without the
+    /// explicit Save button (before this, ONLY the button persisted them -- inventory
+    /// autosaved but the ship didn't, which the operator read as "saves aren't saving").
+    /// Differences from the button on purpose: no spawn stamp (build_char_pos is only
+    /// meaningful while the build editor is open) and no corridor pruning (a mid-edit
+    /// broken corridor row must survive the autosave; load() prunes resiliently now).
+    fn autosave_ship_structure(state: &mut EngineState, force: bool) {
+        if !state.gui_state.construction_unsaved {
+            return;
+        }
+        // Self-throttle to once per 60 s (same pattern as save_load's periodic
+        // save); `force` (window close) flushes immediately.
+        static LAST_SECS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let last = LAST_SECS.load(std::sync::atomic::Ordering::Relaxed);
+        if !force {
+            if last == 0 {
+                // First armed frame: start the clock, don't save mid-edit instantly.
+                LAST_SECS.store(now, std::sync::atomic::Ordering::Relaxed);
+                return;
+            }
+            if now.saturating_sub(last) < 60 {
+                return;
+            }
+        }
+        LAST_SECS.store(now, std::sync::atomic::Ordering::Relaxed);
+        state.gui_state.construction_unsaved = false;
+        if let Some(ship) = &state.gui_state.ship_structure {
+            let path = state.data_dir.join("blueprints").join("ship_structure.ron");
+            match ship.save(&path) {
+                Ok(()) => log::info!("Autosave: ship structure written to ship_structure.ron"),
+                Err(e) => log::warn!("Autosave: ship structure save failed: {e}"),
+            }
+        }
+        if let Some(home) = &state.gui_state.home_machines {
+            let path = crate::machines::home_ron_path(&state.data_dir);
+            match home.save(&path) {
+                Ok(()) => log::info!("Autosave: machine layout written to {}", path.display()),
+                Err(e) => log::warn!("Autosave: machine save failed: {e}"),
+            }
+        }
+    }
+
     fn rebuild_machine_objects(state: &mut EngineState) {
         use std::collections::HashMap;
         let rooms: HashMap<String, crate::machines::RoomGeom> = state
@@ -4388,6 +4435,7 @@ mod native_app {
         // Fall back to the legacy AABB-room layout when neither file exists. All paths produce
         // HomesteadMeshes, so the render path is identical.
         let blueprints_dir = state.data_dir.join("blueprints");
+        let ship_file_existed = blueprints_dir.join("ship_structure.ron").exists();
         let (homestead, room_info) =
             if let Some(ship) = ShipStructure::load_or_adopt(&blueprints_dir) {
                 let meshes = ship.generate_meshes();
@@ -4401,6 +4449,18 @@ mod native_app {
                 state.gui_state.ship_structure = Some(ship);
                 (meshes, info)
             } else {
+                // TELL the player when this is a fallback, not a fresh start (v0.791):
+                // an unloadable ship_structure.ron is quarantined by load() and the
+                // default loads -- silently, this read as "all my saves are gone".
+                // (The file existing before load_or_adopt but not after = quarantined.)
+                if ship_file_existed {
+                    state.gui_state.construction_save_note =
+                        "ship_structure.ron failed to load; it was preserved as ship_structure.invalid-<time>.ron next to it and the default home loaded instead. See logs/run.log."
+                            .to_string();
+                    log::error!(
+                        "load_world: ship_structure.ron existed but did not load; the shipped default home is showing instead (the player's file was quarantined, not overwritten)"
+                    );
+                }
                 let layout = crate::ship::fibonacci::load_layout_or_fallback();
                 let meshes = crate::ship::fibonacci::generate_from_layout(&layout);
                 let info = meshes.room_info.clone();
@@ -4753,6 +4813,17 @@ mod native_app {
                         log::warn!("wild_spawns.ron: unknown creature {}", s.creature);
                         continue;
                     };
+                    // Settings > Gameplay "Hostile wildlife" (v0.791): predator/
+                    // aggressive rows only spawn when enabled (default OFF pre-launch;
+                    // operator: "disable the wolves"). Dev-page spawns are unaffected.
+                    if !state.gui_state.settings.hostile_wildlife
+                        && matches!(
+                            crate::systems::livestock::behavior_type_for(def),
+                            "predator" | "aggressive"
+                        )
+                    {
+                        continue;
+                    }
                     let center = Vec3::new(s.pos.0, 0.0, s.pos.1);
                     for i in 0..s.count {
                         let a = i as f32 * 2.399_963 + si as f32 * 1.7;
@@ -5051,15 +5122,13 @@ mod native_app {
             let kind = if parent == "sun" { "planet" } else { "moon" };
             let pts_au = crate::cosmos::sample_orbit_points(b, 96);
             if pts_au.len() < 3 { continue; }
-            let pts_m: Vec<[f32; 3]> = pts_au
+            // Keep the vertices in f64 (v0.791): they are ~1.5e11 m and the
+            // per-frame offset is the same magnitude with the opposite sign,
+            // so an f32 cache left tens-of-km cancellation jitter near the
+            // body -- one of the two reasons Earth sat visibly off its ring.
+            let pts_m: Vec<glam::DVec3> = pts_au
                 .iter()
-                .map(|p| {
-                    [
-                        (p.x * crate::cosmos::M_PER_AU) as f32,
-                        (p.y * crate::cosmos::M_PER_AU) as f32,
-                        (p.z * crate::cosmos::M_PER_AU) as f32,
-                    ]
-                })
+                .map(|p| *p * crate::cosmos::M_PER_AU)
                 .collect();
             state.solar_orbit_paths.push((pts_m, parent, kind.to_string(), b.id.clone()));
         }
@@ -5518,11 +5587,12 @@ mod native_app {
         /// per frame they're offset to the parent's Earth-relative
         /// position and drawn as a single-edge LineList that is
         /// depth-occluded behind planets.
-        /// (ellipse points in parent-frame metres, parent body id, kind
+        /// (ellipse points in parent-frame metres as f64 -- f32 at this
+        /// magnitude cancels against the offset, v0.791; parent body id, kind
         /// "planet"|"moon", body id) -- the Sky settings filter by kind at
         /// draw time; the body id anchors the direction-of-motion trail fade
         /// (v0.790) to the body's live position on its ring.
-        solar_orbit_paths: Vec<(Vec<[f32; 3]>, String, String, String)>,
+        solar_orbit_paths: Vec<(Vec<glam::DVec3>, String, String, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
         /// Placeholder world objects (mesh_idx, material_idx, world position) drawn
@@ -6039,6 +6109,10 @@ mod native_app {
                 std::sync::Mutex::new(Option::<String>::None),
             );
             data_store.insert("dev_stock_materials", std::sync::Mutex::new(false));
+            // Settings > Gameplay "Vitals drain" scale (v0.791): the food system
+            // multiplies hunger/thirst/energy decay by this each tick; the frame
+            // loop publishes the persisted slider value here.
+            data_store.insert("vitals_drain_scale", std::sync::Mutex::new(1.0_f32));
             data_store.insert(
                 "consume_request",
                 std::sync::Mutex::new(Option::<String>::None),
@@ -6706,6 +6780,10 @@ mod native_app {
                     // player entity exists from startup, so this captures the loaded
                     // or modified inventory + skills, round-tripping the save.
                     crate::save_load::save_active_home(&state.game_world.world, &state.gui_state.placed_items);
+                    // Flush unsaved build edits too (v0.791): quitting without the
+                    // explicit Save button used to silently drop every wall/light/
+                    // strip/corridor edit since the last click.
+                    autosave_ship_structure(state, true);
                     event_loop.exit();
                 }
                 WindowEvent::Resized(size) => {
@@ -8922,6 +9000,54 @@ mod native_app {
                         &state.gui_state.placed_items,
                         120,
                     );
+                    // Ship-structure autosave (v0.791): build edits used to persist
+                    // ONLY through the explicit Save button; this + the close flush
+                    // make walls/lights/strips/corridors as durable as inventory.
+                    autosave_ship_structure(state, false);
+
+                    // Settings > Gameplay live wiring (v0.791).
+                    // 1) Vitals-drain scale: publish the persisted slider to the slot
+                    //    the food system reads each tick.
+                    if let Some(m) = state
+                        .data_store
+                        .get::<std::sync::Mutex<f32>>("vitals_drain_scale")
+                    {
+                        if let Ok(mut g) = m.lock() {
+                            *g = state.gui_state.settings.vitals_drain;
+                        }
+                    }
+                    // 2) Hostile wildlife: flipping OFF despawns wild hostiles
+                    //    immediately. Transition-triggered on purpose -- creatures the
+                    //    operator spawns deliberately from the Dev page while the
+                    //    setting is off must survive.
+                    {
+                        use std::sync::atomic::{AtomicU8, Ordering};
+                        static PREV_HOSTILE: AtomicU8 = AtomicU8::new(u8::MAX);
+                        let cur = state.gui_state.settings.hostile_wildlife as u8;
+                        let prev = PREV_HOSTILE.swap(cur, Ordering::Relaxed);
+                        if prev == 1 && cur == 0 {
+                            let doomed: Vec<hecs::Entity> = state
+                                .game_world
+                                .world
+                                .query::<(
+                                    &crate::ecs::components::Creature,
+                                    &crate::ecs::components::AIBehavior,
+                                )>()
+                                .iter()
+                                .filter(|(_, (_, ai))| {
+                                    matches!(ai.behavior_type.as_str(), "predator" | "aggressive")
+                                })
+                                .map(|(e, _)| e)
+                                .collect();
+                            let n = doomed.len();
+                            for e in doomed {
+                                let _ = state.game_world.world.despawn(e);
+                            }
+                            if n > 0 {
+                                log::info!("Hostile wildlife off: despawned {n} hostile(s)");
+                            }
+                        }
+                    }
 
                     // ── Character-select showroom sync (v0.441): apply the panel's edits ──
                     // Rebuild the avatar when appearance changed (it is the tail of
@@ -9180,6 +9306,12 @@ mod native_app {
                         let edited = state.gui_state.construction_structure_dirty
                             || state.gui_state.construction_machines_dirty;
                         construction_history_tick(state, edited);
+                        // Arm the autosave (v0.791): any structure/machine edit means there
+                        // is unsaved ship state. The 60 s autosave + window-close flush
+                        // persist it; the explicit Save button also clears it.
+                        if edited {
+                            state.gui_state.construction_unsaved = true;
+                        }
                     }
                     // Machine-only edit (offset / add / remove / connect): refresh just the machine
                     // meshes so the change shows live, without a full room rebuild. (v0.525)
@@ -11349,41 +11481,42 @@ mod native_app {
                                     .map(|p| crate::cosmos::body_world_position_3d_au(p, sim_t))
                                     .unwrap_or(glam::DVec3::ZERO)
                             };
-                            let off = (parent_helio_au - earth_helio_au)
+                            // ALL ring math stays in f64 until the final cast (v0.791):
+                            // vertices and offset are both ~1.5e11 m with opposite
+                            // signs; summing them in f32 left tens-of-km cancellation
+                            // jitter (the sphere path computes in f64, so the ring
+                            // visibly disagreed with its planet).
+                            let off_d = (parent_helio_au - earth_helio_au)
                                 * crate::cosmos::M_PER_AU
                                 - state.ship_world_pos;
-                            let off = [off.x as f32, off.y as f32, off.z as f32];
-                            // Direction-of-motion trail fade (v0.790, operator): the
-                            // arc immediately BEHIND the body's live position fades
-                            // to black as it reaches the body, so the ring reads as
-                            // "the planet is HERE, moving THAT way" at a glance.
-                            // Find the sample index nearest the body's parent-frame
-                            // position (orbit samples advance with true anomaly, so
-                            // lower indices trail the body).
-                            let body_i0: Option<usize> = crate::cosmos::find_body(body_id)
-                                .map(|b| {
+                            // Body's live parent-frame position: anchors the v0.790
+                            // trail fade AND is SPLICED into the ring in place of the
+                            // nearest sample, so the polyline passes exactly through
+                            // the planet. A 96-chord ellipse otherwise cuts ~80,000 km
+                            // inside the true orbit at 1 AU -- from the ship (sitting
+                            // essentially ON Earth's orbit) that chord gap read as
+                            // "Earth is off its ring" (v0.791, operator field report).
+                            let body_at: Option<(usize, glam::DVec3)> =
+                                crate::cosmos::find_body(body_id).map(|b| {
                                     let bp = (crate::cosmos::body_world_position_3d_au(b, sim_t)
                                         - parent_helio_au)
                                         * crate::cosmos::M_PER_AU;
-                                    let bp = [bp.x as f32, bp.y as f32, bp.z as f32];
                                     let mut best = 0usize;
-                                    let mut best_d = f32::MAX;
+                                    let mut best_d = f64::MAX;
                                     for (i, p) in pts_m.iter().enumerate() {
-                                        let d = (p[0] - bp[0]).powi(2)
-                                            + (p[1] - bp[1]).powi(2)
-                                            + (p[2] - bp[2]).powi(2);
+                                        let d = p.distance_squared(bp);
                                         if d < best_d {
                                             best_d = d;
                                             best = i;
                                         }
                                     }
-                                    best
+                                    (best, bp)
                                 });
                             // ~10 of 96 samples = a ~38 degree fading wake.
                             const FADE_SAMPLES: usize = 10;
                             let n = pts_m.len();
                             let fade = |i: usize| -> f32 {
-                                let Some(i0) = body_i0 else { return 1.0 };
+                                let Some((i0, _)) = body_at else { return 1.0 };
                                 let behind = (i0 + n - i) % n;
                                 (behind.min(FADE_SAMPLES) as f32) / FADE_SAMPLES as f32
                             };
@@ -11395,15 +11528,21 @@ mod native_app {
                                     orbit_rgba[3],
                                 ]
                             };
-                            for (si, seg) in pts_m.windows(2).enumerate() {
-                                let a = [seg[0][0] + off[0], seg[0][1] + off[1], seg[0][2] + off[2]];
-                                let b = [seg[1][0] + off[0], seg[1][1] + off[1], seg[1][2] + off[2]];
+                            let world = |i: usize| -> [f32; 3] {
+                                let p = match body_at {
+                                    Some((i0, bp)) if i0 == i => bp,
+                                    _ => pts_m[i],
+                                };
+                                let w = p + off_d;
+                                [w.x as f32, w.y as f32, w.z as f32]
+                            };
+                            for si in 0..n.saturating_sub(1) {
                                 orbit_lines.push(crate::renderer::line::LineVertex {
-                                    position: a,
+                                    position: world(si),
                                     color: tint(fade(si)),
                                 });
                                 orbit_lines.push(crate::renderer::line::LineVertex {
-                                    position: b,
+                                    position: world(si + 1),
                                     color: tint(fade(si + 1)),
                                 });
                             }

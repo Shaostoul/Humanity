@@ -2773,6 +2773,12 @@ pub struct GuiState {
     /// Set by the panel on a MACHINE edit (offset / add / remove / connect) -> the engine refreshes
     /// just the machine meshes live, no full room rebuild. (v0.525)
     pub construction_machines_dirty: bool,
+    /// Armed whenever a structure or machine edit lands (the dirty consumers set it); the engine's
+    /// 60 s autosave + the window-close flush write ship_structure.ron/home.ron and clear it.
+    /// Before v0.791 the ship persisted ONLY through the explicit Save button -- quit without
+    /// clicking and every wall/light/strip edit was silently lost (inventory autosaves; the ship
+    /// didn't), which the operator read as "my saves aren't saving".
+    pub construction_unsaved: bool,
     /// Footer placement-palette state (v0.527): the selected category tab, whether the grid is
     /// expanded (1 row -> multi-row).
     pub construction_palette_category: String,
@@ -4206,6 +4212,7 @@ impl Default for GuiState {
             construction_level: 0,
             construction_dirty: false,
             construction_machines_dirty: false,
+            construction_unsaved: false,
             ship_structure: None,
             construction_zone: 0,
             construction_zone_delete_arm: false,
@@ -5901,6 +5908,7 @@ pub enum SettingsCategory {
     Wallet,
     Audio,
     Graphics,
+    Gameplay,
     Controls,
     Privacy,
     Data,
@@ -5978,6 +5986,16 @@ pub struct SettingsState {
     /// home_ron_path` at world-load time -- changing this takes effect on next
     /// world load, not live mid-session (see the Settings UI's own note).
     pub home_variant: String,
+    /// Spawn hostile wild creatures (wolf packs etc. from wild_spawns.ron).
+    /// Default OFF pre-launch (v0.791, operator: "disable the wolves") -- the
+    /// Dev spawn page still places any creature deliberately. Turning it off
+    /// mid-session despawns live hostiles; turning it on repopulates on the
+    /// next world load. Revisit the default when the Normal/Creative/Dev mode
+    /// system lands (task #50).
+    pub hostile_wildlife: bool,
+    /// Survival-needs speed: scales hunger/thirst/energy decay in the food
+    /// system (1.0 = normal, 0 = paused). v0.791, with slowed base rates.
+    pub vitals_drain: f32,
     // Wallet
     pub wallet_network: WalletNetwork,
     pub custom_rpc_url: String,
@@ -6021,6 +6039,8 @@ impl Default for SettingsState {
             dnd_start: String::new(),
             dnd_end: String::new(),
             home_variant: "home".to_string(),
+            hostile_wildlife: false,
+            vitals_drain: 1.0,
             wallet_network: WalletNetwork::Devnet,
             custom_rpc_url: String::new(),
             profile_visible: true,
