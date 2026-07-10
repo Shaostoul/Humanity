@@ -1975,6 +1975,95 @@ mod native_app {
         let _ = std::fs::write(DONE_PATH, done.to_string());
     }
 
+    /// Dev autopilot (v0.793): drive an instance into the shared world with ZERO
+    /// clicks, for scripted co-presence tests (two instances on one machine) and
+    /// future CI smoke tests. Mirrors the proven `poll_screenshot_request`
+    /// pattern: drop `debug/autopilot_request.json` under the process CWD, e.g.
+    ///   {"server_url":"https://united-humanity.us","user_name":"autotest-a","character_name":"TestPilot A"}
+    /// (all fields optional) and the next frame consumes it, doing exactly what
+    /// the manual menu flow would set:
+    ///   1. storage undecided -> installed mode (drop a `portable.txt` beside the
+    ///      exe BEFORE launch to make a portable/second-identity instance);
+    ///   2. no identity in memory -> generate a fresh EPHEMERAL seed (memory-only,
+    ///      no passphrase, never written to disk) + apply_pq_identity();
+    ///   3. onboarding_complete + server_url/user_name -> the existing
+    ///      auto-connect block opens the socket on its own;
+    ///   4. active_page = None -> load_world fires -> the co-presence gate sends
+    ///      game_join once the socket is up.
+    /// Writes `debug/autopilot_done.json` and deletes the request either way.
+    /// Permanent dev tooling (forever-development norm), not a player feature:
+    /// the ephemeral identity is throwaway by design and never touches a vault.
+    fn poll_autopilot_request(state: &mut EngineState) {
+        const REQUEST_PATH: &str = "debug/autopilot_request.json";
+        const DONE_PATH: &str = "debug/autopilot_done.json";
+        if !std::path::Path::new(REQUEST_PATH).exists() {
+            return;
+        }
+        let parsed = std::fs::read_to_string(REQUEST_PATH)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+        // Consumed either way (same rule as the screenshot poll): a malformed
+        // request must not retry every frame forever.
+        let _ = std::fs::remove_file(REQUEST_PATH);
+        let _ = std::fs::create_dir_all("debug");
+        let Some(req) = parsed else {
+            let _ = std::fs::write(
+                DONE_PATH,
+                serde_json::json!({"ok": false, "error": "unreadable or invalid JSON"}).to_string(),
+            );
+            return;
+        };
+        if crate::storage::mode() == crate::storage::StorageMode::Undecided {
+            crate::storage::choose_installed();
+        }
+        if state.gui_state.private_key_bytes.is_none() {
+            state.gui_state.private_key_bytes =
+                Some(crate::net::identity::generate_new_seed());
+            // Derives Dilithium+Kyber and clears the reconnect guards so the
+            // auto-connect block re-fires. Deliberately NOT setting
+            // passphrase_needed: this identity is throwaway and must not gate
+            // on a modal.
+            state.gui_state.apply_pq_identity();
+        }
+        if let Some(url) = req.get("server_url").and_then(|v| v.as_str()) {
+            state.gui_state.server_url = url.to_string();
+        }
+        if let Some(n) = req.get("user_name").and_then(|v| v.as_str()) {
+            state.gui_state.user_name = n.to_string();
+        }
+        if let Some(n) = req.get("character_name").and_then(|v| v.as_str()) {
+            state.gui_state.character_name = n.to_string();
+        }
+        if state.gui_state.user_name.trim().is_empty() {
+            // The auto-connect gate requires a non-empty chat name.
+            state.gui_state.user_name = "Autopilot".to_string();
+        }
+        state.gui_state.onboarding_complete = true;
+        state.gui_state.showroom_active = false;
+        state.gui_state.construction_active = false;
+        state.gui_state.active_page = GuiPage::None;
+        let key_prefix: String =
+            state.gui_state.profile_public_key.chars().take(12).collect();
+        log::info!(
+            "Autopilot: entering world as '{}' (chat name '{}') on {} (identity {}...)",
+            state.gui_state.character_name,
+            state.gui_state.user_name,
+            state.gui_state.server_url,
+            key_prefix
+        );
+        let _ = std::fs::write(
+            DONE_PATH,
+            serde_json::json!({
+                "ok": true,
+                "server_url": state.gui_state.server_url,
+                "user_name": state.gui_state.user_name,
+                "character_name": state.gui_state.character_name,
+                "public_key_prefix": key_prefix,
+            })
+            .to_string(),
+        );
+    }
+
     /// Monotonic-per-session output path for a captured screenshot. Pulled out of
     /// `poll_screenshot_request` so the naming is directly testable without a GPU.
     fn screenshot_output_path(counter: u32) -> String {
@@ -13952,6 +14041,11 @@ mod native_app {
                             })
                             .unwrap_or(false);
                     }
+
+                    // Dev autopilot (v0.793): zero-click world entry for scripted
+                    // co-presence tests. Runs immediately BEFORE the auto-connect
+                    // block so a dropped request is honored the same frame.
+                    poll_autopilot_request(state);
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must

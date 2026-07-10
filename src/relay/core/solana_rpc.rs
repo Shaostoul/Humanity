@@ -12,8 +12,10 @@
 //! ```
 //!
 //! The server's identity remains Dilithium3 — Solana support is purely an
-//! optional payment substrate. Users derive a Solana keypair from the same
-//! BIP39 seed via a separate KDF path (`hum/solana/v1`) — the chat client
+//! optional payment substrate. The user's Solana wallet IS the Ed25519
+//! keypair derived from their 24-word BIP39 seed (a separate key from the
+//! Dilithium3 chat identity; no distinct `hum/solana/v1` KDF path exists,
+//! that label was an earlier design that never shipped) — the chat client
 //! handles signing entirely. The relay only proxies balance lookups so the UI
 //! can show "your wallet holds X SOL" without each client hammering an RPC.
 
