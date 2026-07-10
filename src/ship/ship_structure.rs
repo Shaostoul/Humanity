@@ -372,6 +372,42 @@ impl ShipStructure {
         })
     }
 
+    /// The valid `lat` range for a corridor row -- the centreline positions that keep the whole
+    /// door mouth inside both zones' shared span across the run -- or None when the pair cannot
+    /// host a corridor at all (unknown zone, no clear axis gap, shared span too narrow for the
+    /// door). Mirrors `corridor_geometry`'s box math WITHOUT the error strings so the viewport
+    /// mouth-drag (v0.790) can CLAMP a drag to legal positions instead of writing a lat the
+    /// resolver would reject. `corridor_geometry` stays the single validator for everything
+    /// else: a dragged row still re-resolves through it on every rebuild, so even a disagreement
+    /// here would only skip that corridor's mesh (the Corridors panel shows why), never crash.
+    pub fn corridor_lat_limits(&self, c: &ShipCorridor) -> Option<(f32, f32)> {
+        let zf = &self.zones[self.zone_index(&c.from_zone)?];
+        let zt = &self.zones[self.zone_index(&c.to_zone)?];
+        let of = zf.origin_vec();
+        let ot = zt.origin_vec();
+        // World-XZ footprints (min, max) of both zone boxes -- the same inputs the resolver uses.
+        let (f_min, f_max) = ((of.x, of.z), (of.x + zf.body.width, of.z + zf.body.depth));
+        let (t_min, t_max) = ((ot.x, ot.z), (ot.x + zt.body.width, ot.z + zt.body.depth));
+        let gap_x = (t_min.0 - f_max.0).max(f_min.0 - t_max.0);
+        let gap_z = (t_min.1 - f_max.1).max(f_min.1 - t_max.1);
+        if gap_x.max(gap_z) < CORRIDOR_MIN_RUN {
+            return None; // boxes overlap/touch (also covers from == to) -- no run, no lat range
+        }
+        let axis = if gap_x >= gap_z { CorridorAxis::X } else { CorridorAxis::Z };
+        // The zones' spans on the axis ACROSS the run; the mouth must fit inside the overlap.
+        let (f_lo, f_hi, t_lo, t_hi) = match axis {
+            CorridorAxis::X => (f_min.1, f_max.1, t_min.1, t_max.1),
+            CorridorAxis::Z => (f_min.0, f_max.0, t_min.0, t_max.0),
+        };
+        let (lo, hi) = (f_lo.max(t_lo), f_hi.min(t_hi));
+        let half_door = c.door_width * 0.5;
+        let (lat_lo, lat_hi) = (lo + half_door, hi - half_door);
+        if lat_hi < lat_lo {
+            return None; // shared span narrower than the door
+        }
+        Some((lat_lo, lat_hi))
+    }
+
     /// The corridor APERTURES through zone `zi`'s perimeter shell: for each valid corridor ending
     /// in this zone, one door-sized cut through the perimeter face its tube leaves by (the face in
     /// the run direction toward the other zone). The cut is the corridor's OWN door mouth
@@ -1201,6 +1237,31 @@ mod tests {
         // And exactly at the margin is fine.
         ship.corridors[0].lat = 2.5;
         assert!(ship.validate().is_ok(), "lat at the margin boundary is accepted");
+    }
+
+    #[test]
+    fn corridor_lat_limits_agree_with_the_validator() {
+        let mut ship = corridor_ship();
+        // Shared z span is 2..10 (home z 0..10, commons z 2..10); the 1 m door needs half a
+        // metre of margin each side -> legal lat 2.5..9.5 (the range the validator's error
+        // message names in corridor_rejects_a_lat_outside_the_shared_span).
+        let (lo, hi) = ship.corridor_lat_limits(&ship.corridors[0]).expect("resolvable pair");
+        assert!((lo - 2.5).abs() < 1e-4 && (hi - 9.5).abs() < 1e-4, "got {lo}..{hi}");
+        // Both clamp endpoints resolve through the REAL validator -- the whole point of the
+        // helper: a viewport drag clamped to [lo, hi] can never strand the row broken.
+        ship.corridors[0].lat = lo;
+        assert!(ship.corridor_geometry(&ship.corridors[0]).is_ok(), "lat at lo resolves");
+        ship.corridors[0].lat = hi;
+        assert!(ship.corridor_geometry(&ship.corridors[0]).is_ok(), "lat at hi resolves");
+        // Just past either end is rejected -- limits and validator agree on the boundary.
+        ship.corridors[0].lat = hi + 0.01;
+        assert!(ship.corridor_geometry(&ship.corridors[0]).is_err(), "past hi is rejected");
+        ship.corridors[0].lat = lo - 0.01;
+        assert!(ship.corridor_geometry(&ship.corridors[0]).is_err(), "past lo is rejected");
+        // An unresolvable pair (overlapping boxes) yields no range at all.
+        let mut overlapped = corridor_ship();
+        overlapped.zones[1].origin = (1.0, 0.0, 1.0);
+        assert!(overlapped.corridor_lat_limits(&overlapped.corridors[0]).is_none());
     }
 
     #[test]

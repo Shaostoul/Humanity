@@ -3065,6 +3065,227 @@ mod native_app {
         }
     }
 
+    /// How far above the deck a corridor DOOR-MOUTH handle floats (v0.790). Shared by the draw
+    /// block and try_pick_corridor_mouth so the diamond you see is exactly the point you grab.
+    const CORRIDOR_MOUTH_HANDLE_LIFT: f32 = 0.3;
+
+    /// Hit-test the cursor ray against the corridor DOOR-MOUTH handles (v0.790, operator: "I don't
+    /// see any widgets/gizmos on the door to actually move the door"): the accent diamonds at each
+    /// end of every corridor that resolves. On a hit, arm a CorridorMouth drag -- the per-frame
+    /// drag slides the corridor's world `lat` across the run. Corridors are SHIP-level, so there
+    /// is no zone-origin shift here: `end_from`/`end_to` are already world coordinates.
+    fn try_pick_corridor_mouth(state: &mut EngineState) -> bool {
+        let handles: Vec<(usize, Vec3)> = state
+            .gui_state
+            .ship_structure
+            .as_ref()
+            .map(|s| {
+                s.corridors
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(ci, c)| s.corridor_geometry(c).ok().map(|g| (ci, g)))
+                    .flat_map(|(ci, g)| {
+                        let lift = Vec3::Y * CORRIDOR_MOUTH_HANDLE_LIFT;
+                        [(ci, g.end_from + lift), (ci, g.end_to + lift)]
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if handles.is_empty() {
+            return false;
+        }
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(usize, f32)> = None;
+        for (ci, p) in &handles {
+            let t = (*p - origin).dot(dir);
+            if t < 0.0 {
+                continue; // behind the camera
+            }
+            let dd = (*p - (origin + dir * t)).length();
+            // Generous 0.5 m pick radius (mirrors the opening move-cube), nearest to the camera wins.
+            if dd < 0.5 && best.map_or(true, |(_, bt)| t < bt) {
+                best = Some((*ci, t));
+            }
+        }
+        if let Some((ci, _)) = best {
+            state.construction_object_grab = Some(ObjectGrab::CorridorMouth(ci));
+            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Hit-test the cursor ray against the SELECTED strip light's control-point handles (v0.790,
+    /// operator: "add the widget/gizmo to the light strip sections so I don't have to adjust the
+    /// sliders"). Point 0 is the strip's start (`pos`); 1.. are `path[point - 1]` -- the exact
+    /// fields the right panel's DragValues edit, so viewport drags and panel edits stay in
+    /// lockstep. Runs BEFORE try_pick_light in the chain so the small handles beat the body
+    /// diamond. Only fires when the selected light is a strip (Bar).
+    fn try_pick_strip_point(state: &mut EngineState) -> bool {
+        let Some(li) = state.gui_state.construction_light_selected else {
+            return false;
+        };
+        let zo = active_zone_origin(state); // strip points are zone-local; test in world (v0.754)
+        let pts: Vec<Vec3> = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+            .and_then(|h| h.lights.get(li))
+        {
+            Some(l)
+                if crate::renderer::light::light_type(&l.type_id).map(|t| t.kind)
+                    == Some(crate::renderer::light::LightKind::Bar) =>
+            {
+                std::iter::once(Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo)
+                    .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + zo))
+                    .collect()
+            }
+            _ => return false,
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        let mut best: Option<(usize, f32)> = None;
+        for (pi, p) in pts.iter().enumerate() {
+            let t = (*p - origin).dot(dir);
+            if t < 0.0 {
+                continue; // behind the camera
+            }
+            let dd = (*p - (origin + dir * t)).length();
+            if dd < 0.35 && best.map_or(true, |(_, bt)| t < bt) {
+                best = Some((pi, t));
+            }
+        }
+        if let Some((pi, _)) = best {
+            state.construction_object_grab = Some(ObjectGrab::StripPoint { light: li, point: pi });
+            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Hit-test the cursor ray against the SELECTED SPOT light's RGB range rings (v0.790, operator:
+    /// "make it so the RGB colored rings around objects allow rotating the object... it'd make
+    /// adjusting spot lights way easier"). A hit arms a LightAim drag: sweeping the cursor around
+    /// the ring rotates the aim about that ring's axis (0 = X/red, 1 = Y/green, 2 = Z/blue).
+    /// SELECTED spot only: the rings draw on every light, but a range-sized ring crosses half the
+    /// room, so arming them unselected would steal clicks from everything underneath; and rotation
+    /// is meaningless for a point light (per the operator), so those rings stay a visual readout.
+    fn try_pick_light_ring(state: &mut EngineState) -> bool {
+        let Some(li) = state.gui_state.construction_light_selected else {
+            return false;
+        };
+        let zo = active_zone_origin(state); // the light is zone-local; test in world (v0.754)
+        let (center, range) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+            .and_then(|h| h.lights.get(li))
+        {
+            Some(l) => {
+                let t = crate::renderer::light::light_type(&l.type_id);
+                if t.map(|t| t.kind) != Some(crate::renderer::light::LightKind::Spot) {
+                    return false; // rings rotate SPOT aim only
+                }
+                let range = l.range.or_else(|| t.map(|t| t.range)).unwrap_or(4.0);
+                (Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo, range)
+            }
+            None => return false,
+        };
+        let sz = state.window.inner_size();
+        let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
+        // Each ring is the circle of radius `range` in the plane perpendicular to its axis --
+        // exactly what push_circle_3d draws. Nearest hit by camera distance wins.
+        let mut best: Option<(u8, f32)> = None;
+        for (ai, axis) in [Vec3::X, Vec3::Y, Vec3::Z].into_iter().enumerate() {
+            if let Some((t, dist)) = ray_ring_closest(origin, dir, center, axis, range) {
+                if dist < 0.4 && best.map_or(true, |(_, bt)| t < bt) {
+                    best = Some((ai as u8, t));
+                }
+            }
+        }
+        if let Some((axis, _)) = best {
+            state.construction_object_grab = Some(ObjectGrab::LightAim { light: li, axis, prev_angle: None });
+            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Closest approach of a pick ray to a RING -- the circle of `radius` about `center` in the
+    /// plane perpendicular to unit `axis` (exactly what `push_circle_3d` draws). Returns
+    /// (ray t, distance to the ring) for the best candidate in front of the camera, or None when
+    /// everything lands behind it. Gizmo math, not a quartic solve: a face-on ring uses the
+    /// ray/plane intersection (measure how far the landing sits from the circle); an edge-on ring
+    /// (ray nearly parallel to the plane, where the plane hit explodes) projects the ray's closest
+    /// approach to the center out to the circle and measures the ray's distance to THAT point.
+    /// Both candidates are tried and the closer one wins. Pure -> unit tested. (v0.790)
+    fn ray_ring_closest(origin: Vec3, dir: Vec3, center: Vec3, axis: Vec3, radius: f32) -> Option<(f32, f32)> {
+        let mut best: Option<(f32, f32)> = None;
+        // Candidate 1: where the ray pierces the ring's plane.
+        let denom = dir.dot(axis);
+        if denom.abs() > 1e-6 {
+            let t = (center - origin).dot(axis) / denom;
+            if t > 0.0 {
+                let p = origin + dir * t;
+                let d = ((p - center).length() - radius).abs();
+                best = Some((t, d));
+            }
+        }
+        // Candidate 2: closest approach to the center, flattened into the plane and pushed out to
+        // the circle. Covers the edge-on view where candidate 1 degenerates (denom -> 0 sends t
+        // to infinity and the landing far off the visible ring).
+        let tc = (center - origin).dot(dir);
+        if tc > 0.0 {
+            let v = (origin + dir * tc) - center;
+            let v_in = v - axis * v.dot(axis); // flatten into the ring plane
+            if v_in.length_squared() > 1e-8 {
+                let ring_pt = center + v_in.normalize() * radius;
+                let t = (ring_pt - origin).dot(dir);
+                if t > 0.0 {
+                    let d = (ring_pt - (origin + dir * t)).length();
+                    if best.map_or(true, |(_, bd)| d < bd) {
+                        best = Some((t, d));
+                    }
+                }
+            }
+        }
+        best
+    }
+
+    #[cfg(test)]
+    mod ray_ring_tests {
+        use super::ray_ring_closest;
+        use glam::Vec3;
+
+        #[test]
+        fn hits_a_face_on_ring_and_reports_the_radius_at_the_center() {
+            // Ring: radius 2 about the origin in the XZ plane (axis Y). A ray straight down
+            // through a point ON the circle hits at distance ~0.
+            let (t, d) = ray_ring_closest(Vec3::new(2.0, 5.0, 0.0), Vec3::NEG_Y, Vec3::ZERO, Vec3::Y, 2.0)
+                .expect("in front of the camera");
+            assert!((t - 5.0).abs() < 1e-4, "plane hit at t=5, got {t}");
+            assert!(d < 1e-4, "on the circle, got {d}");
+            // A ray straight down the AXIS is `radius` away from the ring everywhere; the 0.4 m
+            // pick tolerance rejects it, so clicking the middle never grabs a ring.
+            let (_, d) = ray_ring_closest(Vec3::new(0.0, 5.0, 0.0), Vec3::NEG_Y, Vec3::ZERO, Vec3::Y, 2.0)
+                .expect("still in front");
+            assert!((d - 2.0).abs() < 1e-4, "center miss distance is the radius, got {d}");
+        }
+
+        #[test]
+        fn hits_an_edge_on_ring_via_the_projection_fallback() {
+            // Same ring seen edge-on: a horizontal ray at the ring's height grazing the rim at
+            // x = 2. The plane candidate degenerates (dir lies IN the plane); the projection
+            // fallback must still land within a hair of the rim.
+            let (t, d) = ray_ring_closest(Vec3::new(2.0, 0.0, -10.0), Vec3::Z, Vec3::ZERO, Vec3::Y, 2.0)
+                .expect("in front of the camera");
+            assert!(d < 1e-3, "grazing ray touches the rim, got {d}");
+            assert!((t - 10.0).abs() < 0.1, "tangency near z=0, got t={t}");
+            // A ray passing 1 m outside the rim reads ~1 m away -- outside the pick tolerance.
+            let (_, d) = ray_ring_closest(Vec3::new(3.0, 0.0, -10.0), Vec3::Z, Vec3::ZERO, Vec3::Y, 2.0)
+                .expect("still in front");
+            assert!(d > 0.9, "clearly a miss, got {d}");
+        }
+    }
+
     /// Ray vs axis-aligned box (the slab method): the ray `origin + t*dir` against the box [min,max].
     /// Returns the nearest positive `t` of entry, or None if the ray misses / the box is behind. Used
     /// to pick placed structures by their bounding box. (v0.583)
@@ -3303,7 +3524,10 @@ mod native_app {
         let zo = active_zone_origin(state);
         if let Some(hs) = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone) {
             for (i, l) in hs.lights.iter().enumerate() {
-                if !matches!(grab, ObjectGrab::Light(g) if *g == i) { out.push((l.pos.0 + zo.x, l.pos.2 + zo.z)); }
+                // StripPoint 0 IS the light's pos (v0.790), so dragging it must not snap to itself.
+                let dragging_this = matches!(grab, ObjectGrab::Light(g) if *g == i)
+                    || matches!(grab, ObjectGrab::StripPoint { light, point: 0 } if *light == i);
+                if !dragging_this { out.push((l.pos.0 + zo.x, l.pos.2 + zo.z)); }
             }
             for (i, s) in hs.structures.iter().enumerate() {
                 if !matches!(grab, ObjectGrab::Structure(g) if *g == i) { out.push((s.pos.0 + zo.x, s.pos.2 + zo.z)); }
@@ -3383,9 +3607,31 @@ mod native_app {
             }
             state.construction_grab_press = None; // armed: this is now a drag
         }
-        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+        let Some((bi, hx, hz)) = cursor_floor_hit(state) else {
             return;
         };
+        // Handles with their OWN projection math run BEFORE the generic grid/alignment snap
+        // below (v0.790): a corridor mouth slides on ONE world axis with its own snap + validity
+        // clamp, and a rotation ring wants the RAW cursor angle -- grid-snapping the cursor first
+        // would quantize the rotation into visible jumps. Both clear the alignment guides (they
+        // never set them, and a stale guide from a previous drag would draw a lie).
+        match grab {
+            ObjectGrab::CorridorMouth(ci) => {
+                state.construction_snap_x = None;
+                state.construction_snap_z = None;
+                apply_corridor_mouth_drag(state, ci, hx, hz);
+                return;
+            }
+            ObjectGrab::LightAim { light, axis, prev_angle } => {
+                state.construction_snap_x = None;
+                state.construction_snap_z = None;
+                // The floor hit as a 3D point: the room bound the ray landed in supplies the y.
+                let hy = state.gui_state.room_bounds.get(bi).map(|rb| rb.min.y).unwrap_or(0.0);
+                apply_light_aim_drag(state, light, axis, prev_angle, Vec3::new(hx, hy, hz));
+                return;
+            }
+            _ => {}
+        }
         let (mut nx, mut nz) = if state.gui_state.construction_grid_snap {
             ((hx * 4.0).round() / 4.0, (hz * 4.0).round() / 4.0)
         } else {
@@ -3469,7 +3715,120 @@ mod native_app {
                     }
                 }
             }
+            ObjectGrab::StripPoint { light, point } => {
+                // A strip CONTROL POINT follows the cursor across the floor (v0.790): point 0 is
+                // the strip's start (`pos`), 1.. index `path` -- the exact fields the right
+                // panel's DragValues edit, so viewport drags and panel edits never diverge.
+                // Heights are preserved (drag steers the run; y stays a panel edit).
+                if let Some(hs) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone) {
+                    if let Some(l) = hs.lights.get_mut(light) {
+                        if point == 0 {
+                            l.pos.0 = nx - zo.x;
+                            l.pos.2 = nz - zo.z; // pos.1 (height) preserved
+                        } else if let Some(p) = l.path.get_mut(point - 1) {
+                            p.0 = nx - zo.x;
+                            p.2 = nz - zo.z; // p.1 (height) preserved
+                        }
+                    }
+                }
+                state.gui_state.construction_structure_dirty = true;
+            }
+            // Handled by the early match above (own projection math); unreachable here, kept
+            // only so this match stays exhaustive.
+            ObjectGrab::CorridorMouth(_) | ObjectGrab::LightAim { .. } => {}
         }
+    }
+
+    /// Per-frame while a corridor DOOR-MOUTH handle is grabbed (v0.790): slide the corridor's
+    /// world `lat` to follow the cursor on the axis ACROSS the run (world z for an X-run tube,
+    /// world x for a Z-run). Snaps to the same 0.25 m step every other drag uses (when grid snap
+    /// is on) and CLAMPS to the validator's legal range so a drag can never strand the row
+    /// broken. `corridor_geometry` still re-resolves on every rebuild, so even a race (a zone
+    /// dragged away mid-frame) only means that corridor's mesh skips a rebuild -- the Corridors
+    /// panel shows the honest reason -- never a crash.
+    fn apply_corridor_mouth_drag(state: &mut EngineState, ci: usize, hx: f32, hz: f32) {
+        use crate::ship::ship_structure::CorridorAxis;
+        let grid = state.gui_state.construction_grid_snap;
+        let Some(ship) = state.gui_state.ship_structure.as_mut() else {
+            return;
+        };
+        let Some(c) = ship.corridors.get(ci).cloned() else {
+            return; // the row was deleted mid-drag (panel X) -- just stop following
+        };
+        // Which world axis `lat` lives on comes from the RESOLVER (the run axis derives from the
+        // zone boxes, never stored); a row that stopped resolving mid-drag stops following.
+        let axis = match ship.corridor_geometry(&c) {
+            Ok(g) => g.axis,
+            Err(_) => return,
+        };
+        let mut lat = match axis {
+            CorridorAxis::X => hz, // X run -> lat is world z
+            CorridorAxis::Z => hx, // Z run -> lat is world x
+        };
+        if grid {
+            lat = (lat * 4.0).round() / 4.0; // the editor-wide 0.25 m step
+        }
+        if let Some((lo, hi)) = ship.corridor_lat_limits(&c) {
+            lat = lat.clamp(lo, hi);
+        }
+        if let Some(row) = ship.corridors.get_mut(ci) {
+            row.lat = lat;
+        }
+        state.gui_state.construction_structure_dirty = true; // rebuild the tube + door cuts live
+    }
+
+    /// Per-frame while a SPOT rotation ring is grabbed (v0.790): the cursor's floor hit, seen
+    /// from the light, sweeps an angle in the grabbed ring's plane; the aim rotates by the
+    /// frame-to-frame DELTA of that angle about the ring's axis. The previous angle rides inside
+    /// the ObjectGrab variant itself (the way the opening grab carries its captured wall plane),
+    /// so there is no companion state field: the first drag frame just records the starting
+    /// angle and moves nothing.
+    fn apply_light_aim_drag(state: &mut EngineState, li: usize, axis_idx: u8, prev: Option<f32>, hit: Vec3) {
+        let axis = match axis_idx {
+            0 => Vec3::X,
+            1 => Vec3::Y,
+            _ => Vec3::Z,
+        };
+        let zo = active_zone_origin(state); // the light is zone-local; the hit is world (v0.754)
+        let center = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+            .and_then(|h| h.lights.get(li))
+        {
+            Some(l) => Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo,
+            None => return, // the light was removed mid-drag
+        };
+        // Cursor angle around the ring: light -> hit, flattened into the ring's plane, measured
+        // against a FIXED in-plane basis (stable across frames, so deltas mean rotation).
+        let v = hit - center;
+        let v_in = v - axis * v.dot(axis);
+        if v_in.length_squared() < 1e-6 {
+            return; // the cursor sits on the ring's axis -- the angle is undefined this frame
+        }
+        let seed = if axis_idx == 0 { Vec3::Y } else { Vec3::X };
+        let u = seed.cross(axis).normalize();
+        let w = axis.cross(u);
+        let angle = v_in.dot(w).atan2(v_in.dot(u));
+        if let Some(prev) = prev {
+            // Shortest signed step, wrapped to +-PI so crossing the atan2 seam never spins the aim.
+            let delta = (angle - prev + std::f32::consts::PI).rem_euclid(std::f32::consts::TAU)
+                - std::f32::consts::PI;
+            if delta.abs() > 1e-5 {
+                if let Some(l) = zone_body_mut(&mut state.gui_state.ship_structure, state.gui_state.construction_zone)
+                    .and_then(|h| h.lights.get_mut(li))
+                {
+                    let d = Vec3::new(l.dir.0, l.dir.1, l.dir.2);
+                    let d = if d.length_squared() > 1e-6 { d.normalize() } else { Vec3::NEG_Y };
+                    // A zero result can only come from numeric collapse; keep aiming down rather
+                    // than storing a degenerate dir the resolver would have to guard against.
+                    let nd = (Quat::from_axis_angle(axis, delta) * d).normalize_or_zero();
+                    let nd = if nd == Vec3::ZERO { Vec3::NEG_Y } else { nd };
+                    l.dir = (nd.x, nd.y, nd.z);
+                    state.gui_state.construction_structure_dirty = true; // re-aim the live cone
+                }
+            }
+        }
+        // Carry this frame's angle into the grab so the next frame rotates by a fresh delta.
+        state.construction_object_grab =
+            Some(ObjectGrab::LightAim { light: li, axis: axis_idx, prev_angle: Some(angle) });
     }
 
     /// World positions of every door/window opening gizmo: ((wall index, opening index), centre).
@@ -5070,6 +5429,18 @@ mod native_app {
         RoadNode(u32),
         ConduitNode(String),
         Zone(String),
+        /// A corridor DOOR-MOUTH handle (v0.790): index into `ship_structure.corridors`. Dragging
+        /// slides the corridor's world `lat` along the wall (the axis ACROSS the run) -- the same
+        /// field the Corridors panel's Lat DragValue edits.
+        CorridorMouth(usize),
+        /// A STRIP control-point handle (v0.790): `point` 0 is the strip's start (`pos`);
+        /// 1.. index `path[point - 1]`. Dragging moves that point across the floor (y preserved).
+        StripPoint { light: usize, point: usize },
+        /// A SPOT rotation ring (v0.790): `axis` 0/1/2 = the X/Y/Z range ring. Sweeping the cursor
+        /// around the ring rotates the aim about that axis by the frame-to-frame angle delta.
+        /// `prev_angle` carries last frame's cursor angle in the ring's plane (None until the
+        /// first drag frame) -- state rides in the variant, like the opening grab's wall plane.
+        LightAim { light: usize, axis: u8, prev_angle: Option<f32> },
     }
 
     /// Construction opening-gizmo drag (v0.468, rebuilt v0.469): which room+opening is grabbed,
@@ -5150,7 +5521,7 @@ mod native_app {
         /// (ellipse points in parent-frame metres, parent body id, kind
         /// "planet"|"moon", body id) -- the Sky settings filter by kind at
         /// draw time; the body id anchors the direction-of-motion trail fade
-        /// (v0.787) to the body's live position on its ring.
+        /// (v0.790) to the body's live position on its ring.
         solar_orbit_paths: Vec<(Vec<[f32; 3]>, String, String, String)>,
         /// Homestead floor meshes (mesh_idx, material_idx) per room.
         homestead_floors: Vec<(usize, usize)>,
@@ -5386,6 +5757,10 @@ mod native_app {
         /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
         construction_light_mesh: Option<usize>,
         construction_light_mat: Option<usize>,
+        /// Corridor DOOR-MOUTH handle material (v0.790): accent-toned emissive, cached once (the
+        /// mesh is the shared light-gizmo octahedron). Materials are append-only in the renderer,
+        /// so a theme accent edit re-tints on the next launch, like the other cached gizmo mats.
+        construction_corridor_mouth_mat: Option<usize>,
         /// PHYSICAL light fixtures (v0.780, operator: "none of the lights have
         /// physical bulbs, they're all just empty points"). Cached UNIT meshes
         /// scaled per light every frame: a sphere (bulb), a thin panel box, and
@@ -6244,6 +6619,7 @@ mod native_app {
                 construction_node_mat_hot: None,
                 construction_light_mesh: None,
                 construction_light_mat: None,
+                construction_corridor_mouth_mat: None,
                 light_fixture_sphere: None,
                 light_fixture_panel: None,
                 light_fixture_tube: None,
@@ -6990,6 +7366,16 @@ mod native_app {
                                 // spawn right there when you leave build mode.
                             } else if (!lock_road || !lock_pipe) && try_pick_node(state) {
                                 // Clicked a ROAD / CONDUIT node orb (v0.599): select + drag it.
+                            } else if !lock_light && state.gui_state.ship_structure.is_some() && try_pick_strip_point(state) {
+                                // Grabbed a STRIP control-point handle (v0.790): drag steers that
+                                // path point across the floor. Before try_pick_light so the small
+                                // handles beat the body diamond.
+                            } else if !lock_light && state.gui_state.ship_structure.is_some() && try_pick_light_ring(state) {
+                                // Grabbed a SPOT rotation ring (v0.790): sweeping the cursor around
+                                // the ring rotates the aim about that ring's axis.
+                            } else if state.gui_state.ship_structure.is_some() && try_pick_corridor_mouth(state) {
+                                // Grabbed a corridor DOOR-MOUTH handle (v0.790): drag slides the
+                                // corridor along the wall (its world `lat`).
                             } else if !lock_light && state.gui_state.ship_structure.is_some() && try_pick_light(state) {
                                 // Clicked a placed-LIGHT diamond gizmo (v0.576) -> its detail shows on
                                 // the right panel, like a wall.
@@ -9994,12 +10380,89 @@ mod native_app {
                                     let edge = base_c + (u * a.cos() + v * a.sin()) * base_r;
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[p, edge.into()], COL);
                                 }
-                            } else {
-                                // POINT (etc.): the omni range "sphere" -- three axis great-circles R/G/B.
-                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
-                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
-                                crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
                             }
+                            // Range rings: three axis great-circles R/G/B. Drawn for EVERY light now
+                            // (v0.790, operator: "we'll have to add the RGB rings to the spotlight on
+                            // top of the cone") -- on a SELECTED spot the rings are ROTATION handles
+                            // (grab one to swing the aim about that axis; see try_pick_light_ring);
+                            // on a point light they stay the visual range readout they always were.
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
+                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
+                        }
+                        // STRIP control-point handles (v0.790, operator: "add the widget/gizmo to
+                        // the light strip sections so I don't have to adjust the sliders"): when
+                        // the SELECTED light is a strip (Bar), a small diamond marks each path
+                        // point so it can be grabbed in the viewport (see try_pick_strip_point).
+                        // `pos` itself already wears the big selected diamond above -- dragging
+                        // that one is StripPoint 0 -- so only the path tail needs extra handles.
+                        if let Some(sel) = sel_light {
+                            let strip_pts: Vec<Vec3> =
+                                zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+                                    .and_then(|h| h.lights.get(sel))
+                                    .filter(|l| {
+                                        crate::renderer::light::light_type(&l.type_id).map(|t| t.kind)
+                                            == Some(crate::renderer::light::LightKind::Bar)
+                                    })
+                                    .map(|l| l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + lzo).collect())
+                                    .unwrap_or_default();
+                            for p in strip_pts {
+                                overlay_objects.push(RenderObject {
+                                    position: p,
+                                    rotation: Quat::IDENTITY,
+                                    scale: Vec3::splat(0.11),
+                                    mesh: dmesh,
+                                    material: hot_light,
+                                });
+                            }
+                        }
+                    }
+
+                    // CORRIDOR DOOR-MOUTH handles (v0.790, operator: "I don't see any widgets/gizmos
+                    // on the door to actually move the door"): an accent diamond floats over EACH
+                    // mouth of every corridor that resolves; grab one to slide the corridor along
+                    // the wall (its world `lat` -- the same field the panel's Lat DragValue edits;
+                    // see try_pick_corridor_mouth). A broken row draws nothing here -- the Corridors
+                    // panel already shows the honest reason it cannot generate.
+                    if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {
+                        if state.construction_light_mesh.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::octahedron(&state.renderer.device, 1.0));
+                            state.construction_light_mesh = Some(m);
+                        }
+                        if state.construction_corridor_mouth_mat.is_none() {
+                            // Accent-toned emissive (the theme's accent, like the opening move cube)
+                            // so a corridor handle reads "grabbable" apart from the warm light gizmos.
+                            let a = state.theme.accent();
+                            let m = state.renderer.add_material_full(
+                                [a.r() as f32 / 255.0, a.g() as f32 / 255.0, a.b() as f32 / 255.0, 1.0],
+                                0.0, 0.3, 0.0, 1.2,
+                            );
+                            state.construction_corridor_mouth_mat = Some(m);
+                        }
+                        let dmesh = state.construction_light_mesh.unwrap();
+                        let mmat = state.construction_corridor_mouth_mat.unwrap();
+                        let mouths: Vec<Vec3> = state
+                            .gui_state
+                            .ship_structure
+                            .as_ref()
+                            .map(|s| {
+                                s.corridors
+                                    .iter()
+                                    .filter_map(|c| s.corridor_geometry(c).ok())
+                                    .flat_map(|g| [g.end_from, g.end_to])
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for p in mouths {
+                            overlay_objects.push(RenderObject {
+                                // Lifted off the deck so the handle hangs in the doorway, not in the
+                                // floor slab; the pick fn uses the SAME lift so you grab what you see.
+                                position: p + Vec3::Y * CORRIDOR_MOUTH_HANDLE_LIFT,
+                                rotation: Quat::IDENTITY,
+                                scale: Vec3::splat(0.14),
+                                mesh: dmesh,
+                                material: mmat,
+                            });
                         }
                     }
 
@@ -10890,7 +11353,7 @@ mod native_app {
                                 * crate::cosmos::M_PER_AU
                                 - state.ship_world_pos;
                             let off = [off.x as f32, off.y as f32, off.z as f32];
-                            // Direction-of-motion trail fade (v0.787, operator): the
+                            // Direction-of-motion trail fade (v0.790, operator): the
                             // arc immediately BEHIND the body's live position fades
                             // to black as it reaches the body, so the ring reads as
                             // "the planet is HERE, moving THAT way" at a glance.
