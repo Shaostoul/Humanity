@@ -1613,6 +1613,15 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
         return;
     };
     state.construction_zone = state.construction_zone.min(n_zones.saturating_sub(1));
+    // PLAY-MODE SCOPE (task #50): only the Dev play mode may touch the ship's
+    // superstructure. Outside Dev the editor is PINNED to the HOME zone -- no
+    // zone dropdown, no add/delete, no label/purpose/origin edits -- so the
+    // operator's multi-zone mothership is untouchable while every tool below
+    // (walls, openings, lights, machines) still works on your own homestead.
+    let ship_scope = state
+        .settings
+        .play_mode
+        .allows(crate::config::Capability::ShipStructureEditing);
     // Owned display strings so the ship borrow ends before the mutations below.
     let zone_names: Vec<String> = state
         .ship_structure
@@ -1626,6 +1635,32 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
         .unwrap_or_default();
     let home_idx = state.ship_structure.as_ref().map_or(0, |s| s.home_zone_index());
     let mut switch_to: Option<usize> = None;
+    if !ship_scope {
+        // Snap back to home if the mode changed mid-edit (or a stale selection
+        // survived from an earlier Dev session). Routed through the shared
+        // switch_to block below so zone-scoped selections are cleared the same
+        // way a legitimate zone switch clears them.
+        if state.construction_zone != home_idx {
+            switch_to = Some(home_idx);
+        }
+        state.construction_zone_delete_arm = false; // no armed delete outside Dev
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Ship zone").size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(
+                RichText::new(zone_names.get(home_idx).cloned().unwrap_or_default())
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        });
+        ui.label(
+            RichText::new(
+                "Editing is scoped to your homestead. The Dev play mode \
+                 (Settings > Gameplay) unlocks whole-ship editing.",
+            )
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+        );
+    } else {
     ui.horizontal(|ui| {
         ui.label(RichText::new("Ship zone").size(theme.font_size_small).color(theme.text_muted()));
         egui::ComboBox::from_id_salt("ship_zone_selector")
@@ -1707,6 +1742,7 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
             }
         });
     }
+    } // end ship_scope (Dev-only zone tools)
     if let Some(mut i) = switch_to {
         // Runs unconditionally (even i == current): after a DELETE the indices shifted, so the
         // old selections must clear regardless of whether the index number happens to match.
@@ -1742,6 +1778,18 @@ fn draw_ship_zone_selector(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiStat
 /// `construction_structure_dirty`, the same live rebuild every zone edit takes.
 fn draw_corridor_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     use crate::ship::ship_structure::ShipCorridor;
+    // PLAY-MODE SCOPE (task #50): corridors are whole-ship superstructure --
+    // outside the Dev play mode they are read-only world geometry, not
+    // editable rows. The section vanishes entirely (rather than disabling
+    // piecemeal) so the homestead editor stays uncluttered for players; the
+    // zone selector above already explains how to unlock whole-ship editing.
+    if !state
+        .settings
+        .play_mode
+        .allows(crate::config::Capability::ShipStructureEditing)
+    {
+        return;
+    }
     let Some(ship) = state.ship_structure.as_ref() else {
         return;
     };

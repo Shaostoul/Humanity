@@ -480,8 +480,8 @@ fn draw_skills(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     // Dev: max all skills (testing affordance — unlocks every #8b skill-gated
     // recipe in one click, mirroring "Dev: stock materials" for inventory).
-    // Gated behind the dev-cheats toggle (Settings -> Animations -> Developer cheats).
-    if theme.cheats_enabled {
+    // Dev play mode + the dev-cheats toggle, both required (task #50 gate).
+    if state.dev_cheats_active(theme) {
         ui.add_space(theme.spacing_sm);
         if widgets::Button::secondary("Dev: max skills").show(ui, theme) {
             state.pending_dev_max_skills = true;

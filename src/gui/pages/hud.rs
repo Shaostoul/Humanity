@@ -152,6 +152,31 @@ pub fn draw(
                 theme.text_muted(),
             );
 
+            // ── Play-mode tag (task #50, left of the FPS corner) ──
+            // Screenshot honesty: any non-Normal mode is labeled, ALWAYS --
+            // including (especially) in a shared world, where other players'
+            // screenshots must be able to tell a creative build from survival
+            // play. Dev tools currently keep working while copresence_active
+            // (the relay is the authority on shared state anyway); per-player
+            // SERVER-ENFORCED permissions are the documented follow-up once
+            // real players exist -- until then this tag is the honesty layer.
+            if state.settings.play_mode != crate::config::PlayMode::Normal {
+                let tag = match state.settings.play_mode {
+                    crate::config::PlayMode::Dev => "DEV",
+                    _ => "CREATIVE",
+                };
+                text_shadowed(
+                    painter,
+                    // Sits just left of the FPS text ("999 FPS" at size 12 is
+                    // ~50 px wide, right-aligned at right-16).
+                    Pos2::new(screen.right() - 74.0, 16.0),
+                    Align2::RIGHT_TOP,
+                    tag,
+                    12.0,
+                    theme.warning(),
+                );
+            }
+
             // ── Day/Night + Time indicator (below FPS) ──
             if let Some(ref gt) = state.game_time {
                 let time_str = format!(

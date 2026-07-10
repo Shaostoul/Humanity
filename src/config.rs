@@ -64,6 +64,123 @@ impl WindowMode {
     }
 }
 
+/// Play mode (task #50, v0.799): the one ladder every cheat/scope gate hangs
+/// off. Before this, each dev affordance had its own ad-hoc flag standing
+/// alone (`GuiState.creative_mode`, `Theme.cheats_enabled`, nothing at all for
+/// construction scope). The mode is now the master; the old flags all remain
+/// (forever-dev norm: never delete dev tooling) but the mode SETS or gates
+/// them:
+///   - `GuiState.creative_mode` (free resources): Normal forces it off every
+///     frame (lib.rs bridge); picking Creative/Dev presets it on, and inside
+///     those modes the Inventory page's toggle stays a fine-tune (testing
+///     real consumption while in Dev is legitimate).
+///   - `Theme.cheats_enabled` (the Settings dev-cheats switch): still honored
+///     as a kill-switch, but every dev tool ALSO requires PlayMode::Dev now
+///     (see `GuiState::dev_cheats_active`).
+///   - Construction editor scope: Dev edits the whole ship (all zones, zone
+///     add/remove, corridors); Normal/Creative are pinned to the HOME zone.
+///
+/// Persisted in AppConfig (`#[serde(default)]`); surfaced in Settings >
+/// Gameplay as three radio buttons; shown as a HUD tag when not Normal so
+/// screenshots are honest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum PlayMode {
+    /// Survival rules: resources consume, building stays within your own
+    /// homestead zone, no dev tools, no free materials. The player default
+    /// at launch.
+    Normal,
+    /// Free building + free materials, still scoped to your homestead.
+    /// Vitals stay on the Gameplay "Vitals drain" slider (0 pauses needs) --
+    /// the mode deliberately does NOT touch that slider. No Dev tools.
+    Creative,
+    /// Everything: whole-ship structural editing, the Dev page (spawn +
+    /// travel/FTL), the G creature editor, all "Dev:" provisioning buttons.
+    ///
+    /// DEFAULT PRE-LAUNCH: the operator IS the dev and builds the whole
+    /// mothership in-game. Flip this default to `Normal` at launch (the
+    /// `default_is_dev_pre_launch` test below is the tripwire/reminder).
+    #[default]
+    Dev,
+}
+
+/// The specific powers a play mode can grant. Gates ask the mode for ONE of
+/// these (via `PlayMode::allows`) instead of comparing modes directly, so the
+/// whole permission surface is enumerable and unit-tested as a truth table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Capability {
+    /// Build/edit within your own homestead zone (the construction editor's
+    /// home scope). EVERY mode has this: building your home is the game,
+    /// not a cheat.
+    HomesteadEditing,
+    /// Resource-consuming actions (plant / craft / deploy) skip inventory
+    /// requirements + consumption -- the "creative_mode" DataStore slot the
+    /// farming/crafting/vehicle systems read.
+    FreeResources,
+    /// Dev tooling: the Dev page (spawn/despawn, teleport, FTL fly), the G
+    /// walk-up creature editor, and the "Dev:" provisioning buttons (stock
+    /// materials/seeds, grow all, max skills). Each call site ALSO keeps the
+    /// `Theme.cheats_enabled` kill-switch (both must be on).
+    DevTools,
+    /// Whole-ship structural editing: zone add/remove/relabel/move,
+    /// corridors, and selecting non-home zones in the construction editor.
+    /// The operator's multi-zone mothership is untouchable without this.
+    ShipStructureEditing,
+}
+
+/// Pure mode -> capability mapping: the single source of truth every gate
+/// reaches through `PlayMode::allows`. A free function (not just a method)
+/// so the test below reads as a plain truth table.
+pub fn play_mode_allows(mode: PlayMode, capability: Capability) -> bool {
+    match capability {
+        // Building your own home is gameplay in every mode.
+        Capability::HomesteadEditing => true,
+        // Free resources = anything past survival (Creative and Dev).
+        Capability::FreeResources => mode != PlayMode::Normal,
+        // Dev tools + ship superstructure are Dev-only: Creative players get
+        // free materials, NOT spawn/teleport or the ability to reshape the
+        // shared mothership.
+        Capability::DevTools | Capability::ShipStructureEditing => mode == PlayMode::Dev,
+    }
+}
+
+impl PlayMode {
+    /// Display order for the Settings radio group.
+    pub const ALL: [PlayMode; 3] = [PlayMode::Normal, PlayMode::Creative, PlayMode::Dev];
+
+    /// See `play_mode_allows` (the tested truth table).
+    pub fn allows(self, capability: Capability) -> bool {
+        play_mode_allows(self, capability)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PlayMode::Normal => "Normal",
+            PlayMode::Creative => "Creative",
+            PlayMode::Dev => "Dev",
+        }
+    }
+
+    /// The honest one-line description shown under each Settings radio.
+    pub fn hint(self) -> &'static str {
+        match self {
+            PlayMode::Normal => {
+                "Survival rules. Resources are consumed, building stays within \
+                 your homestead, no cheats. The player default at launch."
+            }
+            PlayMode::Creative => {
+                "Free building and free materials within your homestead. Pair \
+                 with the Vitals drain slider below (0 pauses survival needs) \
+                 if you want vitals off. No Dev tools."
+            }
+            PlayMode::Dev => {
+                "Everything: whole-ship structural editing, the Dev spawn and \
+                 travel page, and every dev toggle. Pre-launch default while \
+                 the mothership is being built in-game."
+            }
+        }
+    }
+}
+
 /// How the microphone signal is cleaned up before it is encoded + transmitted
 /// (v0.488). The chain is always: user gain, then this filter, then the
 /// transmit-mode gate, then Opus. "Off" sends the raw mic; the others remove
@@ -219,6 +336,12 @@ pub struct AppConfig {
     /// 0 = paused). Settings > Gameplay slider (v0.791).
     #[serde(default = "default_vitals_drain")]
     pub vitals_drain: f32,
+    /// Play mode (task #50): Normal | Creative | Dev -- the ladder every
+    /// cheat/scope gate hangs off (see the `PlayMode` docs above). Absent in
+    /// old configs => Dev via `#[serde(default)]` (the pre-launch default;
+    /// flips to Normal at launch). Applied live: the gates read it per frame.
+    #[serde(default)]
+    pub play_mode: PlayMode,
 
     // ── v0.488: native voice input prefs ────────────────────────────────
     // The mic device + speaker device the user picked (empty => system
@@ -656,6 +779,7 @@ impl AppConfig {
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
+            play_mode: state.settings.play_mode,
             // v0.488 voice input prefs (top-level GuiState, not SettingsState).
             voice_input_device: state.audio_input_device.clone(),
             voice_output_device: state.audio_output_device.clone(),
@@ -749,6 +873,14 @@ impl AppConfig {
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
+        // Play mode (task #50): restore the persisted mode, then PRESET the
+        // creative (free resources) flag from it -- GuiState defaults that
+        // flag to true (early-dev posture), so a Normal-mode player must get
+        // survival from frame 0, not from the first bridge tick. Inside
+        // Creative/Dev the Inventory page's Creative toggle stays a live
+        // fine-tune on top of this preset.
+        state.settings.play_mode = self.play_mode;
+        state.creative_mode = self.play_mode.allows(Capability::FreeResources);
         // v0.488 voice input prefs.
         state.audio_input_device = self.voice_input_device.clone();
         state.audio_output_device = self.voice_output_device.clone();
@@ -888,6 +1020,70 @@ impl AppConfig {
             }
         }
         // passphrase_needed stays false — no modal on startup
+    }
+}
+
+#[cfg(test)]
+mod play_mode_tests {
+    //! Guard the play-mode permission surface (task #50). The truth table IS
+    //! the spec: if a gate ever needs a different answer, change the table
+    //! here deliberately, in the same commit as the gate.
+    use super::*;
+
+    #[test]
+    fn mode_capability_truth_table() {
+        use Capability::*;
+        use PlayMode::*;
+        // (mode, capability, allowed) -- the WHOLE permission surface,
+        // exhaustively: 3 modes x 4 capabilities.
+        let table = [
+            // Normal: survival. Only building your own home.
+            (Normal, HomesteadEditing, true),
+            (Normal, FreeResources, false),
+            (Normal, DevTools, false),
+            (Normal, ShipStructureEditing, false),
+            // Creative: free materials, still homestead-scoped, no dev tools.
+            (Creative, HomesteadEditing, true),
+            (Creative, FreeResources, true),
+            (Creative, DevTools, false),
+            (Creative, ShipStructureEditing, false),
+            // Dev: everything (the operator building the mothership).
+            (Dev, HomesteadEditing, true),
+            (Dev, FreeResources, true),
+            (Dev, DevTools, true),
+            (Dev, ShipStructureEditing, true),
+        ];
+        for (mode, cap, want) in table {
+            assert_eq!(
+                play_mode_allows(mode, cap),
+                want,
+                "play_mode_allows({mode:?}, {cap:?}) should be {want}"
+            );
+            // The method must never drift from the free function.
+            assert_eq!(mode.allows(cap), want);
+        }
+    }
+
+    #[test]
+    fn default_is_dev_pre_launch() {
+        // PRE-LAUNCH ONLY: the operator is the dev. At launch this flips to
+        // Normal -- update PlayMode's #[default] AND this assertion together
+        // (this test existing is the reminder that the flip is deliberate).
+        assert_eq!(PlayMode::default(), PlayMode::Dev);
+    }
+
+    #[test]
+    fn play_mode_serde_round_trips_and_defaults() {
+        for m in PlayMode::ALL {
+            let json = serde_json::to_string(&m).unwrap();
+            let back: PlayMode = serde_json::from_str(&json).unwrap();
+            assert_eq!(m, back, "PlayMode must survive a config round-trip");
+        }
+        // A pre-v0.799 config has no play_mode field at all: serde(default)
+        // must fill in Dev (today's behavior for the operator's install).
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert_eq!(cfg.play_mode, PlayMode::Dev);
     }
 }
 
