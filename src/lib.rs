@@ -5259,13 +5259,20 @@ mod native_app {
         }
 
         // ── Star skybox ──
-        let star_csv = state.data_dir.join("stars.csv");
-        state.star_renderer = crate::renderer::stars::StarRenderer::new(
-            &state.renderer.device,
-            &state.renderer.queue,
-            state.renderer.surface_format(),
-            &star_csv,
-        );
+        // The catalog is parsed ONCE here (stars.bin, ~1.8 MB binary; CSV
+        // fallback) and shared by the skybox vertex builder and the
+        // constellation resolver inside StarRenderer::new. Pre-v0.797 both
+        // consumers re-read and re-parsed the 34 MB stars.csv separately.
+        let star_catalog = crate::renderer::stars::StarCatalog::load(&state.data_dir);
+        state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
+            crate::renderer::stars::StarRenderer::new(
+                &state.renderer.device,
+                &state.renderer.queue,
+                state.renderer.surface_format(),
+                catalog,
+                &state.data_dir,
+            )
+        });
 
         // ── Planets (procedural fractal surfaces, v0.763) ──
         // One shared vertex-color material (shader type 12) renders every
