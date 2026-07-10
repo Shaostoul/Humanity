@@ -808,9 +808,10 @@ mod native_app {
         for (i, (verts, indices, color)) in homestead.material_walls.into_iter().enumerate() {
             let mesh = Mesh::from_vertices(&state.renderer.device, &verts, &indices);
             let transparent = color[3] < 0.999;
-            // Glass: low roughness + faint emissive through the transparent pass; opaque otherwise.
+            // Glass: low roughness through the transparent pass; opaque otherwise.
+            // Emissive zeroed (v0.780): self-emission made glass GLOW at night.
             let (met, rough, mtype, emis) =
-                if transparent { (0.0, 0.1, 1.0, 0.05) } else { (0.1, 0.7, 0.0, 0.0) };
+                if transparent { (0.0, 0.1, 1.0, 0.0) } else { (0.1, 0.7, 0.0, 0.0) };
             if let Some(&(mi, ma, _)) = prior_mw.get(i) {
                 state.renderer.replace_mesh(mi, mesh);
                 state.renderer.update_material_full(ma, color, met, rough, mtype, emis);
@@ -836,13 +837,16 @@ mod native_app {
         let prior = state.homestead_windows;
         state.homestead_windows = if !homestead.windows.0.is_empty() {
             let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.windows.0, &homestead.windows.1);
-            // Tinted glass (alpha 0.45) + faint emissive, rendered through the transparent pass.
+            // Tinted glass (alpha 0.45), transparent pass. NO emissive (v0.780):
+            // the old 0.12 self-emission bypassed lighting, so windows GLOWED in
+            // the dark (operator field report: "the glass texture is emissive").
+            // Glass now only shows light that actually falls on/through it.
             if let Some((mi, ma)) = prior {
                 state.renderer.replace_mesh(mi, mesh);
-                state.renderer.update_material_full(ma, [0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12);
+                state.renderer.update_material_full(ma, [0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.0);
                 Some((mi, ma))
             } else {
-                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.12)))
+                Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.50, 0.74, 0.92, 0.45], 0.0, 0.08, 1.0, 0.0)))
             }
         } else { None };
         let prior = state.homestead_mirrors;
@@ -872,7 +876,8 @@ mod native_app {
         state.homestead_ceiling = if !homestead.ceilings.0.is_empty() {
             let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.ceilings.0, &homestead.ceilings.1);
             // (color, metallic, roughness, material_type, emissive) for glass; (color, m, r, type) opaque.
-            let (gcol, gmet, grough, gtype, gemis) = ([0.55, 0.78, 0.92, 0.22], 0.0, 0.05, 1.0, 0.06);
+            // Glass roof emissive zeroed (v0.780) -- same night-glow fix as the windows.
+            let (gcol, gmet, grough, gtype, gemis) = ([0.55, 0.78, 0.92, 0.22], 0.0, 0.05, 1.0, 0.0);
             let (ocol, omet, orough, otype) = ([0.60, 0.62, 0.68, 1.0], 0.0, 0.8, 2.0);
             if let Some((mi, ma)) = prior {
                 state.renderer.replace_mesh(mi, mesh);
@@ -5268,6 +5273,19 @@ mod native_app {
         /// material, drawn at each placed light in build mode (the range "sphere" is RGB line circles).
         construction_light_mesh: Option<usize>,
         construction_light_mat: Option<usize>,
+        /// PHYSICAL light fixtures (v0.780, operator: "none of the lights have
+        /// physical bulbs, they're all just empty points"). Cached UNIT meshes
+        /// scaled per light every frame: a sphere (bulb), a thin panel box, and
+        /// a unit tube along X (spot snout + straight strip bar). Play mode AND
+        /// build mode -- the fixture is the real in-world look.
+        light_fixture_sphere: Option<usize>,
+        light_fixture_panel: Option<usize>,
+        light_fixture_tube: Option<usize>,
+        /// Emissive fixture materials keyed by quantized light color (ON), plus
+        /// one shared dark material for OFF fixtures. Materials are append-only
+        /// in the renderer, so cache per color instead of re-adding per frame.
+        light_fixture_mats: std::collections::HashMap<[u8; 3], usize>,
+        light_fixture_mat_off: Option<usize>,
         /// Wall-SELECT gizmo material (v0.573): a RED sphere at each wall's bottom-middle so you can
         /// click the wall (surface or orb) to select it; the SELECTED wall's orb uses the RGB hot mat.
         construction_wall_mat: Option<usize>,
@@ -6108,6 +6126,11 @@ mod native_app {
                 construction_node_mat_hot: None,
                 construction_light_mesh: None,
                 construction_light_mat: None,
+                light_fixture_sphere: None,
+                light_fixture_panel: None,
+                light_fixture_tube: None,
+                light_fixture_mats: std::collections::HashMap::new(),
+                light_fixture_mat_off: None,
                 construction_wall_mat: None,
                 construction_node_mat_hover: None,
                 construction_char_grab: false,
@@ -9552,6 +9575,168 @@ mod native_app {
                     }
 
                     // Placed-LIGHT gizmos (v0.572): a DIAMOND centre-marker + an RGB range "sphere"
+                    // ── PHYSICAL LIGHT FIXTURES (v0.780) ── every placed light gets visible
+                    // geometry in the world, play mode AND build mode (operator: "none of the
+                    // lights have physical bulbs, they're all just empty points"). Cached UNIT
+                    // meshes scaled per light: warm_lamp = bulb sphere, panels = thin ceiling
+                    // panel, spot = bulb + snout tube along its aim, strip = a bar of the
+                    // type's length_m along the light's horizontal dir (real multi-point strip
+                    // paths are the next increment). ON fixtures glow with the light's color
+                    // (emissive, cached per quantized color); OFF fixtures are dark housings.
+                    if state.gui_state.ship_structure.is_some() && !state.gui_state.showroom_active {
+                        if state.light_fixture_sphere.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::sphere(&state.renderer.device, 1.0, 10, 14));
+                            state.light_fixture_sphere = Some(m);
+                        }
+                        if state.light_fixture_panel.is_none() {
+                            let m = state.renderer.add_mesh(Mesh::box_xyz(&state.renderer.device, 1.0, 1.0, 1.0));
+                            state.light_fixture_panel = Some(m);
+                        }
+                        if state.light_fixture_tube.is_none() {
+                            // Unit tube along +X, length 1, radius 1: scale.x = length,
+                            // scale.y/z = radius; rotate X onto the strip/aim axis.
+                            let m = state.renderer.add_mesh(Mesh::tube(
+                                &state.renderer.device,
+                                Vec3::new(-0.5, 0.0, 0.0),
+                                Vec3::new(0.5, 0.0, 0.0),
+                                1.0,
+                                12,
+                            ));
+                            state.light_fixture_tube = Some(m);
+                        }
+                        if state.light_fixture_mat_off.is_none() {
+                            // theme-exempt: dark fixture housing for a switched-off light.
+                            let m = state.renderer.add_material_full([0.16, 0.16, 0.18, 1.0], 0.2, 0.6, 0.0, 0.0);
+                            state.light_fixture_mat_off = Some(m);
+                        }
+                        let sphere = state.light_fixture_sphere.unwrap();
+                        let panel = state.light_fixture_panel.unwrap();
+                        let tube = state.light_fixture_tube.unwrap();
+                        let mat_off = state.light_fixture_mat_off.unwrap();
+                        // Collect (pos, dir, color, on, kind, length, type_id-is-panel) for
+                        // EVERY zone's lights, world-shifted; then resolve materials (the
+                        // material cache needs &mut renderer, so collect first).
+                        struct Fx {
+                            pos: Vec3,
+                            dir: Vec3,
+                            color: (f32, f32, f32),
+                            on: bool,
+                            kind: crate::renderer::light::LightKind,
+                            length: f32,
+                            flat_panel: bool,
+                        }
+                        let fixtures: Vec<Fx> = state
+                            .gui_state
+                            .ship_structure
+                            .as_ref()
+                            .map(|s| {
+                                s.zones
+                                    .iter()
+                                    .flat_map(|z| {
+                                        let o = z.origin_vec();
+                                        z.body.lights.iter().filter_map(move |l| {
+                                            let t = crate::renderer::light::light_type(&l.type_id)?;
+                                            Some(Fx {
+                                                pos: Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o,
+                                                dir: Vec3::new(l.dir.0, l.dir.1, l.dir.2),
+                                                color: l.color.unwrap_or(t.color),
+                                                on: l.on,
+                                                kind: t.kind,
+                                                length: t.length_m.max(0.3),
+                                                flat_panel: l.type_id.contains("panel"),
+                                            })
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        for fx in fixtures {
+                            use crate::renderer::light::LightKind;
+                            let mat = if fx.on {
+                                let key = [
+                                    (fx.color.0.clamp(0.0, 1.0) * 255.0) as u8,
+                                    (fx.color.1.clamp(0.0, 1.0) * 255.0) as u8,
+                                    (fx.color.2.clamp(0.0, 1.0) * 255.0) as u8,
+                                ];
+                                match state.light_fixture_mats.get(&key) {
+                                    Some(&m) => m,
+                                    None => {
+                                        // theme-exempt: fixture glow IS the light's own color.
+                                        let m = state.renderer.add_material_full(
+                                            [fx.color.0, fx.color.1, fx.color.2, 1.0],
+                                            0.0,
+                                            0.4,
+                                            0.0,
+                                            2.5,
+                                        );
+                                        state.light_fixture_mats.insert(key, m);
+                                        m
+                                    }
+                                }
+                            } else {
+                                mat_off
+                            };
+                            match fx.kind {
+                                LightKind::Bar => {
+                                    // Straight strip bar along the light's horizontal dir
+                                    // (fall back to X). Real corner/curve paths: next increment.
+                                    let flat = Vec3::new(fx.dir.x, 0.0, fx.dir.z);
+                                    let axis = if flat.length_squared() > 1e-4 {
+                                        flat.normalize()
+                                    } else {
+                                        Vec3::X
+                                    };
+                                    all_objects.push(RenderObject {
+                                        position: fx.pos,
+                                        rotation: Quat::from_rotation_arc(Vec3::X, axis),
+                                        scale: Vec3::new(fx.length, 0.035, 0.035),
+                                        mesh: tube,
+                                        material: mat,
+                                    });
+                                }
+                                LightKind::Spot => {
+                                    // Bulb + a short snout tube along the aim direction.
+                                    let aim = fx.dir.normalize_or_zero();
+                                    let aim = if aim == Vec3::ZERO { Vec3::NEG_Y } else { aim };
+                                    all_objects.push(RenderObject {
+                                        position: fx.pos,
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::splat(0.07),
+                                        mesh: sphere,
+                                        material: mat,
+                                    });
+                                    all_objects.push(RenderObject {
+                                        position: fx.pos + aim * 0.1,
+                                        rotation: Quat::from_rotation_arc(Vec3::X, aim),
+                                        scale: Vec3::new(0.2, 0.05, 0.05),
+                                        mesh: tube,
+                                        material: mat,
+                                    });
+                                }
+                                _ if fx.flat_panel => {
+                                    // Ceiling/cool panel: a thin flat luminous slab.
+                                    all_objects.push(RenderObject {
+                                        position: fx.pos,
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::new(0.6, 0.03, 0.6),
+                                        mesh: panel,
+                                        material: mat,
+                                    });
+                                }
+                                _ => {
+                                    // Lamp/point: a bulb sphere.
+                                    all_objects.push(RenderObject {
+                                        position: fx.pos,
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::splat(0.09),
+                                        mesh: sphere,
+                                        material: mat,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     // (three axis great-circles -- X red, Y green, Z blue) at each placed light, so the
                     // operator (and an AI) can see where each light sits + how far it reaches. Build mode.
                     if state.gui_state.construction_active && state.gui_state.ship_structure.is_some() {

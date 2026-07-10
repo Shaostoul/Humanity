@@ -1218,10 +1218,14 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             changed |= ui.add(egui::DragValue::new(&mut light.pos.1).speed(0.2).prefix("y ").suffix(" m")).changed();
             changed |= ui.add(egui::DragValue::new(&mut light.pos.2).speed(0.2).prefix("z ").suffix(" m")).changed();
         });
+        // Caps raised (v0.780, operator request). These are UI-only soft caps:
+        // the shader has no hard clamp (ACES tonemapping is the natural
+        // ceiling), and the falloff is intensity/(1+d^2) * (1 - d/range), so
+        // big spaces genuinely need triple-digit intensity + long range.
         ui.horizontal(|ui| {
             ui.label(RichText::new("intensity").size(theme.font_size_small).color(theme.text_muted()));
             let mut v = light.intensity.unwrap_or(def_i);
-            if ui.add(egui::DragValue::new(&mut v).speed(0.2).range(0.0..=50.0)).changed() {
+            if ui.add(egui::DragValue::new(&mut v).speed(0.5).range(0.0..=500.0)).changed() {
                 light.intensity = Some(v);
                 changed = true;
             }
@@ -1229,7 +1233,7 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.horizontal(|ui| {
             ui.label(RichText::new("range").size(theme.font_size_small).color(theme.text_muted()));
             let mut v = light.range.unwrap_or(def_r);
-            if ui.add(egui::DragValue::new(&mut v).speed(0.1).range(0.1..=40.0).suffix(" m")).changed() {
+            if ui.add(egui::DragValue::new(&mut v).speed(0.2).range(0.1..=200.0).suffix(" m")).changed() {
                 light.range = Some(v);
                 changed = true;
             }
