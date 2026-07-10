@@ -64,6 +64,26 @@ pub enum NetMessage {
         activity: String,
         working: bool,
     },
+    /// A crew NPC's identity + dialogue, captured client-side from the relay's
+    /// `game_welcome` world_snapshot (v0.797). The relay authors `dialog[]` and
+    /// `greetings[]` on each crew entity's components; this carries them to the
+    /// RemoteNpc so the walk-up talk card has lines to show. The client only
+    /// DISPLAYS these -- it never authors dialogue (data-driven rule). Emitted
+    /// once per NPC at welcome, not on the 2 Hz chore stream, so the movement
+    /// broadcast stays lean.
+    NpcProfile {
+        entity_id: u64,
+        name: String,
+        /// Crew role id from the relay ("botanist", "chief_engineer", ...).
+        role: String,
+        position: [f32; 3],
+        /// The NPC's activity/description line at snapshot time.
+        activity: String,
+        /// Rotating conversation lines ("More" / repeat E cycles these).
+        dialog: Vec<String>,
+        /// Opening lines; one is picked at random when the card opens.
+        greetings: Vec<String>,
+    },
 
     // ── Actions ──
     /// Player interacts with an entity.

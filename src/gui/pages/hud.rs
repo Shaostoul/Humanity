@@ -390,24 +390,41 @@ pub fn draw(
                     text_shadowed(painter, sp + Vec2::new(0.0, 2.0), Align2::CENTER_TOP, &act, 10.0, col);
                 }
             }
+            // Crew NPC talk prompt (v0.797): looking at a crew member within
+            // talk range shows "[E] Talk to X". Owns the +22 crosshair slot
+            // while set -- the machine/door prompts below yield to it, which
+            // matches the E chain in lib.rs (a faced person outranks the
+            // machine behind them).
+            if !state.npc_prompt.is_empty() {
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, center.y + 22.0),
+                    Align2::CENTER_TOP,
+                    &state.npc_prompt,
+                    13.0,
+                    theme.accent(),
+                );
+            }
             // Walk-up interaction prompt at the crosshair (v0.431): looking at a machine
             // within reach shows [E] open/close.
-            if let Some(i) = state.targeted_machine {
-                if let Some(label) = state.machine_labels.get(i) {
-                    let verb = if state.selected_machine == Some(i) { "close" } else { "open" };
-                    text_shadowed(
-                        painter,
-                        Pos2::new(center.x, center.y + 22.0),
-                        Align2::CENTER_TOP,
-                        &format!("[E] {} {}", verb, label.name),
-                        13.0,
-                        theme.accent(),
-                    );
+            if state.npc_prompt.is_empty() {
+                if let Some(i) = state.targeted_machine {
+                    if let Some(label) = state.machine_labels.get(i) {
+                        let verb = if state.selected_machine == Some(i) { "close" } else { "open" };
+                        text_shadowed(
+                            painter,
+                            Pos2::new(center.x, center.y + 22.0),
+                            Align2::CENTER_TOP,
+                            &format!("[E] {} {}", verb, label.name),
+                            13.0,
+                            theme.accent(),
+                        );
+                    }
                 }
             }
             // Door control panel prompt at the crosshair (v0.567): looking at a panel within reach
             // shows [E] open/close (or "locked"). Precomputed in the walk-up block in lib.rs.
-            if !state.control_panel_prompt.is_empty() {
+            if !state.control_panel_prompt.is_empty() && state.npc_prompt.is_empty() {
                 text_shadowed(
                     painter,
                     Pos2::new(center.x, center.y + 22.0),
@@ -1070,6 +1087,94 @@ pub fn draw_machine_recipe_selector(ctx: &egui::Context, theme: &Theme, state: &
                 }
             });
         });
+}
+
+/// Walk-up NPC dialogue card (v0.797, operator: "I can't interact with NPCs
+/// at all"). Same interactive-panel family as the recipe selector above and
+/// the walk-up creature editor: its own interactable Area with `&mut` state,
+/// screen-centered in the upper third like the pinned machine card. Shows the
+/// NPC's name, live chore line, and ONE dialogue line at a time; More (or a
+/// repeat E press, handled in lib.rs's modal key guard) cycles the lines.
+/// Close / Esc / click-away / walking >4 m away all close it. Every line came
+/// from the relay's NPC data via the welcome snapshot -- the client displays,
+/// it never authors dialogue.
+pub fn draw_npc_talk_card(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+    if state.npc_talk_target.is_none() {
+        return;
+    }
+    let mut close = false;
+    let mut more = false;
+    let screen = ctx.screen_rect();
+    let area = Area::new(egui::Id::new("npc_talk_card"))
+        .fixed_pos(Pos2::new(
+            screen.center().x - 180.0,
+            screen.top() + screen.height() * 0.22,
+        ))
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style())
+                .inner_margin(egui::Margin::same(12))
+                .show(ui, |ui| {
+                    ui.set_width(360.0);
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(&state.npc_talk_name)
+                                .strong()
+                                .color(theme.accent()),
+                        );
+                        // The live chore line doubles as the "who is this"
+                        // role context ("Tending the hydroponic racks").
+                        if !state.npc_talk_activity.is_empty() {
+                            ui.label(
+                                RichText::new(&state.npc_talk_activity)
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_muted()),
+                            );
+                        }
+                    });
+                    ui.separator();
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(
+                        RichText::new(&state.npc_talk_line)
+                            .size(theme.font_size_body)
+                            .color(theme.text_primary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        // Only offer More when there is more than one line to
+                        // cycle -- a one-liner NPC would just repeat itself.
+                        let line_count =
+                            state.npc_talk_dialog.len().max(state.npc_talk_greetings.len());
+                        if line_count > 1
+                            && crate::gui::widgets::Button::secondary("More (E)").show(ui, theme)
+                        {
+                            more = true;
+                        }
+                        ui.with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if crate::gui::widgets::Button::secondary("Close (Esc)")
+                                    .show(ui, theme)
+                                {
+                                    close = true;
+                                }
+                            },
+                        );
+                    });
+                });
+        });
+    // Click-away closes, mirroring the in-world chat panel convention
+    // (v0.773): a click OUTSIDE the card rect returns to gameplay.
+    let clicked_outside = ctx.input(|i| i.pointer.any_click())
+        && ctx
+            .input(|i| i.pointer.interact_pos())
+            .map_or(false, |p| !area.response.rect.contains(p));
+    if more {
+        state.npc_talk_advance();
+    }
+    if close || clicked_outside {
+        state.npc_talk_target = None;
+    }
 }
 
 /// Floating card next to a machine's screen dot.

@@ -2313,6 +2313,35 @@ pub struct GuiState {
     /// relay-driven crew member. Rebuilt every frame from the RemoteNpc components
     /// (lib.rs, just before hud::draw), so it is always in sync with the amber figures.
     pub crew_labels: Vec<CrewLabel>,
+    // ── NPC walk-up talk (v0.797, operator: "I can't interact with NPCs at all") ──
+    /// Relay entity_id of the crew NPC the player faces within talk range
+    /// (~2.5 m look cone). Recomputed each frame in lib.rs like
+    /// targeted_machine; drives the "[E] Talk to X" prompt and the E open.
+    pub targeted_npc: Option<u64>,
+    /// Crosshair prompt for the faced crew NPC ("[E] Talk to Botanist Yara").
+    /// Empty = no NPC in range (or the card is already open).
+    pub npc_prompt: String,
+    /// Relay entity_id of the crew NPC whose dialogue card is OPEN. Some =
+    /// the talk card modal is up: it joins in_world_modal_open so the cursor
+    /// frees and gameplay keys stop, exactly like the in-world chat panel.
+    /// lib.rs auto-closes it if the NPC wanders beyond 4 m or despawns (the
+    /// relay keeps simulating chores; we deliberately do not freeze the NPC).
+    pub npc_talk_target: Option<u64>,
+    /// Card contents, snapshotted from the RemoteNpc when E opens the card.
+    /// The lines were authored RELAY-side (its NPC components); the client
+    /// only displays them -- no dialogue is hardcoded here (infinite-of-X).
+    pub npc_talk_name: String,
+    /// The NPC's live activity line ("Tending the hydroponic racks");
+    /// refreshed each frame while the card is open so it tracks their chore.
+    pub npc_talk_activity: String,
+    /// The dialogue line currently shown on the card.
+    pub npc_talk_line: String,
+    /// Rotating conversation lines; More / repeat E cycles through these.
+    pub npc_talk_dialog: Vec<String>,
+    /// Opening lines; one was picked at random for the card's first line.
+    pub npc_talk_greetings: Vec<String>,
+    /// Index of the last dialog[] line shown; None = still on the greeting.
+    pub npc_talk_index: Option<usize>,
     /// Transient confirmation shown after a "Save to server" click.
     pub profile_network_saved_note: String,
     // Interests
@@ -3837,15 +3866,16 @@ impl GuiState {
         self.nav_back_stack.clear();
     }
 
-    /// True while an in-world MODAL PANEL is open (the interactive chat panel
-    /// or the walk-up creature editor). THE single predicate for the modal
-    /// input plumbing in lib.rs -- reconcile_cursor's want_free, the mouse-look
-    /// gate, the keyboard guard, the mouse-button guard, and the wheel gate all
-    /// call this, so a future in-world modal is a one-line addition HERE
-    /// instead of a five-site scavenger hunt (missing one site re-introduces
-    /// the "typing 'i' opens the inventory" class of bug). (v0.779)
+    /// True while an in-world MODAL PANEL is open (the interactive chat panel,
+    /// the walk-up creature editor, or the NPC dialogue card). THE single
+    /// predicate for the modal input plumbing in lib.rs -- reconcile_cursor's
+    /// want_free, the mouse-look gate, the keyboard guard, the mouse-button
+    /// guard, and the wheel gate all call this, so a future in-world modal is
+    /// a one-line addition HERE instead of a five-site scavenger hunt (missing
+    /// one site re-introduces the "typing 'i' opens the inventory" class of
+    /// bug). (v0.779; NPC talk card joined v0.797)
     pub fn in_world_modal_open(&self) -> bool {
-        self.chat_input_active || self.dev_edit_target.is_some()
+        self.chat_input_active || self.dev_edit_target.is_some() || self.npc_talk_target.is_some()
     }
 
     /// Close every in-world modal panel (Esc, death, or a mode change). One
@@ -3855,6 +3885,26 @@ impl GuiState {
         self.chat_input_focus_pending = false;
         self.dev_edit_target = None;
         self.dev_edit_snapshot_pending = false;
+        self.npc_talk_target = None;
+    }
+
+    /// Advance the open NPC dialogue card to its next line (v0.797). Shared by
+    /// the card's More button and the repeat-E press so the two paths can never
+    /// cycle differently. Cycles dialog[]; an NPC that shipped only greetings
+    /// cycles those instead, so More always does SOMETHING when lines exist.
+    pub fn npc_talk_advance(&mut self) {
+        let lines = if self.npc_talk_dialog.is_empty() {
+            &self.npc_talk_greetings
+        } else {
+            &self.npc_talk_dialog
+        };
+        let Some((i, line)) = crate::net::sync::next_dialog_line(lines, self.npc_talk_index)
+        else {
+            return; // nothing to say: keep whatever the card shows
+        };
+        let line = line.to_string();
+        self.npc_talk_index = Some(i);
+        self.npc_talk_line = line;
     }
 }
 
@@ -4014,6 +4064,15 @@ impl Default for GuiState {
             machine_label_name_dist: 13.0,
             machine_label_card_dist: 8.0,
             crew_labels: Vec::new(),
+            targeted_npc: None,
+            npc_prompt: String::new(),
+            npc_talk_target: None,
+            npc_talk_name: String::new(),
+            npc_talk_activity: String::new(),
+            npc_talk_line: String::new(),
+            npc_talk_dialog: Vec::new(),
+            npc_talk_greetings: Vec::new(),
+            npc_talk_index: None,
             profile_network_saved_note: String::new(),
             profile_interests: Vec::new(),
             profile_interest_input: String::new(),
