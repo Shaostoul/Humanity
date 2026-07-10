@@ -4493,27 +4493,73 @@ mod native_app {
                     // update -- two stationary players were invisible to each other).
                     if let Some(snap) = v.get("world_snapshot").and_then(|s| s.as_array()) {
                         for e in snap {
-                            if e.get("entity_type").and_then(|t| t.as_str()) != Some("player") {
+                            let Some(eid) = e.get("entity_id").and_then(|x| x.as_u64()) else { continue; };
+                            let Some(pos) = e.get("position").and_then(&arr3) else { continue; };
+                            let etype = e.get("entity_type").and_then(|t| t.as_str()).unwrap_or("");
+                            if etype == "player" {
+                                if eid as u32 == own_id {
+                                    continue; // skip ourselves
+                                }
+                                // Real name from the entity's `name` component (v0.774,
+                                // relay stamps it at join); "Player" only if an older
+                                // snapshot lacks it.
+                                let name = e
+                                    .get("components")
+                                    .and_then(|c| c.get("name"))
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("Player")
+                                    .to_string();
+                                msgs.push(NetMessage::PlayerJoined {
+                                    player_id: eid as u32,
+                                    name,
+                                    position: pos,
+                                });
                                 continue;
                             }
-                            let Some(eid) = e.get("entity_id").and_then(|x| x.as_u64()) else { continue; };
-                            if eid as u32 == own_id {
-                                continue; // skip ourselves
+                            // Crew NPC dialogue capture (v0.797): any snapshot entity
+                            // carrying dialog[]/greetings[] components is a talkable
+                            // crew member. Forward the lines to net_sync as an
+                            // NpcProfile so the RemoteNpc spawns with them -- the
+                            // walk-up talk card only DISPLAYS relay-authored text
+                            // (which the relay builds from its NPC data), never its
+                            // own. This also makes dwelling crew visible to a fresh
+                            // joiner (they send no NpcUpdate until their next move).
+                            let Some(c) = e.get("components") else { continue; };
+                            let strings = |key: &str| -> Vec<String> {
+                                c.get(key)
+                                    .and_then(|x| x.as_array())
+                                    .map(|a| {
+                                        a.iter()
+                                            .filter_map(|s| s.as_str().map(str::to_string))
+                                            .collect()
+                                    })
+                                    .unwrap_or_default()
+                            };
+                            let dialog = strings("dialog");
+                            let greetings = strings("greetings");
+                            if dialog.is_empty() && greetings.is_empty() {
+                                continue; // not a talkable NPC (equipment, windows, ...)
                             }
-                            let Some(pos) = e.get("position").and_then(&arr3) else { continue; };
-                            // Real name from the entity's `name` component (v0.774,
-                            // relay stamps it at join); "Player" only if an older
-                            // snapshot lacks it.
-                            let name = e
-                                .get("components")
-                                .and_then(|c| c.get("name"))
-                                .and_then(|n| n.as_str())
-                                .unwrap_or("Player")
-                                .to_string();
-                            msgs.push(NetMessage::PlayerJoined {
-                                player_id: eid as u32,
-                                name,
+                            msgs.push(NetMessage::NpcProfile {
+                                entity_id: eid,
+                                name: c
+                                    .get("name")
+                                    .and_then(|n| n.as_str())
+                                    .unwrap_or("Crew")
+                                    .to_string(),
+                                role: c
+                                    .get("role")
+                                    .and_then(|r| r.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
                                 position: pos,
+                                activity: c
+                                    .get("activity")
+                                    .and_then(|a| a.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                dialog,
+                                greetings,
                             });
                         }
                     }
@@ -7069,6 +7115,19 @@ mod native_app {
                             if key == KeyCode::Escape && pressed {
                                 state.gui_state.close_in_world_modals();
                             }
+                            // Repeat-E cycles the open NPC dialogue card's line
+                            // (v0.797) -- the "press E to keep talking" flow. Only
+                            // when the talk card is the open modal: in the chat
+                            // panel a typed 'e' is just a letter, and the creature
+                            // editor has a Name text field.
+                            if key == KeyCode::KeyE
+                                && pressed
+                                && state.gui_state.npc_talk_target.is_some()
+                                && !state.gui_state.chat_input_active
+                                && state.gui_state.dev_edit_target.is_none()
+                            {
+                                state.gui_state.npc_talk_advance();
+                            }
                             if pressed {
                                 return;
                             }
@@ -7323,6 +7382,59 @@ mod native_app {
                                 // Walk-up collect from a farm animal (v0.751):
                                 // the frame bridge settles it against the pack.
                                 state.pending_livestock_harvest = Some(animal);
+                            } else if let Some(npc_id) = state.gui_state.targeted_npc {
+                                // Walk-up TALK to a crew NPC (v0.797, operator: "I
+                                // can't interact with NPCs at all"). Opens the
+                                // dialogue card with a random greeting; repeat E /
+                                // the More button cycles the dialog lines. All text
+                                // arrived from the relay (welcome-snapshot
+                                // NpcProfile) -- the client only displays it.
+                                // Note: targeting (below, per frame) clears
+                                // targeted_livestock while an NPC is faced, so this
+                                // branch is what E does when a person is in front
+                                // of you.
+                                let mut opened = false;
+                                for (_e, npc) in state
+                                    .game_world
+                                    .world
+                                    .query::<&crate::net::sync::RemoteNpc>()
+                                    .iter()
+                                {
+                                    if npc.entity_id != npc_id {
+                                        continue;
+                                    }
+                                    state.gui_state.npc_talk_name = npc.name.clone();
+                                    state.gui_state.npc_talk_activity = npc.activity.clone();
+                                    state.gui_state.npc_talk_dialog = npc.dialog.clone();
+                                    state.gui_state.npc_talk_greetings = npc.greetings.clone();
+                                    state.gui_state.npc_talk_index = None;
+                                    // Wall-clock nanos as the greeting seed: cheap
+                                    // variety, no RNG state to carry (helper wraps).
+                                    let seed = std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .map(|d| u64::from(d.subsec_nanos()))
+                                        .unwrap_or(0);
+                                    state.gui_state.npc_talk_line =
+                                        crate::net::sync::pick_greeting(&npc.greetings, seed)
+                                            .unwrap_or_default()
+                                            .to_string();
+                                    opened = true;
+                                    break;
+                                }
+                                if opened {
+                                    state.gui_state.npc_talk_target = Some(npc_id);
+                                    // No greetings authored -> lead with the first
+                                    // dialog line instead of an empty card.
+                                    if state.gui_state.npc_talk_line.is_empty() {
+                                        state.gui_state.npc_talk_advance();
+                                    }
+                                    // Same open-a-modal hygiene as the chat panel /
+                                    // creature editor: clear held movement in BOTH
+                                    // movers so the player doesn't drift while the
+                                    // modal guard swallows the key releases.
+                                    state.controller.stop_movement();
+                                    state.data_store.insert("input_state", InputState::default());
+                                }
                             } else
  if let Some(cp) = state.gui_state.targeted_control_panel {
                                 // Looking at a door control panel (v0.567 + v0.570 locks): if the door
@@ -8507,6 +8619,63 @@ mod native_app {
                         };
                     }
 
+                    // Walk-up to a CREW NPC (v0.797, operator: "I can't interact
+                    // with NPCs at all"): the nearest relay-driven crew member
+                    // within talk range inside the look cone. Drives the
+                    // "[E] Talk to X" prompt; E opens the dialogue card. Only crew
+                    // that actually HAVE lines (dialog/greetings from the relay)
+                    // are offered -- a silent NPC never prompts, keeping the
+                    // client free of fallback dialogue (infinite-of-X).
+                    {
+                        let cp = state.camera.position;
+                        let cf = state.camera.forward();
+                        // (entity_id, head-ish anchor) pairs for the pure selection
+                        // helper + a name lookup for the prompt text. Crew body
+                        // center sits at ~1.0 m (NPC_LOCAL_STANDING_Y); +0.6 puts
+                        // the aim point at the head, level with the camera eye.
+                        let mut cands: Vec<(u64, Vec3)> = Vec::new();
+                        let mut names: std::collections::HashMap<u64, String> =
+                            std::collections::HashMap::new();
+                        for (_e, (tf, npc)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Transform,
+                                &crate::net::sync::RemoteNpc,
+                            )>()
+                            .iter()
+                        {
+                            if npc.dialog.is_empty() && npc.greetings.is_empty() {
+                                continue; // nothing to say -> no talk prompt
+                            }
+                            cands.push((npc.entity_id, tf.position + Vec3::Y * 0.6));
+                            names.insert(npc.entity_id, npc.name.clone());
+                        }
+                        // ~2.5 m talk range; the 0.8 cone matches livestock (crew
+                        // move, so a tight machine-style cone would flicker).
+                        let best = crate::net::sync::nearest_facing_target(
+                            cp, cf, &cands, 0.3, 2.5, 0.8,
+                        );
+                        state.gui_state.targeted_npc = best;
+                        // A faced person outranks the animal behind them: clear the
+                        // livestock target so the E chain and the prompts agree
+                        // (the collect prompt would otherwise promise an E the
+                        // talk branch takes first).
+                        if best.is_some() {
+                            state.targeted_livestock = None;
+                            state.gui_state.livestock_prompt.clear();
+                        }
+                        state.gui_state.npc_prompt = if state.gui_state.npc_talk_target.is_some() {
+                            // Card already open: no crosshair prompt under a modal.
+                            String::new()
+                        } else {
+                            match best.and_then(|id| names.get(&id)) {
+                                Some(name) => format!("[E] Talk to {name}"),
+                                None => String::new(),
+                            }
+                        };
+                    }
+
                     // Walk-up to a door you can interact with (v0.567 control panel + v0.570 locks): the
                     // nearest within arm's reach that the player is facing. A MANUAL control-panel door
                     // (open/close) OR any LOCKED door with locks (unlock) qualifies -- so a locked AUTO
@@ -9019,6 +9188,39 @@ mod native_app {
                             }
                         }
                         state.gui_state.dev_edit_snapshot_pending = false;
+                    }
+                    // NPC dialogue card upkeep (v0.797). The relay keeps
+                    // simulating chores while the card is open (freezing the NPC
+                    // server-side is deliberately out of scope), so: if the crew
+                    // member wanders beyond conversational range (4 m -- wider
+                    // than the 2.5 m open range so a small shuffle doesn't slam
+                    // the card) or despawns, the card closes itself. While it
+                    // stays open, the activity line refreshes live so the card
+                    // tracks their current chore.
+                    if let Some(npc_id) = state.gui_state.npc_talk_target {
+                        let cam = state.camera.position;
+                        let mut still_near = false;
+                        for (_e, (tf, npc)) in state
+                            .game_world
+                            .world
+                            .query::<(
+                                &crate::ecs::components::Transform,
+                                &crate::net::sync::RemoteNpc,
+                            )>()
+                            .iter()
+                        {
+                            if npc.entity_id != npc_id {
+                                continue;
+                            }
+                            if (tf.position - cam).length() <= 4.0 {
+                                still_near = true;
+                                state.gui_state.npc_talk_activity = npc.activity.clone();
+                            }
+                            break;
+                        }
+                        if !still_near {
+                            state.gui_state.npc_talk_target = None;
+                        }
                     }
                     // Vehicles: bridge the Vehicles section's Summon action (Stage 3).
                     if let Some(bits) = state.gui_state.pending_summon_vehicle.take() {
@@ -16616,6 +16818,17 @@ mod native_app {
                                         &state.theme,
                                         &mut state.gui_state,
                                     );
+                                }
+
+                                // Walk-up NPC dialogue card (v0.797): E on a faced
+                                // crew member opens it. Cursor-free via the same
+                                // in-world-modal plumbing as the chat panel; the
+                                // frame bridge above auto-closes it if the NPC
+                                // wanders off or despawns.
+                                if state.gui_state.active_page == GuiPage::None
+                                    && state.gui_state.npc_talk_target.is_some()
+                                {
+                                    hud::draw_npc_talk_card(ctx, &state.theme, &mut state.gui_state);
                                 }
 
                                 // Passphrase modal overlay (blocks interaction until resolved)

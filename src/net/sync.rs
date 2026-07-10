@@ -39,11 +39,75 @@ pub struct RemoteNpc {
     pub activity: String,
     /// True while the NPC dwells at its chore site ("working" state).
     pub working: bool,
+    /// Crew role id from the relay ("botanist", "navigator", ...). Filled by
+    /// the welcome-snapshot NpcProfile (v0.797); empty until it arrives.
+    pub role: String,
+    /// Walk-up dialogue (v0.797): rotating conversation lines authored by the
+    /// relay (its NPC components). Empty vecs = this NPC has nothing to say,
+    /// so the talk prompt never offers it. The client only displays these.
+    pub dialog: Vec<String>,
+    /// Opening lines; the talk card picks one at random when it opens.
+    pub greetings: Vec<String>,
     pub last_position: Vec3,
     pub target_position: Vec3,
     pub last_rotation: Quat,
     pub target_rotation: Quat,
     pub interpolation_t: f32,
+}
+
+/// Nearest candidate the camera FACES: within [min_dist, max_dist] meters AND
+/// inside the look cone (direction-to-target dot camera-forward >= min_dot).
+/// Same selection math as the machine / livestock walk-up blocks in lib.rs,
+/// extracted pure so the NPC talk targeting is unit-testable. Ties break to
+/// the closer candidate.
+pub fn nearest_facing_target(
+    cam_pos: Vec3,
+    cam_forward: Vec3,
+    candidates: &[(u64, Vec3)],
+    min_dist: f32,
+    max_dist: f32,
+    min_dot: f32,
+) -> Option<u64> {
+    let mut best: Option<(u64, f32)> = None;
+    for &(id, pos) in candidates {
+        let to = pos - cam_pos;
+        let dist = to.length();
+        if !(min_dist..=max_dist).contains(&dist) {
+            continue; // too close to aim at, or out of conversational range
+        }
+        if (to / dist).dot(cam_forward) < min_dot {
+            continue; // outside the look cone (behind / off to the side)
+        }
+        if best.map_or(true, |b| dist < b.1) {
+            best = Some((id, dist));
+        }
+    }
+    best.map(|b| b.0)
+}
+
+/// Dialogue cycling for the walk-up talk card (v0.797): the line AFTER `last`,
+/// wrapping back to the first once the list is exhausted. `last = None` means
+/// "still on the greeting", so the first advance yields index 0. None only
+/// for an empty list (nothing to cycle).
+pub fn next_dialog_line(lines: &[String], last: Option<usize>) -> Option<(usize, &str)> {
+    if lines.is_empty() {
+        return None;
+    }
+    let i = match last {
+        None => 0,
+        Some(i) => (i + 1) % lines.len(),
+    };
+    Some((i, lines[i].as_str()))
+}
+
+/// Greeting pick for the talk card's opening line. The caller supplies the
+/// randomness (any seed -- lib.rs feeds wall-clock nanos) so this stays pure
+/// and testable; an out-of-range seed just wraps.
+pub fn pick_greeting(lines: &[String], seed: u64) -> Option<&str> {
+    if lines.is_empty() {
+        return None;
+    }
+    Some(lines[(seed % lines.len() as u64) as usize].as_str())
 }
 
 /// Network synchronization system.
@@ -260,6 +324,12 @@ impl System for NetSyncSystem {
                                 name: name.clone(),
                                 activity: activity.clone(),
                                 working,
+                                // Dialogue arrives via NpcProfile (welcome snapshot);
+                                // an update-first spawn starts silent and the profile
+                                // fills it in when it lands (v0.797).
+                                role: String::new(),
+                                dialog: Vec::new(),
+                                greetings: Vec::new(),
                                 last_position: pos,
                                 target_position: pos,
                                 last_rotation: Quat::IDENTITY,
@@ -268,6 +338,66 @@ impl System for NetSyncSystem {
                             },
                         ));
                         log::info!("Crew NPC {} ({}) appeared: {}", name, entity_id, activity);
+                    }
+                }
+
+                NetMessage::NpcProfile {
+                    entity_id,
+                    name,
+                    role,
+                    position,
+                    activity,
+                    dialog,
+                    greetings,
+                } => {
+                    // Welcome-snapshot crew capture (v0.797): the relay's welcome
+                    // carries every crew NPC with the dialog[]/greetings[] its
+                    // components author server-side. Update-or-spawn, mirroring
+                    // NpcUpdate:
+                    //   (a) spawn -- a crew member DWELLING at a chore site sends
+                    //       no NpcUpdate until its next move, so before v0.797 a
+                    //       fresh joiner could not see (or talk to) it at all;
+                    //   (b) update -- if the 2 Hz stream spawned the NPC first,
+                    //       the profile just fills in the dialogue lines.
+                    // Same local-floor Y grounding as NpcUpdate (relay decks vs
+                    // the flat homestead, v0.681).
+                    let pos = Vec3::new(position[0], NPC_LOCAL_STANDING_Y, position[2]);
+                    let mut found = false;
+                    for (_e, npc) in world.query_mut::<&mut RemoteNpc>() {
+                        if npc.entity_id == entity_id {
+                            npc.role = role.clone();
+                            npc.dialog = dialog.clone();
+                            npc.greetings = greetings.clone();
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        world.spawn((
+                            Transform { position: pos, rotation: Quat::IDENTITY, scale: Vec3::ONE },
+                            RemoteNpc {
+                                entity_id,
+                                name: name.clone(),
+                                activity: activity.clone(),
+                                // Snapshot has no chore state; the next NpcUpdate
+                                // corrects it (false = the muted nameplate style).
+                                working: false,
+                                role: role.clone(),
+                                dialog: dialog.clone(),
+                                greetings: greetings.clone(),
+                                last_position: pos,
+                                target_position: pos,
+                                last_rotation: Quat::IDENTITY,
+                                target_rotation: Quat::IDENTITY,
+                                interpolation_t: 1.0,
+                            },
+                        ));
+                        log::info!(
+                            "Crew NPC {} ({}) loaded from welcome snapshot ({} dialog lines)",
+                            name,
+                            entity_id,
+                            dialog.len()
+                        );
                     }
                 }
 
@@ -367,5 +497,108 @@ mod tests {
             .collect();
         assert_eq!(named.len(), 1, "no duplicate spawn from the late join");
         assert_eq!(named[0].0, "Test Pilot A", "the real name replaced the placeholder");
+    }
+
+    // ── NPC walk-up talk helpers (v0.797) ──
+
+    fn lines(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn facing_selection_picks_the_nearest_in_cone_npc_only() {
+        let cam = Vec3::new(0.0, 1.7, 0.0);
+        let fwd = Vec3::new(0.0, 0.0, 1.0); // looking down +Z
+        let candidates = vec![
+            (1_u64, Vec3::new(0.0, 1.6, 2.0)),  // dead ahead, 2 m -- the pick
+            (2_u64, Vec3::new(0.0, 1.6, 2.4)),  // dead ahead but farther
+            (3_u64, Vec3::new(0.0, 1.6, -1.5)), // BEHIND the camera
+            (4_u64, Vec3::new(3.0, 1.6, 0.5)),  // in range, far outside the cone
+            (5_u64, Vec3::new(0.0, 1.6, 9.0)),  // ahead, out of talk range
+        ];
+        assert_eq!(
+            nearest_facing_target(cam, fwd, &candidates, 0.3, 2.5, 0.8),
+            Some(1),
+            "nearest in-cone in-range candidate wins"
+        );
+        // Nobody in range/cone -> no target (prompt stays empty).
+        assert_eq!(
+            nearest_facing_target(cam, fwd, &candidates[2..4], 0.3, 2.5, 0.8),
+            None
+        );
+        // Standing INSIDE a candidate (below min_dist) does not target it:
+        // the min bound guards the divide-by-distance and point-blank jitter.
+        assert_eq!(
+            nearest_facing_target(cam, fwd, &[(9, cam + Vec3::new(0.0, 0.0, 0.01))], 0.3, 2.5, 0.8),
+            None
+        );
+    }
+
+    #[test]
+    fn dialog_cycling_wraps_and_greeting_pick_is_seed_stable() {
+        let d = lines(&["a", "b", "c"]);
+        // None = "still on the greeting" -> first advance is line 0, then 1, 2, wrap to 0.
+        assert_eq!(next_dialog_line(&d, None), Some((0, "a")));
+        assert_eq!(next_dialog_line(&d, Some(0)), Some((1, "b")));
+        assert_eq!(next_dialog_line(&d, Some(1)), Some((2, "c")));
+        assert_eq!(next_dialog_line(&d, Some(2)), Some((0, "a")), "wraps to the start");
+        assert_eq!(next_dialog_line(&[], None), None, "nothing to say");
+
+        let g = lines(&["hi", "yo"]);
+        assert_eq!(pick_greeting(&g, 0), Some("hi"));
+        assert_eq!(pick_greeting(&g, 1), Some("yo"));
+        assert_eq!(pick_greeting(&g, 7), Some("yo"), "seed wraps, never panics");
+        assert_eq!(pick_greeting(&[], 3), None);
+    }
+
+    /// Dialogue must survive BOTH arrival orders: profile-then-update (the
+    /// normal welcome-first case) and update-then-profile (a chore broadcast
+    /// racing the snapshot parse). Either way the RemoteNpc ends up with the
+    /// relay's lines and exactly one entity exists per entity_id.
+    #[test]
+    fn npc_profile_and_update_merge_in_either_order() {
+        let profile = |eid: u64| NetMessage::NpcProfile {
+            entity_id: eid,
+            name: "Botanist Yara".to_string(),
+            role: "botanist".to_string(),
+            position: [4.0, 7.0, 2.0], // relay deck Y is IGNORED (local grounding)
+            activity: "Tending the racks".to_string(),
+            dialog: lines(&["Look at these tomatoes."]),
+            greetings: lines(&["Welcome! Mind the spore filter."]),
+        };
+        let update = |eid: u64| NetMessage::NpcUpdate {
+            entity_id: eid,
+            name: "Botanist Yara".to_string(),
+            position: [5.0, 7.0, 2.0],
+            activity: "Walking to hydroponics".to_string(),
+            working: false,
+        };
+        let data = crate::hot_reload::data_store::DataStore::new();
+
+        for (label, msgs) in [
+            ("profile first", vec![profile(7), update(7)]),
+            ("update first", vec![update(7), profile(7)]),
+        ] {
+            let mut sys = NetSyncSystem::new();
+            let mut world = hecs::World::new();
+            sys.queue_messages(msgs);
+            sys.tick(&mut world, 0.016, &data);
+            let npcs: Vec<(u64, usize, usize, f32)> = world
+                .query_mut::<(&RemoteNpc, &Transform)>()
+                .into_iter()
+                .map(|(_, (n, t))| {
+                    (n.entity_id, n.dialog.len(), n.greetings.len(), t.position.y)
+                })
+                .collect();
+            assert_eq!(npcs.len(), 1, "{label}: exactly one entity per entity_id");
+            assert_eq!(npcs[0].1, 1, "{label}: dialog lines present");
+            assert_eq!(npcs[0].2, 1, "{label}: greetings present");
+            // Both paths ground Y to the local floor (v0.681 rule).
+            assert!(
+                (npcs[0].3 - NPC_LOCAL_STANDING_Y).abs() < 0.51,
+                "{label}: Y grounded locally, not the relay deck height (got {})",
+                npcs[0].3
+            );
+        }
     }
 }
