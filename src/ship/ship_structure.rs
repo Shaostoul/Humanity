@@ -398,6 +398,56 @@ impl ShipStructure {
             } else if g.to_zone_idx == zi {
                 (g.end_to, g.end_from)
             } else {
+                // NOT an end zone -- but the tube may still CROSS this zone's
+                // perimeter (v0.789, operator: "there's still a wall in the
+                // corridor"). Zones legitimately overlap in this ship design
+                // (his 120x200 m Residential region contains both corridor
+                // ends), so any perimeter plane an intervening zone puts across
+                // the tube's path gets the same door-sized cut the end mouths
+                // get. Collision uses these same cuts, so the passage is
+                // walkable too.
+                let (dw, dh) = g.door_from;
+                // `start`/`end` are the run-axis coordinates of the two mouths.
+                let (lo, hi) = (g.start.min(g.end), g.start.max(g.end));
+                match g.axis {
+                    CorridorAxis::X => {
+                        // The door must fit inside this zone's z-span at lat.
+                        if g.lat - dw * 0.5 >= o.z && g.lat + dw * 0.5 <= o.z + d {
+                            // West face (x = o.x) is edge 3; east face (x = o.x + w) is edge 1.
+                            for (plane, edge, at) in [
+                                (o.x, 3usize, d - ((g.lat - o.z) + dw * 0.5)),
+                                (o.x + w, 1, (g.lat - o.z) - dw * 0.5),
+                            ] {
+                                if plane > lo + 0.01 && plane < hi - 0.01 {
+                                    cuts.push(ShellCut {
+                                        edge,
+                                        at,
+                                        width: dw,
+                                        height: dh.min(zone.body.height),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    CorridorAxis::Z => {
+                        if g.lat - dw * 0.5 >= o.x && g.lat + dw * 0.5 <= o.x + w {
+                            // North face (z = o.z) is edge 0; south face (z = o.z + d) is edge 2.
+                            for (plane, edge, at) in [
+                                (o.z, 0usize, (g.lat - o.x) - dw * 0.5),
+                                (o.z + d, 2, w - ((g.lat - o.x) + dw * 0.5)),
+                            ] {
+                                if plane > lo + 0.01 && plane < hi - 0.01 {
+                                    cuts.push(ShellCut {
+                                        edge,
+                                        at,
+                                        width: dw,
+                                        height: dh.min(zone.body.height),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
                 continue;
             };
             let (dw, dh) = g.door_from;
@@ -1328,6 +1378,43 @@ mod tests {
         assert_eq!(cuts.len(), 1);
         assert_eq!(cuts[0].edge, 3);
         assert!((cuts[0].at - 34.0).abs() < 1e-4, "got {}", cuts[0].at);
+    }
+
+    /// v0.789 regression (operator: "there's still a wall in the corridor"):
+    /// an INTERVENING zone whose perimeter crosses the tube's path gets the
+    /// same door-sized cut the end mouths get. Fixture mirrors the live ship:
+    /// a big region zone (his 120x200 Residential) overlapping the run between
+    /// home and commons, its west face at x = 7 crossing the 10..20 gap...
+    /// here the region spans x 12..40 so only its WEST face (x = 12) sits
+    /// inside the tube span (10..20) -- exactly one cut, on edge 3, at lat.
+    #[test]
+    fn an_intervening_zone_shell_gets_cut_where_the_tube_crosses_it() {
+        let mut ship = corridor_ship();
+        ship.zones.push(ShipZone {
+            id: "region".to_string(),
+            label: "Residential".to_string(),
+            purpose: "residential".to_string(),
+            origin: (12.0, 0.0, 0.0),
+            body: body(28.0, 30.0, 4.0),
+        });
+        let region = ship.zone_index("region").expect("region zone exists");
+        let cuts = ship.shell_cuts_for_zone(region);
+        assert_eq!(cuts.len(), 1, "exactly the west-face crossing is cut");
+        assert_eq!(cuts[0].edge, 3, "west face (x = origin.x) is edge 3");
+        // Edge 3 winds -z from z = d: at = d - (local lat + door/2) = 30 - (5 + 0.5).
+        assert!((cuts[0].at - 24.5).abs() < 1e-4, "got {}", cuts[0].at);
+        assert!((cuts[0].width - 1.0).abs() < 1e-4, "door-sized, not tube-sized");
+
+        // A zone the tube never touches (lat outside its span) cuts nothing.
+        ship.zones.push(ShipZone {
+            id: "aside".to_string(),
+            label: "Aside".to_string(),
+            purpose: "storage".to_string(),
+            origin: (12.0, 0.0, 20.0),
+            body: body(6.0, 6.0, 3.0),
+        });
+        let aside = ship.zone_index("aside").expect("aside zone exists");
+        assert!(ship.shell_cuts_for_zone(aside).is_empty());
     }
 
     #[test]

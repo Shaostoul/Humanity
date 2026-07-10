@@ -2921,6 +2921,32 @@ mod native_app {
             }
         }
         if let Some((id, _)) = best {
+            // Drag guard (v0.789, operator incident): only arm the FLOOR DRAG when
+            // the click lands near the zone's PERIMETER (a 2 m band in plan view).
+            // A click deep inside still SELECTS (detail panel + highlight), but a
+            // giant region zone that underlies the whole ship no longer gets
+            // yanked 30 m sideways because a bare floor click grabbed its body --
+            // the operator clicked his home floor and dragged the 120x200 m
+            // Residential zone through the house.
+            let near_edge = zones
+                .iter()
+                .find(|(zid, _, _)| zid == &id)
+                .map(|(_, o, s)| {
+                    // Where the pick ray meets the zone's floor plane, in plan view.
+                    let mn = Vec3::new(o.0, o.1, o.2) + zo;
+                    let mx = Vec3::new(o.0 + s.0, o.1 + s.1, o.2 + s.2) + zo;
+                    let t = if dir.y.abs() > 1e-4 { (mn.y - origin.y) / dir.y } else { -1.0 };
+                    if t <= 0.0 {
+                        return true; // grazing ray: keep the old grab behavior
+                    }
+                    let hit = origin + dir * t;
+                    let d_edge = (hit.x - mn.x)
+                        .min(mx.x - hit.x)
+                        .min(hit.z - mn.z)
+                        .min(mx.z - hit.z);
+                    d_edge <= 2.0
+                })
+                .unwrap_or(true);
             let g = &mut state.gui_state;
             g.construction_zone_selected = Some(id.clone());
             g.construction_machine_selected = None;
@@ -2930,8 +2956,10 @@ mod native_app {
             g.construction_road_node_selected = None;
             g.construction_conduit_node_selected = None;
             g.construction_connection_selected = None;
-            state.construction_object_grab = Some(ObjectGrab::Zone(id));
-            state.construction_grab_press = Some(state.cursor_pos);
+            if near_edge {
+                state.construction_object_grab = Some(ObjectGrab::Zone(id));
+                state.construction_grab_press = Some(state.cursor_pos);
+            }
             true
         } else {
             false
