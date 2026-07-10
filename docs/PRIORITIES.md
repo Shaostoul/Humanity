@@ -57,10 +57,17 @@
 >    the corridor still cites "home door 6" by index - live fragility). Plus a
 >    Dev/Creative/Normal MODE system so the operator builds the whole
 >    mothership in-game while normal players are limited to their homestead.
->    QUEUED (renderer): raise the 8-light GPU budget to 16 - its own careful
->    release; every camera-uniform byte offset after the light block shifts
->    (sun/fill + the WGSL struct), verify with just snapshots. Then optional
->    per-point light sampling along strip paths.
+>    DONE from that queue: lights UNCAPPED entirely (v0.782 storage buffer -
+>    the 8-light raise became a full removal), real constellations (v0.783,
+>    594 segments), palette light placement + RGB launcher cards (v0.784).
+>    QUEUED (renderer/data): the BIG STAR CATALOG arc - (1) binary star format
+>    + single parse (the 34 MB HYG CSV parses TWICE at startup today), then
+>    (2) ATHYG import (astronexus/ATHYG: HYG author's Tycho-2 + Gaia merge,
+>    ~2.5M stars, same schema, magnitude-capped download as an in-app
+>    "extended star catalog" fetch - too big to commit to the repo), then
+>    optional per-point light sampling along strip paths. LATER R&D: sky
+>    FILTER modes (UV / H-alpha / infrared layers for gas clouds + nebulae -
+>    render as additional emissive sky layers toggled like the dev overlays).
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
