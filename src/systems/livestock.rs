@@ -219,7 +219,9 @@ impl WildSpawnList {
 /// Spawn a fully-formed creature of `def` into the world at `pos` (v0.777, the
 /// dev spawn tool). Gives it the full treatment so it both behaves and can be
 /// harvested/fought: Creature + Transform + Name + Health + LootTable +
-/// AIBehavior (wandering/hostile per the species) + Velocity, plus Harvestable
+/// Velocity, plus AIBehavior for NON-passive species only (passive farm
+/// animals use the LivestockSystem's anchored amble, exactly like the placed
+/// homestead bundle -- see the comment at the insert below), plus Harvestable
 /// when the species has a renewable product. Mirrors load_world's homestead +
 /// wild bundles (src/lib.rs) so a dev-spawned animal is identical to a placed
 /// one -- rendering + walk-up + combat all work with no extra registration.
@@ -255,13 +257,26 @@ pub fn spawn_creature_at(
         LootTable {
             entries: def.loot_entries(items),
         },
-        AIBehavior {
-            behavior_type: behavior_type_for(def).to_string(),
-            state: "idle".to_string(),
-            target: None,
-        },
         Velocity::default(),
     ));
+    // AIBehavior ONLY for genuinely non-passive species (v0.779): the
+    // LivestockSystem's anchored graze skips any creature that has AIBehavior
+    // ("AI-driven creatures are the AISystem's to move"), and the AISystem's
+    // passive tick is an UNANCHORED wander -- so giving a hen AIBehavior made
+    // dev-spawned farm animals drift through walls and away from where they
+    // were placed, unlike placed ones. Passive species now match the placed
+    // homestead bundle exactly (no AIBehavior = anchored amble around `pos`).
+    let behavior = behavior_type_for(def);
+    if behavior != "passive" {
+        let _ = world.insert_one(
+            e,
+            AIBehavior {
+                behavior_type: behavior.to_string(),
+                state: "idle".to_string(),
+                target: None,
+            },
+        );
+    }
     // Renewable-yield species (hen/goat/sheep) also get the Harvestable so a
     // dev-spawned one supports walk-up + E collection like a placed one.
     if let Some(p) = def.renewable() {
@@ -438,6 +453,35 @@ mod tests {
             .join("entities")
             .join("livestock.ron");
         LivestockSpawnList::from_ron(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    /// Dev-spawned creatures match placed ones (v0.779 regression): PASSIVE
+    /// species must NOT get AIBehavior (it would knock them out of the
+    /// LivestockSystem's anchored graze into the AISystem's unanchored wander,
+    /// drifting through walls), while hunt-class species must (predator).
+    /// Renewable-yield species also carry a ready Harvestable.
+    #[test]
+    fn dev_spawn_matches_placed_bundles() {
+        use crate::ecs::components::{AIBehavior, Harvestable};
+        let reg = shipped_registry();
+        let items = shipped_items();
+        let mut world = hecs::World::new();
+
+        let hen = reg.get("chicken").expect("chicken in creatures.csv");
+        let e_hen = spawn_creature_at(&mut world, hen, Some(&items), Vec3::ZERO, [1.0; 3]);
+        assert!(
+            world.get::<&AIBehavior>(e_hen).is_err(),
+            "passive species must have NO AIBehavior (anchored graze, like placed livestock)"
+        );
+        assert!(
+            world.get::<&Harvestable>(e_hen).is_ok(),
+            "renewable species should spawn with a ready Harvestable"
+        );
+
+        let wolf = reg.get("wolf").expect("wolf in creatures.csv");
+        let e_wolf = spawn_creature_at(&mut world, wolf, Some(&items), Vec3::ZERO, [1.0; 3]);
+        let ai = world.get::<&AIBehavior>(e_wolf).expect("hunt species get AIBehavior");
+        assert_eq!(ai.behavior_type, "predator");
     }
 
     /// The shipped creatures.csv parses whole: all 92 species survive the

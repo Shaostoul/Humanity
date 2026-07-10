@@ -1375,6 +1375,40 @@ impl GameWorld {
                 // mark OR the freshly-populated world's — avoids id reuse.
                 self.next_entity_id = snap.next_entity_id.max(self.next_entity_id);
                 self.game_time = snap.game_time;
+                // Reap GHOST players (v0.779): no sockets exist at startup, so
+                // every restored player entity is connectionless — it inflated
+                // the public game_players count forever (handle_game_disconnect
+                // never fires without a socket) and made its owner's next
+                // game_join a silent no-op. Persist each ghost's progress first
+                // (the disconnect handler never ran for them), then drop the
+                // entity; the owner re-seeds from player_progress on rejoin.
+                let ghost_ids: Vec<u64> = self
+                    .entities
+                    .iter()
+                    .filter(|(_, e)| e.entity_type == "player")
+                    .map(|(id, _)| *id)
+                    .collect();
+                for id in &ghost_ids {
+                    if let Some((quest, completed, xp, rep)) = self.extract_player_progress(*id) {
+                        if let Some(owner) =
+                            self.entities.get(id).and_then(|e| e.owner.clone())
+                        {
+                            if let Err(e) = db.save_player_progress(
+                                &owner,
+                                quest.as_deref(),
+                                &completed,
+                                xp,
+                                rep,
+                            ) {
+                                tracing::warn!("Could not persist ghost progress for {owner}: {e}");
+                            }
+                        }
+                    }
+                    self.entities.remove(id);
+                }
+                if !ghost_ids.is_empty() {
+                    tracing::info!("Reaped {} ghost player entities on restore", ghost_ids.len());
+                }
                 tracing::info!(
                     "Restored game world snapshot: {} entities, game_time={:.2}",
                     self.entities.len(), self.game_time
@@ -1635,9 +1669,13 @@ mod tests {
     }
 
     /// save_to_db → restore_from_db must reconstruct the dynamic world:
-    /// the entity set, game_time, and next_entity_id all survive a round-trip
-    /// through SQLite (simulating a relay restart). A spawned player's moved
-    /// position must be preserved too.
+    /// non-player entities, game_time, and next_entity_id all survive a
+    /// round-trip through SQLite (simulating a relay restart). PLAYER entities
+    /// are deliberately REAPED on restore (v0.779): no sockets exist at
+    /// startup, so a restored player is a connectionless ghost that would
+    /// inflate the public game_players count forever and silently block its
+    /// owner's next game_join. Their progress must be persisted to the
+    /// player_progress table before the reap so a rejoin re-seeds it.
     #[test]
     fn world_save_restore_preserves_entities_time_and_next_id() {
         let db = make_test_storage();
@@ -1659,14 +1697,28 @@ mod tests {
         let did_restore = restored.restore_from_db(&db);
         assert!(did_restore, "restore_from_db should find the saved snapshot");
 
-        assert_eq!(restored.entities.len(), saved_entity_count, "entity count preserved");
+        // Everything EXCEPT the ghost player survives.
+        assert_eq!(
+            restored.entities.len(),
+            saved_entity_count - 1,
+            "non-player entities preserved; the ghost player reaped"
+        );
         assert_eq!(restored.game_time, saved_game_time, "game_time preserved");
         assert!(restored.next_entity_id >= saved_next_id, "next_entity_id not regressed");
 
-        // The player's moved position survived.
-        let p = restored.entities.get(&player_id).expect("player entity restored");
-        assert_eq!(p.position, [12.0, 1.0, 34.0], "player position preserved across restart");
-        assert_eq!(p.owner.as_deref(), Some("pk_persist"));
+        // The ghost is GONE (game_players stays honest; the owner can rejoin)...
+        assert!(
+            restored.entities.get(&player_id).is_none(),
+            "ghost player entity reaped on restore"
+        );
+        assert_eq!(restored.player_count(), 0, "no phantom in-world players after restart");
+
+        // ...and their progress was persisted for the rejoin to re-seed.
+        let progress = db
+            .load_player_progress("pk_persist")
+            .expect("progress query")
+            .expect("ghost progress persisted before the reap");
+        assert_eq!(progress.xp, 0, "fresh player had zero xp to preserve");
     }
 
     /// restore_from_db on an empty DB returns false (no snapshot) and leaves

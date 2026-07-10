@@ -1901,3 +1901,50 @@ that crashes leaves the cause on disk even with no console. Truncated `run.log` 
 persistent `crash.log`, under `%APPDATA%/HumanityOS/logs` (Windows) / `~/.local/share/HumanityOS/logs`
 (Linux).
 - Native: `src/lib.rs` (`init_logging`, the `std::panic::set_hook` panic hook, `log_dir`)
+
+---
+
+## Unified Chat + Co-presence + Dev Tools (v0.771 - v0.779)
+
+### In-World Chat (feed + interactive panel)
+The SAME relay chat visible in the 3D world: a paint-only bottom-left feed of the
+active PUBLIC channel (DM/group channels fall back to #general so private text never
+paints on the world overlay / a stream), and an interactive panel opened with Enter
+(frees the cursor, disables look/move, swallows gameplay hotkeys while typing; Esc or
+click-away closes, typed text survives a dismissed panel and an aborted send). Channel
+switcher mirrors the Chat page semantics (clear + refetch + unread clear).
+- Native: `src/gui/pages/hud.rs` (feed), `src/gui/pages/chat.rs` (`draw_ingame_chat`,
+  `channel_display_label`), `src/lib.rs` (modal input guards keyed on
+  `GuiState::in_world_modal_open`, Enter handler)
+
+### Shared-World Co-presence (visible)
+Auto-joins the relay's shared game world whenever in-world + connected (no launcher
+step); HUD top-left shows "Shared world - <host>" + a live roster of other players
+(entity-count, duplicate names NOT collapsed). The session survives menu round-trips
+(net_sync keeps applying updates; the relay treats a duplicate game_join as a RESYNC
+and re-sends the welcome + snapshot). Relay reaps ghost player entities on restart
+(persisting their progress) so counts stay honest and rejoins work.
+- Native: `src/lib.rs` (multiplayer block, roster mirror), `src/gui/pages/hud.rs`
+- Server: `src/relay/handlers/msg_handlers.rs` (`handle_game_join` resync + 48-char
+  name clamp + name stamp), `src/relay/handlers/game_state.rs` (ghost reap in
+  `restore_from_db`)
+
+### Server Join Surface (launcher + public counts)
+The character-select launcher lists the server you are connected to (virtual row,
+deduped against bookmarks; a bookmark of the live connection counts as connected) with
+live `/api/server-info` details and a working "Enter World". `/api/server-info`
+exposes `game_players` (avatars in-world, distinct from chat `users_online`) - the
+public mirror of the in-world roster, shown as "In world" in the launcher pane.
+- Native: `src/gui/pages/showroom.rs`
+- Server: `src/relay/api.rs` (`get_server_info`)
+
+### Dev Page: Spawn Any Creature + Walk-Up Editor
+Platform > Dev (cheats-gated, like every dev affordance): searchable list of all 92
+creatures.csv species, Spawn drops one ~2 m ahead (passive species keep the anchored
+livestock graze - no AIBehavior; hunt species spawn as predators), Despawn-all + live
+count. Walk-up editor: look at any creature, press G - rename, health (0 = kill via
+the real Dead marker), Hostile toggle (maps to "predator", the behavior that actually
+hunts the player), size, tint, despawn; the AI is only touched if the toggle is
+actually flipped (opening the editor never rewrites predator/guard behaviors).
+- Native: `src/gui/pages/dev.rs`, `src/lib.rs` (spawn/editor consumers),
+  `src/systems/livestock.rs` (`spawn_creature_at`)

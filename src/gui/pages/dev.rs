@@ -61,6 +61,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             );
             ui.add_space(theme.spacing_sm);
 
+            // Same gate as every other dev affordance (v0.779): the G editor,
+            // "stock all materials", and the inventory dev buttons all honor
+            // the Settings cheats toggle -- spawning hostile creatures (or
+            // despawning the herd) shouldn't bypass it.
+            if !theme.cheats_enabled {
+                widgets::card(ui, theme, |ui| {
+                    ui.label(
+                        RichText::new("Dev cheats are turned off.")
+                            .size(theme.font_size_body)
+                            .strong()
+                            .color(theme.text_primary()),
+                    );
+                    ui.label(
+                        RichText::new("Enable them in Settings to use the spawn tools and the walk-up creature editor (G).")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                });
+                return;
+            }
+
             let all = species();
 
             // Status + cleanup.

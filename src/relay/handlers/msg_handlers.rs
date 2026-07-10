@@ -3375,10 +3375,16 @@ pub async fn handle_game_join(
     my_key: &str,
     raw: &serde_json::Value,
 ) {
-    let player_name = raw.get("player_name")
-        .and_then(|v| v.as_str())
-        .unwrap_or("Anonymous")
-        .to_string();
+    // Clamp the display name like every other relay name path (chat 48,
+    // channels 24, guilds 50) -- v0.779: an unclamped name was stamped into
+    // the persisted world entity, every broadcast, and every future joiner's
+    // snapshot, so a single oversized join bloated them all permanently.
+    let player_name = {
+        let raw_name = raw.get("player_name").and_then(|v| v.as_str()).unwrap_or("");
+        let trimmed = raw_name.trim();
+        let clamped: String = trimmed.chars().take(48).collect();
+        if clamped.is_empty() { "Anonymous".to_string() } else { clamped }
+    };
 
     // ── Game-world ban gate (v0.474) ──
     // Playing on the shared world is a PRIVILEGE; a game ban blocks the spawn
@@ -3416,37 +3422,50 @@ pub async fn handle_game_join(
 
     let mut world = state.game_world.write().await;
 
-    // Don't create duplicate player entities.
-    if world.find_player_entity(my_key).is_some() {
-        tracing::warn!("Player {} already in game world, ignoring duplicate join", my_key);
-        return;
-    }
-
-    // Spawn player at default position. spawn_player always grants the
-    // explore_ship starter quest with zeroed stats.
-    let spawn_pos = [0.0_f32, 1.0, 0.0];
-    let player_id = world.spawn_player(my_key, spawn_pos);
+    // A join for an ALREADY-PRESENT player is a RESYNC, not an error (v0.779).
+    // The native client re-sends game_join after a local menu round-trip (it
+    // tears down its remote-avatar mirror when leaving the world view); the
+    // old silent `return` here meant the rejoiner never got a fresh
+    // game_welcome/world snapshot, so everyone on their screen degraded to
+    // "Player N" placeholders and stationary players went invisible. Reuse
+    // the live entity and fall through to send a fresh welcome; skip the
+    // duplicate player_joined broadcast (others still have the entity).
+    let (player_id, is_rejoin) = match world.find_player_entity(my_key) {
+        Some(id) => {
+            tracing::info!("Game: rejoin for {} -- resyncing entity {}", my_key, id);
+            (id, true)
+        }
+        None => {
+            // Spawn player at default position. spawn_player always grants the
+            // explore_ship starter quest with zeroed stats.
+            (world.spawn_player(my_key, [0.0_f32, 1.0, 0.0]), false)
+        }
+    };
 
     // Re-seed a RETURNING player from durable storage so they keep their
     // quest progress / XP / reputation across relay restarts (or across a
     // world-snapshot version bump, which is keyed separately). A brand-new
     // player has no saved row and keeps the fresh explore_ship grant above.
-    match state.db.load_player_progress(my_key) {
-        Ok(Some(p)) => {
-            world.seed_player_progress(
-                player_id,
-                p.current_quest.as_deref(),
-                &p.completed_quests,
-                p.xp,
-                p.reputation,
-            );
-            tracing::info!(
-                "Restored player progress for {}: quest={:?}, xp={}, rep={}",
-                my_key, p.current_quest, p.xp, p.reputation
-            );
+    // Skipped on a REJOIN: the live entity's progress is newer than the last
+    // durable save; re-seeding would roll it back. (v0.779)
+    if !is_rejoin {
+        match state.db.load_player_progress(my_key) {
+            Ok(Some(p)) => {
+                world.seed_player_progress(
+                    player_id,
+                    p.current_quest.as_deref(),
+                    &p.completed_quests,
+                    p.xp,
+                    p.reputation,
+                );
+                tracing::info!(
+                    "Restored player progress for {}: quest={:?}, xp={}, rep={}",
+                    my_key, p.current_quest, p.xp, p.reputation
+                );
+            }
+            Ok(None) => {} // new player — nothing to restore
+            Err(e) => tracing::warn!("Could not load player progress for {}: {e}", my_key),
         }
-        Ok(None) => {} // new player — nothing to restore
-        Err(e) => tracing::warn!("Could not load player progress for {}: {e}", my_key),
     }
 
     // Stamp the display name onto the player entity (v0.774) so the world
@@ -3460,6 +3479,13 @@ pub async fn handle_game_join(
             obj.insert("name".to_string(), serde_json::json!(player_name));
         }
     }
+    // Entity position for the joined broadcast below: the live spot on a
+    // rejoin, the spawn point on a fresh join. (v0.779)
+    let entity_pos = world
+        .entities
+        .get(&player_id)
+        .map(|e| e.position)
+        .unwrap_or([0.0, 1.0, 0.0]);
 
     // Build world snapshot for the joiner.
     let snapshot = world.snapshot();
@@ -3519,16 +3545,21 @@ pub async fn handle_game_join(
     };
     let _ = state.broadcast_tx.send(private);
 
-    // Broadcast PlayerJoined to all clients.
-    let joined = serde_json::json!({
-        "type": "game_player_joined",
-        "player_id": player_id,
-        "name": player_name,
-        "position": spawn_pos,
-    });
-    let _ = state.broadcast_tx.send(RelayMessage::System {
-        message: format!("__game__:{}", joined),
-    });
+    // Broadcast PlayerJoined to all clients -- only for a FRESH join (v0.779):
+    // on a rejoin everyone else still has the entity, and the client side
+    // treats duplicate joins idempotently anyway. Position comes from the
+    // entity (its live spot on a rejoin, the spawn point on a fresh join).
+    if !is_rejoin {
+        let joined = serde_json::json!({
+            "type": "game_player_joined",
+            "player_id": player_id,
+            "name": player_name,
+            "position": entity_pos,
+        });
+        let _ = state.broadcast_tx.send(RelayMessage::System {
+            message: format!("__game__:{}", joined),
+        });
+    }
 
     tracing::info!("Game: player '{}' ({}) joined as entity {}", player_name, my_key, player_id);
 }

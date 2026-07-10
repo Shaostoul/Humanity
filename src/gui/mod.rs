@@ -1964,7 +1964,6 @@ pub struct GuiState {
     /// Direct nav-bar clicks DO NOT push (they replace the current page,
     /// not nest under it).
     pub nav_back_stack: Vec<GuiPage>,
-    pub show_chat: bool,
     /// In-world interactive chat panel open (v0.772): Enter opens it, which
     /// frees the cursor + disables look/move so you can read + type in the
     /// same relay chat as the Chat page/website without leaving the 3D world.
@@ -2007,8 +2006,18 @@ pub struct GuiState {
     pub dev_edit_name: String,
     pub dev_edit_health: f32,
     pub dev_edit_health_max: f32,
-    /// True = hostile (AIBehavior aggressive), false = passive.
+    /// True = hostile. Toggling ON maps to AIBehavior "predator" (the only
+    /// behavior that hunts the PLAYER without a Faction component -- plain
+    /// "aggressive" targets by faction and nothing attaches factions, so it
+    /// never attacks anything). Toggling OFF maps to "passive". (v0.779)
     pub dev_edit_hostile: bool,
+    /// The creature's ORIGINAL behavior_type at editor-open ("" = it had no
+    /// AIBehavior at all). Lets the write-back leave the AI untouched unless
+    /// the user actually flips the Hostile toggle -- without this, merely
+    /// OPENING the editor lossily collapsed predator/guard to "aggressive"
+    /// and force-attached AIBehavior to placed farm animals (breaking their
+    /// anchored grazing). (v0.779)
+    pub dev_edit_behavior_orig: String,
     pub dev_edit_tint: [f32; 3],
     /// Body-box side length (metres); Creature.body_side.
     pub dev_edit_scale: f32,
@@ -3779,6 +3788,26 @@ impl GuiState {
     pub fn clear_nav_back(&mut self) {
         self.nav_back_stack.clear();
     }
+
+    /// True while an in-world MODAL PANEL is open (the interactive chat panel
+    /// or the walk-up creature editor). THE single predicate for the modal
+    /// input plumbing in lib.rs -- reconcile_cursor's want_free, the mouse-look
+    /// gate, the keyboard guard, the mouse-button guard, and the wheel gate all
+    /// call this, so a future in-world modal is a one-line addition HERE
+    /// instead of a five-site scavenger hunt (missing one site re-introduces
+    /// the "typing 'i' opens the inventory" class of bug). (v0.779)
+    pub fn in_world_modal_open(&self) -> bool {
+        self.chat_input_active || self.dev_edit_target.is_some()
+    }
+
+    /// Close every in-world modal panel (Esc, death, or a mode change). One
+    /// list so a close path can't drift out of sync with a panel added later.
+    pub fn close_in_world_modals(&mut self) {
+        self.chat_input_active = false;
+        self.chat_input_focus_pending = false;
+        self.dev_edit_target = None;
+        self.dev_edit_snapshot_pending = false;
+    }
 }
 
 #[cfg(feature = "native")]
@@ -3788,7 +3817,6 @@ impl Default for GuiState {
             active_page: GuiPage::MainMenu,
             last_page: GuiPage::Chat,
             nav_back_stack: Vec::new(),
-            show_chat: false,
             chat_input_active: false,
             chat_input_focus_pending: false,
             copresence_active: false,
@@ -3803,6 +3831,7 @@ impl Default for GuiState {
             dev_edit_health: 100.0,
             dev_edit_health_max: 100.0,
             dev_edit_hostile: false,
+            dev_edit_behavior_orig: String::new(),
             dev_edit_tint: [0.7, 0.6, 0.5],
             dev_edit_scale: 0.5,
             dev_edit_species: String::new(),

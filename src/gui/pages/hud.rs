@@ -120,18 +120,13 @@ pub fn draw(
             // joins. The roster comes from GuiState, mirrored from the ECS each
             // frame by the multiplayer block in lib.rs.
             if state.copresence_active {
-                let host = state
-                    .server_url
-                    .trim_start_matches("https://")
-                    .trim_start_matches("http://")
-                    .trim_start_matches("wss://")
-                    .trim_start_matches("ws://")
-                    .split('/')
-                    .next()
-                    .unwrap_or("");
-                let header = if host.is_empty() {
+                // One shared URL-to-display-name formatter (v0.779): the launcher
+                // row and chat sidebar use server_display_name; a third inline
+                // trim chain here would drift on the next URL-shape change.
+                let header = if state.server_url.is_empty() {
                     "Shared world".to_string()
                 } else {
+                    let host = crate::gui::pages::chat::server_display_name(&state.server_url);
                     format!("Shared world · {host}")
                 };
                 text_shadowed(painter, Pos2::new(16.0, 56.0), Align2::LEFT_TOP, &header, 12.0, theme.accent());
@@ -139,10 +134,9 @@ pub fn draw(
                 let (roster, col) = if others == 0 {
                     ("no one else here yet".to_string(), theme.text_muted())
                 } else {
-                    let mut names = state.copresence_names.join(", ");
-                    if names.chars().count() > 48 {
-                        names = format!("{}...", names.chars().take(45).collect::<String>());
-                    }
+                    // truncate_chars (below in this file) is char-safe AND trims
+                    // a dangling ", " before the ellipsis (v0.779 reuse fix).
+                    let names = truncate_chars(&state.copresence_names.join(", "), 48);
                     (format!("{others} here: {names}"), theme.success())
                 };
                 text_shadowed(painter, Pos2::new(16.0, 72.0), Align2::LEFT_TOP, &roster, 11.0, col);
@@ -578,7 +572,16 @@ pub fn draw(
             // Follows `chat_active_channel`, so switching channels there (or on
             // the Chat page) updates this header + messages. Paint-only.
             if !state.chat_input_active {
-                let active = state.chat_active_channel.clone();
+                // PRIVACY (v0.779): the always-on feed shows PUBLIC channels
+                // only. A DM or group conversation left active on the Chat page
+                // must never paint private text on the world overlay (visible
+                // on stream, over the shoulder). Fall back to #general.
+                let active_raw = state.chat_active_channel.clone();
+                let active = if active_raw.starts_with("dm:") || active_raw.starts_with("p2pgroup:") {
+                    "general".to_string()
+                } else {
+                    active_raw
+                };
                 let label = crate::gui::pages::chat::channel_display_label(&active);
                 let recent: Vec<&crate::gui::ChatMessage> = state
                     .chat_messages

@@ -740,10 +740,9 @@ mod native_app {
             || state.gui_state.showroom_active
             || state.gui_state.construction_active
             || state.alt_held
-            // In-world chat panel open (v0.772): the cursor must reach its input + buttons.
-            || state.gui_state.chat_input_active
-            // Walk-up creature editor open (v0.778): cursor needs its sliders/fields.
-            || state.gui_state.dev_edit_target.is_some()
+            // In-world modal panel open (chat v0.772 / creature editor v0.778):
+            // the cursor must reach its inputs + buttons.
+            || state.gui_state.in_world_modal_open()
             // Dead = the death screen is up; its Respawn button needs the cursor.
             || state.gui_state.player_death_cause.is_some();
         if want_free == state.cursor_free {
@@ -6223,17 +6222,20 @@ mod native_app {
                         // (inventory 'i', the 1-9 hotbar, tool/build keys, the
                         // menu-Esc) -- that was the "typing 'i' opens the inventory"
                         // bug. Esc closes whichever panel is open so the global
-                        // menu-Esc below never fires. Modifier state above still
-                        // tracks so a held Ctrl/Shift/Alt can't get stuck.
-                        if state.gui_state.chat_input_active
-                            || state.gui_state.dev_edit_target.is_some()
-                        {
+                        // menu-Esc below never fires. ONLY PRESSES are swallowed
+                        // (v0.779): key RELEASES fall through so the held-state
+                        // trackers below (voice push-to-talk, Tab reveal, F1
+                        // keymap, movement keys) clear correctly -- swallowing
+                        // releases left the mic stuck TRANSMITTING when the PTT
+                        // key was released while a panel was open. No action
+                        // handler below fires on a release (all check `pressed`).
+                        if state.gui_state.in_world_modal_open() {
                             if key == KeyCode::Escape && pressed {
-                                state.gui_state.chat_input_active = false;
-                                state.gui_state.chat_input_focus_pending = false;
-                                state.gui_state.dev_edit_target = None;
+                                state.gui_state.close_in_world_modals();
                             }
-                            return;
+                            if pressed {
+                                return;
+                            }
                         }
 
                         // Undo/redo in the construction editor (v0.575): Ctrl+Z undo, Ctrl+Shift+Z (or
@@ -6390,10 +6392,28 @@ mod native_app {
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.chat_input_active
                             && !state.gui_state.showroom_active
+                            // Build mode has its own UI + click ownership; the death
+                            // screen must keep the keyboard (Enter opened a hidden
+                            // panel UNDER the Foreground death dim and stole focus).
+                            // (v0.779)
+                            && !state.gui_state.construction_active
+                            && state.gui_state.player_death_cause.is_none()
                             && !egui_consumed
                         {
                             state.gui_state.chat_input_active = true;
                             state.gui_state.chat_input_focus_pending = true;
+                            // The in-world panel is a PUBLIC-channel surface: if a DM
+                            // or group was left active on the Chat page, switch to
+                            // #general so private text is never shown/sent from the
+                            // world overlay (DMs stay on the Chat page, where the
+                            // E2EE confirm modal can actually render). (v0.779)
+                            if state.gui_state.chat_active_channel.starts_with("dm:")
+                                || state.gui_state.chat_active_channel.starts_with("p2pgroup:")
+                            {
+                                state.gui_state.chat_active_channel = "general".to_string();
+                                state.gui_state.chat_messages.clear();
+                                state.gui_state.history_fetched = false;
+                            }
                             // Clear held movement so opening the panel mid-run doesn't
                             // leave the player drifting (the panel's early-return above
                             // swallows the key-release events). Zero BOTH movers: the
@@ -6587,6 +6607,10 @@ mod native_app {
                             && pressed
                             && state.gui_state.active_page == GuiPage::None
                             && !state.gui_state.showroom_active
+                            // Same gates as the chat panel (v0.779): build mode owns
+                            // its own clicks, and the death screen keeps the keyboard.
+                            && !state.gui_state.construction_active
+                            && state.gui_state.player_death_cause.is_none()
                             && state.theme.cheats_enabled
                         {
                             if let Some(ent) = state.targeted_livestock {
@@ -6748,10 +6772,13 @@ mod native_app {
                     // In-world modal panels own clicks (v0.773 chat, v0.778 creature
                     // editor). egui still receives the click (on_window_event, above)
                     // so the panel's buttons work; but the game must NOT also swing a
-                    // tool / place a machine / interact while a panel is up.
-                    if state.gui_state.chat_input_active
-                        || state.gui_state.dev_edit_target.is_some()
-                    {
+                    // tool / place a machine / interact while a panel is up. ONLY
+                    // PRESSES are swallowed (v0.779): releases fall through so
+                    // lmb_held, the controller's button state, and the construction
+                    // release-cleanup all clear -- swallowing releases left a
+                    // build-mode drag chasing the freed cursor (the stuck-grab class
+                    // v0.593 fixed).
+                    if state.gui_state.in_world_modal_open() && pressed {
                         return;
                     }
                     if left {
@@ -6917,7 +6944,12 @@ mod native_app {
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
-                    if !egui_consumed && state.gui_state.active_page == GuiPage::None {
+                    // Wheel joins the modal gates (v0.779): scrolling the chat
+                    // history / editor must not also zoom the game camera.
+                    if !egui_consumed
+                        && state.gui_state.active_page == GuiPage::None
+                        && !state.gui_state.in_world_modal_open()
+                    {
                         let scroll = match delta {
                             winit::event::MouseScrollDelta::LineDelta(_, y) => y,
                             winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
@@ -7744,33 +7776,40 @@ mod native_app {
                         } else {
                             Vec3::NEG_Z
                         };
-                        // Ground it at the player's feet (Controllable transform), else 0.
+                        // Ground it at the player's feet. NO player entity means the
+                        // world hasn't been entered yet (main menu / fresh boot) --
+                        // skip instead of spawning at a default camera pose that
+                        // load_world's despawn-and-rebuild would silently wipe on
+                        // world entry anyway (the "spawn randomly failed" trap). (v0.779)
                         let feet_y = state
                             .game_world
                             .world
                             .query::<(&Controllable, &Transform)>()
                             .iter()
                             .next()
-                            .map(|(_, (_, t))| t.position.y)
-                            .unwrap_or(0.0);
-                        let pos = Vec3::new(cam.x + flat.x * 2.0, feet_y, cam.z + flat.z * 2.0);
-                        let items = state.data_store.get::<ItemRegistry>("item_registry");
-                        if let Some(reg) = state
-                            .data_store
-                            .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
-                        {
-                            if let Some(def) = reg.get(&def_id) {
-                                let e = crate::systems::livestock::spawn_creature_at(
-                                    &mut state.game_world.world,
-                                    def,
-                                    items,
-                                    pos,
-                                    [0.7, 0.6, 0.5],
-                                );
-                                log::info!("Dev: spawned {} ({:?}) at {:?}", def.name, e, pos);
-                            } else {
-                                log::warn!("Dev spawn: unknown creature id {def_id}");
+                            .map(|(_, (_, t))| t.position.y);
+                        if let Some(feet_y) = feet_y {
+                            let pos = Vec3::new(cam.x + flat.x * 2.0, feet_y, cam.z + flat.z * 2.0);
+                            let items = state.data_store.get::<ItemRegistry>("item_registry");
+                            if let Some(reg) = state
+                                .data_store
+                                .get::<crate::systems::livestock::CreatureRegistry>("creature_registry")
+                            {
+                                if let Some(def) = reg.get(&def_id) {
+                                    let e = crate::systems::livestock::spawn_creature_at(
+                                        &mut state.game_world.world,
+                                        def,
+                                        items,
+                                        pos,
+                                        [0.7, 0.6, 0.5],
+                                    );
+                                    log::info!("Dev: spawned {} ({:?}) at {:?}", def.name, e, pos);
+                                } else {
+                                    log::warn!("Dev spawn: unknown creature id {def_id}");
+                                }
                             }
+                        } else {
+                            log::warn!("Dev spawn: no player in the world yet -- enter the world first");
                         }
                     }
                     if std::mem::take(&mut state.gui_state.pending_dev_despawn_creatures) {
@@ -7787,20 +7826,24 @@ mod native_app {
                         }
                         log::info!("Dev: despawned {n} creatures");
                     }
-                    // Live creature count for the Dev page (cheap; a handful of entities).
-                    state.gui_state.dev_creature_count = state
-                        .game_world
-                        .world
-                        .query::<&crate::ecs::components::Creature>()
-                        .iter()
-                        .count();
+                    // Live creature count for the Dev page. Only refreshed while the
+                    // Platform page is open (its only consumer) -- no reason to walk
+                    // the archetypes at 60fps during normal play. (v0.779)
+                    if state.gui_state.active_page == GuiPage::Platform {
+                        state.gui_state.dev_creature_count = state
+                            .game_world
+                            .world
+                            .query::<&crate::ecs::components::Creature>()
+                            .iter()
+                            .count();
+                    }
 
                     // Walk-up creature editor (v0.778): snapshot on open, write the
                     // edit buffers back to the entity live, and despawn on request.
                     if let Some(bits) = state.gui_state.dev_edit_target {
                         match hecs::Entity::from_bits(bits) {
                             Some(ent) if state.game_world.world.contains(ent) => {
-                                use crate::ecs::components::{AIBehavior, Creature, Health, Name};
+                                use crate::ecs::components::{AIBehavior, Creature, Dead, Health, Name};
                                 let w = &mut state.game_world.world;
                                 if state.gui_state.dev_edit_snapshot_pending {
                                     // Fill the buffers from the creature's current state (each
@@ -7817,46 +7860,100 @@ mod native_app {
                                         state.gui_state.dev_edit_scale = c.body_side;
                                         state.gui_state.dev_edit_species = c.def_id.clone();
                                     }
-                                    state.gui_state.dev_edit_hostile = w
+                                    // Remember the ORIGINAL behavior ("" = no AIBehavior) so
+                                    // the write-back below can leave the AI alone unless the
+                                    // user actually flips the Hostile toggle. (v0.779)
+                                    state.gui_state.dev_edit_behavior_orig = w
                                         .get::<&AIBehavior>(ent)
-                                        .map(|a| a.behavior_type != "passive")
-                                        .unwrap_or(false);
+                                        .map(|a| a.behavior_type.clone())
+                                        .unwrap_or_default();
+                                    let orig = &state.gui_state.dev_edit_behavior_orig;
+                                    state.gui_state.dev_edit_hostile =
+                                        !orig.is_empty() && orig != "passive";
                                 } else {
-                                    // Write the buffers back live.
+                                    // Write the buffers back live (compare-before-write: these
+                                    // run at 60fps while the panel is open).
                                     if let Ok(mut n) = w.get::<&mut Name>(ent) {
                                         if n.0 != state.gui_state.dev_edit_name {
                                             n.0 = state.gui_state.dev_edit_name.clone();
                                         }
                                     }
-                                    let hmax = state.gui_state.dev_edit_health_max.max(1.0);
-                                    if let Ok(mut h) = w.get::<&mut Health>(ent) {
-                                        h.max = hmax;
-                                        h.current = state.gui_state.dev_edit_health.clamp(0.0, hmax);
-                                    }
-                                    if let Ok(mut c) = w.get::<&mut Creature>(ent) {
-                                        c.tint = state.gui_state.dev_edit_tint;
-                                        c.body_side = state.gui_state.dev_edit_scale.clamp(0.05, 5.0);
-                                    }
-                                    let want = if state.gui_state.dev_edit_hostile {
-                                        "aggressive"
+                                    // Health 0 = KILL (v0.779): dragging the slider to zero
+                                    // routes through the same Dead marker the combat pipeline
+                                    // uses, instead of leaving an alive-at-zero creature that
+                                    // still wanders, harvests, and drops no loot.
+                                    if state.gui_state.dev_edit_health <= 0.0 {
+                                        if let Ok(mut h) = w.get::<&mut Health>(ent) {
+                                            h.current = 0.0;
+                                        }
+                                        let _ = w.insert_one(ent, Dead { since: 0.0, looted: false });
+                                        state.gui_state.close_in_world_modals();
+                                        log::info!("Dev: edited creature killed via health slider");
                                     } else {
-                                        "passive"
-                                    };
-                                    let had_ai = w
-                                        .get::<&mut AIBehavior>(ent)
-                                        .map(|mut a| a.behavior_type = want.to_string())
-                                        .is_ok();
-                                    if !had_ai {
-                                        // A placed passive animal has no AIBehavior; add one so
-                                        // the hostile toggle can make it fight (or stay passive).
-                                        let _ = w.insert_one(
-                                            ent,
-                                            AIBehavior {
-                                                behavior_type: want.to_string(),
-                                                state: "idle".to_string(),
-                                                target: None,
-                                            },
-                                        );
+                                        let hmax = state.gui_state.dev_edit_health_max.max(1.0);
+                                        if let Ok(mut h) = w.get::<&mut Health>(ent) {
+                                            if h.max != hmax || h.current != state.gui_state.dev_edit_health.min(hmax) {
+                                                h.max = hmax;
+                                                h.current = state.gui_state.dev_edit_health.clamp(0.0, hmax);
+                                            }
+                                        }
+                                        if let Ok(mut c) = w.get::<&mut Creature>(ent) {
+                                            let side = state.gui_state.dev_edit_scale.clamp(0.05, 5.0);
+                                            if c.tint != state.gui_state.dev_edit_tint || c.body_side != side {
+                                                c.tint = state.gui_state.dev_edit_tint;
+                                                c.body_side = side;
+                                            }
+                                        }
+                                        // AI write-back is TOGGLE-DRIVEN (v0.779). Untouched
+                                        // toggle = untouched AI: no more collapsing a wolf's
+                                        // "predator" (or a "guard") to plain "aggressive" just
+                                        // by opening the editor, and no force-attaching
+                                        // AIBehavior to placed farm animals (which knocked
+                                        // them out of anchored grazing). Hostile ON maps to
+                                        // "predator" -- the one behavior that actually hunts
+                                        // the PLAYER ("aggressive" targets by faction and no
+                                        // creature has a Faction, so it never attacked anyone).
+                                        let orig = state.gui_state.dev_edit_behavior_orig.clone();
+                                        let orig_hostile = !orig.is_empty() && orig != "passive";
+                                        if state.gui_state.dev_edit_hostile == orig_hostile {
+                                            // Back at (or still at) the original setting:
+                                            // restore the exact original state.
+                                            if orig.is_empty() {
+                                                // Originally no AI: remove one we may have added
+                                                // while the user experimented with the toggle.
+                                                if w.get::<&AIBehavior>(ent).is_ok() {
+                                                    let _ = w.remove_one::<AIBehavior>(ent);
+                                                }
+                                            } else if let Ok(mut a) = w.get::<&mut AIBehavior>(ent) {
+                                                if a.behavior_type != orig {
+                                                    a.behavior_type = orig.clone();
+                                                }
+                                            }
+                                        } else {
+                                            let want = if state.gui_state.dev_edit_hostile {
+                                                "predator"
+                                            } else {
+                                                "passive"
+                                            };
+                                            let has_ai = {
+                                                let r = w.get::<&mut AIBehavior>(ent).map(|mut a| {
+                                                    if a.behavior_type != want {
+                                                        a.behavior_type = want.to_string();
+                                                    }
+                                                });
+                                                r.is_ok()
+                                            };
+                                            if !has_ai {
+                                                let _ = w.insert_one(
+                                                    ent,
+                                                    AIBehavior {
+                                                        behavior_type: want.to_string(),
+                                                        state: "idle".to_string(),
+                                                        target: None,
+                                                    },
+                                                );
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -8183,8 +8280,9 @@ mod native_app {
                             .ws_client
                             .as_ref()
                             .map_or(false, |w| w.is_connected());
-                        if in_world && connected {
-                            if !state.game_joined {
+                        if connected {
+                            // Join once, on first entering the world while connected.
+                            if in_world && !state.game_joined {
                                 let name = if state.gui_state.character_name.trim().is_empty() {
                                     "Wanderer".to_string()
                                 } else {
@@ -8203,36 +8301,54 @@ mod native_app {
                                 state.game_joined = true;
                                 state.game_pos_timer = 0.0;
                             }
-                            state.game_pos_timer += dt;
-                            if state.game_pos_timer >= 1.0 / 15.0 {
-                                state.game_pos_timer = 0.0;
-                                send_game_position(state);
+                            // While joined, KEEP the session alive across menu
+                            // round-trips (v0.779): the old code tore down every
+                            // RemotePlayer on any page open, then re-sent game_join
+                            // on return -- which the relay silently ignored as a
+                            // duplicate, so the roster degraded to "Player N"
+                            // placeholders and stationary players went invisible.
+                            // Now: net_sync keeps applying remote updates in menus
+                            // (avatars/names survive); only position SENDING is
+                            // limited to actually being in the world.
+                            if state.game_joined {
+                                if in_world {
+                                    state.game_pos_timer += dt;
+                                    if state.game_pos_timer >= 1.0 / 15.0 {
+                                        state.game_pos_timer = 0.0;
+                                        send_game_position(state);
+                                    }
+                                }
+                                // `tick` is the System trait method; call it fully-qualified.
+                                crate::ecs::systems::System::tick(
+                                    &mut state.net_sync,
+                                    &mut state.game_world.world,
+                                    dt,
+                                    &state.data_store,
+                                );
+                                // Mirror the shared-world roster into GuiState so the
+                                // paint-only HUD can show co-presence (v0.774): who else
+                                // is here right now. Names come from the RemotePlayer
+                                // entities net_sync maintains. NO dedup (v0.779): two
+                                // players who both kept the default "Wanderer" name are
+                                // two people -- the count is the entity count.
+                                let mut names: Vec<String> = state
+                                    .game_world
+                                    .world
+                                    .query::<&crate::net::sync::RemotePlayer>()
+                                    .iter()
+                                    .map(|(_, r)| r.name.clone())
+                                    .collect();
+                                names.sort();
+                                state.gui_state.copresence_active = true;
+                                // Compare-before-assign: the roster only changes on
+                                // join/leave/rename, not every frame.
+                                if names != state.gui_state.copresence_names {
+                                    state.gui_state.copresence_names = names;
+                                }
                             }
-                            // `tick` is the System trait method; call it fully-qualified.
-                            crate::ecs::systems::System::tick(
-                                &mut state.net_sync,
-                                &mut state.game_world.world,
-                                dt,
-                                &state.data_store,
-                            );
-                            // Mirror the shared-world roster into GuiState so the
-                            // paint-only HUD can show co-presence (v0.774): who else
-                            // is here right now. Names come from the RemotePlayer
-                            // entities net_sync maintains; a snapshot-prefilled player
-                            // reads a placeholder until it sends a named position/join.
-                            let mut names: Vec<String> = state
-                                .game_world
-                                .world
-                                .query::<&crate::net::sync::RemotePlayer>()
-                                .iter()
-                                .map(|(_, r)| r.name.clone())
-                                .collect();
-                            names.sort();
-                            names.dedup();
-                            state.gui_state.copresence_active = true;
-                            state.gui_state.copresence_names = names;
                         } else if state.game_joined {
-                            // Left the world: allow a fresh join next time + clear remote avatars.
+                            // DISCONNECTED: allow a fresh join on reconnect + clear
+                            // remote avatars (they are stale without a live feed).
                             state.game_joined = false;
                             state.gui_state.copresence_active = false;
                             state.gui_state.copresence_names.clear();
@@ -14885,9 +15001,19 @@ mod native_app {
                                     crate::gui::pages::construction::draw(ctx, &state.theme, &mut state.gui_state);
                                 }
 
-                                // Draw chat overlay if visible (only in-game)
-                                if state.gui_state.active_page == GuiPage::None && state.gui_state.show_chat {
-                                    chat::draw(ctx, &state.theme, &mut state.gui_state);
+                                // (The old show_chat Enter-toggle overlay was removed in
+                                // v0.779 -- Enter opens the interactive panel below, and
+                                // nothing set show_chat anymore. chat::draw still serves
+                                // the Chat PAGE via the nav path above.)
+
+                                // Death closes any in-world modal (v0.779): the death
+                                // screen owns the keyboard + clicks; a panel left open
+                                // (or opened by reflex-Enter) would sit hidden UNDER the
+                                // Foreground dim stealing keystrokes.
+                                if state.gui_state.player_death_cause.is_some()
+                                    && state.gui_state.in_world_modal_open()
+                                {
+                                    state.gui_state.close_in_world_modals();
                                 }
 
                                 // In-world interactive chat panel (v0.772): Enter opens it,
@@ -15176,8 +15302,7 @@ mod native_app {
                 // a machine-card button must not spin the camera.
                 if state.gui_state.active_page == GuiPage::None
                     && !state.alt_held
-                    && !state.gui_state.chat_input_active
-                    && state.gui_state.dev_edit_target.is_none()
+                    && !state.gui_state.in_world_modal_open()
                     && state.gui_state.player_death_cause.is_none()
                 {
                     state.controller.process_mouse_motion(delta.0, delta.1);

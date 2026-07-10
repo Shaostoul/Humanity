@@ -3968,20 +3968,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     });
 }
 
-/// THE single content-routing authority for native chat (v0.708), mirroring
-/// the web's `sendComposedContent` (v0.698.2): a typed message, a pasted
-/// image URL, and an attached file URL all flow through HERE, so the
-/// P2P-group / scratchpad / E2EE-DM (fail-closed) / group / channel routing
-/// and the local echo can never drift between input paths. Returns true when
-/// the content was sent (or locally echoed for the scratchpad); false when
-/// the send was aborted (unencryptable DM stashed for the confirm modal, or
-/// a failed P2P-group send) -- the composer keeps its input in that case.
 /// Human-readable label for a chat channel id (v0.772): server channels show
 /// `#name`, DMs and group channels get a friendly prefix instead of the raw
 /// `dm:<key>` / `p2pgroup:<id>` string.
 pub(crate) fn channel_display_label(channel: &str) -> String {
     if let Some(rest) = channel.strip_prefix("dm:") {
-        let short = if rest.len() > 8 { &rest[..8] } else { rest };
+        // chars-safe truncation (v0.779): byte-slicing `&rest[..8]` panicked on
+        // a non-char-boundary if a relay ever supplied a non-ASCII key, and the
+        // HUD calls this every frame.
+        let short: String = rest.chars().take(8).collect();
         format!("DM {short}")
     } else if channel.starts_with("p2pgroup:") {
         "Group".to_string()
@@ -3999,12 +3994,9 @@ pub(crate) fn channel_display_label(channel: &str) -> String {
 /// The full Chat page (nav tab) remains the place for DMs, groups, and options
 /// (the all-chat / dms / groups view modes here are the next increment).
 pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Esc closes and returns to gameplay.
-    if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-        state.chat_input_active = false;
-        state.chat_input_focus_pending = false;
-        return;
-    }
+    // (Esc-close is owned by the winit modal guard in lib.rs, which fires
+    // before egui sees the key -- one close path, shared with the creature
+    // editor, instead of two drifting copies. v0.779)
     let active = state.chat_active_channel.clone();
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
     let mut close = false;
@@ -4036,21 +4028,16 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         });
                     });
 
-                    // Channel switcher: the server's channels. Switching sets
-                    // chat_active_channel + resets history_fetched so the new
-                    // channel's history reloads (same path the Chat page uses).
-                    let chans: Vec<(String, String)> = if state.chat_channels.is_empty() {
-                        vec![
-                            ("general".to_string(), "general".to_string()),
-                            ("announcements".to_string(), "announcements".to_string()),
-                        ]
-                    } else {
-                        state
-                            .chat_channels
-                            .iter()
-                            .map(|c| (c.id.clone(), c.name.clone()))
-                            .collect()
-                    };
+                    // Channel switcher: the server's channels, as-is (no invented
+                    // fallback rows -- a fabricated #announcements button on a
+                    // server without that channel would switch you into a channel
+                    // that does not exist; the Chat page sidebar renders the same
+                    // list unpadded. Empty list = no switcher row. v0.779).
+                    let chans: Vec<(String, String)> = state
+                        .chat_channels
+                        .iter()
+                        .map(|c| (c.id.clone(), c.name.clone()))
+                        .collect();
                     ui.horizontal_wrapped(|ui| {
                         for (id, name) in &chans {
                             let is_active = active == *id;
@@ -4119,8 +4106,14 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         if enter_send || button_send {
                             let text = state.chat_input.trim().to_string();
                             if !text.is_empty() {
-                                send_composed_content(state, &text);
-                                state.chat_input.clear();
+                                // Respect the abort contract (v0.779): false means
+                                // the send did NOT go out (unencryptable DM stashed
+                                // for the confirm modal, failed P2P-group send) --
+                                // keep the typed text so it isn't destroyed, same
+                                // as the Chat page composer.
+                                if send_composed_content(state, &text) {
+                                    state.chat_input.clear();
+                                }
                             }
                             // Keep the panel open + refocused so you can keep chatting.
                             resp.request_focus();
@@ -4139,8 +4132,16 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
             .map_or(false, |p| !area.response.rect.contains(p));
 
     if let Some(id) = switch_to {
-        state.chat_active_channel = id;
-        state.history_fetched = false; // trigger the new channel's history fetch
+        state.chat_active_channel = id.clone();
+        // Full switch, mirroring the Chat page (v0.779): CLEAR the shared
+        // message vec so the re-fetched history doesn't append older messages
+        // after newer live ones (nothing re-sorts on this path), and clear the
+        // channel's unread dot like opening it on the Chat page does.
+        state.chat_messages.clear();
+        state.history_fetched = false;
+        if let Some(c) = state.chat_channels.iter_mut().find(|c| c.id == id) {
+            c.unread = false;
+        }
     }
     if close || clicked_outside {
         state.chat_input_active = false;
@@ -4148,6 +4149,14 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
     }
 }
 
+/// THE single content-routing authority for native chat (v0.708), mirroring
+/// the web's `sendComposedContent` (v0.698.2): a typed message, a pasted
+/// image URL, and an attached file URL all flow through HERE, so the
+/// P2P-group / scratchpad / E2EE-DM (fail-closed) / group / channel routing
+/// and the local echo can never drift between input paths. Returns true when
+/// the content was sent (or locally echoed for the scratchpad); false when
+/// the send was aborted (unencryptable DM stashed for the confirm modal, or
+/// a failed P2P-group send) -- the composer keeps its input in that case.
 fn send_composed_content(state: &mut GuiState, content: &str) -> bool {
     let channel = state.chat_active_channel.clone();
     // Single timestamp for both the WS send and the local echo so

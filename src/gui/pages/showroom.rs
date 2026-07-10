@@ -171,12 +171,15 @@ fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
             true,
         ));
     }
-    servers.extend(
-        state
-            .chat_servers
-            .iter()
-            .map(|s| (s.id.clone(), s.name.clone(), s.connected)),
-    );
+    servers.extend(state.chat_servers.iter().map(|s| {
+        // A saved bookmark of the server we're LIVE-connected to counts as
+        // connected (v0.779): ChatServer.connected is never maintained by the
+        // connection code, so without this URL match, bookmarking your own
+        // server made it show "Not connected" and permanently disabled Enter
+        // World (the working virtual row is deduped away above).
+        let live = ws_connected && s.url.trim_end_matches('/') == primary_url;
+        (s.id.clone(), s.name.clone(), s.connected || live)
+    }));
     let selected_server = state.launcher_selected_server.clone();
 
     // Deferred mutations (applied after the closure so we never alias state).
@@ -273,7 +276,7 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Resolve the selection to (name, url, connected). The virtual
     // CONNECTED_SERVER_ID row reads server_url directly -- it is the LIVE
     // connection, not a saved bookmark; everything else looks up chat_servers.
-    let (svr_name, svr_url, svr_connected) = if id == CONNECTED_SERVER_ID {
+    let (svr_name, svr_url, mut svr_connected) = if id == CONNECTED_SERVER_ID {
         (
             crate::gui::pages::chat::server_display_name(&state.server_url),
             state.server_url.clone(),
@@ -288,12 +291,28 @@ fn draw_server_details(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         }
     };
+    // A saved bookmark of the live connection counts as connected (v0.779):
+    // ChatServer.connected is never maintained, so the URL match is the truth.
+    if !svr_connected
+        && state.ws_client.as_ref().map_or(false, |c| c.is_connected())
+        && svr_url.trim_end_matches('/') == state.server_url.trim_end_matches('/')
+    {
+        svr_connected = true;
+    }
 
     // Kick off a one-time fetch of this server's info if we don't have it.
-    if !state.server_info_cache.contains_key(&id) {
-        fetch_server_info(state, &id, &svr_url);
+    // The VIRTUAL row's cache entry is keyed by its URL (v0.779): the sentinel
+    // id maps to "whatever server_url is NOW", so a plain sentinel key served
+    // the PREVIOUS server's cached info after switching connections.
+    let cache_id = if id == CONNECTED_SERVER_ID {
+        format!("{CONNECTED_SERVER_ID}:{svr_url}")
+    } else {
+        id.clone()
+    };
+    if !state.server_info_cache.contains_key(&cache_id) {
+        fetch_server_info(state, &cache_id, &svr_url);
     }
-    let info = state.server_info_cache.get(&id).cloned();
+    let info = state.server_info_cache.get(&cache_id).cloned();
 
     // Name: the fetched name if we have it, else the locally-known one.
     let title = info.as_ref().map(|i| i.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| svr_name.clone());

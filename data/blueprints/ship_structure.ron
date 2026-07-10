@@ -197,9 +197,6 @@
                         thickness: None,
                         layers: [],
                     ),
-                    // East door to the Commons corridor (increment C): sits on the
-                    // x=55 perimeter; the corridor row at the bottom of this file
-                    // references this door (home door index 6) and cuts the shell.
                     (
                         a: (55.0, 38.0),
                         b: (55.0, 42.0),
@@ -228,7 +225,7 @@
                 lights: [
                     (
                         type_id: "ceiling_panel",
-                        pos: (38.1, 2.7, 44.5),
+                        pos: (42.5, 2.7, 23.5),
                         dir: (0.0, -1.0, 0.0),
                         on: true,
                         color: None,
@@ -237,16 +234,16 @@
                     ),
                     (
                         type_id: "warm_lamp",
-                        pos: (33.0, 0.8, 50.0),
+                        pos: (7.6, 0.8, 27.75),
                         dir: (0.0, -1.0, 0.0),
                         on: true,
                         color: None,
-                        intensity: None,
-                        range: None,
+                        intensity: Some(6.3),
+                        range: Some(7.4),
                     ),
                     (
                         type_id: "cool_panel",
-                        pos: (26.4, 2.7, 54.0),
+                        pos: (12.6, 2.7, 59.5),
                         dir: (0.0, -1.0, 0.0),
                         on: true,
                         color: None,
@@ -264,12 +261,12 @@
                     ),
                     (
                         type_id: "strip",
-                        pos: (37.8, 2.0, 53.1),
+                        pos: (29.5, 2.0, 63.0),
                         dir: (0.0, -1.0, 0.0),
                         on: true,
                         color: None,
                         intensity: None,
-                        range: None,
+                        range: Some(9.9),
                     ),
                     (
                         type_id: "strip",
@@ -287,11 +284,11 @@
                         on: true,
                         color: None,
                         intensity: Some(11.0),
-                        range: Some(40.0),
+                        range: Some(7.7),
                     ),
                     (
                         type_id: "spotlight",
-                        pos: (11.4, 14.0, 0.25),
+                        pos: (11.4, 4.0, 3.8),
                         dir: (-0.00000006696973, -0.6427876, 0.76604444),
                         on: true,
                         color: None,
@@ -443,12 +440,6 @@
                 rail_edges: [],
             ),
         ),
-        // ── The Commons (increment C, the operator's mall) ──────────────────
-        // A shared community hall east of the home: a glass-roofed 34 x 55 hall
-        // (8 m airy ceiling), garden cluster in the center, three open-fronted
-        // market stalls along the east wall. Connected to the home by the glass
-        // corridor at the bottom of this file. Machines tagged zone "commons"
-        // live in data/machines/home.ron.
         (
             id: "commons",
             label: "The Commons",
@@ -461,8 +452,6 @@
                 shell_material: 1,
                 roof_material: 4,
                 walls: [
-                    // West door back to the home corridor (commons door index 0;
-                    // FIRST wall on purpose so later stall walls never shift it).
                     (
                         a: (0.0, 18.0),
                         b: (0.0, 22.0),
@@ -486,8 +475,6 @@
                         thickness: None,
                         layers: [],
                     ),
-                    // Market stall dividers: three open-fronted wooden bays along
-                    // the east wall (no doors - browse in from the hall).
                     (
                         a: (30.0, 8.0),
                         b: (34.0, 8.0),
@@ -548,18 +535,22 @@
                 ],
                 spawn: None,
                 structures: [],
+                road_nodes: [],
+                road_edges: [],
+                zones: [],
                 rail_nodes: [],
                 rail_edges: [],
             ),
         ),
     ],
-    // Generated corridors (increment B): straight tubes between two zones' DOOR openings.
-    // Each row: (from_zone, from_opening, to_zone, to_opening, width, glass_top), where
-    // from_opening/to_opening index that zone's doors (walls in order, openings in order,
-    // windows skipped). The two doors must face each other along one world axis.
     corridors: [
-        // Home east door (index 6) to the Commons west door (index 0): a 10 m
-        // glass-topped gallery - stars over the walk to the mall.
-        (from_zone: "home", from_opening: 6, to_zone: "commons", to_opening: 0, width: 3.0, glass_top: true),
+        (
+            from_zone: "home",
+            from_opening: 6,
+            to_zone: "commons",
+            to_opening: 0,
+            width: 3.0,
+            glass_top: true,
+        ),
     ],
 )
