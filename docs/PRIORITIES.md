@@ -50,11 +50,13 @@
 >    fix. DONE from this cadence: dev spawn + walk-up creature editor
 >    (v0.777-778), the 15-fix review sweep (v0.779), lighting arc (v0.780-781:
 >    glass night-glow fix, caps 500/200m, physical fixtures, real strip lights
->    with sharp/smooth corner paths). NEXT UP from it: the corridor rework -
->    corridors should OWN their door mouths (not reference a pre-drawn door by
->    index) - fixes BOTH the move-the-door-desync AND the coincident-wall
->    z-fighting (note: the operator's editor save now strips RON comments and
->    the corridor still cites "home door 6" by index - live fragility). Plus a
+>    with sharp/smooth corner paths). DONE: the corridor rework (v0.788) -
+>    corridors OWN their door mouths (from_zone/to_zone/lat/width/door_w/h/
+>    glass_top; cuts its own apertures; no authored-door references; BOTH the
+>    move-the-door-desync AND the coincident-wall z-fight/walk-through fixed
+>    at the root; shipped RON migrated; regression tests encode both bugs).
+>    NEXT UP from the cadence: corridor mouth door PANELS (animated doors +
+>    live colliders at the mouths - today they are open apertures). Plus a
 >    Dev/Creative/Normal MODE system so the operator builds the whole
 >    mothership in-game while normal players are limited to their homestead.
 >    DONE from that queue: lights UNCAPPED entirely (v0.782 storage buffer -
