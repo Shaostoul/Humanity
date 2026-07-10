@@ -617,6 +617,8 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         state.ws_client = Some(crate::net::ws_client::WsClient::connect_with_kyber(
                             &ws_url, &name, &pubkey, &state.kyber_public_b64,
                         ));
+                        // Fresh socket: identify handshake not yet complete (v0.794).
+                        state.ws_identified = false;
                         state.ws_status = "Connecting...".to_string();
                         state.ws_manually_disconnected = false;
                         state.ws_reconnect_timer = 0.0;
@@ -2130,6 +2132,8 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                         &state.kyber_public_b64,
                                     ),
                                 );
+                                // Fresh socket: identify handshake not yet complete (v0.794).
+                                state.ws_identified = false;
                                 state.ws_status = format!("Switching to {}...", server.name);
                                 state.ws_manually_disconnected = false;
                                 state.ws_reconnect_timer = 0.0;

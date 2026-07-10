@@ -2017,8 +2017,23 @@ mod native_app {
             crate::storage::choose_installed();
         }
         if state.gui_state.private_key_bytes.is_none() {
-            state.gui_state.private_key_bytes =
-                Some(crate::net::identity::generate_new_seed());
+            // Reuse this test folder's identity across reruns: the relay caps
+            // DISTINCT NEW identities per IP per hour (anti-onboarding-flood),
+            // and a fresh seed every launch would eat that budget two at a
+            // time. Stored as PLAINTEXT BYTES on purpose -- this is a
+            // throwaway dev-test identity in a scratch folder, never a real
+            // vault; anything valuable goes through the normal passphrase
+            // flow, not autopilot.
+            const SEED_PATH: &str = "debug/autopilot_seed.bin";
+            let seed: Vec<u8> = std::fs::read(SEED_PATH)
+                .ok()
+                .filter(|b| b.len() == 32)
+                .unwrap_or_else(|| {
+                    let s = crate::net::identity::generate_new_seed();
+                    let _ = std::fs::write(SEED_PATH, &s);
+                    s
+                });
+            state.gui_state.private_key_bytes = Some(seed);
             // Derives Dilithium+Kyber and clears the reconnect guards so the
             // auto-connect block re-fires. Deliberately NOT setting
             // passphrase_needed: this identity is throwaway and must not gate
@@ -9274,8 +9289,14 @@ mod native_app {
                             .as_ref()
                             .map_or(false, |w| w.is_connected());
                         if connected {
-                            // Join once, on first entering the world while connected.
-                            if in_world && !state.game_joined {
+                            // Join once, on first entering the world while connected --
+                            // and only after the identify handshake BOUND the socket
+                            // (v0.794): the relay's pre-bind loop silently discards
+                            // every non-identify message, so a game_join racing the
+                            // Dilithium challenge simply vanished (client showed
+                            // "Shared world", server counted nobody -- caught by the
+                            // v0.793 autopilot two-instance test).
+                            if in_world && !state.game_joined && state.gui_state.ws_identified {
                                 let name = if state.gui_state.character_name.trim().is_empty() {
                                     "Wanderer".to_string()
                                 } else {
@@ -14101,6 +14122,8 @@ mod native_app {
                         state.gui_state.ws_client = Some(
                             crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &kyber_public),
                         );
+                        // Fresh socket: identify handshake not yet complete (v0.794).
+                        state.gui_state.ws_identified = false;
                         state.gui_state.ws_status = "Connecting...".to_string();
                     }
 
@@ -14251,6 +14274,9 @@ mod native_app {
                                         state.gui_state.chat_users.clear();
                                         state.gui_state.ws_status = "Connected".to_string();
                                         state.gui_state.server_connected = true;
+                                        // First post-bind message: the identify handshake is
+                                        // complete, game messages will now be routed (v0.794).
+                                        state.gui_state.ws_identified = true;
                                         // Fetch this server's real donation info (GET /api/server-info's
                                         // `funding` field) so the Donate page shows the connected server's
                                         // actual addresses instead of relying on the user (or a self-hosting
@@ -15543,6 +15569,8 @@ mod native_app {
                                         // any DesktopUser-fallback session.
                                         let new_client = crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &fallback, &state.gui_state.profile_public_key, &state.gui_state.kyber_public_b64);
                                         state.gui_state.ws_client = Some(new_client);
+                                        // Fresh socket: identify handshake not yet complete (v0.794).
+                                        state.gui_state.ws_identified = false;
                                         state.gui_state.ws_status = format!("Reconnecting as {}...", fallback);
                                         log::info!("Reconnecting as: {}", fallback);
                                     }
@@ -15858,6 +15886,8 @@ mod native_app {
                             state.gui_state.ws_client = Some(
                                 crate::net::ws_client::WsClient::connect_with_kyber(&ws_url, &name, &pubkey, &state.gui_state.kyber_public_b64),
                             );
+                            // Fresh socket: identify handshake not yet complete (v0.794).
+                            state.gui_state.ws_identified = false;
                             state.gui_state.ws_reconnect_attempts += 1;
                             // Clear the rate-limit guard now that we are actually retrying: if this
                             // attempt is throttled again, the system handler re-arms it. (v0.544)

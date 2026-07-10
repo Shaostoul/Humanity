@@ -2792,6 +2792,14 @@ pub struct GuiState {
     /// Set by the panel on a MACHINE edit (offset / add / remove / connect) -> the engine refreshes
     /// just the machine meshes live, no full room rebuild. (v0.525)
     pub construction_machines_dirty: bool,
+    /// The relay's identify handshake (nonce challenge -> Dilithium proof -> bind) has COMPLETED
+    /// on the current socket (v0.794). Set when the first post-bind message (peer_list) arrives;
+    /// cleared at every connect call site. Pre-bind, the relay's identify loop silently DISCARDS
+    /// any other message type -- a game_join sent the instant is_connected() went true was
+    /// dropped, so the client showed "Shared world" while the server never registered the player
+    /// (found by the v0.793 autopilot two-instance test; a fast-loading real client could hit
+    /// the same race).
+    pub ws_identified: bool,
     /// Armed whenever a structure or machine edit lands (the dirty consumers set it); the engine's
     /// 60 s autosave + the window-close flush write ship_structure.ron/home.ron and clear it.
     /// Before v0.791 the ship persisted ONLY through the explicit Save button -- quit without
@@ -4240,6 +4248,7 @@ impl Default for GuiState {
             construction_level: 0,
             construction_dirty: false,
             construction_machines_dirty: false,
+            ws_identified: false,
             construction_unsaved: false,
             ship_structure: None,
             construction_zone: 0,
