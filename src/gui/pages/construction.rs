@@ -1259,6 +1259,52 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             });
         }
+
+        // STRIP PATH editor (v0.781, Bar lights): the strip is authored like a
+        // Blender path -- `pos` is the start, each row below is a further point
+        // the tube runs through, and Smooth picks rounded (Catmull-Rom) vs
+        // sharp mitered corners. GUI-first point list; viewport point-dragging
+        // can layer on later.
+        if t.map(|t| t.kind) == Some(crate::renderer::light::LightKind::Bar) {
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new("Strip path (pos is the start; add points to run the strip)")
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+            changed |= ui
+                .checkbox(
+                    &mut light.smooth,
+                    RichText::new("Smooth rounded corners").size(theme.font_size_small).color(theme.text_primary()),
+                )
+                .on_hover_text("On: the strip curves smoothly through its points. Off: hard straight corners.")
+                .changed();
+            let mut remove_pt: Option<usize> = None;
+            for (pi, p) in light.path.iter_mut().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new(format!("pt {}", pi + 1))
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    changed |= ui.add(egui::DragValue::new(&mut p.0).speed(0.1).prefix("x ").suffix(" m")).changed();
+                    changed |= ui.add(egui::DragValue::new(&mut p.1).speed(0.1).prefix("y ").suffix(" m")).changed();
+                    changed |= ui.add(egui::DragValue::new(&mut p.2).speed(0.1).prefix("z ").suffix(" m")).changed();
+                    if ui.small_button("x").on_hover_text("Remove this point").clicked() {
+                        remove_pt = Some(pi);
+                    }
+                });
+            }
+            if let Some(pi) = remove_pt {
+                light.path.remove(pi);
+                changed = true;
+            }
+            if ui.button("Add point").on_hover_text("Extend the strip 1 m past its last point").clicked() {
+                let last = light.path.last().copied().unwrap_or(light.pos);
+                light.path.push((last.0 + 1.0, last.1, last.2));
+                changed = true;
+            }
+        }
     }
     ui.add_space(theme.spacing_md);
     ui.horizontal(|ui| {
@@ -1956,7 +2002,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             }
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             h.lights.push(crate::ship::home_structure::PlacedLight {
-                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None,
+                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None, path: Vec::new(), smooth: false,
             });
             state.construction_structure_dirty = true;
             format!("added light #{} ({tid}) at ({x},{y},{z})", h.lights.len())
@@ -2394,6 +2440,8 @@ fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                     color: None,
                                     intensity: None,
                                     range: None,
+                                    path: Vec::new(),
+                                    smooth: false,
                                 });
                                 changed = true;
                             }

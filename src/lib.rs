@@ -1830,7 +1830,17 @@ mod native_app {
                         z.body.lights.iter().filter(|l| l.on).filter_map(move |l| {
                             let t = crate::renderer::light::light_type(&l.type_id)?;
                             let c = l.color.unwrap_or(t.color);
-                            let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
+                            let mut pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
+                            // A path STRIP emits from its path centroid (v0.781) so
+                            // the light sits along the strip, not at one end. (One
+                            // GPU light per strip until the light budget is raised.)
+                            if t.kind == LightKind::Bar && !l.path.is_empty() {
+                                let mut sum = pos;
+                                for p in &l.path {
+                                    sum += Vec3::new(p.0, p.1, p.2) + o;
+                                }
+                                pos = sum / (l.path.len() as f32 + 1.0);
+                            }
                             let color = [c.0, c.1, c.2];
                             let intensity = l.intensity.unwrap_or(t.intensity);
                             let range = l.range.unwrap_or(t.range);
@@ -5286,6 +5296,11 @@ mod native_app {
         /// in the renderer, so cache per color instead of re-adding per frame.
         light_fixture_mats: std::collections::HashMap<[u8; 3], usize>,
         light_fixture_mat_off: Option<usize>,
+        /// STRIP tube meshes (v0.781), keyed by (zone index, light index) ->
+        /// (renderer mesh index, path hash). A strip's tube is world-space
+        /// geometry built from its control path; rebuilt via replace_mesh only
+        /// when the quantized path/smooth hash changes (never per frame).
+        light_strip_meshes: std::collections::HashMap<(usize, usize), (usize, u64)>,
         /// Wall-SELECT gizmo material (v0.573): a RED sphere at each wall's bottom-middle so you can
         /// click the wall (surface or orb) to select it; the SELECTED wall's orb uses the RGB hot mat.
         construction_wall_mat: Option<usize>,
@@ -6131,6 +6146,7 @@ mod native_app {
                 light_fixture_tube: None,
                 light_fixture_mats: std::collections::HashMap::new(),
                 light_fixture_mat_off: None,
+                light_strip_meshes: std::collections::HashMap::new(),
                 construction_wall_mat: None,
                 construction_node_mat_hover: None,
                 construction_char_grab: false,
@@ -9624,6 +9640,12 @@ mod native_app {
                             kind: crate::renderer::light::LightKind,
                             length: f32,
                             flat_panel: bool,
+                            /// Strip control path in WORLD coords (pos first); empty
+                            /// = the old straight bar. (v0.781)
+                            path: Vec<Vec3>,
+                            smooth: bool,
+                            /// (zone idx, light idx) - the strip mesh cache key.
+                            key: (usize, usize),
                         }
                         let fixtures: Vec<Fx> = state
                             .gui_state
@@ -9632,18 +9654,30 @@ mod native_app {
                             .map(|s| {
                                 s.zones
                                     .iter()
-                                    .flat_map(|z| {
+                                    .enumerate()
+                                    .flat_map(|(zi, z)| {
                                         let o = z.origin_vec();
-                                        z.body.lights.iter().filter_map(move |l| {
+                                        z.body.lights.iter().enumerate().filter_map(move |(li, l)| {
                                             let t = crate::renderer::light::light_type(&l.type_id)?;
+                                            let pos = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o;
+                                            let path: Vec<Vec3> = if l.path.is_empty() {
+                                                Vec::new()
+                                            } else {
+                                                std::iter::once(pos)
+                                                    .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
+                                                    .collect()
+                                            };
                                             Some(Fx {
-                                                pos: Vec3::new(l.pos.0, l.pos.1, l.pos.2) + o,
+                                                pos,
                                                 dir: Vec3::new(l.dir.0, l.dir.1, l.dir.2),
                                                 color: l.color.unwrap_or(t.color),
                                                 on: l.on,
                                                 kind: t.kind,
                                                 length: t.length_m.max(0.3),
                                                 flat_panel: l.type_id.contains("panel"),
+                                                path,
+                                                smooth: l.smooth,
+                                                key: (zi, li),
                                             })
                                         })
                                     })
@@ -9677,9 +9711,52 @@ mod native_app {
                                 mat_off
                             };
                             match fx.kind {
+                                LightKind::Bar if fx.path.len() >= 2 => {
+                                    // REAL strip (v0.781): a world-space tube through the
+                                    // control path -- sharp mitered corners, or a smooth
+                                    // Catmull-Rom curve when the strip's smooth flag is on.
+                                    // Mesh cached per (zone, light) and rebuilt only when
+                                    // the quantized path/smooth hash changes.
+                                    use std::hash::{Hash, Hasher};
+                                    let mut h = std::collections::hash_map::DefaultHasher::new();
+                                    fx.smooth.hash(&mut h);
+                                    for p in &fx.path {
+                                        ((p.x * 1000.0).round() as i64).hash(&mut h);
+                                        ((p.y * 1000.0).round() as i64).hash(&mut h);
+                                        ((p.z * 1000.0).round() as i64).hash(&mut h);
+                                    }
+                                    let hash = h.finish();
+                                    let cached = state.light_strip_meshes.get(&fx.key).copied();
+                                    let mesh_idx = match cached {
+                                        Some((mi, mh)) if mh == hash => mi,
+                                        _ => {
+                                            let pts = crate::renderer::light::sample_strip_path(
+                                                &fx.path, fx.smooth,
+                                            );
+                                            let m = Mesh::polytube(&state.renderer.device, &pts, 0.035, 10);
+                                            let mi = match cached {
+                                                Some((mi, _)) => {
+                                                    state.renderer.replace_mesh(mi, m);
+                                                    mi
+                                                }
+                                                None => state.renderer.add_mesh(m),
+                                            };
+                                            state.light_strip_meshes.insert(fx.key, (mi, hash));
+                                            mi
+                                        }
+                                    };
+                                    // World-space mesh: identity transform.
+                                    all_objects.push(RenderObject {
+                                        position: Vec3::ZERO,
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::ONE,
+                                        mesh: mesh_idx,
+                                        material: mat,
+                                    });
+                                }
                                 LightKind::Bar => {
-                                    // Straight strip bar along the light's horizontal dir
-                                    // (fall back to X). Real corner/curve paths: next increment.
+                                    // Pathless strip: the classic straight bar along the
+                                    // light's horizontal dir (fall back to X).
                                     let flat = Vec3::new(fx.dir.x, 0.0, fx.dir.z);
                                     let axis = if flat.length_squared() > 1e-4 {
                                         flat.normalize()

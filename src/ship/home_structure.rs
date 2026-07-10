@@ -380,6 +380,18 @@ pub struct PlacedLight {
     pub intensity: Option<f32>,
     #[serde(default)]
     pub range: Option<f32>,
+    /// STRIP path (v0.781, Bar lights only): additional home-local points the
+    /// strip runs through AFTER `pos` (pos is the strip's start). Empty = the
+    /// old straight bar of the type's length_m along `dir`. Edited as a point
+    /// list in the build panel; authored like a Blender path, tessellated to a
+    /// tube for rendering.
+    #[serde(default)]
+    pub path: Vec<(f32, f32, f32)>,
+    /// Strip corner style (v0.781): true = smooth rounded curve through the
+    /// points (Catmull-Rom, like the road centerlines); false = sharp straight
+    /// segments with hard corners.
+    #[serde(default)]
+    pub smooth: bool,
 }
 
 /// A buildable wall material with REAL engineering properties -- the construction picker shows these
@@ -2340,8 +2352,8 @@ mod tests {
     fn placed_lights_round_trip_through_save() {
         let mut h = box_only();
         h.lights = vec![
-            PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None },
-            PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0) },
+            PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None, path: vec![(30.0, 2.7, 44.5), (30.0, 2.7, 48.0)], smooth: true },
+            PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0), path: Vec::new(), smooth: false },
         ];
         let tmp = std::env::temp_dir().join("humanity_lights_rt.ron");
         h.save(&tmp).expect("save");

@@ -121,6 +121,54 @@ impl RoomLight {
     }
 }
 
+/// Tessellate a STRIP light's control path into render points (v0.781). The
+/// authoring model is a Blender-style path: `points` are the control points
+/// (world coords, first = the light's pos), and `smooth` picks the corner
+/// style. Sharp = the points verbatim (hard mitered corners between straight
+/// tube segments). Smooth = a Catmull-Rom curve THROUGH every control point
+/// (the same basis as the road centerlines), 8 samples per span, with the end
+/// control points mirrored so the curve still starts/ends exactly at the first
+/// and last points. Fewer than 2 points can't make a strip -> returned as-is.
+pub fn sample_strip_path(points: &[Vec3], smooth: bool) -> Vec<Vec3> {
+    if points.len() < 2 || !smooth {
+        return points.to_vec();
+    }
+    let n = points.len();
+    let get = |i: isize| -> Vec3 {
+        if i < 0 {
+            // Mirror before the start so the curve begins AT points[0].
+            points[0] * 2.0 - points[1]
+        } else if i as usize >= n {
+            points[n - 1] * 2.0 - points[n - 2]
+        } else {
+            points[i as usize]
+        }
+    };
+    const SAMPLES: usize = 8;
+    let mut out = Vec::with_capacity((n - 1) * SAMPLES + 1);
+    for seg in 0..(n - 1) {
+        let p0 = get(seg as isize - 1);
+        let p1 = get(seg as isize);
+        let p2 = get(seg as isize + 1);
+        let p3 = get(seg as isize + 2);
+        for s in 0..SAMPLES {
+            let t = s as f32 / SAMPLES as f32;
+            let t2 = t * t;
+            let t3 = t2 * t;
+            // Catmull-Rom basis (same coefficients as road_edge_centerline).
+            out.push(
+                (p1 * 2.0
+                    + (p2 - p0) * t
+                    + (p0 * 2.0 - p1 * 5.0 + p2 * 4.0 - p3) * t2
+                    + (p1 * 3.0 - p0 - p2 * 3.0 + p3) * t3)
+                    * 0.5,
+            );
+        }
+    }
+    out.push(points[n - 1]);
+    out
+}
+
 /// Cone attenuation factor in [0, 1] for a fragment at direction `light_to_fragment` (normalized,
 /// pointing FROM the light TOWARD the fragment) against a spot aimed along `dir` (same sense).
 /// Pure-Rust mirror of the `pbr_simple.wgsl` fragment-shader cone term -- kept in lockstep so this
@@ -223,5 +271,45 @@ mod tests {
         // A zero-length dir must not NaN the light -- falls back to straight down.
         let degenerate = RoomLight::spot(Vec3::ZERO, [1.0, 1.0, 1.0], 5.0, 3.0, Vec3::ZERO, 20.0, 40.0);
         assert_eq!(degenerate.dir, Vec3::NEG_Y);
+    }
+
+    /// Strip path tessellation (v0.781): sharp = points verbatim; smooth = a
+    /// Catmull-Rom curve that still STARTS and ENDS exactly on the first/last
+    /// control points (mirrored ends), passes through the middle control
+    /// points, and produces 8 samples per span. An L-shaped smooth strip must
+    /// actually round the corner (its curve deviates from the sharp corner
+    /// point at the corner's parameter midpoint neighborhood).
+    #[test]
+    fn strip_path_sampling_sharp_and_smooth() {
+        let l_shape = vec![
+            Vec3::new(0.0, 2.0, 0.0),
+            Vec3::new(4.0, 2.0, 0.0),
+            Vec3::new(4.0, 2.0, 4.0),
+        ];
+
+        // Sharp: verbatim.
+        let sharp = sample_strip_path(&l_shape, false);
+        assert_eq!(sharp, l_shape);
+
+        // Smooth: 2 spans * 8 + terminal point.
+        let smooth = sample_strip_path(&l_shape, true);
+        assert_eq!(smooth.len(), 2 * 8 + 1);
+        assert!((smooth[0] - l_shape[0]).length() < 1e-4, "curve starts at the first point");
+        assert!((smooth[16] - l_shape[2]).length() < 1e-4, "curve ends at the last point");
+        // The corner control point is ON the curve (Catmull-Rom interpolates).
+        assert!((smooth[8] - l_shape[1]).length() < 1e-4, "curve passes through the corner point");
+        // But near the corner the curve bows INSIDE the sharp L (rounding):
+        // the sample midway along the second half of span 0 is pulled off the
+        // straight segment toward the inside of the turn.
+        let straight_pt = Vec3::new(3.0, 2.0, 0.0); // 75% along the sharp first leg
+        let curved_pt = smooth[6]; // t = 0.75 of span 0
+        assert!(
+            (curved_pt - straight_pt).length() > 0.05,
+            "smooth curve must deviate from the sharp corner path (got {curved_pt:?})"
+        );
+
+        // Degenerate inputs pass through untouched.
+        assert_eq!(sample_strip_path(&l_shape[..1], true).len(), 1);
+        assert!(sample_strip_path(&[], true).is_empty());
     }
 }
