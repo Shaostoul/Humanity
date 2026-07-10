@@ -32,6 +32,11 @@ pub mod cosmetics;
 /// truth instead of drifting per-view. See `src/cosmos.rs`.
 pub mod cosmos;
 
+/// Dev travel math (teleport viewpoints + camera aim for the Dev page's
+/// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
+/// run under every feature set. See `src/dev_travel.rs`.
+pub mod dev_travel;
+
 #[cfg(feature = "relay")]
 pub mod relay;
 
@@ -6012,6 +6017,11 @@ mod native_app {
         screenshot_counter: u32,
         /// Ship world position (GEO orbit coordinates).
         ship_world_pos: glam::DVec3,
+        /// Dev travel home stash (v0.791.x): (ship_world_pos, camera position,
+        /// yaw, pitch) captured on the FIRST teleport / FTL departure, so the
+        /// Dev page's "Return home" restores the exact pre-travel viewpoint.
+        /// None = at home (never traveled, or already returned).
+        dev_travel_home: Option<(glam::DVec3, Vec3, f32, f32)>,
         start_time: Instant,
         last_frame: Instant,
         // egui integration
@@ -6824,6 +6834,7 @@ mod native_app {
                 homestead_bounds: None,
                 screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
+                dev_travel_home: None,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -7666,7 +7677,22 @@ mod native_app {
                             winit::event::MouseScrollDelta::LineDelta(_, y) => y,
                             winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
                         };
-                        state.controller.process_scroll(scroll);
+                        // Dev FTL speed on the wheel (v0.791.x): while fly mode
+                        // is on in first person the wheel is otherwise unused
+                        // (FP ignores scroll_delta), so it steps the fly speed
+                        // multiplier one decade per notch, clamped 1x..1e9x.
+                        // dev_fly_mode is forced off when cheats are off, so
+                        // this path is inert for normal players.
+                        if state.gui_state.dev_fly_mode
+                            && state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        {
+                            let exp = (state.gui_state.dev_fly_speed_mult.max(1.0).log10()
+                                + scroll)
+                                .clamp(0.0, 9.0);
+                            state.gui_state.dev_fly_speed_mult = 10f32.powf(exp);
+                        } else {
+                            state.controller.process_scroll(scroll);
+                        }
                     }
                 }
                 WindowEvent::RedrawRequested => {
@@ -7747,6 +7773,20 @@ mod native_app {
                             .unwrap_or(1.0);
                         state.controller.speed_multiplier = mult * gear_mult;
                     }
+
+                    // Dev travel sync (v0.791.x): mirror the Dev page's fly/FTL
+                    // state into the camera controller each frame (same pattern
+                    // as speed_multiplier above). Forced OFF when cheats are
+                    // off, and in a shared world -- flying at km/s (or moving
+                    // ship_world_pos under a joined session) would fight the
+                    // relay's co-presence position sync and its anti-teleport
+                    // validation, so travel is offline/local only.
+                    if !state.theme.cheats_enabled || state.gui_state.copresence_active {
+                        state.gui_state.dev_fly_mode = false;
+                    }
+                    state.controller.fly_mode = state.gui_state.dev_fly_mode;
+                    state.controller.fly_speed_mult =
+                        state.gui_state.dev_fly_speed_mult.clamp(1.0, 1.0e9);
 
                     // ELEVATOR tick (v0.590): animate each elevator car toward its target end, and
                     // CALL it -- stepping onto the car toggles its destination (ride to the other end),
@@ -7882,6 +7922,9 @@ mod native_app {
                     }
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
+                        // Not in dev fly mode (v0.791.x): flying through a pad's
+                        // footprint must not yank the traveler across the ship.
+                        && !state.controller.fly_mode
                         && state.teleport_cooldown <= 0.0
                     {
                         let p = state.camera.position;
@@ -7958,6 +8001,44 @@ mod native_app {
                     let prev_cam_pos = state.camera.position;
                     state.controller.update_camera(&mut state.camera, dt);
 
+                    // Dev FTL flight, world-scale share (v0.791.x): above
+                    // LOCAL_FLY_MULT_MAX one frame of travel reaches km-to-
+                    // planetary scale, far beyond what the f32 local camera
+                    // position can hold without jitter (f32 ulp at 1.5e11 m is
+                    // ~16 km). So the SHIP flies instead: ship_world_pos is f64
+                    // Earth-centred metres and the celestial pass subtracts it,
+                    // so moving it carries the whole local frame (homestead +
+                    // player) through the solar system at full precision while
+                    // the camera stays at metre-scale coordinates. Below the
+                    // cap the controller already moved the local camera and
+                    // this block is a no-op.
+                    if state.controller.fly_mode
+                        && state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
+                        && state.controller.fly_speed_mult
+                            > crate::renderer::camera::LOCAL_FLY_MULT_MAX
+                    {
+                        let wish = state.controller.fly_wish_dir(&state.camera);
+                        if wish.length_squared() > 0.0 {
+                            // First world-scale departure stashes home so the
+                            // Dev page's "Return home" can restore it.
+                            if state.dev_travel_home.is_none() {
+                                state.dev_travel_home = Some((
+                                    state.ship_world_pos,
+                                    state.camera.position,
+                                    state.camera.yaw,
+                                    state.camera.pitch,
+                                ));
+                                state.gui_state.dev_travel_away = true;
+                            }
+                            let step = (state.controller.speed as f64)
+                                * (state.controller.fly_speed_mult as f64)
+                                * (dt as f64);
+                            state.ship_world_pos +=
+                                glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64)
+                                    * step;
+                        }
+                    }
+
                     // Wall collision (v0.556): the player IS the camera, so push it out of the home's
                     // walls / closed doors in first person -- no more walking through walls. Doors that
                     // are open + unlocked are gaps; closed or locked doors block; windows are part of
@@ -7965,6 +8046,9 @@ mod native_app {
                     // home walls (legacy layout / showroom -> wall_colliders empty).
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
+                        // Dev fly mode is noclip (v0.791.x): walls must not pin
+                        // the traveler inside the hull when they fly out.
+                        && !state.controller.fly_mode
                         && !state.wall_colliders.is_empty()
                     {
                         let door_locks = state.door_locks.clone();
@@ -8362,7 +8446,14 @@ mod native_app {
                             .map(|w| w.temperature)
                             .unwrap_or(-40.0);
                         let pos = state.camera.position;
-                        let env = match state.homestead_bounds {
+                        // Dev fly/travel (v0.791.x) is a cheat: while fly mode
+                        // is on, the vacuum-outside-the-hull rule is suspended
+                        // so sightseeing at Neptune doesn't suffocate/freeze
+                        // the operator. Turning fly mode off restores normal
+                        // survival rules wherever you are.
+                        let env = if state.controller.fly_mode {
+                            crate::ecs::components::EnvironmentContext::default()
+                        } else { match state.homestead_bounds {
                             Some((mn, mx))
                                 if pos.x >= mn.x && pos.x <= mx.x
                                     && pos.y >= mn.y && pos.y <= mx.y
@@ -8391,7 +8482,7 @@ mod native_app {
                             },
                             // Homestead not generated yet → assume safe.
                             None => crate::ecs::components::EnvironmentContext::default(),
-                        };
+                        } };
                         state.data_store.insert("environment_context", env);
                     }
 
@@ -8461,6 +8552,107 @@ mod native_app {
                             if let Ok(mut s) = slot.lock() {
                                 *s = Some(kit_id);
                             }
+                        }
+                    }
+
+                    // Dev travel teleport (v0.791.x, Platform > Dev > Travel):
+                    // jump the viewpoint to any rendered solar body, or back
+                    // home. HOW it moves: planets sit up to 4.5e12 m away in
+                    // Earth-relative metres -- hopeless for the f32 local
+                    // camera (ulp at that scale is ~0.5e6 m) -- so the teleport
+                    // moves ship_world_pos (f64), the offset the celestial pass
+                    // subtracts from every body. The whole local frame (home +
+                    // player) arrives together and the camera stays at metre-
+                    // scale local coordinates; dev_travel::teleport_viewpoint
+                    // picks a sunlit vantage ~4 TRUE radii out (the sky pass's
+                    // min-angular-size disc floor is inactive at that range, so
+                    // visual radius == true radius and the body fills ~29
+                    // degrees of view on arrival).
+                    if let Some(target) = state.gui_state.pending_dev_teleport.take() {
+                        if state.gui_state.copresence_active {
+                            // Shared-world gate (belt + braces; the Dev page
+                            // hides the buttons too): never fight the relay's
+                            // position sync / anti-teleport validation.
+                            log::warn!("Dev travel: disabled while in the shared world");
+                        } else if target == "home" {
+                            if let Some((ship, cam, yaw, pitch)) = state.dev_travel_home.take() {
+                                state.ship_world_pos = ship;
+                                state.camera.position = cam;
+                                state.camera.yaw = yaw;
+                                state.camera.pitch = pitch;
+                                // Back inside the hull: fly mode off, gravity +
+                                // walls + survival rules resume.
+                                state.gui_state.dev_fly_mode = false;
+                                state.controller.fly_mode = false;
+                                state.gui_state.dev_travel_away = false;
+                                log::info!("Dev travel: returned home");
+                            }
+                        } else if let Some(body) = crate::cosmos::find_body(&target) {
+                            // Same live sim time the celestial pass uses, so the
+                            // vantage matches where the body is drawn this frame.
+                            let sim_t = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs_f64())
+                                .unwrap_or(0.0)
+                                - 946_728_000.0; // Unix secs at J2000.0 epoch
+                            let earth_helio_au = crate::cosmos::find_body("earth")
+                                .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+                                .unwrap_or(glam::DVec3::ZERO);
+                            let body_rel_earth =
+                                (crate::cosmos::body_world_position_3d_au(body, sim_t)
+                                    - earth_helio_au)
+                                    * crate::cosmos::M_PER_AU;
+                            // Sun's heliocentric position is the origin, so
+                            // Earth-relative it is just -earth.
+                            let sun_rel_earth = -earth_helio_au * crate::cosmos::M_PER_AU;
+                            let is_sun = body.body_type == "star";
+                            let vantage = crate::dev_travel::teleport_viewpoint(
+                                body_rel_earth,
+                                sun_rel_earth,
+                                body.radius_km * 1000.0,
+                                is_sun,
+                            );
+                            // Stash home exactly once (first departure), so
+                            // chained teleports still return to the true home.
+                            if state.dev_travel_home.is_none() {
+                                state.dev_travel_home = Some((
+                                    state.ship_world_pos,
+                                    state.camera.position,
+                                    state.camera.yaw,
+                                    state.camera.pitch,
+                                ));
+                            }
+                            state.ship_world_pos = vantage;
+                            // Park the camera just above the hull so the ship
+                            // doesn't block the view (it rides along below you),
+                            // and aim at the body. First person + fly mode so
+                            // gravity/walls don't yank the traveler around.
+                            if state.camera.mode
+                                != crate::renderer::camera::CameraMode::FirstPerson
+                            {
+                                state
+                                    .camera
+                                    .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                            }
+                            let hull_top = state
+                                .homestead_bounds
+                                .map(|(_, mx)| mx.y)
+                                .unwrap_or(20.0);
+                            state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
+                            let (yaw, pitch) =
+                                crate::dev_travel::look_angles(body_rel_earth - vantage);
+                            state.camera.yaw = yaw;
+                            state.camera.pitch = pitch;
+                            state.gui_state.dev_fly_mode = true;
+                            state.controller.fly_mode = true; // effective this frame
+                            state.gui_state.dev_travel_away = true;
+                            log::info!(
+                                "Dev travel: teleported to {} ({:.0} km out, sunlit side)",
+                                body.name,
+                                (body_rel_earth - vantage).length() / 1000.0
+                            );
+                        } else {
+                            log::warn!("Dev travel: unknown body id {target}");
                         }
                     }
 
@@ -11717,8 +11909,17 @@ mod native_app {
                         // direction pointed at the REAL Sun so Earth's lit
                         // hemisphere matches the visible Sun disc (was a
                         // fixed [0.3,1,0.5] that disagreed with the disc).
+                        // The light DIRECTION is viewer-relative (v0.791.x):
+                        // sun_rel_earth_m alone is the sun's direction from
+                        // EARTH, correct only while the ship is near Earth --
+                        // after a dev-travel jump to, say, Neptune the sun is
+                        // in a completely different direction. Subtracting
+                        // ship_world_pos costs ~3e-7 rad at home (GEO vs 1 AU,
+                        // imperceptible) and keeps every lit hemisphere honest
+                        // anywhere in the system.
                         state.sun_world_pos = sun_rel_earth_m;
-                        let sun_dir = sun_rel_earth_m.normalize_or_zero();
+                        let sun_dir =
+                            (sun_rel_earth_m - state.ship_world_pos).normalize_or_zero();
                         // GI master switch (v0.571): when OFF, zero the sun + fill so only LOCAL placed
                         // lights illuminate -- the operator's "turn off global illumination and still
                         // see" test. Default ON restores the normal sun (2.5) + the cool fill (0.6).
@@ -15966,8 +16167,14 @@ mod native_app {
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)
                                 // with a HUGE far plane, behind the interior, lit by the
                                 // REAL Sun direction. (v0.450 bodies, v0.451 lighting)
+                                // Viewer-relative like the scene light above (v0.791.x):
+                                // sun_world_pos is Earth-relative, so after a dev-travel
+                                // jump the un-shifted vector would light the destination
+                                // planet's wrong hemisphere. At home the correction is
+                                // ~3e-7 rad (GEO vs 1 AU) -- invisible.
                                 let sun_dir_f = {
-                                    let d = state.sun_world_pos.normalize_or_zero();
+                                    let d = (state.sun_world_pos - state.ship_world_pos)
+                                        .normalize_or_zero();
                                     Vec3::new(d.x as f32, d.y as f32, d.z as f32)
                                 };
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, &view);

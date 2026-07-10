@@ -254,6 +254,34 @@ pub fn draw(
                 }
             }
 
+            // ── Dev travel indicator (v0.791.x, under the compass) ──
+            // Shown whenever fly mode is on or the FTL multiplier is above 1x,
+            // so the operator always knows why movement behaves differently.
+            if state.dev_fly_mode || state.dev_fly_speed_mult > 1.0 {
+                let mut label = format!(
+                    "FLY {}",
+                    crate::dev_travel::format_multiplier(state.dev_fly_speed_mult)
+                );
+                if !state.dev_fly_mode {
+                    label.push_str(" (fly mode off)");
+                } else if state.dev_fly_speed_mult
+                    > crate::renderer::camera::LOCAL_FLY_MULT_MAX
+                {
+                    label.push_str(" FTL - ship flying");
+                }
+                if state.dev_travel_away {
+                    label.push_str(" - away from home");
+                }
+                text_shadowed(
+                    painter,
+                    Pos2::new(center.x, compass_y + 20.0),
+                    Align2::CENTER_TOP,
+                    &label,
+                    12.0,
+                    theme.warning(),
+                );
+            }
+
             // ── Machine labels (world-space, distance LOD + room occlusion) ──
             // dot within dot_dist -> +name within name_dist -> +card within card_dist.
             // By default ONLY machines in the room you are in show (walls occlude the

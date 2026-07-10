@@ -1,13 +1,19 @@
 //! Dev page (v0.777) - operator-facing developer tools, under Platform > Dev.
 //! Permanent dev infrastructure (operator: "assume perpetual development; never
 //! trim dev/debug tooling"), the home for the entity spawn/edit workflow and
-//! future instrumentation (world inspector, teleport, time/weather control).
+//! future instrumentation (world inspector, time/weather control).
 //!
 //! First tool: spawn ANY creature/NPC species from data/creatures.csv in front
 //! of the player, and despawn them for cleanup. Spawning only sets
 //! GuiState.pending_dev_spawn; lib.rs does the actual ECS spawn at the player's
 //! position next frame (this page has no world handle). Editing an existing
 //! creature is the walk-up companion (a later increment).
+//!
+//! Second tool (v0.791.x): Travel - teleport to any rendered solar body (parked
+//! ~4 radii out on the sunlit side) plus an FTL fly-speed multiplier, so the
+//! operator can inspect planet surfaces instead of walking at 5 m/s toward
+//! something 1.5e11 m away. Same pattern: the page only sets
+//! GuiState.pending_dev_teleport / dev_fly_* and lib.rs applies them.
 
 use egui::{RichText, ScrollArea};
 use crate::gui::GuiState;
@@ -83,6 +89,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             }
 
             let all = species();
+
+            // ── Travel (v0.791.x): teleport + FTL fly speed ──
+            draw_travel_card(ui, theme, state);
+            ui.add_space(theme.spacing_sm);
 
             // Status + cleanup.
             widgets::card(ui, theme, |ui| {
@@ -185,6 +195,120 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 state.pending_dev_spawn = Some(id);
             }
         });
+}
+
+/// Travel card (v0.791.x): teleport to any rendered solar body + the FTL fly
+/// speed. The body list mirrors the celestial pass filter in lib.rs (the Sun,
+/// every direct sun-orbiter, and our Moon - the bodies that actually have a
+/// rendered sphere in the sky), so the list and the sky never drift. Clicking
+/// a body sets pending_dev_teleport; lib.rs moves ship_world_pos to a sunlit
+/// vantage ~4 radii out next frame and aims the camera. Offline/local world
+/// only: teleporting while the relay's shared world is joined would fight the
+/// co-presence position sync (and its anti-teleport validation), so the whole
+/// card gates on copresence_active.
+fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::card(ui, theme, |ui| {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Travel")
+                    .size(theme.font_size_body)
+                    .strong()
+                    .color(theme.text_primary()),
+            );
+            ui.label(
+                RichText::new("teleport + FTL flight for looking at the solar system")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        });
+        if state.copresence_active {
+            ui.label(
+                RichText::new(
+                    "Travel tools are disabled while you are in the shared world \
+                     (they would fight the multiplayer position sync). Disconnect \
+                     or play offline to use them.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.warning()),
+            );
+            return;
+        }
+
+        // Fly mode + speed. The multiplier slider is logarithmic (1x..1e9x);
+        // above x1k the SHIP flies (ship_world_pos, f64) so crossing an AU
+        // takes seconds without wrecking f32 camera precision.
+        ui.horizontal(|ui| {
+            ui.checkbox(&mut state.dev_fly_mode, "Fly mode");
+            ui.label(
+                RichText::new("no gravity, no walls; W flies where you look")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        });
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Speed").color(theme.text_secondary()));
+            ui.add(
+                egui::Slider::new(&mut state.dev_fly_speed_mult, 1.0..=1.0e9)
+                    .logarithmic(true)
+                    .custom_formatter(|v, _| {
+                        crate::dev_travel::format_multiplier(v as f32)
+                    }),
+            );
+            if ui.small_button("1x").on_hover_text("Reset to walking speed.").clicked() {
+                state.dev_fly_speed_mult = 1.0;
+            }
+        });
+        ui.label(
+            RichText::new(
+                "Mouse wheel while flying steps the speed x10 per notch. Above x1k \
+                 the homeship itself flies (FTL) - it travels with you.",
+            )
+            .size(theme.font_size_small)
+            .color(theme.text_muted()),
+        );
+        ui.add_space(theme.spacing_xs);
+
+        // Teleport targets: home first, then the same bodies the sky renders.
+        ui.horizontal_wrapped(|ui| {
+            let home = ui.add_enabled(
+                state.dev_travel_away,
+                egui::Button::new("Return home"),
+            );
+            if home
+                .on_hover_text("Restore the position you were at before the first teleport.")
+                .clicked()
+            {
+                state.pending_dev_teleport = Some("home".to_string());
+            }
+            for b in crate::cosmos::sol_bodies() {
+                // Mirror the celestial-pass visibility filter (lib.rs): the
+                // Sun, direct sun-orbiters, and our Moon.
+                let is_sun = b.body_type == "star";
+                let direct_solar = b.parent.as_deref() == Some("sun");
+                if !is_sun && !direct_solar && b.id != "moon" {
+                    continue;
+                }
+                if ui
+                    .button(&b.name)
+                    .on_hover_text(format!(
+                        "Teleport to {} ({}, radius {:.0} km) - arrives ~4 radii out \
+                         on the sunlit side, with fly mode on.",
+                        b.name, b.body_type, b.radius_km
+                    ))
+                    .clicked()
+                {
+                    state.pending_dev_teleport = Some(b.id.clone());
+                }
+            }
+        });
+        if state.dev_travel_away {
+            ui.label(
+                RichText::new("You are away from home. Vitals are safe while fly mode is on.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        }
+    });
 }
 
 /// Walk-up creature editor (v0.778): a cursor-free panel (bottom-right, so it

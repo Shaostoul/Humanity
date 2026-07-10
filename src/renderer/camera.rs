@@ -17,6 +17,16 @@ use super::light::RoomLight;
 /// with jump_speed 5.0 it gives a peak height of ~1.0 m.
 const GRAVITY: f32 = 12.0;
 
+/// Dev fly mode (v0.791.x): the largest FTL speed multiplier the controller
+/// applies to the LOCAL f32 camera position. Above this, one frame of travel
+/// reaches km-to-planetary scale, far past what f32 local coordinates can hold
+/// without jitter -- so lib.rs moves `ship_world_pos` (f64, Earth-centred
+/// metres) instead and the camera stays put in the local frame (the mothership
+/// flies, carrying the player). At the cap itself (5 m/s * 1000 = 5 km/s) a
+/// long local flight tops out around a few thousand km of local coordinates,
+/// which f32 still resolves to sub-metre.
+pub const LOCAL_FLY_MULT_MAX: f32 = 1_000.0;
+
 // ── GPU uniform ──────────────────────────────────────────────
 
 /// GPU-side camera uniform data (matches shader CameraUniforms).
@@ -490,6 +500,16 @@ pub struct CameraController {
     /// Character-showroom lock (v0.443): when true the orbit camera is FIXED on the avatar
     /// -- only a mouse drag spins it and the wheel zooms; WASD and panning are disabled.
     pub showroom_lock: bool,
+    /// Dev fly mode (v0.791.x, Platform > Dev > Travel): free flight in first
+    /// person -- full-3D movement along the look direction, Space up / Shift
+    /// down, no gravity, no ground snap (lib.rs also skips wall collision +
+    /// teleporter pads while this is on). Synced each frame from
+    /// GuiState.dev_fly_mode; cheats-gated there.
+    pub fly_mode: bool,
+    /// Dev fly speed multiplier (1.0..=1e9) on top of the base `speed`. Up to
+    /// `LOCAL_FLY_MULT_MAX` the controller moves the local camera; above that,
+    /// lib.rs moves `ship_world_pos` instead (see LOCAL_FLY_MULT_MAX).
+    pub fly_speed_mult: f32,
 }
 
 impl CameraController {
@@ -521,6 +541,8 @@ impl CameraController {
             ground_y: 1.7,
             climb_zone: None,
             showroom_lock: false,
+            fly_mode: false,
+            fly_speed_mult: 1.0,
         }
     }
 
@@ -722,6 +744,29 @@ impl CameraController {
         self.climb_zone.is_some()
     }
 
+    /// Dev fly mode wish direction (v0.791.x): the normalized movement intent
+    /// from the held keys, in full 3D -- forward/backward along the camera's
+    /// real look direction (pitch included), left/right strafe, Space +Y,
+    /// Shift -Y. Zero when nothing is held. Public so lib.rs can apply the
+    /// world-scale (ship_world_pos) share of an FTL flight with the same
+    /// intent the local share uses.
+    pub fn fly_wish_dir(&self, camera: &Camera) -> Vec3 {
+        let forward = camera.forward();
+        let right = camera.right();
+        let mut wish = Vec3::ZERO;
+        if self.forward { wish += forward; }
+        if self.backward { wish -= forward; }
+        if self.right { wish += right; }
+        if self.left { wish -= right; }
+        if self.ascend { wish += Vec3::Y; }
+        if self.descend { wish -= Vec3::Y; }
+        if wish.length_squared() > 0.0 {
+            wish.normalize()
+        } else {
+            Vec3::ZERO
+        }
+    }
+
     /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
     /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
     /// Space up with no sprint, the operator's BUG-039.)
@@ -737,6 +782,27 @@ impl CameraController {
         camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
         let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
         camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
+
+        // ── Dev fly mode (v0.791.x) ── free flight: W/S along the full look
+        // direction (pitch included, so looking at a planet and holding W goes
+        // there), A/D strafe, Space up, Shift down. No gravity, no ladder, no
+        // ground snap. Status-effect / gear speed modifiers are deliberately
+        // ignored -- this is a dev inspection tool, not gameplay movement.
+        if self.fly_mode {
+            let wish = self.fly_wish_dir(camera);
+            // Only the LOCAL share of the multiplier is applied to the f32
+            // camera position; the world-scale share (above the cap) moves
+            // ship_world_pos in lib.rs (see LOCAL_FLY_MULT_MAX). When the
+            // multiplier is above the cap the ship carries the player, so the
+            // local camera intentionally stays still here.
+            if wish.length_squared() > 0.0 && self.fly_speed_mult <= LOCAL_FLY_MULT_MAX {
+                camera.position += wish * self.speed * self.fly_speed_mult.max(1.0) * dt;
+            }
+            // Land cleanly when fly mode turns off: no stale fall velocity.
+            self.vertical_velocity = 0.0;
+            self.is_grounded = false;
+            return;
+        }
 
         // WASD movement relative to camera facing (horizontal only)
         let forward = camera.forward_xz();
