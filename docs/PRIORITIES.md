@@ -45,11 +45,16 @@
 >    native instances with DISTINCT identities, both in-world + connected to
 >    united-humanity.us, should see each other's avatars and the roster count
 >    tick up (web chat is NOT a co-presence participant - no game_join/position).
->    This is the mission-critical proof; a second HUMAN remains wanted, but the
->    v0.793 dev AUTOPILOT (debug/autopilot_request.json: zero-click ephemeral
->    identity -> connect -> enter world) makes a scripted two-instance proof on
->    one machine possible without one - see the co-presence test procedure in
->    the journal.
+>    PROVEN LIVE 2026-07-10 (v0.794.1): two autopilot-driven instances joined
+>    united-humanity.us simultaneously; game_players: 2 on /api/server-info,
+>    each client's HUD roster showed the other, logs show bidirectional
+>    position streams. The v0.793 dev AUTOPILOT (debug/autopilot_request.json:
+>    zero-click ephemeral identity -> connect -> enter world) makes this
+>    repeatable without a second human; it also CAUGHT + fixed a real race
+>    (v0.794.0: game_join sent before the identify handshake bound the socket
+>    was silently discarded - any fast-loading client could hit it). A second
+>    HUMAN witness test remains wanted (operator-gated). Follow-up: the roster
+>    shows "Player" instead of the game_join player_name.
 > 3. FIELD-REPORT CADENCE - operator plays, reports what is broken/ugly, I
 >    fix. DONE from this cadence: dev spawn + walk-up creature editor
 >    (v0.777-778), the 15-fix review sweep (v0.779), lighting arc (v0.780-781:

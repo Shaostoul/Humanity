@@ -544,6 +544,13 @@
       "decision": "v0.792.0-2 loop-mode batch: merged + independently verified both worktree agents (strip corner subdivision 0..100 with emission along the curved tube; gizmo redesign: rotation-only fixed-size rings + hover highlight + icosphere range display; dev travel: teleport to any solar body + FTL fly 1x..1e9 via ship_world_pos f64, sun light made viewer-relative). v0.792.2 docs sweep: 5-checker workflow audited 79 README/doc claims, 35 fixed (honest overclaim rewrites, LICENSE file added, CONTRIBUTING recipe rewritten, STATUS pivot refresh, em dashes purged from README).",
       "why": "Operator enabled loop mode to finish the backlog + asked for README/docs currency + next-step options. Recommended and started: autonomous two-instance co-presence proof (portable.txt second identity + an auto-enter-world dev mechanism; Explore agent mapping the flow). Operator smooth-strip edit preserved through the smooth->subdivision migration as subdivision 8.",
       "verification": "895 lib tests on the merge, 711 relay tests, four lints, v0.792.1 release exe booted 0 PANIC, check-doc-links 254/0 broken"
+    },
+    {
+      "id": 3,
+      "date": "2026-07-10",
+      "decision": "CO-PRESENCE PROVEN LIVE (task #48): two autopilot-driven native instances (v0.794.1, portable-mode scratch folders, ephemeral identities) joined united-humanity.us simultaneously; /api/server-info reported game_players: 2 while both were alive; each client HUD roster showed the other (Shared world - 1 here); logs show bidirectional game_position_update streams (player ids 81/82). Two real bugs found and fixed on the way: (1) v0.794.0 game_join RACED the identify handshake (relay pre-bind loop silently discards non-identify messages; client showed Shared world while server registered nobody) - fixed with GuiState.ws_identified gate set on first post-bind peer_list, cleared at all connect sites; (2) autopilot burns the per-IP new-identity budget - now persists debug/autopilot_seed.bin per test folder. Known cosmetic follow-up: roster shows the default name Player instead of the game_join player_name.",
+      "why": "The mission-critical multiplayer proof no longer waits on a second human. The v0.793 autopilot (debug/autopilot_request.json) is permanent dev tooling for repeatable co-presence smoke tests. Operator was at the keyboard mid-test (launched his own instance, closed the first pair of surprise windows) - the reply explains what those windows were.",
+      "verification": "game_players: 2 polled live; screenshot of instance B HUD roster; position-exchange log lines; 895 lib tests + both feature checks on the fix"
     }
   ],
   "active_scopes_to_avoid": [
