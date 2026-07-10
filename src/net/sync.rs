@@ -111,11 +111,24 @@ impl System for NetSyncSystem {
                     if self.local_player_id == Some(player_id) {
                         continue;
                     }
-                    // Idempotent: a duplicate join (e.g. after the world snapshot) must not stack.
-                    let exists = world
-                        .query_mut::<&RemotePlayer>()
-                        .into_iter()
-                        .any(|(_, r)| r.player_id == player_id);
+                    // Idempotent for SPAWNING, but a duplicate join still carries the
+                    // real display name -- and that matters (v0.796): position updates
+                    // can arrive before the welcome snapshot / joined broadcast (they
+                    // stream at 15 Hz while the join is one message), so the player
+                    // lazy-spawns below as a "Player N" placeholder and the real name
+                    // then bounced off this exists-check FOREVER. Found in the
+                    // two-instance co-presence proof: the roster stayed on the
+                    // placeholder instead of the game_join player_name.
+                    let mut exists = false;
+                    for (_e, r) in world.query_mut::<&mut RemotePlayer>() {
+                        if r.player_id == player_id {
+                            exists = true;
+                            if !name.is_empty() && r.name != name {
+                                r.name = name.clone();
+                            }
+                            break;
+                        }
+                    }
                     if exists {
                         continue;
                     }
@@ -306,4 +319,53 @@ impl System for NetSyncSystem {
 /// Smooth step interpolation (ease in-out).
 fn smooth_step(t: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ecs::systems::System;
+
+    /// The lazy-spawn name race from the two-instance co-presence proof
+    /// (v0.796): a position update arriving BEFORE the join/welcome spawns
+    /// the player as a "Player N" placeholder; the real name in the later
+    /// PlayerJoined must UPDATE it, not bounce off the exists-check.
+    #[test]
+    fn a_late_join_message_fixes_a_lazy_spawned_placeholder_name() {
+        let mut sys = NetSyncSystem::new();
+        let mut world = hecs::World::new();
+        let data = crate::hot_reload::data_store::DataStore::new();
+        sys.queue_messages(vec![
+            NetMessage::Welcome { player_id: 1, world_snapshot: Vec::new() },
+            // 15 Hz position stream outruns the one-shot join broadcast.
+            NetMessage::PositionUpdate {
+                player_id: 42,
+                position: [1.0, 0.0, 2.0],
+                rotation: [0.0, 0.0, 0.0, 1.0],
+                velocity: [0.0, 0.0, 0.0],
+                timestamp: 0.0,
+            },
+        ]);
+        sys.tick(&mut world, 0.016, &data);
+        let placeholder: Vec<String> = world
+            .query_mut::<&RemotePlayer>()
+            .into_iter()
+            .map(|(_, r)| r.name.clone())
+            .collect();
+        assert_eq!(placeholder, vec!["Player 42".to_string()], "lazy-spawn placeholder");
+
+        sys.queue_messages(vec![NetMessage::PlayerJoined {
+            player_id: 42,
+            name: "Test Pilot A".to_string(),
+            position: [1.0, 0.0, 2.0],
+        }]);
+        sys.tick(&mut world, 0.016, &data);
+        let named: Vec<(String, u32)> = world
+            .query_mut::<&RemotePlayer>()
+            .into_iter()
+            .map(|(_, r)| (r.name.clone(), r.player_id))
+            .collect();
+        assert_eq!(named.len(), 1, "no duplicate spawn from the late join");
+        assert_eq!(named[0].0, "Test Pilot A", "the real name replaced the placeholder");
+    }
 }
