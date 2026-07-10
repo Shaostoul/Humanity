@@ -545,14 +545,38 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
             _ => return None,
         })
     };
-    // Latin genitive → IAU `con`. Almost always the first 3 letters of
-    // the genitive; only the irregulars need an override.
+    // Latin genitive → IAU `con` code. The first-3-letters rule breaks for a
+    // DOZEN constellations (v0.783 fix -- e.g. "aquarii" is Aqr not "aqu", so
+    // every Aquarius endpoint silently failed to resolve): full irregular map,
+    // including the two-word genitives handled by the caller below.
     let con_abbr = |genitive: &str| -> String {
         match genitive {
             "piscium" => "psc".into(),
             "scuti" => "sct".into(),
             "trianguli" => "tri".into(),
             "crucis" => "cru".into(),
+            "aquarii" => "aqr".into(),
+            "aquilae" => "aql".into(),
+            "apodis" => "aps".into(),
+            "cancri" => "cnc".into(),
+            "corvi" => "crv".into(),
+            "crateris" => "crt".into(),
+            "hydrae" => "hya".into(),
+            "hydri" => "hyi".into(),
+            "phoenicis" => "phe".into(),
+            "sagittae" => "sge".into(),
+            "sagittarii" => "sgr".into(),
+            "sculptoris" => "scl".into(),
+            "canis majoris" => "cma".into(),
+            "canis minoris" => "cmi".into(),
+            "ursae majoris" => "uma".into(),
+            "ursae minoris" => "umi".into(),
+            "coronae borealis" => "crb".into(),
+            "coronae australis" => "cra".into(),
+            "leonis minoris" => "lmi".into(),
+            "piscis austrini" => "psa".into(),
+            "trianguli australis" => "tra".into(),
+            "canum venaticorum" => "cvn".into(),
             g => g.chars().take(3).collect(),
         }
     };
@@ -572,7 +596,8 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
         })
     };
     // Resolve a constellations.json endpoint name to a direction:
-    // proper name → alias → "<Greek> <Genitive>" Bayer key.
+    // proper name → alias → direct "alp ori" Bayer key → "<Greek> <Genitive>"
+    // Bayer key (two-word genitives like "Canis Majoris" supported, v0.783).
     let resolve = |raw: &str| -> Option<[f32; 3]> {
         let lc = raw.to_ascii_lowercase();
         if let Some(d) = by_name.get(&lc) {
@@ -583,10 +608,16 @@ fn load_constellations(csv_path: &Path) -> Vec<StarVertex> {
                 return Some(*d);
             }
         }
+        // Direct HYG Bayer key ("alp ori") -- the exact form the catalog's
+        // bayer+con columns use, so authored line data can bypass the Greek/
+        // genitive translation entirely. (v0.783)
+        if let Some(d) = by_bayer.get(&lc) {
+            return Some(*d);
+        }
         let parts: Vec<&str> = lc.split_whitespace().collect();
-        if parts.len() == 2 {
+        if parts.len() >= 2 {
             if let Some(b) = greek(parts[0]) {
-                let key = format!("{} {}", b, con_abbr(parts[1]));
+                let key = format!("{} {}", b, con_abbr(&parts[1..].join(" ")));
                 if let Some(d) = by_bayer.get(&key) {
                     return Some(*d);
                 }
