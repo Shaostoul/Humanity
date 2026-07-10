@@ -2781,6 +2781,11 @@ pub struct GuiState {
     /// editor renders it as a ghost following the cursor + drops it where you click the floor (click
     /// the same item again, or Escape/right-click, to cancel). None = not placing.
     pub construction_place_type: Option<String>,
+    /// Light type HELD for viewport placement from the palette's Lights
+    /// category (v0.784, operator: "add the lights to the bottom build menu").
+    /// Click the floor to drop one; stays held for a row of lights; right-click
+    /// or re-clicking the palette tile cancels.
+    pub construction_place_light: Option<String>,
     /// The STRUCTURAL piece type currently "held" for placement (v0.583): set by the "Structure"
     /// palette category, dropped where you click the floor. Mutually exclusive with
     /// construction_place_type (a machine) + wall_mode. None = not placing a structure.
@@ -4225,6 +4230,7 @@ impl Default for GuiState {
             construction_palette_category: String::new(),
             construction_palette_expanded: false,
             construction_place_type: None,
+            construction_place_light: None,
             construction_structure_type: None,
             construction_place_conduit_node: false,
             zone_add_type: String::new(),

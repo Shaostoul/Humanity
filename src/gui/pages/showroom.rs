@@ -188,59 +188,68 @@ fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     let mut toggle_default = false;
 
     ScrollArea::vertical().show(ui, |ui| {
-        // ── Your Homes ──
-        section_header(ui, theme, "Your Homes");
-        hint(ui, theme, "Offline saves you fully own. Each is a character plus a home.");
-        for name in &home_rows {
-            let is_sel = selected_kind == LauncherSel::Home && &selected == name;
-            let mut label = name.clone();
-            if !default_name.is_empty() && &default_name == name {
-                label.push_str("  (default)");
-            }
-            if ui.selectable_label(is_sel, RichText::new(label).color(theme.text_primary())).clicked() {
-                pick_home = Some(name.clone());
-            }
-        }
-        // Default toggle for the selected home.
-        if selected_kind == LauncherSel::Home {
-            ui.add_space(theme.spacing_xs);
-            let sel_is_default = !default_name.is_empty() && default_name == selected;
-            let btn = if sel_is_default { "Clear default" } else { "Set as default" };
-            if ui.small_button(btn).clicked() {
-                toggle_default = true;
-            }
-            hint(ui, theme, "A default lets Play skip this screen and drop you straight in.");
-        }
-
-        // ── Open-Net Characters (multiplayer placeholder) ──
-        ui.add_space(theme.spacing_sm);
-        section_header(ui, theme, "Open-Net Characters");
-        hint(ui, theme, "Your local character on a server that allows self-custody, like Open Battle.net. Arrives with multiplayer.");
-
-        // ── Closed-Net Characters (multiplayer placeholder) ──
-        ui.add_space(theme.spacing_sm);
-        section_header(ui, theme, "Closed-Net Characters");
-        hint(ui, theme, "Characters the server holds so progress cannot be forged, like Closed Battle.net. Arrives with multiplayer.");
-
-        // ── Servers ──
-        ui.add_space(theme.spacing_sm);
-        section_header(ui, theme, "Servers");
-        hint(ui, theme, "Communities you can join. Click one for details.");
-        if servers.is_empty() {
-            hint(ui, theme, "No servers yet. Add one from the Chat sidebar.");
-        } else {
-            for (id, name, connected) in &servers {
-                let is_sel = selected_kind == LauncherSel::Server && selected_server.as_deref() == Some(id.as_str());
-                let label = if *connected {
-                    format!("{name}  (connected)")
-                } else {
-                    name.clone()
-                };
+        // ── Your Homes: RED (offline, fully self-owned) ──
+        section_card(ui, theme, "Your Homes", theme.danger(), |ui| {
+            hint(ui, theme, "Offline saves you fully own. Each is a character plus a home.");
+            for name in &home_rows {
+                let is_sel = selected_kind == LauncherSel::Home && &selected == name;
+                let mut label = name.clone();
+                if !default_name.is_empty() && &default_name == name {
+                    label.push_str("  (default)");
+                }
                 if ui.selectable_label(is_sel, RichText::new(label).color(theme.text_primary())).clicked() {
-                    pick_server = Some(id.clone());
+                    pick_home = Some(name.clone());
                 }
             }
-        }
+            // Default toggle for the selected home.
+            if selected_kind == LauncherSel::Home {
+                ui.add_space(theme.spacing_xs);
+                let sel_is_default = !default_name.is_empty() && default_name == selected;
+                let btn = if sel_is_default { "Clear default" } else { "Set as default" };
+                if ui.small_button(btn).clicked() {
+                    toggle_default = true;
+                }
+                hint(ui, theme, "A default lets Play skip this screen and drop you straight in.");
+            }
+        });
+
+        // ── Open-Net: GREEN (discovery; bring your offline character) ──
+        ui.add_space(theme.spacing_sm);
+        section_card(ui, theme, "Open Net", theme.success(), |ui| {
+            hint(
+                ui,
+                theme,
+                "Visit a server with your OFFLINE character to see what it's about -- \
+                 no new character needed. Self-custody, like Open Battle.net.",
+            );
+            if servers.is_empty() {
+                hint(ui, theme, "No servers yet. Add one from the Chat sidebar.");
+            } else {
+                for (id, name, connected) in &servers {
+                    let is_sel = selected_kind == LauncherSel::Server && selected_server.as_deref() == Some(id.as_str());
+                    let label = if *connected {
+                        format!("{name}  (connected)")
+                    } else {
+                        name.clone()
+                    };
+                    if ui.selectable_label(is_sel, RichText::new(label).color(theme.text_primary())).clicked() {
+                        pick_server = Some(id.clone());
+                    }
+                }
+            }
+        });
+
+        // ── Closed-Net: BLUE (the committed, server-held story world) ──
+        ui.add_space(theme.spacing_sm);
+        section_card(ui, theme, "Closed Net", theme.info(), |ui| {
+            hint(
+                ui,
+                theme,
+                "Commit to a server's main story arc: characters the server holds so \
+                 progress cannot be forged, like Closed Battle.net. Your base body \
+                 carries over; augments are earned in-world. Arrives with multiplayer.",
+            );
+        });
     });
 
     // Apply deferred mutations.
@@ -424,9 +433,28 @@ fn drain_server_info(state: &mut GuiState) {
     }
 }
 
-/// A small section header used by the launcher left pane.
-fn section_header(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.label(RichText::new(text).size(theme.font_size_body).strong().color(theme.text_primary()));
+/// A COLOR-CODED launcher section card (v0.784, operator's RGB scheme):
+/// offline homes = RED, open-net = GREEN, closed-net = BLUE. A tinted frame +
+/// colored title so the three trust models read at a glance; the color carries
+/// meaning (self-custody vs discovery vs server-held), matching the same
+/// red/green/blue language planned across surfaces.
+fn section_card(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    title: &str,
+    color: egui::Color32,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    egui::Frame::none()
+        .fill(color.linear_multiply(0.06))
+        .stroke(egui::Stroke::new(1.0, color.linear_multiply(0.55)))
+        .rounding(egui::Rounding::same(theme.border_radius as u8))
+        .inner_margin(egui::Margin::same(8))
+        .show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.label(RichText::new(title).size(theme.font_size_body).strong().color(color));
+            add_contents(ui);
+        });
 }
 
 /// A muted one-line contextual hint (the operator loves in-page help).

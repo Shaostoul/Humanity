@@ -2413,47 +2413,28 @@ fn draw_conduit_nodes(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 }
 
 fn draw_lights_editor(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    // The light LIST + on/off + position editing moved to the Objects browser (toggle) + the right
-    // detail panel (v0.597). This keeps only the "Add light" picker. One consistent style.
-    let mut changed = false;
-    {
-        let hs = match zone_body_mut(&mut state.ship_structure, state.construction_zone) {
-            Some(h) => h,
-            None => return,
-        };
-        egui::CollapsingHeader::new(RichText::new("Add light").strong().color(theme.text_primary()))
-            .id_salt("hs_lights_sec")
-            .default_open(false)
-            .show(ui, |ui| {
-                ui.label(RichText::new("Lights appear in Objects above (checkbox = on/off, click = edit). Turn off Sun / global light to see them alone.")
-                    .size(theme.font_size_small).color(theme.text_muted()));
-                egui::ComboBox::from_id_salt("hs_add_light")
-                    .selected_text("Add light...")
-                    .show_ui(ui, |ui| {
-                        for lt in crate::renderer::light::light_types() {
-                            if ui.selectable_label(false, RichText::new(lt.name.clone()).size(theme.font_size_small)).clicked() {
-                                let pos = (hs.width * 0.5, (hs.height - 0.3).max(0.3), hs.depth * 0.5);
-                                hs.lights.push(crate::ship::home_structure::PlacedLight {
-                                    type_id: lt.id.clone(),
-                                    pos,
-                                    dir: (0.0, -1.0, 0.0),
-                                    on: true,
-                                    color: None,
-                                    intensity: None,
-                                    range: None,
-                                    path: Vec::new(),
-                                    smooth: false,
-                                });
-                                changed = true;
-                            }
-                        }
-                    });
-            });
+    // Adding lights MOVED to the bottom palette's Lights category (v0.784,
+    // operator request): pick a light there, click the floor to place it --
+    // same flow as machines/structures. This section is now just the pointer
+    // (the light LIST lives in the Objects browser above; click one to edit).
+    if zone_body(&state.ship_structure, state.construction_zone).is_none() {
+        return;
     }
-    if changed {
-        // Rebuild the homestead so room_lights pick up the new placed lights (home_lights).
-        state.construction_structure_dirty = true;
-    }
+    egui::CollapsingHeader::new(RichText::new("Lights").strong().color(theme.text_primary()))
+        .id_salt("hs_lights_sec")
+        .default_open(false)
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new(
+                    "Place lights from the Lights tab in the palette below (click the \
+                     floor to drop one; right-click cancels). They appear in Objects \
+                     above (checkbox = on/off, click = edit). Turn off Sun / global \
+                     light to see them alone.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+        });
 }
 
 // draw_structures_editor REMOVED (v0.597): structures are in the unified Objects browser now.
@@ -3633,6 +3614,18 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
     } else {
         Vec::new()
     };
+    // Lights placed like machines (v0.784, operator: "add the lights to the
+    // bottom build menu instead of the add light button on the left panel").
+    // Data-driven from light_types.ron; click the floor to drop one.
+    if state.ship_structure.is_some() {
+        let lights: Vec<(String, String)> = crate::renderer::light::light_types()
+            .iter()
+            .map(|t| (t.id.clone(), t.name.clone()))
+            .collect();
+        if !lights.is_empty() {
+            categories.insert(1.min(categories.len()), ("Lights".to_string(), lights));
+        }
+    }
     if let Some(h) = &state.home_machines {
         categories.extend(h.palette_categories());
     }
@@ -3695,10 +3688,13 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                             // Structure category, "held" tracks the structure type OR -- for the
                             // Wall tool -- the wall-DRAW mode (Wall is drawn, not placed). (v0.583)
                             let is_wall_tool = is_structure && id == "wall";
+                            let is_lights = state.construction_palette_category == "Lights";
                             let held = if is_wall_tool {
                                 state.construction_wall_mode
                             } else if is_structure {
                                 state.construction_structure_type.as_deref() == Some(id.as_str())
+                            } else if is_lights {
+                                state.construction_place_light.as_deref() == Some(id.as_str())
                             } else {
                                 state.construction_place_type.as_deref() == Some(id.as_str())
                             };
@@ -3718,13 +3714,22 @@ fn draw_palette(ctx: &Context, theme: &Theme, state: &mut GuiState) {
                                     state.construction_wall_start = None;
                                     state.construction_place_type = None;
                                     state.construction_structure_type = None;
+                                    state.construction_place_light = None;
                                 } else if is_structure {
                                     state.construction_structure_type = if held { None } else { Some(id.clone()) };
                                     state.construction_place_type = None;
+                                    state.construction_place_light = None;
+                                    state.construction_wall_mode = false;
+                                } else if is_lights {
+                                    // Hold a LIGHT for viewport placement (v0.784).
+                                    state.construction_place_light = if held { None } else { Some(id.clone()) };
+                                    state.construction_place_type = None;
+                                    state.construction_structure_type = None;
                                     state.construction_wall_mode = false;
                                 } else {
                                     state.construction_place_type = if held { None } else { Some(id.clone()) };
                                     state.construction_structure_type = None;
+                                    state.construction_place_light = None;
                                     state.construction_wall_mode = false;
                                 }
                             }

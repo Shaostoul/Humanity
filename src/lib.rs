@@ -2387,6 +2387,45 @@ mod native_app {
         }
     }
 
+    /// Drop the currently-held LIGHT type (v0.784, the palette's Lights category)
+    /// at the cursor floor point, zone-local to the ACTIVE zone. Ceiling types
+    /// (panels/spot/strip) hang just under the zone's ceiling; the warm lamp sits
+    /// at table height. The new light is auto-selected so its detail panel opens
+    /// for tuning. Stays held so you can run a row of lights; right-click cancels.
+    fn try_place_held_light(state: &mut EngineState) {
+        let Some(tid) = state.gui_state.construction_place_light.clone() else {
+            return;
+        };
+        let Some((_, hx, hz)) = cursor_floor_hit(state) else {
+            return;
+        };
+        let zo = active_zone_origin(state);
+        let Some(hs) = crate::ship::ship_structure::zone_body_mut(
+            &mut state.gui_state.ship_structure,
+            state.gui_state.construction_zone,
+        ) else {
+            return;
+        };
+        let y = if tid == "warm_lamp" {
+            0.8
+        } else {
+            (hs.height - 0.3).max(0.3)
+        };
+        hs.lights.push(crate::ship::home_structure::PlacedLight {
+            type_id: tid,
+            pos: (hx - zo.x, y, hz - zo.z),
+            dir: (0.0, -1.0, 0.0),
+            on: true,
+            color: None,
+            intensity: None,
+            range: None,
+            path: Vec::new(),
+            smooth: false,
+        });
+        state.gui_state.construction_light_selected = Some(hs.lights.len() - 1);
+        state.gui_state.construction_structure_dirty = true;
+    }
+
     /// Drop the currently-held STRUCTURAL piece (stairs/ladder/elevator/...) where the cursor hits a
     /// room floor (v0.583). Stores a ZONE-LOCAL pose (the active zone's box min at its origin) at the
     /// floor height, with the current placement yaw. Stays held so you can place several;
@@ -6696,6 +6735,7 @@ mod native_app {
                             // stale held type can't make the next viewport click drop a machine in
                             // the wrong context. (v0.531)
                             state.gui_state.construction_place_type = None;
+                            state.gui_state.construction_place_light = None; // v0.784
                             state.gui_state.construction_place_conduit_node = false; // v0.629
                             state.construction_ghost = None;
                             state.construction_port_drag = None; // drop any in-flight wire drag (v0.625)
@@ -6864,6 +6904,11 @@ mod native_app {
                                 try_place_wall_node(state);
                             } else if state.gui_state.construction_place_type.is_some() {
                                 try_place_held_machine(state);
+                            } else if state.gui_state.construction_place_light.is_some() {
+                                // Holding a LIGHT from the palette (v0.784) -> drop it at the
+                                // cursor; ceiling types hang under the zone ceiling, lamps sit
+                                // low. The tool stays held; right-click cancels.
+                                try_place_held_light(state);
                             } else if state.gui_state.construction_structure_type.is_some() {
                                 // Holding a STRUCTURAL piece (v0.583) -> drop it on the floor.
                                 try_place_structure(state);
@@ -6968,13 +7013,16 @@ mod native_app {
                         && pressed
                         && (state.gui_state.construction_place_type.is_some()
                             || state.gui_state.construction_structure_type.is_some()
+                            || state.gui_state.construction_place_light.is_some()
                             || state.gui_state.construction_place_conduit_node
                             || state.gui_state.construction_wall_mode)
                     {
-                        // Right-click cancels the held placement item / structure / conduit-node tool OR
-                        // exits wall-drawing and clears the pending corner (v0.529/v0.534/v0.583/v0.629).
+                        // Right-click cancels the held placement item / structure / light /
+                        // conduit-node tool OR exits wall-drawing and clears the pending
+                        // corner (v0.529/v0.534/v0.583/v0.629/v0.784).
                         state.gui_state.construction_place_type = None;
                         state.gui_state.construction_structure_type = None;
+                        state.gui_state.construction_place_light = None;
                         state.gui_state.construction_place_conduit_node = false;
                         state.gui_state.construction_wall_mode = false;
                         state.gui_state.construction_wall_start = None;

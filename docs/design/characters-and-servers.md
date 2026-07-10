@@ -248,3 +248,40 @@ The admin surface is **`GuiPage::GameAdmin`** + `src/gui/pages/game_admin.rs`, r
 admin-only nav entry. It carries a prominent disclaimer ("Game bans do NOT affect chat") and a ban
 form + list with per-row Unban. v1 bans are account-wide (`character_id` NULL); the composite PK leaves
 room for per-character bans later.
+
+## The dual-net server: one server, open AND closed worlds (operator vision, 2026-07-10)
+
+A single server runs BOTH nets simultaneously. They are the funnel:
+
+- **Open net (GREEN)** is discovery: "so people can find out what my server is
+  about." A visitor brings their OFFLINE character (red) as-is -- no new
+  character, no commitment. Self-custody: the client holds the save.
+- **Closed net (BLUE)** is commitment: "when they want to experience the main
+  story arc as it happens," they join the closed world. The server holds the
+  character so progress cannot be forged.
+
+Rules binding the two:
+
+1. **Separate economies.** Open-net and closed-net items/credits never mix --
+   an open-net visitor cannot inject wealth into the story world.
+2. **The shopping mall is visually LINKED.** One mall space rendered in both
+   worlds; the mall's player count is the SUM of both nets, so it always feels
+   as busy as the server actually is. Presence is shared visually; trade is
+   not (each net trades against its own economy).
+3. **The base model carries over.** A player's base body (the un-augmented
+   character: natural height, unmodified eyes/limbs) is the same identity in
+   offline, open, and closed play. AUGMENTS are world-bound progression --
+   cybernetic eyes, an 8-foot gene-modded frame -- earned inside the closed
+   world and not portable back to the base model. Identity travels; power is
+   earned where it is used.
+
+Launcher color language (shipped v0.784): offline homes RED, open net GREEN,
+closed net BLUE -- tinted section cards on the character/server select screen.
+The same RGB language should carry to any surface that distinguishes the three
+trust models (web mirrors native when this reaches the website).
+
+Implementation notes (future): the relay would run two GameWorld instances
+(open/closed) keyed by the join's character_mode field -- the game_join
+envelope has carried "character_mode" since v0.472 exactly for this. The mall
+link = presence-only cross-broadcast of position updates within the mall zone
+bounds, tagged so clients render other-net players as visitors (no trade UI).
