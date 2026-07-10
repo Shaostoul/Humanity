@@ -174,12 +174,21 @@ impl Renderer {
             .await
             .expect("No suitable GPU adapter found");
 
+        // v0.784.2 BOOT FIX: the uncapped-lights storage buffer (v0.782) needs
+        // fragment-stage storage buffers, but the old `downlevel_webgl2_defaults`
+        // profile requests ZERO of them -- so creating the camera bind group
+        // layout failed device validation and the app died before the first
+        // frame (operator: "I get a flicker but the game never comes up").
+        // Request wgpu's standard native limits instead (every Vulkan/DX12-era
+        // GPU supports them; the WebGL2 profile only mattered for a wasm target
+        // this renderer doesn't build for). Resolution limits still follow the
+        // adapter so huge-texture support matches the hardware.
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("HumanityOS Renderer"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::downlevel_webgl2_defaults()
+                    required_limits: wgpu::Limits::default()
                         .using_resolution(adapter.limits()),
                     ..Default::default()
                 },
