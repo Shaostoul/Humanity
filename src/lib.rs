@@ -1888,17 +1888,23 @@ mod native_app {
                                 }
                                 // A strip is a LINE LIGHT (v0.786, operator: "make the
                                 // full length of the bar emit light onto surfaces"):
-                                // one segment light per control-path leg, each lit
-                                // from its closest point in the shader. Intensity is
-                                // split across legs by length so the strip's total
+                                // one segment light per sampled leg, each lit from its
+                                // closest point in the shader. Intensity is split
+                                // across segments by length so the strip's total
                                 // output matches its dial (energy conservation).
-                                // Lighting uses the CONTROL polyline, not the smooth
-                                // tessellation -- visually indistinguishable, far
-                                // fewer lights.
+                                // Emission follows the SAME subdivided curve as the
+                                // rendered tube (v0.792) -- it used to follow the
+                                // straight CONTROL polyline, so a curved strip's
+                                // rounded sections glowed without lighting anything
+                                // (operator screenshot). strip_emission_segments caps
+                                // the per-strip segment count so a 100-subdivision
+                                // strip can't flood the (uncapped, v0.782) light
+                                // buffer with useless segments.
                                 LightKind::Bar => {
-                                    let pts: Vec<Vec3> = if l.path.is_empty() {
+                                    let (pts, sub): (Vec<Vec3>, u32) = if l.path.is_empty() {
                                         // Pathless: the classic straight bar of the
-                                        // type's length along the horizontal dir.
+                                        // type's length along the horizontal dir. A
+                                        // straight segment has nothing to subdivide.
                                         let flat = Vec3::new(l.dir.0, 0.0, l.dir.2);
                                         let axis = if flat.length_squared() > 1e-4 {
                                             flat.normalize()
@@ -1906,21 +1912,19 @@ mod native_app {
                                             Vec3::X
                                         };
                                         let half = t.length_m.max(0.3) * 0.5;
-                                        vec![pos - axis * half, pos + axis * half]
+                                        (vec![pos - axis * half, pos + axis * half], 0)
                                     } else {
-                                        std::iter::once(pos)
-                                            .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
-                                            .collect()
+                                        (
+                                            std::iter::once(pos)
+                                                .chain(l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + o))
+                                                .collect(),
+                                            l.subdivision,
+                                        )
                                     };
-                                    let total: f32 = pts
-                                        .windows(2)
-                                        .map(|w| (w[1] - w[0]).length())
-                                        .sum::<f32>()
-                                        .max(1e-3);
-                                    pts.windows(2)
-                                        .map(|w| {
-                                            let frac = (w[1] - w[0]).length() / total;
-                                            RoomLight::line(w[0], w[1], color, intensity * frac, range)
+                                    crate::renderer::light::strip_emission_segments(&pts, sub)
+                                        .into_iter()
+                                        .map(|(a, b, share)| {
+                                            RoomLight::line(a, b, color, intensity * share, range)
                                         })
                                         .collect()
                                 }
@@ -2497,7 +2501,7 @@ mod native_app {
             intensity: None,
             range: None,
             path: Vec::new(),
-            smooth: false,
+            subdivision: crate::ship::home_structure::default_strip_subdivision(),
         });
         state.gui_state.construction_light_selected = Some(hs.lights.len() - 1);
         state.gui_state.construction_structure_dirty = true;
@@ -3210,50 +3214,140 @@ mod native_app {
         }
     }
 
-    /// Hit-test the cursor ray against the SELECTED SPOT light's RGB range rings (v0.790, operator:
-    /// "make it so the RGB colored rings around objects allow rotating the object... it'd make
-    /// adjusting spot lights way easier"). A hit arms a LightAim drag: sweeping the cursor around
-    /// the ring rotates the aim about that ring's axis (0 = X/red, 1 = Y/green, 2 = Z/blue).
-    /// SELECTED spot only: the rings draw on every light, but a range-sized ring crosses half the
-    /// room, so arming them unselected would steal clicks from everything underneath; and rotation
-    /// is meaningless for a point light (per the operator), so those rings stay a visual readout.
-    fn try_pick_light_ring(state: &mut EngineState) -> bool {
-        let Some(li) = state.gui_state.construction_light_selected else {
-            return false;
-        };
-        let zo = active_zone_origin(state); // the light is zone-local; test in world (v0.754)
-        let (center, range) = match zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
-            .and_then(|h| h.lights.get(li))
-        {
-            Some(l) => {
-                let t = crate::renderer::light::light_type(&l.type_id);
-                if t.map(|t| t.kind) != Some(crate::renderer::light::LightKind::Spot) {
-                    return false; // rings rotate SPOT aim only
+    /// Angular size of a light's ROTATION rings (v0.792): a ring's world radius is the camera's
+    /// distance to the light times this constant, so every light's rings land at the SAME
+    /// predictable size on screen (operator: "I'd rather the rings be for rotate... some other
+    /// way to represent the light's radius") -- the rings used to be range-sized, which made a
+    /// long-throw light's handles cross half the room. ~0.05 rad is about a 60-pixel radius on
+    /// a 1280-wide viewport with the default FOV: big enough to grab, small enough to not read
+    /// as a range display.
+    const LIGHT_RING_ANGULAR_RADIUS: f32 = 0.05;
+
+    /// The rotation-ring world radius for a light at `center` seen from `camera_pos` (v0.792).
+    /// ONE function shared by the draw block, the click pick, and the hover test, so the ring
+    /// you see is always exactly the ring you grab. Floored so a camera sitting ON the light
+    /// can't shrink the ring (and its pick tolerance) to nothing.
+    fn light_ring_radius(camera_pos: Vec3, center: Vec3) -> f32 {
+        (camera_pos.distance(center) * LIGHT_RING_ANGULAR_RADIUS).max(0.05)
+    }
+
+    /// Pick tolerance for a rotation ring, proportional to its radius (v0.792): the rings are
+    /// viewport-fixed now, so a fixed-metre tolerance would be laughably fat up close and
+    /// ungrabbable from afar. ~a third of the ring radius keeps the ring's EMPTY middle
+    /// unclickable (center miss distance = the radius, see ray_ring_tests) while leaving a
+    /// comfortable grab band around the rim.
+    fn light_ring_pick_tolerance(ring_radius: f32) -> f32 {
+        ring_radius * 0.35
+    }
+
+    /// Unit-sphere wireframe edges for the light RANGE display (v0.792, operator: "some other
+    /// way to represent the light's radius... maybe an icosphere subdivided twice"): an
+    /// icosphere at subdivision 2 (320 faces) reduced to its 480 unique undirected edges,
+    /// computed once and reused for every light. Per frame each edge is scaled by the light's
+    /// range and offset to its position -- no mesh, just lines, so it shows through walls like
+    /// the other build-mode helpers and costs nothing when no light is selected.
+    fn range_sphere_edges() -> &'static [(Vec3, Vec3)] {
+        static EDGES: std::sync::OnceLock<Vec<(Vec3, Vec3)>> = std::sync::OnceLock::new();
+        EDGES.get_or_init(|| {
+            let mut ico = crate::terrain::icosphere::Icosphere::new();
+            ico.subdivide_n(2);
+            // Faces share edges; dedupe on the (min, max) index pair so each edge draws once.
+            let mut seen = std::collections::HashSet::new();
+            let mut out = Vec::new();
+            for f in &ico.faces {
+                for (a, b) in [(f.v0, f.v1), (f.v1, f.v2), (f.v2, f.v0)] {
+                    let key = if a < b { (a, b) } else { (b, a) };
+                    if seen.insert(key) {
+                        out.push((ico.vertices[a as usize], ico.vertices[b as usize]));
+                    }
                 }
-                let range = l.range.or_else(|| t.map(|t| t.range)).unwrap_or(4.0);
-                (Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo, range)
             }
-            None => return false,
-        };
+            out
+        })
+    }
+
+    #[cfg(test)]
+    mod light_gizmo_tests {
+        use super::*;
+
+        /// The rotation rings are VIEWPORT-FIXED (v0.792): world radius scales linearly with
+        /// camera distance (same on-screen size everywhere), floored so a zero-distance camera
+        /// can't collapse the ring, and the pick tolerance scales with the ring so the grab
+        /// band feels identical at any distance.
+        #[test]
+        fn light_ring_radius_tracks_camera_distance() {
+            let center = Vec3::new(5.0, 2.0, 5.0);
+            let near = light_ring_radius(center + Vec3::X * 4.0, center);
+            let far = light_ring_radius(center + Vec3::X * 40.0, center);
+            assert!((near - 4.0 * LIGHT_RING_ANGULAR_RADIUS).abs() < 1e-5);
+            assert!((far / near - 10.0).abs() < 1e-3, "10x the distance = 10x the world radius");
+            // The floor: sitting on the light still yields a grabbable ring.
+            assert!(light_ring_radius(center, center) >= 0.05);
+            // Tolerance stays proportional (a third-ish of the rim, never the whole middle).
+            assert!(light_ring_pick_tolerance(near) < near);
+        }
+
+        /// The range wireframe is an icosphere subdivided twice: 320 faces -> exactly 480
+        /// unique edges (Euler: E = 3F/2), every endpoint on the unit sphere so scaling by
+        /// the light's range puts the wire exactly AT the range.
+        #[test]
+        fn range_sphere_edges_are_unique_unit_edges() {
+            let edges = range_sphere_edges();
+            assert_eq!(edges.len(), 480, "level-2 icosphere has 480 unique edges");
+            for (a, b) in edges {
+                assert!((a.length() - 1.0).abs() < 1e-4, "endpoint on the unit sphere");
+                assert!((b.length() - 1.0).abs() < 1e-4, "endpoint on the unit sphere");
+                assert!(a.distance(*b) > 1e-4, "no degenerate zero-length edges");
+            }
+        }
+    }
+
+    /// Which of the SELECTED light's rotation rings the cursor ray is over, if any: the shared
+    /// pick test behind BOTH the click grab (try_pick_light_ring) and the per-frame hover
+    /// highlight, so hover and grab can never disagree (v0.792). Returns the axis index
+    /// (0 = X/red, 1 = Y/green, 2 = Z/blue) of the nearest ring within tolerance. SELECTED
+    /// light only: unselected lights draw rings as a location cue, but arming/highlighting
+    /// them would steal attention (and clicks) from whatever sits underneath.
+    fn light_ring_under_cursor(state: &EngineState) -> Option<u8> {
+        let li = state.gui_state.construction_light_selected?;
+        let zo = active_zone_origin(state); // the light is zone-local; test in world (v0.754)
+        let l = zone_body(&state.gui_state.ship_structure, state.gui_state.construction_zone)
+            .and_then(|h| h.lights.get(li))?;
+        let center = Vec3::new(l.pos.0, l.pos.1, l.pos.2) + zo;
+        let radius = light_ring_radius(state.camera.position, center);
+        let tolerance = light_ring_pick_tolerance(radius);
         let sz = state.window.inner_size();
         let (origin, dir) = state.camera.pick_ray(state.cursor_pos, (sz.width as f32, sz.height as f32));
-        // Each ring is the circle of radius `range` in the plane perpendicular to its axis --
-        // exactly what push_circle_3d draws. Nearest hit by camera distance wins.
+        // Each ring is the circle of `radius` in the plane perpendicular to its axis -- exactly
+        // what push_circle_3d draws. Nearest hit by camera distance wins.
         let mut best: Option<(u8, f32)> = None;
         for (ai, axis) in [Vec3::X, Vec3::Y, Vec3::Z].into_iter().enumerate() {
-            if let Some((t, dist)) = ray_ring_closest(origin, dir, center, axis, range) {
-                if dist < 0.4 && best.map_or(true, |(_, bt)| t < bt) {
+            if let Some((t, dist)) = ray_ring_closest(origin, dir, center, axis, radius) {
+                if dist < tolerance && best.map_or(true, |(_, bt)| t < bt) {
                     best = Some((ai as u8, t));
                 }
             }
         }
-        if let Some((axis, _)) = best {
-            state.construction_object_grab = Some(ObjectGrab::LightAim { light: li, axis, prev_angle: None });
-            state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag
-            true
-        } else {
-            false
-        }
+        best.map(|(axis, _)| axis)
+    }
+
+    /// Hit-test the cursor ray against the SELECTED light's RGB rotation rings (v0.790, operator:
+    /// "make it so the RGB colored rings around objects allow rotating the object... it'd make
+    /// adjusting spot lights way easier"; viewport-fixed handles v0.792). A hit arms a LightAim
+    /// drag: sweeping the cursor around the ring rotates the aim about that ring's axis
+    /// (0 = X/red, 1 = Y/green, 2 = Z/blue). EVERY light kind arms now (was Spot-only): a
+    /// pathless strip renders along its `dir`, so rotating it is real editing; on a point light
+    /// rotation is meaningless but harmless (per the operator, the rings stay for consistency).
+    fn try_pick_light_ring(state: &mut EngineState) -> bool {
+        let Some(li) = state.gui_state.construction_light_selected else {
+            return false;
+        };
+        let Some(axis) = light_ring_under_cursor(state) else {
+            return false;
+        };
+        state.construction_object_grab = Some(ObjectGrab::LightAim { light: li, axis, prev_angle: None });
+        state.construction_grab_press = Some(state.cursor_pos); // tap-vs-drag
+        true
     }
 
     /// Closest approach of a pick ray to a RING -- the circle of `radius` about `center` in the
@@ -3824,8 +3918,9 @@ mod native_app {
         state.gui_state.construction_structure_dirty = true; // rebuild the tube + door cuts live
     }
 
-    /// Per-frame while a SPOT rotation ring is grabbed (v0.790): the cursor's floor hit, seen
-    /// from the light, sweeps an angle in the grabbed ring's plane; the aim rotates by the
+    /// Per-frame while a light rotation ring is grabbed (v0.790; any light kind since v0.792):
+    /// the cursor's floor hit, seen from the light, sweeps an angle in the grabbed ring's
+    /// plane; the aim rotates by the
     /// frame-to-frame DELTA of that angle about the ring's axis. The previous angle rides inside
     /// the ObjectGrab variant itself (the way the opening grab carries its captured wall plane),
     /// so there is no companion state field: the first drag frame just records the starting
@@ -5505,10 +5600,11 @@ mod native_app {
         /// A STRIP control-point handle (v0.790): `point` 0 is the strip's start (`pos`);
         /// 1.. index `path[point - 1]`. Dragging moves that point across the floor (y preserved).
         StripPoint { light: usize, point: usize },
-        /// A SPOT rotation ring (v0.790): `axis` 0/1/2 = the X/Y/Z range ring. Sweeping the cursor
-        /// around the ring rotates the aim about that axis by the frame-to-frame angle delta.
-        /// `prev_angle` carries last frame's cursor angle in the ring's plane (None until the
-        /// first drag frame) -- state rides in the variant, like the opening grab's wall plane.
+        /// A light ROTATION ring (v0.790; any light kind + viewport-fixed rings v0.792): `axis`
+        /// 0/1/2 = the X/Y/Z ring. Sweeping the cursor around the ring rotates the aim about
+        /// that axis by the frame-to-frame angle delta. `prev_angle` carries last frame's cursor
+        /// angle in the ring's plane (None until the first drag frame) -- state rides in the
+        /// variant, like the opening grab's wall plane.
         LightAim { light: usize, axis: u8, prev_angle: Option<f32> },
     }
 
@@ -5847,7 +5943,7 @@ mod native_app {
         /// STRIP tube meshes (v0.781), keyed by (zone index, light index) ->
         /// (renderer mesh index, path hash). A strip's tube is world-space
         /// geometry built from its control path; rebuilt via replace_mesh only
-        /// when the quantized path/smooth hash changes (never per frame).
+        /// when the quantized path/subdivision hash changes (never per frame).
         light_strip_meshes: std::collections::HashMap<(usize, usize), (usize, u64)>,
         /// Wall-SELECT gizmo material (v0.573): a RED sphere at each wall's bottom-middle so you can
         /// click the wall (surface or orb) to select it; the SELECTED wall's orb uses the RGB hot mat.
@@ -7449,8 +7545,9 @@ mod native_app {
                                 // path point across the floor. Before try_pick_light so the small
                                 // handles beat the body diamond.
                             } else if !lock_light && state.gui_state.ship_structure.is_some() && try_pick_light_ring(state) {
-                                // Grabbed a SPOT rotation ring (v0.790): sweeping the cursor around
-                                // the ring rotates the aim about that ring's axis.
+                                // Grabbed a light ROTATION ring (v0.790, viewport-fixed v0.792):
+                                // sweeping the cursor around the ring rotates the aim about that
+                                // ring's axis.
                             } else if state.gui_state.ship_structure.is_some() && try_pick_corridor_mouth(state) {
                                 // Grabbed a corridor DOOR-MOUTH handle (v0.790): drag slides the
                                 // corridor along the wall (its world `lat`).
@@ -10273,7 +10370,8 @@ mod native_app {
                             /// Strip control path in WORLD coords (pos first); empty
                             /// = the old straight bar. (v0.781)
                             path: Vec<Vec3>,
-                            smooth: bool,
+                            /// Corner subdivision (v0.792): 0 = sharp, N = samples per span.
+                            subdivision: u32,
                             /// (zone idx, light idx) - the strip mesh cache key.
                             key: (usize, usize),
                         }
@@ -10306,7 +10404,7 @@ mod native_app {
                                                 length: t.length_m.max(0.3),
                                                 flat_panel: l.type_id.contains("panel"),
                                                 path,
-                                                smooth: l.smooth,
+                                                subdivision: l.subdivision,
                                                 key: (zi, li),
                                             })
                                         })
@@ -10343,13 +10441,13 @@ mod native_app {
                             match fx.kind {
                                 LightKind::Bar if fx.path.len() >= 2 => {
                                     // REAL strip (v0.781): a world-space tube through the
-                                    // control path -- sharp mitered corners, or a smooth
-                                    // Catmull-Rom curve when the strip's smooth flag is on.
-                                    // Mesh cached per (zone, light) and rebuilt only when
-                                    // the quantized path/smooth hash changes.
+                                    // control path -- sharp mitered corners at subdivision
+                                    // 0, a Catmull-Rom curve with N samples per span above
+                                    // (v0.792). Mesh cached per (zone, light) and rebuilt
+                                    // only when the quantized path/subdivision hash changes.
                                     use std::hash::{Hash, Hasher};
                                     let mut h = std::collections::hash_map::DefaultHasher::new();
-                                    fx.smooth.hash(&mut h);
+                                    fx.subdivision.hash(&mut h);
                                     for p in &fx.path {
                                         ((p.x * 1000.0).round() as i64).hash(&mut h);
                                         ((p.y * 1000.0).round() as i64).hash(&mut h);
@@ -10361,7 +10459,7 @@ mod native_app {
                                         Some((mi, mh)) if mh == hash => mi,
                                         _ => {
                                             let pts = crate::renderer::light::sample_strip_path(
-                                                &fx.path, fx.smooth,
+                                                &fx.path, fx.subdivision,
                                             );
                                             let m = Mesh::polytube(&state.renderer.device, &pts, 0.035, 10);
                                             let mi = match cached {
@@ -10487,6 +10585,31 @@ mod native_app {
                                     .collect()
                             })
                             .unwrap_or_default();
+                        // Which rotation ring the cursor hovers, recomputed EVERY frame from the
+                        // SAME pick test a click runs (light_ring_under_cursor), so the ring that
+                        // brightens is exactly the ring a press would grab. While a ring drag is
+                        // live the grabbed axis stays highlighted instead (idle -> hover ->
+                        // active, like the header buttons); any other drag suppresses hover so a
+                        // light being MOVED never flashes its rings in passing. (v0.792)
+                        state.gui_state.construction_light_ring_hover = match &state.construction_object_grab {
+                            Some(ObjectGrab::LightAim { axis, .. }) => Some(*axis),
+                            Some(_) => None,
+                            // A held placement tool / wall draw takes the click before the ring
+                            // pick in the press chain, so hovering must not promise a grab then
+                            // (the same guards compute_construction_hover applies).
+                            None if state.gui_state.construction_wall_mode
+                                || state.gui_state.construction_place_type.is_some()
+                                || state.gui_state.construction_place_light.is_some()
+                                || state.gui_state.construction_structure_type.is_some() => None,
+                            None => light_ring_under_cursor(state),
+                        };
+                        // The range wireframe's colour comes from the theme's muted text token
+                        // (a passive readout should read quieter than the RGB handles), faded
+                        // further by alpha since 480 edges of it wrap the whole light.
+                        let range_wire_color = {
+                            let c = state.theme.text_muted();
+                            [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0, 0.35]
+                        };
                         for (i, pos, range, spot) in &lights {
                             // Diamond centre marker (overlay -> visible through walls); RGB if selected.
                             overlay_objects.push(RenderObject {
@@ -10513,14 +10636,56 @@ mod native_app {
                                     crate::renderer::line::push_polyline(&mut ring_lines, &[p, edge.into()], COL);
                                 }
                             }
-                            // Range rings: three axis great-circles R/G/B. Drawn for EVERY light now
-                            // (v0.790, operator: "we'll have to add the RGB rings to the spotlight on
-                            // top of the cone") -- on a SELECTED spot the rings are ROTATION handles
-                            // (grab one to swing the aim about that axis; see try_pick_light_ring);
-                            // on a point light they stay the visual range readout they always were.
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [1.0, 0.0, 0.0], [1.0, 0.30, 0.30, 0.7], 40);
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 1.0, 0.0], [0.35, 1.0, 0.35, 0.7], 40);
-                            crate::renderer::line::push_circle_3d(&mut ring_lines, p, *range, [0.0, 0.0, 1.0], [0.45, 0.55, 1.0, 0.7], 40);
+                            // ROTATION rings: three axis circles R/G/B at a VIEWPORT-FIXED size
+                            // (v0.792, operator: "I'd rather the rings be for rotate") -- world
+                            // radius = camera distance * a fixed angle via light_ring_radius, the
+                            // SAME function the pick + hover tests use, so every light wears the
+                            // same predictable on-screen handles instead of the old range-sized
+                            // circles that crossed half the room. On the SELECTED light they are
+                            // live handles (grab one to swing the aim about that axis; see
+                            // try_pick_light_ring) and the hovered ring draws brighter + doubled
+                            // for thickness; on unselected lights they are a passive location cue.
+                            // The RANGE now reads from the wireframe icosphere below.
+                            let rr = light_ring_radius(state.camera.position, *pos);
+                            let hover = state.gui_state.construction_light_ring_hover;
+                            let rings: [(Vec3, [f32; 4]); 3] = [
+                                (Vec3::X, [1.0, 0.30, 0.30, 0.7]),
+                                (Vec3::Y, [0.35, 1.0, 0.35, 0.7]),
+                                (Vec3::Z, [0.45, 0.55, 1.0, 0.7]),
+                            ];
+                            for (ai, (axis, base)) in rings.into_iter().enumerate() {
+                                if sel_light == Some(*i) && hover == Some(ai as u8) {
+                                    // Hovered/active handle: lerp the ring colour toward white
+                                    // (computed highlight of the axis colour, like the RGB hot
+                                    // material) and sandwich the rim with two extra circles so
+                                    // it reads thicker with a 1-px line primitive.
+                                    let hot = [
+                                        base[0] + (1.0 - base[0]) * 0.6,
+                                        base[1] + (1.0 - base[1]) * 0.6,
+                                        base[2] + (1.0 - base[2]) * 0.6,
+                                        1.0,
+                                    ];
+                                    crate::renderer::line::push_circle_3d(&mut ring_lines, p, rr, axis.into(), hot, 40);
+                                    crate::renderer::line::push_circle_3d(&mut ring_lines, p, rr * 1.05, axis.into(), hot, 40);
+                                    crate::renderer::line::push_circle_3d(&mut ring_lines, p, rr * 0.95, axis.into(), hot, 40);
+                                } else {
+                                    crate::renderer::line::push_circle_3d(&mut ring_lines, p, rr, axis.into(), base, 40);
+                                }
+                            }
+                            // RANGE readout (v0.792, operator: "maybe an icosphere subdivided
+                            // twice?"): the SELECTED light's falloff radius drawn as a muted
+                            // wireframe sphere -- point lights, strips and spotlights alike --
+                            // replacing the old range-sized rings so range and rotation no
+                            // longer share one confusing gizmo.
+                            if sel_light == Some(*i) {
+                                for (a, b) in range_sphere_edges() {
+                                    crate::renderer::line::push_polyline(
+                                        &mut ring_lines,
+                                        &[(*pos + *a * *range).into(), (*pos + *b * *range).into()],
+                                        range_wire_color,
+                                    );
+                                }
+                            }
                         }
                         // STRIP control-point handles (v0.790, operator: "add the widget/gizmo to
                         // the light strip sections so I don't have to adjust the sliders"): when

@@ -387,11 +387,23 @@ pub struct PlacedLight {
     /// tube for rendering.
     #[serde(default)]
     pub path: Vec<(f32, f32, f32)>,
-    /// Strip corner style (v0.781): true = smooth rounded curve through the
-    /// points (Catmull-Rom, like the road centerlines); false = sharp straight
-    /// segments with hard corners.
-    #[serde(default)]
-    pub smooth: bool,
+    /// Strip corner subdivision (v0.792, replaces the v0.781 `smooth` bool --
+    /// operator: "can we add like a subdivision step? Like 1, 2, 3, up to 100?
+    /// 0 is sharp corners, everything after that is smooth"): 0 = hard mitered
+    /// corners through the raw control polyline; N >= 1 = a Catmull-Rom curve
+    /// (like the road centerlines) with N extra samples inserted per span,
+    /// clamped to 100 at use. Serde default is 8 -- the old smooth look -- so
+    /// a pre-v0.792 save that stored `smooth: true` (a field serde now simply
+    /// ignores) reloads still-rounded rather than snapping to sharp corners.
+    #[serde(default = "default_strip_subdivision")]
+    pub subdivision: u32,
+}
+
+/// Serde default for `PlacedLight::subdivision` -- also the value new strips
+/// are placed with, so "fresh strip" and "field missing from an old save"
+/// agree on one number (8 = the pre-v0.792 smooth sample density).
+pub fn default_strip_subdivision() -> u32 {
+    8
 }
 
 /// A buildable wall material with REAL engineering properties -- the construction picker shows these
@@ -2352,8 +2364,8 @@ mod tests {
     fn placed_lights_round_trip_through_save() {
         let mut h = box_only();
         h.lights = vec![
-            PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None, path: vec![(30.0, 2.7, 44.5), (30.0, 2.7, 48.0)], smooth: true },
-            PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0), path: Vec::new(), smooth: false },
+            PlacedLight { type_id: "ceiling_panel".into(), pos: (27.5, 2.7, 44.5), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: Some(12.0), range: None, path: vec![(30.0, 2.7, 44.5), (30.0, 2.7, 48.0)], subdivision: 8 },
+            PlacedLight { type_id: "warm_lamp".into(), pos: (5.0, 1.0, 5.0), dir: (0.0, 0.0, 0.0), on: false, color: Some((1.0, 0.5, 0.2)), intensity: None, range: Some(3.0), path: Vec::new(), subdivision: 0 },
         ];
         let tmp = std::env::temp_dir().join("humanity_lights_rt.ron");
         h.save(&tmp).expect("save");
@@ -2362,8 +2374,10 @@ mod tests {
         assert_eq!(back.lights[0].type_id, "ceiling_panel");
         assert!((back.lights[0].pos.1 - 2.7).abs() < 1e-4);
         assert_eq!(back.lights[0].intensity, Some(12.0));
+        assert_eq!(back.lights[0].subdivision, 8, "corner subdivision survives the round trip");
         assert!(!back.lights[1].on, "a placed-but-off light survives");
         assert_eq!(back.lights[1].color, Some((1.0, 0.5, 0.2)));
+        assert_eq!(back.lights[1].subdivision, 0, "an explicit sharp (0) strip stays sharp");
         let _ = std::fs::remove_file(&tmp);
     }
 

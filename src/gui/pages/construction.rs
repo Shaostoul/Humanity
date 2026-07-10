@@ -1264,9 +1264,9 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // STRIP PATH editor (v0.781, Bar lights): the strip is authored like a
         // Blender path -- `pos` is the start, each row below is a further point
-        // the tube runs through, and Smooth picks rounded (Catmull-Rom) vs
-        // sharp mitered corners. GUI-first point list; viewport point-dragging
-        // can layer on later.
+        // the tube runs through, and the corner subdivision picks rounded
+        // (Catmull-Rom) vs sharp mitered corners. GUI-first point list; the
+        // points are also draggable in the viewport (v0.790 handles).
         if t.map(|t| t.kind) == Some(crate::renderer::light::LightKind::Bar) {
             ui.add_space(theme.spacing_xs);
             ui.label(
@@ -1274,13 +1274,24 @@ fn draw_light_detail(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .size(theme.font_size_small)
                     .color(theme.text_secondary()),
             );
-            changed |= ui
-                .checkbox(
-                    &mut light.smooth,
-                    RichText::new("Smooth rounded corners").size(theme.font_size_small).color(theme.text_primary()),
-                )
-                .on_hover_text("On: the strip curves smoothly through its points. Off: hard straight corners.")
-                .changed();
+            // Corner subdivision (v0.792, replaces the v0.781 Smooth toggle --
+            // operator: "can we add like a subdivision step? Like 1, 2, 3, up
+            // to 100? 0 is sharp corners, everything after that is smooth").
+            // The tube mesh AND the emitted line lights both follow the
+            // subdivided curve, so what glows is what lights the room.
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Corner subdivision (0 = sharp)")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                changed |= ui
+                    .add(egui::DragValue::new(&mut light.subdivision).speed(1).range(0..=100))
+                    .on_hover_text(
+                        "0: hard straight corners. 1-100: the strip curves smoothly through its points; higher = rounder corners.",
+                    )
+                    .changed();
+            });
             let mut remove_pt: Option<usize> = None;
             for (pi, p) in light.path.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
@@ -2012,7 +2023,7 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
             }
             let Some(h) = zone_body_mut(&mut state.ship_structure, state.construction_zone) else { return "No home loaded.".into(); };
             h.lights.push(crate::ship::home_structure::PlacedLight {
-                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None, path: Vec::new(), smooth: false,
+                type_id: tid.to_string(), pos: (x, y, z), dir: (0.0, -1.0, 0.0), on: true, color: None, intensity: None, range: None, path: Vec::new(), subdivision: crate::ship::home_structure::default_strip_subdivision(),
             });
             state.construction_structure_dirty = true;
             format!("added light #{} ({tid}) at ({x},{y},{z})", h.lights.len())
