@@ -417,4 +417,66 @@ mod tests {
         let blocked = resolve(Vec3::new(9.5, 1.7, 8.5), Vec3::new(10.5, 1.7, 8.5), PLAYER_RADIUS, &segs, &[]);
         assert!(blocked.x < 9.8, "off-door perimeter still blocks, got x={}", blocked.x);
     }
+
+    /// Corridor DOOR panels (v0.795): the two closed half-panels of a corridor mouth, converted
+    /// to live door segments exactly the way the movement code does it (centre +/- half-width
+    /// along rotation * X), tile the full aperture -- a shut corridor door blocks the walk-through
+    /// gap the shell cut opened, and dropping the segments (the door open) restores the passage.
+    #[test]
+    fn closed_corridor_door_halves_block_the_mouth_they_guard() {
+        use crate::ship::ship_structure::{ShipCorridor, ShipStructure, ShipZone};
+        let ship = ShipStructure {
+            zones: vec![
+                ShipZone {
+                    id: "home".into(),
+                    label: String::new(),
+                    purpose: "residence".into(),
+                    origin: (0.0, 0.0, 0.0),
+                    body: plain_body(10.0, 10.0, 3.0),
+                },
+                ShipZone {
+                    id: "commons".into(),
+                    label: String::new(),
+                    purpose: "commons".into(),
+                    origin: (20.0, 0.0, 2.0),
+                    body: plain_body(8.0, 8.0, 6.0),
+                },
+            ],
+            corridors: vec![ShipCorridor {
+                from_zone: "home".into(),
+                to_zone: "commons".into(),
+                lat: 5.0,
+                width: 3.0,
+                door_width: 1.0,
+                door_height: 2.1,
+                glass_top: false,
+            }],
+        };
+        let segs = ship_wall_segments(&ship);
+        // The same placement-to-segment conversion the engine's per-frame door path performs.
+        let door_segs: Vec<WallSegment> = crate::ship::door_panels::corridor_panel_placements(&ship)
+            .iter()
+            .map(|p| {
+                let half_w = p.size.x * 0.5;
+                let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
+                WallSegment {
+                    a: (p.center.x - dir.x * half_w, p.center.z - dir.z * half_w),
+                    b: (p.center.x + dir.x * half_w, p.center.z + dir.z * half_w),
+                    half_thickness: (p.size.z * 0.5).max(0.05),
+                }
+            })
+            .collect();
+        assert_eq!(door_segs.len(), 4, "two mouths x two halves");
+        // CLOSED: walking at the home mouth (x 9.5 -> 10.5 through the 1 m aperture at z = 5) is
+        // stopped on the near side...
+        let blocked = resolve(Vec3::new(9.5, 1.7, 5.0), Vec3::new(10.5, 1.7, 5.0), PLAYER_RADIUS, &segs, &door_segs);
+        assert!(blocked.x < 9.8, "a shut corridor door blocks the mouth, got x={}", blocked.x);
+        // ...and the halves seal the aperture EDGES too (no slipping past a half-panel's end).
+        let edge = resolve(Vec3::new(9.5, 1.7, 5.4), Vec3::new(10.5, 1.7, 5.4), PLAYER_RADIUS, &segs, &door_segs);
+        assert!(edge.x < 9.8, "the aperture edge is sealed, got x={}", edge.x);
+        // OPEN (the engine drops a door's segments once its open fraction crosses the gate): the
+        // mouth is the walk-through gap again.
+        let through = resolve(Vec3::new(9.5, 1.7, 5.0), Vec3::new(10.5, 1.7, 5.0), PLAYER_RADIUS, &segs, &[]);
+        assert!(through.x > 10.3, "an open corridor door walks through, got x={}", through.x);
+    }
 }

@@ -13,6 +13,15 @@ use glam::{Quat, Vec3};
 /// Panel thickness (metres) -- a door slab / window pane.
 pub const PANEL_THICKNESS: f32 = 0.06;
 
+/// Corridor door-panel thickness (metres, v0.795) -- a chunkier slab than an interior door,
+/// because a corridor mouth is a pressure boundary between zones, not a room divider.
+pub const CORRIDOR_PANEL_THICKNESS: f32 = 0.10;
+
+/// Corridor doors auto-open within this horizontal range (metres). A touch wider than the
+/// interior-door default (2.6) so the halves finish parting before a walking player reaches
+/// the aperture instead of face-planting a still-opening panel.
+pub const CORRIDOR_DOOR_OPEN_DIST: f32 = 3.0;
+
 /// A lock resolved to world space for the render + the runtime (v0.570): its catalog type, its
 /// AUTHORED initial state, and where it mounts on the door face (a small red/green indicator). The
 /// LIVE state lives in EngineState (parallel to door_panels); this carries the initial value.
@@ -61,7 +70,9 @@ pub struct PanelPlacement {
 /// Compute a PanelPlacement for every opening in EVERY zone of the ship (v0.754, ship-superstructure
 /// increment A): each zone's placements (from the unchanged per-body `panel_placements`) with every
 /// world position translated by that zone's origin, concatenated in zone order. Doors in a second
-/// zone therefore open/collide exactly like the home's.
+/// zone therefore open/collide exactly like the home's. Corridor mouths append their sliding door
+/// pairs at the END of the list (v0.795, `corridor_panel_placements`) so zone-opening indices stay
+/// stable relative to each other.
 pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<PanelPlacement> {
     let mut out = Vec::new();
     for zone in &ship.zones {
@@ -75,6 +86,76 @@ pub fn ship_panel_placements(ship: &crate::ship::ship_structure::ShipStructure) 
             }
             p
         }));
+    }
+    // Corridor mouths get their own sliding door pair (v0.795). These are built in WORLD space
+    // already (corridor geometry is world-resolved), so no zone-origin offset applies.
+    out.extend(corridor_panel_placements(ship));
+    out
+}
+
+/// Two pocket-door HALF-PANELS per corridor mouth (v0.795, the operator's corridor doors): each
+/// aperture a corridor cuts through a zone shell -- both tube ends plus any intervening-zone
+/// crossings (`ShipStructure::corridor_mouths`) -- gets a pair of half-width slabs that SLIDE
+/// APART into the wall on approach and close behind you. Implemented entirely on the existing
+/// panel pipeline: each half is an ordinary `PanelPlacement` with the "slide" style, and the two
+/// halves face OPPOSITE ways (yaw flipped a half turn), so the one shared style translates each
+/// along its own local +X -- away from the centre -- by exactly its own width (dw/2). Closed they
+/// tile the aperture seamlessly; fully open both have vanished into the flanking shell. Animation,
+/// live collision (a closed door blocks the mouth), hysteresis, and rendering all come from the
+/// same code interior doors use -- zero new mechanisms to maintain.
+pub fn corridor_panel_placements(
+    ship: &crate::ship::ship_structure::ShipStructure,
+) -> Vec<PanelPlacement> {
+    use crate::ship::ship_structure::CorridorAxis;
+    use std::f32::consts::{FRAC_PI_2, PI};
+    let mut out = Vec::new();
+    for m in ship.corridor_mouths() {
+        let (dw, dh) = m.door;
+        if dw <= 0.01 || dh <= 0.01 {
+            continue; // a degenerate aperture (clamped to nothing) gets no panels
+        }
+        // side = -1 is the low-coordinate half, +1 the high half, along the axis ACROSS the run.
+        for side in [-1.0f32, 1.0] {
+            // Each half's yaw points panel-local +X INTO its pocket (the "slide" style translates
+            // +local-X), so the pair parts outward from the aperture centre.
+            let (center, hinge, yaw) = match m.axis {
+                // X-run: the mouth plane is x = plane and the wall runs along Z.
+                // from_rotation_y(-PI/2) maps local +X to world +Z (the panel_placements
+                // convention for a wall heading +Z); +PI/2 maps it to world -Z.
+                CorridorAxis::X => (
+                    Vec3::new(m.plane, m.floor_y, m.lat + side * dw * 0.25),
+                    Vec3::new(m.plane, m.floor_y, m.lat + side * dw * 0.5),
+                    if side > 0.0 { -FRAC_PI_2 } else { FRAC_PI_2 },
+                ),
+                // Z-run: the mouth plane is z = plane and the wall runs along X. Yaw 0 keeps
+                // local +X on world +X; the low half flips a half turn to slide the other way.
+                CorridorAxis::Z => (
+                    Vec3::new(m.lat + side * dw * 0.25, m.floor_y, m.plane),
+                    Vec3::new(m.lat + side * dw * 0.5, m.floor_y, m.plane),
+                    if side > 0.0 { 0.0 } else { PI },
+                ),
+            };
+            out.push(PanelPlacement {
+                center,
+                rotation: Quat::from_rotation_y(yaw),
+                // The hinge (unused by "slide") sits at the half's OUTER aperture edge, so a
+                // future style swap to swing/rotate would pivot plausibly instead of at a corner.
+                hinge,
+                size: Vec3::new(dw * 0.5, dh, CORRIDOR_PANEL_THICKNESS),
+                style: "slide".to_string(),
+                is_window: false,
+                open_dist: CORRIDOR_DOOR_OPEN_DIST,
+                locked: false,
+                // Corridor doors are always automatic: they exist to seal the mouth behind
+                // traffic, not to gate access (locks/manual control stay an authored-door thing).
+                auto_open: true,
+                control_panel: false,
+                // Unused while control_panel is false; kept sane (hand height at the door) so a
+                // future "add a panel to this door" toggle needs no re-derivation.
+                control_panel_pos: Vec3::new(center.x, m.floor_y + 1.2, center.z),
+                locks: Vec::new(),
+            });
+        }
     }
     out
 }
@@ -293,5 +374,113 @@ mod tests {
     fn no_walls_no_panels() {
         let home = HomeStructure { width: 10.0, depth: 10.0, height: 3.0, shell_material: 1, roof_material: 4, walls: vec![], shell_thickness: None, lights: Vec::new(), spawn: None, structures: Vec::new(), road_nodes: Vec::new(), road_edges: Vec::new(), zones: Vec::new(), rail_nodes: Vec::new(), rail_edges: Vec::new() };
         assert!(panel_placements(&home).is_empty());
+    }
+
+    // ── Corridor door panels (v0.795) ────────────────────────────────────────
+
+    use crate::ship::ship_structure::{ShipCorridor, ShipStructure, ShipZone};
+
+    fn plain_body(w: f32, d: f32, h: f32) -> HomeStructure {
+        ron::from_str(&format!("(width: {w}, depth: {d}, height: {h})"))
+            .expect("corridor test body parses")
+    }
+
+    /// The wall_collision test fixture: home 10x10x3 at the origin, commons 8x8x6 at (20, 0, 2),
+    /// one X-run corridor at world z = 5 with a 1 m x 2.1 m door mouth on each end.
+    fn corridor_ship() -> ShipStructure {
+        ShipStructure {
+            zones: vec![
+                ShipZone {
+                    id: "home".into(),
+                    label: String::new(),
+                    purpose: "residence".into(),
+                    origin: (0.0, 0.0, 0.0),
+                    body: plain_body(10.0, 10.0, 3.0),
+                },
+                ShipZone {
+                    id: "commons".into(),
+                    label: String::new(),
+                    purpose: "commons".into(),
+                    origin: (20.0, 0.0, 2.0),
+                    body: plain_body(8.0, 8.0, 6.0),
+                },
+            ],
+            corridors: vec![ShipCorridor {
+                from_zone: "home".into(),
+                to_zone: "commons".into(),
+                lat: 5.0,
+                width: 3.0,
+                door_width: 1.0,
+                door_height: 2.1,
+                glass_top: false,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_corridor_mouth_gets_two_half_panels_that_part_outward() {
+        let panels = corridor_panel_placements(&corridor_ship());
+        assert_eq!(panels.len(), 4, "two mouths x two halves");
+        // The x = 10 mouth (home's shell): halves flank lat = 5 at z = 4.75 / 5.25, sill on the
+        // deck, each half the 1 m door wide and the full 2.1 m tall.
+        let (lo, hi) = (&panels[0], &panels[1]);
+        assert!((lo.center - Vec3::new(10.0, 0.0, 4.75)).length() < 1e-4, "got {:?}", lo.center);
+        assert!((hi.center - Vec3::new(10.0, 0.0, 5.25)).length() < 1e-4, "got {:?}", hi.center);
+        for p in [lo, hi] {
+            assert_eq!(p.size, Vec3::new(0.5, 2.1, CORRIDOR_PANEL_THICKNESS));
+            assert_eq!(p.style, "slide");
+            assert!(p.auto_open && !p.is_window && !p.locked && !p.control_panel);
+            assert!(p.locks.is_empty());
+            assert!((p.open_dist - CORRIDOR_DOOR_OPEN_DIST).abs() < 1e-5);
+        }
+        // The halves face OPPOSITE ways so the shared "slide" style parts them: local +X maps to
+        // world -Z for the low half, +Z for the high half.
+        let lo_x = lo.rotation * Vec3::X;
+        let hi_x = hi.rotation * Vec3::X;
+        assert!((lo_x.z + 1.0).abs() < 1e-4, "low half slides toward -z, got {lo_x:?}");
+        assert!((hi_x.z - 1.0).abs() < 1e-4, "high half slides toward +z, got {hi_x:?}");
+        // Fully open, each half has cleared the aperture (z 4.5..5.5): the slide translates a
+        // half by its own width (0.5 m) into the flanking shell.
+        let m = crate::systems::door_anim::panel_motion(&lo.style, 1.0, lo.size.x, lo.size.y);
+        let lo_open_z = (lo.center + lo.rotation * Vec3::new(m.offset.0, m.offset.1, m.offset.2)).z;
+        assert!(lo_open_z <= 4.25 + 1e-4, "open low half fully in the pocket, got z {lo_open_z}");
+        assert!(m.hidden, "a fully-open slide half is culled");
+    }
+
+    #[test]
+    fn a_z_run_corridor_yaws_its_halves_along_x() {
+        // Stack the zones along +Z instead: the run flips axes, so the halves flank lat on X and
+        // slide along X.
+        let mut ship = corridor_ship();
+        ship.zones[1].origin = (2.0, 0.0, 20.0);
+        let panels = corridor_panel_placements(&ship);
+        assert_eq!(panels.len(), 4);
+        let (lo, hi) = (&panels[0], &panels[1]);
+        assert!((lo.center - Vec3::new(4.75, 0.0, 10.0)).length() < 1e-4, "got {:?}", lo.center);
+        assert!((hi.center - Vec3::new(5.25, 0.0, 10.0)).length() < 1e-4, "got {:?}", hi.center);
+        let lo_x = lo.rotation * Vec3::X;
+        let hi_x = hi.rotation * Vec3::X;
+        assert!((lo_x.x + 1.0).abs() < 1e-4, "low half slides toward -x, got {lo_x:?}");
+        assert!((hi_x.x - 1.0).abs() < 1e-4, "high half slides toward +x, got {hi_x:?}");
+        // Up stays up under both yaws (pure rotation about Y).
+        assert!((lo.rotation * Vec3::Y - Vec3::Y).length() < 1e-4);
+    }
+
+    #[test]
+    fn ship_panel_placements_appends_corridor_doors_after_zone_openings() {
+        // A zone door + a corridor: the authored opening keeps index 0 (offset by its zone origin)
+        // and the 4 corridor halves follow, in world space with NO zone offset applied to them.
+        let mut ship = corridor_ship();
+        ship.zones[1].body.walls = home_with(vec![Opening {
+            kind: OpeningKind::Door,
+            at: 4.0, width: 2.0, sill: 0.0, height: 2.1,
+            style: "swing".into(), open_dist: 2.6, locked: false, auto_open: true, control_panel: false, locks: Vec::new()
+        }]).walls;
+        let all = ship_panel_placements(&ship);
+        assert_eq!(all.len(), 1 + 4, "one authored door + two corridor door pairs");
+        // The authored door: local centre (5, 0) on the commons wall, offset by origin (20, 0, 2).
+        assert!((all[0].center - Vec3::new(25.0, 0.0, 2.0)).length() < 1e-4, "got {:?}", all[0].center);
+        // The first corridor half sits at the home-shell mouth -- world coordinates, un-offset.
+        assert!((all[1].center - Vec3::new(10.0, 0.0, 4.75)).length() < 1e-4, "got {:?}", all[1].center);
     }
 }

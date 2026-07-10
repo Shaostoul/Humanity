@@ -89,6 +89,36 @@ pub fn is_operable(style: &str) -> bool {
     style != "fixed"
 }
 
+/// Metres past `open_dist` an OPEN auto-door stays open before closing (v0.540 hysteresis,
+/// extracted here v0.795): without the band, standing exactly at the threshold flickers the door
+/// open/shut every frame as float noise crosses the line.
+pub const AUTO_CLOSE_HYSTERESIS: f32 = 0.8;
+
+/// Target open fraction for an AUTO door: `dist` is the nearest actor's HORIZONTAL distance to
+/// the door (eye height must not count -- a tall camera would otherwise never trigger a short
+/// door), `open_now` the door's current fraction. Closed doors open inside `open_dist`; open
+/// doors stay open until the nearest actor backs past `open_dist + AUTO_CLOSE_HYSTERESIS`.
+/// Pure (v0.795, extracted from the render loop) so proximity logic is testable without a GPU.
+pub fn auto_open_target(dist: f32, open_dist: f32, open_now: f32) -> f32 {
+    if open_now > 0.5 {
+        if dist < open_dist + AUTO_CLOSE_HYSTERESIS { 1.0 } else { 0.0 }
+    } else if dist < open_dist {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+/// One animation step: ease `open` toward `target` by a frame-rate-independent EXPONENTIAL lerp
+/// (v0.540, extracted v0.795). No linear stepping, no snapping: the fraction covers ~87% of the
+/// remaining gap every 1/9 s, so a door visually settles in roughly 0.4 s regardless of frame
+/// rate. dt is clamped non-negative (a scheduler hiccup must not run the door backwards) and the
+/// result to 0..1 (what the slide/iris styles and the collision gate expect).
+pub fn ease_open(open: f32, target: f32, dt: f32) -> f32 {
+    let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
+    (open + (target - open) * ease).clamp(0.0, 1.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,5 +176,40 @@ mod tests {
     fn unknown_style_defaults_to_swing() {
         let typo = panel_motion("sliiide", 1.0, 1.0, 2.1);
         assert!((typo.hinge - PI * 0.5).abs() < 1e-5, "unknown falls back to a swing");
+    }
+
+    #[test]
+    fn auto_target_opens_near_closes_far_with_hysteresis() {
+        // Closed door: opens strictly inside open_dist, stays shut outside it.
+        assert_eq!(auto_open_target(2.0, 3.0, 0.0), 1.0, "near actor opens a closed door");
+        assert_eq!(auto_open_target(3.5, 3.0, 0.0), 0.0, "far actor leaves it closed");
+        // Open door: the hysteresis band (open_dist..open_dist + 0.8) holds it open, so standing
+        // at the threshold does not flicker it; past the band it closes.
+        assert_eq!(auto_open_target(3.5, 3.0, 1.0), 1.0, "just past the line, still held open");
+        assert_eq!(auto_open_target(3.0 + AUTO_CLOSE_HYSTERESIS + 0.1, 3.0, 1.0), 0.0, "beyond the band, closes");
+    }
+
+    #[test]
+    fn ease_open_converges_in_about_point_four_seconds_without_snapping() {
+        // ~0.4 s of 60 fps steps: monotonic rise (no snap, no overshoot) landing near fully open.
+        let mut open = 0.0f32;
+        for _ in 0..24 {
+            let prev = open;
+            open = ease_open(open, 1.0, 1.0 / 60.0);
+            assert!(open > prev && open <= 1.0, "each step advances smoothly, got {prev} -> {open}");
+        }
+        assert!(open > 0.9, "roughly settled after ~0.4 s, got {open}");
+        // Closing converges the same way.
+        let closed = (0..24).fold(1.0f32, |o, _| ease_open(o, 0.0, 1.0 / 60.0));
+        assert!(closed < 0.1, "closes in ~0.4 s too, got {closed}");
+    }
+
+    #[test]
+    fn ease_open_is_safe_at_the_edges() {
+        assert_eq!(ease_open(0.3, 1.0, 0.0), 0.3, "dt = 0 is a no-op");
+        assert_eq!(ease_open(0.3, 1.0, -1.0), 0.3, "negative dt never runs the door backwards");
+        // A huge frame hitch jumps essentially to the target but stays clamped in 0..1.
+        let hitch = ease_open(0.5, 1.0, 10.0);
+        assert!(hitch <= 1.0 && hitch > 0.999, "got {hitch}");
     }
 }

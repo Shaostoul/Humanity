@@ -146,6 +146,27 @@ pub struct CorridorGeom {
     pub door_to: (f32, f32),
 }
 
+/// One corridor DOOR MOUTH resolved to world space (corridor door panels, v0.795): a perimeter
+/// plane the tube pierces, where a pair of sliding door panels lives. Every valid corridor has two
+/// end mouths (one on each zone's facing shell); an INTERVENING zone whose perimeter crosses the
+/// run contributes a mouth per crossing plane -- the SAME planes `shell_cuts_for_zone` opens
+/// apertures through. The two must stay in lockstep: a mouth without a cut puts a door panel
+/// inside solid wall, a cut without a mouth leaves an aperture permanently doorless.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CorridorMouth {
+    pub axis: CorridorAxis,
+    /// World coordinate of the mouth plane ALONG the run axis (x for an X-run, z for a Z-run).
+    pub plane: f32,
+    /// World centre of the aperture ACROSS the run (z for an X-run, x for a Z-run): the row's lat.
+    pub lat: f32,
+    /// World deck height -- the door panels' sill (v1 corridors are level, so both end zones and
+    /// the tube share this y).
+    pub floor_y: f32,
+    /// Aperture (width, height) at this plane -- the corridor's own door mouth, with the height
+    /// re-clamped to an intervening zone's box height exactly like its shell cut is.
+    pub door: (f32, f32),
+}
+
 /// One pressurized zone of the ship: a labelled, purpose-tagged, world-placed `HomeStructure` box.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShipZone {
@@ -506,6 +527,81 @@ impl ShipStructure {
             });
         }
         cuts
+    }
+
+    /// Every corridor door-mouth plane in world space (corridor door panels, v0.795): both tube
+    /// ends + any intervening-zone perimeter crossings -- exactly the planes `shell_cuts_for_zone`
+    /// opens apertures through, with the same predicates and clamps (keep the two in lockstep; see
+    /// `CorridorMouth`). `ship::door_panels::corridor_panel_placements` builds the sliding door
+    /// pair from each mouth; mesh + collision keep consuming the per-zone cuts unchanged.
+    pub fn corridor_mouths(&self) -> Vec<CorridorMouth> {
+        let mut out = Vec::new();
+        for c in &self.corridors {
+            let Ok(g) = self.corridor_geometry(c) else {
+                continue; // a broken row gets no doors (mesh + collision skip it too)
+            };
+            // Remember where THIS corridor's mouths start so the coincident-plane dedup below
+            // only looks at its own list (two separate corridors may legitimately share a plane
+            // at different lats).
+            let first = out.len();
+            let (dw, dh) = g.door_from;
+            // The two end mouths, on the zones' facing perimeter planes.
+            for plane in [g.start, g.end] {
+                out.push(CorridorMouth {
+                    axis: g.axis,
+                    plane,
+                    lat: g.lat,
+                    floor_y: g.floor_y,
+                    door: (dw, dh),
+                });
+            }
+            // Intervening-zone crossings (the v0.789 shell-cut case: a big region zone overlapping
+            // the run puts its own perimeter across the tube): a perimeter plane STRICTLY between
+            // the two end mouths, with the whole door inside that zone's span across the run.
+            for (zi, zone) in self.zones.iter().enumerate() {
+                if zi == g.from_zone_idx || zi == g.to_zone_idx {
+                    continue;
+                }
+                let o = zone.origin_vec();
+                let (w, d) = (zone.body.width, zone.body.depth);
+                let (lo, hi) = (g.start.min(g.end), g.start.max(g.end));
+                // The zone's two candidate perimeter planes on the run axis + whether the door
+                // mouth fits inside its span on the axis ACROSS the run (same test the cut does).
+                let (planes, fits) = match g.axis {
+                    CorridorAxis::X => (
+                        [o.x, o.x + w],
+                        g.lat - dw * 0.5 >= o.z && g.lat + dw * 0.5 <= o.z + d,
+                    ),
+                    CorridorAxis::Z => (
+                        [o.z, o.z + d],
+                        g.lat - dw * 0.5 >= o.x && g.lat + dw * 0.5 <= o.x + w,
+                    ),
+                };
+                if !fits {
+                    continue;
+                }
+                for plane in planes {
+                    // Strictly inside the run (an end-coincident plane already has its end mouth),
+                    // and deduped against this corridor's other mouths: two intervening zones with
+                    // COPLANAR faces across the tube must not stack two door pairs in one aperture
+                    // (z-fighting panels). The shell cuts don't dedup -- each zone cuts its OWN
+                    // shell -- but the doors live in the shared world aperture, so one pair serves.
+                    if plane > lo + 0.01
+                        && plane < hi - 0.01
+                        && !out[first..].iter().any(|m| (m.plane - plane).abs() < 0.01)
+                    {
+                        out.push(CorridorMouth {
+                            axis: g.axis,
+                            plane,
+                            lat: g.lat,
+                            floor_y: g.floor_y,
+                            door: (dw, dh.min(zone.body.height)),
+                        });
+                    }
+                }
+            }
+        }
+        out
     }
 
     /// Drop corridor rows that no longer resolve (a referenced zone was deleted/renamed, or an
@@ -1569,6 +1665,58 @@ mod tests {
         });
         let aside = ship.zone_index("aside").expect("aside zone exists");
         assert!(ship.shell_cuts_for_zone(aside).is_empty());
+    }
+
+    /// Corridor door panels (v0.795): every valid corridor exposes its two END mouths, in world
+    /// space, on the zones' facing perimeter planes -- where `corridor_geometry` puts end_from /
+    /// end_to and where `shell_cuts_for_zone` opens the apertures.
+    #[test]
+    fn corridor_mouths_cover_both_tube_ends() {
+        let ship = corridor_ship();
+        let mouths = ship.corridor_mouths();
+        assert_eq!(mouths.len(), 2, "one mouth per tube end");
+        for (m, plane) in mouths.iter().zip([10.0f32, 20.0]) {
+            assert_eq!(m.axis, CorridorAxis::X);
+            assert!((m.plane - plane).abs() < 1e-4, "mouth on the facing shell, got {}", m.plane);
+            assert!((m.lat - 5.0).abs() < 1e-4, "aperture centred on the row's lat");
+            assert!(m.floor_y.abs() < 1e-4, "sill on the shared deck");
+            assert_eq!(m.door, (1.0, 2.1), "the corridor's own door size");
+        }
+    }
+
+    /// An INTERVENING zone's perimeter crossing (the v0.789 shell-cut case) gets a mouth too, with
+    /// its height clamped to that zone's box exactly like the cut; a coplanar second crossing is
+    /// deduped (one door pair per world aperture); a zone the tube misses adds nothing.
+    #[test]
+    fn corridor_mouths_include_intervening_crossings_clamped_and_deduped() {
+        let mut ship = corridor_ship();
+        // A SHORT region zone whose west face (x = 12) crosses the 10..20 run: its mouth's door
+        // height clamps to the 1.8 m box (the 2.1 m door would poke above its shell cut).
+        ship.zones.push(zone("region", (12.0, 0.0, 0.0), 28.0, 30.0, 1.8));
+        let mouths = ship.corridor_mouths();
+        assert_eq!(mouths.len(), 3, "two ends + one crossing");
+        let crossing = &mouths[2];
+        assert!((crossing.plane - 12.0).abs() < 1e-4, "west face crossing, got {}", crossing.plane);
+        assert!((crossing.door.1 - 1.8).abs() < 1e-4, "height clamped to the crossing zone's box");
+        assert!((crossing.door.0 - 1.0).abs() < 1e-4, "width stays the corridor's own door");
+        // A second zone with a COPLANAR west face at x = 12: still one crossing mouth there
+        // (dedup), or two door pairs would z-fight in the same aperture. Its east face lands at
+        // x = 20 -- the commons end-mouth plane -- which the strictly-inside test excludes (that
+        // aperture already has its end doors).
+        ship.zones.push(zone("annex", (12.0, 0.0, 0.0), 8.0, 30.0, 3.0));
+        assert_eq!(ship.corridor_mouths().len(), 3, "coplanar + end-coincident planes add nothing");
+        // A zone whose span never reaches the tube's lat adds nothing.
+        ship.zones.push(zone("aside", (12.0, 0.0, 20.0), 6.0, 6.0, 3.0));
+        assert_eq!(ship.corridor_mouths().len(), 3, "an untouched zone contributes no mouth");
+    }
+
+    /// A broken corridor row (mouth dragged out of the shared span) gets NO mouths -- exactly the
+    /// rows mesh + collision skip, so a door can never float where no tube resolves.
+    #[test]
+    fn a_broken_corridor_row_gets_no_mouths() {
+        let mut ship = corridor_ship();
+        ship.corridors[0].lat = 100.0; // far outside the zones' shared z span
+        assert!(ship.corridor_mouths().is_empty());
     }
 
     #[test]

@@ -1816,6 +1816,9 @@ mod native_app {
     /// Recompute the door/window panel placements from the live HomeStructure (v0.537). Called after
     /// a structure rebuild + on load. Preserves the per-panel open fraction when the panel COUNT is
     /// unchanged (so editing a far wall does not slam every door shut); otherwise resets to closed.
+    /// Corridor-mouth door pairs (v0.795) are part of the same list -- `ship_panel_placements`
+    /// appends them -- so a corridor add/move/remove in the editor re-derives its doors right here,
+    /// and their open fractions live in the same `door_panels` Vec as every other door's.
     fn rebuild_door_panels(state: &mut EngineState) {
         // v0.754: every zone's doors, at world positions (per-zone origin offsets).
         let placements = match &state.gui_state.ship_structure {
@@ -2192,10 +2195,13 @@ mod native_app {
         }
     }
 
-    /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as the player
-    /// approaches (by its data-driven style via systems::door_anim); a window is a fixed glass pane.
-    /// Reuses one cached unit-box mesh + a slab + a glass material (scaled/rotated/animated per frame),
-    /// so nothing leaks. Doors go to the opaque pass, glass to the transparent pass.
+    /// Per-frame: animate + emit the door/window panels (v0.537). A door eases open as an actor
+    /// approaches (v0.795: the nearest of local player / remote players / creatures -- see the
+    /// actor gather below) by its data-driven style via systems::door_anim; a window is a fixed
+    /// glass pane. Corridor-mouth door pairs (v0.795) are ordinary entries in the same list, so
+    /// they animate + collide with zero extra machinery here. Reuses one cached unit-box mesh + a
+    /// slab + a glass material (scaled/rotated/animated per frame), so nothing leaks. Doors go to
+    /// the opaque pass, glass to the transparent pass.
     fn render_door_panels(
         state: &mut EngineState,
         opaque: &mut Vec<RenderObject>,
@@ -2268,13 +2274,32 @@ mod native_app {
         let shimmer = 0.5 + 0.5 * (state.door_anim_time * 1.6).sin();
         let g = 0.58 + 0.10 * shimmer;
         state.renderer.update_material_full(nanowall_mat, [g * 0.94, g, g * 1.06, 0.60], 0.85, 0.10 + 0.08 * shimmer, 1.0, 0.08 + 0.16 * shimmer);
-        let cam = state.camera.position;
+        // Auto-doors open for ANY nearby actor, not just the local player (v0.795, with the
+        // corridor doors): a REMOTE player must be able to walk through a corridor mouth on your
+        // screen (you SEE the door part for them, and its collider clears for you both), and a
+        // wandering animal should not phase through a shut door's visual. Gathered once per frame:
+        // the camera (the local player) + every RemotePlayer + every Creature transform. The
+        // per-door check below takes the NEAREST actor, so one loiterer holds the door open.
+        let mut actors: Vec<Vec3> = vec![state.camera.position];
+        for (_e, (t, _)) in state
+            .game_world
+            .world
+            .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
+            .iter()
+        {
+            actors.push(t.position);
+        }
+        for (_e, (t, _)) in state
+            .game_world
+            .world
+            .query::<(&crate::ecs::components::Transform, &crate::ecs::components::Creature)>()
+            .iter()
+        {
+            actors.push(t.position);
+        }
         // v0.547: per-door open distance. The interaction ring shows it in build mode / dev overlay.
         // The ring is a constant-width LINE circle now (v0.568), so there is no polygon-ring mesh.
         let show_widgets = state.gui_state.construction_active || state.gui_state.construction_dev_overlay;
-        // Frame-rate-independent exponential ease toward the target (v0.540): smooth open/close,
-        // no linear stepping, no extra keyframes. ~0.3 s to settle.
-        let ease = 1.0 - (-dt.max(0.0) * 9.0).exp();
         // Snapshot the per-door manual-open flags (v0.567) so the loop can read them while it holds a
         // &mut on door_panels (a disjoint-field borrow the checker won't always see through).
         let manual = state.door_manual_open.clone();
@@ -2330,25 +2355,29 @@ mod native_app {
                     });
                 }
             }
-            let dx = cam.x - p.center.x;
-            let dz = cam.z - p.center.z;
-            let dist = (dx * dx + dz * dz).sqrt(); // horizontal -- the camera's eye height must not count
-            // Hysteresis (v0.540): a closed door opens within open_dist; an open one stays open until
-            // you back past open_dist + 0.8, so standing near the threshold no longer flickers it.
+            // Nearest actor's HORIZONTAL distance -- eye/body height must not count, or a tall
+            // camera would never trigger a short door.
+            let dist = actors
+                .iter()
+                .map(|a| {
+                    let dx = a.x - p.center.x;
+                    let dz = a.z - p.center.z;
+                    (dx * dx + dz * dz).sqrt()
+                })
+                .fold(f32::MAX, f32::min);
             let target = if !operable || locked_now {
                 // A fixed pane or a LOCKED door never opens (v0.570: lock-list aware).
                 0.0
             } else if !p.auto_open {
                 // A MANUAL door (v0.564) opens only when toggled at its control panel (v0.567).
                 if manual.get(di).copied().unwrap_or(false) { 1.0 } else { 0.0 }
-            } else if *open > 0.5 {
-                if dist < p.open_dist + 0.8 { 1.0 } else { 0.0 }
-            } else if dist < p.open_dist {
-                1.0
             } else {
-                0.0
+                // Proximity + hysteresis (v0.540, pure + tested in door_anim since v0.795).
+                crate::systems::door_anim::auto_open_target(dist, p.open_dist, *open)
             };
-            *open = (*open + (target - *open) * ease).clamp(0.0, 1.0);
+            // Frame-rate-independent exponential ease toward the target: smooth open/close, ~0.4 s
+            // to settle, no snapping (v0.540, pure + tested in door_anim since v0.795).
+            *open = crate::systems::door_anim::ease_open(*open, target, dt);
             let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
             if m.hidden {
                 continue;
@@ -8156,6 +8185,16 @@ mod native_app {
                         && !state.wall_colliders.is_empty()
                     {
                         let door_locks = state.door_locks.clone();
+                        // LIVE door segments, rebuilt per frame from the animated open fractions.
+                        // This deliberately stays SEPARATE from `state.wall_colliders` (which only
+                        // rebuilds on structure edits): a door's blocking state changes every frame
+                        // as it animates, and rebuilding the whole ship's static segment list per
+                        // frame just to toggle a few doors would be pure waste. `resolve` already
+                        // takes the two lists side by side for exactly this split. Corridor-mouth
+                        // door pairs (v0.795) ride this same path: while closed, the two halves
+                        // together span the full aperture (each contributes its own half-width
+                        // segment), so a shut corridor door is impassable; open, both drop out and
+                        // the mouth is the walk-through gap the shell cut left.
                         let doors: Vec<crate::ship::wall_collision::WallSegment> = state
                             .door_panels
                             .iter()
