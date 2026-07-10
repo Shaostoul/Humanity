@@ -2025,6 +2025,25 @@ pub struct GuiState {
     pub dev_edit_species: String,
     /// Despawn the edited creature next frame (from the editor's Despawn button).
     pub pending_dev_edit_despawn: bool,
+    /// Dev travel (v0.791.x, Platform > Dev > Travel): when Some(body_id),
+    /// lib.rs teleports the viewpoint next frame -- it moves ship_world_pos
+    /// (f64 Earth-centred metres; planets are up to 4.5e12 m away, far past
+    /// f32 camera coordinates) to a sunlit vantage ~4 body radii out, aims the
+    /// camera, and turns fly mode on. The special id "home" restores the
+    /// stashed pre-teleport position. Offline/local world only (lib.rs +
+    /// the Dev page both gate on copresence_active).
+    pub pending_dev_teleport: Option<String>,
+    /// Dev fly mode (free flight: no gravity, no wall collision). Synced into
+    /// CameraController.fly_mode each frame; forced off when cheats are off or
+    /// a shared world is joined.
+    pub dev_fly_mode: bool,
+    /// Dev fly speed multiplier, 1.0..=1e9, exponential steps. <=1000x moves
+    /// the local camera; above that lib.rs moves ship_world_pos (FTL - the
+    /// ship flies, carrying the player). Mouse wheel adjusts it while flying.
+    pub dev_fly_speed_mult: f32,
+    /// True while a pre-teleport home stash exists in lib.rs (the Dev page
+    /// shows "Return home" enabled and the HUD notes you are away).
+    pub dev_travel_away: bool,
     pub show_hud: bool,
     pub settings: SettingsState,
     pub chat_input: String,
@@ -3852,6 +3871,10 @@ impl Default for GuiState {
             dev_edit_scale: 0.5,
             dev_edit_species: String::new(),
             pending_dev_edit_despawn: false,
+            pending_dev_teleport: None,
+            dev_fly_mode: false,
+            dev_fly_speed_mult: 1.0,
+            dev_travel_away: false,
             show_hud: true,
             settings: SettingsState::default(),
             chat_input: String::new(),
