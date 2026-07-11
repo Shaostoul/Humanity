@@ -37,7 +37,11 @@ const OUT_DIR = path.resolve(process.argv[2] || path.join(ROOT, 'wallpapers'));
 // Master size: default 8192x4096; --size 16384x8192 for the Ultra-glow
 // render (pair it with --glow <ultra png> or the glow layer is upsampled).
 const sizeIdx = process.argv.indexOf('--size');
-const sizeArg = sizeIdx >= 0 ? String(process.argv[sizeIdx + 1] || '').match(/^(d+)x(d+)$/) : null;
+const sizeArg = sizeIdx >= 0 ? String(process.argv[sizeIdx + 1] || '').match(/^(\d+)x(\d+)$/) : null;
+if (sizeIdx >= 0 && !sizeArg) {
+  console.error('--size must be WxH, e.g. --size 16384x8192');
+  process.exit(1);
+}
 if (sizeIdx >= 0) process.argv.splice(sizeIdx, 2);
 const MW = sizeArg ? Number(sizeArg[1]) : 8192; // master width
 const MH = sizeArg ? Number(sizeArg[2]) : 4096;
