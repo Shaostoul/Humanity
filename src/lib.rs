@@ -2063,7 +2063,24 @@ mod native_app {
             }
             ScreenshotSize::Invalid(msg) => Err(msg),
         };
-        let done = screenshot_done_json(&result, &out_path);
+        let mut done = screenshot_done_json(&result, &out_path);
+        // Perf snapshot rides along (v0.815): the capture protocol is how
+        // scripted/AI sessions see the running game, so the done file also
+        // reports the live frame rate -- instantaneous fps plus the mean of
+        // the F2 overlay's 120-frame ring buffer -- letting a shader-cost
+        // change be measured from the same file drop that verifies it
+        // visually. Note the hi-res offscreen capture itself is excluded
+        // from the average (it happens after these frames were timed).
+        if let Some(obj) = done.as_object_mut() {
+            let ft = &state.gui_state.frame_times;
+            let avg_ms = if ft.is_empty() {
+                0.0
+            } else {
+                ft.iter().sum::<f32>() / ft.len() as f32
+            };
+            obj.insert("fps".to_string(), serde_json::json!(state.gui_state.fps));
+            obj.insert("frame_ms_avg".to_string(), serde_json::json!(avg_ms));
+        }
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(DONE_PATH, done.to_string());
         state.gui_state.screenshot_last_result = Some(match &result {
