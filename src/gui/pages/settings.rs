@@ -1878,6 +1878,18 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 .color(theme.text_muted())
                 .size(theme.font_size_small),
         );
+        // Star halos (2026-07-11): soft photographic glow + a faint 4-point
+        // diffraction cross on the ~50 brightest stars (mag <= 2), drawn
+        // additively over the star points. A plain visibility flag on the
+        // star renderer - applies live, nothing to rebuild.
+        if widgets::toggle(ui, theme, "Star halos", &mut state.settings.sky_star_halos) {
+            state.settings_dirty = true;
+        }
+        ui.label(
+            RichText::new("A soft long-exposure-photo glow around the brightest stars (Sirius, Vega, Rigel...). Applies live.")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
+        );
 
         // ── Star catalog (v0.800 rung 2; 2026-07-11 rung 4: 3-tier chooser) ──
         // Standard ships with the app; Extended (ATHYG, 36 MB) and Ultra

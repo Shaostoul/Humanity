@@ -23,6 +23,16 @@
 //! (`galactic_band_stars`), which remains only as the fallback for a
 //! missing/corrupt PNG. Direction-to-uv mapping contract: see
 //! [`dir_to_equirect_uv`].
+//!
+//! STAR HALO LAYER (2026-07-11): the last layer of the sky stack. The
+//! brightest catalog stars (mag <= [`HALO_MAG_THRESHOLD`], capped at
+//! [`HALO_CAP`]) each get a camera-facing tangent-plane quad drawn
+//! ADDITIVELY on top of the star points: a soft photographic gaussian halo
+//! plus a very faint 4-point diffraction cross, like a long-exposure Milky
+//! Way photo. Selection + amplitude/size policy live in
+//! [`StarCatalog::halo_stars`] / [`halo_amplitude`] / [`halo_half_extent`];
+//! the shader-mirrored math is locked by [`halo_tangent_frame`] and
+//! [`halo_falloff`]. Toggle: Settings > Graphics > "Star halos".
 
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat3, Mat4};
@@ -150,6 +160,16 @@ pub struct StarRenderer {
     glow: Option<GlowLayer>,
     /// Draw the glow at all? (Settings > Graphics > Milky Way glow.)
     pub show_glow: bool,
+    /// Star halo pass (2026-07-11): additive camera-facing quads over the
+    /// brightest stars. None when the catalog had no star at or above the
+    /// halo threshold (tiny fixtures) - the sky simply has no halos then.
+    halo_pipeline: Option<wgpu::RenderPipeline>,
+    halo_buffer: Option<wgpu::Buffer>,
+    halo_vertex_count: u32,
+    /// Draw the halos at all? (Settings > Graphics > Star halos.) A plain
+    /// visibility flag - unlike the glow there is no GPU uniform to sync,
+    /// so lib.rs assigns it directly each frame.
+    pub show_star_halos: bool,
 }
 
 /// GPU resources for the Milky Way glow pass. Kept as one bundle so a load
@@ -451,6 +471,123 @@ impl StarRenderer {
                 (None, None, 0)
             };
 
+        // ── Star halo pass (2026-07-11) ──
+        // The brightest catalog stars get a soft photographic halo quad
+        // drawn additively AFTER the points (additive never overdraws a
+        // point into flicker - the v0.787 lesson only bites alpha blending).
+        // Selection + amplitude/size policy are pure CPU fns (tested); the
+        // GPU side is one 40 B/vertex buffer (~128 quads = ~30 KB, so no
+        // packing heroics) + one pipeline reusing the SAME rotation-only
+        // camera bind group layout - group 0 already carries VERTEX |
+        // FRAGMENT visibility, so the v0.807 stage-visibility trap (wgpu
+        // validates shader-stage usage against the layout flags at pipeline
+        // creation) cannot fire here.
+        let halo_stars = catalog.halo_stars(HALO_MAG_THRESHOLD, HALO_CAP);
+        let halo_verts = build_halo_vertices(&halo_stars);
+        let (halo_pipeline, halo_buffer, halo_vertex_count) = if halo_verts.is_empty() {
+            log::info!(
+                "Star halos: no star at mag <= {HALO_MAG_THRESHOLD} in this catalog; halo pass disabled"
+            );
+            (None, None, 0)
+        } else {
+            let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Star Halo Buffer"),
+                contents: bytemuck::cast_slice(&halo_verts),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            let halo_src = shader_source_with_fallback(
+                "assets/shaders/star_halo.wgsl",
+                FALLBACK_HALO_SHADER,
+            );
+            let halo_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Star Halo Shader"),
+                source: wgpu::ShaderSource::Wgsl(halo_src.into()),
+            });
+            let hp = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Star Halo Pipeline"),
+                // Group 0 = the shared star camera layout; no other groups.
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &halo_module,
+                    entry_point: Some("vs_main"),
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<HaloVertex>() as u64, // 40 B
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &[
+                            // location(0): unit star direction (f32x3).
+                            wgpu::VertexAttribute {
+                                offset: 0,
+                                shader_location: 0,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            // location(1): quad corner in {-1,+1}^2.
+                            wgpu::VertexAttribute {
+                                offset: 12,
+                                shader_location: 1,
+                                format: wgpu::VertexFormat::Float32x2,
+                            },
+                            // location(2): linear star RGB (matches the point's tint).
+                            wgpu::VertexAttribute {
+                                offset: 20,
+                                shader_location: 2,
+                                format: wgpu::VertexFormat::Float32x3,
+                            },
+                            // location(3): peak linear additive amplitude.
+                            wgpu::VertexAttribute {
+                                offset: 32,
+                                shader_location: 3,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                            // location(4): tan(half-angle) quad half-extent.
+                            wgpu::VertexAttribute {
+                                offset: 36,
+                                shader_location: 4,
+                                format: wgpu::VertexFormat::Float32,
+                            },
+                        ],
+                    }],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &halo_module,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: surface_format,
+                        // ADDITIVE like the glow pass: halos add light on top
+                        // of the points; the falloff reaches exactly zero at
+                        // the quad's inscribed circle so no edge can show.
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent {
+                                src_factor: wgpu::BlendFactor::One,
+                                dst_factor: wgpu::BlendFactor::One,
+                                operation: wgpu::BlendOperation::Add,
+                            },
+                            alpha: wgpu::BlendComponent::OVER,
+                        }),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    // No culling: 2 triangles per star; winding care buys nothing.
+                    cull_mode: None,
+                    ..Default::default()
+                },
+                // Depthless like the whole star pass (the sky is behind everything).
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+                cache: None,
+            });
+            log::info!(
+                "Star halos: {} quads over the brightest stars (mag <= {HALO_MAG_THRESHOLD}, cap {HALO_CAP}; brightest mag {:.2})",
+                halo_stars.len(),
+                halo_stars.first().map(|s| s.mag).unwrap_or(f32::NAN)
+            );
+            (Some(hp), Some(buf), halo_verts.len() as u32)
+        };
+
         Some(Self {
             pipeline,
             vertex_buffer,
@@ -465,6 +602,10 @@ impl StarRenderer {
             show_constellations: true,
             glow,
             show_glow: true,
+            halo_pipeline,
+            halo_buffer,
+            halo_vertex_count,
+            show_star_halos: true,
         })
     }
 
@@ -558,8 +699,10 @@ impl StarRenderer {
         // Draw order is layering, back to front (the v0.787 lesson: any sky
         // layer that overdraws the star points makes them flicker as the
         // camera rotates): 1. Milky Way glow (additive fullsky), 2.
-        // constellation lines, 3. star points on top. The celestial pass
-        // (orbit rings) draws later in the frame, so it stays in front.
+        // constellation lines, 3. star points, 4. star halos (additive, so
+        // drawing them ON TOP of the points cannot flicker - additive only
+        // ever adds light). The celestial pass (orbit rings) draws later in
+        // the frame, so it stays in front.
         if self.show_glow {
             if let Some(g) = &self.glow {
                 render_pass.set_pipeline(&g.pipeline);
@@ -585,6 +728,17 @@ impl StarRenderer {
         render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.draw(0..self.star_count, 0..1);
+
+        // Star halos LAST (2026-07-11): additive quads over the brightest
+        // stars' points. Same camera bind group, own tiny vertex buffer.
+        if self.show_star_halos {
+            if let (Some(hp), Some(buf)) = (&self.halo_pipeline, &self.halo_buffer) {
+                render_pass.set_pipeline(hp);
+                render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, buf.slice(..));
+                render_pass.draw(0..self.halo_vertex_count, 0..1);
+            }
+        }
     }
 }
 
@@ -924,6 +1078,275 @@ fn fs_main(input: GlowOutput) -> @location(0) vec4<f32> {
     // (v0.802.2) - keep in sync with assets/shaders/galaxy_glow.wgsl.
     let lin = pow(c, vec3<f32>(2.2, 2.2, 2.2));
     return vec4<f32>(lin * glow_params.x, 1.0);
+}
+"#;
+
+// ── Star halo layer (2026-07-11) ─────────────────────────────
+// The brightest stars get a soft photographic halo: a camera-facing
+// tangent-plane quad per star, drawn additively AFTER the star points.
+// Reference look (operator): a long-exposure Milky Way photo - famous stars
+// bloom into a gentle gaussian glow with a very subtle 4-point diffraction
+// cross instead of staying bare 1-2 px points.
+
+/// Halo selection: apparent-magnitude ceiling. mag 2.0 keeps every famous
+/// naked-eye star (Sirius -1.44 ... Polaris 1.97) - about 50 stars in the
+/// HYG catalog - while leaving the thousands of merely-visible stars as
+/// clean points. Chosen over a fixed top-N so the SET is stable across
+/// catalog tiers (HYG / ATHYG / Gaia all agree on what is brighter than 2).
+const HALO_MAG_THRESHOLD: f32 = 2.0;
+/// Halo selection: hard cap on the set size, a safety bound in case a
+/// catalog's magnitudes are miscalibrated (a bad tier must never turn the
+/// whole sky into fog). ~2.5x headroom over the expected ~50 selections.
+const HALO_CAP: usize = 128;
+/// Peak LINEAR additive contribution of the brightest halo (Sirius), at the
+/// quad center. 0.3 linear displays as ~0.58 through the sRGB transfer -
+/// bright, but the star's own alpha-blended point (intensity 1.0) stays
+/// clearly on top, and the Milky Way glow (baked texels mostly < 0.1
+/// linear) is never washed out. This constant is DELIBERATELY specified in
+/// linear light: the halo pass adds linear values into the sRGB swapchain
+/// (hardware re-encodes on write), so unlike the glow texture's
+/// display-referred texels there is no pow(2.2) anywhere in this layer -
+/// the v0.802 linearization lesson applied at the constant instead of in
+/// the shader.
+const HALO_PEAK_LINEAR: f32 = 0.3;
+/// The magnitude anchored to [`HALO_PEAK_LINEAR`]: Sirius, the brightest
+/// star in the sky (and in every catalog tier - the Sun is dropped at
+/// parse time), so the min() clamp in [`halo_amplitude`] never engages in
+/// practice and exists purely as an input guard.
+const HALO_MAG_REF: f32 = -1.44;
+/// Amplitude falloff softness: exponent on the physical flux ratio.
+/// 1.0 would be photometrically exact (10^(-0.4 dm)) but crushes the mag-2
+/// halos to ~1% of Sirius, reading as "only Sirius has a halo"; 0.6
+/// compresses the range so the faintest member still shows a whisper of
+/// glow (~4.4% of peak, ~0.013 linear) while ordering stays physical.
+/// Taste, not physics - same category as the diffraction cross.
+const HALO_FLUX_SOFTNESS: f32 = 0.6;
+/// Halo quad FULL angular width in degrees at the selection threshold
+/// (faintest member) and at Sirius. 0.3 deg is ~8 px at 1080p/70 deg FOV
+/// (a few-pixel photographic halo); 1.2 deg (~33 px) makes Sirius
+/// unmistakably bloom. Interpolated linearly in MAGNITUDE, which is
+/// already log-flux, i.e. the "scales gently with brightness" ask.
+const HALO_MIN_FULL_DEG: f32 = 0.3;
+const HALO_MAX_FULL_DEG: f32 = 1.2;
+/// Diffraction-cross amplitude relative to the gaussian peak (per streak).
+/// 15% keeps the cross a subtle photographic accent - taste, not physics
+/// (real spikes come from telescope spider vanes, not eyes or this "lens").
+const HALO_CROSS_AMP: f32 = 0.15;
+/// Gaussian sharpness k in exp(-k r^2) over the corner coordinate. 5.5
+/// puts the visual half-width at ~35% of the quad and leaves only 0.4% of
+/// the peak at the edge BEFORE the edge-subtraction zeroes it exactly.
+const HALO_GAUSS_K: f32 = 5.5;
+/// Cross streak shape: gaussian exponents ACROSS the streak (narrow) and
+/// ALONG it (long). 60/2.5 give a thin spike about 1/5 the halo's width
+/// that fades out before the window clips it.
+const HALO_CROSS_NARROW: f32 = 60.0;
+const HALO_CROSS_LONG: f32 = 2.5;
+
+/// Per-vertex data for the halo pass: 40 bytes, plain f32 attributes. Only
+/// ~128 quads x 6 verts exist (~30 KB), so unlike the 25M-star point
+/// pipeline there is nothing worth packing.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+struct HaloVertex {
+    /// Unit star direction on the celestial sphere.
+    direction: [f32; 3],
+    /// Quad corner in {-1,+1}^2; doubles as the fragment falloff coordinate.
+    corner: [f32; 2],
+    /// Linear star RGB from [`ci_to_rgb`] - the SAME raw values the star's
+    /// point uses, so the halo tint always matches its star. Deliberately
+    /// NOT linearized further (matching the point pipeline's convention).
+    color: [f32; 3],
+    /// Peak linear additive contribution at the quad center.
+    amplitude: f32,
+    /// tan(half-angle): tangent-plane units per corner unit.
+    half_extent: f32,
+}
+
+/// Peak linear halo amplitude for a star of magnitude `mag`. Anchored at
+/// [`HALO_PEAK_LINEAR`] for Sirius, falling as a softened flux ratio
+/// (see [`HALO_FLUX_SOFTNESS`]); clamped so nothing can exceed the anchor.
+fn halo_amplitude(mag: f32) -> f32 {
+    (HALO_PEAK_LINEAR
+        * 10.0_f32.powf(-0.4 * HALO_FLUX_SOFTNESS * (mag - HALO_MAG_REF)))
+    .min(HALO_PEAK_LINEAR)
+}
+
+/// Quad half-extent for a star of magnitude `mag`, as tan(half-angle) -
+/// the tangent-plane offset per corner unit the vertex shader applies.
+/// Full width runs [`HALO_MIN_FULL_DEG`] (at the threshold) to
+/// [`HALO_MAX_FULL_DEG`] (at Sirius), linear in magnitude (= gentle in
+/// brightness, magnitude being log-flux already).
+fn halo_half_extent(mag: f32) -> f32 {
+    let t = ((HALO_MAG_THRESHOLD - mag) / (HALO_MAG_THRESHOLD - HALO_MAG_REF))
+        .clamp(0.0, 1.0);
+    let full_deg = HALO_MIN_FULL_DEG + t * (HALO_MAX_FULL_DEG - HALO_MIN_FULL_DEG);
+    (full_deg * 0.5).to_radians().tan()
+}
+
+/// THE TANGENT-FRAME CONTRACT: tangent basis (t1, t2) on the celestial
+/// sphere at unit direction `dir`, mirroring star_halo.wgsl's vs_main (and
+/// the embedded fallback copy) EXACTLY - the unit tests lock this port, so
+/// change all three together. The pole fallback keeps the cross product
+/// well-conditioned within ~8 degrees of the celestial poles (Polaris!).
+/// Both outputs are unit and perpendicular to `dir` by construction.
+fn halo_tangent_frame(dir: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let up: [f32; 3] = if dir[2].abs() > 0.99 { [1.0, 0.0, 0.0] } else { [0.0, 0.0, 1.0] };
+    // cross(up, dir)
+    let c = [
+        up[1] * dir[2] - up[2] * dir[1],
+        up[2] * dir[0] - up[0] * dir[2],
+        up[0] * dir[1] - up[1] * dir[0],
+    ];
+    let len = (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt();
+    let t1 = [c[0] / len, c[1] / len, c[2] / len];
+    // cross(dir, t1) - unit because dir and t1 are unit + orthogonal.
+    let t2 = [
+        dir[1] * t1[2] - dir[2] * t1[1],
+        dir[2] * t1[0] - dir[0] * t1[2],
+        dir[0] * t1[1] - dir[1] * t1[0],
+    ];
+    (t1, t2)
+}
+
+/// THE FALLOFF CONTRACT: normalized halo shape over the quad corner
+/// coordinate, mirroring star_halo.wgsl's fs_main (and the embedded
+/// fallback copy) EXACTLY - the unit tests lock this port, so change all
+/// three together. Properties the tests assert: peak exactly 1.0 at the
+/// center, exactly 0.0 at and beyond the inscribed circle r = 1 (no square
+/// edge can show against space), monotonically decreasing outward, and a
+/// subtle 4-fold cross along the quad axes.
+fn halo_falloff(cx: f32, cy: f32) -> f32 {
+    let r2 = cx * cx + cy * cy;
+    // Edge-subtracted gaussian disk: g(0) = 1, g(r=1) = 0.
+    let g = ((-HALO_GAUSS_K * r2).exp() - (-HALO_GAUSS_K).exp()).max(0.0)
+        / (1.0 - (-HALO_GAUSS_K).exp());
+    // Two perpendicular diffraction streaks along the quad axes.
+    let sx = (-cy * cy * HALO_CROSS_NARROW).exp() * (-cx * cx * HALO_CROSS_LONG).exp();
+    let sy = (-cx * cx * HALO_CROSS_NARROW).exp() * (-cy * cy * HALO_CROSS_LONG).exp();
+    // Hard window zeroes the streaks at the inscribed circle; corners
+    // (r2 up to 2) are already zero through both terms.
+    let w = (1.0 - r2).clamp(0.0, 1.0);
+    // Renormalize by the center value (1 + 2 * cross amp, both streaks
+    // overlap at the center) so the vertex amplitude IS the true peak.
+    (g + HALO_CROSS_AMP * (sx + sy) * w) / (1.0 + 2.0 * HALO_CROSS_AMP)
+}
+
+/// Expand the selected halo stars into camera-facing quads: 6 vertices
+/// (two triangles) per star, corners in {-1,+1}^2. Pure - the corner
+/// expansion itself happens in the vertex shader from these attributes.
+fn build_halo_vertices(stars: &[CatalogStar]) -> Vec<HaloVertex> {
+    // Two CCW triangles covering the quad; winding is irrelevant (the halo
+    // pipeline disables culling) but kept consistent for sanity.
+    const CORNERS: [[f32; 2]; 6] = [
+        [-1.0, -1.0], [1.0, -1.0], [1.0, 1.0],
+        [-1.0, -1.0], [1.0, 1.0], [-1.0, 1.0],
+    ];
+    let mut out = Vec::with_capacity(stars.len() * 6);
+    for s in stars {
+        let color = ci_to_rgb(s.ci);
+        let amplitude = halo_amplitude(s.mag);
+        let half_extent = halo_half_extent(s.mag);
+        for corner in CORNERS {
+            out.push(HaloVertex {
+                direction: s.direction,
+                corner,
+                color,
+                amplitude,
+                half_extent,
+            });
+        }
+    }
+    out
+}
+
+/// Load a shader from the repo path, then exe-relative, then the embedded
+/// fallback - the same lookup ladder the star + glow shaders walk inline.
+/// (New helper for the halo shader; migrating the older two paths onto it
+/// is deliberately out of scope for the halo change.)
+fn shader_source_with_fallback(rel_path: &str, fallback: &'static str) -> String {
+    let repo = Path::new(rel_path);
+    if repo.exists() {
+        return std::fs::read_to_string(repo).unwrap_or_else(|_| fallback.to_string());
+    }
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    if let Some(alt) = exe_dir.map(|d| d.join(rel_path)) {
+        if alt.exists() {
+            return std::fs::read_to_string(alt).unwrap_or_else(|_| fallback.to_string());
+        }
+    }
+    fallback.to_string()
+}
+
+/// Embedded fallback for the halo shader, mirroring
+/// assets/shaders/star_halo.wgsl (see that file for the full docs). The
+/// tangent-frame and falloff math here are part of THE CONTRACT - keep
+/// identical to the .wgsl file and to halo_tangent_frame / halo_falloff.
+const FALLBACK_HALO_SHADER: &str = r#"
+struct CameraUniforms {
+    view_proj: mat4x4<f32>,
+    view_pos: vec4<f32>,
+    light0: vec4<f32>, light1: vec4<f32>, light2: vec4<f32>, light3: vec4<f32>,
+    light4: vec4<f32>, light5: vec4<f32>, light6: vec4<f32>, light7: vec4<f32>,
+    light0_color: vec4<f32>, light1_color: vec4<f32>, light2_color: vec4<f32>, light3_color: vec4<f32>,
+    light4_color: vec4<f32>, light5_color: vec4<f32>, light6_color: vec4<f32>, light7_color: vec4<f32>,
+    light0_spot: vec4<f32>, light1_spot: vec4<f32>, light2_spot: vec4<f32>, light3_spot: vec4<f32>,
+    light4_spot: vec4<f32>, light5_spot: vec4<f32>, light6_spot: vec4<f32>, light7_spot: vec4<f32>,
+    light0_cone_inner: vec4<f32>, light1_cone_inner: vec4<f32>, light2_cone_inner: vec4<f32>, light3_cone_inner: vec4<f32>,
+    light4_cone_inner: vec4<f32>, light5_cone_inner: vec4<f32>, light6_cone_inner: vec4<f32>, light7_cone_inner: vec4<f32>,
+    light_count: vec4<f32>,
+    sun_direction: vec4<f32>,
+    sun_color: vec4<f32>,
+    fill_direction: vec4<f32>,
+    fill_color: vec4<f32>,
+};
+@group(0) @binding(0)
+var<uniform> camera: CameraUniforms;
+
+struct HaloInput {
+    @location(0) direction: vec3<f32>,
+    @location(1) corner: vec2<f32>,
+    @location(2) color: vec3<f32>,
+    @location(3) amplitude: f32,
+    @location(4) half_extent: f32,
+};
+
+struct HaloOutput {
+    @builtin(position) clip_position: vec4<f32>,
+    @location(0) corner: vec2<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) amplitude: f32,
+};
+
+@vertex
+fn vs_main(input: HaloInput) -> HaloOutput {
+    var out: HaloOutput;
+    let dir = normalize(input.direction);
+    var up = vec3<f32>(0.0, 0.0, 1.0);
+    if (abs(dir.z) > 0.99) {
+        up = vec3<f32>(1.0, 0.0, 0.0);
+    }
+    let t1 = normalize(cross(up, dir));
+    let t2 = cross(dir, t1);
+    let offset = (input.corner.x * t1 + input.corner.y * t2) * input.half_extent;
+    let world_pos = (dir + offset) * 5000.0;
+    out.clip_position = camera.view_proj * vec4<f32>(world_pos, 1.0);
+    out.corner = input.corner;
+    out.color = input.color;
+    out.amplitude = input.amplitude;
+    return out;
+}
+
+@fragment
+fn fs_main(input: HaloOutput) -> @location(0) vec4<f32> {
+    let c = input.corner;
+    let r2 = dot(c, c);
+    let g = max(exp(-5.5 * r2) - exp(-5.5), 0.0) / (1.0 - exp(-5.5));
+    let sx = exp(-c.y * c.y * 60.0) * exp(-c.x * c.x * 2.5);
+    let sy = exp(-c.x * c.x * 60.0) * exp(-c.y * c.y * 2.5);
+    let w = clamp(1.0 - r2, 0.0, 1.0);
+    let shape = (g + 0.15 * (sx + sy) * w) / 1.3;
+    let intensity = input.amplitude * shape;
+    return vec4<f32>(input.color * intensity, 1.0);
 }
 "#;
 
@@ -1463,6 +1886,28 @@ impl StarCatalog {
             vertices.push(StarVertex::pack(s.direction, [r, g, b, brightness]));
         }
         vertices
+    }
+
+    /// Select the halo set (2026-07-11): every star at or above the
+    /// brightness of `mag_threshold` (i.e. mag <= threshold, magnitudes
+    /// run backwards), ordered brightest first, hard-capped at `cap` so
+    /// the cap always keeps the BRIGHTEST members. Like the skybox
+    /// brightness curve this is rendering POLICY - it reads the raw
+    /// catalog magnitudes so tuning never touches the data files. The
+    /// filter runs before the sort: at the 25M-star ultra tier it is one
+    /// O(n) pass yielding ~50 survivors, so the sort cost is nil.
+    fn halo_stars(&self, mag_threshold: f32, cap: usize) -> Vec<CatalogStar> {
+        let mut picked: Vec<CatalogStar> = self
+            .stars
+            .iter()
+            .filter(|s| s.mag <= mag_threshold)
+            .copied()
+            .collect();
+        // total_cmp: NaN-proof deterministic order (a corrupt record must
+        // not panic the sort or shuffle the cap boundary between runs).
+        picked.sort_by(|a, b| a.mag.total_cmp(&b.mag));
+        picked.truncate(cap);
+        picked
     }
 
     /// Resolve a constellations.json endpoint name to a unit direction:
@@ -2388,5 +2833,276 @@ id,proper,mag,ci,x,y,z,bayer,con
             octants[idx] = true;
         }
         assert!(octants.iter().all(|&o| o), "cube corners missing an octant: {octants:?}");
+    }
+
+    // ── Star halo layer (2026-07-11) ──
+
+    /// Synthetic catalog with only what the halo selector reads (mag);
+    /// directions spread so nothing degenerates, ci arbitrary.
+    fn synth_catalog(mags: &[f32]) -> StarCatalog {
+        let stars = mags
+            .iter()
+            .enumerate()
+            .map(|(i, &mag)| {
+                // Distinct unit directions via the Fibonacci lattice.
+                let n = mags.len().max(2);
+                let golden = std::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+                let z = 1.0 - 2.0 * (i as f64 + 0.5) / n as f64;
+                let r = (1.0 - z * z).sqrt();
+                let th = golden * i as f64;
+                CatalogStar {
+                    direction: [(r * th.cos()) as f32, (r * th.sin()) as f32, z as f32],
+                    mag,
+                    ci: 0.5,
+                }
+            })
+            .collect();
+        StarCatalog { stars, by_name: HashMap::new(), by_bayer: HashMap::new() }
+    }
+
+    /// Halo SELECTION policy: exactly the stars at/above the threshold
+    /// brightness survive, ordered brightest first, the cap keeps the
+    /// brightest members, and a NaN magnitude (corrupt record) is dropped
+    /// instead of panicking the sort.
+    #[test]
+    fn halo_set_selects_the_brightest_within_cap() {
+        // Threshold boundary: mag == threshold is INCLUDED, just above is not.
+        let cat = synth_catalog(&[3.0, 1.5, -1.44, 2.0, 2.01, 0.0, f32::NAN]);
+        let picked = cat.halo_stars(2.0, 128);
+        let mags: Vec<f32> = picked.iter().map(|s| s.mag).collect();
+        assert_eq!(mags, vec![-1.44, 0.0, 1.5, 2.0], "selection + brightest-first order");
+
+        // The cap must keep the BRIGHTEST of an oversized candidate set.
+        let many: Vec<f32> = (0..60).map(|i| i as f32 * 0.01).collect(); // mag 0.00..0.59
+        let cat = synth_catalog(&many);
+        let capped = cat.halo_stars(2.0, 3);
+        assert_eq!(capped.len(), 3, "hard cap");
+        let mags: Vec<f32> = capped.iter().map(|s| s.mag).collect();
+        assert_eq!(mags, vec![0.0, 0.01, 0.02], "cap keeps the brightest");
+
+        // Nothing bright enough: empty set (halo pass disables cleanly).
+        assert!(synth_catalog(&[5.0, 6.0]).halo_stars(2.0, 128).is_empty());
+
+        // The REAL fixture: only Sirius (-1.44) and Vega (0.03; the mag-1.0
+        // duplicate proper-name row also survives) sit at mag <= 2.0 among
+        // rows that pass the position filter... plus row 7 at 2.29 stays out.
+        let real = StarCatalog::from_csv(FIXTURE_CSV);
+        let picked = real.halo_stars(2.0, 128);
+        let mags: Vec<f32> = picked.iter().map(|s| s.mag).collect();
+        assert_eq!(mags, vec![-1.44, 0.03, 1.0], "fixture halo set");
+    }
+
+    /// Quad corner expansion math, part 1: the tangent frame mirrored from
+    /// the vertex shader must be orthonormal and perpendicular to the star
+    /// direction everywhere on the sphere, including inside the |z| > 0.99
+    /// pole-fallback branch.
+    #[test]
+    fn halo_tangent_frame_is_orthonormal_everywhere() {
+        let dot3 = |a: [f32; 3], b: [f32; 3]| {
+            (a[0] as f64) * (b[0] as f64) + (a[1] as f64) * (b[1] as f64) + (a[2] as f64) * (b[2] as f64)
+        };
+        // Fibonacci lattice covers all octants; the explicit extras pin the
+        // pole branch (Polaris sits at z ~ 0.9998) and the branch boundary.
+        let mut dirs: Vec<[f32; 3]> = Vec::new();
+        let n = 2_000usize;
+        let golden = std::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+        for i in 0..n {
+            let z = 1.0 - 2.0 * (i as f64 + 0.5) / n as f64;
+            let r = (1.0 - z * z).sqrt();
+            let th = golden * i as f64;
+            dirs.push([(r * th.cos()) as f32, (r * th.sin()) as f32, z as f32]);
+        }
+        dirs.push([0.0, 0.0, 1.0]); // exact north celestial pole
+        dirs.push([0.0, 0.0, -1.0]); // exact south celestial pole
+        dirs.push(dir_from_ra_dec(37.95, 89.26)); // Polaris
+        for (i, d) in dirs.iter().enumerate() {
+            let (t1, t2) = halo_tangent_frame(*d);
+            assert!((dot3(t1, t1) - 1.0).abs() < 1e-5, "dir {i}: t1 not unit");
+            assert!((dot3(t2, t2) - 1.0).abs() < 1e-5, "dir {i}: t2 not unit");
+            assert!(dot3(t1, *d).abs() < 1e-5, "dir {i}: t1 not tangent");
+            assert!(dot3(t2, *d).abs() < 1e-5, "dir {i}: t2 not tangent");
+            assert!(dot3(t1, t2).abs() < 1e-5, "dir {i}: t1/t2 not perpendicular");
+        }
+    }
+
+    /// Quad corner expansion math, part 2: expanding an on-axis corner by
+    /// half_extent = tan(half_angle) must subtend exactly that half-angle
+    /// from the quad center (the corner lands atan(half_extent) away).
+    #[test]
+    fn halo_corner_expansion_matches_angular_size() {
+        for (mag, want_full_deg) in [
+            (HALO_MAG_REF, HALO_MAX_FULL_DEG), // Sirius: the 1.2 deg ceiling
+            (HALO_MAG_THRESHOLD, HALO_MIN_FULL_DEG), // faintest member: 0.3 deg
+            (0.5, 0.0), // interior point, checked against the formula below
+        ] {
+            let ext = halo_half_extent(mag);
+            let want_half_deg = if want_full_deg > 0.0 {
+                want_full_deg as f64 * 0.5
+            } else {
+                // Interior: recompute the policy interpolation directly.
+                let t = ((HALO_MAG_THRESHOLD - mag) / (HALO_MAG_THRESHOLD - HALO_MAG_REF)) as f64;
+                (HALO_MIN_FULL_DEG as f64 + t * (HALO_MAX_FULL_DEG - HALO_MIN_FULL_DEG) as f64) * 0.5
+            };
+            for dir in [[1.0_f32, 0.0, 0.0], [0.0, 0.6, 0.8], dir_from_ra_dec(101.3, -16.7)] {
+                let (t1, _t2) = halo_tangent_frame(dir);
+                // The shader: world = (dir + corner.x * t1 * ext) * 5000;
+                // measure corner (1, 0) against the center direction.
+                let p = [dir[0] + t1[0] * ext, dir[1] + t1[1] * ext, dir[2] + t1[2] * ext];
+                let len = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+                let pn = [p[0] / len, p[1] / len, p[2] / len];
+                let got_deg = angle_deg(pn, dir);
+                assert!(
+                    (got_deg - want_half_deg).abs() < 5e-4,
+                    "mag {mag}: corner subtends {got_deg} deg, want {want_half_deg}"
+                );
+            }
+        }
+        // Monotonic + clamped: brighter never smaller, ends pinned.
+        assert!(halo_half_extent(-5.0) == halo_half_extent(HALO_MAG_REF), "clamped above Sirius");
+        assert!(halo_half_extent(6.0) == halo_half_extent(HALO_MAG_THRESHOLD), "clamped below threshold");
+        let mut prev = f32::MAX;
+        for i in 0..=100 {
+            let mag = HALO_MAG_REF + (HALO_MAG_THRESHOLD - HALO_MAG_REF) * i as f32 / 100.0;
+            let e = halo_half_extent(mag);
+            assert!(e <= prev + 1e-9, "half_extent must shrink toward fainter mags");
+            prev = e;
+        }
+    }
+
+    /// Gaussian + cross falloff: peak EXACTLY the vertex amplitude (shape 1
+    /// at the center), EXACTLY zero at and beyond the inscribed circle (no
+    /// square edge against space), monotonically decreasing outward, 4-fold
+    /// symmetric, and the diffraction cross is present but subtle.
+    #[test]
+    fn halo_falloff_normalization_window_and_cross() {
+        // Normalization: the center IS the peak, exactly 1.
+        assert!((halo_falloff(0.0, 0.0) - 1.0).abs() < 1e-6, "center shape must be 1");
+
+        // Window: zero ON the inscribed circle and everywhere beyond it
+        // (quad corners reach r^2 = 2).
+        for (x, y) in [
+            (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0),
+            (0.7071068, 0.7071068), (1.0, 1.0), (-1.0, 1.0), (0.9, 0.6),
+        ] {
+            assert!(halo_falloff(x, y) <= 1e-7, "({x},{y}) must be dark, got {}", halo_falloff(x, y));
+        }
+
+        // Monotone decreasing outward along the axis AND the diagonal.
+        let diag = std::f32::consts::FRAC_1_SQRT_2;
+        for (dx, dy) in [(1.0, 0.0), (diag, diag)] {
+            let mut prev = f32::MAX;
+            for i in 0..=100 {
+                let r = i as f32 / 100.0;
+                let v = halo_falloff(r * dx, r * dy);
+                assert!(v <= prev + 1e-6, "falloff must not brighten outward at r={r}");
+                prev = v;
+            }
+        }
+
+        // 4-fold symmetry (both axes + the two mirrors).
+        for (x, y) in [(0.3, 0.1), (0.5, 0.0), (0.2, 0.6)] {
+            let v = halo_falloff(x, y);
+            for (a, b) in [(y, x), (-x, y), (x, -y), (-x, -y)] {
+                assert!((halo_falloff(a, b) - v).abs() < 1e-6, "symmetry broken at ({a},{b})");
+            }
+        }
+
+        // The cross: at the same radius, on-axis must beat the diagonal
+        // (the streak exists) but by a SUBTLE margin (taste discipline:
+        // an accent, not a starburst).
+        let on_axis = halo_falloff(0.5, 0.0);
+        let diagonal = halo_falloff(0.5 * diag, 0.5 * diag);
+        assert!(on_axis > diagonal * 1.05, "cross streak missing");
+        assert!(on_axis < diagonal * 1.5, "cross streak too dominant: {on_axis} vs {diagonal}");
+    }
+
+    /// Amplitude policy: anchored at HALO_PEAK_LINEAR for Sirius, clamped
+    /// for anything (hypothetically) brighter, strictly falling with
+    /// magnitude, and still leaving the faintest member a visible whisper.
+    #[test]
+    fn halo_amplitude_policy() {
+        assert!((halo_amplitude(HALO_MAG_REF) - HALO_PEAK_LINEAR).abs() < 1e-6, "Sirius anchor");
+        assert!((halo_amplitude(-9.0) - HALO_PEAK_LINEAR).abs() < 1e-6, "clamp above the anchor");
+        let mut prev = f32::MAX;
+        for i in 0..=100 {
+            let mag = HALO_MAG_REF + (HALO_MAG_THRESHOLD - HALO_MAG_REF) * i as f32 / 100.0;
+            let a = halo_amplitude(mag);
+            assert!(a < prev, "amplitude must strictly fall with magnitude");
+            assert!(a > 0.0, "never zero inside the selection range");
+            prev = a;
+        }
+        // The faintest selected star: a whisper, not invisible, not loud.
+        let tail = halo_amplitude(HALO_MAG_THRESHOLD);
+        assert!(tail > 0.01 && tail < 0.1, "threshold amplitude out of taste range: {tail}");
+    }
+
+    /// Vertex expansion: 6 corners per star covering the full {-1,+1}^2
+    /// quad, with per-star attributes constant across the 6 and equal to
+    /// the policy fns' output.
+    #[test]
+    fn halo_vertices_expand_six_corners_per_star() {
+        let cat = synth_catalog(&[-1.44, 1.5]);
+        let verts = build_halo_vertices(&cat.halo_stars(2.0, 128));
+        assert_eq!(verts.len(), 12, "6 vertices per halo star");
+        assert_eq!(std::mem::size_of::<HaloVertex>(), 40, "40 B/vertex, 5 f32 attributes");
+        for (si, star_mag) in [(0usize, -1.44_f32), (1, 1.5)] {
+            let quad = &verts[si * 6..si * 6 + 6];
+            // All four distinct corners present; center of mass at 0.
+            let mut seen = std::collections::BTreeSet::new();
+            for v in quad {
+                seen.insert((v.corner[0] as i32, v.corner[1] as i32));
+                assert_eq!(v.direction, quad[0].direction, "direction constant per quad");
+                assert_eq!(v.color, ci_to_rgb(0.5), "color from ci_to_rgb");
+                assert!((v.amplitude - halo_amplitude(star_mag)).abs() < 1e-6);
+                assert!((v.half_extent - halo_half_extent(star_mag)).abs() < 1e-6);
+            }
+            assert_eq!(
+                seen.into_iter().collect::<Vec<_>>(),
+                vec![(-1, -1), (-1, 1), (1, -1), (1, 1)],
+                "quad must cover all four corners"
+            );
+        }
+    }
+
+    /// Parse + validate BOTH copies of the halo shader headlessly (naga
+    /// front-end, no GPU), same rationale as
+    /// star_shader_wgsl_parses_and_validates. ALSO lock the shader-mirrored
+    /// constants: the falloff/tangent lines must appear VERBATIM in both
+    /// copies and the Rust constants must equal the shader literals, so a
+    /// retune of any one site fails until all three move together (the
+    /// halo contract's mechanical tripwire).
+    #[test]
+    fn star_halo_shader_wgsl_parses_validates_and_matches_the_contract() {
+        let disk_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/shaders/star_halo.wgsl");
+        let disk_src = std::fs::read_to_string(&disk_path).expect("star_halo.wgsl exists");
+        // The Rust constants the shader literals must agree with.
+        assert_eq!(HALO_GAUSS_K, 5.5);
+        assert_eq!(HALO_CROSS_NARROW, 60.0);
+        assert_eq!(HALO_CROSS_LONG, 2.5);
+        assert_eq!(HALO_CROSS_AMP, 0.15);
+        for (label, src) in [("embedded", FALLBACK_HALO_SHADER), ("assets/shaders/star_halo.wgsl", disk_src.as_str())] {
+            let module = wgpu::naga::front::wgsl::parse_str(src)
+                .unwrap_or_else(|e| panic!("{label} halo shader failed to parse: {e}"));
+            let mut validator = wgpu::naga::valid::Validator::new(
+                wgpu::naga::valid::ValidationFlags::all(),
+                wgpu::naga::valid::Capabilities::all(),
+            );
+            validator
+                .validate(&module)
+                .unwrap_or_else(|e| panic!("{label} halo shader failed naga validation: {e:?}"));
+            // The contract lines, verbatim (whitespace-exact - both copies
+            // are formatted identically on purpose).
+            for line in [
+                "let g = max(exp(-5.5 * r2) - exp(-5.5), 0.0) / (1.0 - exp(-5.5));",
+                "let sx = exp(-c.y * c.y * 60.0) * exp(-c.x * c.x * 2.5);",
+                "let sy = exp(-c.x * c.x * 60.0) * exp(-c.y * c.y * 2.5);",
+                "let shape = (g + 0.15 * (sx + sy) * w) / 1.3;",
+                "if (abs(dir.z) > 0.99) {",
+                "let t1 = normalize(cross(up, dir));",
+            ] {
+                assert!(src.contains(line), "{label}: contract line drifted: {line}");
+            }
+        }
     }
 }
