@@ -178,14 +178,19 @@ pub fn cloud_rot_x(v: [f32; 3], a: f32) -> [f32; 3] {
 /// sphere. `dir` must be a unit vector (the squared components are the
 /// blend weights and only sum to 1 on the unit sphere).
 pub fn cloud_noise(dir: [f32; 3], freq: f32, seed: f32) -> f32 {
-    let w = [dir[0] * dir[0], dir[1] * dir[1], dir[2] * dir[2]];
+    // Pow-4 sharpened blend weights, normalized -- see the WGSL comment
+    // (2026-07-11: plain dir*dir blend zones creased into straight lines).
+    let w2 = [dir[0] * dir[0], dir[1] * dir[1], dir[2] * dir[2]];
+    let w4 = [w2[0] * w2[0], w2[1] * w2[1], w2[2] * w2[2]];
+    let sum = (w4[0] + w4[1] + w4[2]).max(1e-12);
+    let wn = [w4[0] / sum, w4[1] / sum, w4[2] / sum];
     let p = [dir[0] * freq, dir[1] * freq, dir[2] * freq];
     let (ox, oy) = (seed, seed * 0.617);
     // Plane coordinate order matches WGSL swizzles: p.yz, p.zx, p.xy.
     let nx = value_noise(p[1] + ox, p[2] + oy);
     let ny = value_noise(p[2] + ox * 1.3, p[0] + oy * 1.3);
     let nz = value_noise(p[0] + ox * 1.7, p[1] + oy * 1.7);
-    nx * w[0] + ny * w[1] + nz * w[2]
+    nx * wn[0] + ny * wn[1] + nz * wn[2]
 }
 
 /// Mirrors `cloud_field`: the 5-octave, two-set drifting density field.

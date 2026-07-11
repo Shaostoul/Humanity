@@ -13076,7 +13076,8 @@ mod native_app {
                                         // Same shared flat shell mesh as the
                                         // atmosphere (per-fragment noise does the
                                         // detail work; only the silhouette is mesh).
-                                        let shell_level = 3.min(max_level);
+                                        // Level 5 (20,480 tris - still trivial): at level 3 the big flat facets crease the per-pixel scattering/cloud math into faint straight seams across the disc (2026-07-11 field report).
+                                        let shell_level = 5.min(max_level);
                                         let skey = ("_flat".to_string(), shell_level);
                                         let cloud_mesh = if let Some(&m) =
                                             state.planet_mesh_cache.get(&skey)
@@ -13164,7 +13165,8 @@ mod native_app {
                                             };
                                             // Smooth shell: the shared flat
                                             // sphere cache at a fixed mid level.
-                                            let shell_level = 3.min(max_level);
+                                            // Level 5 (20,480 tris - still trivial): at level 3 the big flat facets crease the per-pixel scattering/cloud math into faint straight seams across the disc (2026-07-11 field report).
+                                        let shell_level = 5.min(max_level);
                                             let skey = ("_flat".to_string(), shell_level);
                                             let shell_mesh = if let Some(&m) =
                                                 state.planet_mesh_cache.get(&skey)
