@@ -183,13 +183,27 @@ impl Renderer {
         // GPU supports them; the WebGL2 profile only mattered for a wasm target
         // this renderer doesn't build for). Resolution limits still follow the
         // adapter so huge-texture support matches the hardware.
+        // 2026-07-11 (ultra star catalog): the 25M-star tier packs into a
+        // ~300 MB vertex buffer, which EXCEEDS wgpu's default 256 MiB
+        // max_buffer_size limit -- with the default, creating that buffer
+        // would fail device validation at world load, the same boot-killing
+        // failure class as v0.782. Follow the adapter's real buffer capacity
+        // instead (desktop GPUs allow gigabytes); requesting exactly what
+        // the adapter reports is always grantable. Every other limit stays
+        // at the safe standard defaults. StarRenderer::new additionally
+        // trims the star list to whatever THIS device's limit turns out to
+        // be, so a small-limit adapter degrades to a partial sky, never a
+        // dead app.
+        let adapter_limits = adapter.limits();
+        let mut required_limits =
+            wgpu::Limits::default().using_resolution(adapter_limits.clone());
+        required_limits.max_buffer_size = adapter_limits.max_buffer_size;
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("HumanityOS Renderer"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default()
-                        .using_resolution(adapter.limits()),
+                    required_limits,
                     ..Default::default()
                 },
                 None,

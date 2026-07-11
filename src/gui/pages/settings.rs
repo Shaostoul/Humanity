@@ -1859,61 +1859,108 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 .size(theme.font_size_small),
         );
 
-        // ── Star catalog (v0.800, star ladder rung 2) ── the extended ATHYG
-        // catalog is a 36 MB one-time download (too big to ship in the repo),
-        // fetched from a GitHub release asset and dropped beside stars.bin;
-        // the loader prefers it automatically on the next world entry.
-        ui.add_space(theme.spacing_md);
-        ui.label(RichText::new("Star catalog").color(theme.text_secondary()).strong());
-        match state.star_catalog_extended {
-            Some(bytes) => {
-                ui.label(
-                    RichText::new(format!(
-                        "Extended: 2.5 million real stars (ATHYG, {} MB installed). The Milky Way is individually resolved stars.",
-                        bytes / 1_048_576
-                    ))
+        // ── Star catalog (v0.800 rung 2; 2026-07-11 rung 4: 3-tier chooser) ──
+        // Standard ships with the app; Extended (ATHYG, 36 MB) and Ultra
+        // (Gaia G<14, ~350 MB) are one-time downloads from GitHub release
+        // assets, dropped beside stars.bin. The loader prefers the biggest
+        // installed catalog on the next world entry.
+        {
+            use crate::renderer::stars::StarCatalogTier;
+            ui.add_space(theme.spacing_md);
+            ui.label(RichText::new("Star catalog").color(theme.text_secondary()).strong());
+            // Which tier actually renders: mirror of StarCatalog::load's
+            // prefer order (biggest installed wins).
+            let active = StarCatalogTier::ALL
+                .iter()
+                .rev()
+                .find(|t| state.star_catalog_installed[t.index()].is_some())
+                .map(|t| t.label())
+                .unwrap_or("Standard");
+            ui.label(
+                RichText::new(format!("Active: {} (the biggest installed catalog wins)", active))
+                    .color(theme.text_secondary())
+                    .size(theme.font_size_small),
+            );
+            ui.add_space(theme.spacing_xs);
+
+            // Standard tier: always installed, nothing to download or remove.
+            ui.label(
+                RichText::new("Standard: 120,000 nearby stars (HYG). Ships with the app.")
                     .color(theme.text_muted())
                     .size(theme.font_size_small),
-                );
-                if ui.button("Remove extended catalog").clicked() {
-                    state.star_catalog_remove = true;
+            );
+            ui.add_space(theme.spacing_xs);
+
+            // One download slot: every Download button disables while a
+            // transfer is ACTIVELY running; a FAILED attempt re-enables them
+            // (the retry click replaces the dead handle in lib.rs).
+            let downloading = state
+                .star_catalog_dl
+                .as_ref()
+                .and_then(|(_, p)| p.lock().ok().map(|g| !g.2.starts_with("FAILED")))
+                .unwrap_or(false);
+            for tier in StarCatalogTier::ALL {
+                match state.star_catalog_installed[tier.index()] {
+                    Some(bytes) => {
+                        ui.label(
+                            RichText::new(format!(
+                                "{}: {} ({} MB installed)",
+                                tier.label(),
+                                tier.blurb(),
+                                bytes / 1_048_576
+                            ))
+                            .color(theme.text_muted())
+                            .size(theme.font_size_small),
+                        );
+                        if ui
+                            .button(format!("Remove {} catalog", tier.label().to_lowercase()))
+                            .clicked()
+                        {
+                            state.star_catalog_remove = Some(tier);
+                        }
+                    }
+                    None => {
+                        ui.label(
+                            RichText::new(format!("{}: {}", tier.label(), tier.blurb()))
+                                .color(theme.text_muted())
+                                .size(theme.font_size_small),
+                        );
+                        if ui
+                            .add_enabled(
+                                !downloading,
+                                egui::Button::new(format!(
+                                    "Download {} catalog ({})",
+                                    tier.label().to_lowercase(),
+                                    tier.size_hint()
+                                )),
+                            )
+                            .clicked()
+                        {
+                            state.star_catalog_download = Some(tier);
+                        }
+                    }
+                }
+                ui.add_space(theme.spacing_xs);
+            }
+            if let Some((tier, dl)) = &state.star_catalog_dl {
+                if let Ok(g) = dl.lock() {
+                    let (done, total, ref status) = *g;
+                    let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                    ui.add(egui::ProgressBar::new(frac).text(format!(
+                        "{}: {} ({} / {} MB)",
+                        tier.label(),
+                        status,
+                        done / 1_048_576,
+                        total.max(1) / 1_048_576
+                    )));
                 }
             }
-            None => {
-                ui.label(
-                    RichText::new("Standard: 120,000 nearby stars (HYG). The extended catalog adds 2.5 million real stars from ATHYG - the visible Milky Way, star by star.")
-                        .color(theme.text_muted())
-                        .size(theme.font_size_small),
-                );
-                // Disabled only while ACTIVELY downloading; a FAILED attempt
-                // re-enables the button (the click replaces the dead handle).
-                let downloading = state
-                    .star_catalog_dl
-                    .as_ref()
-                    .and_then(|p| p.lock().ok().map(|g| !g.2.starts_with("FAILED")))
-                    .unwrap_or(false);
-                if ui.add_enabled(!downloading, egui::Button::new("Download extended catalog (36 MB)")).clicked() {
-                    state.star_catalog_download = true;
-                }
-            }
+            ui.label(
+                RichText::new("Catalog changes apply next time you enter the world.")
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+            );
         }
-        if let Some(dl) = &state.star_catalog_dl {
-            if let Ok(g) = dl.lock() {
-                let (done, total, ref status) = *g;
-                let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
-                ui.add(egui::ProgressBar::new(frac).text(format!(
-                    "{} ({} / {} MB)",
-                    status,
-                    done / 1_048_576,
-                    total.max(1) / 1_048_576
-                )));
-            }
-        }
-        ui.label(
-            RichText::new("Catalog changes apply next time you enter the world.")
-                .color(theme.text_muted())
-                .size(theme.font_size_small),
-        );
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
