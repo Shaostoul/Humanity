@@ -565,6 +565,13 @@
       "decision": "v0.797-798: NPC walk-up dialogue (E-talk card with relay-authored greetings/lines via game_welcome snapshot capture; bonus: dwelling crew now visible to fresh joiners) and star catalog RUNG 1 (data/stars.bin HOSSTAR1, 15 B/star, ONE 1ms parse replacing two 291ms CSV passes; bit-identical stars, 594/594 constellations; scripts/build-stars-bin.js + just build-stars).",
       "why": "Loop queue continuation. Star rung 1 is the foundation for rung 2 (ATHYG 2.5M) - the format scales and parse time no longer matters. NPC dialog literals still live in relay populate_ship (infinite-of-X follow-up noted). Next: chat 1c view modes, mode system (task #50), star rung 2.",
       "verification": "v0.798.1 exe: autopilot-driven world load logged stars.bin 1ms + 594/594 + 0 PANIC; 912 lib tests; relay check; validate-data; six lints"
+    },
+    {
+      "id": 6,
+      "date": "2026-07-10",
+      "decision": "v0.799: in-world chat VIEW MODES (Chat/DMs/Groups/options tabs, DM sends reuse the E2EE path, unread dots, persisted feed toggle + panel height) + the Dev/Creative/Normal PLAY-MODE system (task #50 CLOSED: one play_mode_allows truth table gates creative resources, dev tools, and whole-ship editing; non-Dev construction pins to the home zone; honest CREATIVE/DEV HUD tag; default Dev pre-launch with a launch-flip tripwire test). Loop backlog COMPLETE: every queued item from the operator directive shipped v0.792-v0.799.",
+      "why": "Loop mode closure. Next queue (PRIORITIES): star rung 2 (ATHYG in-app download), NPC dialog to data files (infinite-of-X), corridor door glass strips, first-contact funnel polish, server-enforced play-mode permissions for shared worlds.",
+      "verification": "v0.799.1 boot via autopilot: 0 PANIC, world load, stars.bin; 921 lib tests; both feature checks; six lints"
     }
   ],
   "active_scopes_to_avoid": [
