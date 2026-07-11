@@ -586,6 +586,13 @@
       "decision": "v0.801-802: SOLO play intent + admin travel step-out (offline home card = solo, no game_join; Dev-mode travel in shared world steps out via new game_leave relay message, Return home rejoins - the moderation path) and THE MILKY WAY GLOW (galaxy_glow.png baked from 2.49M ATHYG stars, additive celestial pass, peak 0.68 deg from Sgr A*, Pleiades = brightest raw texel matching real photometry; Settings toggle + intensity; supersedes the 7000-point fake band).",
       "why": "Operator blocked on teleport while connected (as admin, moderation requires mobility) + the north-star goal: the in-game Milky Way must look like his real-photo reference. Rung 3 remaining: Gaia re-bake (BULGE_GAIN=0, real dust lanes) + G<14 point catalog. Known follow-up: default-home fast path does not set solo intent.",
       "verification": "v0.802.1 boot: glow texture loaded + band superseded log lines, 0 PANIC, 85 FPS with glow + 2.5M stars, screenshot debug/sky_glow.png; 924 lib tests; both checks; six lints"
+    },
+    {
+      "id": 9,
+      "date": "2026-07-11",
+      "decision": "v0.803 glow calibration: ROOT CAUSE of way-too-bright was a missing linearization - the bake tunes DISPLAY-referred values but the shader wrote them as LINEAR into the sRGB surface, so the hardware re-applied the display transform (0.085 linear renders as ~33% gray; the intensity slider seemed dead - operator: even 0.1 looked bright). Fix: pow(c, 2.2) in galaxy_glow.wgsl + the embedded fallback. Plus a delicate-veil rebake (FLOOR p60->p70, TONE_GAMMA 1.25->1.6, HALO_MIX 0.40->0.22, BULGE_GAIN 3->2, HEADROOM 0.85->0.6): histogram now 87.9% of texels under 4% (true black), band 3.6%, spine 1.4%, core 0.5%, peak 60%, peak 1.02 deg from Sgr A*. Session crashed between build-game and the stamp; recovered, v0.803.1 stamped + boot-verified.",
+      "why": "Operator field reports: first the glow read as bright smoke (not off-world), then the killer clue - 0.1 intensity still bright, which no bake tuning explains, only a transfer-function bug. Real dark-site Milky Way is a delicate veil; the reference photo is a long exposure.",
+      "verification": "v0.803.1 exe boot: 0 PANIC, glow lines; PNG histogram; naga-clean shaders; v0.803.0 shipped pre-crash with full battery"
     }
   ],
   "active_scopes_to_avoid": [
