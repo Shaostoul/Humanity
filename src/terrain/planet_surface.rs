@@ -219,6 +219,26 @@ pub fn classify_color(def: &PlanetDef, elevation: f32, abs_sin_lat: f32) -> [f32
     rgb(def.cap_color)
 }
 
+/// Orbital-look ocean floor (linear RGB): the Blue Marble topo-bathy source
+/// paints deep ocean almost black (sRGB ~rgb(1,5,20) -> linear ~0.006 blue),
+/// which is technically what the water itself reflects -- real orbital
+/// photos read blue because sunlight scattered by the air IN FRONT of the
+/// disc adds blue radiance. Increment 1 of the atmosphere does not yet add
+/// enough in-disc scattering to supply that, so the compensation lives here:
+/// each channel of a water face is floored (component-wise max) to this
+/// color. Bright turquoise shelf shallows in the imagery punch through the
+/// floor untouched; the abyssal plains lift to a uniform photo blue.
+/// Delete this (return to the raw imagery) when the atmosphere gains real
+/// in-disc radiance.
+pub const OCEAN_ORBITAL_FLOOR: [f32; 3] = [0.010, 0.055, 0.22];
+
+/// Land brightness gain on the albedo path. The linear-decoded Blue Marble
+/// land (Amazon green ~0.02 linear) is physically plausible albedo but
+/// reads near-black through this pipeline's sun intensity + ACES tonemap,
+/// where the classifier palette it replaced was authored ~3x brighter.
+/// A flat gain keeps the imagery's hue and relative contrast.
+pub const LAND_ALBEDO_GAIN: f32 = 1.6;
+
 /// Width of the sea-ice blend band on |sin(latitude)|: the albedo path's
 /// cap layer fades in from `polar_cap_latitude` to `polar_cap_latitude +
 /// this` instead of switching hard, so the ice edge reads as pack ice
@@ -251,8 +271,24 @@ pub fn surface_color(
     let Some(al) = albedo else {
         return classify_color(def, elevation, abs_sin_lat);
     };
-    let base = al.sample_linear(unit_dir);
+    let raw = al.sample_linear(unit_dir);
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // Orbital-look grading (2026-07-11 field report: "black planet surface
+    // under the clouds"): floor water to photo blue, gain land toward the
+    // brightness the pipeline is calibrated for. See the two constants above.
+    let base = if elevation < sea {
+        [
+            raw[0].max(OCEAN_ORBITAL_FLOOR[0]),
+            raw[1].max(OCEAN_ORBITAL_FLOOR[1]),
+            raw[2].max(OCEAN_ORBITAL_FLOOR[2]),
+        ]
+    } else {
+        [
+            (raw[0] * LAND_ALBEDO_GAIN).min(1.0),
+            (raw[1] * LAND_ALBEDO_GAIN).min(1.0),
+            (raw[2] * LAND_ALBEDO_GAIN).min(1.0),
+        ]
+    };
     // Sea-ice layer: polar ocean only (see the layering decision above).
     // polar_cap_latitude > 1.0 disables caps entirely, same as classify.
     if def.polar_cap_latitude <= 1.0 && elevation < sea {
@@ -820,21 +856,31 @@ mod tests {
         use crate::terrain::planet_albedo::srgb_byte_to_linear;
         let def = water_world(42);
         let al = synth_albedo_uniform([200, 100, 50]);
+        // Equatorial land face: imagery hue preserved, scaled by the flat
+        // orbital-look gain (clamped at 1).
         let expect = [
-            srgb_byte_to_linear(200),
-            srgb_byte_to_linear(100),
-            srgb_byte_to_linear(50),
+            (srgb_byte_to_linear(200) * LAND_ALBEDO_GAIN).min(1.0),
+            (srgb_byte_to_linear(100) * LAND_ALBEDO_GAIN).min(1.0),
+            (srgb_byte_to_linear(50) * LAND_ALBEDO_GAIN).min(1.0),
         ];
-        // Equatorial land face: pure imagery, no classifier bands.
         let c = surface_color(&def, Some(&al), Vec3::new(1.0, 0.0, 0.0), def.sea_level + 0.1);
         for i in 0..3 {
             assert!((c[i] - expect[i]).abs() < 1e-5, "albedo not passed through: {c:?}");
         }
-        // Equatorial OCEAN face: also pure imagery (bathymetry shading is
-        // baked into the grid; no classifier depth-darkening on top).
+        // Equatorial OCEAN face: imagery floored to the orbital blue
+        // (component-wise max -- this synthetic orange is BRIGHTER than the
+        // floor in r/g, so those channels pass through; b lifts to floor).
+        let expect_ocean = [
+            srgb_byte_to_linear(200).max(OCEAN_ORBITAL_FLOOR[0]),
+            srgb_byte_to_linear(100).max(OCEAN_ORBITAL_FLOOR[1]),
+            srgb_byte_to_linear(50).max(OCEAN_ORBITAL_FLOOR[2]),
+        ];
         let c = surface_color(&def, Some(&al), Vec3::new(1.0, 0.0, 0.0), 0.1);
         for i in 0..3 {
-            assert!((c[i] - expect[i]).abs() < 1e-5, "ocean albedo modified: {c:?}");
+            assert!(
+                (c[i] - expect_ocean[i]).abs() < 1e-5,
+                "ocean albedo modified beyond the floor: {c:?}"
+            );
         }
         // None falls back to the classifier exactly.
         let c = surface_color(&def, None, Vec3::new(1.0, 0.0, 0.0), def.sea_level + 0.1);
@@ -855,16 +901,22 @@ mod tests {
         }
         // Polar LAND keeps the imagery (Blue Marble already paints land
         // snow; re-capping would white out what the photo gets right).
+        // The land gain applies, but no cap color.
+        let expect_land_b = (crate::terrain::planet_albedo::srgb_byte_to_linear(80)
+            * LAND_ALBEDO_GAIN)
+            .min(1.0);
         let c_land = surface_color(&def, Some(&al), polar_dir, def.sea_level + 0.1);
         assert!(
-            (c_land[2] - crate::terrain::planet_albedo::srgb_byte_to_linear(80)).abs() < 1e-5,
+            (c_land[2] - expect_land_b).abs() < 1e-5,
             "polar land was capped over imagery: {c_land:?}"
         );
-        // Mid-latitude ocean: untouched imagery.
+        // Mid-latitude ocean: no ice, just the orbital floor over the imagery.
         let mid_dir = Vec3::new(1.0, 0.5, 0.0).normalize();
         let c_mid = surface_color(&def, Some(&al), mid_dir, 0.1);
+        let expect_mid_b =
+            crate::terrain::planet_albedo::srgb_byte_to_linear(80).max(OCEAN_ORBITAL_FLOOR[2]);
         assert!(
-            (c_mid[2] - crate::terrain::planet_albedo::srgb_byte_to_linear(80)).abs() < 1e-5,
+            (c_mid[2] - expect_mid_b).abs() < 1e-5,
             "mid-latitude ocean was iced: {c_mid:?}"
         );
         // Inside the blend band: strictly between imagery and cap.

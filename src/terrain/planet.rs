@@ -190,8 +190,17 @@ pub const MAX_SKY_SUBDIVISION: u32 = 9;
 /// Projected on-screen diameter of a sphere, in pixels.
 ///
 /// `radius` and `distance` share any unit (meters, render units) as long as
-/// they agree. Uses the true angular diameter (atan) so it stays finite when
-/// the camera is close, then maps angle to pixels through the vertical FOV.
+/// they agree. Maps angle to pixels through the vertical FOV.
+///
+/// asin, not atan (fixed 2026-07-11, the LOD field report): the limb of a
+/// SPHERE of radius r at center-distance d subtends asin(r/d) per side,
+/// approaching 90 degrees as d -> r. The old atan formula (correct for a
+/// flat DISC, not a sphere) saturates at 45 degrees per side, so a planet
+/// the camera was about to land on never projected past ~1230 px at fov
+/// 100 on a 1440p viewport -- permanently below the chunk-activation rung
+/// (~1320 px) and capping the uniform ladder near level 7 (~52 km triangle
+/// edges: the operator's "I can very easily see the triangles"). Inside
+/// the sphere (d <= r) it fills everything: clamped to the 180-degree cap.
 pub fn projected_pixel_diameter(
     radius: f64,
     distance: f64,
@@ -201,7 +210,8 @@ pub fn projected_pixel_diameter(
     if radius <= 0.0 || distance <= 0.0 {
         return 0.0;
     }
-    let angular_diameter = 2.0 * (radius / distance).atan();
+    let ratio = (radius / distance).min(1.0);
+    let angular_diameter = 2.0 * ratio.asin();
     let fov_y_rad = (fov_y_deg.max(1.0) as f64).to_radians();
     ((angular_diameter / fov_y_rad) * viewport_h_px.max(1.0) as f64) as f32
 }

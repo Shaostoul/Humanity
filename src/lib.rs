@@ -2201,6 +2201,137 @@ mod native_app {
         result.map(|()| (w, h))
     }
 
+    /// Dev camera request (v0.813): see the call site in the frame loop for the
+    /// full contract. Reuses the Dev Travel tool's math (`dev_travel::
+    /// teleport_viewpoint` for the sunlit direction, rescaled to the requested
+    /// altitude; `look_angles` for the aim) so scripted captures and the GUI
+    /// tool can never drift apart.
+    fn poll_camera_request(state: &mut EngineState) {
+        const REQUEST_PATH: &str = "debug/camera_request.json";
+        const DONE_PATH: &str = "debug/camera_done.json";
+        if !std::path::Path::new(REQUEST_PATH).exists() {
+            return;
+        }
+        let parsed = std::fs::read_to_string(REQUEST_PATH)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+        // Consumed either way (same rule as the other debug polls).
+        let _ = std::fs::remove_file(REQUEST_PATH);
+        let fail = |msg: String| {
+            log::warn!("Camera request: {msg}");
+            let _ = std::fs::create_dir_all("debug");
+            let _ = std::fs::write(
+                DONE_PATH,
+                serde_json::json!({"ok": false, "error": msg}).to_string(),
+            );
+        };
+        let Some(v) = parsed else {
+            fail("malformed JSON".to_string());
+            return;
+        };
+        if !state.world_loaded {
+            fail("3D world not loaded".to_string());
+            return;
+        }
+        let body_id = v
+            .get("body")
+            .and_then(|b| b.as_str())
+            .unwrap_or("earth")
+            .to_string();
+        let altitude_km = v
+            .get("altitude_km")
+            .and_then(|a| a.as_f64())
+            .unwrap_or(12_000.0)
+            .max(0.001);
+        let look_offset_deg = v
+            .get("look_offset_deg")
+            .and_then(|a| a.as_f64())
+            .unwrap_or(0.0);
+        let Some(body) = crate::cosmos::find_body(&body_id) else {
+            fail(format!("unknown body id {body_id}"));
+            return;
+        };
+        // Same live sim time + Earth-relative frame as the Travel tool, so the
+        // vantage matches where the body is drawn this frame.
+        let sim_t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+            - 946_728_000.0;
+        let earth_helio_au = crate::cosmos::find_body("earth")
+            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+            .unwrap_or(glam::DVec3::ZERO);
+        let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+            - earth_helio_au)
+            * crate::cosmos::M_PER_AU;
+        let sun_rel_earth = -earth_helio_au * crate::cosmos::M_PER_AU;
+        let radius_m = body.radius_km * 1000.0;
+        // The Travel vantage is ~4 radii out on the sunlit side; keep its
+        // DIRECTION, replace its distance with the requested altitude.
+        let base = crate::dev_travel::teleport_viewpoint(
+            body_rel_earth,
+            sun_rel_earth,
+            radius_m,
+            body.body_type == "star",
+        );
+        let dir_out = (base - body_rel_earth).normalize_or_zero();
+        let vantage = body_rel_earth + dir_out * (radius_m + altitude_km * 1000.0);
+        if state.dev_travel_home.is_none() {
+            state.dev_travel_home = Some((
+                state.ship_world_pos,
+                state.camera.position,
+                state.camera.yaw,
+                state.camera.pitch,
+            ));
+        }
+        if state.gui_state.copresence_active && !state.gui_state.copresence_solo {
+            state.gui_state.copresence_solo = true;
+            state.dev_travel_stepped_out = true;
+        }
+        state.ship_world_pos = vantage;
+        if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
+            state
+                .camera
+                .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+        }
+        let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
+        state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
+        // Aim at the body center, optionally rotated toward the horizon around
+        // the camera-right axis (Rodrigues; right axis picked degenerate-safe).
+        let fwd = (body_rel_earth - vantage).normalize_or_zero();
+        let aim = if look_offset_deg.abs() > 0.01 {
+            let mut right = fwd.cross(glam::DVec3::Y);
+            if right.length_squared() < 1e-9 {
+                right = fwd.cross(glam::DVec3::X);
+            }
+            let right = right.normalize_or_zero();
+            let ang = look_offset_deg.to_radians();
+            (fwd * ang.cos() + right.cross(fwd) * ang.sin()).normalize_or_zero()
+        } else {
+            fwd
+        };
+        let (yaw, pitch) = crate::dev_travel::look_angles(aim);
+        state.camera.yaw = yaw;
+        state.camera.pitch = pitch;
+        state.gui_state.dev_fly_mode = true;
+        state.controller.fly_mode = true;
+        state.gui_state.dev_travel_away = true;
+        let _ = std::fs::create_dir_all("debug");
+        let _ = std::fs::write(
+            DONE_PATH,
+            serde_json::json!({
+                "ok": true,
+                "body": body_id,
+                "altitude_km": altitude_km,
+                "look_offset_deg": look_offset_deg,
+            })
+            .to_string(),
+        );
+        log::info!(
+            "Camera request: parked {altitude_km:.1} km above {body_id} (look offset {look_offset_deg:.0} deg)"
+        );
+    }
+
     /// Dev autopilot (v0.793): drive an instance into the shared world with ZERO
     /// clicks, for scripted co-presence tests (two instances on one machine) and
     /// future CI smoke tests. Mirrors the proven `poll_screenshot_request`
@@ -12551,10 +12682,20 @@ mod native_app {
                                 * (1u32
                                     << (crate::terrain::planet_chunks::CHUNK_ACTIVATION_LADDER_LEVEL
                                         - 1)) as f32;
+                            // Engage on EITHER trigger: the pixel rung (the
+                            // planet visually dominates -- resolution/FOV
+                            // aware), OR a plain proximity floor (within half
+                            // a radius of the surface). The floor exists
+                            // because the pixel rung is resolution-dependent:
+                            // on a small window the ladder legitimately tops
+                            // out below the rung, but a player descending to
+                            // the surface needs ground detail regardless of
+                            // how many pixels their window has (2026-07-11
+                            // LOD field report).
                             let chunked_on = state.gui_state.settings.planet_chunked
                                 && def.is_some()
                                 && state.planet_heightmaps.contains_key(&b.id)
-                                && px > chunk_activation_px;
+                                && (px > chunk_activation_px || dist < radius_m * 1.5);
                             let mut chunked_drawn = false;
                             if chunked_on {
                                 use crate::terrain::planet_chunks as chunks;
@@ -15232,6 +15373,22 @@ mod native_app {
                     // co-presence tests. Runs immediately BEFORE the auto-connect
                     // block so a dropped request is honored the same frame.
                     poll_autopilot_request(state);
+
+                    // Dev camera request (v0.813): the file-request sibling of the
+                    // Dev page's Travel tool, for scripted visual verification --
+                    // the operator's field-report screenshots reproduced without a
+                    // pilot. Drop debug/camera_request.json while the app runs:
+                    //   {"body":"earth","altitude_km":400,"look_offset_deg":0}
+                    // and the next frame teleports the local frame to the SUNLIT
+                    // side of that body at that altitude, aims at the body center
+                    // (look_offset_deg rotates the aim toward the horizon; ~85 at
+                    // low altitude frames the limb), engages fly mode, and writes
+                    // debug/camera_done.json. Composes with autopilot_request +
+                    // screenshot_request into a complete look-anywhere capture
+                    // recipe. Runs HERE (the every-frame update path, same as the
+                    // autopilot poll) and not in the GUI-action section, which
+                    // stops running once a world is loaded. Permanent dev tooling.
+                    poll_camera_request(state);
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must

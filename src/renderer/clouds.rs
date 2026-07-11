@@ -67,7 +67,9 @@ pub const CLOUD_SHELL_SCALE: f32 = 1.008;
 
 /// Mirrors `CLOUD_MAX_ALPHA` in pbr_simple.wgsl: peak opacity of the
 /// thickest cloud core, deliberately < 1 so the surface stays readable.
-pub const CLOUD_MAX_ALPHA: f32 = 0.85;
+/// Lowered 0.85 -> 0.72 after the first orbital field test (2026-07-11):
+/// at 0.85 the decks fused into a featureless white cue ball.
+pub const CLOUD_MAX_ALPHA: f32 = 0.72;
 /// Mirrors `CLOUD_FIELD_LO` / `CLOUD_FIELD_HI`: the raw octave sum's
 /// empirical p03/p96 window over the sphere (20,000-sample spiral probe).
 /// The triplanar blend + octave averaging concentrate the sum around ~0.49;
@@ -78,8 +80,14 @@ pub const CLOUD_MAX_ALPHA: f32 = 0.85;
 /// cloudless) -- the coverage_maps_monotonically test below is the guard.
 pub const CLOUD_FIELD_LO: f32 = 0.32;
 pub const CLOUD_FIELD_HI: f32 = 0.65;
-/// Mirrors `CLOUD_EDGE`: smoothstep softness above the threshold.
-pub const CLOUD_EDGE: f32 = 0.18;
+/// Mirrors `CLOUD_EDGE`: smoothstep softness above the threshold. Widened
+/// 0.18 -> 0.30 with the detail octaves (2026-07-11) so the high-frequency
+/// octaves erode borders into filigree instead of hard blob outlines.
+pub const CLOUD_EDGE: f32 = 0.30;
+/// Mirrors `CLOUD_BAND_STRETCH`: zonal anisotropy -- the sampling
+/// direction's y is scaled up by this before the noise lookup, so features
+/// stretch east-west like real storm bands. 1.0 = isotropic blobs.
+pub const CLOUD_BAND_STRETCH: f32 = 1.75;
 /// Mirrors `CLOUD_DRIFT_ZONAL` / `CLOUD_DRIFT_CROSS`: the increment-1
 /// "weather" -- rigid-rotation drift rates (rad/s of cloud-clock time) for
 /// the two octave sets. Different axes + different speeds = the summed
@@ -180,18 +188,29 @@ pub fn cloud_noise(dir: [f32; 3], freq: f32, seed: f32) -> f32 {
     nx * w[0] + ny * w[1] + nz * w[2]
 }
 
-/// Mirrors `cloud_field`: the 4-octave, two-set drifting density field.
-/// Pure in (dir, t, seed). The amplitude-normalized sum (amplitudes
-/// 0.5 + 0.25 + 0.125 + 0.35 = 1.225) is contrast-stretched through its
-/// empirical window so the output is a roughly uniform 0..1 cloudiness.
+/// Mirrors `cloud_field`: the 5-octave, two-set drifting density field.
+/// Pure in (dir, t, seed). Set A is band-stretched (see
+/// `CLOUD_BAND_STRETCH`) and carries four octaves down to filigree scale;
+/// set B stays isotropic on its own drift axis so the sum morphs. The
+/// amplitude-normalized sum (0.5 + 0.25 + 0.125 + 0.0625 + 0.35 = 1.2875)
+/// is contrast-stretched through its empirical window so the output is a
+/// roughly uniform 0..1 cloudiness.
 pub fn cloud_field(dir: [f32; 3], t: f32, seed: f32) -> f32 {
-    let da = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let stretched = [da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]];
+    let len = (stretched[0] * stretched[0]
+        + stretched[1] * stretched[1]
+        + stretched[2] * stretched[2])
+        .sqrt()
+        .max(1e-9);
+    let da = [stretched[0] / len, stretched[1] / len, stretched[2] / len];
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    let mut f = 0.5 * cloud_noise(da, 4.0, seed);
-    f += 0.25 * cloud_noise(da, 8.0, seed + 19.0);
-    f += 0.125 * cloud_noise(da, 16.0, seed + 47.0);
-    f += 0.35 * cloud_noise(db, 6.0, seed + 101.0);
-    smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.225)
+    let mut f = 0.5 * cloud_noise(da, 5.0, seed);
+    f += 0.25 * cloud_noise(da, 11.0, seed + 19.0);
+    f += 0.125 * cloud_noise(da, 23.0, seed + 47.0);
+    f += 0.0625 * cloud_noise(da, 47.0, seed + 83.0);
+    f += 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.2875)
 }
 
 /// Mirrors `cloud_alpha_from_field`: the field is ~uniform after its

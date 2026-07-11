@@ -589,8 +589,10 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
 // precision stays comfortable for days of uptime at these drift rates.
 
 // Peak opacity of the thickest cloud core. Deliberately below 1.0 so the
-// planet surface stays readable through even the densest deck.
-const CLOUD_MAX_ALPHA: f32 = 0.85;
+// planet surface stays readable through even the densest deck. Lowered
+// 0.85 -> 0.72 after the first orbital field test (2026-07-11): at 0.85 the
+// decks fused into a featureless white cue ball.
+const CLOUD_MAX_ALPHA: f32 = 0.72;
 // Empirical contrast window of the raw octave sum over the sphere (p03/p96
 // of 20,000 spiral samples, measured in renderer::clouds's tuning probe):
 // the triplanar blend + octave averaging concentrate the sum tightly around
@@ -603,8 +605,16 @@ const CLOUD_MAX_ALPHA: f32 = 0.85;
 const CLOUD_FIELD_LO: f32 = 0.32;
 const CLOUD_FIELD_HI: f32 = 0.65;
 // Softness of the cloud edge: alpha ramps over this field range above the
-// threshold, giving wispy borders instead of cookie-cutter blobs.
-const CLOUD_EDGE: f32 = 0.18;
+// threshold, giving wispy borders instead of cookie-cutter blobs. Widened
+// 0.18 -> 0.30 with the detail octaves (2026-07-11): the wider ramp lets
+// the high-frequency octaves erode the borders into filigree instead of
+// stamping hard blob outlines.
+const CLOUD_EDGE: f32 = 0.30;
+// Zonal anisotropy of the cloud field: the sampling direction's y (the spin
+// axis) is scaled UP by this factor before the noise lookup, so the noise
+// varies faster with latitude than longitude and features stretch east-west
+// like real storm bands and jet-stream streaks. 1.0 = isotropic blobs.
+const CLOUD_BAND_STRETCH: f32 = 1.75;
 // The "weather" of increment 1: two octave SETS drift as rigid rotations at
 // different speeds around different axes, so their SUM genuinely evolves
 // (morphs) rather than sliding as one frozen texture. Radians per second of
@@ -671,13 +681,17 @@ fn cloud_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
 // through its empirical window (see CLOUD_FIELD_LO/HI) so the output is a
 // roughly uniform 0..1 "cloudiness".
 fn cloud_field(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
-    let da = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    // Band stretch (see CLOUD_BAND_STRETCH): re-normalized so the triplanar
+    // weights in cloud_noise still see a unit direction.
+    let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    var f = 0.5 * cloud_noise(da, 4.0, seed);
-    f = f + 0.25 * cloud_noise(da, 8.0, seed + 19.0);
-    f = f + 0.125 * cloud_noise(da, 16.0, seed + 47.0);
-    f = f + 0.35 * cloud_noise(db, 6.0, seed + 101.0);
-    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.225);
+    var f = 0.5 * cloud_noise(da, 5.0, seed);
+    f = f + 0.25 * cloud_noise(da, 11.0, seed + 19.0);
+    f = f + 0.125 * cloud_noise(da, 23.0, seed + 47.0);
+    f = f + 0.0625 * cloud_noise(da, 47.0, seed + 83.0);
+    f = f + 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.2875);
 }
 
 // Coverage (0..1, from the planet RON) -> cloud body opacity. Because
@@ -788,7 +802,20 @@ fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
         vec3<f32>(1.0),
     );
 
-    return vec4<f32>(mapped, body * CLOUD_MAX_ALPHA);
+    // Density ramp (2026-07-11 orbital field test): `body` saturates within
+    // CLOUD_EDGE of the threshold, which painted every deck the same solid
+    // white ("cue ball"). Re-shape by the field's headroom above the
+    // threshold so cloud SKIRTS stay translucent and only the dense cores
+    // approach max alpha -- the surface reads through most of the deck.
+    let thr = mix(1.0, -CLOUD_EDGE, clamp(coverage, 0.0, 1.0));
+    let t_core = clamp((field - thr) / max(1.0 - thr, CLOUD_EDGE), 0.0, 1.0);
+    let density = 0.40 + 0.60 * t_core * t_core * (3.0 - 2.0 * t_core);
+    // Limb fade: near the disc edge the shell is seen almost edge-on and
+    // stacks over the atmosphere's own limb brightening into a hard white
+    // ring; ease the deck off as the view grazes the sphere.
+    let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
+    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+    return vec4<f32>(mapped, body * density * limb * CLOUD_MAX_ALPHA);
 }
 
 // ── Cook-Torrance BRDF Evaluation ──
