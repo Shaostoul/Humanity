@@ -600,6 +600,13 @@
       "decision": "v0.803.2 GAIA CENSUS GLOW (star rung 3a): the glow texture now bakes from the full Gaia DR3 census - two ESA TAP aggregations over all 1,811,709,771 sources (count + G/BP/RP flux sums per HEALPix-8 cell, 786,432 equal-area cells, ~20 MB CSVs in the session scratchpad). build-galaxy-glow.js --gaia mode: ang2pix_nest lookup per texel (anchors: galactic center 8x, LMC 133x, SMC 116x median density - mapping proven), log-density luminance (dust rifts appear because dust blocks faint-star counts), per-cell BP-RP reddening color, no synthetic bulge (the census sees it). Equirect inspected: band arcs correctly, Great Rift visible, Magellanic Clouds present as real objects.",
       "why": "Operator north star: the in-game Milky Way must look like his real reference photo. The dust rifts were THE missing feature a magnitude-limited catalog cannot show. Remaining rungs: 3b G<14 ~25M point catalog (grain inside the band), bloom halos on brightest stars, band-continuity/floor tuning per operator field judgment (he is iterating the intensity slider live).",
       "verification": "anchors asserted in-script; texture visually inspected (equirect + in-game sliver); PNG 465 KB; no Rust changes (script + data only)"
+    },
+    {
+      "id": 11,
+      "date": "2026-07-11",
+      "decision": "v0.804-805 top-tier skybox foundations: EARTH IS EARTH (NOAA ETOPO1 real elevation, 0.1deg u16 bin committed, Everest/Challenger-Deep CI anchors, sea level exact from data, MAX_SKY_SUBDIVISION 7->9) and the 25M PIPELINE (StarVertex 28->12 B Snorm16x4+Unorm8x4 with gamma-2 brightness, wgpu max_buffer_size raised to adapter limit - the DEFAULT 256 MiB cap would have killed the ultra tier at load, v0.782 lesson paying rent - plus brightest-stars fallback for small devices, 3-tier Settings chooser, nameless-catalog constellation sidecar adoption, streaming gaia converter). Extraction: 16-chunk ESA TAP pull of G<14, dense chunks hit the anonymous 3M-row cap -> resumable splitter re-fetches quarters (pass 2 running). Boot-verified: extended catalog packs to 28.5 MB GPU.",
+      "why": "Operator: go for the top tier; 25M ~375 MB / 1.8B ~27 GB and pointless as points (the census glow IS the 1.8B); Earth looked like noise because it was noise - real data both times. Remaining: finish extraction, convert, upload stars-gaia25m.bin to assets-stars-1, level-9 healpix glow at 4096x2048, bloom halos.",
+      "verification": "936 then 942 lib tests, relay checks, six lints each; v0.804.1 boot (heightmap log line) + v0.805.1 boot (packed 12B line), both 0 PANIC"
     }
   ],
   "active_scopes_to_avoid": [
