@@ -50,6 +50,11 @@ pub struct Material {
     pub emissive: f32,
     buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
+    /// Group-3 texture bind group for materials that carry real imagery
+    /// (v0.811: per-pixel planet albedo). None = the renderer binds its 1x1
+    /// white fallback instead, so every draw satisfies the shared pipeline
+    /// layout. The bind group internally keeps its texture + view alive.
+    albedo_bind_group: Option<wgpu::BindGroup>,
 }
 
 /// Groups objects sharing the same mesh and material for instanced drawing.
@@ -109,6 +114,16 @@ pub struct Renderer {
     /// command). Most backends support it; a backend that doesn't gets a clean
     /// `capture_current_frame` error instead of a validation panic.
     supports_frame_capture: bool,
+    /// Shared sampler for all group-3 albedo textures (v0.811): bilinear,
+    /// wrap in U (equirect longitude crosses the antimeridian), clamp in V
+    /// (latitude holds at the pole rows) -- mirrors the CPU grid samplers'
+    /// edge policy in terrain::planet_heightmap/planet_albedo.
+    albedo_sampler: wgpu::Sampler,
+    /// 1x1 white fallback bound at group 3 for every material without real
+    /// imagery, so the shared pipeline layout is always satisfied and
+    /// non-planet draws are unaffected (the shader only samples group 3 on
+    /// material type 12 with the params.w flag set).
+    default_texture_bind_group: wgpu::BindGroup,
 }
 
 impl Renderer {
@@ -330,6 +345,61 @@ impl Renderer {
             }],
         });
 
+        // Group-3 defaults (v0.811, per-pixel planet imagery): one shared
+        // sampler + a 1x1 white fallback texture so EVERY draw can bind
+        // group 3 (the shared pipeline layout requires it) while only
+        // textured planet materials carry real imagery.
+        let albedo_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Albedo Texture Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat, // longitude wraps
+            address_mode_v: wgpu::AddressMode::ClampToEdge, // latitude clamps
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest, // single mip; sampled at level 0
+            ..Default::default()
+        });
+        let white_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Albedo Fallback Texture (1x1 white)"),
+            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &white_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &[255u8, 255, 255, 255],
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        );
+        let white_view = white_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let default_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Albedo Fallback Bind Group"),
+            layout: &pipeline.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&white_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&albedo_sampler),
+                },
+            ],
+        });
+
         Self {
             device,
             queue,
@@ -358,6 +428,8 @@ impl Renderer {
             cur_sun: ([0.3, 1.0, 0.5], [1.0, 0.95, 0.9], 2.5),
             cur_fill: ([-0.5, 0.3, -0.3], [0.4, 0.5, 0.7], 0.6),
             supports_frame_capture,
+            albedo_sampler,
+            default_texture_bind_group,
         }
     }
 
@@ -464,8 +536,103 @@ impl Renderer {
             emissive,
             buffer,
             bind_group,
+            albedo_bind_group: None,
         });
         idx
+    }
+
+    /// Build a group-3 bind group for an sRGB RGBA8 image (v0.811, per-pixel
+    /// planet imagery). The Srgb format makes sampling return LINEAR values
+    /// automatically -- the whole material pipeline is linear; the sRGB
+    /// encode happens once, on store to the sRGB render target. The bind
+    /// group keeps the texture + view alive internally.
+    fn build_albedo_bind_group(&self, rgba: &[u8], width: u32, height: u32) -> wgpu::BindGroup {
+        assert_eq!(
+            rgba.len(),
+            width as usize * height as usize * 4,
+            "albedo texture byte count must be width*height*4"
+        );
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Material Albedo Texture"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Material Albedo Bind Group"),
+            layout: &self.pipeline.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.albedo_sampler),
+                },
+            ],
+        })
+    }
+
+    /// Register a material that carries a real albedo texture at group 3
+    /// (v0.811: per-pixel planet imagery; sRGB RGBA8 bytes, row-major,
+    /// row 0 = top). Draws using it bind the texture instead of the white
+    /// fallback; everything else about the material behaves like
+    /// `add_material_full`.
+    pub fn add_textured_material(
+        &mut self,
+        base_color: [f32; 4],
+        metallic: f32,
+        roughness: f32,
+        material_type: f32,
+        emissive: f32,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) -> usize {
+        let albedo_bind_group = self.build_albedo_bind_group(rgba, width, height);
+        let idx = self.add_material_full(base_color, metallic, roughness, material_type, emissive);
+        self.materials[idx].albedo_bind_group = Some(albedo_bind_group);
+        idx
+    }
+
+    /// Replace the albedo texture of an existing material IN PLACE (v0.811):
+    /// hot-reloading a planet's RON re-bakes its imagery, and swapping the
+    /// texture on the existing material index keeps VRAM bounded (the old
+    /// texture is freed when its bind group drops) and every RenderObject's
+    /// material index stable. No-op if idx is out of range.
+    pub fn set_material_albedo_texture(
+        &mut self,
+        idx: usize,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) {
+        if idx >= self.materials.len() {
+            return;
+        }
+        let bg = self.build_albedo_bind_group(rgba, width, height);
+        self.materials[idx].albedo_bind_group = Some(bg);
     }
 
     /// Replace the mesh at `idx` in place: drops the old mesh (wgpu frees its vertex/index buffers)
@@ -944,6 +1111,14 @@ impl Renderer {
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1034,6 +1209,14 @@ impl Renderer {
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1112,6 +1295,14 @@ impl Renderer {
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1170,6 +1361,14 @@ impl Renderer {
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1276,6 +1475,14 @@ impl Renderer {
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1295,6 +1502,20 @@ impl Renderer {
                     let dynamic_offset = (uniform_align as u32) * (slot as u32);
                     render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                     render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 fallback/texture -- same rule as the opaque loop.
+                    render_pass.set_bind_group(
+                        3,
+                        material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1499,6 +1720,14 @@ impl Renderer {
                 };
 
                 render_pass.set_bind_group(2, &material.bind_group, &[]);
+                // Group 3 (v0.811): the material's albedo texture when it has
+                // one (textured planets), the 1x1 white fallback otherwise --
+                // the shared pipeline layout requires SOMETHING bound here.
+                render_pass.set_bind_group(
+                    3,
+                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
+                    &[],
+                );
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(
                     mesh.index_buffer.slice(..),

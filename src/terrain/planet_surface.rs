@@ -271,7 +271,22 @@ pub fn surface_color(
     let Some(al) = albedo else {
         return classify_color(def, elevation, abs_sin_lat);
     };
-    let raw = al.sample_linear(unit_dir);
+    grade_albedo(def, al.sample_linear(unit_dir), elevation, abs_sin_lat)
+}
+
+/// Orbital-look grading of one LINEAR imagery sample: ocean floor / land
+/// gain / sea-ice cap blend (see the three constants + the layering decision
+/// above). THE single source of truth shared by the per-face color path
+/// (`surface_color`, both mesh builders) and the per-pixel texture bake
+/// (`bake_albedo_rgba`), so the two can never drift apart -- the LOD handoff
+/// between the packed-color fallback and the sampled texture depends on
+/// them agreeing.
+pub fn grade_albedo(
+    def: &PlanetDef,
+    raw: [f32; 3],
+    elevation: f32,
+    abs_sin_lat: f32,
+) -> [f32; 3] {
     let sea = def.sea_level.clamp(0.0, 1.0);
     // Orbital-look grading (2026-07-11 field report: "black planet surface
     // under the clouds"): floor water to photo blue, gain land toward the
@@ -303,6 +318,56 @@ pub fn surface_color(
         }
     }
     base
+}
+
+/// Bake a planet's finished per-pixel surface texture (v0.811): the raw
+/// albedo imagery with the orbital-look grading applied per TEXEL, returned
+/// as sRGB RGBA8 bytes (row-major, row 0 north -- the same orientation the
+/// file stores) ready to upload as an `Rgba8UnormSrgb` GPU texture. The
+/// fragment shader (pbr_simple.wgsl material type 12, params.w flag) then
+/// samples a finished color per pixel, replacing the one-color-per-triangle
+/// mosaic the packed-UV transport produced.
+///
+/// Water vs land per texel comes from the ELEVATION grid (below the def's
+/// sea level = water), which is why this bake requires both grids: without
+/// elevation there is no per-texel water mask for the floor/gain/ice split.
+/// Colors are decoded to linear, graded via `grade_albedo` (the same
+/// function the per-face fallback path uses), and re-encoded -- the GPU
+/// decodes back to linear on sample, so the shader sees exactly what
+/// `surface_color` would compute, just at texel resolution instead of face
+/// resolution. Slope shading stays a per-face concern (it needs the mesh
+/// normal); the imagery already carries its own relief shading.
+pub fn bake_albedo_rgba(
+    def: &PlanetDef,
+    hm: &super::planet_heightmap::PlanetHeightmap,
+    al: &PlanetAlbedo,
+) -> Vec<u8> {
+    use super::planet_albedo::linear_to_srgb_byte;
+    let (w, h) = (al.width(), al.height());
+    let range_m = hm.max_meters() - hm.min_meters();
+    let mut out = Vec::with_capacity(w as usize * h as usize * 4);
+    for y in 0..h {
+        // Texel-center geography, identical to the grids' cell-centered
+        // registration (planet_heightmap module doc): row 0 is the
+        // northernmost row, column 0 the westernmost column.
+        let lat = 90.0 - (y as f32 + 0.5) * 180.0 / h as f32;
+        let abs_sin_lat = lat.to_radians().sin().abs();
+        for x in 0..w {
+            let lon = -180.0 + (x as f32 + 0.5) * 360.0 / w as f32;
+            let raw = al.texel_linear(x, y);
+            // Normalized elevation in the same 0..1 domain the def's
+            // sea_level lives in (the loader overrides sea_level with the
+            // grid's true 0 m position, so this coastline is exact).
+            let elevation = ((hm.sample_meters_latlon(lat, lon) - hm.min_meters()) / range_m)
+                .clamp(0.0, 1.0);
+            let graded = grade_albedo(def, raw, elevation, abs_sin_lat);
+            out.push(linear_to_srgb_byte(graded[0]));
+            out.push(linear_to_srgb_byte(graded[1]));
+            out.push(linear_to_srgb_byte(graded[2]));
+            out.push(255);
+        }
+    }
+    out
 }
 
 /// Floor of the slope-shading multiplier: a perfectly vertical cliff face
@@ -885,6 +950,131 @@ mod tests {
         // None falls back to the classifier exactly.
         let c = surface_color(&def, None, Vec3::new(1.0, 0.0, 0.0), def.sea_level + 0.1);
         assert_eq!(c, classify_color(&def, def.sea_level + 0.1, 0.0));
+    }
+
+    /// The per-pixel texture bake must agree TEXEL-FOR-TEXEL with the
+    /// shared grading helper: decode the stored byte, grade with the texel's
+    /// own elevation + latitude, re-encode. Uses a half-ocean/half-land
+    /// heightmap so the water/land split, the land gain, the ocean floor
+    /// AND the polar sea-ice blend are all exercised in one grid.
+    #[test]
+    fn bake_albedo_matches_grade_albedo_per_texel() {
+        use crate::terrain::planet_albedo::{linear_to_srgb_byte, srgb_byte_to_linear};
+        let mut def = water_world(42);
+        def.sea_level = 0.5; // grid 0 m position for a -1000..1000 window
+        def.polar_cap_latitude = 0.90; // polar rows of an 8-row grid ice over
+        // 4x8 heightmap: west half deep ocean, east half high land.
+        let (w, h) = (4u32, 8u32);
+        let mut meters = Vec::new();
+        for _row in 0..h {
+            for col in 0..w {
+                meters.push(if col < 2 { -500.0f32 } else { 800.0 });
+            }
+        }
+        let hm = synth_heightmap(w, h, -1000.0, 1000.0, &meters);
+        // 4x8 albedo with a per-texel color ramp (distinct every texel).
+        use crate::terrain::planet_albedo::{PlanetAlbedo, ALBEDO_MAGIC};
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(ALBEDO_MAGIC);
+        bytes.extend_from_slice(&w.to_le_bytes());
+        bytes.extend_from_slice(&h.to_le_bytes());
+        for y in 0..h {
+            for x in 0..w {
+                bytes.extend_from_slice(&[(x * 60) as u8, (y * 30) as u8, 90]);
+            }
+        }
+        let al = PlanetAlbedo::from_bytes(&bytes).expect("synthetic albedo parses");
+
+        let baked = bake_albedo_rgba(&def, &hm, &al);
+        assert_eq!(baked.len(), (w * h * 4) as usize);
+        let range = 2000.0f32;
+        let mut saw_ocean_floor = false;
+        let mut saw_land_gain = false;
+        let mut saw_sea_ice = false;
+        for y in 0..h {
+            let lat = 90.0 - (y as f32 + 0.5) * 180.0 / h as f32;
+            let abs_sin_lat = lat.to_radians().sin().abs();
+            for x in 0..w {
+                let lon = -180.0 + (x as f32 + 0.5) * 360.0 / w as f32;
+                let raw = [
+                    srgb_byte_to_linear((x * 60) as u8),
+                    srgb_byte_to_linear((y * 30) as u8),
+                    srgb_byte_to_linear(90),
+                ];
+                let elevation =
+                    ((hm.sample_meters_latlon(lat, lon) - hm.min_meters()) / range).clamp(0.0, 1.0);
+                let expect = grade_albedo(&def, raw, elevation, abs_sin_lat);
+                let o = ((y * w + x) * 4) as usize;
+                for ch in 0..3 {
+                    assert_eq!(
+                        baked[o + ch],
+                        linear_to_srgb_byte(expect[ch]),
+                        "texel ({x},{y}) channel {ch} disagrees with grade_albedo"
+                    );
+                }
+                assert_eq!(baked[o + 3], 255, "alpha must be opaque");
+                if elevation < def.sea_level && abs_sin_lat > def.polar_cap_latitude {
+                    saw_sea_ice = true;
+                } else if elevation < def.sea_level {
+                    saw_ocean_floor = true;
+                } else {
+                    saw_land_gain = true;
+                }
+            }
+        }
+        // The grid must actually have exercised all three grading regimes,
+        // or this test silently degrades to checking one code path.
+        assert!(saw_ocean_floor && saw_land_gain && saw_sea_ice);
+    }
+
+    /// Interior texels of a bilinear-sampled cell-centered grid: the bake's
+    /// per-texel elevation lookup at the texel's own center must return the
+    /// stored cell value exactly (tap lands on a cell center), so the
+    /// water/land mask in the texture matches the file data 1:1 when the
+    /// two grids share dimensions.
+    #[test]
+    fn bake_water_mask_tracks_heightmap_cells_exactly() {
+        let mut def = water_world(7);
+        def.sea_level = 0.5;
+        def.polar_cap_latitude = 2.0; // ice off: isolate the water mask
+        let (w, h) = (8u32, 4u32);
+        // Checkerboard ocean/land.
+        let mut meters = Vec::new();
+        for row in 0..h {
+            for col in 0..w {
+                meters.push(if (row + col) % 2 == 0 { -700.0f32 } else { 700.0 });
+            }
+        }
+        let hm = synth_heightmap(w, h, -1000.0, 1000.0, &meters);
+        let al = {
+            use crate::terrain::planet_albedo::{PlanetAlbedo, ALBEDO_MAGIC};
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(ALBEDO_MAGIC);
+            bytes.extend_from_slice(&w.to_le_bytes());
+            bytes.extend_from_slice(&h.to_le_bytes());
+            for _ in 0..(w * h) {
+                // Mid-gray: darker than the land gain can clamp, brighter
+                // than the ocean floor's b channel, so water vs land texels
+                // get visibly different encodings.
+                bytes.extend_from_slice(&[100, 100, 100]);
+            }
+            PlanetAlbedo::from_bytes(&bytes).expect("parses")
+        };
+        let baked = bake_albedo_rgba(&def, &hm, &al);
+        use crate::terrain::planet_albedo::{linear_to_srgb_byte, srgb_byte_to_linear};
+        let gray = srgb_byte_to_linear(100);
+        let land_r = linear_to_srgb_byte((gray * LAND_ALBEDO_GAIN).min(1.0));
+        let water_r = linear_to_srgb_byte(gray.max(OCEAN_ORBITAL_FLOOR[0]));
+        for row in 0..h {
+            for col in 0..w {
+                let o = ((row * w + col) * 4) as usize;
+                let expect = if (row + col) % 2 == 0 { water_r } else { land_r };
+                assert_eq!(
+                    baked[o], expect,
+                    "texel ({col},{row}) water/land classification drifted from the grid"
+                );
+            }
+        }
     }
 
     #[test]
