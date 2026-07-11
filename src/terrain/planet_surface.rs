@@ -6,16 +6,20 @@
 //! via `terrain::planet_heightmap`), from bilinear samples of that grid, so
 //! the sky planet shows REAL continents -- outward displacement for land
 //! (oceans stay smooth at the sphere radius, so seas read as flat blue and
-//! basins below sea level become lakes for free), and a per-face color
-//! classified from elevation + latitude (ocean / shore / lowland / highland
-//! / mountain / polar cap).
+//! basins below sea level become lakes for free), and a per-face color from
+//! `surface_color`: bilinear samples of a REAL albedo grid when the def
+//! ships one (Earth: NASA Blue Marble via `terrain::planet_albedo`, so the
+//! planet wears its actual photographed surface), otherwise the elevation +
+//! latitude band classifier (ocean / shore / lowland / highland / mountain /
+//! polar cap). Land face colors are additionally darkened by slope
+//! (`slope_shade`) so mountain relief reads even under noon lighting.
 //!
 //! Faces are FLAT-SHADED: each triangle gets 3 unique vertices sharing one
 //! color and one normal. That is both the intended low-poly-planet look and
 //! a hard requirement of the color transport: the renderer packs the RGB
-//! color into the 2-float UV channel (`pack_color_to_uv`), which only
-//! survives rasterizer interpolation when all three corners carry identical
-//! values.
+//! color (plus a water flag that drives the shader's ocean sun glint) into
+//! the 2-float UV channel (`pack_color_to_uv`), which only survives
+//! rasterizer interpolation when all three corners carry identical values.
 //!
 //! Everything in this module is pure math (no GPU), so it is fully unit
 //! tested headless. The GPU hop lives in `renderer::mesh::Mesh::
@@ -34,6 +38,7 @@ use noise::{NoiseFn, Perlin};
 
 use super::icosphere::Icosphere;
 use super::planet::PlanetDef;
+use super::planet_albedo::PlanetAlbedo;
 use super::planet_heightmap::PlanetHeightmap;
 
 /// One flat-shaded vertex of a generated planet surface, unit-sphere scale
@@ -44,6 +49,12 @@ pub struct SurfaceVertexData {
     pub position: [f32; 3],
     pub normal: [f32; 3],
     pub color: [f32; 3],
+    /// True on ocean faces (below-sea-level faces of `has_water` planets --
+    /// exactly the faces the geometry keeps smooth at the sphere radius).
+    /// Rides to the GPU as bit 16 of the packed UV so the shader can put a
+    /// sun glint on water and nowhere else. Per FACE (all three corners
+    /// carry the same value; flat-shading transport requires it).
+    pub water: bool,
 }
 
 /// CPU-side planet surface mesh: flat-shaded triangles, sequential indices.
@@ -208,29 +219,102 @@ pub fn classify_color(def: &PlanetDef, elevation: f32, abs_sin_lat: f32) -> [f32
     rgb(def.cap_color)
 }
 
-/// Pack an RGB color into the 2-float UV channel so the standard PBR vertex
-/// layout can carry per-face colors without a new pipeline.
+/// Width of the sea-ice blend band on |sin(latitude)|: the albedo path's
+/// cap layer fades in from `polar_cap_latitude` to `polar_cap_latitude +
+/// this` instead of switching hard, so the ice edge reads as pack ice
+/// thinning into open water rather than a jagged color cliff (the classify
+/// path keeps its hard threshold -- its whole look is banded).
+pub const SEA_ICE_BLEND_BAND: f32 = 0.03;
+
+/// Face color for a surface point: REAL imagery when the def ships an
+/// albedo grid, elevation-band classifier otherwise.
 ///
-/// `uv.x = round(r*255)*256 + round(g*255)` -- an exact integer (<= 65535,
-/// well inside f32's 2^24 exact-integer range). `uv.y = b` as a plain float.
-/// Because every corner of a flat-shaded face stores the SAME value, linear
-/// interpolation across the triangle is a constant and the packed integer
-/// survives to the fragment shader (material type 12 decodes it).
-pub fn pack_color_to_uv(c: [f32; 3]) -> [f32; 2] {
+/// Albedo path layering decision (2026-07-11, verified by eye against the
+/// shipped Blue Marble grid): the August imagery already contains all LAND
+/// snow (Greenland, Antarctica, the Himalaya) -- re-layering the classify
+/// cap over polar land would white out coastal Greenland tundra the photo
+/// renders correctly. What the imagery does NOT contain is SEA ICE: its
+/// oceans stay liquid dark blue right up to both poles, which reads wrong
+/// from orbit. So the cap color is layered over BELOW-SEA faces only,
+/// fading in across `SEA_ICE_BLEND_BAND` above the def's
+/// `polar_cap_latitude`. Ocean depth shading likewise comes from the
+/// imagery (the "topo.bathy" Blue Marble bakes bathymetry), not from the
+/// classifier's depth-darkening.
+pub fn surface_color(
+    def: &PlanetDef,
+    albedo: Option<&PlanetAlbedo>,
+    unit_dir: Vec3,
+    elevation: f32,
+) -> [f32; 3] {
+    // On a unit sphere, y IS sin(latitude).
+    let abs_sin_lat = unit_dir.y.abs();
+    let Some(al) = albedo else {
+        return classify_color(def, elevation, abs_sin_lat);
+    };
+    let base = al.sample_linear(unit_dir);
+    let sea = def.sea_level.clamp(0.0, 1.0);
+    // Sea-ice layer: polar ocean only (see the layering decision above).
+    // polar_cap_latitude > 1.0 disables caps entirely, same as classify.
+    if def.polar_cap_latitude <= 1.0 && elevation < sea {
+        let t = ((abs_sin_lat - def.polar_cap_latitude) / SEA_ICE_BLEND_BAND).clamp(0.0, 1.0);
+        if t > 0.0 {
+            let cap = rgb(def.cap_color);
+            return [
+                base[0] + (cap[0] - base[0]) * t,
+                base[1] + (cap[1] - base[1]) * t,
+                base[2] + (cap[2] - base[2]) * t,
+            ];
+        }
+    }
+    base
+}
+
+/// Floor of the slope-shading multiplier: a perfectly vertical cliff face
+/// keeps this fraction of its color; flat ground keeps 100%. Kept gentle --
+/// this is relief legibility (a cheap baked ambient-occlusion stand-in for
+/// noon lighting, when sun-facing and steep faces would otherwise read
+/// identically), not dramatic terrain shadowing.
+pub const SLOPE_SHADE_FLOOR: f32 = 0.65;
+
+/// Slope-shading multiplier for a land face: 1.0 where the face normal is
+/// radial (flat ground), falling linearly to `SLOPE_SHADE_FLOOR` as the
+/// face tips vertical. Applied at BUILD time to the face color (both mesh
+/// paths), so it costs nothing per frame. Water faces have radial normals,
+/// so this is an identity for them by construction.
+pub fn slope_shade(normal: Vec3, radial: Vec3) -> f32 {
+    let d = normal.dot(radial).clamp(0.0, 1.0);
+    SLOPE_SHADE_FLOOR + (1.0 - SLOPE_SHADE_FLOOR) * d
+}
+
+/// Pack an RGB color + the water flag into the 2-float UV channel so the
+/// standard PBR vertex layout can carry per-face colors without a new
+/// pipeline.
+///
+/// `uv.x = water*65536 + round(r*255)*256 + round(g*255)` -- an exact
+/// integer (<= 131071, well inside f32's 2^24 exact-integer range).
+/// `uv.y = b` as a plain float. Because every corner of a flat-shaded face
+/// stores the SAME value, linear interpolation across the triangle is a
+/// constant and the packed integer survives to the fragment shader
+/// (material type 12 decodes it; the water bit gates the ocean sun glint).
+pub fn pack_color_to_uv(c: [f32; 3], water: bool) -> [f32; 2] {
     let r = (c[0].clamp(0.0, 1.0) * 255.0).round();
     let g = (c[1].clamp(0.0, 1.0) * 255.0).round();
-    [r * 256.0 + g, c[2].clamp(0.0, 1.0)]
+    let w = if water { 65536.0 } else { 0.0 };
+    [w + r * 256.0 + g, c[2].clamp(0.0, 1.0)]
 }
 
 /// Rust mirror of the WGSL decode in pbr_simple.wgsl (material type 12).
 /// Exists so a unit test locks the round-trip; keep both in sync.
-pub fn unpack_uv_to_color(uv: [f32; 2]) -> [f32; 3] {
+pub fn unpack_uv_to_color(uv: [f32; 2]) -> ([f32; 3], bool) {
     let packed = uv[0].round().max(0.0) as u32;
-    [
-        ((packed >> 8) & 255) as f32 / 255.0,
-        (packed & 255) as f32 / 255.0,
-        uv[1],
-    ]
+    (
+        [
+            ((packed >> 8) & 255) as f32 / 255.0,
+            (packed & 255) as f32 / 255.0,
+            uv[1],
+        ],
+        (packed & 0x1_0000) != 0,
+    )
 }
 
 /// Build the flat-shaded procedural surface mesh for a planet at the given
@@ -240,9 +324,14 @@ pub fn unpack_uv_to_color(uv: [f32; 2]) -> [f32; 3] {
 /// vertex elevations from data instead of noise (the caller pairs it with a
 /// def whose `sea_level` was overridden to the grid's true 0 m position --
 /// see `lib.rs::reload_planet_defs`). None keeps the seeded-noise path.
+///
+/// `albedo`: pass the planet's loaded real-color grid to sample face colors
+/// from imagery instead of the elevation-band classifier (see
+/// `surface_color`). None keeps the classifier path.
 pub fn build_surface_mesh(
     def: &PlanetDef,
     heightmap: Option<&PlanetHeightmap>,
+    albedo: Option<&PlanetAlbedo>,
     level: u32,
 ) -> SurfaceMeshData {
     let mut ico = Icosphere::new();
@@ -278,12 +367,14 @@ pub fn build_surface_mesh(
         let mean_e = (elev[i0] + elev[i1] + elev[i2]) / 3.0;
         let centroid_dir =
             (ico.vertices[i0] + ico.vertices[i1] + ico.vertices[i2]).normalize_or_zero();
-        // On a unit sphere, y IS sin(latitude).
-        let color = classify_color(def, mean_e, centroid_dir.y.abs());
+        // Real imagery when the def ships an albedo grid (Earth), the
+        // elevation-band classifier otherwise (every other planet).
+        let color = surface_color(def, albedo, centroid_dir, mean_e);
 
         let underwater = def.has_water && mean_e < sea;
         if underwater {
             // Smooth ocean: per-corner spherical normals, undisplaced radius.
+            // water: true is what turns on the shader's sun glint.
             for &i in &[i0, i1, i2] {
                 let n = ico.vertices[i].normalize_or_zero();
                 indices.push(vertices.len() as u32);
@@ -291,6 +382,7 @@ pub fn build_surface_mesh(
                     position: (pos[i]).to_array(),
                     normal: n.to_array(),
                     color,
+                    water: true,
                 });
             }
         } else {
@@ -301,12 +393,17 @@ pub fn build_surface_mesh(
                 // spherical direction (never render an inside-out face).
                 n = centroid_dir;
             }
+            // Slope shading: steeper faces darken slightly so relief stays
+            // readable even when the sun is overhead (see slope_shade).
+            let shade = slope_shade(n, centroid_dir);
+            let color = [color[0] * shade, color[1] * shade, color[2] * shade];
             for &p in &[p0, p1, p2] {
                 indices.push(vertices.len() as u32);
                 vertices.push(SurfaceVertexData {
                     position: p.to_array(),
                     normal: n.to_array(),
                     color,
+                    water: false,
                 });
             }
         }
@@ -364,7 +461,7 @@ mod tests {
     #[test]
     fn surface_mesh_is_flat_shaded_with_expected_counts() {
         let def = water_world(42);
-        let data = build_surface_mesh(&def, None, 2);
+        let data = build_surface_mesh(&def, None, None, 2);
         let faces = Icosphere::face_count_at_level(2) as usize;
         assert_eq!(data.vertices.len(), faces * 3);
         assert_eq!(data.indices.len(), faces * 3);
@@ -390,8 +487,8 @@ mod tests {
             assert!((0.0..=1.0).contains(&ea), "elevation out of range: {ea}");
         }
         // And the full mesh is byte-identical across two builds.
-        let m1 = build_surface_mesh(&def, None, 1);
-        let m2 = build_surface_mesh(&def, None, 1);
+        let m1 = build_surface_mesh(&def, None, None, 1);
+        let m2 = build_surface_mesh(&def, None, None, 1);
         assert_eq!(m1.vertices, m2.vertices);
         assert_eq!(m1.indices, m2.indices);
     }
@@ -415,7 +512,7 @@ mod tests {
     #[test]
     fn ocean_stays_at_sphere_radius_land_within_relief() {
         let def = water_world(42);
-        let data = build_surface_mesh(&def, None, 3);
+        let data = build_surface_mesh(&def, None, None, 3);
         let max_r = 1.0 + def.surface_relief + 1e-4;
         for v in &data.vertices {
             let r = Vec3::from_array(v.position).length();
@@ -437,7 +534,7 @@ mod tests {
     #[test]
     fn dry_world_has_real_depressions() {
         let def = dry_world(7);
-        let data = build_surface_mesh(&def, None, 3);
+        let data = build_surface_mesh(&def, None, None, 3);
         let below = data
             .vertices
             .iter()
@@ -529,7 +626,7 @@ mod tests {
         // EVERY vertex must sit at the same displaced radius, something the
         // fractal noise could never produce.
         let flat = synth_heightmap(4, 2, -1000.0, 1000.0, &[1000.0; 8]);
-        let mesh = build_surface_mesh(&def, Some(&flat), 2);
+        let mesh = build_surface_mesh(&def, Some(&flat), None, 2);
         let expected = displaced_radius(&def, 1.0);
         assert!(expected > 1.0, "all-land grid must displace outward");
         for v in &mesh.vertices {
@@ -541,12 +638,12 @@ mod tests {
         }
 
         // And the data path must actually differ from the noise path.
-        let noise_mesh = build_surface_mesh(&def, None, 2);
+        let noise_mesh = build_surface_mesh(&def, None, None, 2);
         assert_ne!(mesh.vertices, noise_mesh.vertices);
 
         // Determinism holds for the heightmap path too (mesh cache +
         // multiplayer re-derivation both rely on it).
-        let again = build_surface_mesh(&def, Some(&flat), 2);
+        let again = build_surface_mesh(&def, Some(&flat), None, 2);
         assert_eq!(mesh.vertices, again.vertices);
         assert_eq!(mesh.indices, again.indices);
     }
@@ -559,7 +656,7 @@ mod tests {
         // vertex on the unit sphere, every face ocean-colored (no land
         // bands can appear from interpolation).
         let ocean = synth_heightmap(4, 2, -1000.0, 1000.0, &[-500.0; 8]);
-        let mesh = build_surface_mesh(&def, Some(&ocean), 2);
+        let mesh = build_surface_mesh(&def, Some(&ocean), None, 2);
         for v in &mesh.vertices {
             let r = Vec3::from_array(v.position).length();
             assert!((r - 1.0).abs() < 1e-4, "ocean vertex off the sphere: {r}");
@@ -592,19 +689,192 @@ mod tests {
             [0.93, 0.95, 0.97],
             [0.1, 0.3, 0.6],
         ];
-        for c in samples {
-            let uv = pack_color_to_uv(c);
-            let back = unpack_uv_to_color(uv);
-            for i in 0..3 {
+        for water in [false, true] {
+            for c in samples {
+                let uv = pack_color_to_uv(c, water);
+                let (back, back_water) = unpack_uv_to_color(uv);
+                for i in 0..3 {
+                    assert!(
+                        (back[i] - c[i]).abs() <= 1.0 / 255.0 + 1e-6,
+                        "channel {i} of {c:?} round-tripped to {back:?}"
+                    );
+                }
+                // The water flag must survive the packing exactly.
+                assert_eq!(back_water, water, "water flag lost for {c:?}");
+                // The packed x component must be an exact integer
+                // (interpolation safety depends on it) and stay well inside
+                // f32's 2^24 exact-integer range.
+                assert_eq!(uv[0].fract(), 0.0);
+                assert!(uv[0] <= 131071.0);
+            }
+        }
+    }
+
+    /// The mesh builder's water flag must match the geometry rule exactly:
+    /// water = has_water AND face below sea level. This is the contract the
+    /// shader's ocean sun glint relies on.
+    #[test]
+    fn water_flag_matches_below_sea_rule() {
+        let mut def = water_world(42);
+        def.sea_level = 0.5;
+        // All-ocean grid: every vertex flagged water.
+        let ocean = synth_heightmap(4, 2, -1000.0, 1000.0, &[-500.0; 8]);
+        let mesh = build_surface_mesh(&def, Some(&ocean), None, 2);
+        assert!(mesh.vertices.iter().all(|v| v.water), "ocean world must flag all water");
+        // All-land grid: none flagged.
+        let land = synth_heightmap(4, 2, -1000.0, 1000.0, &[900.0; 8]);
+        let mesh = build_surface_mesh(&def, Some(&land), None, 2);
+        assert!(mesh.vertices.iter().all(|v| !v.water), "land world must flag no water");
+        // Dry world: below-sea basins are NOT water (no glint on the Moon).
+        let dry = dry_world(7);
+        let mesh = build_surface_mesh(&dry, None, None, 2);
+        assert!(mesh.vertices.iter().all(|v| !v.water), "waterless world must flag no water");
+    }
+
+    #[test]
+    fn slope_shade_flat_full_steep_darker() {
+        let radial = Vec3::Y;
+        // Flat ground (normal == radial): identity.
+        assert!((slope_shade(radial, radial) - 1.0).abs() < 1e-6);
+        // Vertical cliff (normal perpendicular to radial): the floor.
+        assert!((slope_shade(Vec3::X, radial) - SLOPE_SHADE_FLOOR).abs() < 1e-6);
+        // Monotonic in between, and never below the floor / above 1.
+        let mid = slope_shade(Vec3::new(0.707, 0.707, 0.0), radial);
+        assert!(mid > SLOPE_SHADE_FLOOR && mid < 1.0);
+        // Degenerate inputs (inward normal) clamp instead of exploding.
+        let inward = slope_shade(-radial, radial);
+        assert!((inward - SLOPE_SHADE_FLOOR).abs() < 1e-6);
+    }
+
+    /// Mesh-level color contract: every LAND face's stored color must be
+    /// exactly surface_color(...) * slope_shade(...), recomputed here from
+    /// the same icosphere the builder walks. Locks the whole color pipeline
+    /// (classifier/albedo choice + slope shading) in one place, and proves
+    /// slope shading actually engages (some face must be visibly shaded).
+    #[test]
+    fn land_face_colors_are_surface_color_times_slope_shade() {
+        let mut def = water_world(42);
+        def.sea_level = 0.2;
+        def.surface_relief = 0.3; // steep enough that shading is exercised
+        // A tall thin ridge on an otherwise flat land world.
+        let mut meters = vec![0.0f32; 64 * 32];
+        for (i, m) in meters.iter_mut().enumerate() {
+            if i % 64 == 32 {
+                *m = 1000.0;
+            }
+        }
+        let hm = synth_heightmap(64, 32, -1000.0, 1000.0, &meters);
+        let level = 4;
+        let mesh = build_surface_mesh(&def, Some(&hm), None, level);
+
+        // Mirror the builder's per-face derivation.
+        let mut ico = Icosphere::new();
+        ico.subdivide_n(level);
+        let elev: Vec<f32> = ico.vertices.iter().map(|v| hm.normalized_at(*v)).collect();
+        let mut any_shaded = false;
+        for (fi, face) in ico.faces.iter().enumerate() {
+            let (i0, i1, i2) = (face.v0 as usize, face.v1 as usize, face.v2 as usize);
+            let mean_e = (elev[i0] + elev[i1] + elev[i2]) / 3.0;
+            if def.has_water && mean_e < def.sea_level {
+                continue; // ocean faces: unshaded, covered by other tests
+            }
+            let centroid_dir =
+                (ico.vertices[i0] + ico.vertices[i1] + ico.vertices[i2]).normalize_or_zero();
+            let stored = &mesh.vertices[fi * 3];
+            let n = Vec3::from_array(stored.normal);
+            let shade = slope_shade(n, centroid_dir);
+            let base = surface_color(&def, None, centroid_dir, mean_e);
+            for ch in 0..3 {
                 assert!(
-                    (back[i] - c[i]).abs() <= 1.0 / 255.0 + 1e-6,
-                    "channel {i} of {c:?} round-tripped to {back:?}"
+                    (stored.color[ch] - base[ch] * shade).abs() < 1e-6,
+                    "face {fi} channel {ch}: stored {} != base {} * shade {shade}",
+                    stored.color[ch],
+                    base[ch]
                 );
             }
-            // The packed x component must be an exact integer (interpolation
-            // safety depends on it).
-            assert_eq!(uv[0].fract(), 0.0);
-            assert!(uv[0] <= 65535.0);
+            if shade < 0.99 {
+                any_shaded = true;
+            }
         }
+        assert!(any_shaded, "no face was meaningfully slope-shaded; ridge too gentle?");
+    }
+
+    /// Build an in-memory PlanetAlbedo through its public byte format
+    /// (same layout scripts/build-earth-albedo.js writes): a uniform-color
+    /// grid so face colors are exactly predictable.
+    fn synth_albedo_uniform(rgb_bytes: [u8; 3]) -> crate::terrain::planet_albedo::PlanetAlbedo {
+        use crate::terrain::planet_albedo::{PlanetAlbedo, ALBEDO_MAGIC};
+        let (w, h) = (4u32, 2u32);
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(ALBEDO_MAGIC);
+        bytes.extend_from_slice(&w.to_le_bytes());
+        bytes.extend_from_slice(&h.to_le_bytes());
+        for _ in 0..(w * h) {
+            bytes.extend_from_slice(&rgb_bytes);
+        }
+        PlanetAlbedo::from_bytes(&bytes).expect("synthetic albedo parses")
+    }
+
+    #[test]
+    fn surface_color_uses_albedo_when_present() {
+        use crate::terrain::planet_albedo::srgb_byte_to_linear;
+        let def = water_world(42);
+        let al = synth_albedo_uniform([200, 100, 50]);
+        let expect = [
+            srgb_byte_to_linear(200),
+            srgb_byte_to_linear(100),
+            srgb_byte_to_linear(50),
+        ];
+        // Equatorial land face: pure imagery, no classifier bands.
+        let c = surface_color(&def, Some(&al), Vec3::new(1.0, 0.0, 0.0), def.sea_level + 0.1);
+        for i in 0..3 {
+            assert!((c[i] - expect[i]).abs() < 1e-5, "albedo not passed through: {c:?}");
+        }
+        // Equatorial OCEAN face: also pure imagery (bathymetry shading is
+        // baked into the grid; no classifier depth-darkening on top).
+        let c = surface_color(&def, Some(&al), Vec3::new(1.0, 0.0, 0.0), 0.1);
+        for i in 0..3 {
+            assert!((c[i] - expect[i]).abs() < 1e-5, "ocean albedo modified: {c:?}");
+        }
+        // None falls back to the classifier exactly.
+        let c = surface_color(&def, None, Vec3::new(1.0, 0.0, 0.0), def.sea_level + 0.1);
+        assert_eq!(c, classify_color(&def, def.sea_level + 0.1, 0.0));
+    }
+
+    #[test]
+    fn surface_color_layers_sea_ice_over_polar_ocean_only() {
+        let mut def = water_world(42);
+        def.polar_cap_latitude = 0.88;
+        let al = synth_albedo_uniform([10, 30, 80]); // dark ocean blue
+        let cap = rgb(def.cap_color);
+        // Deep polar ocean, well inside the cap band: full cap color.
+        let polar_dir = Vec3::new(0.0, 0.99, 0.14).normalize();
+        let c = surface_color(&def, Some(&al), polar_dir, 0.1);
+        for i in 0..3 {
+            assert!((c[i] - cap[i]).abs() < 1e-5, "polar ocean not iced: {c:?}");
+        }
+        // Polar LAND keeps the imagery (Blue Marble already paints land
+        // snow; re-capping would white out what the photo gets right).
+        let c_land = surface_color(&def, Some(&al), polar_dir, def.sea_level + 0.1);
+        assert!(
+            (c_land[2] - crate::terrain::planet_albedo::srgb_byte_to_linear(80)).abs() < 1e-5,
+            "polar land was capped over imagery: {c_land:?}"
+        );
+        // Mid-latitude ocean: untouched imagery.
+        let mid_dir = Vec3::new(1.0, 0.5, 0.0).normalize();
+        let c_mid = surface_color(&def, Some(&al), mid_dir, 0.1);
+        assert!(
+            (c_mid[2] - crate::terrain::planet_albedo::srgb_byte_to_linear(80)).abs() < 1e-5,
+            "mid-latitude ocean was iced: {c_mid:?}"
+        );
+        // Inside the blend band: strictly between imagery and cap.
+        let sin_edge = def.polar_cap_latitude + SEA_ICE_BLEND_BAND * 0.5;
+        let edge_dir = Vec3::new((1.0 - sin_edge * sin_edge).sqrt(), sin_edge, 0.0);
+        let c_edge = surface_color(&def, Some(&al), edge_dir, 0.1);
+        assert!(c_edge[0] > c_mid[0] && c_edge[0] < cap[0], "no smooth ice edge: {c_edge:?}");
+        // polar_cap_latitude > 1.0 disables the layer entirely.
+        def.polar_cap_latitude = 2.0;
+        let c_off = surface_color(&def, Some(&al), polar_dir, 0.1);
+        assert!((c_off[0] - c_mid[0]).abs() < 1e-5, "disabled caps still iced: {c_off:?}");
     }
 }

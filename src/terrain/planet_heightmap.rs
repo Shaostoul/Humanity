@@ -35,6 +35,63 @@ use std::path::Path;
 /// Magic bytes at the start of every HumanityOS planet heightmap file.
 pub const HEIGHTMAP_MAGIC: &[u8; 7] = b"HOSHGT1";
 
+// ── Shared lat/lon grid sampling math ──
+// Both planet grid files (elevation "HOSHGT1" here, color "HOSALB1" in
+// `planet_albedo`) use the SAME registration: cell-centered equirectangular,
+// row 0 north, col 0 at lon -180, longitude wrapping, latitude clamping.
+// The direction->lat/lon handedness and the bilinear tap derivation live
+// here ONCE so the two samplers cannot drift (a drift would misalign
+// Earth's colors against its real elevation) -- a shared-code unit test in
+// planet_albedo locks the agreement.
+
+/// Unit-sphere direction -> (lat, lon) in degrees.
+///
+/// Coordinate convention (matches the icosphere/renderer): +Y is the north
+/// pole, so sin(latitude) = y. Longitude = atan2(-z, x): the -z makes EAST
+/// point to a viewer's right when looking at the sphere from outside with
+/// north up (right-handed Y-up space), so the continents are not
+/// mirror-flipped. The absolute lon-0 meridian orientation is arbitrary
+/// (the planet visibly rotates anyway); the handedness is not.
+#[inline]
+pub fn dir_to_latlon_deg(unit: Vec3) -> (f32, f32) {
+    let lat = unit.y.clamp(-1.0, 1.0).asin().to_degrees();
+    let lon = (-unit.z).atan2(unit.x).to_degrees();
+    (lat, lon)
+}
+
+/// One bilinear sample's integer/fractional decomposition on a
+/// cell-centered equirectangular grid. `x0`/`y0` are RAW (possibly out of
+/// range) floor coordinates; the per-grid accessor applies longitude wrap
+/// (x) and latitude clamp (y), so the caller can pass floor()+1 neighbors
+/// without its own edge handling.
+#[derive(Debug, Clone, Copy)]
+pub struct BilinearTap {
+    pub x0: i64,
+    pub y0: i64,
+    /// Fraction toward x0+1 (east neighbor).
+    pub tx: f32,
+    /// Fraction toward y0+1 (south neighbor).
+    pub ty: f32,
+}
+
+/// Continuous grid coordinates of a lat/lon on a width x height
+/// cell-centered grid: cell centers sit at (index + 0.5) cell-widths from
+/// the grid edge, so subtract 0.5 to make integer coordinates land exactly
+/// on cell centers.
+#[inline]
+pub fn latlon_bilinear_tap(lat_deg: f32, lon_deg: f32, width: u32, height: u32) -> BilinearTap {
+    let fx = (lon_deg + 180.0) / 360.0 * width as f32 - 0.5;
+    let fy = (90.0 - lat_deg) / 180.0 * height as f32 - 0.5;
+    let x0 = fx.floor();
+    let y0 = fy.floor();
+    BilinearTap {
+        x0: x0 as i64,
+        y0: y0 as i64,
+        tx: fx - x0,
+        ty: fy - y0,
+    }
+}
+
 /// Header size in bytes: magic(7) + width(4) + height(4) + min(4) + max(4).
 const HEADER_LEN: usize = 23;
 
@@ -126,37 +183,24 @@ impl PlanetHeightmap {
     /// Bilinear elevation (meters) at a geographic coordinate.
     /// lat in degrees (+north), lon in degrees (+east); any lon accepted.
     pub fn sample_meters_latlon(&self, lat_deg: f32, lon_deg: f32) -> f32 {
-        // Continuous grid coordinates of this lat/lon: cell centers sit at
-        // (index + 0.5) cell-widths from the grid edge, so subtract 0.5 to
-        // make integer coordinates land exactly on cell centers.
-        let fx = (lon_deg + 180.0) / 360.0 * self.width as f32 - 0.5;
-        let fy = (90.0 - lat_deg) / 180.0 * self.height as f32 - 0.5;
-        let x0 = fx.floor();
-        let y0 = fy.floor();
-        let tx = fx - x0;
-        let ty = fy - y0;
-        let (x0, y0) = (x0 as i64, y0 as i64);
+        // Shared tap derivation (see the module-shared helpers above).
+        let t = latlon_bilinear_tap(lat_deg, lon_deg, self.width, self.height);
         // Four surrounding cell centers; grid_meters handles wrap/clamp.
-        let h00 = self.grid_meters(x0, y0);
-        let h10 = self.grid_meters(x0 + 1, y0);
-        let h01 = self.grid_meters(x0, y0 + 1);
-        let h11 = self.grid_meters(x0 + 1, y0 + 1);
-        let top = h00 + (h10 - h00) * tx;
-        let bot = h01 + (h11 - h01) * tx;
-        top + (bot - top) * ty
+        let h00 = self.grid_meters(t.x0, t.y0);
+        let h10 = self.grid_meters(t.x0 + 1, t.y0);
+        let h01 = self.grid_meters(t.x0, t.y0 + 1);
+        let h11 = self.grid_meters(t.x0 + 1, t.y0 + 1);
+        let top = h00 + (h10 - h00) * t.tx;
+        let bot = h01 + (h11 - h01) * t.tx;
+        top + (bot - top) * t.ty
     }
 
-    /// Bilinear elevation (meters) at a unit-sphere direction.
-    ///
-    /// Coordinate convention (matches the icosphere/renderer): +Y is the
-    /// north pole, so sin(latitude) = y. Longitude = atan2(-z, x): the -z
-    /// makes EAST point to a viewer's right when looking at the sphere from
-    /// outside with north up (right-handed Y-up space), so the continents
-    /// are not mirror-flipped. The absolute lon-0 meridian orientation is
-    /// arbitrary (the planet visibly rotates anyway); the handedness is not.
+    /// Bilinear elevation (meters) at a unit-sphere direction, through the
+    /// shared `dir_to_latlon_deg` handedness (see its doc for the
+    /// convention; `planet_albedo` routes through the same function so
+    /// color and elevation can never mirror-flip apart).
     pub fn sample_meters(&self, unit: Vec3) -> f32 {
-        let lat = unit.y.clamp(-1.0, 1.0).asin().to_degrees();
-        let lon = (-unit.z).atan2(unit.x).to_degrees();
+        let (lat, lon) = dir_to_latlon_deg(unit);
         self.sample_meters_latlon(lat, lon)
     }
 

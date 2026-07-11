@@ -31,6 +31,15 @@
     // overrides it with the grid's true 0 m position (~0.629 for the fixed
     // -11000..+6500 m quantization window) so the real coastline is exact.
     heightmap: Some("planets/earth_heightmap.bin"),
+    // Real surface colors (2026-07-11): 4096x2048 RGB grid built from NASA
+    // Blue Marble Next Generation (August, topo+bathy variant; public
+    // domain) by scripts/build-earth-albedo.js. With an albedo present the
+    // band palette below (land/shore/highland/mountain colors) is BYPASSED:
+    // face colors come from the imagery, with only polar SEA ICE layered on
+    // from cap_color (the imagery has land snow baked in but shows ice-free
+    // oceans to the poles). The palette stays as the fallback if this file
+    // goes missing.
+    albedo: Some("planets/earth_albedo.bin"),
     // Kept as documentation + fallback if the heightmap file is missing
     // (the loader then reverts to procedural noise and uses this value).
     sea_level: 0.55,
