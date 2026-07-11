@@ -640,6 +640,12 @@
       "date": "2026-07-11",
       "decision": "v0.811.0/.1: hi-res screenshot capture shipped. Request JSON or Testing-page buttons (Window/4K/8K/custom) render one frame of the current view offscreen at arbitrary size (proportionally clamped to the queried device max texture dim), clean scene without HUD, PNG self-verifies dims before ok:true. Merged from agent branch (only Cargo.lock conflicted); independently verified on main: 992 lib tests, relay check, six lints, boot + real 3840x2160 capture decoded pixel-exact.",
       "why": "Operator plays 1440p/120 but wants 4K+ stills for sharing/wallpapers without switching display modes. Agent proved 4K+8K on hardware; orchestrator re-proved 4K post-merge per the verify-agent-work norm. Bloom was NOT lost in the offscreen path: it is not in the live frame path at all (bloom_intensity defaults 0, sun corona is emissive shells)."
+    },
+    {
+      "id": 17,
+      "date": "2026-07-11",
+      "decision": "v0.812.0/.1: cloud layer increment 1 merged + shipped. Shader type 15 cloud shell at 1.008x radius composited surface->clouds->atmosphere; triplanar value-noise field in the planet local frame, two octave sets drifting as rigid rotations (real weather morph); coverage contrast-stretched to a true sky fraction (earth.ron 0.55, Mars none); sun-lit with one-tap self-shadow + HG silver lining + dark night side; Settings > Graphics > Planets toggle; time rides camera.sun_color.w pad (no uniform layout change). Merge reconciliation: kept BOTH fresh-install fixes (my serde-defaults Default impl + the agent load_if_exists guard - they compose: guard for first boots, Default for corrupt-config/test paths) and threaded the new render_celestial_onto time_s arg through the v0.811 hi-res capture path so captures freeze the live cloud clock.",
+      "why": "Two agents independently hit the same fresh-install derived-Default bug within hours - strong signal the fix mattered. Increment 2 (raymarched volumetrics + ground shadows) has a documented reuse contract in the WGSL header and renderer::clouds: density(p) = alpha(field(dir,t,seed),coverage) * altitude_envelope(r). 1001 lib tests, boot-verified with cloud deck log line + 4K capture pixel-exact."
     }
   ],
   "active_scopes_to_avoid": [
