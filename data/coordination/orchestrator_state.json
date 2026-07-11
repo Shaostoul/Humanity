@@ -593,6 +593,13 @@
       "decision": "v0.803 glow calibration: ROOT CAUSE of way-too-bright was a missing linearization - the bake tunes DISPLAY-referred values but the shader wrote them as LINEAR into the sRGB surface, so the hardware re-applied the display transform (0.085 linear renders as ~33% gray; the intensity slider seemed dead - operator: even 0.1 looked bright). Fix: pow(c, 2.2) in galaxy_glow.wgsl + the embedded fallback. Plus a delicate-veil rebake (FLOOR p60->p70, TONE_GAMMA 1.25->1.6, HALO_MIX 0.40->0.22, BULGE_GAIN 3->2, HEADROOM 0.85->0.6): histogram now 87.9% of texels under 4% (true black), band 3.6%, spine 1.4%, core 0.5%, peak 60%, peak 1.02 deg from Sgr A*. Session crashed between build-game and the stamp; recovered, v0.803.1 stamped + boot-verified.",
       "why": "Operator field reports: first the glow read as bright smoke (not off-world), then the killer clue - 0.1 intensity still bright, which no bake tuning explains, only a transfer-function bug. Real dark-site Milky Way is a delicate veil; the reference photo is a long exposure.",
       "verification": "v0.803.1 exe boot: 0 PANIC, glow lines; PNG histogram; naga-clean shaders; v0.803.0 shipped pre-crash with full battery"
+    },
+    {
+      "id": 10,
+      "date": "2026-07-11",
+      "decision": "v0.803.2 GAIA CENSUS GLOW (star rung 3a): the glow texture now bakes from the full Gaia DR3 census - two ESA TAP aggregations over all 1,811,709,771 sources (count + G/BP/RP flux sums per HEALPix-8 cell, 786,432 equal-area cells, ~20 MB CSVs in the session scratchpad). build-galaxy-glow.js --gaia mode: ang2pix_nest lookup per texel (anchors: galactic center 8x, LMC 133x, SMC 116x median density - mapping proven), log-density luminance (dust rifts appear because dust blocks faint-star counts), per-cell BP-RP reddening color, no synthetic bulge (the census sees it). Equirect inspected: band arcs correctly, Great Rift visible, Magellanic Clouds present as real objects.",
+      "why": "Operator north star: the in-game Milky Way must look like his real reference photo. The dust rifts were THE missing feature a magnitude-limited catalog cannot show. Remaining rungs: 3b G<14 ~25M point catalog (grain inside the band), bloom halos on brightest stars, band-continuity/floor tuning per operator field judgment (he is iterating the intensity slider live).",
+      "verification": "anchors asserted in-script; texture visually inspected (equirect + in-game sliver); PNG 465 KB; no Rust changes (script + data only)"
     }
   ],
   "active_scopes_to_avoid": [

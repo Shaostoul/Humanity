@@ -355,7 +355,180 @@ function writePng(rgb /* Uint8Array W*H*3 */) {
   ]);
 }
 
+// ── GAIA DENSITY MODE (star ladder rung 3a, v0.804) ─────────────────────────
+// `node scripts/build-galaxy-glow.js --gaia <color_hpx8.csv>` bakes the glow
+// from the REAL Gaia DR3 census instead of integrating catalog stars: one CSV
+// row per HEALPix level-8 cell (786,432 equal-area cells, ~0.229 deg across)
+// carrying the star COUNT and the summed G/BP/RP fluxes of ALL 1.81 billion
+// sources (aggregated server-side by ESA's TAP service; the query is in the
+// journal + docs). Why counts, not flux: interstellar DUST blocks the faint
+// distant stars that dominate the count, so the count map carries the dark
+// rifts (the Great Rift!) that a magnitude-limited catalog bake cannot see -
+// this is the "make it look like the real photo" step. Color: per-cell mean
+// BP-RP from the flux sums (reddened cells at dust edges come out brown for
+// free). HEALPix cells are equal-area BY CONSTRUCTION, so counts are already
+// true density - no solid-angle normalization step exists in this path.
+// Data credit: ESA/Gaia/DPAC (facts/measurements; the derived texture is
+// project CC0). The synthetic ATHYG-mode bulge is OFF here (BULGE_GAIN
+// applies only to the star-integration path): the census sees the bulge.
+const GAIA_NSIDE = 256; // healpix level 8 (source_id >> 43)
+
+/** Equatorial direction (theta = colatitude from +z, phi in [0,2pi)) to a
+ *  NESTED HEALPix index. The standard HEALPix ang2pix_nest algorithm
+ *  (Gorski et al. 2005), verified below against unmistakable sky anchors
+ *  (galactic center, LMC, SMC - enormous density spikes; a convention slip
+ *  would miss them by whole faces). */
+function ang2pixNest(nside, theta, phi) {
+  const z = Math.cos(theta);
+  const za = Math.abs(z);
+  const tt = ((phi % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI) / (Math.PI / 2); // [0,4)
+  let face, ix, iy;
+  if (za <= 2 / 3) {
+    // Equatorial region.
+    const temp1 = nside * (0.5 + tt);
+    const temp2 = nside * (z * 0.75);
+    const jp = Math.floor(temp1 - temp2); // ascending edge line index
+    const jm = Math.floor(temp1 + temp2); // descending edge line index
+    const ifp = Math.floor(jp / nside);   // in {0..4}
+    const ifm = Math.floor(jm / nside);
+    if (ifp === ifm) face = (ifp & 3) + 4;
+    else if (ifp < ifm) face = ifp & 3;
+    else face = (ifm & 3) + 8;
+    ix = jm & (nside - 1);
+    iy = nside - (jp & (nside - 1)) - 1;
+  } else {
+    // Polar caps.
+    const ntt = Math.min(3, Math.floor(tt));
+    const tp = tt - ntt;
+    const tmp = nside * Math.sqrt(3 * (1 - za));
+    let jp = Math.floor(tp * tmp);
+    let jm = Math.floor((1 - tp) * tmp);
+    jp = Math.min(jp, nside - 1);
+    jm = Math.min(jm, nside - 1);
+    if (z >= 0) {
+      face = ntt;
+      ix = nside - jm - 1;
+      iy = nside - jp - 1;
+    } else {
+      face = ntt + 8;
+      ix = jp;
+      iy = jm;
+    }
+  }
+  // Bit-interleave ix (even bits) and iy (odd bits): nside 256 -> 8 bits each.
+  let pix = 0;
+  for (let b = 0; b < 8; b++) {
+    pix |= ((ix >> b) & 1) << (2 * b);
+    pix |= ((iy >> b) & 1) << (2 * b + 1);
+  }
+  return face * nside * nside + pix;
+}
+
+/** Mean per-cell BP-RP color index -> the star pipeline's B-V-like domain.
+ *  BP-RP for normal stars spans ~-0.5..4 (reddening pushes redder); an
+ *  empirical B-V ~ 0.85*(BP-RP) - 0.1 linearization is plenty for a GLOW
+ *  hue - ciToRgb clamps to [-0.4, 2.0] anyway. */
+function bpRpToCi(bpf, rpf) {
+  if (!(bpf > 0) || !(rpf > 0)) return 0.65; // no color data: neutral warm
+  const bpRp = -2.5 * Math.log10(bpf / rpf);
+  return 0.85 * bpRp - 0.1;
+}
+
+function bakeGaia(csvPath) {
+  const t0 = Date.now();
+  const lines = fs.readFileSync(csvPath, 'utf8').trim().split('\n');
+  const ncell = 12 * GAIA_NSIDE * GAIA_NSIDE;
+  const cellN = new Float64Array(ncell);
+  const cellBp = new Float64Array(ncell);
+  const cellRp = new Float64Array(ncell);
+  for (let i = 1; i < lines.length; i++) {
+    const f = lines[i].split(',');
+    const h = Number(f[0]);
+    if (!(h >= 0 && h < ncell)) continue;
+    cellN[h] = Number(f[1]);
+    cellBp[h] = Number(f[3]) || 0;
+    cellRp[h] = Number(f[4]) || 0;
+  }
+  console.log(`gaia: ${lines.length - 1} cells loaded`);
+
+  // Anchors: these sightlines are enormous density spikes in the real
+  // census. If ang2pixNest had a convention slip they would land on
+  // ordinary cells and this bake would be beautifully wrong forever.
+  const median = (() => {
+    const s = Array.from(cellN.filter((v) => v > 0)).sort((a, b) => a - b);
+    return s[Math.floor(s.length / 2)];
+  })();
+  for (const [name, ra, dec, minRatio] of [
+    ['galactic center', 266.417, -29.008, 5],
+    ['LMC', 80.894, -69.756, 10],
+    ['SMC', 13.187, -72.829, 5],
+  ]) {
+    const [dx, dy, dz] = dirFromRaDec(ra, dec);
+    const h = ang2pixNest(GAIA_NSIDE, Math.acos(dz), Math.atan2(dy, dx));
+    const ratio = cellN[h] / median;
+    if (!(ratio >= minRatio)) {
+      throw new Error(`gaia anchor FAILED: ${name} cell density ${cellN[h]} is only ${ratio.toFixed(1)}x the median (need >= ${minRatio}x) - healpix mapping is wrong`);
+    }
+    console.log(`anchor ${name}: ${ratio.toFixed(0)}x median density`);
+  }
+
+  // Per-texel lookup: log-compressed density as luminance, per-cell BP-RP
+  // color as hue. Percentile normalization keeps the delicate-veil targets
+  // from the v0.803 calibration: floor at p35 (high-latitude sky = black),
+  // full scale at p99.9 (the core, LMC).
+  const accR = new Float64Array(W * H);
+  const accG = new Float64Array(W * H);
+  const accB = new Float64Array(W * H);
+  const logN = new Float64Array(W * H);
+  for (let py = 0; py < H; py++) {
+    const v = (py + 0.5) / H;
+    for (let px = 0; px < W; px++) {
+      const u = (px + 0.5) / W;
+      const [dx, dy, dz] = uvToDir(u, v);
+      const h = ang2pixNest(GAIA_NSIDE, Math.acos(Math.min(1, Math.max(-1, dz))), Math.atan2(dy, dx));
+      const idx = py * W + px;
+      logN[idx] = Math.log10(1 + cellN[h]);
+      const [r, g, b] = ciToRgb(bpRpToCi(cellBp[h], cellRp[h]));
+      accR[idx] = r; accG[idx] = g; accB[idx] = b;
+    }
+  }
+  // Luminance normalization percentiles.
+  const sorted = Float64Array.from(logN).sort();
+  const pct = (p) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+  const lo = pct(0.35);
+  const hi = pct(0.999);
+  console.log(`gaia luminance: p35 ${lo.toFixed(2)} -> p99.9 ${hi.toFixed(2)} (log10 counts)`);
+  const lum = new Float64Array(W * H);
+  for (let i = 0; i < W * H; i++) {
+    const t = Math.min(1, Math.max(0, (logN[i] - lo) / (hi - lo)));
+    // Gamma 1.5: same delicate-veil intent as the star bake's tone map -
+    // push faint off-band residue toward black, keep the band + rifts.
+    lum[i] = Math.pow(t, 1.5) * HEADROOM;
+  }
+  // Light blur to melt the healpix cell edges (cells ~1.3 texels at 2048).
+  const lumBlurred = gaussianBlur(lum, 1.5);
+  const rgb = new Uint8Array(W * H * 3);
+  for (let i = 0; i < W * H; i++) {
+    rgb[i * 3] = Math.round(255 * Math.min(1, lumBlurred[i] * accR[i]));
+    rgb[i * 3 + 1] = Math.round(255 * Math.min(1, lumBlurred[i] * accG[i]));
+    rgb[i * 3 + 2] = Math.round(255 * Math.min(1, lumBlurred[i] * accB[i]));
+  }
+  writePng(rgb);
+  const kb = (fs.statSync(OUT_PATH).size / 1024).toFixed(0);
+  console.log(`gaia bake: ${OUT_PATH} (${kb} KB) from the 1.81B-source census in ${Date.now() - t0} ms`);
+}
+
 function main() {
+  const gaiaIdx = process.argv.indexOf('--gaia');
+  if (gaiaIdx >= 0) {
+    const csv = process.argv[gaiaIdx + 1];
+    if (!csv || !fs.existsSync(csv)) {
+      console.error('usage: node scripts/build-galaxy-glow.js --gaia <color_hpx8.csv>');
+      process.exit(1);
+    }
+    bakeGaia(csv);
+    return;
+  }
   const t0 = Date.now();
   const srcPath = fs.existsSync(ATHYG_PATH) ? ATHYG_PATH : HYG_PATH;
   const bin = fs.readFileSync(srcPath);
