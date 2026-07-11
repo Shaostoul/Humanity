@@ -303,6 +303,253 @@ fn wood_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return mix(dark, light, ring) + vec3<f32>(grain);
 }
 
+// ── Analytic atmosphere scattering (material type 14, v0.807) ──
+//
+// Single-scattering approximation evaluated per fragment on the oversized
+// atmosphere shell sphere (O'Neil-class: a short numeric march along the
+// view ray with an ANALYTIC Chapman-function optical depth toward the sun,
+// so there is no nested sampling loop and no precomputed LUT). All positions
+// are normalized to SHELL RADII (shell boundary = 1.0) before any math: at
+// planetary magnitudes (1e7..1e11 m) the raw world-space ray-sphere terms
+// would shred f32 precision, while in shell units everything stays O(1e3).
+//
+// Look targets (verify by flying at Earth):
+//  (a) from space: a thin bright blue limb hugging the horizon;
+//  (b) the day side brightens toward the sun and the terminator fades warm
+//      (Mie forward lobe + Rayleigh-reddened sun transmittance);
+//  (c) the night-side atmosphere is nearly invisible (sun transmittance
+//      kills in-scatter; the remaining alpha only darkens, never glows);
+//  (d) from INSIDE the atmosphere: deep blue zenith, pale bright horizon.
+//      The same math handles it -- the ray segment start is clamped to the
+//      camera position whenever the camera is within the shell.
+//
+// Material packing (producer: lib.rs planet_atmo_materials; Rust mirror +
+// unit tests: src/renderer/atmosphere.rs -- keep the constants in sync):
+//   base_color.rgb  relative per-channel scattering strengths (LINEAR, the
+//                   planet RON's atmosphere_color.rgb verbatim). The mapping
+//                   is: per-channel vertical optical depth = rgb * alpha *
+//                   ATMO_TAU_RAYLEIGH, and beta = depth / scale height. So a
+//                   blue-dominant color scatters blue hardest = blue sky +
+//                   warm sunsets (Earth), while a red-dominant color gives a
+//                   butterscotch sky (Mars). Any modded planet just works.
+//   base_color.a    overall density multiplier (atmosphere_color alpha)
+//   params.x        planet radius / shell radius
+//   params.y        density scale height / shell radius
+//   params.z        14.0 (this shader type)
+
+const ATMO_SAMPLES: i32 = 12;
+// Vertical optical depth contributed by a 1.0-strength color channel at
+// density (alpha) 1.0. Earth's real blue-channel Rayleigh depth is ~0.28;
+// earth.ron ships color.b = 1.0, alpha = 0.5, so 1.0 * 0.5 * 0.6 = 0.30.
+const ATMO_TAU_RAYLEIGH: f32 = 0.6;
+// Mie (aerosol haze) vertical depth at density 1.0: small, gray, strongly
+// forward-scattering; supplies the warm glow around the sun near the limb.
+const ATMO_TAU_MIE: f32 = 0.02;
+const ATMO_MIE_G: f32 = 0.76;
+// Radiance-to-display multiplier: THE artistic brightness knob. Raising it
+// brightens limb + sky; the surface stays readable regardless because this
+// path only ever alpha-blends (never additive white-out).
+const ATMO_EXPOSURE: f32 = 4.0;
+
+// Scaled complementary error function erfcx(z) = exp(z^2) * erfc(z) for
+// z >= 0, the kernel of the Chapman function below. Two branches, both
+// sub-percent (verified in renderer::atmosphere against brute force):
+//  - z <= 2.5: Abramowitz-Stegun 7.1.26. Its erfc polynomial carries an
+//    exp(-z^2) factor that cancels our exp(z^2) EXACTLY, leaving a pure
+//    polynomial. (Its ABSOLUTE erfc error of 1.5e-7 becomes a huge RELATIVE
+//    error once multiplied by exp(z^2), which is why large z must switch.)
+//  - z > 2.5: the 3-term asymptotic series 1/(sqrt(pi) z) (1 - 1/(2z^2)
+//    + 3/(4z^4)), which is where erfc's absolute smallness lives.
+fn atmo_erfcx(z: f32) -> f32 {
+    if (z <= 2.5) {
+        let t = 1.0 / (1.0 + 0.3275911 * z);
+        return t
+            * (0.254829592
+                + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    }
+    let inv_z2 = 1.0 / (z * z);
+    return 0.5641896 / z * (1.0 + inv_z2 * (-0.5 + 0.75 * inv_z2));
+}
+
+// Closed-form Chapman function: relative slant-path air mass at radius x
+// (in SCALE HEIGHTS) for zenith cosine mu >= 0, via the large-x asymptotic
+// Ch(x, mu) = sqrt(pi*x/2) * erfcx(mu * sqrt(x/2)). ~1 at the zenith,
+// sqrt(pi*x/2) at the horizon; ~0.1% error for planetary x (hundreds+),
+// tested in Rust against brute-force integration (renderer::atmosphere).
+// A simpler rational interpolation was tried first and missed by ~10% at
+// mid angles -- a visibly wrong mid-sky -- hence the erfcx machinery.
+fn atmo_chapman(x: f32, mu: f32) -> f32 {
+    return sqrt(1.5707964 * x) * atmo_erfcx(mu * sqrt(0.5 * x));
+}
+
+// Density-integrated path length (units: shell radii at surface density)
+// from radius r along zenith cosine mu out to space, for an exponential
+// atmosphere over planet radius rp with scale height h. Rays dipping below
+// the planet surface return a huge depth (sun geometrically occluded); the
+// terminator still fades smoothly because the near-grazing depths are
+// already enormous before the hard cutoff engages. Accuracy vs brute-force
+// numeric integration: a few percent (unit-tested in renderer::atmosphere).
+fn atmo_od_to_space(r: f32, mu: f32, rp: f32, h: f32) -> f32 {
+    let x = r / h;
+    let alt = max(r - rp, 0.0) / h;
+    if (mu >= 0.0) {
+        return h * exp(-alt) * atmo_chapman(x, mu);
+    }
+    // Downward ray: mirror the path at the tangent point (lowest radius on
+    // the ray) -- down-leg = 2x the horizontal integral there minus the
+    // up-leg we did not traverse.
+    let sin_chi = sqrt(max(1.0 - mu * mu, 0.0));
+    let rt = r * sin_chi;
+    if (rt < rp) {
+        return 1.0e9;
+    }
+    let alt_t = (rt - rp) / h;
+    let horiz_t = h * exp(-alt_t) * atmo_chapman(rt / h, 0.0);
+    return max(2.0 * horiz_t - h * exp(-alt) * atmo_chapman(x, -mu), 0.0);
+}
+
+// Rayleigh phase 3/(16pi)(1 + cos^2 theta); integrates to 1 over the sphere.
+fn atmo_rayleigh_phase(c: f32) -> f32 {
+    return 0.0596831 * (1.0 + c * c);
+}
+
+// Henyey-Greenstein phase for the Mie forward lobe; integrates to 1.
+fn atmo_mie_phase(c: f32) -> f32 {
+    let g = ATMO_MIE_G;
+    let denom = 1.0 + g * g - 2.0 * g * c;
+    return (1.0 - g * g) / (12.566371 * denom * sqrt(denom));
+}
+
+fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
+    // Shell center + radius recovered from the object transform: the shell
+    // mesh is a UNIT icosphere placed via Vec3::splat(scale), so column 0's
+    // length IS the shell radius and column 3 is the planet center. Nothing
+    // extra to plumb through the material uniforms.
+    let center = object.model[3].xyz;
+    let shell_r = length(object.model[0].xyz);
+    let rp = clamp(material.params.x, 0.01, 0.9999); // planet radius (shell units)
+    let h = max(material.params.y, 1.0e-6);          // scale height (shell units)
+
+    // Camera + ray in shell units, planet center at the origin.
+    let ro = (camera.view_pos.xyz - center) / shell_r;
+    let rd = normalize(world_position - camera.view_pos.xyz);
+    let cam_inside = dot(ro, ro) < 1.0;
+
+    // The transparent pipeline draws BOTH faces of the shell (cull_mode:
+    // None, shared with glass). A camera outside the shell would therefore
+    // blend the same ray twice (front face + back face). Keep exactly one
+    // layer: front faces when outside, back faces when inside (from inside a
+    // sphere only back faces are visible, so this is also what makes the
+    // sky appear at low altitude instead of vanishing on shell entry).
+    if (front_facing == cam_inside) {
+        discard;
+    }
+
+    // Ray vs shell sphere (radius 1) via the geometric formulation: the
+    // naive b^2 - c quadratic catastrophically cancels when the camera is
+    // thousands of radii out; the explicit perpendicular foot does not.
+    let tca = -dot(ro, rd);
+    let perp = ro + rd * tca;
+    let d2 = dot(perp, perp);
+    if (d2 >= 1.0) {
+        return vec4<f32>(0.0); // grazing numeric miss: fully transparent
+    }
+    let thc = sqrt(1.0 - d2);
+    var t0 = tca - thc;
+    var t1 = tca + thc;
+    if (t1 <= 0.0) {
+        return vec4<f32>(0.0); // shell entirely behind the camera
+    }
+    t0 = max(t0, 0.0); // camera inside the shell: integrate from the eye
+
+    // Clip the segment at the planet surface: air BEHIND the planet
+    // contributes nothing to this pixel (the opaque surface occludes it).
+    if (d2 < rp * rp && tca > 0.0) {
+        let t_planet = tca - sqrt(rp * rp - d2);
+        if (t_planet > t0) {
+            t1 = min(t1, t_planet);
+        }
+    }
+    if (t1 <= t0) {
+        return vec4<f32>(0.0);
+    }
+
+    // Scattering coefficients per shell radius. The vertical optical depth
+    // of an exponential profile is beta * H, so beta = target_depth / H --
+    // this keeps the LOOK invariant across planet sizes AND across the
+    // far-body disc-size floor (which inflates the drawn radius).
+    let density_mul = material.base_color.a;
+    let beta_ray = material.base_color.rgb * (density_mul * ATMO_TAU_RAYLEIGH / h);
+    let beta_mie = density_mul * ATMO_TAU_MIE / h;
+    // Extinction carries a touch of Mie absorption (the classic /0.9).
+    let beta_ext = beta_ray + vec3<f32>(beta_mie * 1.11);
+
+    let sun = normalize(camera.sun_direction.xyz);
+
+    // Midpoint march along the view segment. od_view accumulates the density
+    // integral camera->sample numerically (needed for in-scatter anyway);
+    // the per-sample sun leg is ANALYTIC -- that is the O'Neil-class trick
+    // that removes the nested loop.
+    let dt = (t1 - t0) / f32(ATMO_SAMPLES);
+    var od_view = 0.0;
+    var inscatter = vec3<f32>(0.0);
+    for (var i = 0; i < ATMO_SAMPLES; i = i + 1) {
+        let t = t0 + (f32(i) + 0.5) * dt;
+        let p = ro + rd * t;
+        let r = length(p);
+        let dens = exp(-max(r - rp, 0.0) / h);
+        // Half-sample lag: transmittance to the CENTER of this slice.
+        let od_here = od_view + dens * dt * 0.5;
+        od_view = od_view + dens * dt;
+        let mu_s = dot(p, sun) / max(r, 1.0e-6);
+        let od_sun = atmo_od_to_space(r, mu_s, rp, h);
+        let tau = beta_ext * (od_here + od_sun);
+        inscatter = inscatter + dens * exp(-tau) * dt;
+    }
+
+    // Phase evaluation: cos of the angle between view ray and sun direction;
+    // +1 = looking straight at the sun (forward scattering).
+    let cos_theta = dot(rd, sun);
+    let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * ATMO_EXPOSURE;
+    let radiance = sun_radiance
+        * (beta_ray * atmo_rayleigh_phase(cos_theta)
+            + vec3<f32>(beta_mie) * atmo_mie_phase(cos_theta))
+        * inscatter;
+
+    // Per-channel transmittance of whatever sits behind this pixel,
+    // collapsed to the single gray alpha fixed-function blending can
+    // express. The surface stays readable at every angle because this path
+    // only ever alpha-blends over it.
+    let trans = exp(-beta_ext * od_view);
+    let alpha = clamp(1.0 - (trans.r + trans.g + trans.b) / 3.0, 0.0, 1.0);
+
+    // Tone-map the in-scattered light with the SAME ACES curve as the rest
+    // of the pipeline; all math above is linear. The render target is an
+    // sRGB view, so writing linear values is the honest handoff -- the
+    // hardware applies the sRGB transfer on store, and blending against an
+    // sRGB target happens in LINEAR space per the WebGPU spec (the
+    // v0.802/v0.803 glow-layer lesson: know the target's gamma, encode once,
+    // never twice).
+    let aces_a = 2.51;
+    let aces_b = 0.03;
+    let aces_c = 2.43;
+    let aces_d = 0.59;
+    let aces_e = 0.14;
+    let mapped = clamp(
+        (radiance * (aces_a * radiance + vec3<f32>(aces_b)))
+            / (radiance * (aces_c * radiance + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
+
+    // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
+    // the radiance back out of the alpha so exactly `mapped` lands on
+    // screen. Both terms go to zero together for thin air, so the ratio
+    // stays finite; the clamp guards the pathological alpha -> 0 corner.
+    let rgb = clamp(mapped / max(alpha, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
+    return vec4<f32>(rgb, alpha);
+}
+
 // ── Cook-Torrance BRDF Evaluation ──
 
 fn evaluate_light(
@@ -346,7 +593,7 @@ fn evaluate_light(
 // ── Fragment Shader ──
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
     let normal = normalize(in.world_normal);
     let view_dir = normalize(camera.view_pos.xyz - in.world_position);
 
@@ -357,13 +604,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
 
+    // Type 14 short-circuits the whole PBR surface path: an atmosphere is a
+    // participating MEDIUM, not a lit surface -- its color comes entirely
+    // from the scattering integral, never from a BRDF. Types >= 14.5 would
+    // fall through to the default panel-grid look (none exist yet).
+    if (material_type >= 13.5 && material_type < 14.5) {
+        return atmosphere_scattering(in.world_position, front_facing);
+    }
+
     // Apply procedural material based on type:
     //   0 = Panel grid (walls, floors)    4 = Glass            8 = Crystal
     //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
     //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
     //   3 = Wood                          7 = Leather         11 = Lava
     //  12 = Planet surface (vertex color packed in UV)
-    //  13 = Atmosphere shell (fresnel limb glow)
+    //  13 = Atmosphere shell (fresnel limb tint -- the pre-v0.807 fallback)
+    //  14 = Atmosphere shell (analytic single scattering -- handled above)
     if material_type < 0.5 {
         // Type 0: Default panel grid (walls, floors)
         if metallic < 0.1 && roughness > 0.3 {
@@ -473,7 +729,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         // oversized transparent sphere. Nearly invisible looking straight
         // through the center, densest at the grazing-angle limb, so it reads as
         // a thin halo of air hugging the planet. Airless bodies simply never
-        // spawn the shell.
+        // spawn the shell. KEPT as the fallback behind Settings > Graphics >
+        // Planets > "Scattering atmosphere" (off = this path): forever-dev
+        // A/B reference + a safety hatch if a GPU dislikes the type-14 math.
         let limb = pow(1.0 - abs(dot(normal, view_dir)), 2.0);
         out_alpha = material.base_color.a * limb;
         proc_emissive = albedo * limb * 0.6; // limb stays visible on the night side edge

@@ -9,8 +9,21 @@
     gravity: 9.81,
     terrain_seed: 42,
     ore_seed: 1337,
-    atmosphere_color: Some((0.4, 0.6, 1.0, 0.35)),
+    // Atmosphere (v0.807 analytic scattering): rgb = RELATIVE per-channel
+    // scattering strengths (linear), a = overall density. Per-channel
+    // vertical optical depth = rgb * a * 0.6 (see renderer::atmosphere), so
+    // (0.17, 0.41, 1.0) * 0.5 * 0.6 = (0.051, 0.123, 0.30) -- Earth's real
+    // Rayleigh depths are ~(0.05, 0.12, 0.28). Blue scatters hardest = blue
+    // sky + limb, warm terminator. The fresnel fallback shader reads the
+    // same color as a plain tint.
+    atmosphere_color: Some((0.17, 0.41, 1.0, 0.5)),
+    // Shell thickness (mesh size) as a fraction of radius: 0.015 * 2 = 3%,
+    // topping out ~191 km up (~22 scale heights: density there is e^-22, so
+    // nothing visible is truncated at the shell edge).
     atmosphere_scale: 0.015,
+    // Density scale height in meters (real Earth value). Controls how fast
+    // the air thins with altitude in the scattering shader.
+    scale_height_m: Some(8500.0),
     has_water: true,
     // Real elevation grid (2026-07-11): 3600x1800 cells (0.1 degree) built
     // from NOAA ETOPO1 (public domain) by scripts/build-earth-heightmap.js.

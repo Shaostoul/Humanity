@@ -5910,9 +5910,13 @@ mod native_app {
         /// Shared vertex-color material (shader type 12) for every
         /// procedural planet surface; per-face colors ride in the mesh.
         planet_surface_material: usize,
-        /// Per-body fresnel atmosphere-shell materials (shader type 13),
-        /// created lazily from the def's atmosphere color.
-        planet_atmo_materials: std::collections::HashMap<String, usize>,
+        /// Per-body atmosphere-shell materials, created lazily from the
+        /// def's atmosphere color. Keyed by (body id, scattering-mode flag)
+        /// so flipping Settings > Graphics > "Scattering atmosphere" swaps
+        /// between the analytic-scattering material (shader type 14) and the
+        /// fresnel fallback (type 13) without touching the other variant --
+        /// stale entries are ~100-byte uniform buffers, not worth evicting.
+        planet_atmo_materials: std::collections::HashMap<(String, bool), usize>,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
         /// Emissive material index for the Sun core.
@@ -12514,29 +12518,70 @@ mod native_app {
                                 render_off.z as f32,
                             );
 
-                            // Simple atmosphere (v0.763): a slightly larger
-                            // translucent shell with a fresnel limb tint
-                            // (shader type 13). Data-driven per planet;
-                            // airless bodies (atmosphere_color None or zero
-                            // alpha) never spawn one, and sub-8px discs skip
-                            // it (a shell thinner than a pixel just shimmers).
+                            // Atmosphere shell (v0.763 fresnel; v0.807
+                            // analytic scattering): a slightly larger
+                            // translucent shell whose fragments evaluate a
+                            // single-scattering integral (shader type 14) or
+                            // the old fresnel limb tint (type 13) when the
+                            // Settings fallback is chosen. Data-driven per
+                            // planet; airless bodies (atmosphere_color None
+                            // or zero alpha) never spawn one, and sub-8px
+                            // discs skip it (a shell thinner than a pixel
+                            // just shimmers). The shell composites over BOTH
+                            // surface paths -- the uniform sphere and the
+                            // chunked-LOD patches -- because both draw as
+                            // opaque celestial objects before this
+                            // transparent list blends over them.
                             if px >= 8.0 {
                                 if let Some(d) = def {
                                     if let Some(ac) = d.atmosphere_color {
                                         if ac[3] > 0.0 && d.atmosphere_scale > 0.0 {
+                                            let scatter =
+                                                state.gui_state.settings.planet_atmo_scatter;
+                                            let mat_key = (b.id.clone(), scatter);
                                             let amat = if let Some(&m) =
-                                                state.planet_atmo_materials.get(&b.id)
+                                                state.planet_atmo_materials.get(&mat_key)
                                             {
                                                 m
                                             } else {
-                                                let m = state.renderer.add_material_full(
-                                                    [ac[0], ac[1], ac[2], ac[3]],
-                                                    0.0,
-                                                    1.0,
-                                                    13.0,
-                                                    0.0,
-                                                );
-                                                state.planet_atmo_materials.insert(b.id.clone(), m);
+                                                let m = if scatter {
+                                                    // Physical packing: the unused
+                                                    // metallic/roughness slots carry
+                                                    // the planet-radius and scale-
+                                                    // height RATIOS in shell units,
+                                                    // so the shader stays invariant
+                                                    // to the far-body disc-size
+                                                    // floor above. Color semantics:
+                                                    // rgb = relative per-channel
+                                                    // scattering strengths, a =
+                                                    // density (see
+                                                    // renderer::atmosphere, the
+                                                    // tested Rust mirror).
+                                                    let (rp_ratio, h_rel) =
+                                                        crate::renderer::atmosphere::shell_packing(
+                                                            d.atmosphere_scale,
+                                                            d.scale_height_or_default(),
+                                                            d.radius,
+                                                        );
+                                                    state.renderer.add_material_full(
+                                                        [ac[0], ac[1], ac[2], ac[3]],
+                                                        rp_ratio,
+                                                        h_rel,
+                                                        14.0,
+                                                        0.0,
+                                                    )
+                                                } else {
+                                                    // Fresnel fallback: the
+                                                    // pre-v0.807 tinted shell.
+                                                    state.renderer.add_material_full(
+                                                        [ac[0], ac[1], ac[2], ac[3]],
+                                                        0.0,
+                                                        1.0,
+                                                        13.0,
+                                                        0.0,
+                                                    )
+                                                };
+                                                state.planet_atmo_materials.insert(mat_key, m);
                                                 m
                                             };
                                             // Smooth shell: the shared flat

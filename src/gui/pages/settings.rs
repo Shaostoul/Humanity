@@ -1820,6 +1820,15 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (~54 m triangles) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
+        // Analytic scattering atmosphere (v0.807): per-pixel single
+        // scattering on the planet air shells. Off = the pre-v0.807 fresnel
+        // tint, kept forever-dev style as the A/B reference + a safety hatch
+        // for GPUs that dislike the math. Applies live: the material is
+        // rebuilt (cached per mode) the next time the shell draws.
+        if widgets::toggle(ui, theme, "Scattering atmosphere", &mut state.settings.planet_atmo_scatter) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Physically shaded planet air: blue limb from orbit, warm terminator, pale horizon from inside the atmosphere. Turn off for the simple tinted-shell look.").color(theme.text_muted()).size(theme.font_size_small));
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);

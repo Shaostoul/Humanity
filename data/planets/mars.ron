@@ -7,8 +7,18 @@
     gravity: 3.72,
     terrain_seed: 99,
     ore_seed: 2001,
+    // Atmosphere (v0.807 analytic scattering): rgb = RELATIVE per-channel
+    // scattering strengths, a = density. Red-dominant strengths scatter red
+    // hardest, so the thin Martian air stays butterscotch (which is also the
+    // real dusty-Mars sky color). Vertical depths = rgb * 0.18 * 0.6 =
+    // (0.09, 0.06, 0.04) -- appropriately faint next to Earth's 0.30.
     atmosphere_color: Some((0.85, 0.55, 0.35, 0.18)),
+    // Shell tops out ~54 km up (~4.9 scale heights); the e^-4.9 edge
+    // truncation is invisible at Mars' density.
     atmosphere_scale: 0.008,
+    // Real Martian density scale height (~11.1 km: thin air + low gravity
+    // make it taller than Earth's 8.5 km despite the colder temperatures).
+    scale_height_m: Some(11100.0),
     has_water: false,
     // No water: elevations below this line are dark BASINS (basin_color),
     // displaced inward as real depressions, never ocean-colored.

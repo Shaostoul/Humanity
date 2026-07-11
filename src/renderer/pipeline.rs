@@ -80,13 +80,21 @@ impl Pipeline {
                 ],
             });
 
-        // Group 1: Object uniforms (model + normal matrix) with dynamic offset
+        // Group 1: Object uniforms (model + normal matrix) with dynamic offset.
+        // FRAGMENT visibility added for the analytic atmosphere (v0.807): the
+        // type-14 scattering branch recovers the shell's center + radius from
+        // object.model per fragment, and wgpu validates shader-stage usage
+        // against these flags at pipeline creation (boot-verify caught the
+        // VERTEX-only layout as a startup panic -- the v0.782 lesson holds:
+        // tests + naga cannot see pipeline-layout mismatches, only booting
+        // can). Fragment-stage uniform buffers are a base WebGPU capability,
+        // no device-limit risk.
         let object_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Object Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: true,

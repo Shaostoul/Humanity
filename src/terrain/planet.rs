@@ -111,6 +111,27 @@ pub struct PlanetDef {
     /// None (every other planet) keeps the procedural noise path.
     #[serde(default)]
     pub heightmap: Option<String>,
+    /// Atmosphere density scale height in METERS (Earth ~8500, Mars ~11100).
+    /// Drives the exponential falloff of the analytic scattering shell
+    /// (pbr_simple.wgsl material type 14; math mirror in
+    /// `renderer::atmosphere`). None = an Earth-LIKE default proportional to
+    /// this planet's radius (see `scale_height_or_default`), so any modded
+    /// planet that declares an atmosphere color gets plausible air without
+    /// hand-tuning. `atmosphere_scale` above stays what it always was: the
+    /// SHELL THICKNESS (mesh size) control.
+    #[serde(default)]
+    pub scale_height_m: Option<f32>,
+}
+
+impl PlanetDef {
+    /// The atmosphere scale height in meters, defaulting to Earth's ratio of
+    /// scale height to radius applied to THIS planet's radius. A ratio (not
+    /// a fixed 8500 m) because a small modded world with Earth's absolute
+    /// scale height would wear its whole atmosphere as a thick fuzzy coat.
+    pub fn scale_height_or_default(&self) -> f32 {
+        self.scale_height_m
+            .unwrap_or((self.radius * crate::renderer::atmosphere::EARTH_SCALE_HEIGHT_RATIO) as f32)
+    }
 }
 
 fn default_land_color() -> [f32; 4] { [0.3, 0.5, 0.2, 1.0] }

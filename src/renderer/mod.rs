@@ -3,6 +3,7 @@
 //! Configuration loaded from `config/renderer.toml`.
 //! Supports both native (winit window) and WASM (canvas) targets.
 
+pub mod atmosphere;
 pub mod bloom;
 pub mod camera;
 pub mod floating_origin;

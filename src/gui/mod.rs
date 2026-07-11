@@ -6185,6 +6185,12 @@ pub struct SettingsState {
     /// close-approach spheres. Off keeps the pre-chunk behavior (uniform
     /// levels 8-9 near a planet). See terrain::planet_chunks.
     pub planet_chunked: bool,
+    /// Analytic scattering atmosphere shells (v0.807): per-pixel single
+    /// scattering (blue limb, warm terminator, in-atmosphere sky gradient).
+    /// Off = the old fresnel-tinted shell -- kept forever-dev style as the
+    /// A/B reference and as a safety hatch for GPUs that dislike the math.
+    /// See pbr_simple.wgsl type 14 + renderer::atmosphere.
+    pub planet_atmo_scatter: bool,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -6259,6 +6265,7 @@ impl Default for SettingsState {
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,
             planet_chunked: true,
+            planet_atmo_scatter: true,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,
