@@ -350,6 +350,26 @@ const ATMO_MIE_G: f32 = 0.76;
 // brightens limb + sky; the surface stays readable regardless because this
 // path only ever alpha-blends (never additive white-out).
 const ATMO_EXPOSURE: f32 = 4.0;
+// Close-range tune (v0.815): ATMO_EXPOSURE was calibrated against BLACK SPACE
+// -- the from-orbit limb and far-disc tint, which the operator approved. But
+// the same 4x in-scatter boost applied to rays that TERMINATE ON THE LIT
+// SURFACE floods the view once the planet fills the screen (verified capture
+// at 400 km: the whole disc washed pale). The in-scatter is boosted 4x while
+// the surface behind it is not, so haze contrast is exaggerated 4x exactly
+// where the eye wants ground detail. Fix: per fragment, blend the exposure
+// between a calm surface value and the full limb value using two weights,
+// taking the MAX of:
+//  (a) limb weight -- rays that miss the planet (or graze within half a
+//      shell thickness of the limb) keep the FULL exposure, so the blue limb
+//      glow and the ground-level sky/horizon gradient never change;
+//  (b) distance weight -- cameras beyond ATMO_FAR_R shell radii keep the
+//      full exposure on the WHOLE disc, so the approved 12,000 km blue-marble
+//      look is bit-identical; the disc clears smoothly on approach between
+//      FAR_R and NEAR_R (reads as detail resolving, no popping).
+// Mirror + unit tests: renderer::atmosphere::atmo_exposure.
+const ATMO_EXPOSURE_NEAR: f32 = 1.4;
+const ATMO_NEAR_R: f32 = 1.25;
+const ATMO_FAR_R: f32 = 2.5;
 
 // Scaled complementary error function erfcx(z) = exp(z^2) * erfc(z) for
 // z >= 0, the kernel of the Chapman function below. Two branches, both
@@ -510,7 +530,22 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // Phase evaluation: cos of the angle between view ray and sun direction;
     // +1 = looking straight at the sun (forward scattering).
     let cos_theta = dot(rd, sun);
-    let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * ATMO_EXPOSURE;
+    // Exposure blend (see the ATMO_EXPOSURE_NEAR comment): surface-terminated
+    // rays from a close camera get the calm exposure; limb rays and far
+    // cameras keep the full one. A ray hits the planet iff it runs forward
+    // (tca > 0) with impact parameter below rp -- for a camera above the
+    // surface, b rises through rp BEFORE tca changes sign as the ray tilts
+    // from down to up, so the tca gate never introduces a visible seam and
+    // the ground-level SKY (upward rays: tca <= 0 or b >= rp) keeps today's
+    // approved full-exposure look untouched.
+    let b_impact = sqrt(d2);
+    var w_limb = 1.0;
+    if (tca > 0.0 && b_impact < rp) {
+        w_limb = smoothstep(rp - (1.0 - rp) * 0.5, rp, b_impact);
+    }
+    let w_far = smoothstep(ATMO_NEAR_R, ATMO_FAR_R, length(ro));
+    let exposure = mix(ATMO_EXPOSURE_NEAR, ATMO_EXPOSURE, max(w_limb, w_far));
+    let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * exposure;
     let radiance = sun_radiance
         * (beta_ray * atmo_rayleigh_phase(cos_theta)
             + vec3<f32>(beta_mie) * atmo_mie_phase(cos_theta))
@@ -550,7 +585,7 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     return vec4<f32>(rgb, alpha);
 }
 
-// ── Procedural cloud layer (material type 15, clouds increment 1) ──
+// ── Procedural cloud layer (material type 15, clouds increment 2) ──
 //
 // An animated cloud DECK on a SECOND translucent shell just above the planet
 // surface and BELOW the scattering atmosphere shell. lib.rs pushes the cloud
@@ -558,17 +593,22 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
 // that list draws in order with no depth writes, so the air blends OVER the
 // clouds -- physically correct: the atmosphere scatters in front of the deck.
 //
-// This is increment 1 of the volumetric-clouds plan: a coverage FIELD on the
-// sphere that reads as volumetric from orbit thanks to a sun-facing
-// self-shadow lookup and a forward-scatter silver lining. Increment 2 (true
-// raymarched volumetrics for inside-the-atmosphere flight) is designed to
-// REUSE cloud_field() as the horizontal density term:
+// Increment 2 (v0.815): the deck is now RAYMARCHED through a thin spherical
+// slab (CLOUD_BASE_SCALE..CLOUD_TOP_SCALE planet radii; the drawn shell at
+// CLOUD_SHELL_SCALE sits mid-slab and only supplies the fragments/rays).
+// Exactly the reuse contract designed into increment 1:
 //   density(p_local) = cloud_alpha_from_field(
 //       cloud_field(normalize(p_local), t, seed), coverage)
-//       * altitude_envelope(length(p_local))
-// The field is already a pure function of planet-fixed direction + time, so a
-// raymarcher can sample it at arbitrary points along a ray with zero rework;
-// only the altitude envelope and the march loop are new work.
+//       * cloud_altitude_envelope(length(p_local))
+// cloud_field/cloud_alpha_from_field are UNCHANGED; the altitude envelope and
+// the march loop are the only new math. Front-to-back alpha accumulation with
+// an early-out at opacity saturation, per-sample macro N-dot-L lighting, a
+// one-tap sun-direction density gradient for volumetric self-shadow, and a
+// base-to-top height gradient (bases darker, tops brighter). The silver
+// lining and the ACES tail keep increment 1's posture. The increment-1
+// single-sample path is kept verbatim as `cloud_layer_flat`, selected by
+// setting CLOUD_MARCH_SAMPLES to 0 (the quality switch; this file is
+// hot-reloaded from disk, so the fallback is one edit away on weak GPUs).
 //
 // Material packing (producer: lib.rs planet_cloud_materials; Rust mirror +
 // unit tests: src/renderer/clouds.rs -- keep every CLOUD_* constant in sync,
@@ -639,6 +679,38 @@ const CLOUD_SILVER_GAIN: f32 = 0.3;
 // not absolute zero, matching the surface shader's ambient posture).
 const CLOUD_AMBIENT: f32 = 0.08;
 const CLOUD_NIGHT_FLOOR: f32 = 0.006;
+// ── Increment-2 raymarch constants (Rust mirror: renderer::clouds) ──
+// The slab, in PLANET-RADIUS multiples: the drawn shell (fragments/rays only)
+// sits mid-slab at CLOUD_SHELL_SCALE; density lives between BASE and TOP.
+// For Earth: base ~25.5 km, drawn shell ~51 km, top ~76.5 km. Terrain peaks
+// (up to ~1.0041 R) may poke ~100 m into the base -- mountains in cloud,
+// physically charming and harmless (the envelope is ~0 there).
+const CLOUD_SHELL_SCALE: f32 = 1.008;
+const CLOUD_BASE_SCALE: f32 = 1.004;
+const CLOUD_TOP_SCALE: f32 = 1.012;
+// March quality switch: samples along the view segment through the slab.
+// 8-12 is the designed band; 0 selects the increment-1 flat deck
+// (cloud_layer_flat) for weak GPUs. Measured on the RTX 4070 at 2560x1373
+// (2026-07-11, same-regime march-vs-flat pairs): +1.5 ms at the 12,000 km
+// orbit view, +0.2 ms at 400 km with the deck filling the frame -- the
+// clear-sky probe gate and the saturation early-out keep the worst case
+// cheap, and the ~90 FPS orbit baseline holds with the march on.
+const CLOUD_MARCH_SAMPLES: i32 = 10;
+// Extinction per drawn-shell unit at density 1. Calibrated so a full-density
+// radial pass through the slab (envelope integral ~0.6 * thickness) reaches
+// ~93% opacity -- matching increment 1's thick-core look after the
+// CLOUD_MAX_ALPHA cap: 1 - exp(-560 * 0.6 * 0.00794) ~ 0.93.
+const CLOUD_SIGMA_T: f32 = 560.0;
+// Self-shadow tap for the march: a 3D offset TOWARD the sun (drawn-shell
+// units, ~half the slab thickness) replaces increment 1's great-circle step;
+// density rising toward the sun = this sample sits in a cloud mass's shadow.
+// SHARP converts the (envelope-scaled, so smaller) density difference into a
+// usable shading range.
+const CLOUD_MARCH_SHADOW_STEP: f32 = 0.004;
+const CLOUD_MARCH_SHADOW_SHARP: f32 = 4.0;
+// Height gradient: cloud BASES receive less sky/sun light than tops. The
+// classic volumetric cue -- flat bottoms read dark, sunlit tops read bright.
+const CLOUD_BASE_DARKEN: f32 = 0.75;
 
 // Rigid rotation around the local Y axis (the planet's spin axis in the
 // icosphere's local frame): zonal drift, like real weather bands.
@@ -714,7 +786,52 @@ fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     return smoothstep(thr, thr + CLOUD_EDGE, field);
 }
 
+// Altitude envelope (increment 2): shapes density across the slab. r is in
+// DRAWN-SHELL units (drawn shell = 1.0, so the slab spans BASE/SHELL ..
+// TOP/SHELL). Smooth rise from the base, a full-density plateau through the
+// middle (the drawn-shell radius u = 0.5 sits inside it, so the increment-1
+// fragment altitude evaluates at envelope 1), fade to zero at the top.
+// Pure in r; mirrored + unit-tested in renderer::clouds.
+fn cloud_altitude_envelope(r: f32) -> f32 {
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let u = clamp((r - base) / (top - base), 0.0, 1.0);
+    return smoothstep(0.0, 0.4, u) * (1.0 - smoothstep(0.6, 1.0, u));
+}
+
+// The increment-2 sampling contract from the increment-1 design note --
+// horizontal coverage field times the altitude envelope -- with one response
+// shaping: the horizontal alpha is SQUARED. Beer-Lambert accumulation is
+// concave (1 - exp(-tau) inflates mid densities toward opaque), so feeding
+// it the raw ~uniform alpha fused the whole deck into a pale shroud on the
+// first orbital capture (2026-07-11) -- the same cue-ball failure increment
+// 1 hit and solved with its core-vs-skirt density ramp. Squaring restores
+// that response through the march: 1 - exp(-2.67 a^2) tracks increment 1's
+// a * (0.4 + 0.6 a) skirt curve within a few percent across the range,
+// keeping skirts translucent while cores still saturate. p is a point in
+// the mesh's LOCAL frame (planet-fixed, drawn shell = radius 1).
+fn cloud_density(p: vec3<f32>, t: f32, seed: f32, coverage: f32) -> f32 {
+    let r = length(p);
+    let env = cloud_altitude_envelope(r);
+    if (env <= 0.0) {
+        return 0.0;
+    }
+    let a_h = cloud_alpha_from_field(cloud_field(normalize(p), t, seed), coverage);
+    return a_h * a_h * env;
+}
+
+// Quality dispatcher: the march is the default; CLOUD_MARCH_SAMPLES = 0
+// falls back to the increment-1 painted deck (both paths stay compiled and
+// naga-validated, so the switch can never rot).
 fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
+    if (CLOUD_MARCH_SAMPLES <= 0) {
+        return cloud_layer_flat(world_position, front_facing);
+    }
+    return cloud_layer_march(world_position, front_facing);
+}
+
+// Increment-1 fallback: one field sample at the fragment, painted-on deck.
+fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     // Shell center + radius recovered from the object transform, same trick
     // as the atmosphere shell: unit icosphere placed via Vec3::splat(scale),
     // so column 0's length IS the shell radius and column 3 the center.
@@ -824,6 +941,171 @@ fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
     return vec4<f32>(mapped, body * density * limb * CLOUD_MAX_ALPHA);
+}
+
+// Increment-2 raymarch: real thickness, parallax, and volumetric
+// self-shadow. Everything happens in the mesh's LOCAL frame (planet-fixed,
+// drawn shell = radius 1): the model transform is rotation + uniform scale,
+// so directions transfer with one normalize and dot products are preserved.
+fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
+    let center = object.model[3].xyz;
+    let shell_r = length(object.model[0].xyz);
+
+    // Exactly ONE shell layer, same rule as the flat path and the
+    // atmosphere: front faces when the camera is outside the drawn shell,
+    // back faces when inside (the under-the-deck flight case).
+    let ro_w = (camera.view_pos.xyz - center) / shell_r;
+    let cam_inside = dot(ro_w, ro_w) < 1.0;
+    if (front_facing == cam_inside) {
+        discard;
+    }
+
+    // transpose(normal_matrix) IS model.inverse() exactly (see the flat
+    // path); it maps world points into the unit-icosphere local frame.
+    let inv_model = transpose(object.normal_matrix);
+    let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
+    let rd_w = normalize(world_position - camera.view_pos.xyz);
+    let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);
+    let dirf = normalize((inv_model * vec4<f32>(world_position, 1.0)).xyz);
+
+    let t = camera.sun_color.w; // the cloud clock (see header comment)
+    let seed = material.params.x;
+    let coverage = material.base_color.a;
+
+    // Slab interval along the ray: inside the TOP sphere, outside the BASE
+    // sphere, in front of the camera. Only the FIRST such interval is
+    // marched: a ray that dives below the base either hits the planet (the
+    // far-side re-entry is depth-occluded) or grazes the limb where the near
+    // interval alone already saturates opacity.
+    let rb = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let rt = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let tca = -dot(ro, rd);
+    let perp = ro + rd * tca;
+    let d2 = dot(perp, perp);
+    if (d2 >= rt * rt) {
+        return vec4<f32>(0.0); // grazing numeric miss of the whole slab
+    }
+    let thc_t = sqrt(rt * rt - d2);
+    var m0 = max(tca - thc_t, 0.0);
+    var m1 = tca + thc_t;
+    if (m1 <= 0.0) {
+        return vec4<f32>(0.0); // slab entirely behind the camera
+    }
+    if (d2 < rb * rb) {
+        let thc_b = sqrt(rb * rb - d2);
+        let b0 = tca - thc_b;
+        let b1 = tca + thc_b;
+        if (b0 > m0) {
+            m1 = min(m1, b0); // clipped where the ray dives below the base
+        } else if (b1 > m0) {
+            m0 = b1; // started under the deck: begin at the base exit above
+        }
+    }
+    if (m1 <= m0) {
+        return vec4<f32>(0.0);
+    }
+
+    // Clear-sky gate: probe the horizontal field at the segment's start,
+    // middle, and end before paying for the full march. Most pixels over a
+    // partly-cloudy planet are clear; 3 field evaluations instead of ~20
+    // keeps them cheap. (A cloud strictly between probes on a long grazing
+    // segment can slip through -- only skirt-thin alpha is at stake.)
+    let seg = m1 - m0;
+    let probe = max(
+        max(
+            cloud_alpha_from_field(
+                cloud_field(normalize(ro + rd * m0), t, seed), coverage),
+            cloud_alpha_from_field(
+                cloud_field(normalize(ro + rd * (m0 + seg * 0.5)), t, seed), coverage),
+        ),
+        cloud_alpha_from_field(
+            cloud_field(normalize(ro + rd * m1), t, seed), coverage),
+    );
+    if (probe <= 0.002) {
+        return vec4<f32>(0.0);
+    }
+
+    let sun = normalize(camera.sun_direction.xyz);
+    let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
+    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+
+    // Stratified jitter from the planet-fixed fragment direction: one sample
+    // offset shared by the whole ray de-bands the thin slab at grazing
+    // angles without screen-space shimmer (the pattern rides the planet).
+    let jitter = hash21(dirf.xy * 4096.0 + vec2<f32>(dirf.z * 1024.0, 17.0));
+
+    // Front-to-back accumulation with early-out at opacity saturation.
+    let dtm = seg / f32(CLOUD_MARCH_SAMPLES);
+    var trans = 1.0;
+    var acc = vec3<f32>(0.0);
+    var acc_w = 0.0;
+    for (var i = 0; i < CLOUD_MARCH_SAMPLES; i = i + 1) {
+        let tm = m0 + (f32(i) + jitter) * dtm;
+        let p = ro + rd * tm;
+        let dens = cloud_density(p, t, seed, coverage);
+        if (dens <= 0.0005) {
+            continue; // empty sample: skip the lighting taps
+        }
+        let a_i = 1.0 - exp(-CLOUD_SIGMA_T * dens * dtm);
+        // Macro lighting from the sample's own sphere normal (local frame
+        // preserves dots), soft terminator as in increment 1.
+        let n_i = normalize(p);
+        let ndl = dot(n_i, sun_local);
+        let day = smoothstep(-0.05, 0.3, ndl);
+        let lit = clamp(ndl, 0.0, 1.0);
+        // One-tap self-shadow: density gradient toward the sun in 3D.
+        let d_sun = cloud_density(
+            p + sun_local * CLOUD_MARCH_SHADOW_STEP, t, seed, coverage);
+        let shade = 1.0
+            - CLOUD_SHADOW_STRENGTH
+                * clamp((d_sun - dens) * CLOUD_MARCH_SHADOW_SHARP, 0.0, 1.0);
+        // Height gradient: bases darker, tops brighter.
+        let u_h = clamp((length(p) - rb) / (rt - rb), 0.0, 1.0);
+        let grad = mix(CLOUD_BASE_DARKEN, 1.0, u_h);
+        let c_i = material.base_color.rgb
+            * (sun_energy * (CLOUD_AMBIENT + lit * shade * grad) * day
+                + vec3<f32>(CLOUD_NIGHT_FLOOR));
+        acc = acc + c_i * (trans * a_i);
+        acc_w = acc_w + trans * a_i;
+        trans = trans * (1.0 - a_i);
+        if (trans <= 0.02) {
+            break; // opacity saturated: the rest of the slab is invisible
+        }
+    }
+    let body_total = 1.0 - trans;
+    if (body_total <= 0.003) {
+        return vec4<f32>(0.0);
+    }
+    // Transmittance-weighted mean color of the marched samples.
+    var radiance = acc / max(acc_w, 1.0e-4);
+
+    // Silver lining: same HG forward lobe + thin-edge weighting + twilight
+    // gate as increment 1, driven by the marched total instead of the single
+    // sample.
+    let n_frag = normalize(world_position - center);
+    let cos_vs = dot(rd_w, sun);
+    let silver = CLOUD_SILVER_GAIN * atmo_mie_phase(cos_vs) * (1.0 - body_total)
+        * smoothstep(-0.15, 0.1, dot(n_frag, sun));
+    radiance = radiance + sun_energy * silver;
+
+    // Same ACES curve as the rest of the pipeline (linear in, sRGB target).
+    let aces_a = 2.51;
+    let aces_b = 0.03;
+    let aces_c = 2.43;
+    let aces_d = 0.59;
+    let aces_e = 0.14;
+    let mapped = clamp(
+        (radiance * (aces_a * radiance + vec3<f32>(aces_b)))
+            / (radiance * (aces_c * radiance + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
+
+    // Limb fade, as in increment 1: the deck stacks over the atmosphere's
+    // own limb brightening at grazing view angles; ease it off there.
+    let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
+    let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
+    return vec4<f32>(mapped, body_total * limb * CLOUD_MAX_ALPHA);
 }
 
 // ── Cook-Torrance BRDF Evaluation ──

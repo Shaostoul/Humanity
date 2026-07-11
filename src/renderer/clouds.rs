@@ -29,25 +29,29 @@
 //! this point is on a cloud mass's shaded flank) and a Henyey-Greenstein
 //! silver lining at thin edges. The night side fades to near-black.
 //!
-//! ## Increment 2 reuse contract (raymarched volumetrics)
+//! ## Increment 2 (v0.815): the raymarch is SHIPPED
 //!
-//! `cloud_field(dir, t, seed)` is a pure function of planet-fixed DIRECTION
-//! and time -- exactly the horizontal term a volumetric raymarcher needs.
-//! The planned extension keeps this module's functions untouched:
+//! `cloud_field(dir, t, seed)` stayed untouched, exactly as the reuse
+//! contract promised. The shader now marches `CLOUD_MARCH_SAMPLES` jittered
+//! samples through a thin spherical slab (`CLOUD_BASE_SCALE` ..
+//! `CLOUD_TOP_SCALE` planet radii; the drawn shell at `CLOUD_SHELL_SCALE`
+//! sits mid-slab and only supplies fragments/rays), sampling
 //!
 //! ```text
 //! density(p_local) = cloud_alpha_from_field(
 //!     cloud_field(normalize(p_local), t, seed), coverage)
-//!     * altitude_envelope(length(p_local))   // NEW in increment 2
+//!     * cloud_altitude_envelope(length(p_local))
 //! ```
 //!
-//! Only the altitude envelope (a smooth band around the deck radius) and the
-//! march loop are new work; every constant and noise decision made here
-//! carries over, so the from-orbit look and the in-atmosphere look stay the
-//! same field. Ground shadows from clouds were considered for increment 1
-//! and deliberately deferred: they require the planet-surface shader (type
-//! 12) to sample this field per surface fragment, which is a second shader's
-//! worth of plumbing -- increment-2 work, noted here so it is not forgotten.
+//! with front-to-back alpha accumulation (early-out at saturation),
+//! per-sample macro N-dot-L, a one-tap sun-direction density gradient for
+//! volumetric self-shadow, and a base-to-top height gradient. The
+//! increment-1 single-sample path survives verbatim as `cloud_layer_flat`
+//! behind the `CLOUD_MARCH_SAMPLES = 0` quality switch (the WGSL is
+//! hot-reloaded from disk, so weak GPUs are one edit away from the cheap
+//! deck). Ground shadows from clouds (the type-12 surface shader sampling
+//! this field) remain deferred -- increment-3 work, noted so it is not
+//! forgotten.
 //!
 //! Keep every `CLOUD_*` constant below byte-identical with the WGSL; the
 //! `wgsl_cloud_constants_stay_in_sync` test parses the shader source and
@@ -64,6 +68,30 @@
 /// `cloud_shell_sits_between_peaks_and_atmosphere` test locks this ordering
 /// against the shipped earth.ron numbers.
 pub const CLOUD_SHELL_SCALE: f32 = 1.008;
+
+/// Mirrors `CLOUD_BASE_SCALE` / `CLOUD_TOP_SCALE` in pbr_simple.wgsl: the
+/// increment-2 raymarch slab, in planet-radius multiples. The drawn shell
+/// (`CLOUD_SHELL_SCALE`) sits mid-slab; density lives between these bounds.
+/// Earth: base ~25.5 km, top ~76.5 km. Terrain peaks (up to ~1.0041 R, see
+/// the shell-scale note above) may poke ~100 m into the base -- mountains in
+/// cloud, harmless because the altitude envelope is ~0 there.
+pub const CLOUD_BASE_SCALE: f32 = 1.004;
+pub const CLOUD_TOP_SCALE: f32 = 1.012;
+/// Mirrors `CLOUD_MARCH_SAMPLES` (i32 in WGSL): march quality switch.
+/// 8..=12 is the designed band; 0 selects the increment-1 flat deck.
+pub const CLOUD_MARCH_SAMPLES: i32 = 10;
+/// Mirrors `CLOUD_SIGMA_T`: extinction per drawn-shell unit at density 1,
+/// calibrated so a full-density radial pass reaches ~93% opacity (matching
+/// increment 1's thick-core look after the CLOUD_MAX_ALPHA cap).
+pub const CLOUD_SIGMA_T: f32 = 560.0;
+/// Mirrors `CLOUD_MARCH_SHADOW_STEP` / `CLOUD_MARCH_SHADOW_SHARP`: the 3D
+/// sun-direction density tap (drawn-shell units, ~half the slab thickness)
+/// and its difference-to-shade amplification.
+pub const CLOUD_MARCH_SHADOW_STEP: f32 = 0.004;
+pub const CLOUD_MARCH_SHADOW_SHARP: f32 = 4.0;
+/// Mirrors `CLOUD_BASE_DARKEN`: bottom-of-slab light multiplier (bases
+/// darker than tops -- the classic volumetric cue).
+pub const CLOUD_BASE_DARKEN: f32 = 0.75;
 
 /// Mirrors `CLOUD_MAX_ALPHA` in pbr_simple.wgsl: peak opacity of the
 /// thickest cloud core, deliberately < 1 so the surface stays readable.
@@ -227,6 +255,37 @@ pub fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     smoothstep(thr, thr + CLOUD_EDGE, field)
 }
 
+/// Mirrors `cloud_altitude_envelope` (increment 2): density shaping across
+/// the slab. `r` is in DRAWN-SHELL units (drawn shell = 1.0). Zero at and
+/// below the base, smooth rise to a full-density plateau through the middle
+/// (the drawn-shell radius evaluates to exactly 1.0, so the increment-1
+/// fragment altitude sits on the plateau), fade to zero at and above the top.
+pub fn cloud_altitude_envelope(r: f32) -> f32 {
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let u = ((r - base) / (top - base)).clamp(0.0, 1.0);
+    smoothstep(0.0, 0.4, u) * (1.0 - smoothstep(0.6, 1.0, u))
+}
+
+/// Mirrors `cloud_density`: the increment-2 sampling contract (horizontal
+/// field times altitude envelope) with the horizontal alpha SQUARED --
+/// Beer-Lambert accumulation is concave and fused the raw ~uniform alpha
+/// into a pale shroud on the first orbital capture; squaring restores
+/// increment 1's translucent-skirt / opaque-core response through the march
+/// (see the WGSL comment for the curve match). `p` is a point in the mesh's
+/// local frame (planet-fixed, drawn shell = radius 1).
+pub fn cloud_density(p: [f32; 3], t: f32, seed: f32, coverage: f32) -> f32 {
+    let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+    let env = cloud_altitude_envelope(r);
+    if env <= 0.0 {
+        return 0.0;
+    }
+    let inv = 1.0 / r.max(1e-9);
+    let dir = [p[0] * inv, p[1] * inv, p[2] * inv];
+    let a_h = cloud_alpha_from_field(cloud_field(dir, t, seed), coverage);
+    a_h * a_h * env
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -384,6 +443,13 @@ mod tests {
             CLOUD_SHELL_SCALE < atmo,
             "cloud shell ({CLOUD_SHELL_SCALE}) outside the atmosphere shell ({atmo})"
         );
+        // Increment 2: the whole march slab must also stay under the
+        // atmosphere shell (the base may brush the very tallest peaks by
+        // ~100 m -- documented and harmless, so no peak < base assert).
+        assert!(
+            CLOUD_TOP_SCALE < atmo,
+            "cloud slab top ({CLOUD_TOP_SCALE}) outside the atmosphere shell ({atmo})"
+        );
         // And Earth actually ships a cloud deck.
         assert!(
             def.cloud_coverage.is_some(),
@@ -411,6 +477,14 @@ mod tests {
             ("CLOUD_SILVER_GAIN", CLOUD_SILVER_GAIN),
             ("CLOUD_AMBIENT", CLOUD_AMBIENT),
             ("CLOUD_NIGHT_FLOOR", CLOUD_NIGHT_FLOOR),
+            // Increment-2 raymarch constants.
+            ("CLOUD_SHELL_SCALE", CLOUD_SHELL_SCALE),
+            ("CLOUD_BASE_SCALE", CLOUD_BASE_SCALE),
+            ("CLOUD_TOP_SCALE", CLOUD_TOP_SCALE),
+            ("CLOUD_SIGMA_T", CLOUD_SIGMA_T),
+            ("CLOUD_MARCH_SHADOW_STEP", CLOUD_MARCH_SHADOW_STEP),
+            ("CLOUD_MARCH_SHADOW_SHARP", CLOUD_MARCH_SHADOW_SHARP),
+            ("CLOUD_BASE_DARKEN", CLOUD_BASE_DARKEN),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");
@@ -428,6 +502,136 @@ mod tests {
                 "{name} drifted: WGSL {parsed} vs Rust {rust_val}"
             );
         }
+        // CLOUD_MARCH_SAMPLES is an i32 const in WGSL (loop bound), parsed
+        // separately with the same never-drift guarantee.
+        let needle = "const CLOUD_MARCH_SAMPLES: i32 = ";
+        let start = wgsl
+            .find(needle)
+            .expect("CLOUD_MARCH_SAMPLES missing from pbr_simple.wgsl");
+        let rest = &wgsl[start + needle.len()..];
+        let end = rest.find(';').expect("unterminated const");
+        let parsed: i32 = rest[..end]
+            .trim()
+            .parse()
+            .expect("CLOUD_MARCH_SAMPLES literal unparseable");
+        assert_eq!(
+            parsed, CLOUD_MARCH_SAMPLES,
+            "CLOUD_MARCH_SAMPLES drifted: WGSL {parsed} vs Rust {CLOUD_MARCH_SAMPLES}"
+        );
+    }
+
+    #[test]
+    fn march_sample_count_is_zero_or_in_the_designed_band() {
+        // 0 = the increment-1 flat-deck quality fallback; otherwise the march
+        // must stay in the 8..=12 band the increment-2 design (and the FPS
+        // budget measurement) covers.
+        assert!(
+            CLOUD_MARCH_SAMPLES == 0 || (8..=12).contains(&CLOUD_MARCH_SAMPLES),
+            "CLOUD_MARCH_SAMPLES {CLOUD_MARCH_SAMPLES} outside 0 / 8..=12"
+        );
+    }
+
+    #[test]
+    fn altitude_envelope_is_zero_outside_and_peaks_mid_slab() {
+        let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+        let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+        // Hard zero at and outside both bounds (the planet surface and the
+        // slab top must never grow cloud).
+        assert_eq!(cloud_altitude_envelope(base), 0.0);
+        assert_eq!(cloud_altitude_envelope(top), 0.0);
+        assert_eq!(cloud_altitude_envelope(base - 0.01), 0.0);
+        assert_eq!(cloud_altitude_envelope(top + 0.01), 0.0);
+        assert_eq!(cloud_altitude_envelope(0.0), 0.0);
+        // Full density through the mid plateau -- INCLUDING the drawn-shell
+        // radius 1.0, so the increment-1 fragment altitude keeps evaluating
+        // at envelope 1 (the flat fallback and the march agree at mid-slab).
+        assert_eq!(cloud_altitude_envelope(1.0), 1.0);
+        let mid = 0.5 * (base + top);
+        assert_eq!(cloud_altitude_envelope(mid), 1.0);
+        assert_eq!(cloud_altitude_envelope(base + 0.45 * (top - base)), 1.0);
+    }
+
+    #[test]
+    fn altitude_envelope_rises_then_falls_smoothly() {
+        let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+        let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+        let th = top - base;
+        // Monotone non-decreasing through the rise, non-increasing through
+        // the fall, and genuinely soft (interior values strictly between 0
+        // and 1 exist on both flanks -- no hard cut).
+        let mut prev = 0.0_f32;
+        let mut soft_rise = false;
+        for i in 0..=40 {
+            let u = 0.4 * (i as f32) / 40.0;
+            let e = cloud_altitude_envelope(base + u * th);
+            assert!(e >= prev - 1e-6, "rise not monotone at u {u}: {e} < {prev}");
+            if e > 0.05 && e < 0.95 {
+                soft_rise = true;
+            }
+            prev = e;
+        }
+        assert!(soft_rise, "rise has no soft interior band");
+        let mut prev = 1.0_f32;
+        let mut soft_fall = false;
+        for i in 0..=40 {
+            let u = 0.6 + 0.4 * (i as f32) / 40.0;
+            let e = cloud_altitude_envelope(base + u * th);
+            assert!(e <= prev + 1e-6, "fall not monotone at u {u}: {e} > {prev}");
+            if e > 0.05 && e < 0.95 {
+                soft_fall = true;
+            }
+            prev = e;
+        }
+        assert!(soft_fall, "fall has no soft interior band");
+    }
+
+    #[test]
+    fn density_composes_field_times_envelope() {
+        // The increment-2 contract, verified literally: density(p) must be
+        // exactly the SQUARED horizontal alpha at normalize(p) times the
+        // envelope at length(p) -- same field, no rework; the square is the
+        // Beer-response shaping documented on cloud_density.
+        let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+        let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+        for (i, dir) in sample_dirs(32).into_iter().enumerate() {
+            let r = base + (top - base) * (i as f32 + 0.5) / 32.0;
+            let p = [dir[0] * r, dir[1] * r, dir[2] * r];
+            let a_h = cloud_alpha_from_field(cloud_field(dir, 33.0, 42.0), 0.55);
+            let expect = a_h * a_h * cloud_altitude_envelope(r);
+            let got = cloud_density(p, 33.0, 42.0, 0.55);
+            assert!(
+                (got - expect).abs() < 1e-5,
+                "density decomposition broke at r {r}: {got} vs {expect}"
+            );
+        }
+        // Outside the slab: zero regardless of the horizontal field.
+        assert_eq!(cloud_density([0.0, base - 0.005, 0.0], 33.0, 42.0, 1.0), 0.0);
+        assert_eq!(cloud_density([top + 0.005, 0.0, 0.0], 33.0, 42.0, 1.0), 0.0);
+    }
+
+    #[test]
+    fn march_slab_brackets_the_drawn_shell() {
+        // The geometric premise of the march: base < drawn shell < top, and
+        // the whole slab still sits between the terrain peaks and the
+        // atmosphere shell (the ordering test below checks the outer stack).
+        assert!(CLOUD_BASE_SCALE < CLOUD_SHELL_SCALE);
+        assert!(CLOUD_SHELL_SCALE < CLOUD_TOP_SCALE);
+        // Calibration cross-check for CLOUD_SIGMA_T: a full-density radial
+        // pass (envelope integrates to ~0.6 of the slab thickness) must land
+        // deep in the opaque regime but NOT waste range (0.85..0.99).
+        let thickness = (CLOUD_TOP_SCALE - CLOUD_BASE_SCALE) / CLOUD_SHELL_SCALE;
+        let n = 1000;
+        let dr = thickness / n as f32;
+        let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+        let mut integral = 0.0;
+        for i in 0..n {
+            integral += cloud_altitude_envelope(base + (i as f32 + 0.5) * dr) * dr;
+        }
+        let opacity = 1.0 - (-CLOUD_SIGMA_T * integral).exp();
+        assert!(
+            (0.85..0.99).contains(&opacity),
+            "radial full-density opacity {opacity} off calibration"
+        );
     }
 
     #[test]

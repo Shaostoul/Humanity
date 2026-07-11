@@ -58,6 +58,51 @@ pub const TAU_RAYLEIGH: f32 = 0.6;
 pub const TAU_MIE: f32 = 0.02;
 /// Mirrors `ATMO_MIE_G`: Henyey-Greenstein forward-lobe asymmetry.
 pub const MIE_G: f32 = 0.76;
+/// Mirrors `ATMO_EXPOSURE`: the radiance-to-display brightness knob,
+/// calibrated against BLACK SPACE (the from-orbit limb + far disc).
+pub const EXPOSURE: f32 = 4.0;
+/// Mirrors `ATMO_EXPOSURE_NEAR` (v0.815 close-range tune): the calm exposure
+/// for rays that terminate on the LIT SURFACE seen from a close camera. The
+/// full 4x in-scatter boost is an artistic gain against space; applied to
+/// the whole disc at 400 km it exaggerated haze contrast 4x and washed the
+/// surface pale (verified capture). See `atmo_exposure` for the blend.
+pub const EXPOSURE_NEAR: f32 = 1.4;
+/// Mirrors `ATMO_NEAR_R` / `ATMO_FAR_R`: camera-distance blend band in shell
+/// radii. Inside NEAR_R the disc uses the calm exposure; beyond FAR_R the
+/// whole disc keeps the full exposure (the operator-approved 12,000 km look
+/// is bit-identical); between them the disc clears smoothly on approach.
+pub const NEAR_R: f32 = 1.25;
+pub const FAR_R: f32 = 2.5;
+
+/// Mirrors WGSL `smoothstep(e0, e1, x)`.
+fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+    let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Mirrors the per-fragment exposure blend in `atmosphere_scattering`
+/// (v0.815): full exposure for limb rays (miss the planet, or graze within
+/// half a shell thickness of it) and for far cameras; the calm near exposure
+/// only for surface-terminated rays seen up close.
+///
+/// * `cam_r` -- camera distance from the planet center, shell radii.
+/// * `tca` -- ray parameter of the closest approach to the center (negative
+///   when the ray points away; such rays can never hit the planet).
+/// * `impact_b` -- the ray LINE's closest-approach distance to the center.
+/// * `rp` -- planet radius in shell radii.
+///
+/// A ray hits the planet iff `tca > 0 && impact_b < rp`. For a camera above
+/// the surface, `impact_b` rises through `rp` BEFORE `tca` changes sign as
+/// the ray tilts from down to up, so the `tca` gate introduces no seam and
+/// ground-level SKY rays always keep the full exposure.
+pub fn atmo_exposure(cam_r: f32, tca: f32, impact_b: f32, rp: f32) -> f32 {
+    let mut w_limb = 1.0;
+    if tca > 0.0 && impact_b < rp {
+        w_limb = smoothstep(rp - (1.0 - rp) * 0.5, rp, impact_b);
+    }
+    let w_far = smoothstep(NEAR_R, FAR_R, cam_r);
+    EXPOSURE_NEAR + (EXPOSURE - EXPOSURE_NEAR) * w_limb.max(w_far)
+}
 /// Earth's density scale height as a fraction of its radius (8.5 km over
 /// 6371 km). Planets without an explicit `scale_height_m` get this RATIO
 /// applied to their own radius, so a modded planet with an atmosphere color
@@ -314,6 +359,94 @@ mod tests {
         // The 0.005 minimum shell thickness clamp mirrors lib.rs.
         let (thin, _) = shell_packing(0.0, 8_500.0, 6_371_000.0);
         assert!((thin - 1.0 / 1.01).abs() < 1.0e-5);
+    }
+
+    #[test]
+    fn exposure_blend_keeps_far_and_limb_looks_and_calms_the_near_disc() {
+        // Far camera (the approved 12,000 km Earth view is ~2.88 shell
+        // radii): FULL exposure on every ray, disc and limb alike --
+        // bit-identical to the pre-tune look.
+        for b in [0.0_f32, 0.4, RP - 0.01, RP + 0.005, 0.999] {
+            assert_eq!(atmo_exposure(2.88, 1.0, b, RP), EXPOSURE);
+        }
+        // Near camera (400 km is ~1.03 shell radii): disc-interior rays get
+        // the calm exposure, rays past the limb keep the full one.
+        assert_eq!(atmo_exposure(1.03, 1.0, 0.5, RP), EXPOSURE_NEAR);
+        assert_eq!(atmo_exposure(1.03, 1.0, RP + 0.001, RP), EXPOSURE);
+        // Ground-level sky: upward rays (tca <= 0) never hit the planet and
+        // must keep today's full-exposure sky even though impact_b is tiny.
+        assert_eq!(atmo_exposure(0.972, -0.5, 0.0, RP), EXPOSURE);
+        // Horizon from low altitude: b ~ cam_r >= rp -> full exposure, so
+        // the layered horizon gradient survives the tune.
+        assert_eq!(atmo_exposure(0.9724, 1.0e-3, 0.9724, RP), EXPOSURE);
+    }
+
+    #[test]
+    fn exposure_blend_is_smooth_across_the_limb_and_distance_ramps() {
+        // No visible ring at the limb: marching impact_b across the margin
+        // band must change the exposure in small steps.
+        let mut prev = atmo_exposure(1.03, 1.0, RP - 0.03, RP);
+        let n = 200;
+        for i in 1..=n {
+            let b = RP - 0.03 + 0.035 * (i as f32) / n as f32;
+            let e = atmo_exposure(1.03, 1.0, b, RP);
+            assert!(e >= prev - 1e-4, "limb ramp not monotone at b {b}");
+            assert!(
+                (e - prev).abs() < 0.15,
+                "limb ramp jumps at b {b}: {prev} -> {e}"
+            );
+            prev = e;
+        }
+        assert!((prev - EXPOSURE).abs() < 1e-4, "limb ramp must end at full");
+        // No pumping on approach: the camera-distance ramp is monotone and
+        // step-free for a fixed disc ray.
+        let mut prev = atmo_exposure(FAR_R + 0.5, 1.0, 0.5, RP);
+        assert_eq!(prev, EXPOSURE);
+        for i in 0..=200 {
+            let r = FAR_R + 0.5 - (FAR_R + 0.5 - 1.0) * (i as f32) / 200.0;
+            let e = atmo_exposure(r, 1.0, 0.5, RP);
+            assert!(e <= prev + 1e-4, "distance ramp not monotone at r {r}");
+            assert!(
+                (prev - e).abs() < 0.15,
+                "distance ramp jumps at r {r}: {prev} -> {e}"
+            );
+            prev = e;
+        }
+        assert_eq!(prev, EXPOSURE_NEAR);
+    }
+
+    #[test]
+    fn wgsl_atmo_constants_stay_in_sync() {
+        // Same enforcement the cloud module has had since increment 1: parse
+        // each ATMO_* constant straight out of the shipped shader source so
+        // the Rust mirror and the WGSL can never drift silently. (Before
+        // v0.815 this module relied on a comment asking nicely.)
+        let wgsl = include_str!("../../assets/shaders/pbr_simple.wgsl");
+        let expect: &[(&str, f32)] = &[
+            ("ATMO_TAU_RAYLEIGH", TAU_RAYLEIGH),
+            ("ATMO_TAU_MIE", TAU_MIE),
+            ("ATMO_MIE_G", MIE_G),
+            ("ATMO_EXPOSURE", EXPOSURE),
+            ("ATMO_EXPOSURE_NEAR", EXPOSURE_NEAR),
+            ("ATMO_NEAR_R", NEAR_R),
+            ("ATMO_FAR_R", FAR_R),
+        ];
+        for (name, rust_val) in expect {
+            let needle = format!("const {name}: f32 = ");
+            let start = wgsl
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{name} missing from pbr_simple.wgsl"));
+            let rest = &wgsl[start + needle.len()..];
+            let end = rest.find(';').expect("unterminated const");
+            let parsed: f32 = rest[..end]
+                .trim()
+                .parse()
+                .unwrap_or_else(|e| panic!("{name} literal unparseable: {e}"));
+            assert_eq!(
+                parsed, *rust_val,
+                "{name} drifted: WGSL {parsed} vs Rust {rust_val}"
+            );
+        }
     }
 
     #[test]
