@@ -24,6 +24,12 @@
     // Density scale height in meters (real Earth value). Controls how fast
     // the air thins with altitude in the scattering shader.
     scale_height_m: Some(8500.0),
+    // Cloud deck (clouds increment 1): coverage fraction for the animated
+    // procedural cloud shell (shader type 15, drawn under the atmosphere
+    // shell). Real Earth averages ~0.60-0.67 cloud cover; 0.55 keeps the
+    // continents readable from orbit while still reading as Earth. Omit (or
+    // None) for cloudless worlds -- Mars deliberately has none.
+    cloud_coverage: Some(0.55),
     has_water: true,
     // Real elevation grid (2026-07-11): 3600x1800 cells (0.1 degree) built
     // from NOAA ETOPO1 (public domain) by scripts/build-earth-heightmap.js.

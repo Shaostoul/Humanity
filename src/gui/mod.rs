@@ -6212,6 +6212,11 @@ pub struct SettingsState {
     /// A/B reference and as a safety hatch for GPUs that dislike the math.
     /// See pbr_simple.wgsl type 14 + renderer::atmosphere.
     pub planet_atmo_scatter: bool,
+    /// Animated procedural cloud shells (clouds increment 1): the drifting,
+    /// sun-lit cloud deck on planets that declare cloud_coverage in their
+    /// RON (Earth). Off skips the shell entirely (no material, no draw).
+    /// See pbr_simple.wgsl type 15 + renderer::clouds.
+    pub planet_clouds: bool,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -6288,6 +6293,7 @@ impl Default for SettingsState {
             planet_max_subdiv: 6.0,
             planet_chunked: true,
             planet_atmo_scatter: true,
+            planet_clouds: true,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

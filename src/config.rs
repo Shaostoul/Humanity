@@ -347,6 +347,10 @@ pub struct AppConfig {
     /// GPUs that dislike the per-pixel scattering math.
     #[serde(default = "default_true")]
     pub planet_atmo_scatter: bool,
+    /// Animated procedural cloud shells on planets that declare
+    /// cloud_coverage (clouds increment 1). Off = no cloud deck at all.
+    #[serde(default = "default_true")]
+    pub planet_clouds: bool,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -782,6 +786,32 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    /// Like `load()`, but returns None when no config file exists yet, so a
+    /// FRESH install keeps GuiState's designed defaults rather than having
+    /// a config applied over them at all. Two layers of the same 2026-07-11
+    /// fresh-install fix (found independently by two agents' boot-verifies):
+    /// this guard skips the apply entirely on first boot, and the manual
+    /// `Default` impl below makes every other default-constructed AppConfig
+    /// (corrupt-file `unwrap_or_default`, tests) carry the real serde
+    /// defaults instead of derive's all-false/zero fields. Existing configs
+    /// behave exactly as before (missing fields get their serde defaults).
+    pub fn load_if_exists() -> Option<Self> {
+        let path = Self::config_path();
+        match std::fs::read_to_string(&path) {
+            Ok(json) => {
+                log::info!("Loaded config from {}", path.display());
+                Some(serde_json::from_str(&json).unwrap_or_default())
+            }
+            Err(_) => {
+                log::info!(
+                    "No config file at {} (fresh install): keeping built-in defaults",
+                    path.display()
+                );
+                None
+            }
+        }
+    }
+
     pub fn save(&self) {
         let path = Self::config_path();
         if let Ok(json) = serde_json::to_string_pretty(self) {
@@ -833,6 +863,7 @@ impl AppConfig {
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
+            planet_clouds: state.settings.planet_clouds,
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
@@ -934,6 +965,7 @@ impl AppConfig {
             .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
         state.settings.planet_chunked = self.planet_chunked;
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
+        state.settings.planet_clouds = self.planet_clouds;
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);

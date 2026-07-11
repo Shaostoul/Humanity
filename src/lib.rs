@@ -2165,6 +2165,9 @@ mod native_app {
             lists.celestial,
             lists.celestial_transparent,
             sun_dir_f,
+            // Same clock as the live path: cloud decks drift with time, and a
+            // capture should freeze the exact frame the player is looking at.
+            state.start_time.elapsed().as_secs_f32(),
             &capture_view,
         );
         state
@@ -4978,6 +4981,7 @@ mod native_app {
         state.planet_albedos.clear();
         state.planet_mesh_cache.clear();
         state.planet_atmo_materials.clear();
+        state.planet_cloud_materials.clear();
         // Chunked-LOD patches: unlike the whole-sphere cache above (whose
         // superseded meshes stay resident until session end), patch slots
         // are actively recycled: replace each GPU mesh with a degenerate
@@ -6237,6 +6241,11 @@ mod native_app {
         /// fresnel fallback (type 13) without touching the other variant --
         /// stale entries are ~100-byte uniform buffers, not worth evicting.
         planet_atmo_materials: std::collections::HashMap<(String, bool), usize>,
+        /// Per-body cloud-deck materials (clouds increment 1, shader type
+        /// 15), created lazily from the def's cloud_coverage. Keyed by body
+        /// id alone: coverage + seed both come from the def, and
+        /// reload_planet_defs clears this map so RON tuning hot-reloads.
+        planet_cloud_materials: std::collections::HashMap<String, usize>,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
         /// Emissive material index for the Sun core.
@@ -7231,9 +7240,14 @@ mod native_app {
                 .position(|p| p.name == "Earth")
                 .or(if gui_state.map_planets.is_empty() { None } else { Some(0) });
 
-            // Load persistent config and apply to GUI state
-            let config = crate::config::AppConfig::load();
-            config.apply_to_gui_state(&mut gui_state);
+            // Load persistent config and apply to GUI state. Fresh installs
+            // (no config.json yet) SKIP the apply so GuiState keeps its
+            // designed defaults -- AppConfig's derived Default is all-zeroes
+            // and used to stomp first boots to fov 0 / planet detail off /
+            // no atmosphere / no clouds (see AppConfig::load_if_exists).
+            if let Some(config) = crate::config::AppConfig::load_if_exists() {
+                config.apply_to_gui_state(&mut gui_state);
+            }
             // Push the LOADED settings into the engine on the first frame. Without this the
             // camera boots at CameraController::new's hardcoded sensitivity (and the camera
             // FOV / far-plane stay at their constructor defaults) until the user nudges a
@@ -7295,6 +7309,7 @@ mod native_app {
                 planet_patch_free_slots: Vec::new(),
                 planet_surface_material: 0,
                 planet_atmo_materials: std::collections::HashMap::new(),
+                planet_cloud_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
                 sun_halo_material: 0,
@@ -12867,6 +12882,95 @@ mod native_app {
                             // transparent list blends over them.
                             if px >= 8.0 {
                                 if let Some(d) = def {
+                                    // Cloud deck (clouds increment 1): an animated
+                                    // procedural coverage shell (shader type 15) at
+                                    // CLOUD_SHELL_SCALE, pushed BEFORE the atmosphere
+                                    // shell below. The transparent celestial list
+                                    // draws in submission order with depth-test-only
+                                    // (no writes), so list order IS composite order:
+                                    // surface (opaque) -> clouds -> atmosphere, i.e.
+                                    // the air scatters IN FRONT of the clouds --
+                                    // physically right and it keeps the blue limb
+                                    // hazing the deck near the horizon. Data-driven:
+                                    // only defs with cloud_coverage spawn one
+                                    // (earth.ron ~0.55; Mars deliberately None).
+                                    let clouds_on = state.gui_state.settings.planet_clouds;
+                                    if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
+                                        let cmat = if let Some(&m) =
+                                            state.planet_cloud_materials.get(&b.id)
+                                        {
+                                            m
+                                        } else {
+                                            // Packing (mirror + tests:
+                                            // renderer::clouds): white tint +
+                                            // coverage in the color, per-planet
+                                            // noise seed in the metallic slot,
+                                            // type 15. A future cloud_color RON
+                                            // field can ride the rgb unchanged.
+                                            let m = state.renderer.add_material_full(
+                                                [1.0, 1.0, 1.0, cov.min(1.0)],
+                                                crate::renderer::clouds::cloud_seed(
+                                                    d.terrain_seed,
+                                                ),
+                                                0.0,
+                                                15.0,
+                                                0.0,
+                                            );
+                                            state
+                                                .planet_cloud_materials
+                                                .insert(b.id.clone(), m);
+                                            // One-shot (per cache fill) so a log
+                                            // grep proves the deck actually draws
+                                            // on this machine -- the same
+                                            // diagnostics-first norm as the
+                                            // "Sky-planet mesh built" line.
+                                            log::info!(
+                                                "Cloud deck material built: {} (coverage {:.2}, seed {})",
+                                                b.id,
+                                                cov,
+                                                crate::renderer::clouds::cloud_seed(d.terrain_seed),
+                                            );
+                                            m
+                                        };
+                                        // Same shared flat shell mesh as the
+                                        // atmosphere (per-fragment noise does the
+                                        // detail work; only the silhouette is mesh).
+                                        let shell_level = 3.min(max_level);
+                                        let skey = ("_flat".to_string(), shell_level);
+                                        let cloud_mesh = if let Some(&m) =
+                                            state.planet_mesh_cache.get(&skey)
+                                        {
+                                            m
+                                        } else {
+                                            let mut ico =
+                                                crate::terrain::icosphere::Icosphere::new();
+                                            ico.subdivide_n(shell_level);
+                                            let m = state.renderer.add_mesh(
+                                                Mesh::from_icosphere(
+                                                    &state.renderer.device,
+                                                    &ico,
+                                                    1.0,
+                                                ),
+                                            );
+                                            state.planet_mesh_cache.insert(skey, m);
+                                            m
+                                        };
+                                        // rotation matters here (unlike the
+                                        // atmosphere): the shader samples the noise
+                                        // in the mesh's LOCAL frame, so the deck
+                                        // rides the planet's spin and the drift
+                                        // constants are true weather motion.
+                                        celestial_transparent.push(RenderObject {
+                                            position,
+                                            rotation,
+                                            scale: Vec3::splat(
+                                                visual_scale
+                                                    * crate::renderer::clouds::CLOUD_SHELL_SCALE,
+                                            ),
+                                            mesh: cloud_mesh,
+                                            material: cmat,
+                                        });
+                                    }
                                     if let Some(ac) = d.atmosphere_color {
                                         if ac[3] > 0.0 && d.atmosphere_scale > 0.0 {
                                             let scatter =
@@ -17376,7 +17480,10 @@ mod native_app {
                                         .normalize_or_zero();
                                     Vec3::new(d.x as f32, d.y as f32, d.z as f32)
                                 };
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, &view);
+                                // The elapsed-seconds arg is the cloud-deck clock
+                                // (shader type 15 animation); app-start-relative so
+                                // f32 stays precise for days of uptime.
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

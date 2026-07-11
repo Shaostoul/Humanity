@@ -6,6 +6,7 @@
 pub mod atmosphere;
 pub mod bloom;
 pub mod camera;
+pub mod clouds;
 pub mod floating_origin;
 pub mod hologram;
 pub mod light;
@@ -1188,6 +1189,7 @@ impl Renderer {
         objects: &[RenderObject],
         transparent: &[RenderObject],
         sun_dir: Vec3,
+        time_s: f32,
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -1198,6 +1200,13 @@ impl Renderer {
             0,
             bytemuck::bytes_of(&camera.celestial_uniforms()),
         );
+        // Cloud clock (shader type 15): app-start-relative seconds, parked in
+        // sun_color.w -- a documented-unused pad in CameraUniforms, so the
+        // animated cloud deck needed NO uniform-layout change (the same
+        // no-layout-churn rule as the type-14 material packing). Offset 636 =
+        // sun_color (624) + 12 bytes to its w component. Written before the
+        // sun poke below so both land in this pass's uniform snapshot.
+        self.queue.write_buffer(&self.camera_buffer, 636, bytemuck::bytes_of(&time_s));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true
@@ -1206,7 +1215,9 @@ impl Renderer {
         // own shading is unaffected.)
         if sun_dir != Vec3::ZERO {
             let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32];
-            let sc = [1.0_f32, 0.97, 0.92, 0.0];
+            // w carries the cloud clock (written above at 636); this full
+            // vec4 write would stomp it back to a constant otherwise.
+            let sc = [1.0_f32, 0.97, 0.92, time_s];
             self.queue.write_buffer(&self.camera_buffer, 608, bytemuck::cast_slice(&sd));
             self.queue.write_buffer(&self.camera_buffer, 624, bytemuck::cast_slice(&sc));
         }
