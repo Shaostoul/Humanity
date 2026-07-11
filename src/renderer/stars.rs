@@ -482,7 +482,21 @@ impl StarRenderer {
         // FRAGMENT visibility, so the v0.807 stage-visibility trap (wgpu
         // validates shader-stage usage against the layout flags at pipeline
         // creation) cannot fire here.
-        let halo_stars = catalog.halo_stars(HALO_MAG_THRESHOLD, HALO_CAP);
+        // Halo stars come from the STANDARD catalog whenever it is on disk,
+        // NOT the active one (v0.809): the Gaia-based tiers OMIT the very
+        // brightest saturated stars, so on Ultra only 7 dim members passed
+        // the mag cut and Sirius/Vega went halo-less exactly when the sky
+        // looked its best (caught by the v0.808.1 boot log: "7 quads ...
+        // brightest mag 1.73"). Same principle as the constellation-name
+        // sidecar adoption: the famous naked-eye stars are the standard
+        // catalog's authority. Falls back to the active catalog on a data
+        // dir without stars.bin (parse cost: ~1 ms for 120k records, once).
+        let halo_stars = std::fs::read(data_dir.join("stars.bin"))
+            .ok()
+            .and_then(|b| StarCatalog::from_bin(&b))
+            .map(|std_cat| std_cat.halo_stars(HALO_MAG_THRESHOLD, HALO_CAP))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| catalog.halo_stars(HALO_MAG_THRESHOLD, HALO_CAP));
         let halo_verts = build_halo_vertices(&halo_stars);
         let (halo_pipeline, halo_buffer, halo_vertex_count) = if halo_verts.is_empty() {
             log::info!(
