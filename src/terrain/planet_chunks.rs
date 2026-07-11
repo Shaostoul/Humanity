@@ -75,9 +75,11 @@ use noise::{NoiseFn, Perlin};
 use std::collections::{BinaryHeap, HashMap};
 
 use super::planet::PlanetDef;
+use super::planet_albedo::PlanetAlbedo;
 use super::planet_heightmap::PlanetHeightmap;
 use super::planet_surface::{
-    classify_color, displaced_radius_f64, SurfaceMeshData, SurfaceSampler, SurfaceVertexData,
+    displaced_radius_f64, slope_shade, surface_color, SurfaceMeshData, SurfaceSampler,
+    SurfaceVertexData,
 };
 
 /// Tessellation of one patch edge: 16 segments -> a triangular grid of
@@ -858,9 +860,14 @@ fn boundary_indices(n: u32) -> Vec<usize> {
 /// small offset is narrowed to f32. At MAX_PATCH_DEPTH the offsets are at
 /// most a few tens of km (relief dominates patch size), keeping f32 error
 /// in the millimeter range; a test locks sub-meter behavior.
+///
+/// `albedo`: the planet's real-color grid when it ships one (Earth); face
+/// colors then come from imagery via `planet_surface::surface_color`, same
+/// as the uniform-sphere path, so the LOD handoff never changes hue.
 pub fn build_patch_mesh(
     def: &PlanetDef,
     source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
     id: &PatchId,
 ) -> PatchMesh {
     let n = PATCH_TESS;
@@ -929,8 +936,9 @@ pub fn build_patch_mesh(
 
     // ── Flat-shaded faces (mirrors planet_surface::build_surface_mesh:
     // underwater = smooth spherical normals on the undisplaced sphere,
-    // land = flat geometric normal with an outward fallback; per-face
-    // color from classify_color so zero color logic is duplicated). ──
+    // land = flat geometric normal with an outward fallback + slope
+    // shading; per-face color from surface_color so zero color logic is
+    // duplicated). ──
     let grid_tris = (n * n) as usize;
     let skirt_tris = (3 * n * 2) as usize;
     let mut vertices: Vec<SurfaceVertexData> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
@@ -941,19 +949,23 @@ pub fn build_patch_mesh(
                          indices: &mut Vec<u32>| {
         let mean_e = (elevs[ia] + elevs[ib] + elevs[ic]) / 3.0;
         let centroid_dir = ((dirs[ia] + dirs[ib] + dirs[ic]) / 3.0).normalize();
-        // On the unit sphere y IS sin(latitude).
-        let color = classify_color(def, mean_e, centroid_dir.y.abs() as f32);
+        // Real imagery when the def ships an albedo grid (Earth), the
+        // elevation-band classifier otherwise -- shared with the uniform
+        // sphere path so zero color logic is duplicated.
+        let color = surface_color(def, albedo, centroid_dir.as_vec3(), mean_e);
         let underwater = def.has_water && mean_e < sea;
         if underwater {
             // Smooth ocean: per-corner spherical normals. Positions are
             // already on the undisplaced sphere (displaced_radius clamps
-            // below-sea to 1.0 on water worlds).
+            // below-sea to 1.0 on water worlds). water: true drives the
+            // shader's sun glint.
             for &i in &[ia, ib, ic] {
                 indices.push(vertices.len() as u32);
                 vertices.push(SurfaceVertexData {
                     position: offsets[i].to_array(),
                     normal: dirs[i].as_vec3().to_array(),
                     color,
+                    water: true,
                 });
             }
         } else {
@@ -965,12 +977,17 @@ pub fn build_patch_mesh(
                 // never an inside-out face.
                 nrm = out;
             }
+            // Slope shading (mirrors the uniform sphere path): steep faces
+            // darken slightly so relief reads even at noon lighting.
+            let shade = slope_shade(nrm, out);
+            let color = [color[0] * shade, color[1] * shade, color[2] * shade];
             for &p in &[p0, p1, p2] {
                 indices.push(vertices.len() as u32);
                 vertices.push(SurfaceVertexData {
                     position: p.to_array(),
                     normal: nrm.to_array(),
                     color,
+                    water: false,
                 });
             }
         }
@@ -1020,9 +1037,13 @@ pub fn build_patch_mesh(
         let s1 = b1 - dirs[ib].as_vec3() * skirt_depth as f32;
         // One color + one smooth normal per segment (flat-shading transport
         // requires all 3 corners of a face to carry identical packed color).
+        // Same surface_color source as the grid faces so the apron blends
+        // in; no slope shading (the normal is radial, shade would be 1.0),
+        // and the water flag follows the same below-sea rule.
         let mean_e = (elevs[ia] + elevs[ib]) / 2.0;
         let mid_dir = midpoint(dirs[ia], dirs[ib]);
-        let color = classify_color(def, mean_e, mid_dir.y.abs() as f32);
+        let color = surface_color(def, albedo, mid_dir.as_vec3(), mean_e);
+        let skirt_water = def.has_water && mean_e < sea;
         let nrm = mid_dir.as_vec3().to_array();
         // Winding: walking the border CCW (seen from outside), the wall
         // must face AWAY from the patch interior; (s0, s1, b1) + (s0, b1,
@@ -1036,6 +1057,7 @@ pub fn build_patch_mesh(
                     position: p.to_array(),
                     normal: nrm,
                     color,
+                    water: skirt_water,
                 });
             }
         }
@@ -1543,7 +1565,7 @@ mod tests {
         let detail = DetailNoise::new(def.terrain_seed);
         let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
         let id = PatchId::root(0).child(3).child(1);
-        let pm = build_patch_mesh(&def, &src, &id);
+        let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
         let grid_tris = (n * n) as usize;
         let skirt_tris = (3 * n * 2) as usize;
@@ -1578,7 +1600,7 @@ mod tests {
         let detail = DetailNoise::new(def.terrain_seed);
         let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
         let id = PatchId::root(2).child(0).child(0).child(0);
-        let pm = build_patch_mesh(&def, &src, &id);
+        let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
         let grid_tris = (n * n) as usize;
         let skirt_verts = &pm.mesh.vertices[grid_tris * 3..];
@@ -1620,7 +1642,7 @@ mod tests {
             id = id.child((i % 4) as u32);
         }
         assert_eq!(id.depth, MAX_PATCH_DEPTH);
-        let pm = build_patch_mesh(&def, &src, &id);
+        let pm = build_patch_mesh(&def, &src, None, &id);
         // Reference: recompute the grid positions fully in f64.
         let n = PATCH_TESS;
         let corners = patch_corners(&id);
@@ -1676,16 +1698,16 @@ mod tests {
         let detail = DetailNoise::new(def.terrain_seed);
         let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
         let id = PatchId::root(5).child(2).child(1).child(3);
-        let a = build_patch_mesh(&def, &src, &id);
-        let b = build_patch_mesh(&def, &src, &id);
+        let a = build_patch_mesh(&def, &src, None, &id);
+        let b = build_patch_mesh(&def, &src, None, &id);
         assert_eq!(a.anchor, b.anchor);
         assert_eq!(a.mesh.vertices, b.mesh.vertices);
         assert_eq!(a.mesh.indices, b.mesh.indices);
         // The noise path is deterministic too.
         let sampler = SurfaceSampler::new(&def);
         let ns = ElevationSource::Noise(&sampler);
-        let c = build_patch_mesh(&def, &ns, &id);
-        let d = build_patch_mesh(&def, &ns, &id);
+        let c = build_patch_mesh(&def, &ns, None, &id);
+        let d = build_patch_mesh(&def, &ns, None, &id);
         assert_eq!(c.mesh.vertices, d.mesh.vertices);
         // And the two sources genuinely differ.
         assert_ne!(a.mesh.vertices, c.mesh.vertices);
@@ -1704,8 +1726,8 @@ mod tests {
         let parent = PatchId::root(11).child(3).child(2);
         // Child 0 keeps corner0 with edge (m01, m20); child 3 (center) has
         // corners (m01, m12, m20): they share the edge m01-m20.
-        let a = build_patch_mesh(&def, &src, &parent.child(0));
-        let b = build_patch_mesh(&def, &src, &parent.child(3));
+        let a = build_patch_mesh(&def, &src, None, &parent.child(0));
+        let b = build_patch_mesh(&def, &src, None, &parent.child(3));
         let world = |pm: &PatchMesh| -> Vec<DVec3> {
             pm.mesh.vertices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
                 .iter()
@@ -1744,7 +1766,7 @@ mod tests {
         let mut def_ocean = def.clone();
         def_ocean.sea_level = 0.5;
         let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail };
-        let pm = build_patch_mesh(&def_ocean, &src, &PatchId::root(0).child(3));
+        let pm = build_patch_mesh(&def_ocean, &src, None, &PatchId::root(0).child(3));
         let n = PATCH_TESS;
         for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
             let r = (pm.anchor + glam::Vec3::from_array(v.position).as_dvec3()).length();

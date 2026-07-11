@@ -151,7 +151,8 @@ impl Mesh {
 
     /// Build a mesh from procedural planet-surface data (v0.763).
     ///
-    /// Per-face RGB colors ride packed inside the UV channel (see
+    /// Per-face RGB colors (plus the water flag that gates the ocean sun
+    /// glint) ride packed inside the UV channel (see
     /// `terrain::planet_surface::pack_color_to_uv`); the PBR shader's
     /// material type 12 decodes them. All three corners of a flat-shaded
     /// face carry identical UVs, so rasterizer interpolation cannot corrupt
@@ -166,7 +167,7 @@ impl Mesh {
             .map(|v| Vertex {
                 position: v.position,
                 normal: v.normal,
-                uv: crate::terrain::planet_surface::pack_color_to_uv(v.color),
+                uv: crate::terrain::planet_surface::pack_color_to_uv(v.color, v.water),
             })
             .collect();
         Self::from_vertices(device, &vertices, &data.indices)

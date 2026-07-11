@@ -617,7 +617,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
     //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
     //   3 = Wood                          7 = Leather         11 = Lava
-    //  12 = Planet surface (vertex color packed in UV)
+    //  12 = Planet surface (vertex color + water flag packed in UV; ocean sun glint)
     //  13 = Atmosphere shell (fresnel limb tint -- the pre-v0.807 fallback)
     //  14 = Atmosphere shell (analytic single scattering -- handled above)
     if material_type < 0.5 {
@@ -715,15 +715,41 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     } else if material_type < 12.5 {
         // Type 12: Planet surface (v0.763) -- per-face color packed into the UV
         // channel by Mesh::from_planet_surface / terrain::planet_surface::
-        // pack_color_to_uv. uv.x holds two 8-bit channels as one exact integer
-        // (round(r*255)*256 + round(g*255)); uv.y holds blue as a plain float.
-        // All three corners of a flat-shaded face carry the SAME uv, so linear
-        // interpolation leaves the packed integer intact. Keep the decode in
-        // sync with terrain::planet_surface::unpack_uv_to_color (unit-tested).
+        // pack_color_to_uv. uv.x holds two 8-bit channels plus a water flag as
+        // one exact integer (water*65536 + round(r*255)*256 + round(g*255),
+        // max 131071 -- well inside f32's 2^24 exact-integer range); uv.y
+        // holds blue as a plain float. All three corners of a flat-shaded face
+        // carry the SAME uv, so linear interpolation leaves the packed integer
+        // intact. Keep the decode in sync with terrain::planet_surface::
+        // unpack_uv_to_color (unit-tested).
         let packed = u32(round(max(in.uv.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
         albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
+        // Ocean sun glint (v0.810): every orbital photo has a bright specular
+        // spot where the sun mirrors off the sea; without it the ocean reads
+        // as painted plastic. Water faces are flagged in bit 16 by the mesh
+        // builder (below-sea-level faces of has_water planets -- their
+        // normals are the smooth sphere normals, so the lobe is round).
+        // Implemented as an explicit Blinn-Phong lobe toward the SUN only,
+        // added via proc_emissive AFTER the diffuse path: reusing the
+        // material roughness would also glint the fixed cool fill light,
+        // painting a second physically bogus hotspot. Land gets nothing.
+        if ((packed & 65536u) != 0u) {
+            let sun_l = normalize(camera.sun_direction.xyz);
+            let half_v = normalize(view_dir + sun_l);
+            // Day gate: the glint fades smoothly at the terminator and never
+            // appears on the night side (emissive would otherwise ignore
+            // the sun's geometry entirely).
+            let day = clamp(dot(normal, sun_l), 0.0, 1.0);
+            // Exponent 220 = a ~5 degree half-vector lobe: a glint spot
+            // roughly a tenth of the disc across, matching the soft bright
+            // patch (sun + surrounding wave glitter) in orbital photos.
+            let spec = pow(max(dot(normal, half_v), 0.0), 220.0);
+            // 0.7 * sun intensity 2.5 peaks ~1.75 pre-tonemap: bright, not
+            // a blown white hole.
+            proc_emissive = camera.sun_color.rgb * camera.sun_direction.w * spec * day * 0.7;
+        }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
         // oversized transparent sphere. Nearly invisible looking straight

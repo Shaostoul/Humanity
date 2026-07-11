@@ -4683,6 +4683,7 @@ mod native_app {
     fn reload_planet_defs(state: &mut EngineState) {
         state.planet_defs.clear();
         state.planet_heightmaps.clear();
+        state.planet_albedos.clear();
         state.planet_mesh_cache.clear();
         state.planet_atmo_materials.clear();
         // Chunked-LOD patches: unlike the whole-sphere cache above (whose
@@ -4730,6 +4731,26 @@ mod native_app {
                                 ),
                             }
                         }
+                        // Real surface-color grid (Earth: NASA Blue Marble
+                        // via scripts/build-earth-albedo.js). On failure we
+                        // warn and keep the elevation-band classifier (a
+                        // missing grid must never blank a planet's colors).
+                        if let Some(al_rel) = def.albedo.clone() {
+                            let al_path = state.asset_manager.data_dir().join(&al_rel);
+                            match crate::terrain::planet_albedo::PlanetAlbedo::load(&al_path) {
+                                Ok(al) => {
+                                    log::info!(
+                                        "Planet '{}': albedo {} ({}x{})",
+                                        b.id, al_rel, al.width(), al.height()
+                                    );
+                                    state.planet_albedos.insert(b.id.clone(), al);
+                                }
+                                Err(e) => log::warn!(
+                                    "Planet '{}': albedo {al_rel} failed to load ({e}); falling back to band classifier",
+                                    b.id
+                                ),
+                            }
+                        }
                         state.planet_defs.insert(b.id.clone(), def);
                     }
                     Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
@@ -4737,9 +4758,10 @@ mod native_app {
             }
         }
         log::info!(
-            "Planets: {} procedural surface def(s) loaded from data/planets/ ({} with real heightmaps)",
+            "Planets: {} procedural surface def(s) loaded from data/planets/ ({} with real heightmaps, {} with real albedo)",
             state.planet_defs.len(),
-            state.planet_heightmaps.len()
+            state.planet_heightmaps.len(),
+            state.planet_albedos.len()
         );
     }
 
@@ -5891,6 +5913,12 @@ mod native_app {
         /// absent here falls back to procedural noise, so a missing or
         /// corrupt grid degrades gracefully instead of blanking the planet.
         planet_heightmaps: std::collections::HashMap<String, crate::terrain::planet_heightmap::PlanetHeightmap>,
+        /// Loaded real surface-color grids for defs whose `albedo` field
+        /// points at a data file (Earth ships one: NASA Blue Marble
+        /// downsampled to 4096x2048, ~25 MB resident). Keyed by body id; a
+        /// body absent here falls back to the elevation-band classifier,
+        /// so a missing or corrupt grid degrades gracefully.
+        planet_albedos: std::collections::HashMap<String, crate::terrain::planet_albedo::PlanetAlbedo>,
         /// Cached sky-body meshes keyed by (body id, subdivision level).
         /// Bodies WITHOUT a procedural def share plain icosphere meshes
         /// under the reserved id "_flat". LOD switches therefore never
@@ -6969,6 +6997,7 @@ mod native_app {
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
+                planet_albedos: std::collections::HashMap::new(),
                 planet_mesh_cache: std::collections::HashMap::new(),
                 planet_chunk_states: std::collections::HashMap::new(),
                 planet_patch_free_slots: Vec::new(),
@@ -12321,7 +12350,16 @@ mod native_app {
                                         hm,
                                         detail: &cs.detail,
                                     };
-                                    let pm = chunks::build_patch_mesh(d, &src, id);
+                                    // Real imagery colors when Earth ships an
+                                    // albedo grid; classifier otherwise (same
+                                    // source the uniform sphere uses, so the
+                                    // LOD handoff never changes hue).
+                                    let pm = chunks::build_patch_mesh(
+                                        d,
+                                        &src,
+                                        state.planet_albedos.get(&b.id),
+                                        id,
+                                    );
                                     let mesh =
                                         Mesh::from_planet_surface(&state.renderer.device, &pm.mesh);
                                     // Recycle an eviction-freed renderer slot
@@ -12463,11 +12501,14 @@ mod native_app {
                                     m
                                 } else {
                                     let mesh = if let Some(d) = def {
-                                        // Real heightmap (Earth) beats noise;
-                                        // both feed the same mesh builder.
+                                        // Real heightmap (Earth) beats noise,
+                                        // real albedo imagery beats the band
+                                        // classifier; both feed the same
+                                        // mesh builder.
                                         let hm = state.planet_heightmaps.get(&b.id);
+                                        let al = state.planet_albedos.get(&b.id);
                                         let data =
-                                            crate::terrain::planet_surface::build_surface_mesh(d, hm, level);
+                                            crate::terrain::planet_surface::build_surface_mesh(d, hm, al, level);
                                         Mesh::from_planet_surface(&state.renderer.device, &data)
                                     } else {
                                         let mut ico = crate::terrain::icosphere::Icosphere::new();

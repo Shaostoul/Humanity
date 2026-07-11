@@ -111,6 +111,16 @@ pub struct PlanetDef {
     /// None (every other planet) keeps the procedural noise path.
     #[serde(default)]
     pub heightmap: Option<String>,
+    /// Optional REAL surface-color grid, path relative to data/ (Earth
+    /// ships "planets/earth_albedo.bin", built from NASA Blue Marble Next
+    /// Generation by scripts/build-earth-albedo.js). When present, face
+    /// colors come from bilinear samples of this grid instead of the
+    /// elevation-band classifier (`planet_surface::classify_color`), with
+    /// only polar SEA ICE still layered on from `cap_color` (the imagery
+    /// already contains land snow but shows ice-free oceans to the poles).
+    /// None (every other planet) keeps the classifier path untouched.
+    #[serde(default)]
+    pub albedo: Option<String>,
     /// Atmosphere density scale height in METERS (Earth ~8500, Mars ~11100).
     /// Drives the exponential falloff of the analytic scattering shell
     /// (pbr_simple.wgsl material type 14; math mirror in
