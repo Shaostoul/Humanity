@@ -496,6 +496,7 @@ function bakeGaia(csvPaths) {
       for (let i = 1; i < lines.length; i++) yield lines[i];
     }
   })();
+  let cellsLoaded = 0;
   for (const line of allLines) {
     const f = line.split(',');
     const h = Number(f[0]);
@@ -503,8 +504,9 @@ function bakeGaia(csvPaths) {
     cellN[h] = Number(f[1]);
     cellBp[h] = Number(f[3]) || 0;
     cellRp[h] = Number(f[4]) || 0;
+    cellsLoaded++;
   }
-  console.log(`gaia: ${allLines.length} cells loaded`);
+  console.log(`gaia: ${cellsLoaded} cells loaded`);
 
   // Anchors: these sightlines are enormous density spikes in the real
   // census. If ang2pixNest had a convention slip they would land on
@@ -585,6 +587,16 @@ function bakeGaia(csvPaths) {
 }
 
 function main() {
+  // --out <path>: bake somewhere other than the committed default. The
+  // level-11 Ultra tier ships as a release asset, never over data/
+  // galaxy_glow.png (lesson: the first Ultra bake silently overwrote the
+  // default because this flag was mis-patched with LF-only matching on a
+  // CRLF file; recovered via git checkout).
+  const outIdx = process.argv.indexOf('--out');
+  if (outIdx >= 0 && process.argv[outIdx + 1]) {
+    OUT_PATH = path.resolve(process.argv[outIdx + 1]);
+    process.argv.splice(outIdx, 2);
+  }
   const gaiaIdx = process.argv.indexOf('--gaia');
   if (gaiaIdx >= 0) {
     // Everything after --gaia is an input CSV (level-9 pulls arrive split).

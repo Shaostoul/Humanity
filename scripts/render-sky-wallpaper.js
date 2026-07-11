@@ -34,8 +34,13 @@ const zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '..');
 const OUT_DIR = path.resolve(process.argv[2] || path.join(ROOT, 'wallpapers'));
 
-const MW = 8192; // master width
-const MH = 4096;
+// Master size: default 8192x4096; --size 16384x8192 for the Ultra-glow
+// render (pair it with --glow <ultra png> or the glow layer is upsampled).
+const sizeIdx = process.argv.indexOf('--size');
+const sizeArg = sizeIdx >= 0 ? String(process.argv[sizeIdx + 1] || '').match(/^(d+)x(d+)$/) : null;
+if (sizeIdx >= 0) process.argv.splice(sizeIdx, 2);
+const MW = sizeArg ? Number(sizeArg[1]) : 8192; // master width
+const MH = sizeArg ? Number(sizeArg[2]) : 4096;
 
 // Tone constants (display-referred output). GLOW_GAIN lifts the baked glow
 // a touch for wallpaper drama vs the in-game delicate-veil default; the
@@ -88,7 +93,10 @@ function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   // ── 1. glow base, linearized + upsampled ──
-  const glow = readGlow(path.join(ROOT, 'data', 'galaxy_glow.png'));
+  const glowIdx = process.argv.indexOf('--glow');
+  const glowPath = glowIdx >= 0 && process.argv[glowIdx + 1] ? path.resolve(process.argv[glowIdx + 1]) : path.join(ROOT, 'data', 'galaxy_glow.png');
+  if (glowIdx >= 0) process.argv.splice(glowIdx, 2);
+  const glow = readGlow(glowPath);
   console.log(`glow: ${glow.w}x${glow.h}`);
   const lin = { r: new Float32Array(MW * MH), g: new Float32Array(MW * MH), b: new Float32Array(MW * MH) };
   for (let y = 0; y < MH; y++) {
