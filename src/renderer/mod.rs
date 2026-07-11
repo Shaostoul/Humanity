@@ -671,6 +671,69 @@ impl Renderer {
         if w == 0 || h == 0 {
             return Err("zero-sized surface -- nothing to capture".to_string());
         }
+        self.read_texture_to_png(texture, w, h, path)
+    }
+
+    /// Largest texture edge this device supports (v0.810, hi-res screenshot capture).
+    /// Queried live from the device limits so the capture path's size clamp never
+    /// hardcodes a backend-specific number.
+    pub fn max_texture_dimension_2d(&self) -> u32 {
+        self.device.limits().max_texture_dimension_2d
+    }
+
+    /// Create an offscreen color target for a one-frame hi-res capture (v0.810).
+    /// Uses the SWAPCHAIN's format so every existing scene pipeline (they were all
+    /// built against `surface_format`) renders to it unchanged, plus COPY_SRC for
+    /// the PNG readback. Caller renders the normal passes to the returned view,
+    /// then hands the texture to `read_texture_to_png`.
+    pub fn create_capture_target(&self, width: u32, height: u32) -> (wgpu::Texture, wgpu::TextureView) {
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("HiRes Capture Target"),
+            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.config.format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        (texture, view)
+    }
+
+    /// Recreate the shared DEPTH buffer at an arbitrary size (v0.810). The hi-res
+    /// offscreen capture re-runs the normal scene passes, which all bind
+    /// `depth_view`, so the depth buffer must match the capture target's size for
+    /// that one frame; the caller calls this again with the window size right
+    /// after to restore. Deliberately does NOT reconfigure the swapchain (that
+    /// belongs to the window) and does not touch scene_texture/bloom (they are
+    /// not part of the live frame path).
+    pub fn set_depth_target_size(&mut self, width: u32, height: u32) {
+        if width == 0 || height == 0 {
+            return;
+        }
+        let (tex, view) = Self::create_depth_texture(&self.device, width, height);
+        self.depth_texture = tex;
+        self.depth_view = view;
+    }
+
+    /// Read a rendered texture (must have COPY_SRC and the swapchain's format)
+    /// back to a PNG at `path` (v0.810; generalized from the v0.639 swapchain
+    /// capture so the hi-res offscreen target uses the same proven path). After
+    /// writing, the file's header is re-read and its dimensions must match
+    /// `width` x `height` exactly, or this returns Err -- a capture that
+    /// silently shipped a bad file must never report ok (project lesson).
+    pub fn read_texture_to_png(
+        &self,
+        texture: &wgpu::Texture,
+        width: u32,
+        height: u32,
+        path: &std::path::Path,
+    ) -> Result<(), String> {
+        let (w, h) = (width, height);
+        if w == 0 || h == 0 {
+            return Err("zero-sized texture -- nothing to capture".to_string());
+        }
         let bytes_per_row = ((w * 4 + 255) / 256) * 256;
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("frame_capture_readback"),
@@ -729,6 +792,18 @@ impl Renderer {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         img.save(path).map_err(|e| e.to_string())?;
+        // Self-verify the written file (v0.810): decode the PNG header off disk and
+        // require the actual dimensions to match the capture request before
+        // reporting success. A writer that silently ships nothing (or a truncated
+        // file) must surface as an error, never an ok:true.
+        let (dw, dh) = image::image_dimensions(path)
+            .map_err(|e| format!("wrote {} but could not verify it: {e}", path.display()))?;
+        if (dw, dh) != (w, h) {
+            return Err(format!(
+                "PNG verification failed: requested {w}x{h} but {} decodes as {dw}x{dh}",
+                path.display()
+            ));
+        }
         Ok(())
     }
 
