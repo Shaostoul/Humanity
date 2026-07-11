@@ -459,10 +459,17 @@ function bakeGaia(csvPaths) {
       if (h > maxIdx) maxIdx = h;
     }
   }
-  GAIA_NSIDE = maxIdx >= 12 * 256 * 256 ? 512 : 256;
+  // Ladder: level 8 (nside 256) -> 2048, level 9 -> 4096, level 10 (nside
+  // 1024, 12.6M cells, 0.057 deg) -> 8192x4096 - one texel ~0.044 deg,
+  // parity with a 1440p screen pixel (~0.035 deg at game FOV), which is the
+  // point of level 10: the glow stops being softer than the display.
+  GAIA_NSIDE = maxIdx >= 12 * 512 * 512 ? 1024 : maxIdx >= 12 * 256 * 256 ? 512 : 256;
   if (GAIA_NSIDE === 512) {
     W = 4096;
     H = 2048;
+  } else if (GAIA_NSIDE === 1024) {
+    W = 8192;
+    H = 4096;
   }
   console.log(`gaia: nside ${GAIA_NSIDE} detected -> ${W}x${H} texture`);
   const ncell = 12 * GAIA_NSIDE * GAIA_NSIDE;

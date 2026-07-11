@@ -262,10 +262,13 @@ impl VoiceTransmitMode {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    #[serde(default)]
     pub server_url: String,
+    #[serde(default)]
     pub user_name: String,
+    #[serde(default)]
     pub public_key_hex: String,
     /// LEGACY: kept for backwards-compatible deserialization of pre-v0.197
     /// configs that still have the field. The Real/Sim toggle was removed
@@ -273,6 +276,7 @@ pub struct AppConfig {
     /// it for compatibility with old binaries on the same machine.
     #[serde(default)]
     pub context_real: bool,
+    #[serde(default)]
     pub completed_onboarding: bool,
     /// v0.198.0: whether the user has seen the post-identity Onboarding
     /// concept tour. Defaults to `true` via serde so pre-v0.198 configs
@@ -755,7 +759,29 @@ impl AppConfig {
             }
         }
     }
+}
 
+impl Default for AppConfig {
+    fn default() -> Self {
+        // The real field defaults live in the serde attributes (default_true,
+        // default_fov, ...), and those only run during DESERIALIZATION. The
+        // old `#[derive(Default)]` ignored them, so a fresh install (no
+        // config.json) booted with every bool false and every float zero:
+        // planet_detail off, vsync off, fov 0, silent audio. Parsing an empty
+        // object routes "fresh install" through the exact same defaults as
+        // "field missing from an old config.json".
+        let mut c: Self = serde_json::from_str("{}")
+            .expect("AppConfig: every field must carry a serde default (see Default impl)");
+        // One deliberate divergence: the serde default for concept_tour_seen
+        // is TRUE so long-time users whose config predates the field are not
+        // force-routed back through the tour. A genuinely fresh install
+        // SHOULD see the tour once, so the no-config path flips it back.
+        c.concept_tour_seen = false;
+        c
+    }
+}
+
+impl AppConfig {
     pub fn save(&self) {
         let path = Self::config_path();
         if let Ok(json) = serde_json::to_string_pretty(self) {
@@ -1226,5 +1252,35 @@ mod pbkdf2_migration_tests {
         let (enc, salt, _) = encrypt_at(&key, "pw", PBKDF2_ITERATIONS_LEGACY);
         let decrypted = decrypt_private_key(&enc, &salt, "pw", 0).unwrap();
         assert_eq!(decrypted, key);
+    }
+
+    #[test]
+    fn fresh_install_defaults_apply_serde_field_defaults() {
+        // Guards the manual Default impl (found 2026-07-11 by the planet
+        // aesthetics boot test): the derived Default ignored every serde
+        // field default, so fresh installs booted with planet_detail=false,
+        // vsync=false, fov=0, all volumes 0. If a future field is added
+        // without a serde default, `from_str("{}")` fails and this test
+        // catches it before a fresh install panics.
+        let c = AppConfig::default();
+        assert!(c.vsync);
+        assert!(c.planet_detail);
+        assert!(c.planet_chunked);
+        assert!(c.planet_atmo_scatter);
+        assert!(c.sky_constellations);
+        assert!(c.sky_milkyway_glow);
+        assert!(c.sky_star_halos);
+        assert_eq!(c.fov, 90.0);
+        assert_eq!(c.master_volume, 0.8);
+        assert_eq!(c.vitals_drain, 1.0);
+        assert_eq!(c.planet_max_subdiv, 6.0);
+        // Fresh installs see the concept tour exactly once: the serde
+        // default is true (pre-v0.198 configs skip it) but the no-config
+        // path deliberately flips it back to false.
+        assert!(!c.concept_tour_seen);
+        // And an EMPTY EXISTING config (old file, field absent) keeps the
+        // veteran behavior: tour marked seen.
+        let old: AppConfig = serde_json::from_str("{}").unwrap();
+        assert!(old.concept_tour_seen);
     }
 }
