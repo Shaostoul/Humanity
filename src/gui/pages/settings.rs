@@ -1842,6 +1842,62 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
 
+        // ── Star catalog (v0.800, star ladder rung 2) ── the extended ATHYG
+        // catalog is a 36 MB one-time download (too big to ship in the repo),
+        // fetched from a GitHub release asset and dropped beside stars.bin;
+        // the loader prefers it automatically on the next world entry.
+        ui.add_space(theme.spacing_md);
+        ui.label(RichText::new("Star catalog").color(theme.text_secondary()).strong());
+        match state.star_catalog_extended {
+            Some(bytes) => {
+                ui.label(
+                    RichText::new(format!(
+                        "Extended: 2.5 million real stars (ATHYG, {} MB installed). The Milky Way is individually resolved stars.",
+                        bytes / 1_048_576
+                    ))
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+                );
+                if ui.button("Remove extended catalog").clicked() {
+                    state.star_catalog_remove = true;
+                }
+            }
+            None => {
+                ui.label(
+                    RichText::new("Standard: 120,000 nearby stars (HYG). The extended catalog adds 2.5 million real stars from ATHYG - the visible Milky Way, star by star.")
+                        .color(theme.text_muted())
+                        .size(theme.font_size_small),
+                );
+                // Disabled only while ACTIVELY downloading; a FAILED attempt
+                // re-enables the button (the click replaces the dead handle).
+                let downloading = state
+                    .star_catalog_dl
+                    .as_ref()
+                    .and_then(|p| p.lock().ok().map(|g| !g.2.starts_with("FAILED")))
+                    .unwrap_or(false);
+                if ui.add_enabled(!downloading, egui::Button::new("Download extended catalog (36 MB)")).clicked() {
+                    state.star_catalog_download = true;
+                }
+            }
+        }
+        if let Some(dl) = &state.star_catalog_dl {
+            if let Ok(g) = dl.lock() {
+                let (done, total, ref status) = *g;
+                let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                ui.add(egui::ProgressBar::new(frac).text(format!(
+                    "{} ({} / {} MB)",
+                    status,
+                    done / 1_048_576,
+                    total.max(1) / 1_048_576
+                )));
+            }
+        }
+        ui.label(
+            RichText::new("Catalog changes apply next time you enter the world.")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
+        );
+
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
         ui.label(RichText::new("How close to show a machine's dot / name / info card. Hold Tab in-game to triple these and see through walls.").color(theme.text_muted()).size(theme.font_size_small));

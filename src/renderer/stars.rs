@@ -494,6 +494,28 @@ impl StarCatalog {
     /// lose the entire sky. Even the fallback now parses the file ONCE.
     pub fn load(data_dir: &Path) -> Option<Self> {
         let t0 = std::time::Instant::now();
+        // Extended catalog first (v0.800, star ladder rung 2): ATHYG's ~2.5M
+        // stars in the same HOSSTAR1 format, fetched on demand through
+        // Settings > Graphics (38 MB is too big to ship in the repo). Its
+        // sidecar carries the same proper/Bayer names, so constellations
+        // resolve identically. A corrupt/truncated download falls through to
+        // the standard catalog instead of costing the sky.
+        let ext_path = data_dir.join("stars-athyg.bin");
+        if let Ok(bytes) = std::fs::read(&ext_path) {
+            if let Some(cat) = Self::from_bin(&bytes) {
+                log::info!(
+                    "Star catalog: {} stars + {} name keys from stars-athyg.bin (EXTENDED) in {} ms",
+                    cat.stars.len(),
+                    cat.by_name.len() + cat.by_bayer.len(),
+                    t0.elapsed().as_millis()
+                );
+                return Some(cat);
+            }
+            log::warn!(
+                "stars-athyg.bin at {} is corrupt; using the standard catalog (re-download from Settings > Graphics)",
+                ext_path.display()
+            );
+        }
         let bin_path = data_dir.join("stars.bin");
         match std::fs::read(&bin_path) {
             Ok(bytes) => {

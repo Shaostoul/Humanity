@@ -2896,6 +2896,15 @@ pub struct GuiState {
     /// (found by the v0.793 autopilot two-instance test; a fast-loading real client could hit
     /// the same race).
     pub ws_identified: bool,
+    /// Extended star catalog (v0.800, star ladder rung 2). The Settings > Graphics card sets the
+    /// request flags; lib.rs consumes them (it owns data_dir + the download thread). Progress is
+    /// (downloaded_bytes, total_bytes, status_line); None = no download running.
+    pub star_catalog_download: bool,
+    pub star_catalog_remove: bool,
+    pub star_catalog_dl: Option<std::sync::Arc<std::sync::Mutex<(u64, u64, String)>>>,
+    /// Size in bytes of data/stars-athyg.bin if installed (None = standard catalog). Refreshed by
+    /// lib.rs at init and after download/remove, not polled per frame.
+    pub star_catalog_extended: Option<u64>,
     /// Armed whenever a structure or machine edit lands (the dirty consumers set it); the engine's
     /// 60 s autosave + the window-close flush write ship_structure.ron/home.ron and clear it.
     /// Before v0.791 the ship persisted ONLY through the explicit Save button -- quit without
@@ -4391,6 +4400,10 @@ impl Default for GuiState {
             construction_dirty: false,
             construction_machines_dirty: false,
             ws_identified: false,
+            star_catalog_download: false,
+            star_catalog_remove: false,
+            star_catalog_dl: None,
+            star_catalog_extended: None,
             construction_unsaved: false,
             ship_structure: None,
             construction_zone: 0,
