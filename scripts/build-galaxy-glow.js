@@ -140,7 +140,9 @@ const CAP_MAG = 4.0;
 // what a glow layer is. The wide pass adds the soft halo around the band.
 const SIGMA_CORE = 6.0;
 const SIGMA_HALO = 18.0;
-const HALO_MIX = 0.40; // out = (1-mix)*core + mix*halo
+// Halo share cut 0.40 -> 0.22 (v0.802.2): the wide pass is what read as
+// "smoke clouds" filling the sky; tighter structure keeps space black.
+const HALO_MIX = 0.22; // out = (1-mix)*core + mix*halo
 // Unresolved-bulge term (pipeline step 5). Gaussian in galactic coordinates:
 // sigma 14 deg along the plane, 7 deg across it (the bright oval in real
 // panoramas is roughly 30 x 15 deg). Peak radiance = BULGE_GAIN x the 99th
@@ -149,7 +151,8 @@ const HALO_MIX = 0.40; // out = (1-mix)*core + mix*halo
 // 1.1, the K-giant gold that dominates the real bulge's visible light.
 const BULGE_SIGMA_L_DEG = 14;
 const BULGE_SIGMA_B_DEG = 7;
-const BULGE_GAIN = 3.0;
+// 3.0 -> 2.0 (v0.802.2): the analytic bulge dominated the frame at 3x.
+const BULGE_GAIN = 2.0;
 const BULGE_CI = 1.1;
 // Tone map (pipeline step 6): baseline = this percentile of nonzero
 // radiance is subtracted first (the isotropic nearby-star glow); the
@@ -161,12 +164,20 @@ const BULGE_CI = 1.1;
 // mottle under ~10%, core at HEADROOM. (The first tuning pass used floor
 // p40 / knee peak/50 / no gamma and the whole sky came out as 30%-gray
 // clouds - as bright as the band itself.)
-const FLOOR_PCT = 0.60;
-const TONE_GAMMA = 1.25;
+// Retuned v0.802.2 after the operator's live report ("way too bright - I
+// don't feel like I'm off world"; even 0.1 intensity read bright, which was
+// mostly the shader's missing linearization, fixed in the same release, but
+// the bake itself also carried too much mid-tone energy). New targets on the
+// diagnostics line: band spine ~20-30% gray, mid-band ~8-15%, off-band under
+// ~4% (truly black sky between the arms), core at HEADROOM. The Milky Way
+// from a real dark site is a DELICATE veil - the reference photo is a long
+// exposure; the game should feel like the sky, not the photo's exposure.
+const FLOOR_PCT = 0.70;
+const TONE_GAMMA = 1.6;
 const KNEE_DIV = 12;
 // Peak output level at intensity 1.0 - headroom baked into the PNG so the
 // core does not clip and the 0..2 intensity slider has room to push.
-const HEADROOM = 0.85;
+const HEADROOM = 0.6;
 // Self-verify tolerance (degrees) between the smoothed peak and Sgr A*.
 const PEAK_TOL_DEG = 10;
 

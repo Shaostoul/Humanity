@@ -81,6 +81,15 @@ fn fs_main(input: GlowOutput) -> @location(0) vec4<f32> {
     let u = atan2(d.y, d.x) / 6.28318530717958647692 + 0.5;
     let v = acos(clamp(d.z, -1.0, 1.0)) / 3.14159265358979323846;
     let c = textureSample(glow_tex, glow_samp, vec2<f32>(u, v)).rgb;
+    // LINEARIZE before scaling (v0.802.2, operator: "0.1 brightness looks too
+    // bright too"): the PNG's values are DISPLAY-referred (the bake tuned them
+    // by how they look), but this render target is sRGB - the hardware
+    // re-applies the display transform on write, so treating the texels as
+    // linear re-brightened everything massively (0.085 linear displays as
+    // ~33% gray; the intensity slider seemed to do nothing). pow(c, 2.2)
+    // makes a texel baked at X display at ~X when intensity = 1.0, and the
+    // slider becomes perceptually honest.
+    let lin = pow(c, vec3<f32>(2.2, 2.2, 2.2));
     // Additive blend (ONE, ONE): output = glow + whatever is behind (black).
-    return vec4<f32>(c * glow_params.x, 1.0);
+    return vec4<f32>(lin * glow_params.x, 1.0);
 }

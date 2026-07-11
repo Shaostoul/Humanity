@@ -789,7 +789,10 @@ fn fs_main(input: GlowOutput) -> @location(0) vec4<f32> {
     let u = atan2(d.y, d.x) / 6.28318530717958647692 + 0.5;
     let v = acos(clamp(d.z, -1.0, 1.0)) / 3.14159265358979323846;
     let c = textureSample(glow_tex, glow_samp, vec2<f32>(u, v)).rgb;
-    return vec4<f32>(c * glow_params.x, 1.0);
+    // Linearize display-referred texels before the sRGB target re-encodes
+    // (v0.802.2) - keep in sync with assets/shaders/galaxy_glow.wgsl.
+    let lin = pow(c, vec3<f32>(2.2, 2.2, 2.2));
+    return vec4<f32>(lin * glow_params.x, 1.0);
 }
 "#;
 
