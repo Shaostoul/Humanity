@@ -6168,8 +6168,10 @@ pub struct SettingsState {
     /// icosphere level each time its projected diameter doubles past this.
     /// See terrain::planet::lod_level_for_pixels.
     pub planet_lod_px: f32,
-    /// Max icosphere subdivision level for sky planets (0-7; level 6 is
-    /// ~82k faces). Stored as f32 for the slider; rounded at use.
+    /// Max icosphere subdivision level for sky planets (0-9; level 6 is
+    /// ~82k faces, levels 8-9 are the heavy close-approach tiers -- see
+    /// terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
+    /// Stored as f32 for the slider; rounded at use.
     pub planet_max_subdiv: f32,
     // Audio
     pub master_volume: f32,

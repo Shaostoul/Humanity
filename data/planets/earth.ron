@@ -1,5 +1,6 @@
-// Earth: blue oceans, green-brown continents, sandy shorelines, white polar
-// caps + snow-capped peaks, thin blue atmosphere halo.
+// Earth: blue oceans, REAL continents (NOAA ETOPO1 elevation data via the
+// heightmap below), sandy shorelines, white polar caps + snow-capped peaks,
+// thin blue atmosphere halo.
 // Procedural surface fields (v0.763) are consumed by terrain::planet_surface;
 // see src/terrain/planet.rs::PlanetDef for the full field list + defaults.
 (
@@ -11,8 +12,14 @@
     atmosphere_color: Some((0.4, 0.6, 1.0, 0.35)),
     atmosphere_scale: 0.015,
     has_water: true,
-    // Fraction of the 0..1 elevation range that is ocean. 0.55 gives a
-    // roughly 60/40 water/land split with the default continental noise.
+    // Real elevation grid (2026-07-11): 3600x1800 cells (0.1 degree) built
+    // from NOAA ETOPO1 (public domain) by scripts/build-earth-heightmap.js.
+    // With a heightmap present, sea_level below is IGNORED: the loader
+    // overrides it with the grid's true 0 m position (~0.629 for the fixed
+    // -11000..+6500 m quantization window) so the real coastline is exact.
+    heightmap: Some("planets/earth_heightmap.bin"),
+    // Kept as documentation + fallback if the heightmap file is missing
+    // (the loader then reverts to procedural noise and uses this value).
     sea_level: 0.55,
     land_color: (0.24, 0.42, 0.16, 1.0),
     water_color: (0.07, 0.24, 0.48, 1.0),
@@ -22,7 +29,14 @@
     axial_tilt: 0.4091,
 
     // Procedural surface (v0.763)
-    surface_relief: 0.02,
+    // Vertical exaggeration ~4x true scale (2026-07-11). Real relief is
+    // tiny: the heightmap's +6500 m domain top over a 6,371 km radius is
+    // 0.00102 of radius, and (elev_norm - sea) spans 1 - 0.629 = 0.371
+    // there, so relief 0.00275 would be geometrically true (0.371 * 0.00275
+    // = 0.00102). At sky distances that reads as billiard-ball flat, so
+    // mountains get 4x: 0.00275 * 4 = 0.011. Was 0.02 (~6.4x) for the old
+    // noise surface, whose fictional peaks needed more help.
+    surface_relief: 0.011,
     noise_frequency: 2.2,
     noise_octaves: 5,
     shore_color: (0.78, 0.72, 0.52, 1.0),

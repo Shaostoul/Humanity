@@ -8,5 +8,6 @@ pub mod asteroid;
 pub mod heightmap;
 pub mod icosphere;
 pub mod planet;
+pub mod planet_heightmap;
 pub mod planet_registry;
 pub mod planet_surface;

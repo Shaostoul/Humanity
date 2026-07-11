@@ -4682,6 +4682,7 @@ mod native_app {
     /// how many edits a tuning session makes; eviction is a noted follow-up).
     fn reload_planet_defs(state: &mut EngineState) {
         state.planet_defs.clear();
+        state.planet_heightmaps.clear();
         state.planet_mesh_cache.clear();
         state.planet_atmo_materials.clear();
         for b in crate::cosmos::sol_bodies() {
@@ -4689,7 +4690,32 @@ mod native_app {
             if state.asset_manager.data_dir().join(&rel).exists() {
                 match state.asset_manager.load_ron::<PlanetDef>(&rel) {
                     Ok(def) => {
-                        let def = def.clone();
+                        let mut def = def.clone();
+                        // Real-elevation grid (Earth: NOAA ETOPO1 via
+                        // scripts/build-earth-heightmap.js). On success the
+                        // RON's hand-tuned sea_level is OVERRIDDEN with the
+                        // grid's true 0 m position so the real coastline is
+                        // exact; on failure we warn and keep the noise path
+                        // (a missing grid must never blank a planet).
+                        if let Some(hm_rel) = def.heightmap.clone() {
+                            let hm_path = state.asset_manager.data_dir().join(&hm_rel);
+                            match crate::terrain::planet_heightmap::PlanetHeightmap::load(&hm_path) {
+                                Ok(hm) => {
+                                    def.sea_level = hm.sea_level_normalized();
+                                    log::info!(
+                                        "Planet '{}': heightmap {} ({}x{}, {:.0}..{:.0} m, sea at {:.3})",
+                                        b.id, hm_rel, hm.width(), hm.height(),
+                                        hm.min_meters(), hm.max_meters(),
+                                        def.sea_level
+                                    );
+                                    state.planet_heightmaps.insert(b.id.clone(), hm);
+                                }
+                                Err(e) => log::warn!(
+                                    "Planet '{}': heightmap {hm_rel} failed to load ({e}); falling back to procedural noise",
+                                    b.id
+                                ),
+                            }
+                        }
                         state.planet_defs.insert(b.id.clone(), def);
                     }
                     Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
@@ -4697,8 +4723,9 @@ mod native_app {
             }
         }
         log::info!(
-            "Planets: {} procedural surface def(s) loaded from data/planets/",
-            state.planet_defs.len()
+            "Planets: {} procedural surface def(s) loaded from data/planets/ ({} with real heightmaps)",
+            state.planet_defs.len(),
+            state.planet_heightmaps.len()
         );
     }
 
@@ -5844,6 +5871,12 @@ mod native_app {
         /// without a def render as smooth LOD spheres with the coarse
         /// `solar_body_materials` below.
         planet_defs: std::collections::HashMap<String, PlanetDef>,
+        /// Loaded real-elevation grids for defs whose `heightmap` field
+        /// points at a data file (Earth ships one: NOAA ETOPO1 downsampled
+        /// to 0.1 degrees, ~12.4 MB resident). Keyed by body id; a body
+        /// absent here falls back to procedural noise, so a missing or
+        /// corrupt grid degrades gracefully instead of blanking the planet.
+        planet_heightmaps: std::collections::HashMap<String, crate::terrain::planet_heightmap::PlanetHeightmap>,
         /// Cached sky-body meshes keyed by (body id, subdivision level).
         /// Bodies WITHOUT a procedural def share plain icosphere meshes
         /// under the reserved id "_flat". LOD switches therefore never
@@ -6904,6 +6937,7 @@ mod native_app {
                 star_renderer: None,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
+                planet_heightmaps: std::collections::HashMap::new(),
                 planet_mesh_cache: std::collections::HashMap::new(),
                 planet_surface_material: 0,
                 planet_atmo_materials: std::collections::HashMap::new(),
@@ -12134,8 +12168,11 @@ mod native_app {
                                 m
                             } else {
                                 let mesh = if let Some(d) = def {
+                                    // Real heightmap (Earth) beats noise;
+                                    // both feed the same mesh builder.
+                                    let hm = state.planet_heightmaps.get(&b.id);
                                     let data =
-                                        crate::terrain::planet_surface::build_surface_mesh(d, level);
+                                        crate::terrain::planet_surface::build_surface_mesh(d, hm, level);
                                     Mesh::from_planet_surface(&state.renderer.device, &data)
                                 } else {
                                     let mut ico = crate::terrain::icosphere::Icosphere::new();

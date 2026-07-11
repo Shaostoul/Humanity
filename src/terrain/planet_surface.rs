@@ -2,10 +2,13 @@
 //!
 //! Turns a `PlanetDef` (data/planets/<id>.ron) + an icosphere subdivision
 //! level into CPU-side mesh data: per-vertex elevation from seeded 3D Perlin
-//! FBM, outward displacement for land (oceans stay smooth at the sphere
-//! radius, so seas read as flat blue and noise basins below sea level become
-//! lakes for free), and a per-face color classified from elevation +
-//! latitude (ocean / shore / lowland / highland / mountain / polar cap).
+//! FBM -- or, when the def ships a real elevation grid (Earth: NOAA ETOPO1
+//! via `terrain::planet_heightmap`), from bilinear samples of that grid, so
+//! the sky planet shows REAL continents -- outward displacement for land
+//! (oceans stay smooth at the sphere radius, so seas read as flat blue and
+//! basins below sea level become lakes for free), and a per-face color
+//! classified from elevation + latitude (ocean / shore / lowland / highland
+//! / mountain / polar cap).
 //!
 //! Faces are FLAT-SHADED: each triangle gets 3 unique vertices sharing one
 //! color and one normal. That is both the intended low-poly-planet look and
@@ -31,6 +34,7 @@ use noise::{NoiseFn, Perlin};
 
 use super::icosphere::Icosphere;
 use super::planet::PlanetDef;
+use super::planet_heightmap::PlanetHeightmap;
 
 /// One flat-shaded vertex of a generated planet surface, unit-sphere scale
 /// (radius 1.0 = the planet's nominal radius; the renderer scales at draw
@@ -215,17 +219,33 @@ pub fn unpack_uv_to_color(uv: [f32; 2]) -> [f32; 3] {
 
 /// Build the flat-shaded procedural surface mesh for a planet at the given
 /// icosphere subdivision level, at unit radius (scale at draw time).
-pub fn build_surface_mesh(def: &PlanetDef, level: u32) -> SurfaceMeshData {
+///
+/// `heightmap`: pass the planet's loaded real-elevation grid to sample
+/// vertex elevations from data instead of noise (the caller pairs it with a
+/// def whose `sea_level` was overridden to the grid's true 0 m position --
+/// see `lib.rs::reload_planet_defs`). None keeps the seeded-noise path.
+pub fn build_surface_mesh(
+    def: &PlanetDef,
+    heightmap: Option<&PlanetHeightmap>,
+    level: u32,
+) -> SurfaceMeshData {
     let mut ico = Icosphere::new();
     ico.subdivide_n(level);
 
-    let sampler = SurfaceSampler::new(def);
     let sea = def.sea_level.clamp(0.0, 1.0);
 
     // Per-icosphere-vertex elevation + displaced position, computed once and
     // shared by every face touching the vertex (positions must agree across
-    // faces or the surface cracks).
-    let elev: Vec<f32> = ico.vertices.iter().map(|v| sampler.elevation_at(*v)).collect();
+    // faces or the surface cracks). Both sources land in the same 0..1
+    // domain, so everything downstream (displacement, sea level, colors) is
+    // source-agnostic.
+    let elev: Vec<f32> = match heightmap {
+        Some(hm) => ico.vertices.iter().map(|v| hm.normalized_at(*v)).collect(),
+        None => {
+            let sampler = SurfaceSampler::new(def);
+            ico.vertices.iter().map(|v| sampler.elevation_at(*v)).collect()
+        }
+    };
     let pos: Vec<Vec3> = ico
         .vertices
         .iter()
@@ -328,7 +348,7 @@ mod tests {
     #[test]
     fn surface_mesh_is_flat_shaded_with_expected_counts() {
         let def = water_world(42);
-        let data = build_surface_mesh(&def, 2);
+        let data = build_surface_mesh(&def, None, 2);
         let faces = Icosphere::face_count_at_level(2) as usize;
         assert_eq!(data.vertices.len(), faces * 3);
         assert_eq!(data.indices.len(), faces * 3);
@@ -354,8 +374,8 @@ mod tests {
             assert!((0.0..=1.0).contains(&ea), "elevation out of range: {ea}");
         }
         // And the full mesh is byte-identical across two builds.
-        let m1 = build_surface_mesh(&def, 1);
-        let m2 = build_surface_mesh(&def, 1);
+        let m1 = build_surface_mesh(&def, None, 1);
+        let m2 = build_surface_mesh(&def, None, 1);
         assert_eq!(m1.vertices, m2.vertices);
         assert_eq!(m1.indices, m2.indices);
     }
@@ -379,7 +399,7 @@ mod tests {
     #[test]
     fn ocean_stays_at_sphere_radius_land_within_relief() {
         let def = water_world(42);
-        let data = build_surface_mesh(&def, 3);
+        let data = build_surface_mesh(&def, None, 3);
         let max_r = 1.0 + def.surface_relief + 1e-4;
         for v in &data.vertices {
             let r = Vec3::from_array(v.position).length();
@@ -401,7 +421,7 @@ mod tests {
     #[test]
     fn dry_world_has_real_depressions() {
         let def = dry_world(7);
-        let data = build_surface_mesh(&def, 3);
+        let data = build_surface_mesh(&def, None, 3);
         let below = data
             .vertices
             .iter()
@@ -458,6 +478,76 @@ mod tests {
         // polar_cap_latitude > 1.0 disables caps: poles stay basin/land.
         let polar = classify_color(&def, 0.1, 1.0);
         assert_eq!(polar, basin);
+    }
+
+    /// Build an in-memory PlanetHeightmap through its public byte format
+    /// (same layout scripts/build-earth-heightmap.js writes).
+    fn synth_heightmap(
+        width: u32,
+        height: u32,
+        min_m: f32,
+        max_m: f32,
+        meters: &[f32],
+    ) -> PlanetHeightmap {
+        use crate::terrain::planet_heightmap::{quantize_meters, HEIGHTMAP_MAGIC};
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(HEIGHTMAP_MAGIC);
+        bytes.extend_from_slice(&width.to_le_bytes());
+        bytes.extend_from_slice(&height.to_le_bytes());
+        bytes.extend_from_slice(&min_m.to_le_bytes());
+        bytes.extend_from_slice(&max_m.to_le_bytes());
+        for &m in meters {
+            bytes.extend_from_slice(&quantize_meters(m, min_m, max_m).to_le_bytes());
+        }
+        PlanetHeightmap::from_bytes(&bytes).expect("synthetic heightmap parses")
+    }
+
+    #[test]
+    fn heightmap_drives_vertex_elevation_instead_of_noise() {
+        let mut def = water_world(42);
+        // Match the loader behavior: with a heightmap, sea_level is the
+        // grid's 0 m position -- for a -1000..+1000 m window that is 0.5.
+        def.sea_level = 0.5;
+
+        // A uniform all-land grid at +1000 m (= the max, normalized 1.0):
+        // EVERY vertex must sit at the same displaced radius, something the
+        // fractal noise could never produce.
+        let flat = synth_heightmap(4, 2, -1000.0, 1000.0, &[1000.0; 8]);
+        let mesh = build_surface_mesh(&def, Some(&flat), 2);
+        let expected = displaced_radius(&def, 1.0);
+        assert!(expected > 1.0, "all-land grid must displace outward");
+        for v in &mesh.vertices {
+            let r = Vec3::from_array(v.position).length();
+            assert!(
+                (r - expected).abs() < 2e-4,
+                "vertex radius {r} != uniform grid radius {expected}"
+            );
+        }
+
+        // And the data path must actually differ from the noise path.
+        let noise_mesh = build_surface_mesh(&def, None, 2);
+        assert_ne!(mesh.vertices, noise_mesh.vertices);
+
+        // Determinism holds for the heightmap path too (mesh cache +
+        // multiplayer re-derivation both rely on it).
+        let again = build_surface_mesh(&def, Some(&flat), 2);
+        assert_eq!(mesh.vertices, again.vertices);
+        assert_eq!(mesh.indices, again.indices);
+    }
+
+    #[test]
+    fn heightmap_all_ocean_grid_stays_smooth_sphere() {
+        let mut def = water_world(42);
+        def.sea_level = 0.5;
+        // Everything 500 m BELOW sea level: a pure water world -- every
+        // vertex on the unit sphere, every face ocean-colored (no land
+        // bands can appear from interpolation).
+        let ocean = synth_heightmap(4, 2, -1000.0, 1000.0, &[-500.0; 8]);
+        let mesh = build_surface_mesh(&def, Some(&ocean), 2);
+        for v in &mesh.vertices {
+            let r = Vec3::from_array(v.position).length();
+            assert!((r - 1.0).abs() < 1e-4, "ocean vertex off the sphere: {r}");
+        }
     }
 
     #[test]

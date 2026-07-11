@@ -1806,9 +1806,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "LOD pixel threshold", &mut state.settings.planet_lod_px, 4.0..=64.0) {
             state.settings_dirty = true;
         }
-        if widgets::labeled_slider(ui, theme, "Max subdivision level", &mut state.settings.planet_max_subdiv, 0.0..=7.0) {
+        // Ceiling raised 7 -> 9 (2026-07-11) for FTL close approaches; the
+        // top levels only trigger when one planet fills the screen (see
+        // terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
+        if widgets::labeled_slider(ui, theme, "Max subdivision level", &mut state.settings.planet_max_subdiv, 0.0..=9.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Levels 8-9 add real close-range detail but build big meshes; lower this if a close planet flyby stutters.").color(theme.text_muted()).size(theme.font_size_small));
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);

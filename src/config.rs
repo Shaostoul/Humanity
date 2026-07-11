@@ -322,7 +322,11 @@ pub struct AppConfig {
     /// this. See `terrain::planet::lod_level_for_pixels`.
     #[serde(default = "default_planet_lod_px")]
     pub planet_lod_px: f32,
-    /// Max icosphere subdivision level for sky planets (0-7).
+    /// Max icosphere subdivision level for sky planets (0-9; clamped to
+    /// `terrain::planet::MAX_SKY_SUBDIVISION` on load). Levels 8-9 are the
+    /// planet-fills-the-screen FTL-approach tiers: heavy meshes (~142 MB /
+    /// ~566 MB GPU) that the pixel-doubling LOD ladder only ever requests
+    /// for one screen-dominating body at a time.
     #[serde(default = "default_planet_max_subdiv")]
     pub planet_max_subdiv: f32,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,

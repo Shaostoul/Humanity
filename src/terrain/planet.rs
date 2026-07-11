@@ -102,6 +102,15 @@ pub struct PlanetDef {
     /// Values above 1.0 disable polar caps entirely (e.g. the Moon).
     #[serde(default = "default_polar_cap_latitude")]
     pub polar_cap_latitude: f32,
+    /// Optional REAL elevation grid, path relative to data/ (Earth ships
+    /// "planets/earth_heightmap.bin", built from NOAA ETOPO1 by
+    /// scripts/build-earth-heightmap.js). When present, vertex elevations
+    /// come from this grid instead of the seeded noise, and `sea_level` is
+    /// OVERRIDDEN at load time with the grid's true 0 m position so the
+    /// real coastline is exact (see `PlanetHeightmap::sea_level_normalized`).
+    /// None (every other planet) keeps the procedural noise path.
+    #[serde(default)]
+    pub heightmap: Option<String>,
 }
 
 fn default_land_color() -> [f32; 4] { [0.3, 0.5, 0.2, 1.0] }
@@ -116,11 +125,27 @@ fn default_mountain_color() -> [f32; 4] { [0.50, 0.48, 0.46, 1.0] }
 fn default_cap_color() -> [f32; 4] { [0.93, 0.95, 0.97, 1.0] }
 fn default_polar_cap_latitude() -> f32 { 0.90 }
 
-/// Hard ceiling for the sky-planet subdivision slider. Level 7 is 327,680
-/// faces; anything beyond that per body threatens frame rate for no visible
-/// gain at sky distances (near-surface detail is the future landing arc's
-/// chunked-subdivision problem, not this whole-sphere path's).
-pub const MAX_SKY_SUBDIVISION: u32 = 7;
+/// Hard ceiling for the sky-planet subdivision slider.
+///
+/// Raised 7 -> 9 (2026-07-11) for the FTL-travel era: up close, level 7's
+/// 327,680 faces read as visibly low detail on a screen-filling Earth.
+/// Face counts and approximate FLAT-SHADED mesh memory (3 unique verts per
+/// face, 32-byte renderer vertex + 4-byte index = 108 B/face):
+///   level 7:   327,680 faces  (~35 MB GPU)
+///   level 8: 1,310,720 faces  (~142 MB GPU, ~1-2 s CPU build hitch)
+///   level 9: 5,242,880 faces  (~566 MB GPU, several-second build hitch)
+/// This stays affordable ONLY because the LOD ladder gates it: with the
+/// default 10 px-per-level threshold, level 8 needs a >1280 px disc and
+/// level 9 a >2560 px disc -- i.e. one planet filling (or overflowing) the
+/// screen, which at most one body does at a time. The per-(body, level)
+/// mesh cache holds every level built this session (no eviction yet -- a
+/// noted follow-up in lib.rs::reload_planet_defs), so a full approach that
+/// walks levels 0..9 parks ~750 MB of meshes for that body until the caches
+/// clear. The Settings slider default stays well below the ceiling; the
+/// ceiling exists so players with headroom CAN turn it up.
+/// (Near-surface walking detail remains the future landing arc's
+/// chunked-subdivision problem, not this whole-sphere path's.)
+pub const MAX_SKY_SUBDIVISION: u32 = 9;
 
 /// Projected on-screen diameter of a sphere, in pixels.
 ///
