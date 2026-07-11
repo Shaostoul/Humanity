@@ -579,6 +579,13 @@
       "decision": "v0.800 SKYBOX UPGRADE (star ladder rung 2): ATHYG 2,491,334 stars converted to HOSSTAR1 (build-athyg-bin.js, streaming, Sirius cross-catalog frame check), hosted as GitHub release asset assets-stars-1 (36 MB, non-v tag = no CI), in-app download card in Settings > Graphics (progress bar, magic-verified .tmp install, retry on fail, Remove to fall back), loader prefers stars-athyg.bin. Live: 25 ms parse, 74 FPS with 2.5M points (vs 77 at 120k).",
       "why": "Operator: let us get the skybox upgraded, 2.5M vs 120k. Rung 3 next when wanted: Gaia G<14 (~25M points) + baked HDR glow cubemap for the remaining 1.77B, plus StarVertex packing 28B->12B.",
       "verification": "v0.800.1 boot via autopilot: catalog log lines + screenshot (extended night sky dense with stars); 921 lib tests; both checks; six lints"
+    },
+    {
+      "id": 8,
+      "date": "2026-07-10",
+      "decision": "v0.801-802: SOLO play intent + admin travel step-out (offline home card = solo, no game_join; Dev-mode travel in shared world steps out via new game_leave relay message, Return home rejoins - the moderation path) and THE MILKY WAY GLOW (galaxy_glow.png baked from 2.49M ATHYG stars, additive celestial pass, peak 0.68 deg from Sgr A*, Pleiades = brightest raw texel matching real photometry; Settings toggle + intensity; supersedes the 7000-point fake band).",
+      "why": "Operator blocked on teleport while connected (as admin, moderation requires mobility) + the north-star goal: the in-game Milky Way must look like his real-photo reference. Rung 3 remaining: Gaia re-bake (BULGE_GAIN=0, real dust lanes) + G<14 point catalog. Known follow-up: default-home fast path does not set solo intent.",
+      "verification": "v0.802.1 boot: glow texture loaded + band superseded log lines, 0 PANIC, 85 FPS with glow + 2.5M stars, screenshot debug/sky_glow.png; 924 lib tests; both checks; six lints"
     }
   ],
   "active_scopes_to_avoid": [
