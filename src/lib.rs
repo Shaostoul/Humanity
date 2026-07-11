@@ -16584,6 +16584,14 @@ mod native_app {
                                             cc.a() as f32 / 255.0,
                                         ],
                                     );
+                                    // Milky Way glow (2026-07-10): toggle +
+                                    // intensity, applied live (the uniform
+                                    // write is skipped while unchanged).
+                                    star_r.set_glow_style(
+                                        &state.renderer.queue,
+                                        state.gui_state.settings.sky_milkyway_glow,
+                                        state.gui_state.settings.sky_milkyway_intensity,
+                                    );
                                     star_r.update_camera(&state.renderer.queue, &state.camera);
                                     let mut encoder = state.renderer.device.create_command_encoder(
                                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },
