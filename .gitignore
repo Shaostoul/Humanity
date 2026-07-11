@@ -88,3 +88,4 @@ Thumbs.db
 # ── Claude Code ──
 .claude/worktrees/
 data/stars-athyg.bin
+data/stars-gaia25m.bin

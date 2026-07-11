@@ -125,6 +125,26 @@ function findNamed(bin, wanted) {
   return null;
 }
 
+/** All sidecar entries of one kind as [key, direction] pairs (kind 1 =
+ *  Bayer keys - the fainter, Gaia-present anchor pool). */
+function allNamed(bin, wantedKind) {
+  const starCount = bin.readUInt32LE(8);
+  const namedCount = bin.readUInt32LE(12);
+  let o = HEADER_SIZE + starCount * RECORD_SIZE;
+  const out = [];
+  for (let i = 0; i < namedCount; i++) {
+    const kind = bin.readUInt8(o);
+    const klen = bin.readUInt8(o + 1);
+    const key = bin.subarray(o + 2, o + 2 + klen).toString('utf8');
+    const d = o + 2 + klen;
+    if (kind === wantedKind) {
+      out.push([key, [bin.readFloatLE(d), bin.readFloatLE(d + 4), bin.readFloatLE(d + 8)]]);
+    }
+    o = d + 12;
+  }
+  return out;
+}
+
 // ── Fixture mode ────────────────────────────────────────────────────────
 // KEEP IN SYNC with stars.rs::gaia_fixture_parses_packs_and_survives_the_cutoff.
 // Three stars chosen to exercise the pipeline's edges: Sirius (bright clamp +
@@ -186,13 +206,27 @@ async function main() {
 
   const t0 = Date.now();
 
-  // Anchor directions from the standard catalog's name sidecar.
+  // Anchor directions from the standard catalog's name sidecar. LESSON from
+  // the first real run (2026-07-11): the proper-name anchors are all G < 3
+  // giants that Gaia DR3 OMITS (saturated) - 0/17 matched and the check
+  // cried "wrong frame" when the frame was perfect (independently verified:
+  // the and / lam cas / kap cas matched Gaia rows to < 0.013 deg). So the
+  // anchor set now also samples the BAYER sidecar (mostly mag 2.5-6 stars
+  // Gaia does contain), spread across the sky, and the row filter below
+  // admits mag < 9 so those anchors can actually meet their counterparts.
   const anchors = [];
   if (fs.existsSync(STD_BIN)) {
     const std = fs.readFileSync(STD_BIN);
     for (const name of ANCHOR_NAMES) {
       const d = findNamed(std, name);
       if (d) anchors.push({ name, d, bestDot: -1, bestMag: null });
+    }
+    // Every 40th Bayer entry: ~40 fainter anchors spread over both
+    // hemispheres (sidecar order follows the catalog, which is sky-mixed).
+    const bayer = allNamed(std, 1);
+    for (let i = 0; i < bayer.length; i += 40) {
+      const [key, d] = bayer[i];
+      anchors.push({ name: key, d, bestDot: -1, bestMag: null });
     }
   }
   if (anchors.length === 0) {
@@ -281,9 +315,10 @@ async function main() {
       encodeRecord(chunk, chunkUsed * RECORD_SIZE, dx, dy, dz, mag, ciRaw);
       chunkUsed++;
 
-      // Frame-check anchors: only bright rows enter this loop (a few
-      // hundred of 25M), so it costs effectively nothing.
-      if (mag < 4.5 && anchors.length) {
+      // Frame-check anchors: mag < 9 admits the fainter Bayer anchors that
+      // Gaia actually contains (see the anchor-set lesson above). Roughly a
+      // couple million of 17M rows x ~55 anchors - a few seconds, worth it.
+      if (mag < 9 && anchors.length) {
         for (const a of anchors) {
           const dot = dx * a.d[0] + dy * a.d[1] + dz * a.d[2];
           if (dot > a.bestDot) { a.bestDot = dot; a.bestMag = mag; }
@@ -335,9 +370,12 @@ async function main() {
       `frame check: ${matched.length}/${anchors.length} anchors matched within 0.1 deg: ` +
       matched.map((a) => a.name).join(', ')
     );
-    if (matched.length < 3) {
+    // Threshold 5: the proper-name giants may ALL be absent (saturated out
+    // of Gaia), but a healthy fraction of the ~40 Bayer anchors must land -
+    // a frame/unit error misses every single one by whole degrees.
+    if (matched.length < 5) {
       throw new Error(
-        'frame check FAILED: fewer than 3 anchor stars matched - ra/dec units or frame are ' +
+        'frame check FAILED: fewer than 5 anchor stars matched - ra/dec units or frame are ' +
         'wrong (hours vs degrees? swapped columns?)'
       );
     }
