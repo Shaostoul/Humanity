@@ -6149,6 +6149,13 @@ pub struct SettingsState {
     pub sky_orbit_mode: String,
     /// Show constellation figures in the FPS sky (v0.786).
     pub sky_constellations: bool,
+    /// Show the Milky Way glow layer (2026-07-10): the baked all-sky
+    /// texture of real integrated catalog starlight, drawn behind the
+    /// star points. Off skips the pass entirely.
+    pub sky_milkyway_glow: bool,
+    /// Milky Way glow intensity multiplier (0..2, default 1.0). Applied
+    /// live as a shader uniform - no rebuild needed.
+    pub sky_milkyway_intensity: f32,
     /// Screen-size LOD base threshold in pixels: a sky body subdivides one
     /// icosphere level each time its projected diameter doubles past this.
     /// See terrain::planet::lod_level_for_pixels.
@@ -6225,6 +6232,8 @@ impl Default for SettingsState {
             planet_detail: true,
             sky_orbit_mode: "planets".to_string(),
             sky_constellations: true,
+            sky_milkyway_glow: true,
+            sky_milkyway_intensity: 1.0,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,
             master_volume: 0.8,

@@ -1841,6 +1841,23 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Constellation figures", &mut state.settings.sky_constellations) {
             state.settings_dirty = true;
         }
+        // Milky Way glow (2026-07-10): the baked all-sky texture of real
+        // integrated catalog starlight (data/galaxy_glow.png), drawn behind
+        // the star points. Both controls apply live: the toggle skips the
+        // render pass, the intensity is a shader uniform.
+        if widgets::toggle(ui, theme, "Milky Way glow", &mut state.settings.sky_milkyway_glow) {
+            state.settings_dirty = true;
+        }
+        if state.settings.sky_milkyway_glow {
+            if widgets::labeled_slider(ui, theme, "Glow intensity", &mut state.settings.sky_milkyway_intensity, 0.0..=2.0) {
+                state.settings_dirty = true;
+            }
+        }
+        ui.label(
+            RichText::new("The galaxy band baked from the real star catalog's integrated light. Changes apply live.")
+                .color(theme.text_muted())
+                .size(theme.font_size_small),
+        );
 
         // ── Star catalog (v0.800, star ladder rung 2) ── the extended ATHYG
         // catalog is a 36 MB one-time download (too big to ship in the repo),

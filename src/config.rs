@@ -310,6 +310,13 @@ pub struct AppConfig {
     /// Show constellation figures in the FPS sky (v0.786).
     #[serde(default = "default_true")]
     pub sky_constellations: bool,
+    /// Show the Milky Way glow layer (2026-07-10): the baked all-sky texture
+    /// of real integrated catalog starlight behind the star points.
+    #[serde(default = "default_true")]
+    pub sky_milkyway_glow: bool,
+    /// Milky Way glow intensity multiplier (0..2, default 1.0).
+    #[serde(default = "default_sky_milkyway_intensity")]
+    pub sky_milkyway_intensity: f32,
     /// Screen-size LOD base threshold in pixels for sky planets: one more
     /// icosphere subdivision each time the projected diameter doubles past
     /// this. See `terrain::planet::lod_level_for_pixels`.
@@ -522,6 +529,7 @@ fn default_master_volume() -> f32 { 0.8 }
 fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
+fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
@@ -774,6 +782,8 @@ impl AppConfig {
             planet_detail: state.settings.planet_detail,
             sky_orbit_mode: state.settings.sky_orbit_mode.clone(),
             sky_constellations: state.settings.sky_constellations,
+            sky_milkyway_glow: state.settings.sky_milkyway_glow,
+            sky_milkyway_intensity: state.settings.sky_milkyway_intensity,
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             home_variant: state.settings.home_variant.clone(),
@@ -860,6 +870,10 @@ impl AppConfig {
         state.settings.planet_detail = self.planet_detail;
         state.settings.sky_orbit_mode = self.sky_orbit_mode.clone();
         state.settings.sky_constellations = self.sky_constellations;
+        state.settings.sky_milkyway_glow = self.sky_milkyway_glow;
+        // Clamp a hand-edited/corrupt saved value to the slider's range (a
+        // huge multiplier would white out the whole sky).
+        state.settings.sky_milkyway_intensity = self.sky_milkyway_intensity.clamp(0.0, 2.0);
         // Guard a corrupted saved value (a 0/negative threshold would pin
         // every body at max subdivision).
         state.settings.planet_lod_px = if self.planet_lod_px >= 1.0 {
