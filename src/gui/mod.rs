@@ -2905,6 +2905,13 @@ pub struct GuiState {
     /// Size in bytes of data/stars-athyg.bin if installed (None = standard catalog). Refreshed by
     /// lib.rs at init and after download/remove, not polled per frame.
     pub star_catalog_extended: Option<u64>,
+    /// SOLO play intent (v0.801): true = never game_join, no avatar in the shared world even
+    /// while the chat socket is connected. Set by the launcher (RED offline home = solo, server
+    /// card = shared) and by the Dev travel step-out; flipping to true while joined sends
+    /// game_leave (world-scoped eviction, chat unaffected). Operator: "I tried to join my
+    /// offline world from the character select but that didn't work. As an admin this should
+    /// be overridden. If I can't teleport then I can't moderate."
+    pub copresence_solo: bool,
     /// Armed whenever a structure or machine edit lands (the dirty consumers set it); the engine's
     /// 60 s autosave + the window-close flush write ship_structure.ron/home.ron and clear it.
     /// Before v0.791 the ship persisted ONLY through the explicit Save button -- quit without
@@ -4404,6 +4411,7 @@ impl Default for GuiState {
             star_catalog_remove: false,
             star_catalog_dl: None,
             star_catalog_extended: None,
+            copresence_solo: false,
             construction_unsaved: false,
             ship_structure: None,
             construction_zone: 0,

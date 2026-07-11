@@ -190,7 +190,13 @@ fn draw_character_select(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState)
     ScrollArea::vertical().show(ui, |ui| {
         // ── Your Homes: RED (offline, fully self-owned) ──
         section_card(ui, theme, "Your Homes", theme.danger(), |ui| {
-            hint(ui, theme, "Offline saves you fully own. Each is a character plus a home.");
+            hint(
+                ui,
+                theme,
+                "Offline saves you fully own. Each is a character plus a home. \
+                 Entering one plays SOLO: you won't appear in the shared world \
+                 (pick a server below for that), and the Dev travel tools work freely.",
+            );
             for name in &home_rows {
                 let is_sel = selected_kind == LauncherSel::Home && &selected == name;
                 let mut label = name.clone();

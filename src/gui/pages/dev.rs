@@ -245,17 +245,33 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_muted()),
             );
         });
+        // Shared-world handling (v0.801): Dev mode = the ADMIN path - travel
+        // works, but engaging it steps you OUT of the shared world (the relay
+        // broadcasts your departure; others never see a frozen ghost) and
+        // Return home steps you back in. Non-Dev modes keep the hard gate.
         if state.copresence_active {
-            ui.label(
-                RichText::new(
-                    "Travel tools are disabled while you are in the shared world \
-                     (they would fight the multiplayer position sync). Disconnect \
-                     or play offline to use them.",
-                )
-                .size(theme.font_size_small)
-                .color(theme.warning()),
-            );
-            return;
+            if state.settings.play_mode == crate::config::PlayMode::Dev {
+                ui.label(
+                    RichText::new(
+                        "You are in the shared world. Traveling steps you OUT of it \
+                         (others see you leave; your avatar does not linger) - Return \
+                         home steps you back in.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+                );
+            } else {
+                ui.label(
+                    RichText::new(
+                        "Travel tools require the Dev play mode while you are in the \
+                         shared world (Settings > Gameplay > Play mode), so a normal \
+                         session can never silently teleport.",
+                    )
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+                );
+                return;
+            }
         }
 
         // Fly mode + speed. The multiplier slider is logarithmic (1x..1e9x);

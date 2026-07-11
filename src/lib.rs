@@ -6208,6 +6208,11 @@ mod native_app {
         /// Dev page's "Return home" restores the exact pre-travel viewpoint.
         /// None = at home (never traveled, or already returned).
         dev_travel_home: Option<(glam::DVec3, Vec3, f32, f32)>,
+        /// Travel STEPPED OUT of the shared world (v0.801): set when engaging
+        /// travel flipped copresence_solo (admin moderation path); Return home
+        /// clears solo again so the avatar rejoins. Launcher-chosen solo is
+        /// deliberately NOT cleared by returning home.
+        dev_travel_stepped_out: bool,
         start_time: Instant,
         last_frame: Instant,
         // egui integration
@@ -7026,6 +7031,7 @@ mod native_app {
                 screenshot_counter: 0,
                 ship_world_pos: glam::DVec3::ZERO,
                 dev_travel_home: None,
+                dev_travel_stepped_out: false,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -8044,15 +8050,21 @@ mod native_app {
                     // as speed_multiplier above). Forced OFF when dev tooling is
                     // off (Dev play mode + cheats switch, task #50 -- a LIVE
                     // per-frame gate, so switching the mode in Settings lands
-                    // you back on your feet the same frame), and in a shared
-                    // world -- flying at km/s (or moving ship_world_pos under a
-                    // joined session) would fight the relay's co-presence
-                    // position sync and its anti-teleport validation, so travel
-                    // is offline/local only.
-                    if !state.gui_state.dev_cheats_active(&state.theme)
-                        || state.gui_state.copresence_active
-                    {
+                    // you back on your feet the same frame). Engaging fly while
+                    // JOINED to the shared world STEPS OUT instead of being
+                    // refused (v0.801, admin moderation): copresence_solo sends
+                    // game_leave, so nobody ever sees a frozen ghost avatar and
+                    // the relay's position sync is never fought.
+                    if !state.gui_state.dev_cheats_active(&state.theme) {
                         state.gui_state.dev_fly_mode = false;
+                    }
+                    if state.gui_state.dev_fly_mode
+                        && state.gui_state.copresence_active
+                        && !state.gui_state.copresence_solo
+                    {
+                        state.gui_state.copresence_solo = true;
+                        state.dev_travel_stepped_out = true;
+                        log::info!("Dev travel: fly mode engaged in the shared world -- stepping out");
                     }
                     state.controller.fly_mode = state.gui_state.dev_fly_mode;
                     state.controller.fly_speed_mult =
@@ -8906,11 +8918,17 @@ mod native_app {
                     // visual radius == true radius and the body fills ~29
                     // degrees of view on arrival).
                     if let Some(target) = state.gui_state.pending_dev_teleport.take() {
-                        if state.gui_state.copresence_active {
-                            // Shared-world gate (belt + braces; the Dev page
-                            // hides the buttons too): never fight the relay's
-                            // position sync / anti-teleport validation.
-                            log::warn!("Dev travel: disabled while in the shared world");
+                        // Shared-world handling (v0.801, operator: "As an admin this
+                        // should be overridden. If I can't teleport then I can't
+                        // moderate."): in DEV play mode the teleport STEPS OUT of the
+                        // shared world first (game_leave via copresence_solo - others
+                        // see you leave honestly, no frozen ghost avatar, no fighting
+                        // the position sync), travels, and Return home steps back in.
+                        // Non-Dev modes keep the hard gate.
+                        let dev_mode =
+                            state.gui_state.settings.play_mode == crate::config::PlayMode::Dev;
+                        if state.gui_state.copresence_active && !dev_mode {
+                            log::warn!("Dev travel: requires Dev play mode while in the shared world");
                         } else if target == "home" {
                             if let Some((ship, cam, yaw, pitch)) = state.dev_travel_home.take() {
                                 state.ship_world_pos = ship;
@@ -8922,9 +8940,23 @@ mod native_app {
                                 state.gui_state.dev_fly_mode = false;
                                 state.controller.fly_mode = false;
                                 state.gui_state.dev_travel_away = false;
+                                // Rejoin the shared world if this session was shared
+                                // before travel stepped out (launcher intent rules:
+                                // only clear solo if the step-out set it).
+                                if state.dev_travel_stepped_out {
+                                    state.dev_travel_stepped_out = false;
+                                    state.gui_state.copresence_solo = false;
+                                }
                                 log::info!("Dev travel: returned home");
                             }
                         } else if let Some(body) = crate::cosmos::find_body(&target) {
+                            // Engaging travel while joined: step out first (the solo
+                            // branch above sends game_leave next frame).
+                            if state.gui_state.copresence_active && !state.gui_state.copresence_solo {
+                                state.gui_state.copresence_solo = true;
+                                state.dev_travel_stepped_out = true;
+                                log::info!("Dev travel: stepping out of the shared world to travel");
+                            }
                             // Same live sim time the celestial pass uses, so the
                             // vantage matches where the body is drawn this frame.
                             let sim_t = std::time::SystemTime::now()
@@ -9569,6 +9601,32 @@ mod native_app {
                             .as_ref()
                             .map_or(false, |w| w.is_connected());
                         if connected {
+                            // SOLO step-out (v0.801): joined but the player switched to
+                            // solo (offline home entry, or Dev travel engaging) -- leave
+                            // the shared WORLD deliberately: the relay despawns our
+                            // entity + broadcasts game_player_left (others see us leave,
+                            // honestly), the chat socket stays up. Rejoining is just the
+                            // normal join below once solo clears (relay treats it as a
+                            // RESYNC).
+                            if state.game_joined && state.gui_state.copresence_solo {
+                                if let Some(ref ws) = state.gui_state.ws_client {
+                                    ws.send(&serde_json::json!({"type": "game_leave"}).to_string());
+                                }
+                                state.game_joined = false;
+                                state.gui_state.copresence_active = false;
+                                state.gui_state.copresence_names.clear();
+                                let remotes: Vec<hecs::Entity> = state
+                                    .game_world
+                                    .world
+                                    .query::<&crate::net::sync::RemotePlayer>()
+                                    .iter()
+                                    .map(|(e, _)| e)
+                                    .collect();
+                                for e in remotes {
+                                    let _ = state.game_world.world.despawn(e);
+                                }
+                                log::info!("Co-presence: stepped out of the shared world (solo)");
+                            }
                             // Join once, on first entering the world while connected --
                             // and only after the identify handshake BOUND the socket
                             // (v0.794): the relay's pre-bind loop silently discards
@@ -9576,7 +9634,11 @@ mod native_app {
                             // Dilithium challenge simply vanished (client showed
                             // "Shared world", server counted nobody -- caught by the
                             // v0.793 autopilot two-instance test).
-                            if in_world && !state.game_joined && state.gui_state.ws_identified {
+                            if in_world
+                                && !state.game_joined
+                                && state.gui_state.ws_identified
+                                && !state.gui_state.copresence_solo
+                            {
                                 let name = if state.gui_state.character_name.trim().is_empty() {
                                     "Wanderer".to_string()
                                 } else {
@@ -10088,6 +10150,14 @@ mod native_app {
                     if state.gui_state.showroom_confirm {
                         state.gui_state.showroom_confirm = false;
                         state.gui_state.showroom_active = false;
+                        // SOLO vs SHARED intent (v0.801, operator: "I tried to join my
+                        // offline world from the character select but that didn't work"):
+                        // picking a RED offline home means solo - no game_join, no avatar
+                        // in the shared world, and the Dev travel tools stay usable.
+                        // Picking a server card means shared. The co-presence gate reads
+                        // this flag; flipping to solo while joined sends game_leave.
+                        state.gui_state.copresence_solo =
+                            state.gui_state.launcher_selected_kind == crate::gui::LauncherSel::Home;
                         let app = state.gui_state.appearance.clone();
                         let outfit = state.gui_state.outfit.clone();
                         let cname = if state.gui_state.character_name.trim().is_empty() {

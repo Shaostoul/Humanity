@@ -3450,6 +3450,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 handle_game_join(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
                             }
+                            Some("game_leave") => {
+                                // Deliberate step-out (v0.801): the client leaves the
+                                // shared WORLD but keeps the chat socket - solo play
+                                // and the Dev travel step-out both use it. Exactly the
+                                // world-scoped eviction the disconnect path runs
+                                // (despawn + game_player_left broadcast), never a
+                                // socket close.
+                                handle_game_disconnect(&state_clone, &my_key_for_recv).await;
+                                continue;
+                            }
                             Some("game_position_update") => {
                                 handle_game_position_update(&state_clone, &my_key_for_recv, &raw).await;
                                 continue;
