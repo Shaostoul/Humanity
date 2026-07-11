@@ -58,6 +58,21 @@ pub fn srgb_byte_to_linear(b: u8) -> f32 {
     }
 }
 
+/// Linear f32 -> sRGB byte, the exact inverse transfer curve (v0.811).
+/// Used by `planet_surface::bake_albedo_rgba` to re-encode graded linear
+/// colors for the GPU's Rgba8UnormSrgb planet texture (maximum precision
+/// where eyes see it, and the hardware decodes back to linear on sample).
+/// A round-trip test below locks it against `srgb_byte_to_linear`.
+pub fn linear_to_srgb_byte(l: f32) -> u8 {
+    let c = l.clamp(0.0, 1.0);
+    let s = if c <= 0.003_130_8 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
+    };
+    (s * 255.0).round() as u8
+}
+
 /// 256-entry decode LUT: the sampler touches 12 channel reads per bilinear
 /// sample and mesh builds take thousands of samples, so skip the powf.
 fn srgb_lut() -> &'static [f32; 256] {
@@ -131,6 +146,15 @@ impl PlanetAlbedo {
         let o = (yi * self.width as usize + xi) * 3;
         let lut = srgb_lut();
         [lut[self.rgb[o] as usize], lut[self.rgb[o + 1] as usize], lut[self.rgb[o + 2] as usize]]
+    }
+
+    /// LINEAR RGB of one stored texel by direct grid index (v0.811): the
+    /// texture bake walks every texel of the grid verbatim, so it needs the
+    /// raw cell value, not a bilinear blend. Panics on out-of-range indices
+    /// (the bake iterates 0..width / 0..height by construction).
+    pub fn texel_linear(&self, x: u32, y: u32) -> [f32; 3] {
+        assert!(x < self.width && y < self.height, "texel index out of range");
+        self.grid_linear(x as i64, y as i64)
     }
 
     /// Bilinear LINEAR RGB at a geographic coordinate.
@@ -207,6 +231,37 @@ mod tests {
         for i in 1..256 {
             assert!(srgb_byte_to_linear(i as u8) > srgb_byte_to_linear((i - 1) as u8));
         }
+    }
+
+    /// Every sRGB byte must survive decode -> encode exactly: the texture
+    /// bake round-trips file bytes through linear grading, and any bias here
+    /// would shift ALL planet colors.
+    #[test]
+    fn srgb_encode_is_exact_inverse_of_decode() {
+        for b in 0..=255u8 {
+            assert_eq!(
+                linear_to_srgb_byte(srgb_byte_to_linear(b)),
+                b,
+                "sRGB byte {b} did not round-trip"
+            );
+        }
+        // Out-of-range linear values clamp instead of wrapping.
+        assert_eq!(linear_to_srgb_byte(-0.5), 0);
+        assert_eq!(linear_to_srgb_byte(2.0), 255);
+    }
+
+    #[test]
+    fn texel_linear_returns_stored_cell_values() {
+        let a = grid_2x4();
+        // Row 0 (north), col 2 stored [120, 0, 40].
+        let t = a.texel_linear(2, 0);
+        assert!((t[0] - lin(120)).abs() < 1e-6);
+        assert!((t[1] - lin(0)).abs() < 1e-6);
+        assert!((t[2] - lin(40)).abs() < 1e-6);
+        // Row 1 (south), col 3 stored [180, 200, 40].
+        let t = a.texel_linear(3, 1);
+        assert!((t[0] - lin(180)).abs() < 1e-6);
+        assert!((t[1] - lin(200)).abs() < 1e-6);
     }
 
     #[test]

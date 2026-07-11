@@ -4,6 +4,10 @@
 //   Group 0: Camera (view_proj, view_pos)
 //   Group 1: Object (model, normal_matrix) — dynamic offset
 //   Group 2: Material (base_color, params: metallic/roughness/material_type)
+//   Group 3: Albedo texture + sampler (v0.811, per-pixel planet imagery).
+//            Every pipeline sharing this shader binds SOMETHING here: draws
+//            without real imagery get a 1x1 white fallback, so only material
+//            type 12 with params.w > 0.5 ever actually samples it.
 
 struct CameraUniforms {
     view_proj: mat4x4<f32>,
@@ -85,6 +89,14 @@ struct GpuLight {
 @group(0) @binding(1) var<storage, read> scene_lights: array<GpuLight>;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 @group(2) @binding(0) var<uniform> material: MaterialUniforms;
+// Per-pixel planet albedo imagery (v0.811): an equirectangular sRGB texture
+// (sampling returns LINEAR automatically) with the orbital-look grading
+// already baked in at upload time (terrain::planet_surface::
+// bake_albedo_rgba). Non-planet draws bind a 1x1 white fallback and never
+// sample it (the type-12 params.w flag gates the lookup), so this group is
+// harmless to every other material type.
+@group(3) @binding(0) var albedo_texture: texture_2d<f32>;
+@group(3) @binding(1) var albedo_sampler: sampler;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -879,6 +891,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     let material_type = material.params.z;
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
+    // Emissive strength normally rides in params.w -- but material type 12
+    // REPURPOSES params.w as the "albedo texture present" flag (v0.811), so
+    // the type-12 branch zeroes this to keep planets from self-glowing.
+    var emissive_strength = material.params.w;
 
     // Types 14 + 15 short-circuit the whole PBR surface path: an atmosphere
     // is a participating MEDIUM and a cloud deck is a self-lit coverage
@@ -896,7 +912,8 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     //   1 = Brushed metal                 5 = Ice              9 = Rust/Corroded
     //   2 = Concrete                      6 = Water surface   10 = Moss/Growth
     //   3 = Wood                          7 = Leather         11 = Lava
-    //  12 = Planet surface (vertex color + water flag packed in UV; ocean sun glint)
+    //  12 = Planet surface (per-pixel imagery when params.w > 0.5, else per-face
+    //       color + water flag packed in UV; ocean sun glint either way)
     //  13 = Atmosphere shell (fresnel limb tint -- the pre-v0.807 fallback)
     //  14 = Atmosphere shell (analytic single scattering -- handled above)
     //  15 = Cloud layer (animated procedural deck -- handled above)
@@ -1002,10 +1019,53 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // carry the SAME uv, so linear interpolation leaves the packed integer
         // intact. Keep the decode in sync with terrain::planet_surface::
         // unpack_uv_to_color (unit-tested).
+        //
+        // params.w REPURPOSED for this type (v0.811): > 0.5 flags that a
+        // baked per-pixel albedo texture is bound at group 3, replacing the
+        // per-face color mosaic with smooth imagery at every distance. So it
+        // never doubles as emissive here:
+        emissive_strength = 0.0;
         let packed = u32(round(max(in.uv.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
-        albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
+        if (material.params.w > 0.5) {
+            // Per-pixel imagery path (v0.811). base_color.xyz is REPURPOSED
+            // as the planet CENTER in render space (lib.rs updates it every
+            // frame -- the floating origin moves it), because the chunked
+            // patch meshes are anchored at their own patch centers, so
+            // object.model[3] is NOT the planet center for them the way it
+            // is for the uniform sphere. From the center, the planet-local
+            // unit direction is exact for BOTH mesh paths:
+            //   dir_world = fragment - center        (world space)
+            //   dir_local = model^-1 * dir_world     (w=0: rotation only)
+            // transpose(object.normal_matrix) IS model.inverse() exactly
+            // (normal_matrix is inverse-transpose -- same trick as the
+            // type-15 cloud shell), and any uniform scale in it washes out
+            // in the normalize. This rides the planet's spin by
+            // construction: the imagery is pinned to the rotating body.
+            let inv_model = transpose(object.normal_matrix);
+            let dir_world = in.world_position - material.base_color.xyz;
+            let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
+            // Equirectangular UV with the SAME handedness as terrain::
+            // planet_heightmap::dir_to_latlon_deg (east = -z; +Y = north),
+            // and the same registration: u = (lon+180)/360 puts texel
+            // centers where the CPU sampler's cell centers are. The sampler
+            // wraps u (antimeridian) and clamps v (poles), mirroring the
+            // CPU grid's edge policy. textureSampleLevel (level 0) because
+            // implicit-derivative sampling would smear a full-width texture
+            // fetch across the u = 1 -> 0 seam.
+            let lon = atan2(-dir.z, dir.x);
+            let lat = asin(clamp(dir.y, -1.0, 1.0));
+            let eq_uv = vec2<f32>(lon * 0.15915494 + 0.5, 0.5 - lat * 0.31830987);
+            // Grading (ocean floor / land gain / sea ice) is baked into the
+            // texture; the sRGB view decodes to linear on sample. No
+            // base_color tint here -- that slot carries the center.
+            albedo = textureSampleLevel(albedo_texture, albedo_sampler, eq_uv, 0.0).rgb;
+        } else {
+            // Fallback: the per-face packed color (classifier planets, or a
+            // planet whose imagery failed to bake).
+            albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
+        }
         // Ocean sun glint (v0.810): every orbital photo has a bright specular
         // spot where the sun mirrors off the sea; without it the ocean reads
         // as painted plastic. Water faces are flagged in bit 16 by the mesh
@@ -1123,7 +1183,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
 
     // Emissive: params.w controls emissive strength (0 = none, 1+ = glow)
     // Emissive objects use base_color as their glow color, bypassing lighting.
-    let emissive_strength = material.params.w;
+    // (Declared as a var at the top; type 12 zeroes it -- see there.)
     if (emissive_strength > 0.0) {
         color = color + albedo * emissive_strength;
     }

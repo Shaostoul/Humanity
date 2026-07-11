@@ -5178,17 +5178,74 @@ mod native_app {
                                 ),
                             }
                         }
+                        // Per-pixel surface texture (v0.811): when BOTH real
+                        // grids loaded, bake the imagery (grading applied per
+                        // texel; the water/land split needs the elevation
+                        // grid) and upload it on a per-planet textured
+                        // material. Hot-reload swaps the texture on the
+                        // EXISTING material index so repeated RON tuning
+                        // never piles 32 MB textures up in VRAM.
+                        if let (Some(hm), Some(al)) = (
+                            state.planet_heightmaps.get(&b.id),
+                            state.planet_albedos.get(&b.id),
+                        ) {
+                            let t0 = Instant::now();
+                            let rgba =
+                                crate::terrain::planet_surface::bake_albedo_rgba(&def, hm, al);
+                            if let Some(&mi) = state.planet_textured_materials.get(&b.id) {
+                                state.renderer.set_material_albedo_texture(
+                                    mi,
+                                    &rgba,
+                                    al.width(),
+                                    al.height(),
+                                );
+                            } else {
+                                let mi = state.renderer.add_textured_material(
+                                    // base_color.xyz is overwritten every
+                                    // frame with the planet center in render
+                                    // space (see planet_textured_materials).
+                                    [1.0, 1.0, 1.0, 1.0],
+                                    0.0,
+                                    0.9,
+                                    12.0,
+                                    // params.w = 1.0: the shader's "albedo
+                                    // texture present" flag (NOT emissive --
+                                    // type 12 repurposes the slot).
+                                    1.0,
+                                    &rgba,
+                                    al.width(),
+                                    al.height(),
+                                );
+                                state.planet_textured_materials.insert(b.id.clone(), mi);
+                            }
+                            log::info!(
+                                "Planet '{}': per-pixel surface texture baked + uploaded ({}x{}, {} ms)",
+                                b.id,
+                                al.width(),
+                                al.height(),
+                                t0.elapsed().as_millis()
+                            );
+                        }
                         state.planet_defs.insert(b.id.clone(), def);
                     }
                     Err(e) => log::warn!("Could not load planet def {rel}: {e}"),
                 }
             }
         }
+        // A def that LOST a grid on reload (operator removed the field) must
+        // stop drawing through its stale texture; the orphaned material slot
+        // stays resident (same accepted pattern as planet_mesh_cache).
+        state
+            .planet_textured_materials
+            .retain(|id, _| {
+                state.planet_albedos.contains_key(id) && state.planet_heightmaps.contains_key(id)
+            });
         log::info!(
-            "Planets: {} procedural surface def(s) loaded from data/planets/ ({} with real heightmaps, {} with real albedo)",
+            "Planets: {} procedural surface def(s) loaded from data/planets/ ({} with real heightmaps, {} with real albedo, {} with baked per-pixel textures)",
             state.planet_defs.len(),
             state.planet_heightmaps.len(),
-            state.planet_albedos.len()
+            state.planet_albedos.len(),
+            state.planet_textured_materials.len()
         );
     }
 
@@ -6365,6 +6422,18 @@ mod native_app {
         /// Shared vertex-color material (shader type 12) for every
         /// procedural planet surface; per-face colors ride in the mesh.
         planet_surface_material: usize,
+        /// Per-body TEXTURED surface materials (v0.811): planets shipping
+        /// BOTH real grids (elevation + albedo -- Earth today) get their
+        /// imagery baked (orbital-look grading applied per texel, see
+        /// terrain::planet_surface::bake_albedo_rgba) and uploaded as a
+        /// group-3 texture on a dedicated type-12 material whose params.w
+        /// flags the shader's per-pixel path. base_color.xyz of these
+        /// materials is REPURPOSED as the planet center in render space,
+        /// rewritten every frame by the sky loop (the floating origin moves
+        /// it); the shader needs the center because chunk-patch meshes are
+        /// anchored at patch centers, not the planet center. Bodies absent
+        /// here draw through `planet_surface_material` (per-face colors).
+        planet_textured_materials: std::collections::HashMap<String, usize>,
         /// Per-body atmosphere-shell materials, created lazily from the
         /// def's atmosphere color. Keyed by (body id, scattering-mode flag)
         /// so flipping Settings > Graphics > "Scattering atmosphere" swaps
@@ -7439,6 +7508,7 @@ mod native_app {
                 planet_chunk_states: std::collections::HashMap::new(),
                 planet_patch_free_slots: Vec::new(),
                 planet_surface_material: 0,
+                planet_textured_materials: std::collections::HashMap::new(),
                 planet_atmo_materials: std::collections::HashMap::new(),
                 planet_cloud_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
@@ -12667,6 +12737,41 @@ mod native_app {
                                 None
                             };
 
+                            // Per-pixel surface imagery (v0.811): a planet
+                            // with a baked albedo texture draws through its
+                            // OWN type-12 material (params.w flags the
+                            // shader's texture path). Its base_color.xyz is
+                            // repurposed as the planet CENTER in render
+                            // space, rewritten here every frame because the
+                            // floating origin moves it -- the shader
+                            // reconstructs the planet-local unit direction
+                            // from that center, which works identically for
+                            // the uniform sphere AND the chunk patches
+                            // (whose model matrices sit at patch anchors,
+                            // not the planet center). Both mesh paths below
+                            // use this same material, so the LOD handoff
+                            // never changes appearance.
+                            let textured_mat = if def.is_some() {
+                                state.planet_textured_materials.get(&b.id).copied()
+                            } else {
+                                None
+                            };
+                            if let Some(mi) = textured_mat {
+                                state.renderer.update_material_full(
+                                    mi,
+                                    [
+                                        render_off.x as f32,
+                                        render_off.y as f32,
+                                        render_off.z as f32,
+                                        1.0,
+                                    ],
+                                    0.0,
+                                    0.9,
+                                    12.0,
+                                    1.0, // params.w = texture-present flag
+                                );
+                            }
+
                             // ── Chunked planetary LOD (2026-07-11) ──
                             // When a heightmap-bearing planet's disc grows
                             // past the ladder's level-8 rung (the planet
@@ -12879,7 +12984,12 @@ mod native_app {
                                                 rotation,
                                                 scale: Vec3::ONE,
                                                 mesh: e.mesh,
-                                                material: state.planet_surface_material,
+                                                // Per-pixel imagery when baked
+                                                // (v0.811), per-face fallback
+                                                // otherwise -- same choice as
+                                                // the uniform sphere below.
+                                                material: textured_mat
+                                                    .unwrap_or(state.planet_surface_material),
                                             });
                                         }
                                     }
@@ -12975,7 +13085,9 @@ mod native_app {
                                 let material = if is_sun {
                                     state.sun_material
                                 } else if def.is_some() {
-                                    state.planet_surface_material
+                                    // Per-pixel imagery when baked (v0.811),
+                                    // per-face packed colors otherwise.
+                                    textured_mat.unwrap_or(state.planet_surface_material)
                                 } else {
                                     match b.body_type.as_str() {
                                         "gas_giant" | "gas giant" => state.solar_body_materials[1],

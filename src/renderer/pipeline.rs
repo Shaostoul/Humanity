@@ -35,6 +35,17 @@ pub struct Pipeline {
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
     pub material_bind_group_layout: wgpu::BindGroupLayout,
+    /// Group 3 (v0.811): albedo texture + sampler for per-pixel planet
+    /// imagery. Added to the SHARED layout (not a dedicated pipeline
+    /// variant) because every scene pass reuses these three pipelines --
+    /// a variant would have to be duplicated across opaque, transparent
+    /// AND overlay flavors and threaded through all six draw loops anyway.
+    /// The cost of sharing is one extra bind per draw, paid with a 1x1
+    /// white fallback texture for everything that isn't a textured planet
+    /// (the type-12 params.w flag keeps the shader from ever sampling it
+    /// elsewhere). 4 bind groups is exactly wgpu's baseline max_bind_groups,
+    /// so no device-limit risk (the v0.782 lesson).
+    pub texture_bind_group_layout: wgpu::BindGroupLayout,
 }
 
 impl Pipeline {
@@ -124,12 +135,39 @@ impl Pipeline {
                 }],
             });
 
+        // Group 3: albedo texture + sampler (v0.811, per-pixel planet
+        // imagery). Plain filterable 2D texture + filtering sampler -- both
+        // base WebGPU capabilities under default limits.
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Albedo Texture Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PBR-lite Pipeline Layout"),
             bind_group_layouts: &[
                 &camera_bind_group_layout,
                 &object_bind_group_layout,
                 &material_bind_group_layout,
+                &texture_bind_group_layout,
             ],
             push_constant_ranges: &[],
         });
@@ -278,6 +316,7 @@ impl Pipeline {
             camera_bind_group_layout,
             object_bind_group_layout,
             material_bind_group_layout,
+            texture_bind_group_layout,
         }
     }
 }
