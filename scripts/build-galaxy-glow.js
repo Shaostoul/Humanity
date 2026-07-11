@@ -120,8 +120,13 @@ const ATHYG_PATH = path.join(ROOT, 'data', 'stars-athyg.bin');
 const HYG_PATH = path.join(ROOT, 'data', 'stars.bin');
 const OUT_PATH = path.join(ROOT, 'data', 'galaxy_glow.png');
 
-const W = 2048;
-const H = 1024;
+// Mutable on purpose (v0.807.x): the ATHYG star-integration path stays at
+// 2048x1024; the Gaia census path raises to 4096x2048 when it detects a
+// level-9 (nside 512) input, because that is the data's own resolving power
+// (0.11 deg cells ~= one texel at 4096) - the shared blur/PNG helpers read
+// these module dims.
+let W = 2048;
+let H = 1024;
 const MAGIC = 'HOSSTAR1';
 const HEADER = 16;
 const RECORD = 15;
@@ -371,7 +376,10 @@ function writePng(rgb /* Uint8Array W*H*3 */) {
 // Data credit: ESA/Gaia/DPAC (facts/measurements; the derived texture is
 // project CC0). The synthetic ATHYG-mode bulge is OFF here (BULGE_GAIN
 // applies only to the star-integration path): the census sees the bulge.
-const GAIA_NSIDE = 256; // healpix level 8 (source_id >> 43)
+// Detected from the input's max cell index at load: level 8 (nside 256,
+// 786,432 cells, source_id >> 43) or level 9 (nside 512, 3,145,728 cells,
+// source_id >> 41 - fetched as two sub-cap halves from ESA).
+let GAIA_NSIDE = 256;
 
 /** Equatorial direction (theta = colatitude from +z, phi in [0,2pi)) to a
  *  NESTED HEALPix index. The standard HEALPix ang2pix_nest algorithm
@@ -415,9 +423,11 @@ function ang2pixNest(nside, theta, phi) {
       iy = jm;
     }
   }
-  // Bit-interleave ix (even bits) and iy (odd bits): nside 256 -> 8 bits each.
+  // Bit-interleave ix (even bits) and iy (odd bits); bit count = log2(nside)
+  // (8 at nside 256, 9 at nside 512 - hardcoding 8 truncated level-9 indices).
+  const bits = Math.log2(nside);
   let pix = 0;
-  for (let b = 0; b < 8; b++) {
+  for (let b = 0; b < bits; b++) {
     pix |= ((ix >> b) & 1) << (2 * b);
     pix |= ((iy >> b) & 1) << (2 * b + 1);
   }
@@ -434,22 +444,40 @@ function bpRpToCi(bpf, rpf) {
   return 0.85 * bpRp - 0.1;
 }
 
-function bakeGaia(csvPath) {
+function bakeGaia(csvPaths) {
   const t0 = Date.now();
-  const lines = fs.readFileSync(csvPath, 'utf8').trim().split('\n');
+  // Accept several CSVs (a level-9 aggregation exceeds ESA's 3M-row cap and
+  // arrives as two source_id halves). First pass: find the max cell index to
+  // DETECT the healpix level, then size everything from it.
+  const allLines = [];
+  let maxIdx = 0;
+  for (const p of csvPaths) {
+    const lines = fs.readFileSync(p, 'utf8').trim().split('\n');
+    for (let i = 1; i < lines.length; i++) {
+      allLines.push(lines[i]);
+      const h = Number(lines[i].slice(0, lines[i].indexOf(',')));
+      if (h > maxIdx) maxIdx = h;
+    }
+  }
+  GAIA_NSIDE = maxIdx >= 12 * 256 * 256 ? 512 : 256;
+  if (GAIA_NSIDE === 512) {
+    W = 4096;
+    H = 2048;
+  }
+  console.log(`gaia: nside ${GAIA_NSIDE} detected -> ${W}x${H} texture`);
   const ncell = 12 * GAIA_NSIDE * GAIA_NSIDE;
   const cellN = new Float64Array(ncell);
   const cellBp = new Float64Array(ncell);
   const cellRp = new Float64Array(ncell);
-  for (let i = 1; i < lines.length; i++) {
-    const f = lines[i].split(',');
+  for (const line of allLines) {
+    const f = line.split(',');
     const h = Number(f[0]);
     if (!(h >= 0 && h < ncell)) continue;
     cellN[h] = Number(f[1]);
     cellBp[h] = Number(f[3]) || 0;
     cellRp[h] = Number(f[4]) || 0;
   }
-  console.log(`gaia: ${lines.length - 1} cells loaded`);
+  console.log(`gaia: ${allLines.length} cells loaded`);
 
   // Anchors: these sightlines are enormous density spikes in the real
   // census. If ang2pixNest had a convention slip they would land on
@@ -513,20 +541,32 @@ function bakeGaia(csvPath) {
     rgb[i * 3 + 1] = Math.round(255 * Math.min(1, lumBlurred[i] * accG[i]));
     rgb[i * 3 + 2] = Math.round(255 * Math.min(1, lumBlurred[i] * accB[i]));
   }
-  writePng(rgb);
-  const kb = (fs.statSync(OUT_PATH).size / 1024).toFixed(0);
-  console.log(`gaia bake: ${OUT_PATH} (${kb} KB) from the 1.81B-source census in ${Date.now() - t0} ms`);
+  // THE BUG THAT SHIPPED A PHANTOM (2026-07-11): writePng RETURNS the buffer;
+  // this call used to discard it and then stat the STALE file - the level-8
+  // census bake never reached disk, its "gaia bake: ... KB" log line was
+  // reading the old ATHYG texture, and every anchor check passed because they
+  // test the in-memory grid. Write it, then READ BACK the IHDR dims as a
+  // tripwire: a bake that does not change the file must never lie again.
+  fs.writeFileSync(OUT_PATH, writePng(rgb));
+  const back = fs.readFileSync(OUT_PATH);
+  const bw = back.readUInt32BE(16), bh = back.readUInt32BE(20);
+  if (bw !== W || bh !== H) {
+    throw new Error(`gaia bake: written PNG is ${bw}x${bh}, expected ${W}x${H} - write failed`);
+  }
+  const kb = (back.length / 1024).toFixed(0);
+  console.log(`gaia bake: ${OUT_PATH} ${bw}x${bh} (${kb} KB) from the 1.81B-source census in ${Date.now() - t0} ms`);
 }
 
 function main() {
   const gaiaIdx = process.argv.indexOf('--gaia');
   if (gaiaIdx >= 0) {
-    const csv = process.argv[gaiaIdx + 1];
-    if (!csv || !fs.existsSync(csv)) {
-      console.error('usage: node scripts/build-galaxy-glow.js --gaia <color_hpx8.csv>');
+    // Everything after --gaia is an input CSV (level-9 pulls arrive split).
+    const csvs = process.argv.slice(gaiaIdx + 1).filter((p) => fs.existsSync(p));
+    if (csvs.length === 0) {
+      console.error('usage: node scripts/build-galaxy-glow.js --gaia <hpx.csv> [...more parts]');
       process.exit(1);
     }
-    bakeGaia(csv);
+    bakeGaia(csvs);
     return;
   }
   const t0 = Date.now();
