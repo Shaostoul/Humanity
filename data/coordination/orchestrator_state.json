@@ -572,6 +572,13 @@
       "decision": "v0.799: in-world chat VIEW MODES (Chat/DMs/Groups/options tabs, DM sends reuse the E2EE path, unread dots, persisted feed toggle + panel height) + the Dev/Creative/Normal PLAY-MODE system (task #50 CLOSED: one play_mode_allows truth table gates creative resources, dev tools, and whole-ship editing; non-Dev construction pins to the home zone; honest CREATIVE/DEV HUD tag; default Dev pre-launch with a launch-flip tripwire test). Loop backlog COMPLETE: every queued item from the operator directive shipped v0.792-v0.799.",
       "why": "Loop mode closure. Next queue (PRIORITIES): star rung 2 (ATHYG in-app download), NPC dialog to data files (infinite-of-X), corridor door glass strips, first-contact funnel polish, server-enforced play-mode permissions for shared worlds.",
       "verification": "v0.799.1 boot via autopilot: 0 PANIC, world load, stars.bin; 921 lib tests; both feature checks; six lints"
+    },
+    {
+      "id": 7,
+      "date": "2026-07-10",
+      "decision": "v0.800 SKYBOX UPGRADE (star ladder rung 2): ATHYG 2,491,334 stars converted to HOSSTAR1 (build-athyg-bin.js, streaming, Sirius cross-catalog frame check), hosted as GitHub release asset assets-stars-1 (36 MB, non-v tag = no CI), in-app download card in Settings > Graphics (progress bar, magic-verified .tmp install, retry on fail, Remove to fall back), loader prefers stars-athyg.bin. Live: 25 ms parse, 74 FPS with 2.5M points (vs 77 at 120k).",
+      "why": "Operator: let us get the skybox upgraded, 2.5M vs 120k. Rung 3 next when wanted: Gaia G<14 (~25M points) + baked HDR glow cubemap for the remaining 1.77B, plus StarVertex packing 28B->12B.",
+      "verification": "v0.800.1 boot via autopilot: catalog log lines + screenshot (extended night sky dense with stars); 921 lib tests; both checks; six lints"
     }
   ],
   "active_scopes_to_avoid": [
