@@ -634,6 +634,12 @@
       "date": "2026-07-11",
       "decision": "v0.810.x arc: Blue Marble Earth + level-10 glow. v0.810.0 merged the planet-aesthetics agent (NASA Blue Marble albedo bin + bilinear sampler sharing handedness helpers with the heightmap, ocean sun glint via bit-16 water flag in packed UV + Blinn-Phong lobe exponent 220 sun-only, slope shading 1.0-0.65 at mesh build) plus a fresh-install fix: AppConfig derived Default ignored every serde field default so new installs booted planet_detail/vsync off + fov 0; Default now parses {} with concept_tour_seen flipped back to false and a tripwire test. v0.810.1 stamp (boot-verified 0 panics, albedo + 8192 glow + ultra catalog all load). v0.810.2 shipped the level-10 glow: 12,582,584-cell ESA census (0.057 deg) baked to 8192x4096 (24 MB), texel parity with 1440p at game FOV.",
       "why": "Operator asked how to raise glow resolution for 4K screenshots and 8K/16K futures. Answer established: texture res is bounded by census resolution, so raise the census. Level 11 (16384x8192, the GPU single-texture ceiling, 50M cells) is extracting now for an optional Ultra tier + peak wallpapers; beyond level 11 Gaia cell counts go Poisson-noisy (~9 stars/cell) so that is the physical ceiling of the measured-sky approach. Stars/halos are analytic and resolution-independent, so only the low-frequency dust haze is capped. Hi-res screenshot capture agent (offscreen render at arbitrary res up to device max, in-app 4K/8K buttons) is in verification; cloud-shell agent still building."
+    },
+    {
+      "id": 16,
+      "date": "2026-07-11",
+      "decision": "v0.811.0/.1: hi-res screenshot capture shipped. Request JSON or Testing-page buttons (Window/4K/8K/custom) render one frame of the current view offscreen at arbitrary size (proportionally clamped to the queried device max texture dim), clean scene without HUD, PNG self-verifies dims before ok:true. Merged from agent branch (only Cargo.lock conflicted); independently verified on main: 992 lib tests, relay check, six lints, boot + real 3840x2160 capture decoded pixel-exact.",
+      "why": "Operator plays 1440p/120 but wants 4K+ stills for sharing/wallpapers without switching display modes. Agent proved 4K+8K on hardware; orchestrator re-proved 4K post-merge per the verify-agent-work norm. Bloom was NOT lost in the offscreen path: it is not in the live frame path at all (bloom_intensity defaults 0, sun corona is emissive shells)."
     }
   ],
   "active_scopes_to_avoid": [
