@@ -2896,15 +2896,21 @@ pub struct GuiState {
     /// (found by the v0.793 autopilot two-instance test; a fast-loading real client could hit
     /// the same race).
     pub ws_identified: bool,
-    /// Extended star catalog (v0.800, star ladder rung 2). The Settings > Graphics card sets the
-    /// request flags; lib.rs consumes them (it owns data_dir + the download thread). Progress is
-    /// (downloaded_bytes, total_bytes, status_line); None = no download running.
-    pub star_catalog_download: bool,
-    pub star_catalog_remove: bool,
-    pub star_catalog_dl: Option<std::sync::Arc<std::sync::Mutex<(u64, u64, String)>>>,
-    /// Size in bytes of data/stars-athyg.bin if installed (None = standard catalog). Refreshed by
+    /// Star catalog tier chooser (v0.800 rung 2; 2026-07-11 rung 4 adds the ultra tier). The
+    /// Settings > Graphics card sets the request fields with the tier the user clicked; lib.rs
+    /// consumes them (it owns data_dir + the download thread). One download at a time: the dl
+    /// slot carries (tier, progress) where progress is (downloaded_bytes, total_bytes,
+    /// status_line); None = no download running.
+    pub star_catalog_download: Option<crate::renderer::stars::StarCatalogTier>,
+    pub star_catalog_remove: Option<crate::renderer::stars::StarCatalogTier>,
+    pub star_catalog_dl: Option<(
+        crate::renderer::stars::StarCatalogTier,
+        std::sync::Arc<std::sync::Mutex<(u64, u64, String)>>,
+    )>,
+    /// Installed size in bytes per DOWNLOADABLE tier, indexed by StarCatalogTier::index()
+    /// (the standard catalog always ships with the app and is not tracked here). Refreshed by
     /// lib.rs at init and after download/remove, not polled per frame.
-    pub star_catalog_extended: Option<u64>,
+    pub star_catalog_installed: [Option<u64>; 2],
     /// SOLO play intent (v0.801): true = never game_join, no avatar in the shared world even
     /// while the chat socket is connected. Set by the launcher (RED offline home = solo, server
     /// card = shared) and by the Dev travel step-out; flipping to true while joined sends
@@ -4407,10 +4413,10 @@ impl Default for GuiState {
             construction_dirty: false,
             construction_machines_dirty: false,
             ws_identified: false,
-            star_catalog_download: false,
-            star_catalog_remove: false,
+            star_catalog_download: None,
+            star_catalog_remove: None,
             star_catalog_dl: None,
-            star_catalog_extended: None,
+            star_catalog_installed: [None; 2],
             copresence_solo: false,
             construction_unsaved: false,
             ship_structure: None,
