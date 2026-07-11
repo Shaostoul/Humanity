@@ -118,7 +118,9 @@ const zlib = require('zlib');
 const ROOT = path.resolve(__dirname, '..');
 const ATHYG_PATH = path.join(ROOT, 'data', 'stars-athyg.bin');
 const HYG_PATH = path.join(ROOT, 'data', 'stars.bin');
-const OUT_PATH = path.join(ROOT, 'data', 'galaxy_glow.png');
+// Overridable via --out <path> (the level-11 Ultra tier bakes to a separate
+// file shipped as a release asset, never over the committed default).
+let OUT_PATH = path.join(ROOT, 'data', 'galaxy_glow.png');
 
 // Mutable on purpose (v0.807.x): the ATHYG star-integration path stays at
 // 2048x1024; the Gaia census path raises to 4096x2048 when it detects a
@@ -446,15 +448,18 @@ function bpRpToCi(bpf, rpf) {
 
 function bakeGaia(csvPaths) {
   const t0 = Date.now();
-  // Accept several CSVs (a level-9 aggregation exceeds ESA's 3M-row cap and
-  // arrives as two source_id halves). First pass: find the max cell index to
-  // DETECT the healpix level, then size everything from it.
-  const allLines = [];
+  // Accept several CSVs (finer aggregations exceed ESA's 3M-row cap and
+  // arrive as source_id-range chunks: 2 at level 9, 6 at level 10, 25 at
+  // level 11). TWO STREAMING PASSES over the files: the old approach
+  // accumulated every line in one JS array before detection, which is fine
+  // at 3M rows and fatal at level 11's 49M (multi-GB of V8 strings). Pass 1
+  // only tracks the max cell index to detect the healpix level; pass 2
+  // fills the typed arrays. Each file is processed and released one at a
+  // time, so peak memory is one CSV's worth of strings + the typed arrays.
   let maxIdx = 0;
   for (const p of csvPaths) {
     const lines = fs.readFileSync(p, 'utf8').trim().split('\n');
     for (let i = 1; i < lines.length; i++) {
-      allLines.push(lines[i]);
       const h = Number(lines[i].slice(0, lines[i].indexOf(',')));
       if (h > maxIdx) maxIdx = h;
     }
@@ -463,19 +468,34 @@ function bakeGaia(csvPaths) {
   // 1024, 12.6M cells, 0.057 deg) -> 8192x4096 - one texel ~0.044 deg,
   // parity with a 1440p screen pixel (~0.035 deg at game FOV), which is the
   // point of level 10: the glow stops being softer than the display.
-  GAIA_NSIDE = maxIdx >= 12 * 512 * 512 ? 1024 : maxIdx >= 12 * 256 * 256 ? 512 : 256;
+  // Level 11 (nside 2048, 50.3M cells, 0.029 deg) -> 16384x8192: the GPU
+  // single-texture ceiling and 4K-display parity; ships as the optional
+  // Ultra download tier, not the in-repo default.
+  GAIA_NSIDE = maxIdx >= 12 * 1024 * 1024 ? 2048
+    : maxIdx >= 12 * 512 * 512 ? 1024
+    : maxIdx >= 12 * 256 * 256 ? 512
+    : 256;
   if (GAIA_NSIDE === 512) {
     W = 4096;
     H = 2048;
   } else if (GAIA_NSIDE === 1024) {
     W = 8192;
     H = 4096;
+  } else if (GAIA_NSIDE === 2048) {
+    W = 16384;
+    H = 8192;
   }
   console.log(`gaia: nside ${GAIA_NSIDE} detected -> ${W}x${H} texture`);
   const ncell = 12 * GAIA_NSIDE * GAIA_NSIDE;
   const cellN = new Float64Array(ncell);
   const cellBp = new Float64Array(ncell);
   const cellRp = new Float64Array(ncell);
+  const allLines = (function* () {
+    for (const p of csvPaths) {
+      const lines = fs.readFileSync(p, 'utf8').trim().split('\n');
+      for (let i = 1; i < lines.length; i++) yield lines[i];
+    }
+  })();
   for (const line of allLines) {
     const f = line.split(',');
     const h = Number(f[0]);
