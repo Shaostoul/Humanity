@@ -6917,9 +6917,14 @@ mod native_app {
                 .position(|p| p.name == "Earth")
                 .or(if gui_state.map_planets.is_empty() { None } else { Some(0) });
 
-            // Load persistent config and apply to GUI state
-            let config = crate::config::AppConfig::load();
-            config.apply_to_gui_state(&mut gui_state);
+            // Load persistent config and apply to GUI state. Fresh installs
+            // (no config.json yet) SKIP the apply so GuiState keeps its
+            // designed defaults -- AppConfig's derived Default is all-zeroes
+            // and used to stomp first boots to fov 0 / planet detail off /
+            // no atmosphere / no clouds (see AppConfig::load_if_exists).
+            if let Some(config) = crate::config::AppConfig::load_if_exists() {
+                config.apply_to_gui_state(&mut gui_state);
+            }
             // Push the LOADED settings into the engine on the first frame. Without this the
             // camera boots at CameraController::new's hardcoded sensitivity (and the camera
             // FOV / far-plane stay at their constructor defaults) until the user nudges a
@@ -12578,6 +12583,17 @@ mod native_app {
                                             state
                                                 .planet_cloud_materials
                                                 .insert(b.id.clone(), m);
+                                            // One-shot (per cache fill) so a log
+                                            // grep proves the deck actually draws
+                                            // on this machine -- the same
+                                            // diagnostics-first norm as the
+                                            // "Sky-planet mesh built" line.
+                                            log::info!(
+                                                "Cloud deck material built: {} (coverage {:.2}, seed {})",
+                                                b.id,
+                                                cov,
+                                                crate::renderer::clouds::cloud_seed(d.terrain_seed),
+                                            );
                                             m
                                         };
                                         // Same shared flat shell mesh as the

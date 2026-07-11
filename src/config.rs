@@ -760,6 +760,35 @@ impl AppConfig {
         }
     }
 
+    /// Like `load()`, but returns None when no config file exists yet, so a
+    /// FRESH install keeps GuiState's designed defaults. The distinction
+    /// matters: `AppConfig`'s DERIVED `Default` zeroes every field (bools
+    /// false, floats 0.0) because the serde `default_*` functions only run
+    /// during deserialization of an existing file. Applying a
+    /// default-constructed config to GuiState therefore used to stomp every
+    /// first boot to fov 0, vsync off, planet detail / scattering atmosphere
+    /// / cloud layer off, and max subdivision 0 -- caught by the clouds
+    /// increment-1 boot-verify (2026-07-11), where a first-boot portable
+    /// instance rendered Earth as a flat level-0 sphere with no air and no
+    /// clouds. Existing configs behave exactly as before (missing fields get
+    /// their serde defaults).
+    pub fn load_if_exists() -> Option<Self> {
+        let path = Self::config_path();
+        match std::fs::read_to_string(&path) {
+            Ok(json) => {
+                log::info!("Loaded config from {}", path.display());
+                Some(serde_json::from_str(&json).unwrap_or_default())
+            }
+            Err(_) => {
+                log::info!(
+                    "No config file at {} (fresh install): keeping built-in defaults",
+                    path.display()
+                );
+                None
+            }
+        }
+    }
+
     pub fn save(&self) {
         let path = Self::config_path();
         if let Ok(json) = serde_json::to_string_pretty(self) {
