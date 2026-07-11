@@ -4685,6 +4685,20 @@ mod native_app {
         state.planet_heightmaps.clear();
         state.planet_mesh_cache.clear();
         state.planet_atmo_materials.clear();
+        // Chunked-LOD patches: unlike the whole-sphere cache above (whose
+        // superseded meshes stay resident until session end), patch slots
+        // are actively recycled: replace each GPU mesh with a degenerate
+        // placeholder and hand the slot to the free list, so a tuning
+        // session that hot-reloads earth.ron rebuilds patches from the new
+        // values without leaking hundreds of MB.
+        for (_, cs) in state.planet_chunk_states.drain() {
+            for (_, entry) in cs.cache {
+                state
+                    .renderer
+                    .replace_mesh(entry.mesh, Mesh::placeholder(&state.renderer.device));
+                state.planet_patch_free_slots.push(entry.mesh);
+            }
+        }
         for b in crate::cosmos::sol_bodies() {
             let rel = format!("planets/{}.ron", b.id);
             if state.asset_manager.data_dir().join(&rel).exists() {
@@ -5883,6 +5897,16 @@ mod native_app {
         /// regenerate a mesh that was already built this session; only a
         /// first visit to a (body, level) pair pays the build cost.
         planet_mesh_cache: std::collections::HashMap<(String, u32), usize>,
+        /// Chunked-LOD state per heightmap-bearing body (2026-07-11): the
+        /// quadtree patch cache + detail noise that takes over from the
+        /// uniform sphere when the planet's disc overflows the screen (the
+        /// old ladder's level-8 rung). See terrain::planet_chunks for the
+        /// full architecture (depth-cap math, culling, streaming, skirts).
+        planet_chunk_states: std::collections::HashMap<String, crate::terrain::planet_chunks::ChunkState>,
+        /// Renderer mesh slots freed by patch LRU eviction, recycled via
+        /// replace_mesh so the renderer's append-only mesh Vec stays
+        /// bounded no matter how long a flight streams patches in and out.
+        planet_patch_free_slots: Vec<usize>,
         /// Shared vertex-color material (shader type 12) for every
         /// procedural planet surface; per-face colors ride in the mesh.
         planet_surface_material: usize,
@@ -6942,6 +6966,8 @@ mod native_app {
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
                 planet_mesh_cache: std::collections::HashMap::new(),
+                planet_chunk_states: std::collections::HashMap::new(),
+                planet_patch_free_slots: Vec::new(),
                 planet_surface_material: 0,
                 planet_atmo_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
@@ -12105,6 +12131,10 @@ mod native_app {
                         let viewport_h = state.renderer.surface_size().1 as f32;
                         let fov_deg = state.camera.fov_degrees;
                         let rotation = Quat::from_rotation_y(elapsed * 0.01);
+                        // Chunked-LOD patch builds are budgeted PER FRAME
+                        // across all bodies (in practice at most one body
+                        // is ever close enough to be chunk-active).
+                        let mut patch_builds_this_frame = 0usize;
 
                         for b in crate::cosmos::sol_bodies() {
                             // The Sun + everything that directly orbits it
@@ -12165,61 +12195,324 @@ mod native_app {
                             } else {
                                 None
                             };
-                            let cache_id: &str = if def.is_some() { b.id.as_str() } else { "_flat" };
-                            let key = (cache_id.to_string(), level);
-                            let body_mesh = if let Some(&m) = state.planet_mesh_cache.get(&key) {
-                                m
-                            } else {
-                                let mesh = if let Some(d) = def {
-                                    // Real heightmap (Earth) beats noise;
-                                    // both feed the same mesh builder.
-                                    let hm = state.planet_heightmaps.get(&b.id);
-                                    let data =
-                                        crate::terrain::planet_surface::build_surface_mesh(d, hm, level);
-                                    Mesh::from_planet_surface(&state.renderer.device, &data)
-                                } else {
-                                    let mut ico = crate::terrain::icosphere::Icosphere::new();
-                                    ico.subdivide_n(level);
-                                    Mesh::from_icosphere(&state.renderer.device, &ico, 1.0)
-                                };
-                                let m = state.renderer.add_mesh(mesh);
-                                state.planet_mesh_cache.insert(key, m);
-                                log::info!(
-                                    "Sky-planet mesh built: {} level {} (~{:.0} px on screen)",
-                                    cache_id, level, px
-                                );
-                                m
-                            };
 
-                            let material = if is_sun {
-                                state.sun_material
-                            } else if def.is_some() {
-                                state.planet_surface_material
-                            } else {
-                                match b.body_type.as_str() {
-                                    "gas_giant" | "gas giant" => state.solar_body_materials[1],
-                                    "ice_giant" | "ice giant" => state.solar_body_materials[1],
-                                    "dwarf_planet" | "dwarf" | "kuiper" => {
-                                        state.solar_body_materials[2]
+                            // ── Chunked planetary LOD (2026-07-11) ──
+                            // When a heightmap-bearing planet's disc grows
+                            // past the ladder's level-8 rung (the planet
+                            // fills the screen; px_per_level * 2^7, 1280 px
+                            // at the default threshold), the quadtree patch
+                            // path takes over from the uniform sphere:
+                            // detail follows the camera down to ~54 m
+                            // triangles, the far side + off-screen patches
+                            // are culled during tree descent, and patch
+                            // meshes stream in budgeted per frame. Full
+                            // architecture: terrain::planet_chunks.
+                            let chunk_activation_px = px_per_level
+                                * (1u32
+                                    << (crate::terrain::planet_chunks::CHUNK_ACTIVATION_LADDER_LEVEL
+                                        - 1)) as f32;
+                            let chunked_on = state.gui_state.settings.planet_chunked
+                                && def.is_some()
+                                && state.planet_heightmaps.contains_key(&b.id)
+                                && px > chunk_activation_px;
+                            let mut chunked_drawn = false;
+                            if chunked_on {
+                                use crate::terrain::planet_chunks as chunks;
+                                let d = def.expect("chunked_on implies def");
+                                let hm = state
+                                    .planet_heightmaps
+                                    .get(&b.id)
+                                    .expect("chunked_on implies heightmap");
+                                // Planet model rotation this frame: the SAME
+                                // spin the uniform body uses, but composed in
+                                // f64 for anchor placement (precision rule:
+                                // narrow to f32 only at the very end).
+                                let rot_d = glam::DQuat::from_rotation_y((elapsed * 0.01) as f64);
+                                // Camera position in the planet's UNROTATED
+                                // local frame, f64 end to end. The camera
+                                // lives at metre scale near the origin (dev
+                                // travel moves ship_world_pos instead), so
+                                // widening it to f64 is exact.
+                                let cam_pos = state.camera.position;
+                                let cam_render = glam::DVec3::new(
+                                    cam_pos.x as f64,
+                                    cam_pos.y as f64,
+                                    cam_pos.z as f64,
+                                );
+                                let cam_local = rot_d.inverse() * (cam_render - render_off);
+                                // Camera frustum, rebuilt in f64. MUST mirror
+                                // Camera::celestial_uniforms (reverse-Z, far
+                                // plane 1e13) or culling would disagree with
+                                // what actually rasterizes.
+                                let proj_d = glam::DMat4::perspective_rh(
+                                    (fov_deg.max(1.0) as f64).to_radians(),
+                                    state.camera.aspect.max(0.01) as f64,
+                                    1.0e13,
+                                    1.0,
+                                );
+                                let view_d = state.camera.view_matrix().as_dmat4();
+                                let frustum = chunks::FrustumPlanes::from_view_proj(
+                                    &(proj_d * view_d),
+                                )
+                                .into_local(rot_d, render_off);
+                                // Conservative planet-wide radial band from
+                                // the def (tracks surface_relief + sea_level
+                                // automatically); built patches report their
+                                // measured band for tight culling.
+                                let band = chunks::RadialBand {
+                                    min_r_m: d.radius
+                                        * crate::terrain::planet_surface::displaced_radius_f64(
+                                            d, 0.0,
+                                        ),
+                                    max_r_m: d.radius
+                                        * crate::terrain::planet_surface::displaced_radius_f64(
+                                            d, 1.0,
+                                        ),
+                                };
+                                let params = chunks::ChunkParams {
+                                    radius_m: d.radius,
+                                    band,
+                                    max_depth: chunks::MAX_PATCH_DEPTH,
+                                    split_px: chunks::CHUNK_SPLIT_PX,
+                                    px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
+                                    max_leaves: chunks::MAX_CHUNK_LEAVES,
+                                    max_build_requests: chunks::MAX_BUILD_REQUESTS,
+                                };
+                                let seed = d.terrain_seed;
+                                let cs = state
+                                    .planet_chunk_states
+                                    .entry(b.id.clone())
+                                    .or_insert_with(|| chunks::ChunkState::new(seed));
+                                cs.frame += 1;
+                                let selection = chunks::select_patches(
+                                    cam_local,
+                                    Some(&frustum),
+                                    &|id| cs.cache.get(id).map(|e| e.band),
+                                    &params,
+                                );
+                                // Stamp every selected patch as used THIS
+                                // frame BEFORE eviction runs below: a patch
+                                // that just re-entered view after a long
+                                // absence still carries an old stamp, and
+                                // evicting it between selection and draw
+                                // would open a one-frame hole.
+                                let frame = cs.frame;
+                                for id in &selection.draws {
+                                    if let Some(e) = cs.cache.get_mut(id) {
+                                        e.last_used = frame;
                                     }
-                                    "terrestrial" | "moon" | "asteroid" => {
-                                        state.solar_body_materials[0]
-                                    }
-                                    _ => state.solar_body_materials[3],
                                 }
-                            };
+                                // Budgeted patch builds, worst screen error
+                                // first; new meshes enter NEXT frame's
+                                // selection (progressive refinement, no
+                                // frame hitch).
+                                for id in &selection.build_requests {
+                                    if patch_builds_this_frame >= chunks::PATCH_BUILDS_PER_FRAME {
+                                        break;
+                                    }
+                                    if cs.cache.contains_key(id) {
+                                        continue;
+                                    }
+                                    let src = chunks::ElevationSource::Heightmap {
+                                        hm,
+                                        detail: &cs.detail,
+                                    };
+                                    let pm = chunks::build_patch_mesh(d, &src, id);
+                                    let mesh =
+                                        Mesh::from_planet_surface(&state.renderer.device, &pm.mesh);
+                                    // Recycle an eviction-freed renderer slot
+                                    // when one exists so the mesh Vec stays
+                                    // bounded over long flights.
+                                    let slot =
+                                        if let Some(idx) = state.planet_patch_free_slots.pop() {
+                                            state.renderer.replace_mesh(idx, mesh);
+                                            idx
+                                        } else {
+                                            state.renderer.add_mesh(mesh)
+                                        };
+                                    cs.insert(
+                                        *id,
+                                        slot,
+                                        chunks::PATCH_MESH_BYTES,
+                                        pm.anchor,
+                                        pm.band,
+                                    );
+                                    patch_builds_this_frame += 1;
+                                }
+                                // Sustained build-budget saturation is worth
+                                // seeing in the log (normal for a few seconds
+                                // during an approach; suspicious if constant).
+                                if selection.build_requests.len() > chunks::PATCH_BUILDS_PER_FRAME
+                                    && cs.frame.saturating_sub(cs.last_saturation_log) > 300
+                                {
+                                    cs.last_saturation_log = cs.frame;
+                                    log::info!(
+                                        "Planet chunks '{}': build budget saturated ({} requested, {} per frame) - refining progressively",
+                                        b.id,
+                                        selection.build_requests.len(),
+                                        chunks::PATCH_BUILDS_PER_FRAME,
+                                    );
+                                }
+                                // LRU eviction past the byte cap: swap the GPU
+                                // mesh for a placeholder and bank the slot.
+                                for (_, mesh_idx) in
+                                    cs.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES)
+                                {
+                                    state.renderer.replace_mesh(
+                                        mesh_idx,
+                                        Mesh::placeholder(&state.renderer.device),
+                                    );
+                                    state.planet_patch_free_slots.push(mesh_idx);
+                                }
+                                // Draw patches only once the visible surface
+                                // is FULLY covered; until then (the first
+                                // frames after activation, while the 20 roots
+                                // build) the uniform sphere below keeps
+                                // drawing so the planet never blinks out.
+                                if selection.fully_covered && !selection.draws.is_empty() {
+                                    for id in &selection.draws {
+                                        if let Some(e) = cs.cache.get(id) {
+                                            // Per-patch translation composed in
+                                            // f64 (render offset + rotated
+                                            // anchor), narrowed to f32 at the
+                                            // END: the patch's own vertices are
+                                            // small offsets, so nothing here
+                                            // ever puts planet-radius magnitudes
+                                            // through f32 math.
+                                            let anchor_render = render_off + rot_d * e.anchor;
+                                            celestial_objects.push(RenderObject {
+                                                position: Vec3::new(
+                                                    anchor_render.x as f32,
+                                                    anchor_render.y as f32,
+                                                    anchor_render.z as f32,
+                                                ),
+                                                rotation,
+                                                scale: Vec3::ONE,
+                                                mesh: e.mesh,
+                                                material: state.planet_surface_material,
+                                            });
+                                        }
+                                    }
+                                    chunked_drawn = true;
+                                }
+                                if chunked_drawn != cs.active_last_frame {
+                                    cs.active_last_frame = chunked_drawn;
+                                    log::info!(
+                                        "Planet chunks '{}': {} ({} patches drawn, {} cached, {:.1} MB)",
+                                        b.id,
+                                        if chunked_drawn {
+                                            "ACTIVE"
+                                        } else {
+                                            "inactive (uniform sphere)"
+                                        },
+                                        selection.draws.len(),
+                                        cs.cache.len(),
+                                        cs.total_bytes as f64 / (1024.0 * 1024.0),
+                                    );
+                                }
+                            } else if let Some(cs) =
+                                state.planet_chunk_states.get_mut(&b.id)
+                            {
+                                // The camera left this planet (chunked mode
+                                // dropped out). Shrink the parked cache ONCE
+                                // to the warm floor so a departed planet
+                                // holds ~64 MB (fast re-approach; roots
+                                // pinned) instead of the full working set.
+                                if cs.active_last_frame {
+                                    cs.active_last_frame = false;
+                                    // Advance the frame stamp so nothing
+                                    // counts as used-this-frame and the LRU
+                                    // shrink can actually run.
+                                    cs.frame += 1;
+                                    let mut freed = 0usize;
+                                    for (_, mesh_idx) in cs.collect_evictions(
+                                        crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
+                                    ) {
+                                        state.renderer.replace_mesh(
+                                            mesh_idx,
+                                            Mesh::placeholder(&state.renderer.device),
+                                        );
+                                        state.planet_patch_free_slots.push(mesh_idx);
+                                        freed += 1;
+                                    }
+                                    log::info!(
+                                        "Planet chunks '{}': deactivated, shrunk cache to {:.1} MB ({} patches evicted)",
+                                        b.id,
+                                        cs.total_bytes as f64 / (1024.0 * 1024.0),
+                                        freed,
+                                    );
+                                }
+                            }
+
+                            // While chunked mode is engaged, cap the uniform
+                            // FALLBACK sphere at level 7 (327k faces): levels
+                            // 8-9 are exactly the several-second build hitch
+                            // the patch path exists to replace, and the
+                            // fallback only shows for the few frames before
+                            // patch cover completes.
+                            let level = if chunked_on { level.min(7) } else { level };
+
+                            let cache_id: &str = if def.is_some() { b.id.as_str() } else { "_flat" };
+                            if !chunked_drawn {
+                                let key = (cache_id.to_string(), level);
+                                let body_mesh = if let Some(&m) = state.planet_mesh_cache.get(&key) {
+                                    m
+                                } else {
+                                    let mesh = if let Some(d) = def {
+                                        // Real heightmap (Earth) beats noise;
+                                        // both feed the same mesh builder.
+                                        let hm = state.planet_heightmaps.get(&b.id);
+                                        let data =
+                                            crate::terrain::planet_surface::build_surface_mesh(d, hm, level);
+                                        Mesh::from_planet_surface(&state.renderer.device, &data)
+                                    } else {
+                                        let mut ico = crate::terrain::icosphere::Icosphere::new();
+                                        ico.subdivide_n(level);
+                                        Mesh::from_icosphere(&state.renderer.device, &ico, 1.0)
+                                    };
+                                    let m = state.renderer.add_mesh(mesh);
+                                    state.planet_mesh_cache.insert(key, m);
+                                    log::info!(
+                                        "Sky-planet mesh built: {} level {} (~{:.0} px on screen)",
+                                        cache_id, level, px
+                                    );
+                                    m
+                                };
+
+                                let material = if is_sun {
+                                    state.sun_material
+                                } else if def.is_some() {
+                                    state.planet_surface_material
+                                } else {
+                                    match b.body_type.as_str() {
+                                        "gas_giant" | "gas giant" => state.solar_body_materials[1],
+                                        "ice_giant" | "ice giant" => state.solar_body_materials[1],
+                                        "dwarf_planet" | "dwarf" | "kuiper" => {
+                                            state.solar_body_materials[2]
+                                        }
+                                        "terrestrial" | "moon" | "asteroid" => {
+                                            state.solar_body_materials[0]
+                                        }
+                                        _ => state.solar_body_materials[3],
+                                    }
+                                };
+                                celestial_objects.push(RenderObject {
+                                    position: Vec3::new(
+                                        render_off.x as f32,
+                                        render_off.y as f32,
+                                        render_off.z as f32,
+                                    ),
+                                    rotation,
+                                    scale: Vec3::splat(visual_scale),
+                                    mesh: body_mesh,
+                                    material,
+                                });
+                            }
                             let position = Vec3::new(
                                 render_off.x as f32,
                                 render_off.y as f32,
                                 render_off.z as f32,
                             );
-                            celestial_objects.push(RenderObject {
-                                position,
-                                rotation,
-                                scale: Vec3::splat(visual_scale),
-                                mesh: body_mesh,
-                                material,
-                            });
 
                             // Simple atmosphere (v0.763): a slightly larger
                             // translucent shell with a fresnel limb tint

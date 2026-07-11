@@ -1813,6 +1813,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Levels 8-9 add real close-range detail but build big meshes; lower this if a close planet flyby stutters.").color(theme.text_muted()).size(theme.font_size_small));
+        // Chunked planetary LOD (2026-07-11): quadtree surface patches that
+        // follow the camera once a planet fills the screen, replacing the
+        // heavy uniform level 8-9 spheres near heightmap planets (Earth).
+        if widgets::toggle(ui, theme, "Chunked surface detail", &mut state.settings.planet_chunked) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (~54 m triangles) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);

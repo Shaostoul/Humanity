@@ -131,6 +131,22 @@ pub fn displaced_radius(def: &PlanetDef, elevation: f32) -> f32 {
     1.0 + e * relief
 }
 
+/// f64 twin of `displaced_radius` for the chunked-LOD patch path
+/// (terrain::planet_chunks), where positions are composed in f64 so that
+/// planet-radius magnitudes keep sub-meter precision (an f32 multiply at
+/// 6.4e6 m already rounds by ~0.5 m). Keep the FORMULA in lockstep with
+/// the f32 version above; a unit test asserts they agree.
+pub fn displaced_radius_f64(def: &PlanetDef, elevation: f64) -> f64 {
+    let sea = def.sea_level.clamp(0.0, 1.0) as f64;
+    let relief = def.surface_relief.max(0.0) as f64;
+    let e = if def.has_water {
+        (elevation - sea).max(0.0)
+    } else {
+        elevation - sea
+    };
+    1.0 + e * relief
+}
+
 /// Classify a surface color from elevation and |sin(latitude)|.
 ///
 /// Bands, in priority order: polar cap (threshold slightly relaxed at high
@@ -547,6 +563,23 @@ mod tests {
         for v in &mesh.vertices {
             let r = Vec3::from_array(v.position).length();
             assert!((r - 1.0).abs() < 1e-4, "ocean vertex off the sphere: {r}");
+        }
+    }
+
+    #[test]
+    fn displaced_radius_f64_matches_f32() {
+        // The chunked-LOD patch path composes positions through the f64
+        // twin; both formulas must stay in lockstep or the uniform-sphere
+        // and patch surfaces would disagree at the LOD transition.
+        for def in [water_world(42), dry_world(7)] {
+            for e in [0.0_f32, 0.1, 0.45, 0.55, 0.72, 0.9, 1.0] {
+                let a = displaced_radius(&def, e) as f64;
+                let b = displaced_radius_f64(&def, e as f64);
+                assert!(
+                    (a - b).abs() < 1e-6,
+                    "f32 {a} vs f64 {b} diverged at elevation {e}"
+                );
+            }
         }
     }
 

@@ -172,6 +172,17 @@ impl Mesh {
         Self::from_vertices(device, &vertices, &data.indices)
     }
 
+    /// Minimal degenerate mesh (one zero-area triangle at the origin) used
+    /// to RECYCLE renderer mesh slots: the renderer's mesh Vec is
+    /// append-only, so evicting a streamed planet patch (or any other
+    /// transient mesh) swaps this in via replace_mesh, freeing the old GPU
+    /// buffers while keeping every existing mesh index stable. Never
+    /// referenced by a RenderObject; costs ~100 bytes per parked slot.
+    pub fn placeholder(device: &wgpu::Device) -> Self {
+        let v = Vertex { position: [0.0; 3], normal: [0.0, 1.0, 0.0], uv: [0.0; 2] };
+        Self::from_vertices(device, &[v, v, v], &[0, 1, 2])
+    }
+
     /// Ground plane on XZ axis (centered at origin, 10x10 units).
     pub fn plane(device: &wgpu::Device) -> Self {
         let s = 5.0;

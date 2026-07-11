@@ -831,6 +831,29 @@ palette/noise/sea-level tuning shows in the sky within a frame.
 - Data: `data/planets/earth.ron`, `mars.ron`, `moon.ron` (palette + noise
   params per body; a new planet look = a new RON file)
 
+### Chunked Planetary LOD (2026-07-11)
+When a heightmap-bearing planet's disc overflows the screen (the LOD
+ladder's level-8 rung), the whole-sphere path hands off to a quadtree of
+surface patches whose detail follows the camera: 20 icosahedron roots, each
+patch a 16x16-tessellated spherical triangle (256 grid + 96 skirt
+triangles), refined by screen-space error down to depth 13 (~54 m triangle
+edges near the surface; the ~1 m goal is a documented follow-up at depth
+~19 + micro-detail synthesis). Per-patch f64 anchors keep sub-cm precision
+(vertices are small f32 offsets; translations compose in f64 and narrow
+last). Culling: horizon cone test (the far side costs zero geometry) +
+frustum planes, both during tree descent; built patches carry measured
+radial bounds for tight culls. Depth-scaled skirts seal cross-depth seams.
+Streaming: budgeted builds (6/frame, worst-error first), restricted descent
+(no holes ever), 256 MB LRU cache (64 MB warm floor after departure, roots
+pinned, renderer slots recycled). Below the heightmap's 0.1 deg resolution,
+3 octaves of seeded land-masked detail noise (~30 m) keep close terrain
+from going flat. Toggle in Settings > Graphics > Planets ("Chunked surface
+detail"), persisted in AppConfig.
+- Native: `src/terrain/planet_chunks.rs` (pure math + 17 headless tests),
+  sky loop in `src/lib.rs` (selection/build/draw), `src/renderer/mesh.rs`
+  (`placeholder` slot recycling)
+- Data: any `data/planets/<id>.ron` with a `heightmap` (Earth today)
+
 ### Heightmap Terrain Generation
 Procedural terrain from heightmaps with 16 biome types.
 - Native: `src/terrain/heightmap.rs`

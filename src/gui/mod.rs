@@ -6179,6 +6179,12 @@ pub struct SettingsState {
     /// terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
     /// Stored as f32 for the slider; rounded at use.
     pub planet_max_subdiv: f32,
+    /// Chunked planetary LOD (2026-07-11): when a heightmap-bearing planet
+    /// (Earth) fills the screen, stream camera-following quadtree patches
+    /// (~54 m triangles near the surface) instead of the heavy uniform
+    /// close-approach spheres. Off keeps the pre-chunk behavior (uniform
+    /// levels 8-9 near a planet). See terrain::planet_chunks.
+    pub planet_chunked: bool,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -6252,6 +6258,7 @@ impl Default for SettingsState {
             sky_milkyway_intensity: 1.0,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,
+            planet_chunked: true,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

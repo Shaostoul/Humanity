@@ -329,6 +329,11 @@ pub struct AppConfig {
     /// for one screen-dominating body at a time.
     #[serde(default = "default_planet_max_subdiv")]
     pub planet_max_subdiv: f32,
+    /// Chunked planetary LOD (2026-07-11): stream camera-following surface
+    /// patches when a heightmap planet fills the screen, instead of the
+    /// heavy uniform level 8-9 spheres. See terrain::planet_chunks.
+    #[serde(default = "default_true")]
+    pub planet_chunked: bool,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -790,6 +795,7 @@ impl AppConfig {
             sky_milkyway_intensity: state.settings.sky_milkyway_intensity,
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
+            planet_chunked: state.settings.planet_chunked,
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
@@ -888,6 +894,7 @@ impl AppConfig {
         state.settings.planet_max_subdiv = self
             .planet_max_subdiv
             .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
+        state.settings.planet_chunked = self.planet_chunked;
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
