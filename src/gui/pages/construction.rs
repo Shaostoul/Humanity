@@ -2003,7 +2003,9 @@ pub fn exec_construction_command(state: &mut GuiState, line: &str) -> String {
                 s.push_str(&format!("  {} -- {}\n", v.usage, v.desc));
             }
             s.push_str("Also: drop debug/screenshot_request.json to capture the live 3D viewport -- \
-                       the engine writes debug/screenshot_N.png + debug/screenshot_done.json within a frame.\n");
+                       the engine writes debug/screenshot_N.png + debug/screenshot_done.json within a frame. \
+                       Give it {\"width\":3840,\"height\":2160} for a GUI-free hi-res render at that exact \
+                       size (also via Testing page > Screenshots).\n");
             s
         }
         "list" => match zone_body(&state.ship_structure, state.construction_zone) {

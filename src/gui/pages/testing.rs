@@ -27,6 +27,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                         draw_header(ui, theme, state);
                         ui.add_space(theme.spacing_md);
+                        draw_screenshot_card(ui, theme, state);
+                        ui.add_space(theme.spacing_md);
                         draw_filter_bar(ui, theme, state);
                         ui.add_space(theme.spacing_md);
                         draw_tasks(ui, theme, state);
@@ -75,6 +77,94 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.label(RichText::new(format!("· {} reported", issues)).color(theme.danger()));
         ui.label(RichText::new(format!("· {} pending", pending)).color(theme.text_secondary()));
     });
+}
+
+/// Screenshot capture card (v0.810): the in-app control for the engine's
+/// screenshot command (GUI-first rule -- the debug/screenshot_request.json file
+/// protocol still works, but nobody should NEED it). Window grabs the swapchain
+/// frame as shown (GUI included); 4K / 8K / Custom re-render the current 3D view
+/// offscreen at exactly that resolution, GUI-free -- wallpaper material at any
+/// window size. lib.rs consumes `screenshot_capture_request` at end-of-frame and
+/// reports back through `screenshot_last_result`.
+fn draw_screenshot_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    Frame::none()
+        .fill(theme.bg_card())
+        .stroke(Stroke::new(1.0, theme.border()))
+        .rounding(egui::Rounding::same(theme.border_radius as u8))
+        .inner_margin(theme.card_padding)
+        .show(ui, |ui| {
+            ui.label(
+                RichText::new("SCREENSHOTS")
+                    .size(theme.font_size_small)
+                    .color(theme.accent())
+                    .strong(),
+            );
+            ui.add_space(theme.spacing_xs);
+            ui.label(
+                RichText::new(
+                    "Saves to debug/screenshot_N.png. Window captures this frame as shown \
+                     (GUI included). 4K, 8K, and Custom re-render the current 3D view at that \
+                     exact resolution without the GUI -- independent of the window size.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+            );
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal_wrapped(|ui| {
+                if widgets::Button::secondary("Window").show(ui, theme) {
+                    state.screenshot_capture_request = Some((0, 0));
+                }
+                if widgets::Button::secondary("4K (3840x2160)").show(ui, theme) {
+                    state.screenshot_capture_request = Some((3840, 2160));
+                }
+                if widgets::Button::secondary("8K (7680x4320)").show(ui, theme) {
+                    state.screenshot_capture_request = Some((7680, 4320));
+                }
+            });
+            ui.add_space(theme.spacing_sm);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Custom")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.screenshot_custom_width)
+                        .desired_width(64.0)
+                        .hint_text("width"),
+                );
+                ui.label(RichText::new("x").color(theme.text_muted()));
+                ui.add(
+                    egui::TextEdit::singleline(&mut state.screenshot_custom_height)
+                        .desired_width(64.0)
+                        .hint_text("height"),
+                );
+                if widgets::Button::primary("Capture").show(ui, theme) {
+                    let w = state.screenshot_custom_width.trim().parse::<u32>();
+                    let h = state.screenshot_custom_height.trim().parse::<u32>();
+                    match (w, h) {
+                        (Ok(w), Ok(h)) if w > 0 && h > 0 => {
+                            state.screenshot_capture_request = Some((w, h));
+                        }
+                        _ => {
+                            state.screenshot_last_result = Some(
+                                "Enter a positive whole number for width and height".to_string(),
+                            );
+                        }
+                    }
+                }
+            });
+            if let Some(msg) = &state.screenshot_last_result {
+                ui.add_space(theme.spacing_xs);
+                let ok = msg.starts_with("Saved");
+                ui.label(
+                    RichText::new(msg)
+                        .size(theme.font_size_small)
+                        .color(if ok { theme.success() } else { theme.danger() })
+                        .monospace(),
+                );
+            }
+        });
 }
 
 fn draw_filter_bar(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {

@@ -1961,21 +1961,241 @@ mod native_app {
     /// existence check (cheap on the common absent path -- no read/parse happens unless the file
     /// is actually there). The request file is consumed (deleted) whether the capture succeeds or
     /// fails, so a failure can never spin retrying forever with no request file and no done file.
-    fn poll_screenshot_request(state: &mut EngineState, frame_texture: &wgpu::Texture) {
+    fn poll_screenshot_request(
+        state: &mut EngineState,
+        frame_texture: &wgpu::Texture,
+        lists: &SceneDrawLists,
+    ) {
         const REQUEST_PATH: &str = "debug/screenshot_request.json";
-        const DONE_PATH: &str = "debug/screenshot_done.json";
         if !std::path::Path::new(REQUEST_PATH).exists() {
             return;
         }
-        state.screenshot_counter += 1;
-        let out_path = screenshot_output_path(state.screenshot_counter);
-        let result = state.renderer.capture_current_frame(frame_texture, std::path::Path::new(&out_path));
+        // v0.810: the request MAY carry {"width":W,"height":H} for a hi-res
+        // offscreen capture; any other content keeps the original v0.639
+        // contract (window-size swapchain grab). Parsed BEFORE the delete so a
+        // read failure degrades to the window capture, never a lost request.
+        let size = std::fs::read_to_string(REQUEST_PATH)
+            .map(|t| parse_screenshot_request(&t))
+            .unwrap_or(ScreenshotSize::Window);
         // Consumed either way: a failed capture must not leave the request file in place, or the
         // next frame (and every frame after) would just retry forever.
         let _ = std::fs::remove_file(REQUEST_PATH);
+        execute_screenshot_capture(state, frame_texture, size, lists);
+    }
+
+    /// Borrowed views of THIS frame's already-built scene draw lists (v0.810).
+    /// The hi-res offscreen capture re-runs the exact same passes the live frame
+    /// just ran -- sky (galaxy glow, stars, halos, constellations), celestial
+    /// bodies + atmospheres, orbit lines, world geometry, glass, gizmos, door
+    /// rings -- so the PNG shows precisely what the player sees, only at the
+    /// requested resolution. Zero cost when no capture is pending.
+    struct SceneDrawLists<'a> {
+        celestial: &'a [RenderObject],
+        celestial_transparent: &'a [RenderObject],
+        orbit_lines: &'a [crate::renderer::line::LineVertex],
+        opaque: &'a [RenderObject],
+        transparent: &'a [RenderObject],
+        overlay: &'a [RenderObject],
+        ring_lines: &'a [crate::renderer::line::LineVertex],
+    }
+
+    /// Parsed screenshot request size (v0.810).
+    /// - Any non-JSON content, or JSON without width/height: window-size capture
+    ///   (the original v0.639 "any content" contract).
+    /// - Both `width` and `height` as positive integers: hi-res offscreen capture.
+    /// - Anything half-given or non-positive: Invalid, reported via done.json.
+    #[derive(Debug, PartialEq)]
+    enum ScreenshotSize {
+        Window,
+        Custom(u32, u32),
+        Invalid(String),
+    }
+
+    fn parse_screenshot_request(text: &str) -> ScreenshotSize {
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(text) else {
+            return ScreenshotSize::Window;
+        };
+        match (v.get("width"), v.get("height")) {
+            (None, None) => ScreenshotSize::Window,
+            (Some(w), Some(h)) => {
+                // as_u64 is None for negatives, floats, and strings -- all invalid.
+                let (Some(w), Some(h)) = (w.as_u64(), h.as_u64()) else {
+                    return ScreenshotSize::Invalid(
+                        "width and height must be positive integers".to_string(),
+                    );
+                };
+                if w == 0 || h == 0 {
+                    return ScreenshotSize::Invalid("width and height must be nonzero".to_string());
+                }
+                if w > u32::MAX as u64 || h > u32::MAX as u64 {
+                    return ScreenshotSize::Invalid("width/height out of range".to_string());
+                }
+                ScreenshotSize::Custom(w as u32, h as u32)
+            }
+            _ => ScreenshotSize::Invalid(
+                "give BOTH width and height, or neither for a window-size capture".to_string(),
+            ),
+        }
+    }
+
+    /// Shared executor for every capture trigger (file protocol AND the Testing
+    /// page buttons, v0.810): bumps the counter, runs the right capture path,
+    /// writes debug/screenshot_done.json, and mirrors the outcome into the GUI's
+    /// last-result line so the in-app buttons give feedback without a file read.
+    fn execute_screenshot_capture(
+        state: &mut EngineState,
+        frame_texture: &wgpu::Texture,
+        size: ScreenshotSize,
+        lists: &SceneDrawLists,
+    ) {
+        const DONE_PATH: &str = "debug/screenshot_done.json";
+        state.screenshot_counter += 1;
+        let out_path = screenshot_output_path(state.screenshot_counter);
+        // Ok(None) = window capture (size implicit); Ok(Some((w,h))) = hi-res
+        // capture at the ACTUAL rendered size (post-clamp), reported in done.json.
+        let result: Result<Option<(u32, u32)>, String> = match size {
+            ScreenshotSize::Window => state
+                .renderer
+                .capture_current_frame(frame_texture, std::path::Path::new(&out_path))
+                .map(|()| None),
+            ScreenshotSize::Custom(w, h) => {
+                capture_hires_screenshot(state, w, h, lists, &out_path).map(Some)
+            }
+            ScreenshotSize::Invalid(msg) => Err(msg),
+        };
         let done = screenshot_done_json(&result, &out_path);
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(DONE_PATH, done.to_string());
+        state.gui_state.screenshot_last_result = Some(match &result {
+            Ok(None) => format!("Saved {out_path} (window size)"),
+            Ok(Some((w, h))) => format!("Saved {out_path} ({w}x{h})"),
+            Err(e) => format!("Capture failed: {e}"),
+        });
+    }
+
+    /// Hi-res offscreen capture (v0.810): renders ONE frame of the exact current
+    /// view at `req_w` x `req_h`, independent of the window size, and saves it as
+    /// a PNG. The camera position/orientation are untouched; only the projection
+    /// aspect follows the requested W/H. Approach: create an offscreen color
+    /// target in the swapchain's format, size the shared depth buffer to match,
+    /// re-run the normal scene passes (they are all target-agnostic), read the
+    /// pixels back, then restore the window-sized depth buffer -- one frame of
+    /// extra GPU work, no visible hiccup (the swapchain frame was already
+    /// composed). The GUI/HUD is deliberately NOT drawn into the capture: the
+    /// hi-res path exists for wallpapers and sharing, so it ships the clean
+    /// scene. Returns the ACTUAL rendered size, which differs from the request
+    /// only when clamped to the device's max texture dimension.
+    fn capture_hires_screenshot(
+        state: &mut EngineState,
+        req_w: u32,
+        req_h: u32,
+        lists: &SceneDrawLists,
+        out_path: &str,
+    ) -> Result<(u32, u32), String> {
+        if !state.world_loaded {
+            return Err(
+                "3D world not loaded -- enter the world once, then capture".to_string(),
+            );
+        }
+        // Clamp to the device's REAL capability (queried, never hardcoded). If
+        // either edge exceeds the limit, scale BOTH edges down proportionally so
+        // the aspect ratio -- and thus the framing -- survives the clamp. A
+        // request beyond 4x the limit on either edge is a typo, not a wallpaper:
+        // reject it outright, naming the device's number so the caller can retry.
+        let max_dim = state.renderer.max_texture_dimension_2d().max(1);
+        if req_w > max_dim.saturating_mul(4) || req_h > max_dim.saturating_mul(4) {
+            return Err(format!(
+                "requested {req_w}x{req_h} is far beyond this device's max texture dimension ({max_dim})"
+            ));
+        }
+        let scale = f64::min(
+            1.0,
+            f64::min(max_dim as f64 / req_w as f64, max_dim as f64 / req_h as f64),
+        );
+        let w = ((req_w as f64 * scale) as u32).clamp(1, max_dim);
+        let h = ((req_h as f64 * scale) as u32).clamp(1, max_dim);
+
+        let (capture_tex, capture_view) = state.renderer.create_capture_target(w, h);
+        let (win_w, win_h) = state.renderer.surface_size();
+        state.renderer.set_depth_target_size(w, h);
+        let old_aspect = state.camera.aspect;
+        state.camera.aspect = w as f32 / h.max(1) as f32;
+
+        // Pass 1: sky -- galaxy glow, stars, halos, constellations -- exactly as
+        // the live frame draws it (clear to black + star renderer). If the star
+        // renderer is somehow absent the clear still runs, so the target is
+        // never undefined.
+        {
+            if let Some(ref star_r) = state.star_renderer {
+                star_r.update_camera(&state.renderer.queue, &state.camera);
+            }
+            let mut encoder = state.renderer.device.create_command_encoder(
+                &wgpu::CommandEncoderDescriptor { label: Some("HiRes Star Encoder") },
+            );
+            {
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("HiRes Star Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &capture_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    ..Default::default()
+                });
+                if let Some(ref star_r) = state.star_renderer {
+                    star_r.render_pass(&mut pass);
+                }
+            }
+            state.renderer.queue.submit(std::iter::once(encoder.finish()));
+        }
+
+        // Passes 1.5 .. 2.7: identical order + inputs to the live frame render
+        // (see the in-game branch above `match scene_result`). The sun direction
+        // is recomputed from the same state fields the live path uses.
+        let sun_dir_f = {
+            let d = (state.sun_world_pos - state.ship_world_pos).normalize_or_zero();
+            Vec3::new(d.x as f32, d.y as f32, d.z as f32)
+        };
+        state.renderer.render_celestial_onto(
+            &state.camera,
+            lists.celestial,
+            lists.celestial_transparent,
+            sun_dir_f,
+            &capture_view,
+        );
+        state
+            .renderer
+            .draw_celestial_lines_onto(&state.camera, lists.orbit_lines, &capture_view);
+        state
+            .renderer
+            .render_scene_onto(&state.camera, lists.opaque, &capture_view);
+        state
+            .renderer
+            .render_transparent_onto(&state.camera, lists.transparent, &capture_view);
+        state
+            .renderer
+            .render_overlay_onto(&state.camera, lists.overlay, &capture_view);
+        state
+            .renderer
+            .draw_lines_onto(&state.camera, lists.ring_lines, &capture_view);
+
+        let result = state.renderer.read_texture_to_png(
+            &capture_tex,
+            w,
+            h,
+            std::path::Path::new(out_path),
+        );
+
+        // Restore the window-sized internals BEFORE returning (even on a readback
+        // failure), or the next live frame would bind a mismatched depth buffer.
+        state.camera.aspect = old_aspect;
+        state.renderer.set_depth_target_size(win_w, win_h);
+
+        result.map(|()| (w, h))
     }
 
     /// Dev autopilot (v0.793): drive an instance into the shared world with ZERO
@@ -2089,11 +2309,18 @@ mod native_app {
     }
 
     /// The `debug/screenshot_done.json` body for a capture attempt: `{"ok":true,"path":...}` on
-    /// success, `{"ok":false,"error":...}` on failure. Pulled out of `poll_screenshot_request` so
+    /// success (plus `width`/`height` when the capture was a sized offscreen render, v0.810),
+    /// `{"ok":false,"error":...}` on failure. Pulled out of `poll_screenshot_request` so
     /// the shape is directly testable without a GPU.
-    fn screenshot_done_json(result: &Result<(), String>, path: &str) -> serde_json::Value {
+    fn screenshot_done_json(
+        result: &Result<Option<(u32, u32)>, String>,
+        path: &str,
+    ) -> serde_json::Value {
         match result {
-            Ok(()) => serde_json::json!({"ok": true, "path": path}),
+            Ok(None) => serde_json::json!({"ok": true, "path": path}),
+            Ok(Some((w, h))) => {
+                serde_json::json!({"ok": true, "path": path, "width": w, "height": h})
+            }
             Err(e) => serde_json::json!({"ok": false, "error": e}),
         }
     }
@@ -2168,7 +2395,10 @@ mod native_app {
 
     #[cfg(test)]
     mod screenshot_command_tests {
-        use super::{screenshot_done_json, screenshot_output_path};
+        use super::{
+            parse_screenshot_request, screenshot_done_json, screenshot_output_path,
+            ScreenshotSize,
+        };
 
         #[test]
         fn output_path_is_monotonic_and_collision_free() {
@@ -2179,19 +2409,81 @@ mod native_app {
 
         #[test]
         fn done_json_success_shape_carries_the_real_path() {
-            let v = screenshot_done_json(&Ok(()), "debug/screenshot_3.png");
+            let v = screenshot_done_json(&Ok(None), "debug/screenshot_3.png");
             assert_eq!(v["ok"], true);
             assert_eq!(v["path"], "debug/screenshot_3.png");
             assert!(v.get("error").is_none(), "a success body must not carry an error key");
+            assert!(
+                v.get("width").is_none(),
+                "a window-size capture must not claim explicit dimensions"
+            );
+        }
+
+        #[test]
+        fn done_json_sized_success_reports_the_actual_dimensions() {
+            let v = screenshot_done_json(&Ok(Some((3840, 2160))), "debug/screenshot_5.png");
+            assert_eq!(v["ok"], true);
+            assert_eq!(v["path"], "debug/screenshot_5.png");
+            assert_eq!(v["width"], 3840);
+            assert_eq!(v["height"], 2160);
         }
 
         #[test]
         fn done_json_failure_shape_carries_the_real_error_not_a_path() {
             let err = "swapchain surface has no COPY_SRC usage on this backend -- frame capture unavailable".to_string();
-            let v = screenshot_done_json(&Err(err.clone()), "debug/screenshot_4.png");
+            let v = screenshot_done_json(
+                &Err::<Option<(u32, u32)>, _>(err.clone()),
+                "debug/screenshot_4.png",
+            );
             assert_eq!(v["ok"], false);
             assert_eq!(v["error"], err);
             assert!(v.get("path").is_none(), "a failure body must not carry a path key");
+        }
+
+        #[test]
+        fn any_content_still_means_window_capture() {
+            // The original v0.639 contract: dropping ANY file content triggers a
+            // window-size capture. Non-JSON, empty, and sizeless JSON all qualify.
+            assert_eq!(parse_screenshot_request(""), ScreenshotSize::Window);
+            assert_eq!(parse_screenshot_request("go"), ScreenshotSize::Window);
+            assert_eq!(parse_screenshot_request("{}"), ScreenshotSize::Window);
+            assert_eq!(
+                parse_screenshot_request(r#"{"note":"hello"}"#),
+                ScreenshotSize::Window
+            );
+        }
+
+        #[test]
+        fn width_and_height_request_a_custom_capture() {
+            assert_eq!(
+                parse_screenshot_request(r#"{"width":3840,"height":2160}"#),
+                ScreenshotSize::Custom(3840, 2160)
+            );
+            assert_eq!(
+                parse_screenshot_request(r#"{"width":7680,"height":4320}"#),
+                ScreenshotSize::Custom(7680, 4320)
+            );
+        }
+
+        #[test]
+        fn malformed_sizes_are_rejected_not_silently_windowed() {
+            // Half-given, zero, negative, and non-integer sizes must produce a
+            // CLEAR error (Invalid -> ok:false in done.json), never a silent
+            // fallback that hands back the wrong resolution.
+            for bad in [
+                r#"{"width":3840}"#,
+                r#"{"height":2160}"#,
+                r#"{"width":0,"height":2160}"#,
+                r#"{"width":3840,"height":0}"#,
+                r#"{"width":-1,"height":2160}"#,
+                r#"{"width":1.5,"height":2160}"#,
+                r#"{"width":"4k","height":"uhd"}"#,
+            ] {
+                match parse_screenshot_request(bad) {
+                    ScreenshotSize::Invalid(_) => {}
+                    other => panic!("{bad} parsed as {other:?}, expected Invalid"),
+                }
+            }
         }
     }
 
@@ -17545,7 +17837,33 @@ mod native_app {
                                 state.egui_renderer.free_texture(id);
                             }
 
-                            poll_screenshot_request(state, &surface_texture.texture);
+                            // This frame's draw lists, borrowed for the (rare) hi-res
+                            // capture path -- zero cost when no capture is pending. (v0.810)
+                            let scene_lists = SceneDrawLists {
+                                celestial: &celestial_objects,
+                                celestial_transparent: &celestial_transparent,
+                                orbit_lines: &orbit_lines,
+                                opaque: &all_objects,
+                                transparent: &transparent_objects,
+                                overlay: &overlay_objects,
+                                ring_lines: &ring_lines,
+                            };
+                            // GUI-triggered capture (Testing page buttons, v0.810): the
+                            // same engine path as the file protocol, minus the JSON
+                            // round-trip. (0,0) = window-size swapchain grab.
+                            if let Some(size) = state.gui_state.screenshot_capture_request.take() {
+                                let size = match size {
+                                    (0, 0) => ScreenshotSize::Window,
+                                    (w, h) => ScreenshotSize::Custom(w, h),
+                                };
+                                execute_screenshot_capture(
+                                    state,
+                                    &surface_texture.texture,
+                                    size,
+                                    &scene_lists,
+                                );
+                            }
+                            poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
 
                             surface_texture.present();
 

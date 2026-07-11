@@ -2911,6 +2911,18 @@ pub struct GuiState {
     /// (the standard catalog always ships with the app and is not tracked here). Refreshed by
     /// lib.rs at init and after download/remove, not polled per frame.
     pub star_catalog_installed: [Option<u64>; 2],
+    /// Screenshot capture request (v0.810): set by the Testing page's capture buttons,
+    /// consumed by lib.rs at end-of-frame. (0, 0) = capture the window swapchain as-is
+    /// (GUI included); any other pair = one-frame offscreen scene render at exactly that
+    /// resolution (GUI-free, wallpaper-clean), clamped to the device's max texture
+    /// dimension. Same engine path as dropping debug/screenshot_request.json.
+    pub screenshot_capture_request: Option<(u32, u32)>,
+    /// One-line outcome of the last capture ("Saved debug/screenshot_3.png (3840x2160)"
+    /// or the error), shown under the Testing page's capture buttons.
+    pub screenshot_last_result: Option<String>,
+    /// Text buffers for the Testing page's custom width/height entry (v0.810).
+    pub screenshot_custom_width: String,
+    pub screenshot_custom_height: String,
     /// SOLO play intent (v0.801): true = never game_join, no avatar in the shared world even
     /// while the chat socket is connected. Set by the launcher (RED offline home = solo, server
     /// card = shared) and by the Dev travel step-out; flipping to true while joined sends
@@ -4417,6 +4429,11 @@ impl Default for GuiState {
             star_catalog_remove: None,
             star_catalog_dl: None,
             star_catalog_installed: [None; 2],
+            screenshot_capture_request: None,
+            screenshot_last_result: None,
+            // Defaults mirror the 4K quick button so the custom row starts sane.
+            screenshot_custom_width: "3840".to_string(),
+            screenshot_custom_height: "2160".to_string(),
             copresence_solo: false,
             construction_unsaved: false,
             ship_structure: None,
