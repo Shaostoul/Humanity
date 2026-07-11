@@ -621,6 +621,13 @@
       "why": "The last item of the operator field report (LOD + culling + atmosphere). Field-report queue now: level-9 glow re-bake 4096x2048, bloom halos, 1 m micro-detail LOD increment, glow default intensity per operator verdict, human co-presence witness test, release signing (operator).",
       "verification": "967 lib tests (+7), relay check, six lints, naga, agent boot + merger boot (0 PANIC, ULTRA catalog loading) with the stamp",
       "id": 13
+    },
+    {
+      "date": "2026-07-11",
+      "decision": "v0.807.2 + v0.808 SKYBOX COMPLETE: (1) PHANTOM-BAKE CORRECTION - the v0.803.2 gaia bake never wrote its PNG (writePng returns a buffer; the gaia path discarded it and stat-logged the stale file); found by the new read-back tripwire while adding level 9. The sky since v0.803 was actually the ATHYG bake; corrected honestly in the release notes. (2) The REAL census sky shipped: HEALPix level-9 (3.1M cells fetched as two sub-cap halves), 4096x2048, ang2pixNest interleave bit-count fixed (was hardcoded 8 bits, truncating level-9 indices), Great Rift + Magellanic swirls visible in the equirect. (3) v0.808 star halos: ~50 brightest (mag<=2, cap 128), tangent-plane quads, gaussian + 15% celestial-fixed cross, linear-amplitude additive (0.3 peak at Sirius, flux^0.6 falloff), Settings toggle. Halo agent self-boot-verified using the autopilot harness in its own worktree. Skybox stack final: census glow (all tiers) -> constellations -> 120k/2.5M/16.8M points -> halos.",
+      "why": "Operator: wrap up the skybox + articulate the three modes (copy delivered in-chat: Standard 119,625 / Extended 2,491,334 / Ultra 16,844,156 points, all tiers see the 1.81B glow; nothing in the night sky is painted). Remaining sky item: the glow-intensity default awaits the operator verdict. Broader queue: 1m LOD micro-detail, SRTM landing tiles, human co-presence witness, release signing.",
+      "verification": "974 lib tests (+7), relay check, six lints each ship; v0.807.2 boot (4096 glow loads) + v0.808.1 boot (halo pipeline, 0 PANIC); PNG dims read-back tripwire added",
+      "id": 14
     }
   ],
   "active_scopes_to_avoid": [
