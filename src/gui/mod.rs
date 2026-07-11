@@ -6170,6 +6170,10 @@ pub struct SettingsState {
     /// Milky Way glow intensity multiplier (0..2, default 1.0). Applied
     /// live as a shader uniform - no rebuild needed.
     pub sky_milkyway_intensity: f32,
+    /// Star halos (2026-07-11): soft photographic glow + faint diffraction
+    /// cross on the brightest ~50 stars, drawn additively over the star
+    /// points. A plain visibility flag - applies live, no GPU state.
+    pub sky_star_halos: bool,
     /// Screen-size LOD base threshold in pixels: a sky body subdivides one
     /// icosphere level each time its projected diameter doubles past this.
     /// See terrain::planet::lod_level_for_pixels.
@@ -6262,6 +6266,7 @@ impl Default for SettingsState {
             sky_constellations: true,
             sky_milkyway_glow: true,
             sky_milkyway_intensity: 1.0,
+            sky_star_halos: true,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,
             planet_chunked: true,

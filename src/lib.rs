@@ -16970,6 +16970,12 @@ mod native_app {
                                         state.gui_state.settings.sky_milkyway_glow,
                                         state.gui_state.settings.sky_milkyway_intensity,
                                     );
+                                    // Star halos (2026-07-11): a plain
+                                    // visibility flag, no GPU state to sync
+                                    // (per-star amplitude/size are baked in
+                                    // the halo vertex buffer at world load).
+                                    star_r.show_star_halos =
+                                        state.gui_state.settings.sky_star_halos;
                                     star_r.update_camera(&state.renderer.queue, &state.camera);
                                     let mut encoder = state.renderer.device.create_command_encoder(
                                         &wgpu::CommandEncoderDescriptor { label: Some("Star Encoder") },

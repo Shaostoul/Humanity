@@ -317,6 +317,10 @@ pub struct AppConfig {
     /// Milky Way glow intensity multiplier (0..2, default 1.0).
     #[serde(default = "default_sky_milkyway_intensity")]
     pub sky_milkyway_intensity: f32,
+    /// Star halos (2026-07-11): soft photographic glow + faint diffraction
+    /// cross on the brightest stars, drawn additively over the star points.
+    #[serde(default = "default_true")]
+    pub sky_star_halos: bool,
     /// Screen-size LOD base threshold in pixels for sky planets: one more
     /// icosphere subdivision each time the projected diameter doubles past
     /// this. See `terrain::planet::lod_level_for_pixels`.
@@ -798,6 +802,7 @@ impl AppConfig {
             sky_constellations: state.settings.sky_constellations,
             sky_milkyway_glow: state.settings.sky_milkyway_glow,
             sky_milkyway_intensity: state.settings.sky_milkyway_intensity,
+            sky_star_halos: state.settings.sky_star_halos,
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
@@ -890,6 +895,7 @@ impl AppConfig {
         // Clamp a hand-edited/corrupt saved value to the slider's range (a
         // huge multiplier would white out the whole sky).
         state.settings.sky_milkyway_intensity = self.sky_milkyway_intensity.clamp(0.0, 2.0);
+        state.settings.sky_star_halos = self.sky_star_halos;
         // Guard a corrupted saved value (a 0/negative threshold would pin
         // every body at max subdivision).
         state.settings.planet_lod_px = if self.planet_lod_px >= 1.0 {
