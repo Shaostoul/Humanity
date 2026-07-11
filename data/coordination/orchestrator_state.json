@@ -614,6 +614,13 @@
       "decision": "v0.806 TOP-TIER SKYBOX COMPLETE + CHUNKED PLANETARY LOD: Ultra catalog live (16,844,156 Gaia G<14 stars, 241 MB asset on assets-stars-1, in-app download; boot-proven 138 ms parse / 192.8 MB GPU / 0 panics; converter anchor pool hardened after the bright-giants-absent lesson - 40/56 matched incl Sirius at G=8.5); chunked LOD shipped (quadtree patches, ~54 m triangles at cap vs ~110 km before, horizon cull = far side never generated, frustum cull with measured radial bounds, f64 anchors sub-cm at cap, skirts, 6 builds/frame + 256 MB LRU, Settings toggle; 1 m follow-up = depth ~19 + micro-detail on the same architecture). Extraction war stories in scripts: ESA 3M-row cap -> recursive splitter; bash i64 overflow (15*2^60) made one chunk a full-catalog query -> explicit seed ranges.",
       "why": "Operator: top tier + 1 m triangles + far-side culling + better atmosphere. Remaining queue: scattering atmosphere shader (next), level-9 healpix glow re-bake 4096x2048, bloom halos, 1 m micro-detail increment, default glow intensity per operator verdict.",
       "verification": "960 lib tests (+17), relay check, six lints, v0.806.1 boot with the ULTRA catalog loading end-to-end"
+    },
+    {
+      "date": "2026-07-11",
+      "decision": "v0.807 SCATTERING ATMOSPHERES: shader type 14, ONeil-class single scattering (12-sample view march, ANALYTIC sun legs via closed-form Chapman/erfcx after a brute-force test caught the first form ~10% off), Rayleigh + HG Mie, atmosphere_color.rgb reinterpreted as per-channel scattering strengths (earth.ron retuned to real Rayleigh ratios; Mars butterscotch is physically right), scale_height_m on PlanetDef, inside-the-shell path works with chunked LOD, fresnel fallback + Settings toggle kept. Agent boot-verify caught a real startup panic (object bind group VERTEX-only, fragment now reads object.model) - the v0.782 discipline now catching bugs inside agent workflows before merge.",
+      "why": "The last item of the operator field report (LOD + culling + atmosphere). Field-report queue now: level-9 glow re-bake 4096x2048, bloom halos, 1 m micro-detail LOD increment, glow default intensity per operator verdict, human co-presence witness test, release signing (operator).",
+      "verification": "967 lib tests (+7), relay check, six lints, naga, agent boot + merger boot (0 PANIC, ULTRA catalog loading) with the stamp",
+      "id": 13
     }
   ],
   "active_scopes_to_avoid": [
