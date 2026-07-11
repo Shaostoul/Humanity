@@ -64,28 +64,22 @@
 >    glass_top; cuts its own apertures; no authored-door references; BOTH the
 >    move-the-door-desync AND the coincident-wall z-fight/walk-through fixed
 >    at the root; shipped RON migrated; regression tests encode both bugs).
->    DONE (2026-07-10, v0.789-791): corridor punches through intervening
->    zone shells + zone-drag guard (v0.789); build-mode gizmos - corridor
->    mouth diamonds, strip point handles, spotlight rings (v0.790); SAVE
->    SAFETY (v0.791: ship-structure 60s autosave + close flush, resilient
->    load prunes bad corridors instead of reverting the whole ship,
->    quarantine for unloadable files), Settings > Gameplay (hostile-wildlife
->    toggle default OFF, vitals-drain slider + slowed base decay), orbit
->    rings f64 + exact body splice (Earth sits ON its ring now).
->    IN FLIGHT (two worktree agents, verify before merge): strip corner
->    SUBDIVISION 0..100 + light emission along the curved tube (not the
->    control polygon), gizmo redesign (rings = rotation-only at fixed
->    viewport size + hover highlight; radius shown as icosphere wireframe),
->    and Dev-page TELEPORT to any planet + FTL fly multiplier.
->    NEXT UP from the cadence: corridor mouth door PANELS (animated doors +
->    live colliders at the mouths - today they are open apertures). Plus a
->    Dev/Creative/Normal MODE system so the operator builds the whole
->    mothership in-game while normal players are limited to their homestead.
->    Plus NPC INTERACTION (operator: "I can't interact with NPCs at all") -
->    the npcs.ron dialogue arc; today crew NPCs have no walk-up action.
->    DONE from that queue: lights UNCAPPED entirely (v0.782 storage buffer -
->    the 8-light raise became a full removal), real constellations (v0.783,
->    594 segments), palette light placement + RGB launcher cards (v0.784).
+>    DONE (2026-07-10, the v0.789-799 loop day): corridor pass-through +
+>    zone-drag guard (v0.789); build gizmos (v0.790); SAVE SAFETY +
+>    Settings > Gameplay + orbit alignment (v0.791); strip corner
+>    subdivision + emission along the curve, rotation-only rings + icosphere
+>    radius, Dev teleport/FTL (v0.792); docs sweep + LICENSE (v0.792.2); dev
+>    AUTOPILOT zero-click world entry (v0.793); game_join identify-race fix
+>    (v0.794); corridor pocket DOORS with live colliders (v0.795); roster
+>    lazy-spawn name fix (v0.796); NPC walk-up dialogue (v0.797); stars.bin
+>    1ms parse, rung 1 (v0.798); in-world chat VIEW MODES + the
+>    Dev/Creative/Normal PLAY-MODE system (v0.799, task #50 closed).
+>    NEXT QUEUE: star rung 2 (ATHYG 2.5M in-app download); NPC dialog lines
+>    to data files (infinite-of-X - they live in relay populate_ship);
+>    corridor door glass strips; first-contact funnel polish; server-side
+>    play-mode permissions for shared worlds. Earlier cadence DONE: lights
+>    UNCAPPED (v0.782), real constellations (v0.783), palette lights + RGB
+>    launcher cards (v0.784).
 >    QUEUED (renderer/data): the BIG STAR CATALOG arc. Key analysis
 >    (2026-07-10): Gaia DR3's terabytes are ~99% metadata; the 4 render
 >    fields (position/mag/color) pack to ~8-16 bytes/star, and ESA's TAP
