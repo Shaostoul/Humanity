@@ -550,6 +550,247 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     return vec4<f32>(rgb, alpha);
 }
 
+// ── Procedural cloud layer (material type 15, clouds increment 1) ──
+//
+// An animated cloud DECK on a SECOND translucent shell just above the planet
+// surface and BELOW the scattering atmosphere shell. lib.rs pushes the cloud
+// shell into the transparent celestial list BEFORE the atmosphere shell, and
+// that list draws in order with no depth writes, so the air blends OVER the
+// clouds -- physically correct: the atmosphere scatters in front of the deck.
+//
+// This is increment 1 of the volumetric-clouds plan: a coverage FIELD on the
+// sphere that reads as volumetric from orbit thanks to a sun-facing
+// self-shadow lookup and a forward-scatter silver lining. Increment 2 (true
+// raymarched volumetrics for inside-the-atmosphere flight) is designed to
+// REUSE cloud_field() as the horizontal density term:
+//   density(p_local) = cloud_alpha_from_field(
+//       cloud_field(normalize(p_local), t, seed), coverage)
+//       * altitude_envelope(length(p_local))
+// The field is already a pure function of planet-fixed direction + time, so a
+// raymarcher can sample it at arbitrary points along a ray with zero rework;
+// only the altitude envelope and the march loop are new work.
+//
+// Material packing (producer: lib.rs planet_cloud_materials; Rust mirror +
+// unit tests: src/renderer/clouds.rs -- keep every CLOUD_* constant in sync,
+// the wgsl_cloud_constants_stay_in_sync test enforces it by parsing this
+// file):
+//   base_color.rgb  cloud tint (white today; a future per-planet cloud_color
+//                   field can ride here with zero shader changes)
+//   base_color.a    coverage 0..1 (planet RON cloud_coverage)
+//   params.x        per-planet noise seed (terrain_seed % 1024) so two
+//                   cloudy worlds never show the same pattern
+//   params.z        15.0 (this shader type)
+//
+// TIME rides in camera.sun_color.w -- that slot was a documented-unused pad,
+// so animating the clouds needed no uniform layout change (the same
+// no-layout-churn rule as the type-14 material packing; the v0.782
+// device-limit incident is why layout churn is avoided). Written by
+// render_celestial_onto each frame; app-start-relative seconds, so f32
+// precision stays comfortable for days of uptime at these drift rates.
+
+// Peak opacity of the thickest cloud core. Deliberately below 1.0 so the
+// planet surface stays readable through even the densest deck.
+const CLOUD_MAX_ALPHA: f32 = 0.85;
+// Empirical contrast window of the raw octave sum over the sphere (p03/p96
+// of 20,000 spiral samples, measured in renderer::clouds's tuning probe):
+// the triplanar blend + octave averaging concentrate the sum tightly around
+// ~0.49, so WITHOUT this stretch a mid coverage value catches only the
+// distribution's thin upper tail and Earth reads nearly cloudless (caught
+// by the coverage_maps_monotonically test on first tuning). smoothstep
+// through this window spreads the sum to a roughly UNIFORM 0..1
+// "cloudiness", which is what lets the coverage knob track actual sky
+// fraction via the simple threshold below.
+const CLOUD_FIELD_LO: f32 = 0.32;
+const CLOUD_FIELD_HI: f32 = 0.65;
+// Softness of the cloud edge: alpha ramps over this field range above the
+// threshold, giving wispy borders instead of cookie-cutter blobs.
+const CLOUD_EDGE: f32 = 0.18;
+// The "weather" of increment 1: two octave SETS drift as rigid rotations at
+// different speeds around different axes, so their SUM genuinely evolves
+// (morphs) rather than sliding as one frozen texture. Radians per second of
+// cloud-clock time; zonal ~0.0015 rad/s is a visible-but-calm crawl (a
+// pattern crosses a planet disc in tens of minutes). Increment 2 can promote
+// these to per-planet data.
+const CLOUD_DRIFT_ZONAL: f32 = 0.0015;
+const CLOUD_DRIFT_CROSS: f32 = -0.0009;
+// Self-shadow lookup: great-circle step (radians) toward the sun, and how
+// hard a density rise over that step darkens this fragment. SHARP amplifies
+// the (already contrast-stretched) field differences into a usable shading
+// range without saturating everywhere.
+const CLOUD_SHADOW_STEP: f32 = 0.05;
+const CLOUD_SHADOW_STRENGTH: f32 = 0.65;
+const CLOUD_SHADOW_SHARP: f32 = 2.5;
+// Silver lining: forward-scatter glow at THIN cloud edges when looking
+// toward the sun (Henyey-Greenstein lobe, reusing the atmosphere's phase
+// function -- no third scattering model).
+const CLOUD_SILVER_GAIN: f32 = 0.3;
+// Ambient skylight floor on the day side (shadowed cloud flanks stay
+// visibly white, not gray mush) and the night-side floor (near-black but
+// not absolute zero, matching the surface shader's ambient posture).
+const CLOUD_AMBIENT: f32 = 0.08;
+const CLOUD_NIGHT_FLOOR: f32 = 0.006;
+
+// Rigid rotation around the local Y axis (the planet's spin axis in the
+// icosphere's local frame): zonal drift, like real weather bands.
+fn cloud_rot_y(v: vec3<f32>, a: f32) -> vec3<f32> {
+    let c = cos(a);
+    let s = sin(a);
+    return vec3<f32>(c * v.x + s * v.z, v.y, c * v.z - s * v.x);
+}
+
+// Rigid rotation around the local X axis: the cross-drift for octave set B,
+// deliberately a DIFFERENT axis so the two sets shear against each other.
+fn cloud_rot_x(v: vec3<f32>, a: f32) -> vec3<f32> {
+    let c = cos(a);
+    let s = sin(a);
+    return vec3<f32>(v.x, c * v.y - s * v.z, c * v.z + s * v.y);
+}
+
+// Seamless noise on the sphere: TRIPLANAR blend of the existing 2D value
+// noise (reusing hash21/value_noise above -- not a third noise
+// implementation). For a UNIT direction the squared components already sum
+// to 1, so dir*dir are the blend weights for free. Each plane gets a
+// different seed offset so the three projections never mirror each other at
+// the +/- axis crossings.
+fn cloud_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
+    let w = dir * dir;
+    let p = dir * freq;
+    let o = vec2<f32>(seed, seed * 0.617);
+    let nx = value_noise(p.yz + o);
+    let ny = value_noise(p.zx + o * 1.3);
+    let nz = value_noise(p.xy + o * 1.7);
+    return nx * w.x + ny * w.y + nz * w.z;
+}
+
+// The cloud density field: 4 octaves in two independently drifting sets.
+// Set A (3 octaves, zonal drift) carries the main cloud masses; set B (one
+// mid-frequency octave on a different axis and speed) makes the sum evolve
+// over time instead of rotating rigidly. Pure function of (planet-fixed
+// direction, time, seed) -- exactly the sampling contract the increment-2
+// raymarcher needs. The raw amplitude-normalized sum is contrast-stretched
+// through its empirical window (see CLOUD_FIELD_LO/HI) so the output is a
+// roughly uniform 0..1 "cloudiness".
+fn cloud_field(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
+    let da = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
+    var f = 0.5 * cloud_noise(da, 4.0, seed);
+    f = f + 0.25 * cloud_noise(da, 8.0, seed + 19.0);
+    f = f + 0.125 * cloud_noise(da, 16.0, seed + 47.0);
+    f = f + 0.35 * cloud_noise(db, 6.0, seed + 101.0);
+    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.225);
+}
+
+// Coverage (0..1, from the planet RON) -> cloud body opacity. Because
+// cloud_field is ~uniform after its contrast stretch, the fraction of sky
+// above a threshold thr is ~(1 - thr), so thr = 1 - coverage makes the knob
+// track real sky fraction; the -CLOUD_EDGE endpoint lets coverage 1.0 reach
+// FULL opacity everywhere (thr + edge <= 0) instead of leaving thin holes.
+// smoothstep softens the edge. Monotonic in both arguments (unit-tested in
+// renderer::clouds).
+fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
+    let thr = mix(1.0, -CLOUD_EDGE, clamp(coverage, 0.0, 1.0));
+    return smoothstep(thr, thr + CLOUD_EDGE, field);
+}
+
+fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
+    // Shell center + radius recovered from the object transform, same trick
+    // as the atmosphere shell: unit icosphere placed via Vec3::splat(scale),
+    // so column 0's length IS the shell radius and column 3 the center.
+    let center = object.model[3].xyz;
+    let shell_r = length(object.model[0].xyz);
+
+    // Exactly ONE shell layer (same rule as the atmosphere): the transparent
+    // pipeline draws both faces (cull off, shared with glass). Keep front
+    // faces when the camera is outside the shell, back faces when inside --
+    // the inside view is the increment-2 under-the-deck flight case, which
+    // this rule already handles correctly.
+    let ro = (camera.view_pos.xyz - center) / shell_r;
+    let cam_inside = dot(ro, ro) < 1.0;
+    if (front_facing == cam_inside) {
+        discard;
+    }
+
+    // PLANET-FIXED sample direction: rotate the world direction back into
+    // the mesh's local frame so the pattern rides the planet's spin and the
+    // drift constants are true weather motion relative to the ground.
+    // transpose(normal_matrix) IS model.inverse() exactly (normal_matrix is
+    // inverse-transpose), so no matrix inversion is needed in the shader.
+    let inv_model = transpose(object.normal_matrix);
+    let dir = normalize((inv_model * vec4<f32>(world_position, 1.0)).xyz);
+
+    let t = camera.sun_color.w; // the cloud clock (see header comment)
+    let seed = material.params.x;
+    let coverage = material.base_color.a;
+
+    let field = cloud_field(dir, t, seed);
+    let body = cloud_alpha_from_field(field, coverage);
+    if (body <= 0.002) {
+        // Clear sky at this fragment: fully transparent, skip the lighting.
+        return vec4<f32>(0.0);
+    }
+
+    // Macro lighting from the SPHERE normal: the deck is a thin wrap, so the
+    // planet's own day/night curvature dominates. Computed from geometry
+    // (position - center), not the interpolated mesh normal, so the level-3
+    // icosphere facets never show in the shading.
+    let n = normalize(world_position - center);
+    let sun = normalize(camera.sun_direction.xyz);
+    let ndl = dot(n, sun);
+    // Soft terminator; the night side fades to near-black (clouds are lit by
+    // the sun alone -- moonlight/city glow are future increments).
+    let day = smoothstep(-0.05, 0.3, ndl);
+
+    // Cheap self-shadow: re-sample the field a short great-circle step
+    // TOWARD the sun (sun projected into the tangent plane at dir; the
+    // projection goes to zero when the sun is overhead, so the step -- and
+    // the shadow -- smoothly vanish there, with no normalize-of-zero NaN).
+    // If density RISES toward the sun, this fragment sits on the shaded
+    // flank of a cloud mass -> darken. Fake but effective from orbit: flat
+    // coverage blobs pick up an internal sun-facing gradient and read puffy.
+    let sun_local = normalize((inv_model * vec4<f32>(sun, 0.0)).xyz);
+    let tang = sun_local - dir * dot(sun_local, dir);
+    let sdir = normalize(dir + tang * CLOUD_SHADOW_STEP);
+    let field_sun = cloud_field(sdir, t, seed);
+    let shade = 1.0
+        - CLOUD_SHADOW_STRENGTH
+            * clamp((field_sun - field) * CLOUD_SHADOW_SHARP, 0.0, 1.0);
+
+    // Silver lining: HG forward lobe (the atmosphere's phase function,
+    // reused) at THIN edges -- thick cores block the forward-scattered sun,
+    // so weight by (1 - body). Gated by a twilight-wide day window so the
+    // deep night limb never glows.
+    let rd = normalize(world_position - camera.view_pos.xyz);
+    let cos_vs = dot(rd, sun);
+    let silver = CLOUD_SILVER_GAIN * atmo_mie_phase(cos_vs) * (1.0 - body)
+        * smoothstep(-0.15, 0.1, ndl);
+
+    // Sun energy matches the celestial pass's directional light so the deck
+    // sits in the same exposure regime as the surface below it.
+    let sun_energy = camera.sun_color.rgb * camera.sun_direction.w;
+    let lit = clamp(ndl, 0.0, 1.0);
+    var radiance = material.base_color.rgb
+        * (sun_energy * (CLOUD_AMBIENT + lit * shade) * day
+            + vec3<f32>(CLOUD_NIGHT_FLOOR));
+    radiance = radiance + sun_energy * silver;
+
+    // Same ACES curve as the rest of the pipeline: all math above is linear,
+    // the render target view is sRGB, blending happens in linear space per
+    // the WebGPU spec (the v0.802/v0.803 lesson: encode once, never twice).
+    let aces_a = 2.51;
+    let aces_b = 0.03;
+    let aces_c = 2.43;
+    let aces_d = 0.59;
+    let aces_e = 0.14;
+    let mapped = clamp(
+        (radiance * (aces_a * radiance + vec3<f32>(aces_b)))
+            / (radiance * (aces_c * radiance + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
+
+    return vec4<f32>(mapped, body * CLOUD_MAX_ALPHA);
+}
+
 // ── Cook-Torrance BRDF Evaluation ──
 
 fn evaluate_light(
@@ -604,12 +845,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
 
-    // Type 14 short-circuits the whole PBR surface path: an atmosphere is a
-    // participating MEDIUM, not a lit surface -- its color comes entirely
-    // from the scattering integral, never from a BRDF. Types >= 14.5 would
-    // fall through to the default panel-grid look (none exist yet).
+    // Types 14 + 15 short-circuit the whole PBR surface path: an atmosphere
+    // is a participating MEDIUM and a cloud deck is a self-lit coverage
+    // field -- neither takes its color from a BRDF. Types >= 15.5 would fall
+    // through to the default panel-grid look (none exist yet).
     if (material_type >= 13.5 && material_type < 14.5) {
         return atmosphere_scattering(in.world_position, front_facing);
+    }
+    if (material_type >= 14.5 && material_type < 15.5) {
+        return cloud_layer(in.world_position, front_facing);
     }
 
     // Apply procedural material based on type:
@@ -620,6 +864,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     //  12 = Planet surface (vertex color packed in UV)
     //  13 = Atmosphere shell (fresnel limb tint -- the pre-v0.807 fallback)
     //  14 = Atmosphere shell (analytic single scattering -- handled above)
+    //  15 = Cloud layer (animated procedural deck -- handled above)
     if material_type < 0.5 {
         // Type 0: Default panel grid (walls, floors)
         if metallic < 0.1 && roughness > 0.3 {

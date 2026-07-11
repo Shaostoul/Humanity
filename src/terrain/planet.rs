@@ -121,6 +121,15 @@ pub struct PlanetDef {
     /// SHELL THICKNESS (mesh size) control.
     #[serde(default)]
     pub scale_height_m: Option<f32>,
+    /// Cloud deck coverage 0..1 (clouds increment 1): the fraction knob for
+    /// the animated procedural cloud shell (pbr_simple.wgsl material type
+    /// 15; math mirror + tests in `renderer::clouds`). None = no cloud
+    /// shell at all (airless worlds, and thin-air worlds like Mars whose
+    /// dust hazes belong to the atmosphere shader, not a water-cloud deck).
+    /// Earth ships ~0.55 (partly cloudy). The value maps to a noise
+    /// threshold, so 0.0 is honest clear sky and 1.0 full overcast.
+    #[serde(default)]
+    pub cloud_coverage: Option<f32>,
 }
 
 impl PlanetDef {

@@ -1829,6 +1829,14 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Physically shaded planet air: blue limb from orbit, warm terminator, pale horizon from inside the atmosphere. Turn off for the simple tinted-shell look.").color(theme.text_muted()).size(theme.font_size_small));
+        // Animated procedural cloud deck (clouds increment 1): a second
+        // translucent shell under the atmosphere, on planets whose RON
+        // declares cloud_coverage. Applies live: off skips the draw next
+        // frame; on reuses the cached material.
+        if widgets::toggle(ui, theme, "Cloud layer", &mut state.settings.planet_clouds) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Drifting sun-lit clouds on worlds that have them (Earth). Turn off for bare surfaces or on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);

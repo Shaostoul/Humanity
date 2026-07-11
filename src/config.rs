@@ -343,6 +343,10 @@ pub struct AppConfig {
     /// GPUs that dislike the per-pixel scattering math.
     #[serde(default = "default_true")]
     pub planet_atmo_scatter: bool,
+    /// Animated procedural cloud shells on planets that declare
+    /// cloud_coverage (clouds increment 1). Off = no cloud deck at all.
+    #[serde(default = "default_true")]
+    pub planet_clouds: bool,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -807,6 +811,7 @@ impl AppConfig {
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
+            planet_clouds: state.settings.planet_clouds,
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
@@ -908,6 +913,7 @@ impl AppConfig {
             .clamp(0.0, crate::terrain::planet::MAX_SKY_SUBDIVISION as f32);
         state.settings.planet_chunked = self.planet_chunked;
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
+        state.settings.planet_clouds = self.planet_clouds;
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
