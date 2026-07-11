@@ -607,6 +607,13 @@
       "decision": "v0.804-805 top-tier skybox foundations: EARTH IS EARTH (NOAA ETOPO1 real elevation, 0.1deg u16 bin committed, Everest/Challenger-Deep CI anchors, sea level exact from data, MAX_SKY_SUBDIVISION 7->9) and the 25M PIPELINE (StarVertex 28->12 B Snorm16x4+Unorm8x4 with gamma-2 brightness, wgpu max_buffer_size raised to adapter limit - the DEFAULT 256 MiB cap would have killed the ultra tier at load, v0.782 lesson paying rent - plus brightest-stars fallback for small devices, 3-tier Settings chooser, nameless-catalog constellation sidecar adoption, streaming gaia converter). Extraction: 16-chunk ESA TAP pull of G<14, dense chunks hit the anonymous 3M-row cap -> resumable splitter re-fetches quarters (pass 2 running). Boot-verified: extended catalog packs to 28.5 MB GPU.",
       "why": "Operator: go for the top tier; 25M ~375 MB / 1.8B ~27 GB and pointless as points (the census glow IS the 1.8B); Earth looked like noise because it was noise - real data both times. Remaining: finish extraction, convert, upload stars-gaia25m.bin to assets-stars-1, level-9 healpix glow at 4096x2048, bloom halos.",
       "verification": "936 then 942 lib tests, relay checks, six lints each; v0.804.1 boot (heightmap log line) + v0.805.1 boot (packed 12B line), both 0 PANIC"
+    },
+    {
+      "id": 12,
+      "date": "2026-07-11",
+      "decision": "v0.806 TOP-TIER SKYBOX COMPLETE + CHUNKED PLANETARY LOD: Ultra catalog live (16,844,156 Gaia G<14 stars, 241 MB asset on assets-stars-1, in-app download; boot-proven 138 ms parse / 192.8 MB GPU / 0 panics; converter anchor pool hardened after the bright-giants-absent lesson - 40/56 matched incl Sirius at G=8.5); chunked LOD shipped (quadtree patches, ~54 m triangles at cap vs ~110 km before, horizon cull = far side never generated, frustum cull with measured radial bounds, f64 anchors sub-cm at cap, skirts, 6 builds/frame + 256 MB LRU, Settings toggle; 1 m follow-up = depth ~19 + micro-detail on the same architecture). Extraction war stories in scripts: ESA 3M-row cap -> recursive splitter; bash i64 overflow (15*2^60) made one chunk a full-catalog query -> explicit seed ranges.",
+      "why": "Operator: top tier + 1 m triangles + far-side culling + better atmosphere. Remaining queue: scattering atmosphere shader (next), level-9 healpix glow re-bake 4096x2048, bloom halos, 1 m micro-detail increment, default glow intensity per operator verdict.",
+      "verification": "960 lib tests (+17), relay check, six lints, v0.806.1 boot with the ULTRA catalog loading end-to-end"
     }
   ],
   "active_scopes_to_avoid": [
