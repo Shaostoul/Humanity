@@ -36,6 +36,11 @@ pub mod cosmos;
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
 /// run under every feature set. See `src/dev_travel.rs`.
 pub mod dev_travel;
+/// Planetary-surface FPS math (task #76 increment 1): tangent-frame camera
+/// basis (up = local radial) + stand/walk ground clamp. Pure glam, ungated
+/// like `dev_travel`, so its unit tests run under every feature set. See
+/// `src/surface_walk.rs`.
+pub mod surface_walk;
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
 
@@ -2225,6 +2230,38 @@ mod native_app {
     /// teleport_viewpoint` for the sunlit direction, rescaled to the requested
     /// altitude; `look_angles` for the aim) so scripted captures and the GUI
     /// tool can never drift apart.
+    /// Altitude (m) below which the camera engages planetary SURFACE mode while
+    /// frame-locked to a body (task #76 increment 1): up becomes the local
+    /// radial, gravity rests you on the ground. Above this the world-Y orbit /
+    /// inspection lock keeps running, so marble views from orbit are unchanged.
+    const SURFACE_ENGAGE_ALT: f64 = 10_000.0;
+    /// Gravity easing rate (per second) for the surface stand/settle clamp.
+    /// At 4/s a drop from tens of metres settles onto the ground in ~1-2 s.
+    const SURFACE_SETTLE_RATE: f64 = 4.0;
+
+    /// Ground radius (metres from the body centre) of the DRAWN surface at a
+    /// unit direction in the body's UNROTATED local frame. Samples the real
+    /// heightmap (analytic, no mesh raycast) and applies `displaced_radius_f64`
+    /// so earth.ron's vertical exaggeration (`surface_relief`) is baked in and
+    /// the stand height matches the drawn ground. Falls back to the def's sea
+    /// level (no heightmap) or a bare Earth radius (no def).
+    fn ground_radius_m(
+        def: Option<&PlanetDef>,
+        hm: Option<&crate::terrain::planet_heightmap::PlanetHeightmap>,
+        unit_dir: glam::Vec3,
+    ) -> f64 {
+        match def {
+            Some(d) => {
+                let elev = match hm {
+                    Some(h) => h.normalized_at(unit_dir),
+                    None => d.sea_level.clamp(0.0, 1.0),
+                };
+                d.radius * crate::terrain::planet_surface::displaced_radius_f64(d, elev as f64)
+            }
+            None => 6.371e6,
+        }
+    }
+
     fn poll_camera_request(state: &mut EngineState) {
         const REQUEST_PATH: &str = "debug/camera_request.json";
         const DONE_PATH: &str = "debug/camera_done.json";
@@ -2339,7 +2376,24 @@ mod native_app {
             );
             (base - body_rel_earth).normalize_or_zero()
         };
-        let vantage = body_rel_earth + dir_out * (radius_m + altitude_km * 1000.0);
+        // Park above the DRAWN ground: for a lat/lon (scenic surface) target
+        // sample the real terrain radius there (heightmap + vertical
+        // exaggeration), so `altitude_km` is height above the actual ground -
+        // parking at the bare sphere radius would drop the camera tens of km
+        // UNDER a mountain (Everest's exaggerated relief is ~22 km). Orbit
+        // (no lat/lon) targets keep the sphere radius; there is no terrain up
+        // there to clear.
+        let surface_radius = if let Some((lat, lon)) = latlon {
+            let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+            ground_radius_m(
+                state.planet_defs.get(&body_id),
+                state.planet_heightmaps.get(&body_id),
+                unit,
+            )
+        } else {
+            radius_m
+        };
+        let vantage = body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);
         if state.dev_travel_home.is_none() {
             state.dev_travel_home = Some((
                 state.ship_world_pos,
@@ -2374,6 +2428,13 @@ mod native_app {
         } else {
             fwd
         };
+        // Reset to the WORLD-Y basis before applying the aim: if surface FPS
+        // mode is still engaged from a PREVIOUS request (task #76 increment 1),
+        // these world-basis yaw/pitch would be reinterpreted in the tangent
+        // basis and the aim would be wrong. Clearing here lets the frame-lock
+        // re-engage surface mode next frame and PRESERVE this exact look
+        // direction across the basis change (set_surface_up transition).
+        state.camera.clear_surface();
         let (yaw, pitch) = crate::dev_travel::look_angles(aim);
         state.camera.yaw = yaw;
         state.camera.pitch = pitch;
@@ -9086,52 +9147,123 @@ mod native_app {
                             state.camera.position.z as f64,
                         );
                         let cam_world = state.ship_world_pos + cam_local;
-                        // Only HOLD when reasonably near the body; far away the
-                        // co-rotation radius would be huge (co-rotating at
-                        // Mars-distance is millions of m/s) so we just track and
-                        // let the operator fly free until they come back.
-                        let radius_m = crate::cosmos::find_body(&lock_body)
-                            .map(|b| b.radius_km * 1000.0)
-                            .unwrap_or(6.371e6);
-                        let near = (cam_world - body_center).length() < radius_m * 50.0;
-                        // ACTIVE = the operator is giving ANY movement input, at
-                        // ANY speed (not just world-scale FTL thrust). This is the
-                        // v0.823 fix: the lock's parked branch PINS cam_world to
-                        // the frozen anchor (that is how it holds the surface
-                        // still), which CANCELS local WASD flight - so at low
-                        // speed near the surface, holding W did nothing while the
-                        // view co-rotation swung the facing ("W moved me sideways
-                        // then backwards"). Treating any wish-dir as active means
-                        // the moment you touch a movement key you fly freely;
-                        // release it and the lock re-engages to freeze the view.
-                        let active = state.controller.fly_mode
-                            && state.camera.mode
-                                == crate::renderer::camera::CameraMode::FirstPerson
-                            && state.controller.fly_wish_dir(&state.camera).length_squared() > 0.0;
-                        if active || !near {
-                            state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
-                                body_center,
-                                spin,
-                                cam_world,
-                            );
-                            state.frame_lock_last_spin = spin;
+                        let to_cam = cam_world - body_center;
+                        let dist = to_cam.length();
+
+                        // ── Surface FPS engage test (task #76 increment 1) ──
+                        // The unrotated surface point under the camera is the
+                        // frame-lock anchor's direction; sample the real ground
+                        // radius there (heightmap -> displaced_radius, which
+                        // carries earth.ron's vertical exaggeration so the stand
+                        // height matches the DRAWN ground). Engage surface mode
+                        // ONLY when genuinely close (within SURFACE_ENGAGE_ALT of
+                        // that ground): the co-rotation that holds a surface point
+                        // still belongs to the planet's ROTATING frame, which is
+                        // only physical near the surface. In orbit the correct
+                        // look is INERTIAL (stars fixed, planet turning beneath -
+                        // the ISS view), so above this altitude we do NOT co-rotate
+                        // (operator feedback: holding the frame out to tens of
+                        // radii slowly wheeled the whole sky).
+                        let radial = if dist > 1.0 {
+                            (to_cam / dist).as_vec3()
                         } else {
+                            glam::Vec3::Y
+                        };
+                        let anchor_pre =
+                            crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
+                        let def = state.planet_defs.get(&lock_body);
+                        let hm = state.planet_heightmaps.get(&lock_body);
+                        let ground_r =
+                            ground_radius_m(def, hm, anchor_pre.normalize_or_zero().as_vec3());
+                        let surface_engaged = (dist - ground_r) < SURFACE_ENGAGE_ALT;
+
+                        if surface_engaged {
+                            // Radial "up" so "down" points at the body centre and
+                            // the horizon is level (the transition preserves the
+                            // current look direction across the basis change).
+                            state.camera.set_surface_up(radial);
+
+                            // Walk + gravity on the ANCHOR (unrotated body frame).
+                            // cam_world = body_center + Ry(spin)*anchor, so moving
+                            // the anchor moves the camera WITHOUT the ground
+                            // sliding; cam_local is left untouched. WASD moves in
+                            // the tangent plane, Space/Shift is radial thrust, and
+                            // gravity eases the radius down to eye height + ground.
+                            let mut anchor = anchor_pre;
+                            let wish = state.controller.surface_wish_dir(&state.camera);
+                            let wish_unrot = glam::DQuat::from_rotation_y(-spin)
+                                * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
+                            let dir0 = anchor.normalize_or_zero();
+                            let radial_wish = wish_unrot.dot(dir0);
+                            let tangential = wish_unrot - dir0 * radial_wish;
+                            let walk_speed = (state.controller.speed
+                                * state.controller.speed_multiplier)
+                                .max(0.0) as f64;
+                            if tangential.length() > 1e-9 {
+                                anchor += tangential.normalize() * walk_speed * dt as f64;
+                            }
+                            // Ground radius at the (possibly moved) surface point.
+                            let dir1 = anchor.normalize_or_zero();
+                            let g = ground_radius_m(def, hm, dir1.as_vec3());
+                            let rest = crate::surface_walk::rest_radius(
+                                g,
+                                crate::surface_walk::EYE_HEIGHT_M,
+                            );
+                            let mut r = anchor.length();
+                            if radial_wish > 0.0 {
+                                // Thrust up (Space): the fly control lifts you off.
+                                r += walk_speed.max(1.0) * dt as f64;
+                            } else {
+                                r = crate::surface_walk::settle_radius(
+                                    r,
+                                    rest,
+                                    dt as f64,
+                                    SURFACE_SETTLE_RATE,
+                                );
+                            }
+                            r = crate::surface_walk::clamp_above_ground(
+                                r,
+                                g,
+                                crate::surface_walk::EYE_HEIGHT_M,
+                            );
+                            anchor = dir1 * r;
+                            state.frame_lock_anchor = anchor;
+                            state.frame_lock_last_spin = spin;
                             state.ship_world_pos = crate::dev_travel::frame_lock_ship_pos(
                                 body_center,
                                 spin,
-                                state.frame_lock_anchor,
+                                anchor,
                                 cam_local,
                             );
-                            // View co-rotation: the camera position rotates by
-                            // Ry(+delta) with the surface, and Ry(+delta) applied
-                            // to a forward(yaw) direction yields forward(yaw -
-                            // delta), so the yaw must SUBTRACT the spin delta to
-                            // keep looking at the same spot (deriving this with +
-                            // made the planet slide across the frame - the exact
-                            // bug this fixes).
-                            state.camera.yaw -= (spin - state.frame_lock_last_spin) as f32;
+                            // No view yaw co-rotation in surface mode: the tangent
+                            // basis is derived from surface_up (which co-rotates
+                            // with the surface) + world Y, so a FIXED yaw already
+                            // holds the same compass bearing on the ground.
+                            // Subtracting a delta here would spin the world under
+                            // a standing player.
+                        } else {
+                            // ── Inertial orbit (the ISS view) ── Above the
+                            // surface-engage altitude we do NOT co-rotate: the
+                            // position is left where it is (ship_world_pos
+                            // untouched) and the view yaw is NOT wheeled, so the
+                            // STARFIELD stays fixed and the planet rotates
+                            // naturally beneath the camera. We only TRACK the
+                            // anchor (refresh it from the current position) so a
+                            // later descent re-locks onto the ground right here.
+                            // Pinning + yaw co-rotation used to run out to ~50
+                            // body radii, which slowly turned the whole sky in
+                            // high orbit (operator feedback) - that behaviour now
+                            // lives only in the surface branch above.
+                            state.camera.clear_surface();
+                            state.frame_lock_anchor =
+                                crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
                             state.frame_lock_last_spin = spin;
                         }
+                    } else {
+                        // Not locked to any body (e.g. after "Return home"):
+                        // ensure the surface FPS basis is released so the ship /
+                        // space camera uses world-Y up again.
+                        state.camera.clear_surface();
                     }
 
                     // Wall collision (v0.556): the player IS the camera, so push it out of the home's
@@ -9744,6 +9876,11 @@ mod native_app {
                             log::warn!("Dev travel: requires Dev play mode while in the shared world");
                         } else if target == "home" {
                             if let Some((ship, cam, yaw, pitch)) = state.dev_travel_home.take() {
+                                // Drop the surface FPS basis (task #76) before
+                                // restoring the saved world-basis yaw/pitch, or
+                                // they would be reinterpreted in the tangent
+                                // frame and the home view would point wrong.
+                                state.camera.clear_surface();
                                 state.ship_world_pos = ship;
                                 state.camera.position = cam;
                                 state.camera.yaw = yaw;
@@ -9823,6 +9960,13 @@ mod native_app {
                                 .map(|(_, mx)| mx.y)
                                 .unwrap_or(20.0);
                             state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
+                            // Reset to the world-Y basis before aiming: if
+                            // surface FPS mode (task #76) is still engaged from a
+                            // previous surface visit, these world-basis yaw/pitch
+                            // would be misread in the tangent frame. The frame-
+                            // lock re-engages surface mode on descent and
+                            // preserves the look direction across the change.
+                            state.camera.clear_surface();
                             let (yaw, pitch) =
                                 crate::dev_travel::look_angles(body_rel_earth - vantage);
                             state.camera.yaw = yaw;

@@ -115,6 +115,16 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub up: Vec3,
+    /// Surface FPS mode (task #76 increment 1): when true, `up` is the local
+    /// RADIAL (from the planet centre to the camera) and `forward()`/`right()`
+    /// are built in that radial's tangent basis, so "down" points at the body
+    /// centre and the horizon is level. Off (default) keeps the world-Y basis
+    /// used in the ship and in space. Set each frame by the main loop's planet
+    /// frame-lock via `set_surface_up`/`clear_surface`.
+    pub surface_mode: bool,
+    /// The local radial `up` used while `surface_mode` is on (kept alongside
+    /// `up` so the tangent-basis math has an unambiguous source).
+    pub surface_up: Vec3,
     pub fov_degrees: f32,
     pub aspect: f32,
     pub near: f32,
@@ -163,6 +173,8 @@ impl Camera {
             yaw: 0.0,
             pitch: 0.0,
             up: Vec3::Y,
+            surface_mode: false,
+            surface_up: Vec3::Y,
             fov_degrees: 90.0,
             aspect: 16.0 / 9.0,
             near: 0.1,
@@ -195,13 +207,60 @@ impl Camera {
     }
 
     /// Direction the camera is looking (forward vector from yaw/pitch).
+    ///
+    /// In surface mode (`surface_mode`) the forward is built in the tangent
+    /// basis of the local radial `surface_up` (yaw spins around the radial,
+    /// pitch tilts toward/away from the ground); otherwise it uses the default
+    /// world-Y basis (yaw about world Y, pitch about world X).
     pub fn forward(&self) -> Vec3 {
+        if self.surface_mode {
+            return crate::surface_walk::surface_forward(self.surface_up, self.yaw, self.pitch);
+        }
         Vec3::new(
             self.yaw.sin() * self.pitch.cos(),
             self.pitch.sin(),
             -self.yaw.cos() * self.pitch.cos(),
         )
         .normalize()
+    }
+
+    /// Engage (or update) surface FPS mode with the given local radial `up`.
+    /// On the transition INTO surface mode the current look direction is
+    /// preserved (yaw/pitch are recomputed in the new tangent basis), so the
+    /// view does not pop when the basis flips from world-Y to radial. Once
+    /// engaged, subsequent calls just refresh the radial as the camera moves.
+    pub fn set_surface_up(&mut self, up: Vec3) {
+        let up = up.normalize_or_zero();
+        if up.length_squared() < 0.5 {
+            return;
+        }
+        if self.surface_mode {
+            self.surface_up = up;
+            self.up = up;
+        } else {
+            let fwd = self.forward(); // world basis (surface_mode still false)
+            self.surface_mode = true;
+            self.surface_up = up;
+            self.up = up;
+            let (yaw, pitch) = crate::surface_walk::surface_look_angles(up, fwd);
+            self.yaw = yaw;
+            self.pitch = pitch;
+        }
+    }
+
+    /// Leave surface FPS mode, restoring the default world-Y basis. The look
+    /// direction is preserved across the change (yaw/pitch recomputed in the
+    /// world basis), so returning to space / the ship does not pop the view.
+    pub fn clear_surface(&mut self) {
+        if !self.surface_mode {
+            return;
+        }
+        let fwd = self.forward(); // surface basis
+        self.surface_mode = false;
+        self.up = Vec3::Y;
+        let (yaw, pitch) = crate::surface_walk::world_look_angles(fwd);
+        self.yaw = yaw;
+        self.pitch = pitch;
     }
 
     /// Right vector (perpendicular to forward and up).
@@ -767,6 +826,29 @@ impl CameraController {
         }
     }
 
+    /// Surface-walk wish direction (task #76 increment 1): the movement intent
+    /// for standing on a planet. WASD moves in the TANGENT PLANE (the camera's
+    /// forward/right with their radial component removed, so you walk along the
+    /// ground rather than into or out of it); Space adds +up (radial) and Shift
+    /// -up. Returned in WORLD space and DELIBERATELY not normalized: the main
+    /// loop's frame-lock splits it into a tangential part (walk) and a radial
+    /// part (thrust/gravity), so the up-component magnitude must survive. Zero
+    /// when nothing is held.
+    pub fn surface_wish_dir(&self, camera: &Camera) -> Vec3 {
+        let up = camera.up;
+        let strip = |v: Vec3| (v - up * v.dot(up)).normalize_or_zero();
+        let f_t = strip(camera.forward());
+        let r_t = strip(camera.right());
+        let mut wish = Vec3::ZERO;
+        if self.forward { wish += f_t; }
+        if self.backward { wish -= f_t; }
+        if self.right { wish += r_t; }
+        if self.left { wish -= r_t; }
+        if self.ascend { wish += up; }
+        if self.descend { wish -= up; }
+        wish
+    }
+
     /// First-person: WASD walks (Shift = sprint), Space = jump, gravity pulls you to the
     /// floor. Mouse rotates the view. (Was free-fly noclip: Shift floated you down and
     /// Space up with no sprint, the operator's BUG-039.)
@@ -782,6 +864,18 @@ impl CameraController {
         camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
         let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
         camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
+
+        // ── Planetary surface FPS (task #76 increment 1) ── When the main
+        // loop has engaged surface mode (camera near a body's ground while
+        // frame-locked to it), ALL translation is owned by the frame-lock in
+        // lib.rs: it walks along the tangent plane and applies gravity by
+        // moving the co-rotating anchor, so the ground never slides. Here we
+        // only take the mouse look (done above) and leave position alone.
+        if camera.surface_mode {
+            self.vertical_velocity = 0.0;
+            self.is_grounded = false;
+            return;
+        }
 
         // ── Dev fly mode (v0.791.x) ── free flight: W/S along the full look
         // direction (pitch included, so looking at a planet and holding W goes
