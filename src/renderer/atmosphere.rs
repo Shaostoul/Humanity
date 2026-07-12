@@ -73,6 +73,14 @@ pub const EXPOSURE_NEAR: f32 = 1.4;
 /// is bit-identical); between them the disc clears smoothly on approach.
 pub const NEAR_R: f32 = 1.25;
 pub const FAR_R: f32 = 2.5;
+/// Mirrors `ATMO_NEAR_HAZE` (v0.826 low-altitude aerial-perspective trim): the
+/// fraction of surface haze to KEEP for near-camera surface-terminated rays.
+/// At low altitude the long near-horizontal path to a coast/ocean point piles
+/// up in-scatter + opacity into a milky wash; scaling the returned alpha by
+/// this on those rays dims the additive haze AND clears the surface in one
+/// stroke. It is 1.0 (no change) for limb rays, ground-level sky, and any far
+/// camera, so the from-orbit look is bit-identical.
+pub const NEAR_HAZE: f32 = 0.45;
 
 /// Mirrors WGSL `smoothstep(e0, e1, x)`.
 fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
@@ -102,6 +110,17 @@ pub fn atmo_exposure(cam_r: f32, tca: f32, impact_b: f32, rp: f32) -> f32 {
     }
     let w_far = smoothstep(NEAR_R, FAR_R, cam_r);
     EXPOSURE_NEAR + (EXPOSURE - EXPOSURE_NEAR) * w_limb.max(w_far)
+}
+
+/// Mirrors the v0.826 haze-alpha scale: the returned atmosphere alpha is
+/// multiplied by this so the milky low-altitude wash over the surface thins.
+/// Driven by the SAME `near_surf = 1 - max(w_limb, w_far)` weight the exposure
+/// blend uses, so it is exactly 1.0 for limb rays, ground-level sky, and any
+/// far camera (near_surf = 0) -- the from-orbit look is untouched -- and dips
+/// toward `NEAR_HAZE` for a near camera's surface-terminated rays.
+pub fn near_haze_scale(w_limb: f32, w_far: f32) -> f32 {
+    let near_surf = (1.0 - w_limb.max(w_far)).clamp(0.0, 1.0);
+    1.0 + (NEAR_HAZE - 1.0) * near_surf
 }
 /// Earth's density scale height as a fraction of its radius (8.5 km over
 /// 6371 km). Planets without an explicit `scale_height_m` get this RATIO
@@ -416,6 +435,33 @@ mod tests {
     }
 
     #[test]
+    fn near_haze_scale_only_trims_the_near_surface_and_never_the_orbit_look() {
+        // Far camera (12,000 km ~ 2.88 shell radii => w_far = 1): NO haze trim
+        // on any ray, limb or disc -- the approved from-orbit look is untouched.
+        assert_eq!(near_haze_scale(0.0, 1.0), 1.0);
+        assert_eq!(near_haze_scale(1.0, 1.0), 1.0);
+        // Limb ray from a near camera (w_limb = 1): untouched, so the blue limb
+        // glow and the ground-level horizon gradient never change.
+        assert_eq!(near_haze_scale(1.0, 0.0), 1.0);
+        // Ground-level upward sky rides w_limb = 1 too (see atmo_exposure):
+        // full haze, still blue.
+        assert_eq!(near_haze_scale(1.0, 0.0), 1.0);
+        // A near camera's surface-interior ray (both weights 0): full trim.
+        assert_eq!(near_haze_scale(0.0, 0.0), NEAR_HAZE);
+        // Monotone + bounded across the limb ramp: no ring, always in
+        // [NEAR_HAZE, 1].
+        let mut prev = near_haze_scale(0.0, 0.0);
+        for i in 0..=100 {
+            let w = i as f32 / 100.0;
+            let k = near_haze_scale(w, 0.0);
+            assert!((NEAR_HAZE..=1.0).contains(&k), "haze scale out of band: {k}");
+            assert!(k >= prev - 1e-6, "haze scale not monotone at w_limb {w}");
+            prev = k;
+        }
+        assert_eq!(prev, 1.0, "haze trim must vanish at the limb");
+    }
+
+    #[test]
     fn wgsl_atmo_constants_stay_in_sync() {
         // Same enforcement the cloud module has had since increment 1: parse
         // each ATMO_* constant straight out of the shipped shader source so
@@ -430,6 +476,7 @@ mod tests {
             ("ATMO_EXPOSURE_NEAR", EXPOSURE_NEAR),
             ("ATMO_NEAR_R", NEAR_R),
             ("ATMO_FAR_R", FAR_R),
+            ("ATMO_NEAR_HAZE", NEAR_HAZE),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");

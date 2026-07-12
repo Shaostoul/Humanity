@@ -58,14 +58,32 @@ pub const WATER_F0: f32 = 0.02;
 pub const WATER_SPEC_POWER: f32 = 900.0;
 pub const WATER_SPEC_GAIN: f32 = 1.1;
 /// Mirrors `WATER_SKY_GAIN`: analytic reflected-sky brightness as a
-/// fraction of sun intensity.
-pub const WATER_SKY_GAIN: f32 = 0.4;
+/// fraction of sun intensity. Trimmed to 0.20 in v0.826 (with a deeper
+/// reflected-sky colour) so the grazing mid-field no longer lights into a
+/// white cross-hatch corduroy -- the sun glitter carries the highlights.
+pub const WATER_SKY_GAIN: f32 = 0.20;
 /// Mirrors `WATER_ICE_LUM_LO` / `WATER_ICE_LUM_HI`: sea-ice guard. Polar
 /// below-sea faces carry the water flag but grade toward cap white; wave
 /// presence fades out across this max-channel-luminance band so pack ice
 /// never shades like open ocean.
 pub const WATER_ICE_LUM_LO: f32 = 0.35;
 pub const WATER_ICE_LUM_HI: f32 = 0.6;
+
+/// Mirrors the crest fractal domain-warp constants (v0.826). Pure directional
+/// plane waves make dead-straight parallel crests; before the cos, each
+/// octave's phase is nudged by TWO octaves of value-noise sampled on the sphere
+/// (coarse `AMP`/`MULT` shifts whole crests, fine `AMP2`/`MULT2` adds local
+/// wiggle) so crests SNAKE irregularly -- no two stretches alike -- like real
+/// open water. Amplitudes are in wavelengths; `MULT`/`MULT2` set the warp
+/// spatial wavelength as a multiple of the wave wavelength; per-octave seed =
+/// `SEED + lambda * 0.01`. The warp only shifts phase (never amplitude), so the
+/// anti-alias fade still kills every octave from orbit (far field bit-identical)
+/// and it is decoupled from wave HEIGHT (slope), which stays gentle.
+pub const WAVE_WARP_AMP: f32 = 0.75;
+pub const WAVE_WARP_MULT: f32 = 3.5;
+pub const WAVE_WARP_AMP2: f32 = 0.32;
+pub const WAVE_WARP_MULT2: f32 = 1.4;
+pub const WAVE_WARP_SEED: f32 = 4.7;
 
 /// One directional wave train (mirrors the WAVE{N}_* constants in WGSL).
 #[derive(Debug, Clone, Copy)]
@@ -171,7 +189,20 @@ pub fn wave_octave(
     // and tp is tangent, so dot(p_m, tp) is identically zero -- that is the
     // v0.818 invisible-water bug (globally-uniform, time-only phase). dot with
     // the raw direction so the phase varies spatially and the trains travel.
-    let cycles = dot3(p_m, oct.dir) / oct.lambda_m + t * oct.cps;
+    // Fractal domain warp (v0.826): snake the crests by nudging the phase with
+    // TWO octaves of value-noise sampled on the sphere normal n -- coarse
+    // (WAVE_WARP_MULT * lambda) shifts whole crests, fine (WAVE_WARP_MULT2 *
+    // lambda) adds local wiggle -- each centred to +-0.5 then scaled to its
+    // amplitude in wavelengths, so crests wander irregularly instead of running
+    // dead straight. Mirrors the WGSL wave_octave.
+    let r_m = len3(p_m);
+    let warp_seed = WAVE_WARP_SEED + oct.lambda_m * 0.01;
+    let warp_c = (surface_detail_noise(n, r_m / (oct.lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
+        * WAVE_WARP_AMP;
+    let warp_f = (surface_detail_noise(n, r_m / (oct.lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7)
+        - 0.5)
+        * WAVE_WARP_AMP2;
+    let cycles = dot3(p_m, oct.dir) / oct.lambda_m + warp_c + warp_f + t * oct.cps;
     let ph = fract(cycles) * TAU;
     let s = oct.slope * fade * ph.cos();
     [tp[0] * s, tp[1] * s, tp[2] * s]
@@ -564,6 +595,11 @@ mod tests {
             ("WATER_SKY_GAIN", WATER_SKY_GAIN),
             ("WATER_ICE_LUM_LO", WATER_ICE_LUM_LO),
             ("WATER_ICE_LUM_HI", WATER_ICE_LUM_HI),
+            ("WAVE_WARP_AMP", WAVE_WARP_AMP),
+            ("WAVE_WARP_MULT", WAVE_WARP_MULT),
+            ("WAVE_WARP_AMP2", WAVE_WARP_AMP2),
+            ("WAVE_WARP_MULT2", WAVE_WARP_MULT2),
+            ("WAVE_WARP_SEED", WAVE_WARP_SEED),
         ];
         for (name, rust_val) in scalars {
             let parsed = parse_f32(name);

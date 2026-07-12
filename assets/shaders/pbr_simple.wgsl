@@ -359,10 +359,11 @@ const WATER_F0: f32 = 0.02;
 const WATER_SPEC_POWER: f32 = 900.0;
 const WATER_SPEC_GAIN: f32 = 1.1;
 // Analytic reflected-sky brightness (fraction of sun intensity). Trimmed
-// v0.819: 0.5 washed every wave crest to bright white (grazing crests mirror
-// the near-white horizon sky) -- the corduroy look. 0.4 keeps the sky mirror
-// without blowing the crests out.
-const WATER_SKY_GAIN: f32 = 0.4;
+// again v0.826: 0.4 still lit the whole grazing mid-field into a white
+// cross-hatch corduroy at 1.5 km. 0.20 (with the deeper reflected-sky colour
+// in water_shade) keeps a subtle blue sky mirror while letting the localized
+// sun glitter -- not a uniform grazing sheen -- carry the bright highlights.
+const WATER_SKY_GAIN: f32 = 0.20;
 // Sea ice rides the water flag (below-sea faces of has_water planets) but
 // must not shade like open ocean: wave presence fades out as the graded
 // albedo brightens from ocean blue toward cap white across this band
@@ -405,6 +406,29 @@ const WAVE6_CPS: f32 = 0.18;
 const WAVE6_SLOPE: f32 = 0.035;
 const WAVE6_DIR: vec3<f32> = vec3<f32>(-0.6666667, 0.3333333, -0.6666667);
 
+// Crest domain-warp (v0.826): the six trains above are pure directional plane
+// waves, so every crest is a dead-straight parallel line -- the "very straight
+// water" the operator flagged at 1.5 km over Oahu. Real open water has crests
+// that SNAKE and interfere, each stretch different from the next. Fix: before
+// the cos, offset each octave's phase by a TWO-OCTAVE (fractal) value-noise
+// domain warp sampled on the sphere. A single warp frequency just makes every
+// crest undulate identically (still reads as parallel bands); summing a COARSE
+// warp (shifts whole crests by different amounts) with a FINER one (local
+// wiggle) makes crests wander irregularly so no two stretches look the same.
+// The warp only shifts phase (never amplitude), so the per-octave anti-alias
+// fade still kills every wave from orbit -- the far field stays bit-identical,
+// and it is fully decoupled from wave HEIGHT (slope), which stays gentle.
+//   WAVE_WARP_AMP / _MULT   coarse warp: amplitude (in wavelengths) and spatial
+//                           wavelength as a multiple of the wave wavelength.
+//   WAVE_WARP_AMP2 / _MULT2  fine warp: the local snaking detail.
+//   WAVE_WARP_SEED  base noise seed; per-octave seed = this + lambda * 0.01 so
+//                   the six trains snake on decorrelated noise fields.
+const WAVE_WARP_AMP: f32 = 0.75;
+const WAVE_WARP_MULT: f32 = 3.5;
+const WAVE_WARP_AMP2: f32 = 0.32;
+const WAVE_WARP_MULT2: f32 = 1.4;
+const WAVE_WARP_SEED: f32 = 4.7;
+
 // Land detail octaves: multiplicative luminance variation synthesized UNDER
 // the photo albedo (no biome recoloring), +-amp per octave.
 const LAND1_LAMBDA: f32 = 10000.0;
@@ -422,6 +446,24 @@ const LAND3_SEED: f32 = 31.9;
 // octave would alias, exactly 1 when it is comfortably resolved.
 fn detail_octave_fade(lambda_m: f32, footprint_m: f32) -> f32 {
     return smoothstep(DETAIL_FADE_LO, DETAIL_FADE_HI, lambda_m / footprint_m);
+}
+
+// Triplanar value noise on the sphere -- same pow-4-weight construction as the
+// cloud field's sphere noise but its own seed offsets, so this stays
+// independent of the cloud functions (which have their own rework cadence).
+// freq = planet radius / wavelength. Used by BOTH the wave crest domain-warp
+// (wave_octave, below) and the land detail octaves (land_detail_factor), so it
+// is declared here ahead of the first caller.
+fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
+    var w = dir * dir;
+    w = w * w;
+    let wn = w / (w.x + w.y + w.z);
+    let p = dir * freq;
+    let o = vec2<f32>(seed, seed * 0.713);
+    let nx = value_noise(p.yz + o);
+    let ny = value_noise(p.zx + o * 1.31);
+    let nz = value_noise(p.xy + o * 1.73);
+    return nx * wn.x + ny * wn.y + nz * wn.z;
 }
 
 // One directional wave train's contribution to the tangent-plane slope
@@ -460,7 +502,19 @@ fn wave_octave(
     // (no crests, no glitter). dot(p_m, d) = r * dot(dir, d) varies across the
     // surface, giving real travelling wave trains. tp remains the SLOPE
     // (gradient) direction; only the phase argument changes.
-    let cycles = dot(p_m, d) / lambda_m + t * cps;
+    // Fractal domain warp: snake the crests by nudging the phase with TWO
+    // octaves of value-noise sampled on the sphere normal n (same planet-local
+    // frame as the wave). The coarse octave (WAVE_WARP_MULT * lambda) shifts
+    // whole crests by differing amounts; the fine one (WAVE_WARP_MULT2 * lambda)
+    // adds local wiggle. Each noise is centred to +-0.5, then scaled to its
+    // amplitude in wavelengths and summed before the cos.
+    let r_m = length(p_m);
+    let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
+    let warp_c = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
+        * WAVE_WARP_AMP;
+    let warp_f = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7) - 0.5)
+        * WAVE_WARP_AMP2;
+    let cycles = dot(p_m, d) / lambda_m + warp_c + warp_f + t * cps;
     let ph = fract(cycles) * TAU;
     return tp * (slope * fade * cos(ph));
 }
@@ -482,22 +536,6 @@ fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -
 // pixels (~200 km altitude at 1440p), smooth in between.
 fn wave_presence(footprint_m: f32) -> f32 {
     return detail_octave_fade(WAVE1_LAMBDA, footprint_m);
-}
-
-// Triplanar value noise on the sphere for the LAND detail octaves -- same
-// pow-4-weight construction as the cloud field's sphere noise but its own
-// seed offsets, so this stays independent of the cloud functions (which
-// have their own rework cadence). freq = planet radius / wavelength.
-fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
-    var w = dir * dir;
-    w = w * w;
-    let wn = w / (w.x + w.y + w.z);
-    let p = dir * freq;
-    let o = vec2<f32>(seed, seed * 0.713);
-    let nx = value_noise(p.yz + o);
-    let ny = value_noise(p.zx + o * 1.31);
-    let nz = value_noise(p.xy + o * 1.73);
-    return nx * wn.x + ny * wn.y + nz * wn.z;
 }
 
 // Multiplicative land albedo factor: 2-3 octaves of luminance variation
@@ -547,10 +585,14 @@ fn water_shade(
     // stark white -- reading as foam we do not simulate. A deeper, bluer ramp
     // makes crests reflect as blue sky (foam-free open ocean), the biggest
     // single realism lever after the phase fix.
-    let horizon = vec3<f32>(0.40, 0.55, 0.72);
-    let zenith = vec3<f32>(0.06, 0.19, 0.46);
+    // v0.826: deepened further. At 1.5 km the grazing sky mirror painted every
+    // mid-field crest a bright cross-hatch (the "corduroy" band + the operator's
+    // "uniform lines"). A deeper, more saturated blue makes grazing crests read
+    // as blue swell, not white lines, so the sun glitter carries the highlights.
+    let horizon = vec3<f32>(0.20, 0.36, 0.55);
+    let zenith = vec3<f32>(0.04, 0.14, 0.38);
     var sky = mix(horizon, zenith, pow(elev, 0.6));
-    sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.35;
+    sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.18;
     let sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
     let body = albedo * camera.sun_color.rgb * (sun_i * day / PI);
     let h = normalize(view_dir + sun_l);
@@ -627,6 +669,18 @@ const ATMO_EXPOSURE: f32 = 4.0;
 const ATMO_EXPOSURE_NEAR: f32 = 1.4;
 const ATMO_NEAR_R: f32 = 1.25;
 const ATMO_FAR_R: f32 = 2.5;
+// Low-altitude aerial-perspective trim (v0.826): from a near camera the long,
+// near-horizontal path to a surface point piles up in-scatter and opacity,
+// veiling the coast + ocean under a milky wash (the operator's "washed out"
+// complaint at 0.4-3 km over Oahu). Scaling the returned ALPHA by this factor
+// on those rays dims the additive haze AND lets the surface show through in one
+// stroke (blended: out = mapped*k + surface*(1 - alpha*k)). Applied via
+// near_surf = 1 - max(w_limb, w_far) -- EXACTLY the rays the exposure blend
+// already calls "near surface", so it is 1.0 (no change) for limb rays,
+// ground-level sky (upward, w_limb=1), and any far camera (w_far=1). The
+// approved from-orbit limb + 12,000 km disc stay bit-identical. Mirror + tests:
+// renderer::atmosphere::near_haze_scale.
+const ATMO_NEAR_HAZE: f32 = 0.45;
 
 // Scaled complementary error function erfcx(z) = exp(z^2) * erfc(z) for
 // z >= 0, the kernel of the Chapman function below. Two branches, both
@@ -802,6 +856,10 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     }
     let w_far = smoothstep(ATMO_NEAR_R, ATMO_FAR_R, length(ro));
     let exposure = mix(ATMO_EXPOSURE_NEAR, ATMO_EXPOSURE, max(w_limb, w_far));
+    // Low-altitude aerial-perspective trim: the same near-surface weight the
+    // exposure blend uses drives the haze-alpha scale (1.0 for limb/sky/far).
+    let near_surf = clamp(1.0 - max(w_limb, w_far), 0.0, 1.0);
+    let haze_scale = mix(1.0, ATMO_NEAR_HAZE, near_surf);
     let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * exposure;
     let radiance = sun_radiance
         * (beta_ray * atmo_rayleigh_phase(cos_theta)
@@ -839,7 +897,10 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // screen. Both terms go to zero together for thin air, so the ratio
     // stays finite; the clamp guards the pathological alpha -> 0 corner.
     let rgb = clamp(mapped / max(alpha, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
-    return vec4<f32>(rgb, alpha);
+    // rgb keeps the ORIGINAL alpha (its colour + brightness); scaling only the
+    // returned alpha by haze_scale dims the additive in-scatter and clears the
+    // surface together, and is a no-op wherever haze_scale == 1.
+    return vec4<f32>(rgb, alpha * haze_scale);
 }
 
 // ── Procedural cloud layer (material type 15, clouds increments 2 + 3) ──
