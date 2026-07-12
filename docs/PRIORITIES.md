@@ -169,15 +169,28 @@
 >    summary + debug/boot_timing.json). v0.832.0 Dev Travel "LAND ON SURFACE"
 >    (per-body button -> drop to the surface + surface mode; fixes the GUI-
 >    teleport-parks-in-orbit / planet-spins-underneath report).
->    ** THE NEXT DEV-VELOCITY PRIZE (found by the new analytics, NOT a guess): **
->    a fresh boot is ~40 s of which renderer_init is ~32 s, and the run.log
->    timestamps pin it on Naga compiling the pbr_simple.wgsl MEGASHADER ~10 s per
->    pipeline variant (~3x). A persistent wgpu PIPELINE CACHE (device
->    PIPELINE_CACHE feature -> disk-backed, reused across boots) or splitting the
->    megashader would cut cold boot ~30 s. Highest-leverage boot fix; the star
->    toggle only trims the ~5 s catalog slice. Also queued: a renderer_init
->    sub-span (shader vs cloud-noise vs device) in boot_timing to make the number
->    exact, and a headless egui click-test for the new "Land on surface" button.
+>    ** BOOT SPEED (found by the analytics, NOT a guess): ** renderer_init was
+>    ~32 s of the ~40 s cold boot = Naga compiling the pbr_simple.wgsl MEGASHADER
+>    into 3 PSOs ~10 s each, SEQUENTIALLY. v0.834.0 PARALLELIZED those 3 compiles
+>    (std::thread::scope; wgpu Device is Send+Sync) -> renderer_init 32 s -> 19 s
+>    (~40% cut, measured). Further boot gains are bigger + riskier (diminishing
+>    returns): (a) wgpu PIPELINE_CACHE disk cache = Vulkan/Metal ONLY, needs a
+>    whole-renderer DX12->Vulkan backend switch; (b) split the megashader so each
+>    PSO compiles less; (c) async pipeline compile (show world while compiling).
+>    Also queued: renderer_init sub-spans in boot_timing (shader vs device), a
+>    headless click-test for the "Land on surface" + new Dev-Travel buttons.
+>    ** SURFACE LOCK (operator field reports, v0.833.0): ** the surface-mode
+>    co-rotation was a per-frame NO-OP (re-captured the anchor + re-placed it at
+>    the same spin = identity), so the planet slid out from under a standing
+>    player ("the Earth spins without me... clips through me"). FIXED: capture
+>    the anchor ONCE on engage, co-rotate the persisted anchor thereafter;
+>    verified at Puget Sound (land features held still across frames). LESSON:
+>    re-verify surface work at spots with LAND, never featureless ocean (the
+>    Oahu ocean verify hid the slide). STILL WANTED (operator deferred for the
+>    boot work): surface-relative FREE FLIGHT - fly AROUND the planet co-rotating
+>    (today surface mode is walk+gravity < SURFACE_ENGAGE_ALT=10 km; free flight
+>    above that flips to inertial orbit). Needs a co-rotating free-flight zone
+>    between "walk on the ground" and "watch it spin from orbit".
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
