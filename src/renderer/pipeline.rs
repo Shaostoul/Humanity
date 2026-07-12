@@ -212,142 +212,107 @@ impl Pipeline {
             push_constant_ranges: &[],
         });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("PBR-lite Render Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z for far-field precision
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
-        // Transparent variant (v0.456): alpha-blend over the scene, no depth WRITE (so glass
-        // doesn't occlude what's behind it) but still depth-TEST (so glass behind a wall is
-        // hidden). Double-sided (no cull) so a pane reads from both rooms. The shader already
-        // returns `material.base_color.a` as the fragment alpha.
-        let transparent_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("PBR-lite Transparent Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None, // double-sided glass
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z, test only
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-            cache: None,
-        });
-
-        // Overlay variant (v0.560): same as transparent but depth-test DISABLED, so editor gizmos
-        // render on top of everything (visible through walls/floors).
-        let overlay_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("PBR-lite Overlay Pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                // Depth-sort the gizmos AMONG THEMSELVES (so a convex orb/pyramid's near faces win
-                // over its far faces) while the pass CLEARS depth first to ignore the world -- visible
-                // through walls AND self-consistent. Reverse-Z (Greater). (v0.563)
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Greater,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState { count: 1, mask: !0, alpha_to_coverage_enabled: false },
-            multiview: None,
-            cache: None,
-        });
+        // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
+        // The three PBR variants (opaque / transparent glass / editor overlay)
+        // each bake the WHOLE pbr_simple.wgsl fragment into a backend PSO, which
+        // on this GPU takes ~10 s of Naga->DXIL work apiece -- the dominant cold-
+        // boot cost (measured via debug/boot_timing.json). They are otherwise
+        // independent: same shader module + pipeline layout, differing only in
+        // blend / cull / depth-write. wgpu's `Device` is `Send + Sync` and
+        // `create_render_pipeline` takes `&self`, so the three PSO compiles are
+        // sound to run CONCURRENTLY, cutting ~3x10 s serial down toward the
+        // slowest single compile. `std::thread::scope` lets the worker threads
+        // borrow the shared `&device` / `&pipeline_layout` / `shader` without any
+        // 'static bound.
+        let make_pbr = |label: &'static str,
+                        blend: wgpu::BlendState,
+                        cull: Option<wgpu::Face>,
+                        depth_write: bool|
+         -> wgpu::RenderPipeline {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: shader,
+                    entry_point: Some("vs_main"),
+                    buffers: &[Vertex::layout()],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: shader,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: surface_format,
+                        blend: Some(blend),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: cull,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    unclipped_depth: false,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: depth_write,
+                    depth_compare: wgpu::CompareFunction::Greater, // reverse-Z for far-field precision
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+                cache: None,
+            })
+        };
+        // Variant states:
+        //  - Render (opaque): REPLACE blend, back-face cull, depth WRITE.
+        //  - Transparent (v0.456): alpha blend, double-sided (no cull), no depth
+        //    WRITE (glass doesn't occlude) but still depth-TEST.
+        //  - Overlay (v0.560/563): alpha blend, no cull, depth WRITE (the pass
+        //    clears depth first, so gizmos sort among themselves yet draw over
+        //    the world -- visible through walls).
+        let (render_pipeline, transparent_pipeline, overlay_pipeline) =
+            std::thread::scope(|s| {
+                let opaque = s.spawn(|| {
+                    make_pbr(
+                        "PBR-lite Render Pipeline",
+                        wgpu::BlendState::REPLACE,
+                        Some(wgpu::Face::Back),
+                        true,
+                    )
+                });
+                let transparent = s.spawn(|| {
+                    make_pbr(
+                        "PBR-lite Transparent Pipeline",
+                        wgpu::BlendState::ALPHA_BLENDING,
+                        None,
+                        false,
+                    )
+                });
+                // The third compiles on this thread while the two workers run.
+                let overlay = make_pbr(
+                    "PBR-lite Overlay Pipeline",
+                    wgpu::BlendState::ALPHA_BLENDING,
+                    None,
+                    true,
+                );
+                (
+                    opaque.join().expect("opaque PBR pipeline compile panicked"),
+                    transparent
+                        .join()
+                        .expect("transparent PBR pipeline compile panicked"),
+                    overlay,
+                )
+            });
 
         Self {
             render_pipeline,
