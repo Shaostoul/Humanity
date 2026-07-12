@@ -240,6 +240,20 @@
 >    now COMPLETE end-to-end: seed-phrase from anywhere, QR scan phone<-web-or-
 >    native, paste code, encrypted file. (Caveat: v0.837.1 release is UNSIGNED
 >    until the operator signs it, so desktop auto-update won't offer it yet.)
+>    ** /LINK PAIRING CODE - found existing + fixed + surfaced, v0.838.0: ** the
+>    operator recalled a /link -> short-code -> enter-on-device-2 flow; it ALREADY
+>    EXISTED and is fully backed (create_link_code/redeem_link_code in
+>    storage/messages.rs, /link handler relay.rs:3695, device_* handlers wired).
+>    8-char hex code, 5-min, one-time; registers device 2's OWN key under your
+>    name. REAL BUG FIXED: capability gates read get_role(public_key) per-KEY (95
+>    callsites) but the roster aggregates role by NAME, so a linked device showed
+>    under your name yet was silently unverified + could not upload; redeem_link_code
+>    now copies the creator's role to the redeeming key (one-time/5-min/private = a
+>    deliberate this-is-my-device grant; 3 tests). SURFACED in the web chooser as
+>    two labeled groups: "Fully become this identity" (seed/QR/paste/file = SAME
+>    key, gets DMs) vs "Companion device" (/link code = own key, posts+uploads, no
+>    DMs since DMs are E2EE to a specific key). Cross-device identity now closed
+>    across BOTH models (full-identity transfer + companion multi-device).
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
