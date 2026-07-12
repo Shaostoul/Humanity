@@ -9036,13 +9036,21 @@ mod native_app {
                             .map(|b| b.radius_km * 1000.0)
                             .unwrap_or(6.371e6);
                         let near = (cam_world - body_center).length() < radius_m * 50.0;
-                        let thrusting = state.controller.fly_mode
+                        // ACTIVE = the operator is giving ANY movement input, at
+                        // ANY speed (not just world-scale FTL thrust). This is the
+                        // v0.823 fix: the lock's parked branch PINS cam_world to
+                        // the frozen anchor (that is how it holds the surface
+                        // still), which CANCELS local WASD flight - so at low
+                        // speed near the surface, holding W did nothing while the
+                        // view co-rotation swung the facing ("W moved me sideways
+                        // then backwards"). Treating any wish-dir as active means
+                        // the moment you touch a movement key you fly freely;
+                        // release it and the lock re-engages to freeze the view.
+                        let active = state.controller.fly_mode
                             && state.camera.mode
                                 == crate::renderer::camera::CameraMode::FirstPerson
-                            && state.controller.fly_speed_mult
-                                > crate::renderer::camera::LOCAL_FLY_MULT_MAX
                             && state.controller.fly_wish_dir(&state.camera).length_squared() > 0.0;
-                        if thrusting || !near {
+                        if active || !near {
                             state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
                                 body_center,
                                 spin,
