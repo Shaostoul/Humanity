@@ -219,6 +219,37 @@ mod tests {
     }
 
     #[test]
+    fn bip39_wordlist_is_canonical_and_matches_web_kat() {
+        // The fallback decoder list MUST equal the bip39 crate's canonical English
+        // list -- the list native GENERATES + displays phrases with. If it drifts,
+        // a phrase shown on native decodes to the WRONG seed via the fallback, and
+        // the parallel web list (regenerated from the same source) breaks
+        // native<->web restore. This is the guard for the 2026-07-12 incident where
+        // a non-canonical list shipped and native-shown words like "occur" were
+        // "unknown" on the web restore. Regenerate: `node scripts/gen-wordlist.js`.
+        assert_eq!(
+            &crate::net::bip39_wordlist::WORDLIST[..],
+            &bip39::Language::English.word_list()[..],
+            "bip39_wordlist.rs drifted from the bip39 crate; run node scripts/gen-wordlist.js"
+        );
+        // Cross-client known-answer: the canonical phrase for seed [7;32] must be
+        // IDENTICAL to what the web client produces from the same shared list
+        // (scripts/check-bip39-wordlists.js round-trips + prints this exact string).
+        // Equal phrases for equal seeds is the guarantee that a phrase written on
+        // native restores on web and vice-versa.
+        let seed = [7u8; 32];
+        let phrase = mnemonic_from_seed(&seed).expect("mnemonic");
+        assert_eq!(
+            phrase,
+            "alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright thought alpha deal scrub asthma idea logic bright truly",
+            "native BIP39 phrase for [7;32] diverged from the web KAT -- the wordlists are out of sync"
+        );
+        // Round-trips through BOTH native paths (crate parse first, then fallback).
+        let (_pk, recovered) = derive_keypair_from_mnemonic(&phrase).expect("recover");
+        assert_eq!(recovered, seed);
+    }
+
+    #[test]
     fn pq_identity_deterministic_from_seed() {
         // Same seed → same Dilithium id + Kyber DM key (the property that
         // makes web↔native interop work; cross-language locked by KAT).

@@ -56,3 +56,6 @@ jobs:
 
       - name: Doc links (must stay 0 broken)
         run: node scripts/check-doc-links.js
+
+      - name: BIP39 wordlists in sync (web == native, canonical + round-trip)
+        run: node scripts/check-bip39-wordlists.js
