@@ -2333,6 +2333,22 @@ mod native_app {
         state.gui_state.dev_fly_mode = true;
         state.controller.fly_mode = true;
         state.gui_state.dev_travel_away = true;
+        // Frame-lock (v0.819): ride this body's rotating/orbiting frame so its
+        // surface holds still instead of spinning past at tens of km/s. Capture
+        // the anchor at the current spin from where the camera ends up.
+        {
+            let spin = state.start_time.elapsed().as_secs_f64()
+                * crate::dev_travel::PLANET_SPIN_RATE;
+            let cam_local = glam::DVec3::new(
+                state.camera.position.x as f64,
+                state.camera.position.y as f64,
+                state.camera.position.z as f64,
+            );
+            state.frame_lock_anchor =
+                crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage + cam_local);
+            state.frame_lock_last_spin = spin;
+            state.frame_lock_body = Some(body_id.clone());
+        }
         let _ = std::fs::create_dir_all("debug");
         let _ = std::fs::write(
             DONE_PATH,
@@ -6827,6 +6843,17 @@ mod native_app {
         /// clears solo again so the avatar rejoins. Launcher-chosen solo is
         /// deliberately NOT cleared by returning home.
         dev_travel_stepped_out: bool,
+        /// Frame-lock (v0.819): while Some(body_id), each frame moves the local
+        /// scene to ride that body's rotating + orbiting frame, so its surface
+        /// holds still relative to the viewer instead of the planet's ~64 km/s
+        /// surface spin (and any orbital drift) sweeping it past. Set by the
+        /// dev Travel teleport + `camera_request`; cleared by Return home.
+        /// `frame_lock_anchor` is the camera's position in the body's UNROTATED
+        /// local frame; `frame_lock_last_spin` tracks the spin for the view
+        /// co-rotation. See `dev_travel::frame_lock_*`.
+        frame_lock_body: Option<String>,
+        frame_lock_anchor: glam::DVec3,
+        frame_lock_last_spin: f64,
         start_time: Instant,
         last_frame: Instant,
         // egui integration
@@ -7666,6 +7693,9 @@ mod native_app {
                 ship_world_pos: glam::DVec3::ZERO,
                 dev_travel_home: None,
                 dev_travel_stepped_out: false,
+                frame_lock_body: None,
+                frame_lock_anchor: glam::DVec3::ZERO,
+                frame_lock_last_spin: 0.0,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 egui_ctx,
@@ -8955,6 +8985,86 @@ mod native_app {
                         }
                     }
 
+                    // Planet frame-lock (v0.819): while locked onto a body (dev
+                    // travel / camera_request), ride its rotating + orbiting
+                    // frame so the surface holds STILL for the viewer instead of
+                    // sweeping past at ~64 km/s (the planet spins a fast visible
+                    // day). Runs AFTER the fly integration above: while the
+                    // operator world-thrusts (or is far from the body) we only
+                    // refresh the anchor so releasing thrust re-locks HERE; while
+                    // parked near the body we set ship_world_pos + a matching yaw
+                    // delta so both position and view co-rotate. Pure math +
+                    // tests in dev_travel::frame_lock_*.
+                    if let Some(lock_body) = state.frame_lock_body.clone() {
+                        let spin = (now - state.start_time).as_secs_f64()
+                            * crate::dev_travel::PLANET_SPIN_RATE;
+                        // Body centre in the celestial frame (0 for Earth, the
+                        // frame origin; real orbital position otherwise).
+                        let body_center = if lock_body == "earth" {
+                            glam::DVec3::ZERO
+                        } else {
+                            let sim_t = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs_f64())
+                                .unwrap_or(0.0)
+                                - 946_728_000.0;
+                            let earth_helio = crate::cosmos::find_body("earth")
+                                .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+                                .unwrap_or(glam::DVec3::ZERO);
+                            crate::cosmos::find_body(&lock_body)
+                                .map(|b| {
+                                    (crate::cosmos::body_world_position_3d_au(b, sim_t)
+                                        - earth_helio)
+                                        * crate::cosmos::M_PER_AU
+                                })
+                                .unwrap_or(glam::DVec3::ZERO)
+                        };
+                        let cam_local = glam::DVec3::new(
+                            state.camera.position.x as f64,
+                            state.camera.position.y as f64,
+                            state.camera.position.z as f64,
+                        );
+                        let cam_world = state.ship_world_pos + cam_local;
+                        // Only HOLD when reasonably near the body; far away the
+                        // co-rotation radius would be huge (co-rotating at
+                        // Mars-distance is millions of m/s) so we just track and
+                        // let the operator fly free until they come back.
+                        let radius_m = crate::cosmos::find_body(&lock_body)
+                            .map(|b| b.radius_km * 1000.0)
+                            .unwrap_or(6.371e6);
+                        let near = (cam_world - body_center).length() < radius_m * 50.0;
+                        let thrusting = state.controller.fly_mode
+                            && state.camera.mode
+                                == crate::renderer::camera::CameraMode::FirstPerson
+                            && state.controller.fly_speed_mult
+                                > crate::renderer::camera::LOCAL_FLY_MULT_MAX
+                            && state.controller.fly_wish_dir(&state.camera).length_squared() > 0.0;
+                        if thrusting || !near {
+                            state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                                body_center,
+                                spin,
+                                cam_world,
+                            );
+                            state.frame_lock_last_spin = spin;
+                        } else {
+                            state.ship_world_pos = crate::dev_travel::frame_lock_ship_pos(
+                                body_center,
+                                spin,
+                                state.frame_lock_anchor,
+                                cam_local,
+                            );
+                            // View co-rotation: the camera position rotates by
+                            // Ry(+delta) with the surface, and Ry(+delta) applied
+                            // to a forward(yaw) direction yields forward(yaw -
+                            // delta), so the yaw must SUBTRACT the spin delta to
+                            // keep looking at the same spot (deriving this with +
+                            // made the planet slide across the frame - the exact
+                            // bug this fixes).
+                            state.camera.yaw -= (spin - state.frame_lock_last_spin) as f32;
+                            state.frame_lock_last_spin = spin;
+                        }
+                    }
+
                     // Wall collision (v0.556): the player IS the camera, so push it out of the home's
                     // walls / closed doors in first person -- no more walking through walls. Doors that
                     // are open + unlocked are gaps; closed or locked doors block; windows are part of
@@ -9574,6 +9684,8 @@ mod native_app {
                                 state.gui_state.dev_fly_mode = false;
                                 state.controller.fly_mode = false;
                                 state.gui_state.dev_travel_away = false;
+                                // Back home: release the planet frame-lock.
+                                state.frame_lock_body = None;
                                 // Rejoin the shared world if this session was shared
                                 // before travel stepped out (launcher intent rules:
                                 // only clear solo if the step-out set it).
@@ -9649,6 +9761,24 @@ mod native_app {
                             state.gui_state.dev_fly_mode = true;
                             state.controller.fly_mode = true; // effective this frame
                             state.gui_state.dev_travel_away = true;
+                            // Frame-lock onto the target so its surface holds
+                            // still (see the field docs + dev_travel::frame_lock_*).
+                            {
+                                let spin = state.start_time.elapsed().as_secs_f64()
+                                    * crate::dev_travel::PLANET_SPIN_RATE;
+                                let cam_local = glam::DVec3::new(
+                                    state.camera.position.x as f64,
+                                    state.camera.position.y as f64,
+                                    state.camera.position.z as f64,
+                                );
+                                state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                                    body_rel_earth,
+                                    spin,
+                                    vantage + cam_local,
+                                );
+                                state.frame_lock_last_spin = spin;
+                                state.frame_lock_body = Some(target.clone());
+                            }
                             log::info!(
                                 "Dev travel: teleported to {} ({:.0} km out, sunlit side)",
                                 body.name,
