@@ -214,6 +214,25 @@
 >    co-rotating; today free flight above SURFACE_ENGAGE_ALT=10 km goes inertial)
 >    + a scale/altitude/ground-distance HUD readout (operator can't judge the
 >    distance to the shore, has no size reference).
+>    ** CROSS-DEVICE IDENTITY (operator, 2026-07-12, "get that fixed before we do
+>    any more gameplay stuff"): ** he posted from his phone but couldn't upload -
+>    the phone auto-generated its OWN unverified identity with no in-app way to
+>    adopt his existing Shaostoul identity. SHIPPED v0.836.2 (web): the TARGET-side
+>    chooser openLinkThisDeviceModal (chat-profile.js) - 4 methods with plain pros/
+>    cons (Scan QR / Paste code / Enter seed phrase / Encrypted backup file), the
+>    counterpart to the existing Link-New-Device QR SOURCE modal; a real camera QR
+>    scanner (scanQrWithCamera via BarcodeDetector, graceful fallback where
+>    unsupported); a sidebar "Link this device to me" button; and an onboarding
+>    step-0 escape hatch ("Already have an identity on another device? Link it").
+>    His working path TODAY: phone chat -> identity sidebar -> Link this device to
+>    me -> Enter seed phrase -> type his 24-word backup -> phone becomes Shaostoul
+>    (verified, can upload). Also fixed the sync-web recipe (it hard-rsynced the
+>    deleted web/activities/ -> set -e aborted every web deploy before the data
+>    rsync tail; now guarded). ** NATIVE FOLLOW-UP (queued): ** the operator's PC
+>    runs the NATIVE app, which has no QR-source display, so "scan from my PC" isn't
+>    possible yet (scan works phone<-another-WEB-device; seed-phrase works from
+>    anywhere). Add a "Link a device" QR display to the native identity UI so the
+>    native app can be the scan source too.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
