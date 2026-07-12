@@ -397,51 +397,55 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                             ui.ctx().copy_text(phrase.clone());
                         }
                     });
+            }
 
-                // ── Device-link QR (v0.837) ──
-                // A scannable form of the identity backup so a phone can adopt
-                // this account without hand-typing 24 words: chat > your identity
-                // > "Link this device to me" > "Scan a QR code". It encodes the
-                // SAME {name, publicKey, privateKey} JSON (64-char keys) the web
-                // importer accepts. Only reachable here, behind the passphrase
-                // reveal above, because it contains the seed.
-                ui.add_space(theme.spacing_sm);
-                if widgets::secondary_button(
-                    ui, theme,
-                    if state.link_device_qr_show { "Hide device-link QR" } else { "Show device-link QR (scan from a phone)" },
-                ) {
+            // ── Link a Device (v0.838) ──
+            // Standalone + discoverable. In v0.837 this QR lived INSIDE the
+            // seed-words reveal above, so it was invisible until you unlocked the
+            // seed and nobody found it. It is now its own labelled action with its
+            // OWN passphrase gate (the QR encodes your seed, so it must still be
+            // gated). A phone scans it to bring this identity onto it.
+            ui.add_space(theme.spacing_lg);
+            ui.label(RichText::new("Link a Device").color(theme.text_secondary()).strong());
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new("Show a QR another device can scan to bring this identity onto it (on that device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\"). The QR contains your seed, so unlocking is required.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_xs);
+            let qr_reveal = if !enc.is_empty() && !salt.is_empty() {
+                let lock = state.section_locks.entry("link_device_qr".to_string()).or_default();
+                widgets::lockable_gate(ui, theme, lock, "Show device-link QR", |pass| {
+                    crate::config::decrypt_private_key(&enc, &salt, pass, iters).is_ok()
+                })
+            } else {
+                if widgets::secondary_button(ui, theme, if state.link_device_qr_show { "Hide device-link QR" } else { "Show device-link QR (scan from a phone)" }) {
                     state.link_device_qr_show = !state.link_device_qr_show;
-                    if !state.link_device_qr_show {
-                        state.link_device_qr = None; // release the texture when hidden
-                    }
+                    if !state.link_device_qr_show { state.link_device_qr = None; }
                 }
-                if state.link_device_qr_show {
-                    let payload = state.private_key_bytes.as_ref()
-                        .and_then(|s| crate::net::identity::device_link_payload_json(s, &state.user_name));
-                    match payload {
-                        Some(payload) => {
-                            let stale = match &state.link_device_qr {
-                                Some((p, _)) => *p != payload,
-                                None => true,
-                            };
-                            if stale {
-                                state.link_device_qr = build_link_qr_texture(ui.ctx(), &payload)
-                                    .map(|tex| (payload.clone(), tex));
-                            }
-                            if let Some((_, tex)) = &state.link_device_qr {
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(RichText::new("On the other device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\".").color(theme.text_muted()).size(theme.font_size_small));
-                                ui.add_space(theme.spacing_xs);
-                                ui.image(egui::load::SizedTexture::from_handle(tex));
-                                ui.add_space(theme.spacing_xs);
-                                ui.label(RichText::new("Anyone who scans this becomes you. Only show it to your own devices, in private.").color(theme.warning()).size(theme.font_size_small));
-                            } else {
-                                ui.label(RichText::new("(Could not build the QR code.)").color(theme.text_muted()).size(theme.font_size_small));
-                            }
+                state.link_device_qr_show
+            };
+            if qr_reveal {
+                let payload = state.private_key_bytes.as_ref()
+                    .and_then(|s| crate::net::identity::device_link_payload_json(s, &state.user_name));
+                match payload {
+                    Some(payload) => {
+                        let stale = match &state.link_device_qr {
+                            Some((p, _)) => *p != payload,
+                            None => true,
+                        };
+                        if stale {
+                            state.link_device_qr = build_link_qr_texture(ui.ctx(), &payload)
+                                .map(|tex| (payload.clone(), tex));
                         }
-                        None => {
-                            ui.label(RichText::new("(Cannot build QR: key is not a 32-byte BIP39 seed.)").color(theme.text_muted()).size(theme.font_size_small));
+                        if let Some((_, tex)) = &state.link_device_qr {
+                            ui.add_space(theme.spacing_xs);
+                            ui.image(egui::load::SizedTexture::from_handle(tex));
+                            ui.add_space(theme.spacing_xs);
+                            ui.label(RichText::new("Anyone who scans this becomes you. Only show it to your own devices, in private.").color(theme.warning()).size(theme.font_size_small));
+                        } else {
+                            ui.label(RichText::new("(Could not build the QR code.)").color(theme.text_muted()).size(theme.font_size_small));
                         }
+                    }
+                    None => {
+                        ui.label(RichText::new("(Cannot build QR: key is not a 32-byte BIP39 seed.)").color(theme.text_muted()).size(theme.font_size_small));
                     }
                 }
             }

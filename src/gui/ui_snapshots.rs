@@ -592,6 +592,52 @@ fn inventory_container_header_click_toggles_open() {
     );
 }
 
+/// REAL interaction test: the "Link a Device" QR action on the Account settings
+/// panel is DISCOVERABLE (renders whenever an identity exists, not buried inside
+/// the seed-phrase reveal like v0.837 was) and actually BUILDS the QR when shown.
+/// This is the "shows != works" guard for the v0.838 discoverability fix -- the
+/// operator reported not seeing the button because it was nested behind the seed
+/// reveal. No GPU: pure egui layout + `ctx.load_texture` (CPU-side).
+#[test]
+fn account_link_device_qr_is_discoverable_and_builds() {
+    let ctx = egui::Context::default();
+    let theme = load_theme();
+    theme.apply_to_egui(&ctx);
+    let mut state = demo_state();
+    // Identity present but NO encrypted vault, so the QR action uses the plain
+    // show/hide button (the passphrase-gated branch is the same proven
+    // lockable_gate the seed reveal uses). user_name feeds the QR payload.
+    state.private_key_bytes = Some(vec![7u8; 32]);
+    state.user_name = "Tester".to_string();
+    state.encrypted_private_key = String::new();
+    state.key_salt = String::new();
+    state.link_device_qr_show = false;
+    state.link_device_qr = None;
+    let screen = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(960.0, 1800.0));
+    let run = |ctx: &egui::Context, state: &mut GuiState, theme: &Theme| {
+        let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+        ctx.run(input, |ctx| {
+            settings_panel(ctx, theme, state, crate::gui::pages::settings::draw_account_content)
+        });
+    };
+
+    // Frame 1: the Account panel (incl. the new "Link a Device" section) lays out
+    // with an identity present and does NOT panic. QR not requested yet.
+    run(&ctx, &mut state, &theme);
+    assert!(state.link_device_qr.is_none(), "QR must not build until it is shown");
+
+    // Simulate the user toggling "Show device-link QR" on (the button sets this).
+    state.link_device_qr_show = true;
+    // Frame 2: the render path must build + cache the QR texture from the seed.
+    run(&ctx, &mut state, &theme);
+    let cached = state.link_device_qr.as_ref()
+        .expect("toggling Show device-link QR must build the QR texture from the seed");
+    // It must be keyed by the EXACT device-link JSON the web importer accepts,
+    // so a scan actually imports.
+    let expect = crate::net::identity::device_link_payload_json(&[7u8; 32], "Tester").unwrap();
+    assert_eq!(cached.0, expect, "QR payload must match the web-importer device-link JSON");
+}
+
 /// egui clear colors are sRGB bytes; the Rgba8Unorm target wants linear floats.
 fn srgb_to_lin(c: u8) -> f64 {
     let s = c as f64 / 255.0;

@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.838.0"
+version = "0.839.1"
 edition = "2021"
 
 [[bin]]
