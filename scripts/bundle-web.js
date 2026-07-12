@@ -21,7 +21,8 @@ const SOURCES = [
   { src: 'web/shared',                        dest: 'shared',           exts: ['.js', '.css', '.json'] },
   { src: 'web/shared/icons',                  dest: 'shared/icons',     exts: ['.png', '.svg', '.ico'] },
   { src: 'web/chat',                          dest: 'chat',             exts: ['.html', '.js', '.css', '.ico', '.png', '.svg'] },
-  { src: 'web/activities',                    dest: 'activities',       exts: ['.html', '.js'] },
+  // web/activities was deleted in the 2026-07-05 fluff trim (game.html + the old
+  // activities hub + a half-built gardening game); no source dir remains to bundle.
   { src: 'assets/icons',                     dest: 'assets/icons',     exts: ['.png', '.svg'] },
 ];
 
