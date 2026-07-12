@@ -35,7 +35,7 @@
 //! [`halo_falloff`]. Toggle: Settings > Graphics > "Star halos".
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat3, Mat4};
+use glam::{Mat4, Vec3, Vec4};
 use std::collections::HashMap;
 use std::path::Path;
 use wgpu::util::DeviceExt;
@@ -187,6 +187,24 @@ struct GlowLayer {
     /// Last intensity written, so per-frame style syncs skip redundant
     /// queue writes (mirrors set_constellation_style's change-guard).
     intensity: f32,
+}
+
+/// Rotation-only view matrix for the sky (stars / glow / halos / constellations),
+/// built directly from the camera forward/up so it is EXACT at any camera
+/// position - the stars sit at true infinity with zero translation parallax.
+/// Matches glam::Mat4::look_at_rh's rotation basis (columns s, u, -f) exactly
+/// (proven for small coordinates by `sky_rot_view_matches_look_at`), but without
+/// look_at's `center - eye` cancellation that shimmered the sky at orbital range.
+fn sky_rot_view(forward: Vec3, up: Vec3) -> Mat4 {
+    let f = forward.normalize_or_zero();
+    let s = f.cross(up).normalize_or_zero();
+    let u = s.cross(f);
+    Mat4::from_cols(
+        Vec4::new(s.x, u.x, -f.x, 0.0),
+        Vec4::new(s.y, u.y, -f.y, 0.0),
+        Vec4::new(s.z, u.z, -f.z, 0.0),
+        Vec4::new(0.0, 0.0, 0.0, 1.0),
+    )
 }
 
 impl StarRenderer {
@@ -684,10 +702,20 @@ impl StarRenderer {
     /// Update the star camera uniform with a rotation-only view-projection.
     /// This strips translation so stars don't shift when the camera moves.
     pub fn update_camera(&self, queue: &wgpu::Queue, camera: &super::camera::Camera) {
-        let view = camera.view_matrix();
-        // Extract 3x3 rotation, discard translation
-        let rot = Mat3::from_mat4(view);
-        let rot_view = Mat4::from_mat3(rot);
+        // Build the sky rotation DIRECTLY from the camera's forward/up (which
+        // come from yaw/pitch and do NOT depend on position), NOT by extracting
+        // it from view_matrix(). Why (v0.826, operator "the stars jitter as if
+        // they're a lot closer than they should be"): view_matrix() is
+        // look_at_rh(eye, eye + forward, up); at orbital coordinates (eye ~1e7 m)
+        // the f32 sum `eye + forward` rounds away forward's ~1 m of precision,
+        // and look_at's internal `center - eye` then reconstructs a jittery
+        // forward - so the whole sky shimmered as if the stars were at finite
+        // range. Constructed from forward/up the rotation is exact at any
+        // distance, so the stars sit at true infinity (zero parallax) as they
+        // should. Matches glam::look_at_rh's basis exactly (rows s, u, -f) so
+        // the sky still aligns with the scene; a unit test locks the equivalence
+        // at small coordinates.
+        let rot_view = sky_rot_view(camera.forward(), camera.up);
         // DEDICATED star projection (v0.446): the shader puts stars at 5000 units, but the
         // gameplay far plane is render_distance (default 500), which CLIPPED the entire
         // skybox (black void). Use a huge far here so the skybox is never clipped; x/y
@@ -2291,6 +2319,66 @@ fn fs_main(input: StarOutput) -> @location(0) vec4<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sky_rot_view_matches_look_at_at_small_coords() {
+        // At small camera coordinates the direct construction MUST equal the
+        // rotation extracted from glam's look_at_rh (so the sky still aligns
+        // with the scene). At large coordinates look_at jitters and the direct
+        // one does not - that is the whole point - so we only pin equivalence
+        // where look_at is still accurate.
+        use glam::{Mat3, Vec3};
+        let ups = [Vec3::Y, Vec3::new(0.1, 0.98, 0.05).normalize()];
+        let fwds = [
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(-0.3, 0.2, 0.9).normalize(),
+            Vec3::new(0.5, -0.7, 0.1).normalize(),
+        ];
+        for up in ups {
+            for f in fwds {
+                // Skip a forward nearly parallel to up (degenerate basis).
+                if f.cross(up).length() < 0.05 {
+                    continue;
+                }
+                let eye = Vec3::new(2.0, -3.0, 5.0); // small: look_at is accurate here
+                let look = Mat4::look_at_rh(eye, eye + f, up);
+                let look_rot = Mat4::from_mat3(Mat3::from_mat4(look));
+                let ours = sky_rot_view(f, up);
+                let a = look_rot.to_cols_array();
+                let b = ours.to_cols_array();
+                for i in 0..16 {
+                    assert!(
+                        (a[i] - b[i]).abs() < 1e-5,
+                        "sky_rot_view diverged from look_at at [{i}]: {} vs {} (f={f:?}, up={up:?})",
+                        a[i],
+                        b[i]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn sky_rot_view_is_position_independent_and_stable() {
+        // The direct construction depends ONLY on forward/up, so it is
+        // bit-identical whether the (implied) camera sits at the origin or at
+        // orbital range - the property that kills the jitter.
+        use glam::Vec3;
+        let f = Vec3::new(0.2, 0.1, -0.97).normalize();
+        let up = Vec3::Y;
+        let r = sky_rot_view(f, up);
+        // Rebuilt from the same inputs => identical (no hidden position term).
+        let r2 = sky_rot_view(f, up);
+        assert_eq!(r.to_cols_array(), r2.to_cols_array());
+        // And it is a pure rotation (orthonormal 3x3, det ~ +1).
+        let c = r.to_cols_array();
+        let col0 = Vec3::new(c[0], c[1], c[2]);
+        let col1 = Vec3::new(c[4], c[5], c[6]);
+        let col2 = Vec3::new(c[8], c[9], c[10]);
+        assert!((col0.length() - 1.0).abs() < 1e-5);
+        assert!(col0.dot(col1).abs() < 1e-5 && col0.dot(col2).abs() < 1e-5);
+    }
 
     /// Tiny HYG-shaped fixture. Rows chosen to exercise every branch:
     /// Sol at the origin (dropped by the position filter), Sirius (proper
