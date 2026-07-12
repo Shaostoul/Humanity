@@ -161,6 +161,23 @@
 >    (d) PLANTS - free 3D real-plant catalogs OR procedural L-system; Silverdale
 >        WA evergreens/pine/douglas-fir first. Research + a spawn/scatter system.
 >    (e) TERRAIN icosphere-triangle mosaic still faintly visible - smooth/subdiv.
+>    ** DEV TOOLING SHIPPED (operator, 2026-07-12, "build the dev tools to make
+>    your development as easy as possible"): ** v0.831.0 STAR-CATALOG TIER TOGGLE
+>    (Settings > Graphics > Render tier + HUMANITY_STAR_TIER=standard env -> dev
+>    boots load the 120k stars.bin in ~1 ms instead of the 252 MB / 25M Ultra
+>    catalog; ~5 s/boot). v0.831.0 BOOT ANALYTICS (src/boot_timing.rs -> log
+>    summary + debug/boot_timing.json). v0.832.0 Dev Travel "LAND ON SURFACE"
+>    (per-body button -> drop to the surface + surface mode; fixes the GUI-
+>    teleport-parks-in-orbit / planet-spins-underneath report).
+>    ** THE NEXT DEV-VELOCITY PRIZE (found by the new analytics, NOT a guess): **
+>    a fresh boot is ~40 s of which renderer_init is ~32 s, and the run.log
+>    timestamps pin it on Naga compiling the pbr_simple.wgsl MEGASHADER ~10 s per
+>    pipeline variant (~3x). A persistent wgpu PIPELINE CACHE (device
+>    PIPELINE_CACHE feature -> disk-backed, reused across boots) or splitting the
+>    megashader would cut cold boot ~30 s. Highest-leverage boot fix; the star
+>    toggle only trims the ~5 s catalog slice. Also queued: a renderer_init
+>    sub-span (shader vs cloud-noise vs device) in boot_timing to make the number
+>    exact, and a headless egui click-test for the new "Land on surface" button.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
