@@ -6208,6 +6208,11 @@ pub struct SettingsState {
     /// star renderer, and the loader falls back to standard when the ultra
     /// file is missing/corrupt or exceeds the GPU's texture limit.
     pub sky_glow_tier: String,
+    /// Star-catalog load CEILING (2026-07-12 dev tooling): "auto" (biggest
+    /// installed wins - the player default), "standard"/"minimal" (force the
+    /// shipped 120k catalog for a fast boot), "extended", "ultra". Applied next
+    /// world entry; HUMANITY_STAR_TIER env overrides without persisting.
+    pub star_catalog_tier: String,
     /// Star halos (2026-07-11): soft photographic glow + faint diffraction
     /// cross on the brightest ~50 stars, drawn additively over the star
     /// points. A plain visibility flag - applies live, no GPU state.
@@ -6323,6 +6328,7 @@ impl Default for SettingsState {
             sky_milkyway_glow: true,
             sky_milkyway_intensity: 1.0,
             sky_glow_tier: "standard".to_string(),
+            star_catalog_tier: "auto".to_string(),
             sky_star_halos: true,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,

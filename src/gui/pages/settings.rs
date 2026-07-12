@@ -2040,6 +2040,34 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             );
             ui.add_space(theme.spacing_xs);
 
+            // Render-tier CEILING (2026-07-12 dev tooling): caps which catalog
+            // actually LOADS, independent of what is downloaded. "Auto" keeps
+            // the biggest-installed-wins default; "Standard" forces the fast
+            // 120k catalog (big win when doing planet/dev work with the Ultra
+            // catalog installed). Applies next world entry. The env var
+            // HUMANITY_STAR_TIER overrides this for scripted/verify boots.
+            ui.label(RichText::new("Render tier").size(theme.font_size_small).color(theme.text_secondary()));
+            ui.horizontal_wrapped(|ui| {
+                for (val, lbl) in [
+                    ("auto", "Auto"),
+                    ("standard", "Standard (fast)"),
+                    ("extended", "Extended"),
+                    ("ultra", "Ultra"),
+                ] {
+                    let selected = state.settings.star_catalog_tier == val;
+                    if ui.selectable_label(selected, lbl).clicked() && !selected {
+                        state.settings.star_catalog_tier = val.to_string();
+                        state.settings_dirty = true;
+                    }
+                }
+            });
+            ui.label(
+                RichText::new("Caps which catalog loads. Auto uses the biggest installed; Standard forces the fast 120k catalog. Applies next world entry.")
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+            );
+            ui.add_space(theme.spacing_xs);
+
             // Standard tier: always installed, nothing to download or remove.
             ui.label(
                 RichText::new("Standard: 120,000 nearby stars (HYG). Ships with the app.")

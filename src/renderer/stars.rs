@@ -1628,6 +1628,36 @@ impl StarCatalogTier {
             }
         }
     }
+
+    /// Load-order rank for the boot-time tier CEILING (`resolve_cap`). The
+    /// shipped 120k `stars.bin` is the implicit rank-0 FLOOR (always allowed),
+    /// so only the downloadable tiers carry a rank here.
+    pub fn rank(self) -> u8 {
+        match self {
+            Self::Extended => 1,
+            Self::Ultra => 2,
+        }
+    }
+
+    /// Resolve the star-catalog load CEILING (0 = force the shipped 120k
+    /// `stars.bin`, 1 = cap at Extended, 2 = uncapped / biggest installed wins).
+    ///
+    /// The `HUMANITY_STAR_TIER` env var WINS over the saved `setting` when set,
+    /// and is never persisted -- this is the dev fast path: a scripted/verify
+    /// boot exports `HUMANITY_STAR_TIER=standard` to skip the ~350 MB Ultra
+    /// disk-read + 25M-record parse + GPU upload entirely, without touching
+    /// `config.json` (mirrors the `HUMANITY_NO_FOCUS` inline-env pattern). Any
+    /// unknown/empty value (including the default `"auto"`) means uncapped, so
+    /// players who downloaded Ultra keep Ultra -- zero behavior change shipped.
+    pub fn resolve_cap(setting: &str) -> u8 {
+        let env = std::env::var("HUMANITY_STAR_TIER").ok();
+        let s = env.as_deref().unwrap_or(setting).trim().to_ascii_lowercase();
+        match s.as_str() {
+            "standard" | "minimal" | "120k" => 0,
+            "extended" | "2.5m" => 1,
+            _ => 2,
+        }
+    }
 }
 
 /// One catalog star: unit direction plus the two scalar columns the renderer
@@ -1666,8 +1696,14 @@ impl StarCatalog {
     /// reason: stars.csv has no embedded copy (34 MB is far too big to bake
     /// into the exe), so a data dir that predates stars.bin would otherwise
     /// lose the entire sky. Even the fallback now parses the file ONCE.
-    pub fn load(data_dir: &Path) -> Option<Self> {
+    pub fn load(data_dir: &Path, cap: u8) -> Option<Self> {
         let t0 = std::time::Instant::now();
+        if cap < 2 {
+            log::info!(
+                "Star catalog: tier CEILING = {} (dev fast path -- skipping heavier downloadable catalogs; see StarCatalogTier::resolve_cap / HUMANITY_STAR_TIER)",
+                cap
+            );
+        }
         // Downloadable catalog ladder, biggest installed first (v0.800 rung 2
         // extended; 2026-07-11 rung 4 ultra): ULTRA stars-gaia25m.bin (Gaia
         // G<14, ~25M stars) > EXTENDED stars-athyg.bin (ATHYG, ~2.5M). Same
@@ -1675,8 +1711,13 @@ impl StarCatalog {
         // with room to spare (< 2^32). Both are fetched on demand through
         // Settings > Graphics (too big to ship in the repo). A corrupt or
         // truncated download falls through to the next rung instead of
-        // costing the sky.
+        // costing the sky. `cap` (from resolve_cap) is a CEILING: a tier whose
+        // rank exceeds it is skipped WITHOUT reading its file, so the dev fast
+        // path (cap 0) never pays the ~350 MB Ultra read even when installed.
         for tier in [StarCatalogTier::Ultra, StarCatalogTier::Extended] {
+            if tier.rank() > cap {
+                continue;
+            }
             let path = data_dir.join(tier.filename());
             let Ok(bytes) = std::fs::read(&path) else { continue };
             if let Some(mut cat) = Self::from_bin(&bytes) {
@@ -2877,10 +2918,28 @@ id,proper,mag,ci,x,y,z,bayer,con
         std::fs::copy(root.join("data/stars.bin"), dir.join("stars.bin"))
             .expect("data/stars.bin is committed to the repo");
 
-        let cat = StarCatalog::load(&dir).expect("ladder loads the ultra fixture");
+        // Uncapped (cap 2 = "auto"): biggest installed wins.
+        let cat = StarCatalog::load(&dir, 2).expect("ladder loads the ultra fixture");
         // The 3 fixture stars, NOT the 120k standard stars: ultra won the
         // prefer order even though stars.bin sat right next to it.
         assert_eq!(cat.stars.len(), 3, "ultra tier must win the prefer order");
+
+        // ...but the dev fast path (cap 0) SKIPS the ultra + extended fixtures
+        // without reading them and lands on the shipped 120k stars.bin floor,
+        // proving HUMANITY_STAR_TIER=standard reclaims the heavy-catalog cost.
+        let capped = StarCatalog::load(&dir, 0).expect("standard stars.bin is the rank-0 floor");
+        assert!(
+            capped.stars.len() > 3,
+            "cap 0 must skip the 3-star ultra fixture and load the 120k standard catalog, got {}",
+            capped.stars.len()
+        );
+
+        // resolve_cap: env-free mapping of the saved-setting strings.
+        assert_eq!(StarCatalogTier::resolve_cap("standard"), 0);
+        assert_eq!(StarCatalogTier::resolve_cap("extended"), 1);
+        assert_eq!(StarCatalogTier::resolve_cap("ultra"), 2);
+        assert_eq!(StarCatalogTier::resolve_cap("auto"), 2);
+        assert_eq!(StarCatalogTier::resolve_cap(""), 2);
         // ...and names resolve anyway, because the fall-through adopted the
         // standard catalog's sidecar (the ultra file itself has none).
         assert!(cat.resolve_endpoint("Sirius").is_some(), "adopted proper name");

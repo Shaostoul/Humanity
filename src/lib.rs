@@ -43,6 +43,8 @@ pub mod dev_travel;
 pub mod surface_walk;
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
+/// Boot-phase timing -> log summary + debug/boot_timing.json (dev tooling).
+pub mod boot_timing;
 
 #[cfg(feature = "relay")]
 pub mod relay;
@@ -6000,7 +6002,16 @@ mod native_app {
         // fallback) and shared by the skybox vertex builder and the
         // constellation resolver inside StarRenderer::new. Pre-v0.797 both
         // consumers re-read and re-parsed the 34 MB stars.csv separately.
-        let star_catalog = crate::renderer::stars::StarCatalog::load(&state.data_dir);
+        // Star-catalog tier CEILING (dev fast path): resolve from the saved
+        // setting, with HUMANITY_STAR_TIER overriding it, so a scripted/verify
+        // boot can force the shipped 120k catalog (cap 0) and skip the ~350 MB
+        // Ultra read entirely. Default "auto" => cap 2 => biggest installed
+        // wins (unchanged for players).
+        let t_sky = Instant::now();
+        let star_tier_cap = crate::renderer::stars::StarCatalogTier::resolve_cap(
+            &state.gui_state.settings.star_catalog_tier,
+        );
+        let star_catalog = crate::renderer::stars::StarCatalog::load(&state.data_dir, star_tier_cap);
         state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
             crate::renderer::stars::StarRenderer::new(
                 &state.renderer.device,
@@ -6010,10 +6021,14 @@ mod native_app {
                 &state.data_dir,
                 // Ultra Milky Way glow tier (2026-07-11): built here with the
                 // rest of the sky, so a tier change applies next world entry
-                // (same convention as the star catalog tiers).
-                state.gui_state.settings.sky_glow_tier == "ultra",
+                // (same convention as the star catalog tiers). Also gated by the
+                // star-tier cap so the dev fast path (cap < 2) ALSO drops the
+                // heavy Ultra glow texture, per the operator's "the mega skybox
+                // thing AND the other versions".
+                state.gui_state.settings.sky_glow_tier == "ultra" && star_tier_cap >= 2,
             )
         });
+        state.boot_timer.since("star_catalog_and_glow", t_sky);
 
         // ── Planets (procedural fractal surfaces, v0.763) ──
         // One shared vertex-color material (shader type 12) renders every
@@ -6028,7 +6043,9 @@ mod native_app {
         // planet look = a new data/planets/<body_id>.ron, no code change.
         // Bodies without a def fall back to smooth LOD spheres with the
         // coarse body-type materials.
+        let t_planets = Instant::now();
         reload_planet_defs(state);
+        state.boot_timer.since("planet_defs_bake", t_planets);
 
         // ── Ship position (GEO above Silverdale, WA) ──
         let lat_rad = 47.6_f64.to_radians();
@@ -6217,6 +6234,14 @@ mod native_app {
 
         state.world_loaded = true;
         log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
+        // Boot-timing summary (dev tooling): fires exactly once (load_world is
+        // only entered when !world_loaded). Records the whole world-load span,
+        // then logs the per-phase breakdown + drops debug/boot_timing.json.
+        state
+            .boot_timer
+            .record("world_load_total", load_start.elapsed());
+        let boot_total = state.boot_timer.boot_start.elapsed();
+        state.boot_timer.emit(boot_total);
     }
 
     /// Load the small, runtime-critical data registries (items, recipes, plants,
@@ -6975,6 +7000,9 @@ mod native_app {
         theme: Theme,
         /// Whether the 3D world has been fully initialized.
         world_loaded: bool,
+        /// Boot-phase timer (dev tooling): accumulates named spans from
+        /// `resumed()` + `load_world()` and emits a summary + debug/boot_timing.json.
+        boot_timer: crate::boot_timing::BootTimer,
         /// Reserved for future use.
         window_shown: bool,
         /// Data directory path (resolved once at startup, used for deferred loading).
@@ -7037,8 +7065,16 @@ mod native_app {
                 return;
             }
 
+            // Boot-phase timing (dev tooling): window-open is the wall-clock
+            // origin; each phase below records a named span, and load_world()
+            // emits the consolidated summary once the world is ready.
+            let mut boot_timer =
+                crate::boot_timing::BootTimer::new(std::time::Instant::now());
+
             // Extract embedded data files on first run (enables modding)
+            let t_boot = std::time::Instant::now();
             crate::storage::extract_data_if_needed();
+            boot_timer.since("extract_data", t_boot);
 
             // Boot MAXIMIZED with decorations = "windowed fullscreen" (title bar + taskbar
             // still visible), the operator's preferred default (v0.454). The loaded
@@ -7060,11 +7096,13 @@ mod native_app {
                 .with_active(!background)
                 .with_visible(false);
 
+            let t_boot = std::time::Instant::now();
             let window = Arc::new(
                 event_loop
                     .create_window(window_attrs)
                     .expect("Failed to create window"),
             );
+            boot_timer.since("window_create", t_boot);
 
             // Set window icon from embedded PNG
             {
@@ -7078,8 +7116,12 @@ mod native_app {
                 }
             }
 
-            // Initialize renderer (block on async)
+            // Initialize renderer (block on async). The heaviest untimed phase:
+            // adapter + device request, every shader-module + pipeline + bind-
+            // group-layout, plus the cloud-noise volumes.
+            let t_boot = std::time::Instant::now();
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
+            boot_timer.since("renderer_init", t_boot);
 
             window.set_visible(true);
 
@@ -7534,7 +7576,9 @@ mod native_app {
             // used to load only in lazy load_world (3D-world view), leaving raw item
             // ids, no recipes, empty skills + the quest shown by id. (load_world
             // re-loads them; idempotent.)
+            let t_boot = std::time::Instant::now();
             load_data_registries(&mut data_store, &data_dir);
+            boot_timer.since("eager_data_registries", t_boot);
             // STARTER VEHICLES (v0.694, operator: "update the player home to have
             // a prebuilt vehicle so I don't have to assemble the factory, mine
             // resources, etc." -- headlined by their 1975 Chevy Nova, the first
@@ -7826,6 +7870,7 @@ mod native_app {
                 gui_state,
                 theme,
                 world_loaded: false,
+                boot_timer,
                 window_shown: false,
                 data_dir,
                 ctrl_held: false,

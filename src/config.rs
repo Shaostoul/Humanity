@@ -334,6 +334,14 @@ pub struct AppConfig {
     /// cross on the brightest stars, drawn additively over the star points.
     #[serde(default = "default_true")]
     pub sky_star_halos: bool,
+    /// Star-catalog load CEILING (2026-07-12 dev tooling). "auto" (default,
+    /// biggest installed wins -- players unchanged), "standard"/"minimal"
+    /// (force the shipped 120k stars.bin for a fast boot), "extended" (cap at
+    /// 2.5M), "ultra" (cap at 25M). Applied at world entry. The
+    /// HUMANITY_STAR_TIER env var overrides this WITHOUT persisting -- the
+    /// scripted/dev fast path (see stars::StarCatalogTier::resolve_cap).
+    #[serde(default = "default_star_catalog_tier")]
+    pub star_catalog_tier: String,
     /// Screen-size LOD base threshold in pixels for sky planets: one more
     /// icosphere subdivision each time the projected diameter doubles past
     /// this. See `terrain::planet::lod_level_for_pixels`.
@@ -578,6 +586,7 @@ fn default_sfx_volume() -> f32 { 0.7 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
+fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
 fn default_cloud_quality() -> String { "high".to_string() }
@@ -883,6 +892,7 @@ impl AppConfig {
             sky_milkyway_intensity: state.settings.sky_milkyway_intensity,
             sky_glow_tier: state.settings.sky_glow_tier.clone(),
             sky_star_halos: state.settings.sky_star_halos,
+            star_catalog_tier: state.settings.star_catalog_tier.clone(),
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
@@ -986,6 +996,15 @@ impl AppConfig {
             "standard".to_string()
         };
         state.settings.sky_star_halos = self.sky_star_halos;
+        // Sanitize the star-catalog tier ceiling: known values pass through,
+        // anything else (hand-edited/empty/old config) means "auto" so a player
+        // who downloaded a bigger catalog is never silently downgraded.
+        state.settings.star_catalog_tier = match self.star_catalog_tier.trim().to_ascii_lowercase().as_str() {
+            "standard" | "minimal" => "standard".to_string(),
+            "extended" => "extended".to_string(),
+            "ultra" => "ultra".to_string(),
+            _ => "auto".to_string(),
+        };
         // Guard a corrupted saved value (a 0/negative threshold would pin
         // every body at max subdivision).
         state.settings.planet_lod_px = if self.planet_lod_px >= 1.0 {
