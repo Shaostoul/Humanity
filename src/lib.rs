@@ -9223,18 +9223,34 @@ mod native_app {
                         let surface_engaged = (dist - ground_r) < SURFACE_ENGAGE_ALT;
 
                         if surface_engaged {
+                            // Was surface mode already engaged last frame? MUST be
+                            // read BEFORE set_surface_up (which flips it true).
+                            let just_engaged = !state.camera.surface_mode;
                             // Radial "up" so "down" points at the body centre and
                             // the horizon is level (the transition preserves the
                             // current look direction across the basis change).
                             state.camera.set_surface_up(radial);
 
-                            // Walk + gravity on the ANCHOR (unrotated body frame).
-                            // cam_world = body_center + Ry(spin)*anchor, so moving
-                            // the anchor moves the camera WITHOUT the ground
-                            // sliding; cam_local is left untouched. WASD moves in
-                            // the tangent plane, Space/Shift is radial thrust, and
-                            // gravity eases the radius down to eye height + ground.
-                            let mut anchor = anchor_pre;
+                            // ── CO-ROTATION (bug fix 2026-07-12) ──
+                            // The anchor is the camera's position in the planet's
+                            // UNROTATED local frame. It must be captured ONCE, on
+                            // the frame surface mode engages, then RIDE the spin:
+                            // ship_world_pos = body_center + Ry(spin)*anchor -
+                            // cam_local grows Ry(spin) with the planet mesh, so the
+                            // camera co-rotates and the ground holds STILL. The old
+                            // code re-captured anchor_pre = Ry(-spin)*(cam_world -
+                            // bc) EVERY frame and re-placed it at the SAME spin,
+                            // which is the identity (ship_world_pos unchanged) --
+                            // so the camera stayed put in world space while the
+                            // mesh spun under it (operator: "the Earth spins
+                            // without me... it clips through me"). Persist the
+                            // anchor across frames instead; only walk + gravity
+                            // move it, in the unrotated frame.
+                            let mut anchor = if just_engaged {
+                                anchor_pre
+                            } else {
+                                state.frame_lock_anchor
+                            };
                             let wish = state.controller.surface_wish_dir(&state.camera);
                             let wish_unrot = glam::DQuat::from_rotation_y(-spin)
                                 * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
