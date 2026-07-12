@@ -2264,6 +2264,14 @@ mod native_app {
             .get("look_offset_deg")
             .and_then(|a| a.as_f64())
             .unwrap_or(0.0);
+        // Optional lat/lon (v0.824 scenic camera): pin the vantage to a REAL
+        // surface coordinate (matching the heightmap/albedo grid convention)
+        // instead of the sunlit-heuristic vantage - so a camera can sit over a
+        // named coastline/mountain. Both must be present to take effect.
+        let latlon = match (v.get("lat").and_then(|a| a.as_f64()), v.get("lon").and_then(|a| a.as_f64())) {
+            (Some(la), Some(lo)) => Some((la, lo)),
+            _ => None,
+        };
         let Some(body) = crate::cosmos::find_body(&body_id) else {
             fail(format!("unknown body id {body_id}"));
             return;
@@ -2283,15 +2291,26 @@ mod native_app {
             * crate::cosmos::M_PER_AU;
         let sun_rel_earth = -earth_helio_au * crate::cosmos::M_PER_AU;
         let radius_m = body.radius_km * 1000.0;
-        // The Travel vantage is ~4 radii out on the sunlit side; keep its
-        // DIRECTION, replace its distance with the requested altitude.
-        let base = crate::dev_travel::teleport_viewpoint(
-            body_rel_earth,
-            sun_rel_earth,
-            radius_m,
-            body.body_type == "star",
-        );
-        let dir_out = (base - body_rel_earth).normalize_or_zero();
+        // dir_out = the outward direction from the body centre to the camera.
+        // Scenic (lat/lon): the surface radial at that coordinate, rotated into
+        // the world frame by the planet's current spin so it lands on the real
+        // ground feature. Otherwise the sunlit-heuristic Travel vantage.
+        let dir_out = if let Some((lat, lon)) = latlon {
+            let spin =
+                state.start_time.elapsed().as_secs_f64() * crate::dev_travel::PLANET_SPIN_RATE;
+            let d = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+            let world = glam::DQuat::from_rotation_y(spin)
+                * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
+            world.normalize_or_zero()
+        } else {
+            let base = crate::dev_travel::teleport_viewpoint(
+                body_rel_earth,
+                sun_rel_earth,
+                radius_m,
+                body.body_type == "star",
+            );
+            (base - body_rel_earth).normalize_or_zero()
+        };
         let vantage = body_rel_earth + dir_out * (radius_m + altitude_km * 1000.0);
         if state.dev_travel_home.is_none() {
             state.dev_travel_home = Some((

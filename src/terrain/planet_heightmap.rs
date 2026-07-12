@@ -59,6 +59,18 @@ pub fn dir_to_latlon_deg(unit: Vec3) -> (f32, f32) {
     (lat, lon)
 }
 
+/// Inverse of `dir_to_latlon_deg`: (lat, lon) in degrees -> unit direction in
+/// the body's UNROTATED local frame. Used to pin a scenic camera (v0.824) to a
+/// real coordinate on the surface instead of a random sunlit vantage. Kept
+/// next to its inverse so the handedness convention lives in ONE place; the
+/// `latlon_dir_round_trips` test locks them together.
+pub fn latlon_to_dir(lat_deg: f32, lon_deg: f32) -> Vec3 {
+    let lat = lat_deg.to_radians();
+    let lon = lon_deg.to_radians();
+    let cl = lat.cos();
+    Vec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin())
+}
+
 /// One bilinear sample's integer/fractional decomposition on a
 /// cell-centered equirectangular grid. `x0`/`y0` are RAW (possibly out of
 /// range) floor coordinates; the per-grid accessor applies longitude wrap
@@ -223,6 +235,29 @@ pub fn quantize_meters(h_m: f32, min_m: f32, max_m: f32) -> u16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn latlon_dir_round_trips() {
+        // latlon_to_dir must invert dir_to_latlon_deg for representative
+        // coordinates (equator, mid-latitudes, meridians), so a scenic camera
+        // lands on the coordinate it names.
+        for &(lat, lon) in &[
+            (0.0f32, 0.0f32),
+            (21.3, -157.8), // Oahu-ish (land + ocean coastline)
+            (-33.9, 18.4),  // Cape Town-ish
+            (51.5, -0.1),
+            (-45.0, 170.0),
+            (80.0, -60.0),
+        ] {
+            let dir = latlon_to_dir(lat, lon);
+            assert!((dir.length() - 1.0).abs() < 1e-5, "not unit: {dir}");
+            let (rlat, rlon) = dir_to_latlon_deg(dir);
+            assert!((rlat - lat).abs() < 1e-3, "lat drift: {rlat} vs {lat}");
+            // Longitude wraps; compare on the circle.
+            let dlon = ((rlon - lon + 540.0) % 360.0) - 180.0;
+            assert!(dlon.abs() < 1e-3, "lon drift: {rlon} vs {lon}");
+        }
+    }
 
     /// Build an in-memory heightmap from a meters grid (row-major,
     /// north-first) via the same byte format the JS script writes.
