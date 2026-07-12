@@ -664,6 +664,12 @@
       "date": "2026-07-11",
       "decision": "v0.815-0.816: both renderer agents merged + shipped. v0.815.0 per-pixel planet imagery (first texture bind group in the PBR pipeline - group(3) at wgpu baseline 4, planet center rides the textured material, grading baked at upload via shared grade_albedo, Baja-verified handedness, Mars fallback intact). v0.816.0 volumetric cloud raymarch (10 jittered samples through a 1.004-1.012R slab, density = alpha^2 x envelope, +1.5ms, flat path kept behind CLOUD_MARCH_SAMPLES=0) + atmosphere close-range fix (root cause: ATMO_EXPOSURE 4x calibrated against black space over-boosted surface-terminated rays; now a per-fragment blend, orbit look bit-identical beyond 2.5 shell radii). Capture done.json now reports fps/frame_ms. Ultra-glow Settings tier agent dispatched. Agent-discovered pre-existing bug chipped separately: WGSL hot-reload halves FPS until restart.",
       "why": "Closes every item from the operator 2026-07-11 field reports: mosaics, cue-ball clouds, black surface, milky atmosphere, giant triangles, hard seams. All merges independently re-verified on main with fresh captures (12000km 88fps healthy marble; 400km saturated ocean gaps). Remaining content polish tracked in task #75."
+    },
+    {
+      "id": 21,
+      "date": "2026-07-12",
+      "decision": "v0.817.0/.1: Ultra galaxy glow in-app tier shipped - Settings > Graphics glow chooser (Standard 8192 included / Ultra 16384 99MB download mirroring the star-catalog download mechanics with a stronger decode-verify), 5-branch fallback ladder (selection/presence/decode/GPU-limit, never a black sky), all three load paths log-proven by the agent AND boot-verified post-merge. This CLOSES the skybox resolution ladder (points + glow + halos + wallpapers + capture) and the 2026-07-11 field-report arc entirely. PRIORITIES.md pivot item 3 updated to SHIPPED status with the arc summary.",
+      "why": "Task #70 complete. Ten releases today (v0.810.0-v0.817.0). Next in the planets lane: task #75 close-range content polish. Next per the pivot: unified chat 1c + operator field test of the new planet stack."
     }
   ],
   "active_scopes_to_avoid": [

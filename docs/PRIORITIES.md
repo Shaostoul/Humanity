@@ -92,10 +92,24 @@
 >    in-app "extended catalog" download, ~40 MB binary); (3) Gaia extract
 >    G<14 (~25M points, ~300-500 MB, chunked TAP pulls of 4 columns) + a
 >    baked HDR glow cubemap integrating the remaining ~1.77B faint stars -
->    visually equivalent to rendering all 1.8B at ~1/50th the size. Also:
->    pack StarVertex 28B -> ~12B before step 3. LATER R&D: sky FILTER modes
->    (UV / H-alpha / infrared layers for gas clouds + nebulae as additional
->    emissive sky layers); per-point light sampling along strip paths.
+>    visually equivalent to rendering all 1.8B at ~1/50th the size.
+>    STATUS 2026-07-11: THE WHOLE LADDER SHIPPED (v0.789-v0.817). Point
+>    tiers 120k/2.5M/16.8M with in-app downloads; glow baked from the REAL
+>    Gaia census - level-10 8192x4096 in-repo default (v0.810.2) + level-11
+>    16384x8192 Ultra as an in-app download tier (v0.817.0, assets-glow-1);
+>    star halos; packed 12B StarVertex; 16K/8K/4K wallpapers published
+>    (assets-wallpapers-1). Level 11 is the deliberate END of the ladder
+>    (finer cells go Poisson-noisy; 16384 is the GPU texture ceiling).
+>    SAME ARC (v0.810-v0.816): planet visuals field reports closed -
+>    per-pixel Blue Marble Earth (first texture bind group), volumetric
+>    cloud raymarch, atmosphere close-range exposure fix, the asin LOD
+>    root-cause fix (chunks could NEVER activate before), ocean/land
+>    grading, hi-res screenshot capture (4K/8K while playing 1440p), and
+>    the camera_request.json dev tool (scripted look-anywhere captures).
+>    NEXT in this lane: task #75 close-range content polish (cloud
+>    sub-135km octaves, ocean detail, land relief pass, cloud ground
+>    shadows). LATER R&D: sky FILTER modes (UV / H-alpha / infrared layers
+>    for gas clouds + nebulae); per-point light sampling along strip paths.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
