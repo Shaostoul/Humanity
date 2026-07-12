@@ -2240,6 +2240,12 @@ mod native_app {
     /// Gravity easing rate (per second) for the surface stand/settle clamp.
     /// At 4/s a drop from tens of metres settles onto the ground in ~1-2 s.
     const SURFACE_SETTLE_RATE: f64 = 4.0;
+    /// Upper bound on the mouse-wheel speed multiplier while ON a surface
+    /// (2026-07-12). With base speed 5 m/s this tops surface travel out at
+    /// ~10 km/s -- fast enough to cross a continent or fly around, but bounded
+    /// so a tap can never fling the player off the planet (the world-scale FTL
+    /// fly integration is separately gated off in surface mode).
+    const SURFACE_SPEED_MULT_MAX: f64 = 2000.0;
 
     /// Ground radius (metres from the body centre) of the DRAWN surface at a
     /// unit direction in the body's UNROTATED local frame. Samples the real
@@ -2250,12 +2256,25 @@ mod native_app {
     fn ground_radius_m(
         def: Option<&PlanetDef>,
         hm: Option<&crate::terrain::planet_heightmap::PlanetHeightmap>,
+        detail: Option<&crate::terrain::planet_chunks::DetailNoise>,
         unit_dir: glam::Vec3,
     ) -> f64 {
         match def {
             Some(d) => {
                 let elev = match hm {
-                    Some(h) => h.normalized_at(unit_dir),
+                    // With a detail sampler (the eye-height clamp), reproduce
+                    // the DRAWN chunk-mesh elevation (base heightmap + land-
+                    // masked sub-grid detail) so the player stands ON the ground
+                    // instead of INSIDE it. Base-only clamps sank the 1.7 m eye
+                    // below the up-to-~120 m detail relief -> see-through ground
+                    // (2026-07-12). Altitude-parking callers pass None (the
+                    // detail is negligible against 1.5 km).
+                    Some(h) => match detail {
+                        Some(dn) => {
+                            crate::terrain::planet_chunks::drawn_elevation_normalized(h, d, dn, unit_dir)
+                        }
+                        None => h.normalized_at(unit_dir),
+                    },
                     None => d.sea_level.clamp(0.0, 1.0),
                 };
                 d.radius * crate::terrain::planet_surface::displaced_radius_f64(d, elev as f64)
@@ -2390,6 +2409,7 @@ mod native_app {
             ground_radius_m(
                 state.planet_defs.get(&body_id),
                 state.planet_heightmaps.get(&body_id),
+                None,
                 unit,
             )
         } else {
@@ -9129,6 +9149,13 @@ mod native_app {
                         && state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && state.controller.fly_speed_mult
                             > crate::renderer::camera::LOCAL_FLY_MULT_MAX
+                        // Never let the world-scale FTL integration run while
+                        // standing on a surface (2026-07-12): otherwise the one
+                        // wheel notch past the cap (1000 -> 10000x) turns a tiny
+                        // W/Space tap into an 80-800 km/frame launch that flings
+                        // the player straight off the planet to orbit. Surface
+                        // speed is scaled smoothly in the frame-lock branch below.
+                        && !state.camera.surface_mode
                     {
                         let wish = state.controller.fly_wish_dir(&state.camera);
                         if wish.length_squared() > 0.0 {
@@ -9219,7 +9246,7 @@ mod native_app {
                         let def = state.planet_defs.get(&lock_body);
                         let hm = state.planet_heightmaps.get(&lock_body);
                         let ground_r =
-                            ground_radius_m(def, hm, anchor_pre.normalize_or_zero().as_vec3());
+                            ground_radius_m(def, hm, None, anchor_pre.normalize_or_zero().as_vec3());
                         let surface_engaged = (dist - ground_r) < SURFACE_ENGAGE_ALT;
 
                         if surface_engaged {
@@ -9257,15 +9284,34 @@ mod native_app {
                             let dir0 = anchor.normalize_or_zero();
                             let radial_wish = wish_unrot.dot(dir0);
                             let tangential = wish_unrot - dir0 * radial_wish;
+                            // Surface move speed scales SMOOTHLY with the mouse-
+                            // wheel fly multiplier (bounded), so you can cross the
+                            // ground fast WITHOUT the FTL ship-launch (2026-07-12):
+                            // the world-scale fly integration is gated off in
+                            // surface mode above, so THIS is the only speed control
+                            // here. speed_multiplier stays the status/gear modifier;
+                            // surface_mult is the wheel, capped so a full sprint
+                            // tops out ~10 km/s instead of flinging you to orbit.
+                            let surface_mult = (state.controller.fly_speed_mult as f64)
+                                .clamp(1.0, SURFACE_SPEED_MULT_MAX);
                             let walk_speed = (state.controller.speed
                                 * state.controller.speed_multiplier)
-                                .max(0.0) as f64;
+                                .max(0.0) as f64
+                                * surface_mult;
+                            // Detail-inclusive ground sampler (see-through-ground
+                            // fix): the planet's sub-grid detail noise so the clamp
+                            // stands the eye on the DRAWN mesh, not the base
+                            // heightmap it sits ~4x below. Cheap (a few Perlins),
+                            // only built while actually on a surface.
+                            let detail = def
+                                .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
                             if tangential.length() > 1e-9 {
                                 anchor += tangential.normalize() * walk_speed * dt as f64;
                             }
-                            // Ground radius at the (possibly moved) surface point.
+                            // Ground radius at the (possibly moved) surface point,
+                            // INCLUDING the drawn detail relief.
                             let dir1 = anchor.normalize_or_zero();
-                            let g = ground_radius_m(def, hm, dir1.as_vec3());
+                            let g = ground_radius_m(def, hm, detail.as_ref(), dir1.as_vec3());
                             let rest = crate::surface_walk::rest_radius(
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
@@ -10111,6 +10157,7 @@ mod native_app {
                             let surface_radius = ground_radius_m(
                                 state.planet_defs.get(&target),
                                 state.planet_heightmaps.get(&target),
+                                None,
                                 unit,
                             );
                             let vantage =

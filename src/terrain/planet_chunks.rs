@@ -277,6 +277,40 @@ impl DetailNoise {
     }
 }
 
+/// The DRAWN normalized elevation (base heightmap + land-masked sub-grid
+/// detail) at a unit direction, at the FINEST detail depth. This is the single
+/// source of truth that the eye-height ground clamp (lib.rs `ground_radius_m`)
+/// shares with the mesh builder above, so the player stands ON the drawn ground
+/// rather than sinking into the ~4x-exaggerated detail relief and seeing through
+/// it (2026-07-12). Uses the finest depth so the clamp matches the HIGHEST LOD
+/// -- the eye is then never below even a coarser (not-yet-streamed) patch mesh.
+/// Mirrors the elevation formula in `build_patch_mesh` (base + masked detail).
+pub fn drawn_elevation_normalized(
+    hm: &PlanetHeightmap,
+    def: &PlanetDef,
+    detail: &DetailNoise,
+    dir: glam::Vec3,
+) -> f32 {
+    let base = hm.normalized_at(dir);
+    let range_m = hm.max_meters() - hm.min_meters();
+    if range_m <= 0.0 {
+        return base.clamp(0.0, 1.0);
+    }
+    let sea = def.sea_level.clamp(0.0, 1.0);
+    let above_sea_m = (base - sea) * range_m;
+    let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
+    let e = if mask > 0.0 {
+        base + (detail.sample_m(dir.as_dvec3(), FINEST_DETAIL_DEPTH) * mask) / range_m
+    } else {
+        base
+    };
+    e.clamp(0.0, 1.0)
+}
+
+/// Depth high enough that `DetailNoise::sample_m` enables EVERY fine octave
+/// (all `DETAIL_FINE_MIN_DEPTH` gates), so the clamp sees the finest drawn ground.
+const FINEST_DETAIL_DEPTH: u8 = 24;
+
 // ── Patch identity + geometry derivation ──
 
 /// One node of the per-planet patch tree. `path` packs 2 bits per level
