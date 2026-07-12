@@ -934,6 +934,117 @@ function openRestoreIdentityModal() {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
+// ── Link this device (2026-07-12): the TARGET side of moving your identity to
+// a new device (phone). Presents every method with clear pros/cons, and -- the
+// piece that was missing -- a real CAMERA QR SCANNER so the QR shown by
+// "Link New Device" on another device can actually be scanned instead of
+// pasting a huge JSON blob by hand. Web-derives the SAME key as native from the
+// same seed, so a linked phone becomes your real identity (name + role + all). ──
+
+/**
+ * Open the phone camera and scan for a QR code. Resolves the decoded string via
+ * onResult. Uses the built-in BarcodeDetector (Android Chrome + most mobile
+ * browsers); if it's unavailable (e.g. iOS Safari) it falls back with a clear
+ * message pointing at the Paste / Seed-phrase methods.
+ */
+async function scanQrWithCamera(onResult) {
+  if (!('BarcodeDetector' in window)) {
+    alert('This browser can\'t scan QR codes directly. Use "Paste identity code" or "Seed phrase" instead.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    alert('Camera access was denied. Use "Paste identity code" or "Seed phrase" instead.');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'qr-scan-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <video id="qr-scan-video" playsinline muted style="width:100%;max-width:480px;max-height:70vh;border-radius:var(--radius);object-fit:cover"></video>
+    <p style="color:#fff;font-size:.85rem;margin:var(--space-lg);text-align:center">Point your camera at the QR code on your other device</p>
+    <button id="qr-scan-cancel" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:var(--space-md) var(--space-2xl);font-size:.85rem;cursor:pointer">Cancel</button>`;
+  document.body.appendChild(overlay);
+  const video = document.getElementById('qr-scan-video');
+  video.srcObject = stream;
+  let done = false;
+  const cleanup = () => { done = true; stream.getTracks().forEach(t => t.stop()); overlay.remove(); };
+  document.getElementById('qr-scan-cancel').onclick = cleanup;
+  try { await video.play(); } catch (e) {}
+  const detector = new BarcodeDetector({ formats: ['qr_code'] });
+  const tick = async () => {
+    if (done) return;
+    try {
+      const codes = await detector.detect(video);
+      if (codes && codes.length) { cleanup(); onResult(codes[0].rawValue); return; }
+    } catch (e) { /* transient decode error; keep trying */ }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/** Import an identity from a scanned/pasted "Link New Device" JSON string. */
+async function importIdentityFromLinkString(str) {
+  let parsed;
+  try { parsed = JSON.parse(str.trim()); }
+  catch (e) { alert('That doesn\'t look like a valid identity code.'); return; }
+  try {
+    const result = await importIdentityBackup(parsed);
+    alert('✓ This device is now linked to ' + (result && result.name ? result.name : 'your identity') + '. Reloading…');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    alert('Could not import: ' + e.message + '\n(If the code was encrypted, use "Encrypted backup file" with your passphrase instead.)');
+  }
+}
+
+/**
+ * The TARGET-side chooser: "Link this device to your identity." Lists every
+ * method with a one-line pro/con so the user picks what fits (operator ask,
+ * 2026-07-12). Routes to the camera scanner + existing import/restore flows.
+ */
+function openLinkThisDeviceModal() {
+  const existing = document.getElementById('link-this-device-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'link-this-device-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+  const method = (icon, title, pro, con, id) => `
+    <button id="${id}" style="display:block;width:100%;text-align:left;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg);margin-bottom:var(--space-md);cursor:pointer;color:var(--text)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:2px">${icon} ${title}</div>
+      <div style="font-size:.72rem;color:var(--success)">${pro}</div>
+      <div style="font-size:.72rem;color:var(--text-muted)">${con}</div>
+    </button>`;
+  overlay.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">🔗 Link this device to your identity</h2>
+      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-xl)">
+        Bring your existing identity (name, role, history) to this device. All methods are secure; they differ in convenience.
+        <strong style="color:var(--danger)">This replaces any identity currently on this device.</strong>
+      </p>
+      ${method('📷', 'Scan a QR code', 'Fastest, no typing.', 'Needs your other device to show its "Link New Device" QR + a camera here.', 'ltd-scan')}
+      ${method('📋', 'Paste identity code', 'Works on any browser.', 'Copy the code text from your other device\'s Link New Device screen.', 'ltd-paste')}
+      ${method('🌱', 'Enter seed phrase', 'From your written 24-word backup; no other device needed.', 'You type/paste 24 words.', 'ltd-seed')}
+      ${method('💾', 'Encrypted backup file', 'A file you saved, protected by your passphrase.', 'You transfer the file to this device first.', 'ltd-file')}
+      <div style="text-align:right;margin-top:var(--space-md)">
+        <button onclick="document.getElementById('link-this-device-overlay').remove()"
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  const close = () => overlay.remove();
+  document.getElementById('ltd-scan').onclick = () => { close(); scanQrWithCamera(importIdentityFromLinkString); };
+  document.getElementById('ltd-paste').onclick = () => {
+    close();
+    const s = prompt('Paste your identity code (the JSON from the other device\'s "Link New Device" screen):');
+    if (s) importIdentityFromLinkString(s);
+  };
+  document.getElementById('ltd-seed').onclick = () => { close(); openRestoreFromMnemonicModal(); };
+  document.getElementById('ltd-file').onclick = () => { close(); openRestoreIdentityModal(); };
+}
+
 async function doRestoreIdentity() {
   const fileInput = document.getElementById('ri-file');
   const passphrase = document.getElementById('ri-passphrase').value;

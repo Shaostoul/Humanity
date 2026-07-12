@@ -43,6 +43,15 @@ async function showOnboardingWizard(mnemonic) {
     if (skip) skip.addEventListener('click', finish);
 
     // Step-specific wiring
+    if (step === 0) {
+      // "I already have an identity" -> close onboarding cleanly (so it doesn't
+      // stack above the link modal's z-index) then open the device-link chooser.
+      const linkExisting = overlay.querySelector('#ob-link-existing');
+      if (linkExisting) linkExisting.addEventListener('click', () => {
+        finish();
+        if (typeof openLinkThisDeviceModal === 'function') openLinkThisDeviceModal();
+      });
+    }
     if (step === 1) wireStep1(overlay, mnemonic);
     if (step === 4) wireStep4(overlay);
   }
@@ -123,6 +132,20 @@ function step0() {
         <li>Nobody reads your messages, they're encrypted.</li>
         <li>Your identity is the same on every device, as long as you back it up (we'll show you how).</li>
       </ul>
+    </div>
+
+    <!-- Escape hatch: this device auto-made a fresh identity, but the user may
+         already BE someone on another device (phone joining an existing PC
+         identity). Offer to link instead of walking them through a throwaway. -->
+    <div style="border-top:1px solid var(--border);margin-top:var(--space-xl);padding-top:var(--space-xl);text-align:center">
+      <p style="font-size:.78rem;color:var(--text-muted);margin:0 0 var(--space-md)">
+        Already have a Humanity identity on another device?
+      </p>
+      <button id="ob-link-existing"
+        style="background:none;border:1px solid var(--border);color:var(--accent);border-radius:var(--radius);
+               padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:600;cursor:pointer">
+        🔗 Link this device to it instead
+      </button>
     </div>
   `;
 }

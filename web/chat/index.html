@@ -643,9 +643,14 @@
         <button onclick="requestDeviceList()" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
         <button onclick="openLinkDeviceModal()"
           data-tip-title="Link New Device"
-          data-tip-desc="Displays a QR code your other device can scan to share this identity."
-          data-tip-detail="Uses encrypted P2P transfer, your private key is never sent to the server"
-          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+          data-tip-desc="Shows a QR + code THIS device's identity, so ANOTHER device can scan/paste it to become you."
+          data-tip-detail="Use this on the device that already has your identity (e.g. your PC)."
+          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Show my identity (link a device)</button>
+        <button onclick="openLinkThisDeviceModal()"
+          data-tip-title="Link this device"
+          data-tip-desc="Bring your existing identity TO this device: scan a QR, paste a code, or enter your seed phrase."
+          data-tip-detail="Use this on the NEW device (e.g. your phone) to make it your real identity."
+          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">🔗 Link this device to me</button>
       </div>
     </div>
   </div>
