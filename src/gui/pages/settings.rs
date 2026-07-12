@@ -1886,6 +1886,96 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 .color(theme.text_muted())
                 .size(theme.font_size_small),
         );
+        // Glow texture tier (2026-07-11): Standard ships with the app; Ultra
+        // is a one-time download fetched exactly like the star catalog tiers
+        // below (background thread, progress bar, retry on FAILED). The
+        // chooser only offers Ultra once the file is installed; while absent
+        // the Download button stands in for it, and finishing a download
+        // selects Ultra automatically.
+        if state.settings.sky_milkyway_glow {
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Glow texture:")
+                        .color(theme.text_secondary())
+                        .size(theme.font_size_small),
+                );
+                let std_sel = state.settings.sky_glow_tier != "ultra";
+                if ui
+                    .selectable_label(
+                        std_sel,
+                        RichText::new("Standard (8192, included)").size(theme.font_size_small),
+                    )
+                    .clicked()
+                    && !std_sel
+                {
+                    state.settings.sky_glow_tier = "standard".to_string();
+                    state.settings_dirty = true;
+                }
+                match state.galaxy_glow_installed {
+                    Some(bytes) => {
+                        let ultra_sel = state.settings.sky_glow_tier == "ultra";
+                        if ui
+                            .selectable_label(
+                                ultra_sel,
+                                RichText::new(format!(
+                                    "Ultra (16384, {} MB installed)",
+                                    bytes / 1_048_576
+                                ))
+                                .size(theme.font_size_small),
+                            )
+                            .clicked()
+                            && !ultra_sel
+                        {
+                            state.settings.sky_glow_tier = "ultra".to_string();
+                            state.settings_dirty = true;
+                        }
+                    }
+                    None => {
+                        // Same one-download-at-a-time rule as the catalog
+                        // buttons: disabled while ACTIVELY transferring, a
+                        // FAILED attempt re-enables (retry replaces the dead
+                        // handle in lib.rs).
+                        let downloading = state
+                            .galaxy_glow_dl
+                            .as_ref()
+                            .and_then(|p| p.lock().ok().map(|g| !g.2.starts_with("FAILED")))
+                            .unwrap_or(false);
+                        if ui
+                            .add_enabled(
+                                !downloading,
+                                egui::Button::new("Download ultra glow (16384, 99 MB)"),
+                            )
+                            .clicked()
+                        {
+                            state.galaxy_glow_download = true;
+                        }
+                    }
+                }
+            });
+            if let Some(dl) = &state.galaxy_glow_dl {
+                if let Ok(g) = dl.lock() {
+                    let (done, total, ref status) = *g;
+                    let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                    ui.add(egui::ProgressBar::new(frac).text(format!(
+                        "Ultra glow: {} ({} / {} MB)",
+                        status,
+                        done / 1_048_576,
+                        total.max(1) / 1_048_576
+                    )));
+                }
+            }
+            if state.galaxy_glow_installed.is_some() && state.galaxy_glow_dl.is_none() {
+                if ui.button("Remove ultra glow texture").clicked() {
+                    state.galaxy_glow_remove = true;
+                }
+            }
+            ui.label(
+                RichText::new("Ultra is a sharper 16384x8192 bake of the same catalog light. Uses about 512 MB of GPU memory; applies next time you enter the world.")
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small),
+            );
+        }
         // Star halos (2026-07-11): soft photographic glow + a faint 4-point
         // diffraction cross on the ~50 brightest stars (mag <= 2), drawn
         // additively over the star points. A plain visibility flag on the

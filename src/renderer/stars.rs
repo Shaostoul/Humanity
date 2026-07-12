@@ -194,12 +194,16 @@ impl StarRenderer {
     /// (v0.797: the catalog is parsed ONCE by the caller and shared with
     /// the constellation resolver; this function no longer touches the
     /// catalog files itself, only `constellations.json` under `data_dir`).
+    /// `glow_ultra` selects the downloadable 16384x8192 Milky Way glow bake
+    /// (Settings > Graphics > Glow texture) - see [`GALAXY_GLOW_ULTRA_FILE`];
+    /// the loader falls back to the shipped standard texture on any failure.
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         surface_format: wgpu::TextureFormat,
         catalog: &StarCatalog,
         data_dir: &Path,
+        glow_ultra: bool,
     ) -> Option<Self> {
         // Build the packed vertex list. At the ultra tier this is ~25M x 12 B
         // = ~300 MB in one Vec (acceptable peak; the packed struct IS the
@@ -238,9 +242,16 @@ impl StarRenderer {
         // REAL integrated catalog light (scripts/build-galaxy-glow.js); the
         // procedural points (v0.452) only survive as the missing/corrupt-PNG
         // safety net so the sky never silently loses its band.
-        let glow = build_glow_layer(device, queue, surface_format, &camera_bind_group_layout, data_dir);
+        let glow = build_glow_layer(
+            device,
+            queue,
+            surface_format,
+            &camera_bind_group_layout,
+            data_dir,
+            glow_ultra,
+        );
         if glow.is_some() {
-            log::info!("Milky Way glow: baked galaxy_glow.png loaded; procedural band superseded");
+            log::info!("Milky Way glow: baked glow texture loaded; procedural band superseded");
         } else {
             let band = galactic_band_stars(7000);
             log::info!(
@@ -758,6 +769,23 @@ impl StarRenderer {
 
 // ── Milky Way glow layer (2026-07-10) ───────────────────────
 
+/// The DOWNLOADABLE ultra glow texture (2026-07-11), mirroring the star
+/// catalog tier pattern above: the STANDARD 8192x4096 `data/galaxy_glow.png`
+/// ships with the app; the ultra bake is the same catalog light at
+/// 16384x8192 (~99 MB PNG, ~512 MB VRAM as RGBA8), fetched on demand from a
+/// GitHub release asset under the non-v* tag `assets-glow-1` (no CI
+/// workflow triggered, GitHub CDN for free). Which one loads is the
+/// Settings > Graphics "Glow texture" chooser (`sky_glow_tier` in
+/// AppConfig); the loader falls back to standard when the ultra file is
+/// missing, corrupt, or larger than this GPU's max texture dimension.
+pub const GALAXY_GLOW_ULTRA_FILE: &str = "galaxy_glow_ultra.png";
+pub const GALAXY_GLOW_ULTRA_URL: &str =
+    "https://github.com/Shaostoul/Humanity/releases/download/assets-glow-1/galaxy_glow_ultra.png";
+/// Exact dimensions of the published ultra bake. The download verifier
+/// rejects anything else (wrong asset / truncation tripwire); update this
+/// alongside the URL if a new bake is ever published.
+pub const GALAXY_GLOW_ULTRA_DIMS: (u32, u32) = (16384, 8192);
+
 /// Per-vertex data for the glow pass: just a cube-corner direction. The
 /// fragment shader normalizes the interpolated direction into the exact
 /// per-pixel view ray (perspective-correct interpolation lands on the
@@ -819,18 +847,49 @@ fn glow_cube_vertices() -> Vec<GlowVertex> {
     IDX.iter().map(|&i| GlowVertex { direction: P[i] }).collect()
 }
 
-/// Load data/galaxy_glow.png and build the additive fullsky glow pass.
-/// Returns None on ANY failure (missing file, bad PNG, zero-size image) so
-/// the caller can fall back to the procedural band - the sky must never be
-/// lost to a bad asset. The pipeline reuses the star pass's camera bind
-/// group layout (same rotation-only celestial camera).
-fn build_glow_layer(
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    surface_format: wgpu::TextureFormat,
-    camera_bind_group_layout: &wgpu::BindGroupLayout,
+/// Pick and decode the glow texture (2026-07-11 ultra tier): the ultra
+/// 16384x8192 bake when the user selected it AND the file exists, decodes,
+/// and fits this GPU's max texture dimension; otherwise the standard
+/// galaxy_glow.png that ships with the app. Every ultra failure warns and
+/// falls THROUGH to standard (never a lost sky, never a device validation
+/// error); a standard failure returns None so the caller's procedural band
+/// takes over.
+fn load_glow_image(
     data_dir: &Path,
-) -> Option<GlowLayer> {
+    want_ultra: bool,
+    max_dim: u32,
+) -> Option<(image::RgbaImage, std::path::PathBuf)> {
+    if want_ultra {
+        let ultra_path = data_dir.join(GALAXY_GLOW_ULTRA_FILE);
+        match std::fs::read(&ultra_path) {
+            Ok(bytes) => match image::load_from_memory(&bytes) {
+                Ok(i) => {
+                    let img = i.to_rgba8();
+                    let (w, h) = img.dimensions();
+                    if w == 0 || h == 0 || w > max_dim || h > max_dim {
+                        // Very old GPUs report max_texture_dimension_2d 8192
+                        // (or less); creating a 16384 texture there would
+                        // fail device validation, the v0.782 boot-killing
+                        // failure class. Degrade to standard instead.
+                        log::warn!(
+                            "Milky Way glow: ultra texture is {}x{} but this GPU's max texture dimension is {}; using the standard texture",
+                            w, h, max_dim
+                        );
+                    } else {
+                        return Some((img, ultra_path));
+                    }
+                }
+                Err(e) => log::warn!(
+                    "Milky Way glow: {} failed to decode ({e}); using the standard texture (re-download from Settings > Graphics)",
+                    ultra_path.display()
+                ),
+            },
+            Err(_) => log::warn!(
+                "Milky Way glow: Ultra tier selected but {} is missing; using the standard texture (download from Settings > Graphics)",
+                ultra_path.display()
+            ),
+        }
+    }
     let png_path = data_dir.join("galaxy_glow.png");
     let bytes = std::fs::read(&png_path).ok()?; // missing file: caller logs the fallback
     let img = match image::load_from_memory(&bytes) {
@@ -841,10 +900,32 @@ fn build_glow_layer(
         }
     };
     let (w, h) = img.dimensions();
-    if w == 0 || h == 0 {
-        log::warn!("galaxy_glow.png at {} is empty ({w}x{h})", png_path.display());
+    if w == 0 || h == 0 || w > max_dim || h > max_dim {
+        log::warn!(
+            "galaxy_glow.png at {} is unusable ({w}x{h}, GPU max dimension {max_dim})",
+            png_path.display()
+        );
         return None;
     }
+    Some((img, png_path))
+}
+
+/// Load the selected glow texture and build the additive fullsky glow pass.
+/// Returns None on ANY failure (missing file, bad PNG, zero-size image) so
+/// the caller can fall back to the procedural band - the sky must never be
+/// lost to a bad asset. The pipeline reuses the star pass's camera bind
+/// group layout (same rotation-only celestial camera).
+fn build_glow_layer(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    surface_format: wgpu::TextureFormat,
+    camera_bind_group_layout: &wgpu::BindGroupLayout,
+    data_dir: &Path,
+    want_ultra: bool,
+) -> Option<GlowLayer> {
+    let (img, png_path) =
+        load_glow_image(data_dir, want_ultra, device.limits().max_texture_dimension_2d)?;
+    let (w, h) = img.dimensions();
 
     // Rgba8Unorm, NOT sRGB: the baked texels feed the framebuffer exactly
     // like star vertex colors do (raw values through the star shader), so
@@ -2847,6 +2928,51 @@ id,proper,mag,ci,x,y,z,bayer,con
             octants[idx] = true;
         }
         assert!(octants.iter().all(|&o| o), "cube corners missing an octant: {octants:?}");
+    }
+
+    /// The glow texture tier ladder (2026-07-11): ultra wins when selected,
+    /// present, decodable, and within the GPU's max texture dimension; every
+    /// ultra failure (missing, corrupt, too big for the device) falls through
+    /// to the standard texture; a missing standard returns None so the caller
+    /// appends the procedural band. Pure fs + decode logic, no GPU needed.
+    #[test]
+    fn glow_image_tier_ladder_falls_back_safely() {
+        let dir = std::env::temp_dir().join(format!("hos-glow-ladder-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // No files at all: even the standard path is None (band fallback).
+        assert!(load_glow_image(&dir, false, 16384).is_none());
+        assert!(load_glow_image(&dir, true, 16384).is_none());
+
+        // Tiny stand-ins with DISTINCT sizes so the winner is identifiable.
+        image::RgbaImage::new(8, 4).save(dir.join("galaxy_glow.png")).unwrap();
+        image::RgbaImage::new(16, 8).save(dir.join(GALAXY_GLOW_ULTRA_FILE)).unwrap();
+
+        // Standard tier ignores the ultra file entirely.
+        let (img, path) = load_glow_image(&dir, false, 16384).unwrap();
+        assert_eq!(img.dimensions(), (8, 4));
+        assert!(path.ends_with("galaxy_glow.png"), "picked {}", path.display());
+
+        // Ultra tier picks the ultra file when it fits the device.
+        let (img, path) = load_glow_image(&dir, true, 16384).unwrap();
+        assert_eq!(img.dimensions(), (16, 8));
+        assert!(path.ends_with(GALAXY_GLOW_ULTRA_FILE), "picked {}", path.display());
+
+        // Device max dimension below the ultra size: falls back to standard.
+        let (img, _) = load_glow_image(&dir, true, 8).unwrap();
+        assert_eq!(img.dimensions(), (8, 4));
+
+        // Corrupt ultra file: falls back to standard.
+        std::fs::write(dir.join(GALAXY_GLOW_ULTRA_FILE), b"not a png").unwrap();
+        let (img, _) = load_glow_image(&dir, true, 16384).unwrap();
+        assert_eq!(img.dimensions(), (8, 4));
+
+        // Ultra selected but the file is missing: falls back to standard.
+        std::fs::remove_file(dir.join(GALAXY_GLOW_ULTRA_FILE)).unwrap();
+        let (img, _) = load_glow_image(&dir, true, 16384).unwrap();
+        assert_eq!(img.dimensions(), (8, 4));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     // ── Star halo layer (2026-07-11) ──

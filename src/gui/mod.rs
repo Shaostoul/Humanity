@@ -2911,6 +2911,17 @@ pub struct GuiState {
     /// (the standard catalog always ships with the app and is not tracked here). Refreshed by
     /// lib.rs at init and after download/remove, not polled per frame.
     pub star_catalog_installed: [Option<u64>; 2],
+    /// Ultra Milky Way glow download (2026-07-11): same plumbing as the star catalog
+    /// fields above but for the single downloadable galaxy_glow_ultra.png (16384x8192,
+    /// ~99 MB). The Settings > Graphics glow chooser sets the request bools; lib.rs
+    /// consumes them (it owns data_dir + the download thread). Progress =
+    /// (downloaded_bytes, total_bytes, status_line); None = no download running.
+    pub galaxy_glow_download: bool,
+    pub galaxy_glow_remove: bool,
+    pub galaxy_glow_dl: Option<std::sync::Arc<std::sync::Mutex<(u64, u64, String)>>>,
+    /// Installed size in bytes of data/galaxy_glow_ultra.png; None = not downloaded.
+    /// Refreshed by lib.rs at init and after download/remove, not polled per frame.
+    pub galaxy_glow_installed: Option<u64>,
     /// Screenshot capture request (v0.810): set by the Testing page's capture buttons,
     /// consumed by lib.rs at end-of-frame. (0, 0) = capture the window swapchain as-is
     /// (GUI included); any other pair = one-frame offscreen scene render at exactly that
@@ -4429,6 +4440,10 @@ impl Default for GuiState {
             star_catalog_remove: None,
             star_catalog_dl: None,
             star_catalog_installed: [None; 2],
+            galaxy_glow_download: false,
+            galaxy_glow_remove: false,
+            galaxy_glow_dl: None,
+            galaxy_glow_installed: None,
             screenshot_capture_request: None,
             screenshot_last_result: None,
             // Defaults mirror the 4K quick button so the custom row starts sane.
@@ -6187,6 +6202,12 @@ pub struct SettingsState {
     /// Milky Way glow intensity multiplier (0..2, default 1.0). Applied
     /// live as a shader uniform - no rebuild needed.
     pub sky_milkyway_intensity: f32,
+    /// Milky Way glow texture tier (2026-07-11): "standard" (8192x4096,
+    /// ships with the app) or "ultra" (downloadable 16384x8192, ~512 MB
+    /// VRAM). Applies next world entry - the glow layer is built with the
+    /// star renderer, and the loader falls back to standard when the ultra
+    /// file is missing/corrupt or exceeds the GPU's texture limit.
+    pub sky_glow_tier: String,
     /// Star halos (2026-07-11): soft photographic glow + faint diffraction
     /// cross on the brightest ~50 stars, drawn additively over the star
     /// points. A plain visibility flag - applies live, no GPU state.
@@ -6288,6 +6309,7 @@ impl Default for SettingsState {
             sky_constellations: true,
             sky_milkyway_glow: true,
             sky_milkyway_intensity: 1.0,
+            sky_glow_tier: "standard".to_string(),
             sky_star_halos: true,
             planet_lod_px: 10.0,
             planet_max_subdiv: 6.0,

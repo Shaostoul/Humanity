@@ -321,6 +321,15 @@ pub struct AppConfig {
     /// Milky Way glow intensity multiplier (0..2, default 1.0).
     #[serde(default = "default_sky_milkyway_intensity")]
     pub sky_milkyway_intensity: f32,
+    /// Milky Way glow texture tier (2026-07-11): "standard" (the 8192x4096
+    /// galaxy_glow.png that ships with the app) or "ultra" (the downloadable
+    /// 16384x8192 galaxy_glow_ultra.png, ~99 MB on disk / ~512 MB VRAM).
+    /// Unknown values sanitize to standard at apply time; the loader also
+    /// falls back to standard when the ultra file is missing/corrupt or
+    /// exceeds this GPU's max texture dimension. Applied at world entry
+    /// (the glow layer is built with the star renderer).
+    #[serde(default = "default_sky_glow_tier")]
+    pub sky_glow_tier: String,
     /// Star halos (2026-07-11): soft photographic glow + faint diffraction
     /// cross on the brightest stars, drawn additively over the star points.
     #[serde(default = "default_true")]
@@ -556,6 +565,7 @@ fn default_music_volume() -> f32 { 0.5 }
 fn default_sfx_volume() -> f32 { 0.7 }
 fn default_sky_orbit_mode() -> String { "planets".to_string() }
 fn default_sky_milkyway_intensity() -> f32 { 1.0 }
+fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
@@ -858,6 +868,7 @@ impl AppConfig {
             sky_constellations: state.settings.sky_constellations,
             sky_milkyway_glow: state.settings.sky_milkyway_glow,
             sky_milkyway_intensity: state.settings.sky_milkyway_intensity,
+            sky_glow_tier: state.settings.sky_glow_tier.clone(),
             sky_star_halos: state.settings.sky_star_halos,
             planet_lod_px: state.settings.planet_lod_px,
             planet_max_subdiv: state.settings.planet_max_subdiv,
@@ -952,6 +963,13 @@ impl AppConfig {
         // Clamp a hand-edited/corrupt saved value to the slider's range (a
         // huge multiplier would white out the whole sky).
         state.settings.sky_milkyway_intensity = self.sky_milkyway_intensity.clamp(0.0, 2.0);
+        // Sanitize the glow tier: anything but the known ultra value (a
+        // hand-edited config, a future removed tier) means standard.
+        state.settings.sky_glow_tier = if self.sky_glow_tier == "ultra" {
+            "ultra".to_string()
+        } else {
+            "standard".to_string()
+        };
         state.settings.sky_star_halos = self.sky_star_halos;
         // Guard a corrupted saved value (a 0/negative threshold would pin
         // every body at max subdivision).
@@ -1301,6 +1319,7 @@ mod pbkdf2_migration_tests {
         assert!(c.planet_atmo_scatter);
         assert!(c.sky_constellations);
         assert!(c.sky_milkyway_glow);
+        assert_eq!(c.sky_glow_tier, "standard");
         assert!(c.sky_star_halos);
         assert_eq!(c.fov, 90.0);
         assert_eq!(c.master_volume, 0.8);
