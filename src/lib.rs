@@ -18947,8 +18947,15 @@ mod native_app {
                             if state.gui_state.settings_dirty {
                                 state.gui_state.settings_dirty = false;
 
-                                // FOV
-                                state.camera.fov_degrees = state.gui_state.settings.fov;
+                                // FOV. Clamped to a sane range so a degenerate
+                                // value in the config (e.g. a `"fov": 0.0` written
+                                // by an old build or a corrupt settings file) can
+                                // never collapse the perspective projection to a
+                                // point and black out the entire 3D scene with no
+                                // in-app way to recover. 60..120 deg matches the
+                                // Settings slider bounds.
+                                state.camera.fov_degrees =
+                                    state.gui_state.settings.fov.clamp(60.0, 120.0);
 
                                 // Mouse sensitivity
                                 state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
