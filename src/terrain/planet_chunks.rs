@@ -160,23 +160,68 @@ pub const SKIRT_MAX_M: f64 = 80_000.0;
 /// exactly as today: it is correct and cheap at distance.
 pub const CHUNK_ACTIVATION_LADDER_LEVEL: u32 = 8;
 
-// ── Detail noise (design constraint 7) ──
+// ── Detail noise (design constraint 7; close-range extension v0.818) ──
 // Earth's heightmap cells are 0.1 deg (~11.1 km at the equator); below that
 // the bilinear sampler is geometrically flat, so sub-11 km triangles would
-// buy nothing. Three octaves of seeded Perlin add believable relief below
-// the data floor: wavelengths ~8/4/2 km (frequencies 800/1600/3200 on the
-// unit sphere: 6,371 km / 800 = 8 km), amplitudes tapering 17/8.5/4.5 m
-// (max total ~30 m of REAL elevation; it then receives the same
-// surface_relief vertical exaggeration as the data itself, so it reads in
-// proportion). The noise is masked to LAND (fading in over the first 50 m
-// above sea level) so oceans and coastlines stay exactly where the data
-// puts them. Seeded from terrain_seed ONLY and sampled by position: two
-// patches sharing a border direction get bit-identical values, which
-// per-patch seeding would break (same reason the brief's "seeded from
-// terrain_seed + patch coords" is realized as seed-from-terrain_seed +
-// deterministic patch-coordinate SAMPLING, not per-patch seeds).
+// buy nothing. Seeded Perlin octaves add believable relief below the data
+// floor. The noise is masked to LAND (fading in over the first 50 m above
+// sea level) so oceans and coastlines stay exactly where the data puts them
+// (ocean waves are a shader concern, not geometry). Seeded from terrain_seed
+// ONLY and sampled by position: two patches sharing a border direction get
+// bit-identical values, which per-patch seeding would break (so the brief's
+// "seeded from terrain_seed + patch coords" is realized as seed-from-
+// terrain_seed + deterministic patch-coordinate SAMPLING, not per-patch
+// seeds). Amplitudes are REAL meters, then receive the same surface_relief
+// vertical exaggeration as the data itself (Earth ~4x), so they read in
+// proportion.
+//
+// The ladder has two tiers:
+//
+// BASE (always applied, at every patch depth): wavelengths ~8/4/2 km
+// (frequencies 800/1600/3200 on the unit sphere: 6,371 km / 800 = 8 km),
+// amplitudes tapering 17/8.5/4.5 m. These fill the gap just below the ~11 km
+// data floor and are what a whole-continent or regional view shows.
+//
+// FINE (depth-GATED, v0.818): four more octaves continuing the geometric
+// ladder down to ~125 m wavelength, so at 300 m - 2 km altitude ridgelines,
+// hills and coastlines carry real sub-km form instead of smoothly
+// interpolated blur. wavelength_m ~= radius_m / freq:
+//   freq  6400 -> ~1.0 km   gate depth 10   (triangle edge ~430 m)
+//   freq 12800 -> ~500 m    gate depth 11   (triangle edge ~215 m)
+//   freq 25600 -> ~250 m    gate depth 12   (triangle edge ~108 m)
+//   freq 51200 -> ~125 m    gate depth 13   (triangle edge  ~54 m = the cap)
+// Going finer than ~125 m would alias on the finest (depth-13, ~54 m) mesh
+// triangles, so the ladder stops there (finer than the mesh can express is
+// wasted). Amplitudes continue the ~half-per-octave taper (4.5 -> 2.3 -> 1.1
+// -> 0.6 -> 0.3 m), so the fine tier adds at most ~4.3 m of REAL elevation
+// (~17 m after Earth's exaggeration) layered on top of the ~30 m base tier.
+//
+// WHY the depth gate: a high-frequency octave sampled by triangles too coarse
+// to resolve it (fewer than ~2 samples per wavelength) turns into aliasing
+// noise, not detail. Each fine octave therefore only contributes once the
+// patch has refined to a depth whose triangle edge is <= half its wavelength
+// (Nyquist). The gate is a pure function of patch depth and, because BOTH
+// wavelength (radius/freq) and triangle edge (radius*angle/2^depth/16) scale
+// with planet radius, the gate DEPTH is radius-independent: every fine octave
+// activates at exactly ~2.31 samples/wavelength (see the depth_gate test).
+// Two load-bearing consequences:
+//   1. Far / coarse patches (depth < 10) get ZERO fine contribution, so their
+//      geometry is byte-identical to the base-only ladder shipped before this
+//      change -- the whole-Earth and mid-approach views are a regression gate.
+//   2. As the camera descends, each finer octave is a strict ADD on top of the
+//      coarser ones (which are already present), so the large forms stay put
+//      and only smaller wrinkles appear -- detail grows in, it does not swim.
 pub const DETAIL_FREQS: [f64; 3] = [800.0, 1600.0, 3200.0];
 pub const DETAIL_AMPS_M: [f32; 3] = [17.0, 8.5, 4.5];
+/// Fine (depth-gated) octave frequencies: continue the base ladder halving.
+pub const DETAIL_FINE_FREQS: [f64; 4] = [6400.0, 12800.0, 25600.0, 51200.0];
+/// Fine octave amplitudes in REAL meters (before vertical exaggeration),
+/// continuing the base tier's ~half-per-octave taper.
+pub const DETAIL_FINE_AMPS_M: [f32; 4] = [2.3, 1.1, 0.6, 0.3];
+/// Minimum patch depth at which each fine octave switches on: the first depth
+/// whose triangle edge is <= half the octave's wavelength (Nyquist). Derived
+/// once and radius-independent (see the module comment + the depth_gate test).
+pub const DETAIL_FINE_MIN_DEPTH: [u8; 4] = [10, 11, 12, 13];
 /// Land-mask fade band: detail reaches full strength this many meters
 /// above sea level (0 at the waterline, so shorelines are unmodified).
 pub const DETAIL_LAND_FADE_M: f32 = 50.0;
@@ -185,30 +230,48 @@ pub const DETAIL_LAND_FADE_M: f32 = 50.0;
 /// forever (determinism tests + multiplayer re-derivation rely on it).
 pub struct DetailNoise {
     oct: [Perlin; 3],
+    fine: [Perlin; 4],
 }
 
 impl DetailNoise {
     pub fn new(terrain_seed: u64) -> Self {
         let s = terrain_seed as u32;
-        // Offsets 101/102/103 keep these octaves decorrelated from the
+        // Offsets 101..107 keep these octaves decorrelated from the
         // SurfaceSampler's continental/mountain/detail Perlins (offsets
-        // 0/1/2 from the same seed).
+        // 0/1/2 from the same seed) and from each other.
         Self {
             oct: [
                 Perlin::new(s.wrapping_add(101)),
                 Perlin::new(s.wrapping_add(102)),
                 Perlin::new(s.wrapping_add(103)),
             ],
+            fine: [
+                Perlin::new(s.wrapping_add(104)),
+                Perlin::new(s.wrapping_add(105)),
+                Perlin::new(s.wrapping_add(106)),
+                Perlin::new(s.wrapping_add(107)),
+            ],
         }
     }
 
-    /// Raw (unmasked) detail elevation in meters at a unit-sphere direction.
-    /// Sampled in 3D like SurfaceSampler so there is no polar pinching.
-    pub fn sample_m(&self, dir: DVec3) -> f32 {
+    /// Raw (unmasked) detail elevation in meters at a unit-sphere direction,
+    /// for a patch at the given tree `depth`. The BASE octaves always apply;
+    /// each FINE octave is added only once `depth` reaches its Nyquist gate
+    /// (DETAIL_FINE_MIN_DEPTH), so coarse patches stay byte-identical to the
+    /// base-only ladder and no octave is ever sampled by triangles too coarse
+    /// to resolve it. Sampled in 3D like SurfaceSampler so there is no polar
+    /// pinching.
+    pub fn sample_m(&self, dir: DVec3, depth: u8) -> f32 {
         let mut sum = 0.0_f64;
         for (i, p) in self.oct.iter().enumerate() {
             let f = DETAIL_FREQS[i];
             sum += DETAIL_AMPS_M[i] as f64 * p.get([dir.x * f, dir.y * f, dir.z * f]);
+        }
+        for (i, p) in self.fine.iter().enumerate() {
+            if depth >= DETAIL_FINE_MIN_DEPTH[i] {
+                let f = DETAIL_FINE_FREQS[i];
+                sum += DETAIL_FINE_AMPS_M[i] as f64 * p.get([dir.x * f, dir.y * f, dir.z * f]);
+            }
         }
         sum as f32
     }
@@ -906,7 +969,7 @@ pub fn build_patch_mesh(
                     let above_sea_m = (base - sea) * range_m;
                     let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
                     let e = if mask > 0.0 {
-                        base + (detail.sample_m(dir) * mask) / range_m
+                        base + (detail.sample_m(dir, id.depth) * mask) / range_m
                     } else {
                         base
                     };
@@ -1672,7 +1735,7 @@ mod tests {
                     let above = (base - sea) * range_m;
                     let mask = smoothstep01(above / DETAIL_LAND_FADE_M);
                     let e = if mask > 0.0 {
-                        (base + detail.sample_m(dir) * mask / range_m).clamp(0.0, 1.0)
+                        (base + detail.sample_m(dir, id.depth) * mask / range_m).clamp(0.0, 1.0)
                     } else {
                         base.clamp(0.0, 1.0)
                     };
@@ -1776,19 +1839,202 @@ mod tests {
             );
         }
         // Sanity: the raw noise is not identically zero, and is
-        // deterministic per direction.
+        // deterministic per direction (at any depth).
         let d = DVec3::new(0.3, 0.9, 0.1).normalize();
-        assert_eq!(detail.sample_m(d), detail.sample_m(d));
+        assert_eq!(detail.sample_m(d, MAX_PATCH_DEPTH), detail.sample_m(d, MAX_PATCH_DEPTH));
         let mut any = false;
         for i in 0..32 {
             let t = i as f64 * 0.2;
             let dir = DVec3::new(t.cos(), 0.5, t.sin()).normalize();
-            if detail.sample_m(dir).abs() > 0.5 {
+            if detail.sample_m(dir, MAX_PATCH_DEPTH).abs() > 0.5 {
                 any = true;
                 break;
             }
         }
         assert!(any, "detail noise never produced signal");
+    }
+
+    #[test]
+    fn fine_detail_depth_gate_holds() {
+        // The close-range extension (v0.818): fine octaves must contribute
+        // NOTHING below their Nyquist gate depth (so coarse/far patches stay
+        // byte-identical to the base-only ladder) and switch on exactly at it.
+        let detail = DetailNoise::new(42);
+        // A spread of LAND-ish probe directions (the mask is applied
+        // elsewhere; here we exercise the raw sampler).
+        let probes: Vec<DVec3> = (0..24)
+            .map(|i| {
+                let t = i as f64 * 0.31;
+                DVec3::new(t.cos(), 0.35 + 0.02 * i as f64, t.sin()).normalize()
+            })
+            .collect();
+
+        // (1) REGRESSION GATE: every depth strictly below the first fine gate
+        // returns the identical base-only value. sample_m(dir, 0) is base-only
+        // by construction (0 < every gate), so this proves depths 0..9 are all
+        // byte-identical to it -- i.e. unchanged from before this change.
+        for d in &probes {
+            let base = detail.sample_m(*d, 0);
+            for depth in 0..DETAIL_FINE_MIN_DEPTH[0] {
+                assert_eq!(
+                    detail.sample_m(*d, depth),
+                    base,
+                    "fine octave leaked into a coarse patch (depth {depth})"
+                );
+            }
+        }
+
+        // (2) Each fine octave switches on exactly at its gate depth: the
+        // value at the gate differs from the value one depth shallower for at
+        // least one probe (a single Perlin sample can be ~0 by coincidence, so
+        // require it across the probe set, not per-direction).
+        for (i, &gate) in DETAIL_FINE_MIN_DEPTH.iter().enumerate() {
+            let below = gate - 1;
+            let changed = probes
+                .iter()
+                .any(|d| detail.sample_m(*d, gate) != detail.sample_m(*d, below));
+            assert!(
+                changed,
+                "fine octave {i} (gate depth {gate}) produced no change when it engaged"
+            );
+        }
+
+        // (3) The gate is a Nyquist threshold and, because both wavelength
+        // (radius/freq) and triangle edge (radius*angle/2^depth/16) scale with
+        // radius, it is RADIUS-INDEPENDENT: recompute samples-per-wavelength
+        // at each declared gate and confirm it first crosses 2.0 exactly there.
+        for (i, &freq) in DETAIL_FINE_FREQS.iter().enumerate() {
+            let gate = DETAIL_FINE_MIN_DEPTH[i];
+            let spw = |depth: u8| {
+                // wavelength / triangle_edge, radius cancels:
+                //   (radius/freq) / (radius*angle/2^depth/16)
+                (2u64.pow(depth as u32) as f64 * PATCH_TESS as f64)
+                    / (freq * ROOT_EDGE_ANGLE_RAD)
+            };
+            assert!(spw(gate) >= 2.0, "gate {gate} for freq {freq} is below Nyquist");
+            assert!(
+                spw(gate - 1) < 2.0,
+                "freq {freq} could have gated one depth shallower ({})",
+                gate - 1
+            );
+        }
+    }
+
+    #[test]
+    fn fine_detail_deep_ocean_stays_smooth() {
+        // The land mask gates the fine octaves too: an all-ocean patch built
+        // at the MAX depth (where every fine octave is active) must still be a
+        // smooth sphere -- ocean geometry stays flat at any LOD.
+        let mut def = earth_like();
+        def.sea_level = 0.5;
+        let ocean = synth_heightmap(8, 4, -1000.0, 1000.0, |_, _| -500.0);
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail };
+        let mut id = PatchId::root(0);
+        for _ in 0..MAX_PATCH_DEPTH {
+            id = id.child(3);
+        }
+        assert_eq!(id.depth, MAX_PATCH_DEPTH);
+        let pm = build_patch_mesh(&def, &src, None, &id);
+        let n = PATCH_TESS;
+        for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
+            let r = (pm.anchor + glam::Vec3::from_array(v.position).as_dvec3()).length();
+            assert!(
+                (r - def.radius).abs() < 0.5,
+                "deep ocean vertex off the sphere: {r}"
+            );
+        }
+    }
+
+    #[test]
+    fn fine_detail_deep_neighbor_borders_agree_submeter() {
+        // Border agreement must hold once the fine octaves are live: build two
+        // sibling patches at depth 10 (fine octave 0 active) and confirm their
+        // shared edge lines up. Both siblings share the same depth, so they
+        // hit the same gate and sample the SAME position-seeded field -- the
+        // seams stay crack-free exactly as at coarse depths.
+        let def = earth_like();
+        let hm = bumpy_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        // Walk to a depth-9 parent so its children are depth 10.
+        let mut parent = PatchId::root(11);
+        for _ in 0..9 {
+            parent = parent.child(3);
+        }
+        assert_eq!(parent.depth, 9);
+        assert_eq!(parent.child(0).depth, DETAIL_FINE_MIN_DEPTH[0], "gate must be live");
+        let a = build_patch_mesh(&def, &src, None, &parent.child(0));
+        let b = build_patch_mesh(&def, &src, None, &parent.child(3));
+        assert_eq!(a.mesh.vertices.len(), 1056);
+        let world = |pm: &PatchMesh| -> Vec<DVec3> {
+            pm.mesh.vertices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
+                .iter()
+                .map(|v| pm.anchor + glam::Vec3::from_array(v.position).as_dvec3())
+                .collect()
+        };
+        let wa = world(&a);
+        let wb = world(&b);
+        let mut matched = 0;
+        for pa in &wa {
+            let nearest = wb.iter().map(|pb| (*pa - *pb).length()).fold(f64::MAX, f64::min);
+            if nearest < 0.01 {
+                matched += 1;
+            }
+        }
+        assert!(
+            matched >= (PATCH_TESS + 1) as usize,
+            "deep shared border did not line up: only {matched} matches"
+        );
+    }
+
+    #[test]
+    fn fine_detail_adds_real_relief_at_depth_cap() {
+        // Sanity that the extension actually does something: over LAND, the
+        // depth-cap field (all fine octaves live) must carry MORE radial
+        // variation than the base-only field (depth 0). The fine octaves
+        // depend only on (direction, depth), so probe land directions across
+        // the whole sphere -- no need to land a single patch region on land.
+        let def = earth_like();
+        let hm = bumpy_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let range_m = hm.max_meters() - hm.min_meters();
+        let sea = def.sea_level;
+        // Fibonacci-sphere sampling of directions (even coverage).
+        let ga = std::f64::consts::PI * (3.0 - 5.0_f64.sqrt());
+        let count = 4000;
+        let mut land_pts = 0;
+        // Largest LOCAL displacement (in real radius-meters) the fine octaves
+        // add to a land point at the depth cap vs. the base-only field. This
+        // is the actual close-range relief the extension buys.
+        let mut max_fine_real_m = 0.0_f64;
+        for i in 0..count {
+            let y = 1.0 - (i as f64 / (count - 1) as f64) * 2.0;
+            let r = (1.0 - y * y).max(0.0).sqrt();
+            let theta = ga * i as f64;
+            let dir = DVec3::new(theta.cos() * r, y, theta.sin() * r).normalize();
+            let base = hm.normalized_at(dir.as_vec3());
+            let above = (base - sea) * range_m;
+            let mask = smoothstep01(above / DETAIL_LAND_FADE_M);
+            if mask <= 0.0 {
+                continue;
+            }
+            land_pts += 1;
+            let full =
+                (base + detail.sample_m(dir, MAX_PATCH_DEPTH) * mask / range_m).clamp(0.0, 1.0);
+            let only_base = (base + detail.sample_m(dir, 0) * mask / range_m).clamp(0.0, 1.0);
+            let rf = def.radius * displaced_radius_f64(&def, full as f64);
+            let rb = def.radius * displaced_radius_f64(&def, only_base as f64);
+            max_fine_real_m = max_fine_real_m.max((rf - rb).abs());
+        }
+        assert!(land_pts > 100, "too few land probes: {land_pts}");
+        // The fine tier sums to ~4.3 m pre-exaggeration; after Earth's ~4x
+        // it reaches ~10 m+ where octaves align. Require at least a couple of
+        // meters of real, resolvable close-range relief.
+        assert!(
+            max_fine_real_m > 2.0,
+            "fine octaves added negligible relief at the cap: {max_fine_real_m} m"
+        );
     }
 
     #[test]
