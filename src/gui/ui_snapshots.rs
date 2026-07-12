@@ -632,10 +632,13 @@ fn account_link_device_qr_is_discoverable_and_builds() {
     run(&ctx, &mut state, &theme);
     let cached = state.link_device_qr.as_ref()
         .expect("toggling Show device-link QR must build the QR texture from the seed");
-    // It must be keyed by the EXACT device-link JSON the web importer accepts,
-    // so a scan actually imports.
-    let expect = crate::net::identity::device_link_payload_json(&[7u8; 32], "Tester").unwrap();
-    assert_eq!(cached.0, expect, "QR payload must match the web-importer device-link JSON");
+    // It must be keyed by the device-link URL (fragment form) -- NOT raw JSON --
+    // so a system-camera scan navigates to the chat page instead of searching the
+    // seed (the 2026-07-12 leak). The chat page decodes the fragment + imports.
+    let expect = crate::net::identity::device_link_url(&[7u8; 32], "Tester").unwrap();
+    assert_eq!(cached.0, expect, "QR must encode the device-link fragment URL");
+    assert!(cached.0.starts_with("https://") && cached.0.contains("#devicelink="),
+        "device-link QR must be an https URL carrying the payload in the fragment");
 }
 
 /// egui clear colors are sRGB bytes; the Rgba8Unorm target wants linear floats.

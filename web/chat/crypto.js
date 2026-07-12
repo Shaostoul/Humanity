@@ -296,6 +296,13 @@ async function openLinkDeviceModal() {
     return;
   }
   const json = JSON.stringify(data, null, 2);
+  // The QR encodes a fragment URL, NOT raw JSON: a phone's system camera then
+  // NAVIGATES to the chat page (which reads the fragment + imports) instead of
+  // handing the raw text to a browser that runs it as a web search -- which
+  // leaked a user's seed to a search engine on 2026-07-12. The fragment is never
+  // sent to any server. base64url so it survives in a URL.
+  const b64 = btoa(JSON.stringify(data)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const linkUrl = location.origin + '/chat/index.html#devicelink=' + b64;
   const overlay = document.createElement('div');
   overlay.id = 'link-device-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
@@ -321,11 +328,11 @@ async function openLinkDeviceModal() {
   // Render QR code using the shared qrcode.js helper from chat-p2p.js.
   // Falls back to text if qrcode.js isn't available (e.g. pages other than /chat).
   if (typeof renderQrCode === 'function') {
-    renderQrCode('link-device-qr', json);
+    renderQrCode('link-device-qr', linkUrl);
   } else if (typeof qrcode !== 'undefined') {
     try {
       const qr = qrcode(0, 'L');
-      qr.addData(json);
+      qr.addData(linkUrl);
       qr.make();
       const canvas = document.getElementById('link-device-qr');
       const size = Math.min(canvas.parentElement.offsetWidth - 50, 220);

@@ -985,10 +985,27 @@ async function scanQrWithCamera(onResult) {
   requestAnimationFrame(tick);
 }
 
-/** Import an identity from a scanned/pasted "Link New Device" JSON string. */
+/**
+ * Decode a device-link payload from EITHER the fragment-URL form
+ * (https://.../chat/index.html#devicelink=<base64url(json)>, the current QR
+ * format -- a URL so a system camera navigates instead of searching the seed)
+ * OR raw JSON (pasted code / older QRs). Returns the parsed backup object.
+ */
+function decodeDeviceLinkPayload(str) {
+  str = (str || '').trim();
+  const m = str.match(/[#&]devicelink=([A-Za-z0-9\-_]+)/);
+  if (m) {
+    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    return JSON.parse(atob(b64));
+  }
+  return JSON.parse(str);
+}
+
+/** Import an identity from a scanned/pasted device-link string (URL or JSON). */
 async function importIdentityFromLinkString(str) {
   let parsed;
-  try { parsed = JSON.parse(str.trim()); }
+  try { parsed = decodeDeviceLinkPayload(str); }
   catch (e) { alert('That doesn\'t look like a valid identity code.'); return; }
   try {
     const result = await importIdentityBackup(parsed);

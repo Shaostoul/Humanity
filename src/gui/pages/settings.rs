@@ -423,8 +423,11 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 state.link_device_qr_show
             };
             if qr_reveal {
+                // Encode a fragment URL (not raw JSON): a system camera then
+                // NAVIGATES to the chat page instead of searching the seed. See
+                // net::identity::device_link_url.
                 let payload = state.private_key_bytes.as_ref()
-                    .and_then(|s| crate::net::identity::device_link_payload_json(s, &state.user_name));
+                    .and_then(|s| crate::net::identity::device_link_url(s, &state.user_name));
                 match payload {
                     Some(payload) => {
                         let stale = match &state.link_device_qr {

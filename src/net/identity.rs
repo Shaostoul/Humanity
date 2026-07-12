@@ -163,6 +163,27 @@ pub fn device_link_payload_json(seed: &[u8], name: &str) -> Option<String> {
     ))
 }
 
+/// The device-link QR must encode a proper https URL with the payload in the
+/// URL FRAGMENT (after `#`), NOT raw JSON. Root cause of a 2026-07-12 seed leak:
+/// a QR containing raw `{"name":...}` text, when scanned by a phone's SYSTEM
+/// camera, was handed to a browser which ran it as a WEB SEARCH -- sending the
+/// seed to the search engine's servers. A well-formed https URL instead makes the
+/// camera NAVIGATE to the chat page, and the fragment is never sent to any server
+/// (browsers do not transmit `#...`), so the chat page reads it locally, imports,
+/// and clears it. The seed still rides the QR image, but no third party ever
+/// receives it. `<base>` lets self-hosters point at their own origin.
+pub fn device_link_url(seed: &[u8], name: &str) -> Option<String> {
+    device_link_url_for(seed, name, "https://united-humanity.us")
+}
+
+pub fn device_link_url_for(seed: &[u8], name: &str, base: &str) -> Option<String> {
+    let json = device_link_payload_json(seed, name)?;
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json.as_bytes());
+    let base = base.trim_end_matches('/');
+    Some(format!("{base}/chat/index.html#devicelink={b64}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

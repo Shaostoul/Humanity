@@ -66,6 +66,10 @@
         history.replaceState(null, '', location.pathname);
         return;
       }
+      // Opened from a scanned device-link QR (fragment URL): stay here so the
+      // chat app can import that identity, even on a fresh device with no key
+      // yet. Do NOT bounce to the welcome page (it would drop the fragment).
+      if (location.hash.indexOf('devicelink=') !== -1) return;
       try {
         var hasBackup  = !!localStorage.getItem('humanity_key_backup');
         var hasLegacy  = !!localStorage.getItem('humanity_key');

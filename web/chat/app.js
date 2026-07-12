@@ -5,6 +5,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Device-link import: the page was opened from a scanned device-link QR whose
+// URL carries the identity in the FRAGMENT (never sent to a server -- this is the
+// fix for the 2026-07-12 leak where a raw-JSON QR was searched by a browser).
+// Import that identity onto THIS device after an explicit confirm, and wipe the
+// fragment from the URL + history immediately so the seed doesn't linger.
+document.addEventListener('DOMContentLoaded', async () => {
+  if (location.hash.indexOf('devicelink=') === -1) return;
+  const raw = location.hash;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (!confirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.')) {
+    return;
+  }
+  try {
+    const parsed = (typeof decodeDeviceLinkPayload === 'function')
+      ? decodeDeviceLinkPayload(raw)
+      : JSON.parse(raw);
+    const result = await importIdentityBackup(parsed);
+    alert('✓ This device is now ' + (result && result.name ? result.name : 'your identity') + '. Reloading…');
+    setTimeout(() => location.reload(), 1000);
+  } catch (e) {
+    alert('Could not import identity from the scanned code: ' + e.message);
+  }
+});
+
 // Open Edit Profile modal when the Account nav button is clicked while already
 // on /chat (hash navigation doesn't trigger a page reload, so we need this).
 window.addEventListener('hashchange', () => {
