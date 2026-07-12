@@ -251,6 +251,38 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
         });
 }
 
+/// Build a scannable QR texture for a device-link payload. Black/white are
+/// intentional (a QR must be high-contrast to scan regardless of app theme, so
+/// these are not theme tokens). Matrix from the `qrcode` crate, painted into an
+/// egui texture with a 4-module quiet zone. Returns None if encoding fails
+/// (payload too large for any QR version, which the ~250-char backup never is).
+fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::TextureHandle> {
+    let code = qrcode::QrCode::new(payload.as_bytes()).ok()?;
+    let width = code.width();
+    let colors = code.to_colors();
+    let quiet = 4usize; // standard QR quiet zone (modules)
+    let scale = 6usize; // pixels per module
+    let side = (width + quiet * 2) * scale;
+    let mut pixels = vec![egui::Color32::WHITE; side * side];
+    for my in 0..width {
+        for mx in 0..width {
+            // Color::select(dark, light) -> returns the first value when Dark.
+            if colors[my * width + mx].select(true, false) {
+                let x0 = (mx + quiet) * scale;
+                let y0 = (my + quiet) * scale;
+                for dy in 0..scale {
+                    let row = (y0 + dy) * side + x0;
+                    for dx in 0..scale {
+                        pixels[row + dx] = egui::Color32::BLACK;
+                    }
+                }
+            }
+        }
+    }
+    let image = egui::ColorImage { size: [side, side], pixels };
+    Some(ctx.load_texture("link_device_qr", image, egui::TextureOptions::NEAREST))
+}
+
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::form_row(ui, theme, "Display name", |ui| {
@@ -365,6 +397,53 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                             ui.ctx().copy_text(phrase.clone());
                         }
                     });
+
+                // ── Device-link QR (v0.837) ──
+                // A scannable form of the identity backup so a phone can adopt
+                // this account without hand-typing 24 words: chat > your identity
+                // > "Link this device to me" > "Scan a QR code". It encodes the
+                // SAME {name, publicKey, privateKey} JSON (64-char keys) the web
+                // importer accepts. Only reachable here, behind the passphrase
+                // reveal above, because it contains the seed.
+                ui.add_space(theme.spacing_sm);
+                if widgets::secondary_button(
+                    ui, theme,
+                    if state.link_device_qr_show { "Hide device-link QR" } else { "Show device-link QR (scan from a phone)" },
+                ) {
+                    state.link_device_qr_show = !state.link_device_qr_show;
+                    if !state.link_device_qr_show {
+                        state.link_device_qr = None; // release the texture when hidden
+                    }
+                }
+                if state.link_device_qr_show {
+                    let payload = state.private_key_bytes.as_ref()
+                        .and_then(|s| crate::net::identity::device_link_payload_json(s, &state.user_name));
+                    match payload {
+                        Some(payload) => {
+                            let stale = match &state.link_device_qr {
+                                Some((p, _)) => *p != payload,
+                                None => true,
+                            };
+                            if stale {
+                                state.link_device_qr = build_link_qr_texture(ui.ctx(), &payload)
+                                    .map(|tex| (payload.clone(), tex));
+                            }
+                            if let Some((_, tex)) = &state.link_device_qr {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(RichText::new("On the other device: chat > your identity > \"Link this device to me\" > \"Scan a QR code\".").color(theme.text_muted()).size(theme.font_size_small));
+                                ui.add_space(theme.spacing_xs);
+                                ui.image(egui::load::SizedTexture::from_handle(tex));
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(RichText::new("Anyone who scans this becomes you. Only show it to your own devices, in private.").color(theme.warning()).size(theme.font_size_small));
+                            } else {
+                                ui.label(RichText::new("(Could not build the QR code.)").color(theme.text_muted()).size(theme.font_size_small));
+                            }
+                        }
+                        None => {
+                            ui.label(RichText::new("(Cannot build QR: key is not a 32-byte BIP39 seed.)").color(theme.text_muted()).size(theme.font_size_small));
+                        }
+                    }
+                }
             }
         }
 

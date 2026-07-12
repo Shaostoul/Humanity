@@ -2114,6 +2114,15 @@ pub struct GuiState {
     /// shows "Return home" enabled and the HUD notes you are away).
     pub dev_travel_away: bool,
     pub show_hud: bool,
+    /// "Link a device" QR (Settings > Account, v0.837): when true, the account
+    /// panel renders a scannable QR of this identity's backup JSON so a phone can
+    /// adopt it. Only ever shown behind the passphrase-gated seed reveal (it
+    /// encodes the seed). Transient (not persisted).
+    pub link_device_qr_show: bool,
+    /// Cached QR texture keyed by the payload it was built for, so we build it
+    /// once (not every frame) while shown and rebuild only if the identity
+    /// changes. Transient; GuiState is not serialized.
+    pub link_device_qr: Option<(String, egui::TextureHandle)>,
     pub settings: SettingsState,
     pub chat_input: String,
     /// v0.282.0: peers currently typing in the active channel. Keyed by
@@ -4076,6 +4085,8 @@ impl Default for GuiState {
             dev_fly_speed_mult: 1.0,
             dev_travel_away: false,
             show_hud: true,
+            link_device_qr_show: false,
+            link_device_qr: None,
             settings: SettingsState::default(),
             chat_input: String::new(),
             chat_typing_users: std::collections::HashMap::new(),

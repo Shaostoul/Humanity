@@ -132,6 +132,37 @@ pub fn mnemonic_from_seed(seed: &[u8]) -> Option<String> {
     bip39::Mnemonic::from_entropy(seed).ok().map(|m| m.to_string())
 }
 
+/// The Ed25519 public key hex (64 chars) for a 32-byte seed. This is the SAME
+/// `publicKey` field the web backup uses (web `myIdentity.publicKeyHex`), not
+/// the long Dilithium identity key. Used to build a device-link payload the web
+/// importer accepts (it validates `publicKey.length === 64`).
+pub fn ed25519_pubkey_hex_from_seed(seed: &[u8]) -> Option<String> {
+    if seed.len() != 32 {
+        return None;
+    }
+    let mut arr = [0u8; 32];
+    arr.copy_from_slice(seed);
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&arr);
+    Some(hex::encode(signing_key.verifying_key().as_bytes()))
+}
+
+/// Build the exact JSON backup payload the web client's `importIdentityBackup`
+/// consumes (crypto.js `importIdentityFromJSON`): `{name, publicKey, privateKey}`
+/// where both keys are 64-char hex (Ed25519 pubkey + 32-byte seed). Encoding
+/// THIS as a QR lets a phone scan a native identity and become the same account.
+/// Returns None if the seed is not a 32-byte BIP39 seed.
+pub fn device_link_payload_json(seed: &[u8], name: &str) -> Option<String> {
+    let pubkey = ed25519_pubkey_hex_from_seed(seed)?;
+    let display = if name.trim().is_empty() { "user" } else { name.trim() };
+    // Match the web export field-for-field so the importer's validation passes.
+    Some(format!(
+        "{{\"name\":{},\"publicKey\":\"{}\",\"privateKey\":\"{}\",\"note\":\"Keep this safe. Anyone with it can impersonate you.\"}}",
+        serde_json::to_string(display).ok()?,
+        pubkey,
+        hex::encode(seed)
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,6 +185,37 @@ mod tests {
         assert_eq!(a.kyber_public_b64, b.kyber_public_b64);
         // Two generated seeds must differ (distinct identities).
         assert_ne!(generate_new_seed(), generate_new_seed());
+    }
+
+    #[test]
+    fn device_link_payload_matches_web_importer_contract() {
+        // The native "Link a device" QR must produce EXACTLY the JSON the web
+        // client's importIdentityFromJSON accepts: name + 64-char publicKey +
+        // 64-char privateKey, where publicKey is the Ed25519 pubkey (NOT the
+        // long Dilithium key) and privateKey is the 32-byte seed hex. If this
+        // drifts, a scanned native identity silently fails to import on web.
+        let seed = [9u8; 32];
+        let json = device_link_payload_json(&seed, "Alice").expect("payload");
+        let v: serde_json::Value = serde_json::from_str(&json).expect("valid json");
+        assert_eq!(v["name"], "Alice");
+        let pubkey = v["publicKey"].as_str().unwrap();
+        let privkey = v["privateKey"].as_str().unwrap();
+        assert_eq!(pubkey.len(), 64, "web importer requires publicKey.length === 64");
+        assert_eq!(privkey.len(), 64, "web importer requires privateKey.length === 64");
+        // privateKey is the seed; publicKey is the Ed25519 pubkey for that seed,
+        // identical to the recovery path derive_keypair_from_mnemonic uses.
+        assert_eq!(privkey, hex::encode(seed));
+        let phrase = mnemonic_from_seed(&seed).unwrap();
+        let (derived_pub, _) = derive_keypair_from_mnemonic(&phrase).unwrap();
+        assert_eq!(pubkey, derived_pub, "QR pubkey must match the recovery-derived pubkey");
+        assert_eq!(pubkey, ed25519_pubkey_hex_from_seed(&seed).unwrap());
+        // Empty name falls back to "user" like the web export (importer rejects
+        // an empty name).
+        let j2 = device_link_payload_json(&seed, "   ").unwrap();
+        let v2: serde_json::Value = serde_json::from_str(&j2).unwrap();
+        assert_eq!(v2["name"], "user");
+        // A non-32-byte seed yields no payload rather than a bad QR.
+        assert!(device_link_payload_json(&[0u8; 16], "x").is_none());
     }
 
     #[test]

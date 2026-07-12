@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.836.2"
+version = "0.837.1"
 edition = "2021"
 
 [[bin]]
@@ -15,7 +15,7 @@ test = false
 
 [features]
 default = ["native"]
-native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless"]
+native = ["winit", "relay", "dep:notify", "dep:pollster", "dep:env_logger", "dep:tokio", "dep:egui", "dep:egui-wgpu", "dep:egui-winit", "dep:tungstenite", "dep:kira", "dep:ureq", "dep:bip39", "dep:qrcode", "dep:ed25519-dalek", "dep:hex", "dep:aes-gcm", "dep:pbkdf2", "dep:argon2", "dep:sha2", "dep:base64", "dep:bs58", "dep:p256", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:arboard", "dep:keyring", "dep:str0m", "dep:hmac", "dep:sha1", "dep:md-5", "dep:memory-stats", "dep:cpal", "dep:rtrb", "dep:unsafe-libopus", "dep:nnnoiseless"]
 relay = ["dep:axum", "dep:tower-http", "dep:rusqlite", "dep:r2d2", "dep:r2d2_sqlite", "dep:tracing", "dep:tracing-subscriber", "dep:reqwest", "dep:tokio", "dep:ed25519-dalek", "dep:hex", "dep:sha2", "dep:hmac", "dep:web-push-native", "dep:base64", "dep:base64ct", "dep:bs58", "dep:tokio-stream", "dep:futures", "dep:regex", "dep:url", "dep:uuid", "dep:tokio-tungstenite", "dep:ciborium", "dep:blake3", "dep:rand_core_06", "dep:ml-dsa", "dep:ml-kem", "dep:argon2"]
 mesh = ["relay", "dep:serialport"]
 wasm = [
@@ -79,6 +79,11 @@ arboard = { version = "3", optional = true, default-features = false, features =
 # only — relay/wasm builds don't carry an interactive identity.
 keyring = { version = "3", optional = true, default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
 bip39 = { version = "2", optional = true }
+# QR generation for the native "Link a device" identity display (v0.837): encodes
+# the same 64-char-key backup JSON the web importer accepts, so a phone camera can
+# scan a native identity. Matrix-only (no image/svg renderers) to stay lean;
+# native feature only. We paint the modules into an egui texture ourselves.
+qrcode = { version = "0.14", optional = true, default-features = false }
 ed25519-dalek = { version = "2", optional = true, features = ["rand_core"] }
 hex = { version = "0.4", optional = true }
 aes-gcm = { version = "0.10", optional = true }
