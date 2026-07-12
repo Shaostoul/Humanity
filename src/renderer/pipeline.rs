@@ -136,8 +136,16 @@ impl Pipeline {
             });
 
         // Group 3: albedo texture + sampler (v0.811, per-pixel planet
-        // imagery). Plain filterable 2D texture + filtering sampler -- both
-        // base WebGPU capabilities under default limits.
+        // imagery) PLUS the two shared tiling 3D cloud-noise volumes + their
+        // repeat sampler (clouds increment 3). All entries are base WebGPU
+        // capabilities under default limits (filterable 2D/3D textures,
+        // filtering samplers; well under the 16-per-stage texture/sampler
+        // caps), and the total bind-group count stays at 4 -- exactly wgpu's
+        // baseline max_bind_groups, so no device-limit risk (v0.782 lesson).
+        // The cloud volumes ride in the SAME group as the albedo because a
+        // fifth group is not available and the volumes are engine-global
+        // (every bind group built from this layout shares the same two
+        // texture views, wired in renderer::mod).
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Albedo Texture Bind Group Layout"),
@@ -154,6 +162,38 @@ impl Pipeline {
                     },
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    // Cloud SHAPE volume: 128^3 RGBA8 tiling Perlin-Worley +
+                    // Worley octaves (renderer::cloud_noise::generate_shape).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D3,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    // Cloud DETAIL volume: 64^3 RGBA8 tiling Worley octaves
+                    // (renderer::cloud_noise::generate_detail).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D3,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    // Repeat-all-axes sampler for the tiling volumes (the
+                    // albedo sampler clamps V/W, so it cannot be reused).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
                         visibility: wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,

@@ -6,6 +6,7 @@
 pub mod atmosphere;
 pub mod bloom;
 pub mod camera;
+pub mod cloud_noise;
 pub mod clouds;
 pub mod floating_origin;
 pub mod hologram;
@@ -125,6 +126,17 @@ pub struct Renderer {
     /// non-planet draws are unaffected (the shader only samples group 3 on
     /// material type 12 with the params.w flag set).
     default_texture_bind_group: wgpu::BindGroup,
+    /// Shared tiling 3D cloud-noise volumes (clouds increment 3): the SHAPE
+    /// (128^3 Perlin-Worley + Worley octaves) and DETAIL (64^3 Worley
+    /// octaves) textures every group-3 bind group references at bindings
+    /// 2/3, plus the repeat-all-axes sampler at binding 4. Engine-global:
+    /// generated once at startup by renderer::cloud_noise, identical for
+    /// every material and planet (per-planet variety comes from the weather
+    /// field's seed). Kept on the struct so build_albedo_bind_group can
+    /// include them in every bind group it makes.
+    cloud_shape_view: wgpu::TextureView,
+    cloud_detail_view: wgpu::TextureView,
+    cloud_tile_sampler: wgpu::Sampler,
 }
 
 impl Renderer {
@@ -386,6 +398,72 @@ impl Renderer {
             wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
         );
         let white_view = white_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Tiling 3D cloud-noise volumes (clouds increment 3): generated
+        // procedurally at startup (multithreaded, deterministic, no repo
+        // assets) and shared by every group-3 bind group at bindings 2..4.
+        // 128^3 + 64^3 RGBA8 = 9 MiB VRAM total.
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        let gen_start = std::time::Instant::now();
+        let shape_bytes = cloud_noise::generate_shape(threads);
+        let detail_bytes = cloud_noise::generate_detail(threads);
+        log::info!(
+            "Cloud noise volumes generated: 128^3 shape + 64^3 detail in {:.0} ms ({} threads)",
+            gen_start.elapsed().as_secs_f32() * 1000.0,
+            threads
+        );
+        let make_volume = |label: &str, size: u32, bytes: &[u8]| -> wgpu::TextureView {
+            let tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: size,
+                    height: size,
+                    depth_or_array_layers: size,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D3,
+                // Linear (NOT sRGB): this is noise data, not color.
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * size),
+                    rows_per_image: Some(size),
+                },
+                wgpu::Extent3d {
+                    width: size,
+                    height: size,
+                    depth_or_array_layers: size,
+                },
+            );
+            tex.create_view(&wgpu::TextureViewDescriptor::default())
+        };
+        let cloud_shape_view =
+            make_volume("Cloud Shape Noise (128^3)", cloud_noise::SHAPE_SIZE, &shape_bytes);
+        let cloud_detail_view =
+            make_volume("Cloud Detail Noise (64^3)", cloud_noise::DETAIL_SIZE, &detail_bytes);
+        let cloud_tile_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Cloud Noise Tile Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest, // single mip
+            ..Default::default()
+        });
+
         let default_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Albedo Fallback Bind Group"),
             layout: &pipeline.texture_bind_group_layout,
@@ -397,6 +475,18 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&albedo_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&cloud_shape_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&cloud_detail_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&cloud_tile_sampler),
                 },
             ],
         });
@@ -431,6 +521,9 @@ impl Renderer {
             supports_frame_capture,
             albedo_sampler,
             default_texture_bind_group,
+            cloud_shape_view,
+            cloud_detail_view,
+            cloud_tile_sampler,
         }
     }
 
@@ -590,6 +683,20 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(&self.albedo_sampler),
+                },
+                // Shared cloud-noise volumes (clouds increment 3): every
+                // group-3 bind group carries the same engine-global views.
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&self.cloud_shape_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&self.cloud_detail_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.cloud_tile_sampler),
                 },
             ],
         })
