@@ -2533,6 +2533,32 @@ mod native_app {
             );
             return;
         };
+        // SAFETY GUARD (2026-07-12 incident): the autopilot is a THROWAWAY dev
+        // tool that fabricates a "DevBot" identity + name. It must NEVER hijack a
+        // REAL user's install. If an encrypted vault already exists (a real
+        // onboarded identity, loaded from %APPDATA%), refuse outright -- otherwise
+        // (as happened) it activates the DevBot key + overwrites `user_name`, and
+        // the next config save persists "DevBot" over the real identity, so the
+        // operator's chat posted as DevBot. Dev/agent verify runs MUST use a
+        // fresh/portable scratch folder (drop `portable.txt` beside the exe),
+        // which has no real vault, so this guard never fires there.
+        if !state.gui_state.encrypted_private_key.is_empty() {
+            log::warn!(
+                "Autopilot: REFUSING to run -- a real encrypted identity is present. \
+                 The autopilot must run in a portable/fresh scratch folder (drop \
+                 portable.txt beside the exe) so its throwaway DevBot identity never \
+                 clobbers the real user's identity + name."
+            );
+            let _ = std::fs::write(
+                DONE_PATH,
+                serde_json::json!({
+                    "ok": false,
+                    "error": "refusing to clobber the real installed identity; run portable (portable.txt beside the exe)"
+                })
+                .to_string(),
+            );
+            return;
+        }
         if crate::storage::mode() == crate::storage::StorageMode::Undecided {
             crate::storage::choose_installed();
         }
