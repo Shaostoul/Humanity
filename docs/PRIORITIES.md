@@ -228,11 +228,18 @@
 >    me -> Enter seed phrase -> type his 24-word backup -> phone becomes Shaostoul
 >    (verified, can upload). Also fixed the sync-web recipe (it hard-rsynced the
 >    deleted web/activities/ -> set -e aborted every web deploy before the data
->    rsync tail; now guarded). ** NATIVE FOLLOW-UP (queued): ** the operator's PC
->    runs the NATIVE app, which has no QR-source display, so "scan from my PC" isn't
->    possible yet (scan works phone<-another-WEB-device; seed-phrase works from
->    anywhere). Add a "Link a device" QR display to the native identity UI so the
->    native app can be the scan source too.
+>    rsync tail; now guarded). ** NATIVE FOLLOW-UP SHIPPED v0.837.1: ** the native
+>    Account settings (Settings > Account > Identity & Seed Phrase, behind the same
+>    passphrase-gated seed reveal) now show a "Show device-link QR" button that
+>    renders a scannable QR of the identity backup JSON. The operator's PC can now
+>    be the scan source: reveal seed > Show device-link QR, then on the phone chat
+>    > your identity > "Link this device to me" > "Scan a QR code". Encodes the
+>    exact {name, publicKey(64-char Ed25519), privateKey(seed)} JSON the web
+>    importer accepts (unit-test-locked in net::identity). New native-only qrcode
+>    crate (matrix-only, gated so the relay stays lean). Cross-device identity is
+>    now COMPLETE end-to-end: seed-phrase from anywhere, QR scan phone<-web-or-
+>    native, paste code, encrypted file. (Caveat: v0.837.1 release is UNSIGNED
+>    until the operator signs it, so desktop auto-update won't offer it yet.)
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
