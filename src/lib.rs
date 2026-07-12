@@ -5225,9 +5225,12 @@ mod native_app {
                                     0.0,
                                     0.9,
                                     12.0,
-                                    // params.w = 1.0: the shader's "albedo
-                                    // texture present" flag (NOT emissive --
-                                    // type 12 repurposes the slot).
+                                    // params.w = the type-12 bit field (NOT
+                                    // emissive): bit 0 = albedo texture
+                                    // present. The sky loop rewrites it
+                                    // every frame with the Surface-detail
+                                    // bit ORed in (v0.816), so 1.0 here
+                                    // only covers the first frame.
                                     1.0,
                                     &rgba,
                                     al.width(),
@@ -12784,6 +12787,21 @@ mod native_app {
                                 None
                             };
                             if let Some(mi) = textured_mat {
+                                // params.w is the type-12 BIT FIELD (v0.816):
+                                // bit 0 = texture present, bit 1 = the
+                                // Settings > Graphics > Planets "Surface
+                                // detail" toggle (ocean waves + land
+                                // micro-texture). Rewritten every frame, so
+                                // flipping the toggle applies LIVE.
+                                let surf_flags = if state
+                                    .gui_state
+                                    .settings
+                                    .planet_surface_detail
+                                {
+                                    3.0
+                                } else {
+                                    1.0
+                                };
                                 state.renderer.update_material_full(
                                     mi,
                                     [
@@ -12795,7 +12813,7 @@ mod native_app {
                                     0.0,
                                     0.9,
                                     12.0,
-                                    1.0, // params.w = texture-present flag
+                                    surf_flags,
                                 );
                             }
 

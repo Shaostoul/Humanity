@@ -315,6 +315,221 @@ fn wood_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     return mix(dark, light, ring) + vec3<f32>(grain);
 }
 
+// ── Planet surface close-range detail (v0.816): ocean waves + land texture ──
+//
+// Both effects live in the material type-12 branch and engage ONLY on the
+// textured per-pixel path (params.w bit 0) with the Surface-detail toggle on
+// (params.w bit 1, Settings > Graphics > Planets). Rust mirrors + unit
+// tests: src/renderer/water.rs -- its wgsl_water_constants_stay_in_sync test
+// parses this file, so keep every WATER_* / DETAIL_* / WAVE* / LAND* constant
+// byte-identical with the Rust module.
+//
+// ANTI-ALIASING RULE (the load-bearing design decision): every octave, wave
+// or land noise, fades out as its wavelength approaches the pixel footprint,
+// estimated ANALYTICALLY as fragment distance * PLANET_PIXEL_ANGLE (no
+// screen-space derivatives: cheap, and valid in any control flow). An octave
+// is fully on once it spans >= DETAIL_FADE_HI pixels and exactly zero below
+// DETAIL_FADE_LO pixels, so the ocean converges to the smooth v0.810 look
+// from orbit (wave presence hits a literal 0.0 -- bit-identical far field)
+// and never shimmers at any altitude in between.
+
+// Estimated view angle of one pixel (radians): ~90 deg vertical FOV over a
+// ~1400 px viewport, rounded down slightly so octaves fade EARLIER (safer
+// against shimmer) on small windows. footprint_m = distance_m * this.
+const PLANET_PIXEL_ANGLE: f32 = 0.0008;
+// Octave visibility band, in projected pixels per wavelength: zero at or
+// below LO, fully on at or above HI (both comfortably above Nyquist).
+const DETAIL_FADE_LO: f32 = 4.0;
+const DETAIL_FADE_HI: f32 = 12.0;
+// Water Fresnel reflectance at normal incidence (n = 1.33 -> ~0.02).
+const WATER_F0: f32 = 0.02;
+// Sun sparkle: Blinn-Phong exponent on the WAVE-PERTURBED normal (tight --
+// the moving glitter field) and its gain. Sun-only, same reasoning as the
+// v0.810 glint: the fixed fill light would paint a bogus second hotspot.
+const WATER_SPEC_POWER: f32 = 900.0;
+const WATER_SPEC_GAIN: f32 = 1.1;
+// Analytic reflected-sky brightness (fraction of sun intensity).
+const WATER_SKY_GAIN: f32 = 0.5;
+// Sea ice rides the water flag (below-sea faces of has_water planets) but
+// must not shade like open ocean: wave presence fades out as the graded
+// albedo brightens from ocean blue toward cap white across this band
+// (max-channel luminance).
+const WATER_ICE_LUM_LO: f32 = 0.35;
+const WATER_ICE_LUM_HI: f32 = 0.6;
+const TAU: f32 = 6.28318530718;
+
+// Wave octave table: 6 directional gravity-wave trains, wavelengths 2 km
+// down to 50 m, each with its own fixed planet-local direction, temporal
+// frequency (cycles/sec of cloud-clock time, near the deep-water dispersion
+// rate sqrt(g/(2 pi lambda))), and SLOPE amplitude (dimensionless steepness
+// A*k -- what normal perturbation actually consumes, scale-free).
+const WAVE1_LAMBDA: f32 = 2000.0;
+const WAVE1_CPS: f32 = 0.028;
+const WAVE1_SLOPE: f32 = 0.06;
+const WAVE1_DIR: vec3<f32> = vec3<f32>(0.7071068, 0.0, 0.7071068);
+const WAVE2_LAMBDA: f32 = 850.0;
+const WAVE2_CPS: f32 = 0.045;
+const WAVE2_SLOPE: f32 = 0.07;
+const WAVE2_DIR: vec3<f32> = vec3<f32>(0.9622504, 0.1924501, 0.1924501);
+const WAVE3_LAMBDA: f32 = 360.0;
+const WAVE3_CPS: f32 = 0.07;
+const WAVE3_SLOPE: f32 = 0.09;
+const WAVE3_DIR: vec3<f32> = vec3<f32>(0.2672612, 0.5345225, 0.8017837);
+const WAVE4_LAMBDA: f32 = 150.0;
+const WAVE4_CPS: f32 = 0.105;
+const WAVE4_SLOPE: f32 = 0.1;
+const WAVE4_DIR: vec3<f32> = vec3<f32>(-0.5773503, 0.5773503, 0.5773503);
+const WAVE5_LAMBDA: f32 = 80.0;
+const WAVE5_CPS: f32 = 0.145;
+const WAVE5_SLOPE: f32 = 0.11;
+const WAVE5_DIR: vec3<f32> = vec3<f32>(0.4082483, -0.8164966, 0.4082483);
+const WAVE6_LAMBDA: f32 = 50.0;
+const WAVE6_CPS: f32 = 0.18;
+const WAVE6_SLOPE: f32 = 0.12;
+const WAVE6_DIR: vec3<f32> = vec3<f32>(-0.6666667, 0.3333333, -0.6666667);
+
+// Land detail octaves: multiplicative luminance variation synthesized UNDER
+// the photo albedo (no biome recoloring), +-amp per octave.
+const LAND1_LAMBDA: f32 = 10000.0;
+const LAND1_AMP: f32 = 0.1;
+const LAND1_SEED: f32 = 3.7;
+const LAND2_LAMBDA: f32 = 1000.0;
+const LAND2_AMP: f32 = 0.08;
+const LAND2_SEED: f32 = 17.3;
+const LAND3_LAMBDA: f32 = 150.0;
+const LAND3_AMP: f32 = 0.06;
+const LAND3_SEED: f32 = 31.9;
+
+// Per-octave anti-alias fade: how many projected pixels one wavelength
+// spans, smoothstepped through the visibility band. Exactly 0 when the
+// octave would alias, exactly 1 when it is comfortably resolved.
+fn detail_octave_fade(lambda_m: f32, footprint_m: f32) -> f32 {
+    return smoothstep(DETAIL_FADE_LO, DETAIL_FADE_HI, lambda_m / footprint_m);
+}
+
+// One directional wave train's contribution to the tangent-plane slope
+// gradient at planet-local point p_m (metres), sphere normal n. The fixed
+// 3D direction d projects onto the local tangent plane, so one constant
+// serves the whole globe (the projection degenerates only where d is
+// radial -- that octave simply vanishes there, the other five cover it).
+// The phase wraps through fract() BEFORE the sin so the argument stays in
+// one period -- at planet-radius coordinates (6.4e6 m over a 50 m wave)
+// a raw phase would hit ~8e5 rad, where GPU sin precision dies.
+fn wave_octave(
+    p_m: vec3<f32>,
+    n: vec3<f32>,
+    d: vec3<f32>,
+    lambda_m: f32,
+    cps: f32,
+    slope: f32,
+    t: f32,
+    footprint_m: f32,
+) -> vec3<f32> {
+    let fade = detail_octave_fade(lambda_m, footprint_m);
+    if (fade <= 0.001) {
+        return vec3<f32>(0.0);
+    }
+    var tp = d - n * dot(d, n);
+    let l = length(tp);
+    if (l < 1e-4) {
+        return vec3<f32>(0.0);
+    }
+    tp = tp / l;
+    let cycles = dot(p_m, tp) / lambda_m + t * cps;
+    let ph = fract(cycles) * TAU;
+    return tp * (slope * fade * cos(ph));
+}
+
+// Sum of all six wave octaves: the height-field slope gradient in the
+// tangent plane. The perturbed water normal is normalize(n - this).
+fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -> vec3<f32> {
+    var g = wave_octave(p_m, n, WAVE1_DIR, WAVE1_LAMBDA, WAVE1_CPS, WAVE1_SLOPE, t, footprint_m);
+    g = g + wave_octave(p_m, n, WAVE2_DIR, WAVE2_LAMBDA, WAVE2_CPS, WAVE2_SLOPE, t, footprint_m);
+    g = g + wave_octave(p_m, n, WAVE3_DIR, WAVE3_LAMBDA, WAVE3_CPS, WAVE3_SLOPE, t, footprint_m);
+    g = g + wave_octave(p_m, n, WAVE4_DIR, WAVE4_LAMBDA, WAVE4_CPS, WAVE4_SLOPE, t, footprint_m);
+    g = g + wave_octave(p_m, n, WAVE5_DIR, WAVE5_LAMBDA, WAVE5_CPS, WAVE5_SLOPE, t, footprint_m);
+    g = g + wave_octave(p_m, n, WAVE6_DIR, WAVE6_LAMBDA, WAVE6_CPS, WAVE6_SLOPE, t, footprint_m);
+    return g;
+}
+
+// Master water-shading blend: the fade of the LONGEST wave octave. 0 from
+// orbit (old path bit-identical), 1 once 2 km swells span DETAIL_FADE_HI
+// pixels (~200 km altitude at 1440p), smooth in between.
+fn wave_presence(footprint_m: f32) -> f32 {
+    return detail_octave_fade(WAVE1_LAMBDA, footprint_m);
+}
+
+// Triplanar value noise on the sphere for the LAND detail octaves -- same
+// pow-4-weight construction as the cloud field's sphere noise but its own
+// seed offsets, so this stays independent of the cloud functions (which
+// have their own rework cadence). freq = planet radius / wavelength.
+fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
+    var w = dir * dir;
+    w = w * w;
+    let wn = w / (w.x + w.y + w.z);
+    let p = dir * freq;
+    let o = vec2<f32>(seed, seed * 0.713);
+    let nx = value_noise(p.yz + o);
+    let ny = value_noise(p.zx + o * 1.31);
+    let nz = value_noise(p.xy + o * 1.73);
+    return nx * wn.x + ny * wn.y + nz * wn.z;
+}
+
+// Multiplicative land albedo factor: 2-3 octaves of luminance variation
+// (each anti-alias faded), clamped so the imagery's own contrast always
+// dominates. Returns exactly 1.0 when every octave is faded out (orbit).
+fn land_detail_factor(dir: vec3<f32>, r_m: f32, footprint_m: f32) -> f32 {
+    var f = 0.0;
+    f = f + LAND1_AMP * detail_octave_fade(LAND1_LAMBDA, footprint_m)
+        * (2.0 * surface_detail_noise(dir, r_m / LAND1_LAMBDA, LAND1_SEED) - 1.0);
+    f = f + LAND2_AMP * detail_octave_fade(LAND2_LAMBDA, footprint_m)
+        * (2.0 * surface_detail_noise(dir, r_m / LAND2_LAMBDA, LAND2_SEED) - 1.0);
+    f = f + LAND3_AMP * detail_octave_fade(LAND3_LAMBDA, footprint_m)
+        * (2.0 * surface_detail_noise(dir, r_m / LAND3_LAMBDA, LAND3_SEED) - 1.0);
+    return clamp(1.0 + f, 0.7, 1.3);
+}
+
+// Full close-range water shading with the wave-perturbed normal:
+//   - Schlick Fresnel (F0 = WATER_F0) on the view angle against N';
+//   - reflected term: a cheap analytic sky (horizon haze -> zenith blue by
+//     the reflected ray's elevation against the LOCAL up = sphere normal,
+//     plus a wide sun-tinted glow) -- grazing water mirrors bright sky,
+//     straight-down water shows the body color, no reflection probes;
+//   - refracted/body term: the graded bathymetry albedo, Lambert-lit by the
+//     sun only, darkened at grazing by energy conservation (1 - F);
+//   - sun sparkle: tight Blinn lobe on N' (the moving glitter field) plus
+//     the v0.810 220-exponent lobe on the smooth normal as the macro
+//     anchor so the overall glint region never vanishes.
+// Everything is day-gated and SUN-ONLY; a small albedo floor mirrors the
+// pipeline's ambient so the night ocean is near-black, not absolute black.
+fn water_shade(
+    albedo: vec3<f32>,
+    n_geo: vec3<f32>,
+    n_pert: vec3<f32>,
+    view_dir: vec3<f32>,
+) -> vec3<f32> {
+    let sun_l = normalize(camera.sun_direction.xyz);
+    let sun_i = camera.sun_direction.w;
+    let day = clamp(dot(n_geo, sun_l), 0.0, 1.0);
+    let cos_v = clamp(dot(n_pert, view_dir), 0.0, 1.0);
+    let t1 = 1.0 - cos_v;
+    let t2 = t1 * t1;
+    let f = WATER_F0 + (1.0 - WATER_F0) * t2 * t2 * t1;
+    let refl = reflect(-view_dir, n_pert);
+    let elev = clamp(dot(refl, n_geo), 0.0, 1.0);
+    let horizon = vec3<f32>(0.62, 0.7, 0.8);
+    let zenith = vec3<f32>(0.1, 0.26, 0.55);
+    var sky = mix(horizon, zenith, pow(elev, 0.6));
+    sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.35;
+    let sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
+    let body = albedo * camera.sun_color.rgb * (sun_i * day / PI);
+    let h = normalize(view_dir + sun_l);
+    let sparkle = pow(max(dot(n_pert, h), 0.0), WATER_SPEC_POWER) * WATER_SPEC_GAIN;
+    let anchor = pow(max(dot(n_geo, h), 0.0), 220.0) * 0.15;
+    let spec = camera.sun_color.rgb * sun_i * (sparkle + anchor) * day;
+    return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;
+}
+
 // ── Analytic atmosphere scattering (material type 14, v0.807) ──
 //
 // Single-scattering approximation evaluated per fragment on the oversized
@@ -1302,15 +1517,30 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // intact. Keep the decode in sync with terrain::planet_surface::
         // unpack_uv_to_color (unit-tested).
         //
-        // params.w REPURPOSED for this type (v0.811): > 0.5 flags that a
-        // baked per-pixel albedo texture is bound at group 3, replacing the
-        // per-face color mosaic with smooth imagery at every distance. So it
-        // never doubles as emissive here:
+        // params.w REPURPOSED for this type as a BIT FIELD (v0.816; a
+        // single texture flag since v0.811): bit 0 = a baked per-pixel
+        // albedo texture is bound at group 3 (replacing the per-face color
+        // mosaic with smooth imagery), bit 1 = Settings > Graphics >
+        // Planets "Surface detail" (the ocean waves + land micro-texture
+        // below). lib.rs rewrites the value every frame, so the toggle
+        // applies live. It never doubles as emissive here:
         emissive_strength = 0.0;
         let packed = u32(round(max(in.uv.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
-        if (material.params.w > 0.5) {
+        let pw_bits = u32(round(max(material.params.w, 0.0)));
+        let has_tex = (pw_bits & 1u) != 0u;
+        let detail_on = (pw_bits & 2u) != 0u;
+        // Planet-local frame pieces, filled on the textured path and reused
+        // by the detail effects: the unit direction (equirect UV + land
+        // noise domain), the local position in METRES (wave phases -- the
+        // render-space radius converts the unit direction back to metric),
+        // and that radius itself (converts wavelengths in metres to angular
+        // noise frequencies).
+        var dir = vec3<f32>(0.0, 0.0, 1.0);
+        var p_local = vec3<f32>(0.0);
+        var r_render = 1.0;
+        if (has_tex) {
             // Per-pixel imagery path (v0.811). base_color.xyz is REPURPOSED
             // as the planet CENTER in render space (lib.rs updates it every
             // frame -- the floating origin moves it), because the chunked
@@ -1327,7 +1557,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // construction: the imagery is pinned to the rotating body.
             let inv_model = transpose(object.normal_matrix);
             let dir_world = in.world_position - material.base_color.xyz;
-            let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
+            dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
+            // Planet-local metric frame for the wave math: |dir_world| is
+            // the fragment's render-space (= metre) distance from the
+            // center, so dir * that IS the local position in metres --
+            // inv_model's inverse scale never enters (it would land the
+            // point in unit-sphere units).
+            r_render = max(length(dir_world), 1.0);
+            p_local = dir * r_render;
             // Equirectangular UV with the SAME handedness as terrain::
             // planet_heightmap::dir_to_latlon_deg (east = -z; +Y = north),
             // and the same registration: u = (lon+180)/360 puts texel
@@ -1348,6 +1585,20 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // planet whose imagery failed to bake).
             albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
         }
+        // Pixel footprint on the surface (metres per pixel), the analytic
+        // anti-alias estimate every detail octave fades against (see the
+        // PLANET_PIXEL_ANGLE block above -- no derivatives needed).
+        let dist_frag = length(camera.view_pos.xyz - in.world_position);
+        let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);
+        let is_water = (packed & 65536u) != 0u;
+        // Land close-range detail (v0.816): multiplicative luminance
+        // variation under the photo -- orbit view identical (every octave
+        // fades to zero there), descent keeps revealing structure instead
+        // of bilinear blur. Textured path only: the per-face fallback has
+        // no planet-local frame to sample in.
+        if (has_tex && detail_on && !is_water) {
+            albedo = albedo * land_detail_factor(dir, r_render, footprint);
+        }
         // Ocean sun glint (v0.810): every orbital photo has a bright specular
         // spot where the sun mirrors off the sea; without it the ocean reads
         // as painted plastic. Water faces are flagged in bit 16 by the mesh
@@ -1357,7 +1608,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // added via proc_emissive AFTER the diffuse path: reusing the
         // material roughness would also glint the fixed cool fill light,
         // painting a second physically bogus hotspot. Land gets nothing.
-        if ((packed & 65536u) != 0u) {
+        //
+        // v0.816: up close this single smooth lobe becomes REAL water. Wave
+        // presence (the anti-alias fade of the longest wave octave) blends
+        // the whole water response from the v0.810 far-field look (presence
+        // 0: bit-identical diffuse + glint) to the full wave-perturbed
+        // shading in water_shade (presence 1: Fresnel sky mirror, bathymetry
+        // body, moving sun sparkle). The diffuse albedo hands its energy to
+        // the water term as presence rises so nothing double-counts.
+        if (is_water) {
             let sun_l = normalize(camera.sun_direction.xyz);
             let half_v = normalize(view_dir + sun_l);
             // Day gate: the glint fades smoothly at the terminator and never
@@ -1370,7 +1629,36 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             let spec = pow(max(dot(normal, half_v), 0.0), 220.0);
             // 0.7 * sun intensity 2.5 peaks ~1.75 pre-tonemap: bright, not
             // a blown white hole.
-            proc_emissive = camera.sun_color.rgb * camera.sun_direction.w * spec * day * 0.7;
+            let old_glint =
+                camera.sun_color.rgb * camera.sun_direction.w * spec * day * 0.7;
+            var presence = 0.0;
+            if (has_tex && detail_on) {
+                presence = wave_presence(footprint);
+                // Sea ice carries the water flag too (below-sea polar faces
+                // graded toward cap white) -- fade the waves out as the
+                // albedo brightens so pack ice never shades like open sea.
+                let lum = max(albedo.r, max(albedo.g, albedo.b));
+                presence = presence
+                    * (1.0 - smoothstep(WATER_ICE_LUM_LO, WATER_ICE_LUM_HI, lum));
+            }
+            if (presence > 0.001) {
+                // The cloud clock doubles as the wave clock (same
+                // documented-pad time slot, app-start-relative seconds).
+                let t_wave = camera.sun_color.w;
+                let grad = water_wave_gradient(p_local, dir, t_wave, footprint);
+                let n_pert_local = normalize(dir - grad);
+                let n_pert = normalize(
+                    (object.model * vec4<f32>(n_pert_local, 0.0)).xyz,
+                );
+                let water_rgb = water_shade(albedo, normal, n_pert, view_dir);
+                proc_emissive = mix(old_glint, water_rgb, presence);
+                // Hand the diffuse + ambient energy over to the water term
+                // and flatten the residual GGX response as presence rises.
+                albedo = albedo * (1.0 - presence);
+                roughness = mix(roughness, 1.0, presence);
+            } else {
+                proc_emissive = old_glint;
+            }
         }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly

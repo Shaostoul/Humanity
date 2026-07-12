@@ -17,6 +17,7 @@ pub mod particles;
 pub mod pipeline;
 pub mod shader_loader;
 pub mod stars;
+pub mod water;
 
 use camera::{Camera, CameraUniforms};
 use glam::{Mat4, Quat, Vec3};

@@ -360,6 +360,12 @@ pub struct AppConfig {
     /// cloud_coverage (clouds increment 1). Off = no cloud deck at all.
     #[serde(default = "default_true")]
     pub planet_clouds: bool,
+    /// Planet close-range surface detail (v0.816): animated ocean waves +
+    /// land micro-texture on imagery planets (Earth). Orbit view identical
+    /// either way (anti-alias faded); applies live via the per-frame
+    /// material flag. serde-defaulted true so old configs gain the effect.
+    #[serde(default = "default_true")]
+    pub planet_surface_detail: bool,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -875,6 +881,7 @@ impl AppConfig {
             planet_chunked: state.settings.planet_chunked,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
+            planet_surface_detail: state.settings.planet_surface_detail,
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
@@ -984,6 +991,7 @@ impl AppConfig {
         state.settings.planet_chunked = self.planet_chunked;
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
+        state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
@@ -1317,6 +1325,7 @@ mod pbkdf2_migration_tests {
         assert!(c.planet_detail);
         assert!(c.planet_chunked);
         assert!(c.planet_atmo_scatter);
+        assert!(c.planet_surface_detail);
         assert!(c.sky_constellations);
         assert!(c.sky_milkyway_glow);
         assert_eq!(c.sky_glow_tier, "standard");

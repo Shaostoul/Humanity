@@ -6238,6 +6238,13 @@ pub struct SettingsState {
     /// RON (Earth). Off skips the shell entirely (no material, no draw).
     /// See pbr_simple.wgsl type 15 + renderer::clouds.
     pub planet_clouds: bool,
+    /// Planet close-range surface detail (v0.816): animated ocean waves
+    /// (moving sun sparkle, Fresnel sky mirror) + land micro-texture under
+    /// the photo albedo, on planets with baked per-pixel imagery (Earth).
+    /// Anti-alias faded so the orbit view is identical either way. Applies
+    /// LIVE: the sky loop rewrites the material flag every frame. See
+    /// pbr_simple.wgsl type 12 + renderer::water.
+    pub planet_surface_detail: bool,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -6316,6 +6323,7 @@ impl Default for SettingsState {
             planet_chunked: true,
             planet_atmo_scatter: true,
             planet_clouds: true,
+            planet_surface_detail: true,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

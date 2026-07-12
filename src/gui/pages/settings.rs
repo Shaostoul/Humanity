@@ -1837,6 +1837,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Drifting sun-lit clouds on worlds that have them (Earth). Turn off for bare surfaces or on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        // Close-range surface detail (v0.816): animated ocean waves + land
+        // micro-texture on planets with real imagery. Applies live: the sky
+        // loop rewrites the material flag every frame.
+        if widgets::toggle(ui, theme, "Surface detail", &mut state.settings.planet_surface_detail) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);
