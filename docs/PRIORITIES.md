@@ -186,11 +186,34 @@
 >    the anchor ONCE on engage, co-rotate the persisted anchor thereafter;
 >    verified at Puget Sound (land features held still across frames). LESSON:
 >    re-verify surface work at spots with LAND, never featureless ocean (the
->    Oahu ocean verify hid the slide). STILL WANTED (operator deferred for the
->    boot work): surface-relative FREE FLIGHT - fly AROUND the planet co-rotating
->    (today surface mode is walk+gravity < SURFACE_ENGAGE_ALT=10 km; free flight
->    above that flips to inertial orbit). Needs a co-rotating free-flight zone
->    between "walk on the ground" and "watch it spin from orbit".
+>    Oahu ocean verify hid the slide).
+>    ** SURFACE FIELD REPORT 2 (operator, 2026-07-12): ** investigated (workflow
+>    wf_c420bd2e). SHIPPED v0.835.0: SEE-THROUGH GROUND (the eye clamp used the
+>    coarse base heightmap but the drawn mesh adds ~4x-exaggerated detail up to
+>    ~120 m, so the 1.7 m eye sank below the surface + backface-cull -> see-
+>    through; fixed via a shared planet_chunks::drawn_elevation_normalized;
+>    verified over the Rockies) + SPEED CLIFF (wheel did nothing on the ground
+>    then one notch flung you to orbit; fixed by gating the FTL fly-integration
+>    off in surface_mode + folding a bounded wheel mult into surface speed).
+>    ** NEXT (headline, PLANNED, not yet done): HOMESTEAD DECOUPLING. ** The home
+>    has no world position of its own - every home mesh draws at Vec3::ZERO in the
+>    floating-origin frame, and ship_world_pos is BOTH the player frame origin AND
+>    the home position, so the home is glued to the player and (post the v0.833
+>    co-rotation) appears to spin on the surface. PLAN: add EngineState.home_world_pos
+>    (init it + ship_world_pos to the GEO vector at lib.rs:6054; field ZERO at
+>    ~7859); compute home_off=(home_world_pos-ship_world_pos).as_vec3() before the
+>    home render block (~11430); add home_off to EVERY home-group draw position -
+>    structure Vec3::ZERO sites (11438/11596/11607/11622/11634), placeholders
+>    (11651), machines (11667), pipes (11679) + the transparent glass list; TP-home
+>    /Return-home (~9938) sets ship_world_pos=home_world_pos. At home home_off==0
+>    (unchanged); away the home recedes to its fixed orbital spot. DEFER collision
+>    (home-local, off in fly mode). VERIFY: at-home identical; dev-travel away ->
+>    home recedes with NO piece following; TP-home returns to orbit; build mode
+>    intact. Multi-site render refactor - fresh focus, not rushed.
+>    ** ALSO STILL WANTED: ** surface-relative FREE FLIGHT (fly AROUND the planet
+>    co-rotating; today free flight above SURFACE_ENGAGE_ALT=10 km goes inertial)
+>    + a scale/altitude/ground-distance HUD readout (operator can't judge the
+>    distance to the shore, has no size reference).
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
