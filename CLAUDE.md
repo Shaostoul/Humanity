@@ -85,6 +85,30 @@ on disk (read the output file instead). Time, money, water, electricity, and the
 operator's effort all count. Big-swings-first still applies, but a "big swing" is
 one well-scoped wave with a clear question, not maximal parallelism.
 
+**Throughput recalibration (operator, 2026-07-11, SUPERSEDES the "cap at ~5 /
+anti-waste" tone above for the throughput question):** "In terms of usage we have
+plenty available. I would prefer you get through the work faster than be concerned
+about being too careful... if you need to spin up a dozen subagents to complete a
+task in 5 minutes instead of an hour, then I'd rather you do so. We don't want to
+leave any usage on the table. I want to properly use 100% of that [$200 Max]
+usage. Every lost usage from 5-hour or 1-week limit resets is lost money." NEW
+strategic frame: hitting the weekly cap SOONER is GOOD, not bad, because it means
+the operator "has more content to share on social media earlier to hopefully get
+donations" (this project runs on donations under a $1k/mo income cap). So: DEFAULT
+TO AGGRESSIVE PARALLELISM. Do not self-throttle, do not wind down early out of
+budget caution, do not leave headroom unused. When the cap hits, the operator just
+sends a prompt and we resume from disk (this is why the commit-early / journal-
+current / nothing-uncommitted discipline matters MORE, not less: a hard cutoff can
+land any time, so keep the tree shippable). The ONLY remaining limiter is
+CORRECTNESS: parallelism is still gated by real file-conflict risk (this repo
+funnels through a 17k-line `lib.rs` + one megashader `pbr_simple.wgsl`, so >2-3
+agents editing the SAME shader branch / lib region create genuine 3-way-merge
+correctness hazards, not just merge chores) and by independent verification of
+every merge. So the shape is: fan out WIDE on disjoint file sets; when tasks must
+touch the same hot files, run them as back-to-back waves and merge serially, but
+never sit idle to "save budget." "Efficient" now means throughput, not frugality.
+See memory `feedback_usage_budget_pacing.md`.
+
 ## Cross-session persistence (perpetual)
 
 Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:
