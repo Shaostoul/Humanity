@@ -1,0 +1,26 @@
+// Scenic views (v0.825): curated named viewpoints for the camera-hub arc.
+// Each pins a camera to a REAL lat/lon on a planet surface (same grid as the
+// Blue Marble imagery + heightmap). Add a place by adding a row - no code.
+//   lat/lon        degrees (+lat north, +lon east)
+//   altitude_km    camera height above the surface point
+//   look_offset_deg  aim tilt: 0 = straight down, ~90 = out to the horizon
+// The dev camera_request.json accepts {"view": "<name>"}; the in-app Places
+// list + the placeable gazebo/social hub render this same data.
+(
+    views: [
+        ( name: "Oahu Coast", body: "earth", lat: 21.3, lon: -157.8, altitude_km: 1.5, look_offset_deg: 45.0,
+          description: "Hawaiian island coastline - green land, open ocean, sun glint on the water." ),
+        ( name: "Everest", body: "earth", lat: 27.99, lon: 86.93, altitude_km: 9.0, look_offset_deg: 62.0,
+          description: "The Himalaya's highest peaks under the close-range terrain relief." ),
+        ( name: "Grand Canyon", body: "earth", lat: 36.1, lon: -112.1, altitude_km: 5.0, look_offset_deg: 55.0,
+          description: "Carved desert plateau, warm rock albedo." ),
+        ( name: "Sahara Dunes", body: "earth", lat: 23.4, lon: 12.0, altitude_km: 6.0, look_offset_deg: 52.0,
+          description: "Vast sand sea - the sandy albedo band." ),
+        ( name: "Cape of Good Hope", body: "earth", lat: -34.35, lon: 18.47, altitude_km: 2.5, look_offset_deg: 50.0,
+          description: "Southern-tip coastline where two oceans meet." ),
+        ( name: "Andes Coast", body: "earth", lat: -33.45, lon: -71.6, altitude_km: 6.0, look_offset_deg: 55.0,
+          description: "Pacific coast against the Andes spine." ),
+        ( name: "Iceland", body: "earth", lat: 64.9, lon: -19.0, altitude_km: 4.0, look_offset_deg: 55.0,
+          description: "North Atlantic island - coast, highland, ice." ),
+    ]
+)

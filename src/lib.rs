@@ -36,6 +36,8 @@ pub mod cosmos;
 /// FTL/teleport tool). Pure glam, ungated like `cosmos` so its unit tests
 /// run under every feature set. See `src/dev_travel.rs`.
 pub mod dev_travel;
+/// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
+pub mod scenic_views;
 
 #[cfg(feature = "relay")]
 pub mod relay;
@@ -2250,19 +2252,45 @@ mod native_app {
             fail("3D world not loaded".to_string());
             return;
         }
+        // Named scenic view (v0.825): {"view":"Oahu Coast"} loads the curated
+        // coordinate from data/scenic_views.ron and supplies the body / lat /
+        // lon / altitude / aim, so a Place can be jumped to by name. Any
+        // explicit field in the JSON still overrides the view's value.
+        let scenic = v.get("view").and_then(|s| s.as_str()).and_then(|name| {
+            let path = state.asset_manager.data_dir().join("scenic_views.ron");
+            match std::fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|t| crate::scenic_views::ScenicViews::from_ron(&t))
+            {
+                Ok(views) => match views.find(name) {
+                    Some(view) => Some(view.clone()),
+                    None => {
+                        log::warn!("Camera request: no scenic view named {name}");
+                        None
+                    }
+                },
+                Err(e) => {
+                    log::warn!("Camera request: scenic_views.ron: {e}");
+                    None
+                }
+            }
+        });
         let body_id = v
             .get("body")
             .and_then(|b| b.as_str())
-            .unwrap_or("earth")
-            .to_string();
+            .map(|s| s.to_string())
+            .or_else(|| scenic.as_ref().map(|s| s.body.clone()))
+            .unwrap_or_else(|| "earth".to_string());
         let altitude_km = v
             .get("altitude_km")
             .and_then(|a| a.as_f64())
+            .or_else(|| scenic.as_ref().map(|s| s.altitude_km as f64))
             .unwrap_or(12_000.0)
             .max(0.001);
         let look_offset_deg = v
             .get("look_offset_deg")
             .and_then(|a| a.as_f64())
+            .or_else(|| scenic.as_ref().map(|s| s.look_offset_deg as f64))
             .unwrap_or(0.0);
         // Optional lat/lon (v0.824 scenic camera): pin the vantage to a REAL
         // surface coordinate (matching the heightmap/albedo grid convention)
@@ -2270,7 +2298,7 @@ mod native_app {
         // named coastline/mountain. Both must be present to take effect.
         let latlon = match (v.get("lat").and_then(|a| a.as_f64()), v.get("lon").and_then(|a| a.as_f64())) {
             (Some(la), Some(lo)) => Some((la, lo)),
-            _ => None,
+            _ => scenic.as_ref().map(|s| (s.lat as f64, s.lon as f64)),
         };
         let Some(body) = crate::cosmos::find_body(&body_id) else {
             fail(format!("unknown body id {body_id}"));

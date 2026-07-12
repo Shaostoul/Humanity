@@ -49,6 +49,7 @@ pub const PLAYER_TOML: &str = include_str!("../data/player.toml");
 
 // ── GUI theme (RON) ─────────────────────────────────────────────────
 pub const THEME_RON: &str = include_str!("../data/gui/theme.ron");
+pub const SCENIC_VIEWS_RON: &str = include_str!("../data/scenic_views.ron");
 
 // ── Planet definitions (RON) ────────────────────────────────────────
 pub const PLANET_EARTH_RON: &str = include_str!("../data/planets/earth.ron");
@@ -193,6 +194,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
 
         // RON — GUI
         "gui/theme.ron" => Some(THEME_RON),
+        "scenic_views.ron" => Some(SCENIC_VIEWS_RON),
 
         // RON — Planets
         "planets/earth.ron" => Some(PLANET_EARTH_RON),
@@ -331,6 +333,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "player.toml",
     // RON
     "gui/theme.ron",
+    "scenic_views.ron",
     "planets/earth.ron",
     "planets/mars.ron",
     "planets/moon.ron",
