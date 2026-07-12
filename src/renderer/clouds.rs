@@ -93,6 +93,50 @@ pub const CLOUD_MARCH_SHADOW_SHARP: f32 = 4.0;
 /// darker than tops -- the classic volumetric cue).
 pub const CLOUD_BASE_DARKEN: f32 = 0.75;
 
+// ── Increment-3 volumetric constants (WGSL: the CLOUD_HI_* block) ──
+// The High-quality path: precomputed tiling 3D noise (renderer::cloud_noise,
+// group 3 bindings 2..4) + weather map + per-sample light march.
+
+/// Mirrors `CLOUD_HI_SAMPLES`: view-march samples, exponentially spaced.
+pub const CLOUD_HI_SAMPLES: i32 = 22;
+/// Mirrors `CLOUD_HI_STEP_EXP`: sample-position curve t = m0 + seg * u^EXP
+/// (1 = uniform; higher = denser near the slab entry).
+pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
+/// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
+/// lit view sample.
+pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 5;
+/// Mirrors `CLOUD_LIGHT_STEP`: base light-march step, drawn-shell units.
+pub const CLOUD_LIGHT_STEP: f32 = 0.0012;
+/// Mirrors `CLOUD_HI_SIGMA_T`: extinction per drawn-shell unit at density 1
+/// for the High path (higher than Medium's -- the noise-carved density
+/// field averages far lower, and cores must still saturate).
+pub const CLOUD_HI_SIGMA_T: f32 = 850.0;
+/// Mirrors `CLOUD_HI_MAX_ALPHA`: peak alpha of the High deck (above
+/// Medium's 0.72 -- photoreal cumulus cores genuinely block the ground).
+pub const CLOUD_HI_MAX_ALPHA: f32 = 0.96;
+/// Mirrors `CLOUD_SHAPE_FREQ`: shape-volume tiles per drawn-shell unit
+/// (Earth: ~268 km per tile -> 45 km base Worley cells).
+pub const CLOUD_SHAPE_FREQ: f32 = 24.0;
+/// Mirrors `CLOUD_DETAIL_FREQ`: detail-volume tiles per drawn-shell unit
+/// (Earth: ~71 km per tile -> 9/4.5/2.2 km erosion octaves).
+pub const CLOUD_DETAIL_FREQ: f32 = 60.0;
+/// Mirrors `CLOUD_DETAIL_ERODE`: how deeply the detail octaves erode the
+/// shape's edges.
+pub const CLOUD_DETAIL_ERODE: f32 = 0.38;
+/// Mirrors `CLOUD_TYPE_FREQ`: the stratus-vs-cumulus type field frequency.
+pub const CLOUD_TYPE_FREQ: f32 = 3.0;
+/// Mirrors `CLOUD_HG_FWD` / `CLOUD_HG_BACK` / `CLOUD_HG_FWD_WEIGHT`: the
+/// dual-lobe Henyey-Greenstein phase.
+pub const CLOUD_HG_FWD: f32 = 0.55;
+pub const CLOUD_HG_BACK: f32 = -0.15;
+pub const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
+/// Mirrors `CLOUD_POWDER_STRENGTH`: Beer-powder edge darkening strength.
+pub const CLOUD_POWDER_STRENGTH: f32 = 0.92;
+/// Mirrors `CLOUD_AMB_BASE` / `CLOUD_AMB_TOP`: ambient skylight at the
+/// slab base/top (tops see the sky dome, bases their own shadow).
+pub const CLOUD_AMB_BASE: f32 = 0.03;
+pub const CLOUD_AMB_TOP: f32 = 0.14;
+
 /// Mirrors `CLOUD_MAX_ALPHA` in pbr_simple.wgsl: peak opacity of the
 /// thickest cloud core, deliberately < 1 so the surface stays readable.
 /// Lowered 0.85 -> 0.72 after the first orbital field test (2026-07-11):
@@ -140,6 +184,19 @@ pub const CLOUD_NIGHT_FLOOR: f32 = 0.006;
 /// coordinates (which reach ~16 * freq) costs no f32 precision.
 pub fn cloud_seed(terrain_seed: u64) -> f32 {
     (terrain_seed % 1024) as f32
+}
+
+/// Settings string -> the material params.y quality selector the shader
+/// dispatches on (clouds increment 3): 0 = Low (increment-1 painted deck),
+/// 1 = Medium (increment-2 field march), 2 = High (the volumetric system).
+/// Unknown strings fall to High -- the default posture, and a typo in a
+/// hand-edited config should never silently degrade the sky.
+pub fn quality_param(quality: &str) -> f32 {
+    match quality {
+        "low" => 0.0,
+        "medium" => 1.0,
+        _ => 2.0,
+    }
 }
 
 /// WGSL `fract` semantics: `x - floor(x)`, always in [0, 1) -- NOT Rust's
@@ -284,6 +341,68 @@ pub fn cloud_density(p: [f32; 3], t: f32, seed: f32, coverage: f32) -> f32 {
     let dir = [p[0] * inv, p[1] * inv, p[2] * inv];
     let a_h = cloud_alpha_from_field(cloud_field(dir, t, seed), coverage);
     a_h * a_h * env
+}
+
+// ── Increment-3 mirrors (pure functions of the volumetric path) ──
+
+/// Mirrors `cloud_remap`: rescale v from [l0, h0] to [l1, h1], no clamp.
+pub fn cloud_remap(v: f32, l0: f32, h0: f32, l1: f32, h1: f32) -> f32 {
+    l1 + (v - l0) / (h0 - l0) * (h1 - l1)
+}
+
+/// Mirrors `cloud_hg`: Henyey-Greenstein lobe with RELATIVE normalization
+/// (1.0 everywhere at g = 0, so it shapes without globally dimming).
+pub fn cloud_hg(cos_t: f32, g: f32) -> f32 {
+    let g2 = g * g;
+    (1.0 - g2) / (1.0 + g2 - 2.0 * g * cos_t).max(1.0e-4).powf(1.5)
+}
+
+/// Mirrors `cloud_phase`: dual-lobe HG (forward silver-lining lobe + mild
+/// back lobe, blended by CLOUD_HG_FWD_WEIGHT).
+pub fn cloud_phase(cos_t: f32) -> f32 {
+    mix(
+        cloud_hg(cos_t, CLOUD_HG_BACK),
+        cloud_hg(cos_t, CLOUD_HG_FWD),
+        CLOUD_HG_FWD_WEIGHT,
+    )
+}
+
+/// Mirrors `cloud_weather`: increment 1's cloud_field minus its two finest
+/// octaves (the 3D volumes own sub-50 km detail at High), renormalized
+/// (0.5 + 0.25 + 0.35 = 1.10) through the same contrast window.
+pub fn cloud_weather(dir: [f32; 3], t: f32, seed: f32) -> f32 {
+    let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let stretched = [da0[0], da0[1] * CLOUD_BAND_STRETCH, da0[2]];
+    let len = (stretched[0] * stretched[0]
+        + stretched[1] * stretched[1]
+        + stretched[2] * stretched[2])
+        .sqrt()
+        .max(1e-9);
+    let da = [stretched[0] / len, stretched[1] / len, stretched[2] / len];
+    let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
+    let mut f = 0.5 * cloud_noise(da, 5.0, seed);
+    f += 0.25 * cloud_noise(da, 11.0, seed + 19.0);
+    f += 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.10)
+}
+
+/// Mirrors `cloud_type_envelope`: height profile per cloud type over the
+/// slab fraction h. Stratus (0) hugs the bottom quarter; cumulus (1) rises
+/// from a flat bottom to a domed top past mid-slab.
+pub fn cloud_type_envelope(h: f32, ctype: f32) -> f32 {
+    let strat = smoothstep(0.0, 0.10, h) * (1.0 - smoothstep(0.20, 0.38, h));
+    let cum = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.55, 0.95, h));
+    mix(strat, cum, ctype)
+}
+
+/// Mirrors `cloud_scatter_energy`: 3-octave multiple-scattering
+/// approximation -- deep cores fade to a diffuse glow instead of the black
+/// that single-scatter Beer-Lambert would give.
+pub fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
+    let mut e = phase * (-tau).exp();
+    e += 0.45 * mix(1.0, phase, 0.5) * (-tau * 0.25).exp();
+    e += 0.18 * (-tau * 0.06).exp();
+    e
 }
 
 #[cfg(test)]
@@ -485,6 +604,21 @@ mod tests {
             ("CLOUD_MARCH_SHADOW_STEP", CLOUD_MARCH_SHADOW_STEP),
             ("CLOUD_MARCH_SHADOW_SHARP", CLOUD_MARCH_SHADOW_SHARP),
             ("CLOUD_BASE_DARKEN", CLOUD_BASE_DARKEN),
+            // Increment-3 volumetric constants.
+            ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
+            ("CLOUD_LIGHT_STEP", CLOUD_LIGHT_STEP),
+            ("CLOUD_HI_SIGMA_T", CLOUD_HI_SIGMA_T),
+            ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
+            ("CLOUD_SHAPE_FREQ", CLOUD_SHAPE_FREQ),
+            ("CLOUD_DETAIL_FREQ", CLOUD_DETAIL_FREQ),
+            ("CLOUD_DETAIL_ERODE", CLOUD_DETAIL_ERODE),
+            ("CLOUD_TYPE_FREQ", CLOUD_TYPE_FREQ),
+            ("CLOUD_HG_FWD", CLOUD_HG_FWD),
+            ("CLOUD_HG_BACK", CLOUD_HG_BACK),
+            ("CLOUD_HG_FWD_WEIGHT", CLOUD_HG_FWD_WEIGHT),
+            ("CLOUD_POWDER_STRENGTH", CLOUD_POWDER_STRENGTH),
+            ("CLOUD_AMB_BASE", CLOUD_AMB_BASE),
+            ("CLOUD_AMB_TOP", CLOUD_AMB_TOP),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");
@@ -502,22 +636,29 @@ mod tests {
                 "{name} drifted: WGSL {parsed} vs Rust {rust_val}"
             );
         }
-        // CLOUD_MARCH_SAMPLES is an i32 const in WGSL (loop bound), parsed
-        // separately with the same never-drift guarantee.
-        let needle = "const CLOUD_MARCH_SAMPLES: i32 = ";
-        let start = wgsl
-            .find(needle)
-            .expect("CLOUD_MARCH_SAMPLES missing from pbr_simple.wgsl");
-        let rest = &wgsl[start + needle.len()..];
-        let end = rest.find(';').expect("unterminated const");
-        let parsed: i32 = rest[..end]
-            .trim()
-            .parse()
-            .expect("CLOUD_MARCH_SAMPLES literal unparseable");
-        assert_eq!(
-            parsed, CLOUD_MARCH_SAMPLES,
-            "CLOUD_MARCH_SAMPLES drifted: WGSL {parsed} vs Rust {CLOUD_MARCH_SAMPLES}"
-        );
+        // The i32 consts in WGSL (loop bounds), parsed separately with the
+        // same never-drift guarantee.
+        let expect_i32: &[(&str, i32)] = &[
+            ("CLOUD_MARCH_SAMPLES", CLOUD_MARCH_SAMPLES),
+            ("CLOUD_HI_SAMPLES", CLOUD_HI_SAMPLES),
+            ("CLOUD_HI_LIGHT_SAMPLES", CLOUD_HI_LIGHT_SAMPLES),
+        ];
+        for (name, rust_val) in expect_i32 {
+            let needle = format!("const {name}: i32 = ");
+            let start = wgsl
+                .find(&needle)
+                .unwrap_or_else(|| panic!("{name} missing from pbr_simple.wgsl"));
+            let rest = &wgsl[start + needle.len()..];
+            let end = rest.find(';').expect("unterminated const");
+            let parsed: i32 = rest[..end]
+                .trim()
+                .parse()
+                .unwrap_or_else(|e| panic!("{name} literal unparseable: {e}"));
+            assert_eq!(
+                parsed, *rust_val,
+                "{name} drifted: WGSL {parsed} vs Rust {rust_val}"
+            );
+        }
     }
 
     #[test]
@@ -529,6 +670,117 @@ mod tests {
             CLOUD_MARCH_SAMPLES == 0 || (8..=12).contains(&CLOUD_MARCH_SAMPLES),
             "CLOUD_MARCH_SAMPLES {CLOUD_MARCH_SAMPLES} outside 0 / 8..=12"
         );
+        // The High path's designed band: 16..=32 view samples (the FPS gates
+        // were measured at 22), 4..=8 light taps.
+        assert!(
+            (16..=32).contains(&CLOUD_HI_SAMPLES),
+            "CLOUD_HI_SAMPLES {CLOUD_HI_SAMPLES} outside 16..=32"
+        );
+        assert!(
+            (4..=8).contains(&CLOUD_HI_LIGHT_SAMPLES),
+            "CLOUD_HI_LIGHT_SAMPLES {CLOUD_HI_LIGHT_SAMPLES} outside 4..=8"
+        );
+    }
+
+    #[test]
+    fn quality_param_maps_settings_strings() {
+        assert_eq!(quality_param("low"), 0.0);
+        assert_eq!(quality_param("medium"), 1.0);
+        assert_eq!(quality_param("high"), 2.0);
+        // Unknown/corrupt strings fall to the High default, never Low.
+        assert_eq!(quality_param(""), 2.0);
+        assert_eq!(quality_param("ultra"), 2.0);
+    }
+
+    #[test]
+    fn remap_rescales_and_is_exact_at_endpoints() {
+        assert_eq!(cloud_remap(0.5, 0.0, 1.0, 0.0, 1.0), 0.5);
+        assert_eq!(cloud_remap(0.25, 0.25, 1.0, 0.0, 1.0), 0.0);
+        assert_eq!(cloud_remap(1.0, 0.25, 1.0, 0.0, 1.0), 1.0);
+        // The classic coverage carve: value below the low bound goes
+        // negative (callers clamp) -- that sign IS the erosion.
+        assert!(cloud_remap(0.1, 0.3, 1.0, 0.0, 1.0) < 0.0);
+    }
+
+    #[test]
+    fn phase_is_forward_dominant_with_a_back_lobe() {
+        // Relative HG: g = 0 is flat 1.0 everywhere.
+        for c in [-1.0f32, -0.5, 0.0, 0.5, 1.0] {
+            assert!((cloud_hg(c, 0.0) - 1.0).abs() < 1e-5);
+        }
+        // The dual-lobe blend: strongly forward-peaked, with the minimum in
+        // the back quadrant and a mild RETRO rise from there toward cos -1
+        // (the -0.15 lobe) -- the glow you see on clouds opposite the sun.
+        let fwd = cloud_phase(1.0);
+        let backq = cloud_phase(-0.5);
+        let back = cloud_phase(-1.0);
+        assert!(fwd > 3.0, "forward lobe too weak: {fwd}");
+        assert!(back > backq, "retro rise missing: {back} <= {backq}");
+        assert!(fwd > back * 4.0, "phase not forward-dominant: {fwd} vs {back}");
+        // Positive everywhere (it multiplies energy).
+        for i in 0..=40 {
+            let c = -1.0 + i as f32 / 20.0;
+            assert!(cloud_phase(c) > 0.0);
+        }
+    }
+
+    #[test]
+    fn type_envelope_shapes_stratus_low_and_cumulus_tall() {
+        // Both types: zero at the exact base and top of the slab.
+        for ty in [0.0f32, 0.5, 1.0] {
+            assert_eq!(cloud_type_envelope(0.0, ty), 0.0);
+            assert!(cloud_type_envelope(1.0, ty) < 1e-6);
+        }
+        // Stratus: fully developed low, gone by mid-slab.
+        assert_eq!(cloud_type_envelope(0.15, 0.0), 1.0);
+        assert_eq!(cloud_type_envelope(0.5, 0.0), 0.0);
+        // Cumulus: fully developed through the middle, fading in the dome.
+        assert_eq!(cloud_type_envelope(0.3, 1.0), 1.0);
+        assert_eq!(cloud_type_envelope(0.5, 1.0), 1.0);
+        let dome = cloud_type_envelope(0.75, 1.0);
+        assert!(dome > 0.0 && dome < 1.0, "cumulus dome not soft: {dome}");
+        // The blend is monotone in ctype where the two disagree.
+        let at_half = cloud_type_envelope(0.5, 0.5);
+        assert!(at_half > 0.0 && at_half < 1.0);
+    }
+
+    #[test]
+    fn weather_is_deterministic_in_range_and_tracks_coverage() {
+        let dirs = sample_dirs(400);
+        for &d in dirs.iter().take(50) {
+            let a = cloud_weather(d, 123.0, 42.0);
+            assert_eq!(a, cloud_weather(d, 123.0, 42.0));
+            assert!((0.0..=1.0).contains(&a), "weather out of range: {a}");
+        }
+        // The coverage knob must still map monotonically through the
+        // 3-octave weather variant (same guard as the 5-octave field).
+        let mean_alpha = |cov: f32| -> f32 {
+            let sum: f32 = dirs
+                .iter()
+                .map(|&d| cloud_alpha_from_field(cloud_weather(d, 33.0, 42.0), cov))
+                .sum();
+            sum / dirs.len() as f32
+        };
+        let clear = mean_alpha(0.0);
+        let earth = mean_alpha(0.55);
+        let overcast = mean_alpha(1.0);
+        assert!(clear < 0.02, "coverage 0 should be clear, got {clear}");
+        assert!(clear < earth && earth < overcast, "not monotonic");
+        assert!(overcast > 0.6, "coverage 1 should blanket: {overcast}");
+        assert!((0.15..0.8).contains(&earth), "earth band off: {earth}");
+    }
+
+    #[test]
+    fn scatter_energy_decays_but_never_reaches_black() {
+        let side_phase = cloud_phase(0.0);
+        let thin = cloud_scatter_energy(0.0, side_phase);
+        let mid = cloud_scatter_energy(2.0, side_phase);
+        let deep = cloud_scatter_energy(12.0, side_phase);
+        assert!(thin > mid && mid > deep, "not decaying: {thin} {mid} {deep}");
+        // The multiple-scattering octaves keep deep cores glowing (the
+        // whole point vs single-scatter Beer).
+        assert!(deep > 0.05, "deep core went black: {deep}");
+        assert!(thin < 2.0, "side-view thin energy blown out: {thin}");
     }
 
     #[test]

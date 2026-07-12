@@ -6466,10 +6466,13 @@ mod native_app {
         /// stale entries are ~100-byte uniform buffers, not worth evicting.
         planet_atmo_materials: std::collections::HashMap<(String, bool), usize>,
         /// Per-body cloud-deck materials (clouds increment 1, shader type
-        /// 15), created lazily from the def's cloud_coverage. Keyed by body
-        /// id alone: coverage + seed both come from the def, and
-        /// reload_planet_defs clears this map so RON tuning hot-reloads.
-        planet_cloud_materials: std::collections::HashMap<String, usize>,
+        /// 15), created lazily from the def's cloud_coverage. Keyed by
+        /// (body id, quality tier 0/1/2) since increment 3: flipping
+        /// Settings > Graphics > "Cloud quality" swaps materials without
+        /// touching the other tiers (same pattern as the atmosphere map
+        /// above); reload_planet_defs clears this map so RON tuning
+        /// hot-reloads.
+        planet_cloud_materials: std::collections::HashMap<(String, u8), usize>,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
         /// Emissive material index for the Sun core.
@@ -13194,8 +13197,18 @@ mod native_app {
                                     // (earth.ron ~0.55; Mars deliberately None).
                                     let clouds_on = state.gui_state.settings.planet_clouds;
                                     if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
+                                        // Quality tier (clouds increment 3):
+                                        // rides in the material's roughness
+                                        // slot; the shader dispatches Low/
+                                        // Medium/High on it. Cached per
+                                        // (body, tier) so the Settings
+                                        // selector applies live.
+                                        let quality = crate::renderer::clouds::quality_param(
+                                            &state.gui_state.settings.cloud_quality,
+                                        );
+                                        let ckey = (b.id.clone(), quality as u8);
                                         let cmat = if let Some(&m) =
-                                            state.planet_cloud_materials.get(&b.id)
+                                            state.planet_cloud_materials.get(&ckey)
                                         {
                                             m
                                         } else {
@@ -13203,20 +13216,22 @@ mod native_app {
                                             // renderer::clouds): white tint +
                                             // coverage in the color, per-planet
                                             // noise seed in the metallic slot,
-                                            // type 15. A future cloud_color RON
-                                            // field can ride the rgb unchanged.
+                                            // quality tier in the roughness
+                                            // slot, type 15. A future
+                                            // cloud_color RON field can ride
+                                            // the rgb unchanged.
                                             let m = state.renderer.add_material_full(
                                                 [1.0, 1.0, 1.0, cov.min(1.0)],
                                                 crate::renderer::clouds::cloud_seed(
                                                     d.terrain_seed,
                                                 ),
-                                                0.0,
+                                                quality,
                                                 15.0,
                                                 0.0,
                                             );
                                             state
                                                 .planet_cloud_materials
-                                                .insert(b.id.clone(), m);
+                                                .insert(ckey, m);
                                             // One-shot (per cache fill) so a log
                                             // grep proves the deck actually draws
                                             // on this machine -- the same

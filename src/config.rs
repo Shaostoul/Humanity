@@ -366,6 +366,12 @@ pub struct AppConfig {
     /// material flag. serde-defaulted true so old configs gain the effect.
     #[serde(default = "default_true")]
     pub planet_surface_detail: bool,
+    /// Cloud quality (clouds increment 3): "low" = the increment-1 painted
+    /// deck, "medium" = the increment-2 10-sample field march, "high" = the
+    /// volumetric 3D-noise system (default). Unknown values fall to high at
+    /// use time (renderer::clouds::quality_param).
+    #[serde(default = "default_cloud_quality")]
+    pub cloud_quality: String,
     /// Which home design `data/machines/*.ron` file loads (2026-07-01): `"home"` (default,
     /// the existing family-scale design in `home.ron`) or `"home_solo"` (a one-person
     /// self-sufficient design in `home_solo.ron`, sized to real one-person kWh/L/kcal
@@ -574,6 +580,7 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_true() -> bool { true }
 fn default_home_variant() -> String { "home".to_string() }
+fn default_cloud_quality() -> String { "high".to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
@@ -882,6 +889,7 @@ impl AppConfig {
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
             planet_surface_detail: state.settings.planet_surface_detail,
+            cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
             vitals_drain: state.settings.vitals_drain,
@@ -992,6 +1000,14 @@ impl AppConfig {
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.planet_surface_detail = self.planet_surface_detail;
+        // Guard a corrupted saved value: only the three known tiers pass
+        // through; anything else falls back to the high default.
+        state.settings.cloud_quality =
+            if ["low", "medium", "high"].contains(&self.cloud_quality.as_str()) {
+                self.cloud_quality.clone()
+            } else {
+                default_cloud_quality()
+            };
         state.settings.home_variant = self.home_variant.clone();
         state.settings.hostile_wildlife = self.hostile_wildlife;
         state.settings.vitals_drain = self.vitals_drain.clamp(0.0, 5.0);
@@ -1326,6 +1342,7 @@ mod pbkdf2_migration_tests {
         assert!(c.planet_chunked);
         assert!(c.planet_atmo_scatter);
         assert!(c.planet_surface_detail);
+        assert_eq!(c.cloud_quality, "high");
         assert!(c.sky_constellations);
         assert!(c.sky_milkyway_glow);
         assert_eq!(c.sky_glow_tier, "standard");

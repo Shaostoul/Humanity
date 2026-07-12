@@ -6245,6 +6245,12 @@ pub struct SettingsState {
     /// LIVE: the sky loop rewrites the material flag every frame. See
     /// pbr_simple.wgsl type 12 + renderer::water.
     pub planet_surface_detail: bool,
+    /// Cloud quality (clouds increment 3): "low" = the painted deck,
+    /// "medium" = the 10-sample field march, "high" = the volumetric
+    /// 3D-noise system (default). Applies live: the cloud material is
+    /// cached per (body, quality) and rebuilt on the next frame the deck
+    /// draws. See pbr_simple.wgsl cloud_layer + renderer::clouds.
+    pub cloud_quality: String,
     // Audio
     pub master_volume: f32,
     pub music_volume: f32,
@@ -6324,6 +6330,7 @@ impl Default for SettingsState {
             planet_atmo_scatter: true,
             planet_clouds: true,
             planet_surface_detail: true,
+            cloud_quality: "high".to_string(),
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

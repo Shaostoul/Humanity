@@ -1844,6 +1844,26 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        // Cloud quality ladder (clouds increment 3). Applies live: the cloud
+        // material is cached per (body, quality), so flipping tiers rebuilds
+        // it the next frame the deck draws.
+        if state.settings.planet_clouds {
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Cloud quality").color(theme.text_secondary()));
+                for (val, label) in [
+                    ("low", "Low"),
+                    ("medium", "Medium"),
+                    ("high", "High"),
+                ] {
+                    let sel = state.settings.cloud_quality == val;
+                    if ui.selectable_label(sel, RichText::new(label).size(theme.font_size_small)).clicked() && !sel {
+                        state.settings.cloud_quality = val.to_string();
+                        state.settings_dirty = true;
+                    }
+                }
+            });
+            ui.label(RichText::new("High raymarches real 3D cloud shapes with sunlight scattering (puffy towers, dark bases). Medium is the lighter layered march; Low is a flat painted deck for weak GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        }
 
         // ── Sky / map lines (v0.786, operator sky settings) ──
         ui.add_space(theme.spacing_md);
