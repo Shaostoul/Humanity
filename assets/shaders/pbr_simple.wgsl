@@ -348,8 +348,11 @@ const WATER_F0: f32 = 0.02;
 // v0.810 glint: the fixed fill light would paint a bogus second hotspot.
 const WATER_SPEC_POWER: f32 = 900.0;
 const WATER_SPEC_GAIN: f32 = 1.1;
-// Analytic reflected-sky brightness (fraction of sun intensity).
-const WATER_SKY_GAIN: f32 = 0.5;
+// Analytic reflected-sky brightness (fraction of sun intensity). Trimmed
+// v0.819: 0.5 washed every wave crest to bright white (grazing crests mirror
+// the near-white horizon sky) -- the corduroy look. 0.4 keeps the sky mirror
+// without blowing the crests out.
+const WATER_SKY_GAIN: f32 = 0.4;
 // Sea ice rides the water flag (below-sea faces of has_water planets) but
 // must not shade like open ocean: wave presence fades out as the graded
 // albedo brightens from ocean blue toward cap white across this band
@@ -363,29 +366,33 @@ const TAU: f32 = 6.28318530718;
 // frequency (cycles/sec of cloud-clock time, near the deep-water dispersion
 // rate sqrt(g/(2 pi lambda))), and SLOPE amplitude (dimensionless steepness
 // A*k -- what normal perturbation actually consumes, scale-free).
+// Slopes halved v0.819: the v0.818 steepness (sum 0.55) tilted so many wave
+// faces to grazing that the whole sea streaked bright-white and aliased. The
+// big swells keep the most slope (rolling structure); the short chop is
+// gentled hardest (it drove the shimmer). Sum ~0.27.
 const WAVE1_LAMBDA: f32 = 2000.0;
 const WAVE1_CPS: f32 = 0.028;
-const WAVE1_SLOPE: f32 = 0.06;
+const WAVE1_SLOPE: f32 = 0.05;
 const WAVE1_DIR: vec3<f32> = vec3<f32>(0.7071068, 0.0, 0.7071068);
 const WAVE2_LAMBDA: f32 = 850.0;
 const WAVE2_CPS: f32 = 0.045;
-const WAVE2_SLOPE: f32 = 0.07;
+const WAVE2_SLOPE: f32 = 0.05;
 const WAVE2_DIR: vec3<f32> = vec3<f32>(0.9622504, 0.1924501, 0.1924501);
 const WAVE3_LAMBDA: f32 = 360.0;
 const WAVE3_CPS: f32 = 0.07;
-const WAVE3_SLOPE: f32 = 0.09;
+const WAVE3_SLOPE: f32 = 0.05;
 const WAVE3_DIR: vec3<f32> = vec3<f32>(0.2672612, 0.5345225, 0.8017837);
 const WAVE4_LAMBDA: f32 = 150.0;
 const WAVE4_CPS: f32 = 0.105;
-const WAVE4_SLOPE: f32 = 0.1;
+const WAVE4_SLOPE: f32 = 0.045;
 const WAVE4_DIR: vec3<f32> = vec3<f32>(-0.5773503, 0.5773503, 0.5773503);
 const WAVE5_LAMBDA: f32 = 80.0;
 const WAVE5_CPS: f32 = 0.145;
-const WAVE5_SLOPE: f32 = 0.11;
+const WAVE5_SLOPE: f32 = 0.04;
 const WAVE5_DIR: vec3<f32> = vec3<f32>(0.4082483, -0.8164966, 0.4082483);
 const WAVE6_LAMBDA: f32 = 50.0;
 const WAVE6_CPS: f32 = 0.18;
-const WAVE6_SLOPE: f32 = 0.12;
+const WAVE6_SLOPE: f32 = 0.035;
 const WAVE6_DIR: vec3<f32> = vec3<f32>(-0.6666667, 0.3333333, -0.6666667);
 
 // Land detail octaves: multiplicative luminance variation synthesized UNDER
@@ -435,7 +442,15 @@ fn wave_octave(
         return vec3<f32>(0.0);
     }
     tp = tp / l;
-    let cycles = dot(p_m, tp) / lambda_m + t * cps;
+    // Phase = distance along the 3D propagation direction d, in wavelengths.
+    // MUST dot with d (the raw wave direction), NOT tp: the caller's p_m is
+    // the RADIAL planet-local position (p_m = dir * r, parallel to n), and tp
+    // is tangent (perpendicular to n), so dot(p_m, tp) is identically ZERO --
+    // that collapses the whole ocean to one globally-uniform, time-only phase
+    // (no crests, no glitter). dot(p_m, d) = r * dot(dir, d) varies across the
+    // surface, giving real travelling wave trains. tp remains the SLOPE
+    // (gradient) direction; only the phase argument changes.
+    let cycles = dot(p_m, d) / lambda_m + t * cps;
     let ph = fract(cycles) * TAU;
     return tp * (slope * fade * cos(ph));
 }
@@ -517,8 +532,13 @@ fn water_shade(
     let f = WATER_F0 + (1.0 - WATER_F0) * t2 * t2 * t1;
     let refl = reflect(-view_dir, n_pert);
     let elev = clamp(dot(refl, n_geo), 0.0, 1.0);
-    let horizon = vec3<f32>(0.62, 0.7, 0.8);
-    let zenith = vec3<f32>(0.1, 0.26, 0.55);
+    // Reflected-sky ramp, SATURATED toward ocean blue (v0.819): the old
+    // near-white horizon (0.62,0.7,0.8) made every grazing wave crest flash
+    // stark white -- reading as foam we do not simulate. A deeper, bluer ramp
+    // makes crests reflect as blue sky (foam-free open ocean), the biggest
+    // single realism lever after the phase fix.
+    let horizon = vec3<f32>(0.40, 0.55, 0.72);
+    let zenith = vec3<f32>(0.06, 0.19, 0.46);
     var sky = mix(horizon, zenith, pow(elev, 0.6));
     sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.35;
     let sky_term = sky * (day * sun_i * WATER_SKY_GAIN);

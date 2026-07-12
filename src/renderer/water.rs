@@ -59,7 +59,7 @@ pub const WATER_SPEC_POWER: f32 = 900.0;
 pub const WATER_SPEC_GAIN: f32 = 1.1;
 /// Mirrors `WATER_SKY_GAIN`: analytic reflected-sky brightness as a
 /// fraction of sun intensity.
-pub const WATER_SKY_GAIN: f32 = 0.5;
+pub const WATER_SKY_GAIN: f32 = 0.4;
 /// Mirrors `WATER_ICE_LUM_LO` / `WATER_ICE_LUM_HI`: sea-ice guard. Polar
 /// below-sea faces carry the water flag but grade toward cap white; wave
 /// presence fades out across this max-channel-luminance band so pack ice
@@ -88,12 +88,12 @@ pub struct WaveOctave {
 /// each with its own direction and speed so the sum genuinely moves and
 /// sparkles instead of sliding as one frozen pattern.
 pub const WAVE_OCTAVES: [WaveOctave; 6] = [
-    WaveOctave { lambda_m: 2000.0, cps: 0.028, slope: 0.06, dir: [0.707_106_8, 0.0, 0.707_106_8] },
-    WaveOctave { lambda_m: 850.0, cps: 0.045, slope: 0.07, dir: [0.962_250_4, 0.192_450_1, 0.192_450_1] },
-    WaveOctave { lambda_m: 360.0, cps: 0.07, slope: 0.09, dir: [0.267_261_2, 0.534_522_5, 0.801_783_7] },
-    WaveOctave { lambda_m: 150.0, cps: 0.105, slope: 0.1, dir: [-0.577_350_3, 0.577_350_3, 0.577_350_3] },
-    WaveOctave { lambda_m: 80.0, cps: 0.145, slope: 0.11, dir: [0.408_248_3, -0.816_496_6, 0.408_248_3] },
-    WaveOctave { lambda_m: 50.0, cps: 0.18, slope: 0.12, dir: [-0.666_666_7, 0.333_333_3, -0.666_666_7] },
+    WaveOctave { lambda_m: 2000.0, cps: 0.028, slope: 0.05, dir: [0.707_106_8, 0.0, 0.707_106_8] },
+    WaveOctave { lambda_m: 850.0, cps: 0.045, slope: 0.05, dir: [0.962_250_4, 0.192_450_1, 0.192_450_1] },
+    WaveOctave { lambda_m: 360.0, cps: 0.07, slope: 0.05, dir: [0.267_261_2, 0.534_522_5, 0.801_783_7] },
+    WaveOctave { lambda_m: 150.0, cps: 0.105, slope: 0.045, dir: [-0.577_350_3, 0.577_350_3, 0.577_350_3] },
+    WaveOctave { lambda_m: 80.0, cps: 0.145, slope: 0.04, dir: [0.408_248_3, -0.816_496_6, 0.408_248_3] },
+    WaveOctave { lambda_m: 50.0, cps: 0.18, slope: 0.035, dir: [-0.666_666_7, 0.333_333_3, -0.666_666_7] },
 ];
 
 /// One land detail octave (mirrors the LAND{N}_* constants in WGSL):
@@ -166,7 +166,12 @@ pub fn wave_octave(
         return [0.0; 3];
     }
     tp = [tp[0] / l, tp[1] / l, tp[2] / l];
-    let cycles = dot3(p_m, tp) / oct.lambda_m + t * oct.cps;
+    // Phase = distance along the 3D wave direction (in wavelengths). MUST use
+    // oct.dir, NOT tp: p_m is the RADIAL planet-local position (parallel to n)
+    // and tp is tangent, so dot(p_m, tp) is identically zero -- that is the
+    // v0.818 invisible-water bug (globally-uniform, time-only phase). dot with
+    // the raw direction so the phase varies spatially and the trains travel.
+    let cycles = dot3(p_m, oct.dir) / oct.lambda_m + t * oct.cps;
     let ph = fract(cycles) * TAU;
     let s = oct.slope * fade * ph.cos();
     [tp[0] * s, tp[1] * s, tp[2] * s]
@@ -376,6 +381,96 @@ mod tests {
             }
         }
         assert!(moved > 48, "wave field barely moves: {moved}/64 points changed");
+    }
+
+    /// THE guard the v0.818 bug slipped past: a single wave train must have a
+    /// SPATIAL phase, not just a temporal one. Two nearby RADIAL surface
+    /// points (p = dir * r, exactly what the shader feeds in) whose along-d
+    /// separation is half a wavelength must produce near-OPPOSITE single-octave
+    /// gradients. With the old `dot(p_m, tp)` phase (tp perpendicular to the
+    /// radial p_m) both phases were 0, the gradients pointed the SAME way, and
+    /// the whole ocean was a flat, sparkle-free sheet. dot(p_m, dir) fixes it.
+    #[test]
+    fn single_octave_has_spatial_phase() {
+        let fp = footprint_at_alt_km(1.0); // everything resolved (fade = 1)
+        let oct = &WAVE_OCTAVES[0]; // lambda 2000 m
+        let d = oct.dir;
+        // A base surface direction with a strong tangential component to d
+        // (perpendicular to d => tp is maximal, |tp| = 1).
+        let mut base = {
+            let c = [
+                d[1] * 0.0 - d[2] * 1.0,
+                d[2] * 0.0 - d[0] * 0.0,
+                d[0] * 1.0 - d[1] * 0.0,
+            ];
+            let l = len3(c);
+            [c[0] / l, c[1] / l, c[2] / l]
+        };
+        // Guard: if that cross degenerated, fall back to a fixed axis.
+        if len3(base) < 0.5 {
+            base = [0.0, 1.0, 0.0];
+        }
+        // Step base toward d by an arc that advances dot(p_m, d) by lambda/2.
+        // d(dot(dir,d)) ~= arc (base is ~perpendicular to d), and dot(p_m,d) =
+        // r * dot(dir,d), so arc = (lambda/2) / r.
+        let arc = (oct.lambda_m * 0.5) / EARTH_R;
+        let base2 = {
+            let v = [base[0] + d[0] * arc, base[1] + d[1] * arc, base[2] + d[2] * arc];
+            let l = len3(v);
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        let pa = [base[0] * EARTH_R, base[1] * EARTH_R, base[2] * EARTH_R];
+        let pb = [base2[0] * EARTH_R, base2[1] * EARTH_R, base2[2] * EARTH_R];
+        let ga = wave_octave(pa, base, oct, 0.0, fp);
+        let gb = wave_octave(pb, base2, oct, 0.0, fp);
+        assert!(len3(ga) > 1e-4 && len3(gb) > 1e-4, "octave produced no gradient");
+        // Half a wavelength apart => cos flips sign => gradients oppose.
+        assert!(
+            dot3(ga, gb) < 0.0,
+            "single octave has no spatial phase (dot={}) -- the tp/dir bug is back",
+            dot3(ga, gb)
+        );
+    }
+
+    /// The wave FIELD (all six octaves) must vary spatially at a fixed time --
+    /// the perturbed normal cannot be the same across a patch of ocean, or
+    /// there is nothing to see. Complements the temporal `moves_over_40s` test.
+    #[test]
+    fn wave_field_varies_across_the_surface() {
+        let fp = footprint_at_alt_km(0.5); // 300 m-class footprint, all resolved
+        // A compact 2 km-ish patch of ocean directions around a base point.
+        let base = {
+            let v = [0.3f32, 0.8, 0.5];
+            let l = len3(v);
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        // Two tangent axes at base for stepping across the surface.
+        let ax = {
+            let c = [base[1] * 0.0 - base[2] * 1.0, base[2] * 0.0 - base[0] * 0.0, base[0] * 1.0];
+            let l = len3(c);
+            [c[0] / l, c[1] / l, c[2] / l]
+        };
+        let mut lo = f32::INFINITY;
+        let mut hi = f32::NEG_INFINITY;
+        // Sample the along-ax component of the gradient every ~40 m over 800 m.
+        for i in 0..21 {
+            let s = (i as f32 - 10.0) * 40.0 / EARTH_R; // arc offset
+            let dir = {
+                let v = [base[0] + ax[0] * s, base[1] + ax[1] * s, base[2] + ax[2] * s];
+                let l = len3(v);
+                [v[0] / l, v[1] / l, v[2] / l]
+            };
+            let p = [dir[0] * EARTH_R, dir[1] * EARTH_R, dir[2] * EARTH_R];
+            let g = water_wave_gradient(p, dir, 5.0, fp);
+            let along = dot3(g, ax);
+            lo = lo.min(along);
+            hi = hi.max(along);
+        }
+        // Real crests => the slope swings through a wide range across the patch.
+        assert!(
+            hi - lo > 0.05,
+            "wave field is spatially flat across an 800 m patch (range {lo}..{hi})"
+        );
     }
 
     #[test]
