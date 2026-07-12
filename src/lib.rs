@@ -6982,10 +6982,21 @@ mod native_app {
             // Boot MAXIMIZED with decorations = "windowed fullscreen" (title bar + taskbar
             // still visible), the operator's preferred default (v0.454). The loaded
             // window_mode is then applied once the config is read (apply_window_mode).
+            // Background launch (v0.828): when HUMANITY_NO_FOCUS is set, the
+            // window opens WITHOUT activating - it appears BEHIND the currently
+            // focused window and never steals focus. This is for dev/agent verify
+            // instances that boot to capture a frame: they must not yank the
+            // operator out of a game or movie (his exact request). `with_active(
+            // false)` still renders frames (unlike minimizing, which can suspend
+            // the swapchain and break the offscreen screenshot capture), so
+            // headless verification keeps working. Normal launches (env unset)
+            // are unchanged and focus as before.
+            let background = std::env::var("HUMANITY_NO_FOCUS").is_ok();
             let window_attrs = Window::default_attributes()
                 .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
                 .with_maximized(true)
+                .with_active(!background)
                 .with_visible(false);
 
             let window = Arc::new(
