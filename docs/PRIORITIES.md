@@ -126,6 +126,41 @@
 >    window), ocean/land close-range content, cloud ground shadows. LATER
 >    R&D: sky FILTER modes (UV / H-alpha / infrared layers for gas clouds +
 >    nebulae); per-point light sampling along strip paths.
+>    ** OVERNIGHT REALISM ARC (operator mandate 2026-07-11 "get the
+>    environment as close to real looking as possible"; Opus, 2026-07-12): **
+>    THE "GET-TO-THE-SURFACE" UNLOCK ABOVE IS SHIPPED - **v0.829.0 surface
+>    mode** (task #76 DONE): within ~10 km of a planet the camera flips to a
+>    radial-up tangent basis (down = planet centre, level horizon), gravity
+>    settles the eye to standing height on the real heightmap ground, WASD
+>    walks the tangent plane; above the engage altitude orbit is INERTIAL
+>    (starfield fixed, planet turning - ISS view). src/surface_walk.rs (pure
+>    glam, 8 tests) + Camera.surface_mode/surface_up. VERIFIED: level sea
+>    horizon over Oahu; marble + Milky Way from orbit.
+>    **v0.830.0 wispier clouds** (salvaged the paused a202 clouds agent, re-
+>    verified myself): ridged-Perlin cirrus filament octave + four cloud-type
+>    regimes (cirrus/cumulus/stratus/stratocu); earth.ron base coverage 0.55
+>    -> 0.42 so Earth reads as partly-cloudy blue, not a white shroud.
+>    **FOV-collapse guard** (v0.829.0): camera fov clamped 60..120 on apply -
+>    a "fov": 0.0 config used to black out the whole 3D scene (root-caused a
+>    poisoned portable config that made every verify capture black; see
+>    journal 2026-07-12 + memory dev_workflow_tooling).
+>    REALISM QUEUE (ranked, all fresh renderer features - do with full
+>    attention + boot-verify EACH, the device-limit gotcha is real):
+>    (a) SUN corona/flare - the Sun is a flat white disc with a hard edge
+>        ("looks like the moon"); needs a soft additive corona shell (mirror
+>        the atmosphere-shell pattern near lib.rs:13510) + stronger bloom
+>        pickup. Celestial draw uses state.sun_material (lib.rs:13473);
+>        sun_halo_material exists (lib.rs:6065) but is NOT drawn in that pass.
+>    (b) MOON surface realism - currently a flat grey ball, fully lit; wants
+>        maria (dark basalt patches), cratering, and a real terminator/phase.
+>    (c) WEATHER (procedural, math-first per operator): sunny/overcast/light+
+>        heavy rain/snow/ash x wind (none/low/high/extreme) + changeable wind
+>        direction -> foliage/particle motion, fog, lightning (ground strike +
+>        sky spider). Scoped OUT for now: hurricanes/tornadoes. Big feature -
+>        design a WeatherState + particle + shader pass; start with 1-2 states.
+>    (d) PLANTS - free 3D real-plant catalogs OR procedural L-system; Silverdale
+>        WA evergreens/pine/douglas-fir first. Research + a spawn/scatter system.
+>    (e) TERRAIN icosphere-triangle mosaic still faintly visible - smooth/subdiv.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
