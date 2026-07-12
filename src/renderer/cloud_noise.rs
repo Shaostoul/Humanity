@@ -12,7 +12,9 @@
 //!   carves the LOW-frequency cloud body (features tens of km).
 //! * **DETAIL** (64x64x64 RGBA8): R/G/B = higher-frequency inverted Worley
 //!   octaves that ERODE the shape's edges into wispy bases and billowy
-//!   tops (features a few km). A = 255 (unused, keeps the format uniform).
+//!   tops (features a few km). A = a RIDGED-Perlin "filament" octave (sharp
+//!   ridges at the noise zero-crossings) used by the shader to fray cloud
+//!   sheets into thin streaks -- the primary cirrus/wisp lever (v0.828+).
 //!
 //! Both are generated procedurally at startup, multithreaded over z-slabs
 //! (`generate_shape` / `generate_detail`) -- no repo assets, no downloads,
@@ -43,6 +45,7 @@ const SEED_W2: u32 = 0x2F8B11;
 const SEED_D0: u32 = 0xC3D2E1;
 const SEED_D1: u32 = 0x1B4D3F;
 const SEED_D2: u32 = 0x8E67A5;
+const SEED_FIL: u32 = 0x6A17B9;
 
 /// Integer avalanche hash of a 3D lattice/cell coordinate + seed.
 /// (Wang/Murmur-style finalizer: good bit diffusion, no allocations.)
@@ -200,6 +203,25 @@ pub fn remap(v: f32, l0: f32, h0: f32, l1: f32, h1: f32) -> f32 {
     l1 + (v - l0) / (h0 - l0) * (h1 - l1)
 }
 
+/// Tiling 3D RIDGED Perlin: `1 - |2*perlin - 1|`, so the sharp ridge crest
+/// (value 1) sits on the Perlin zero-crossing surfaces. Where inverted-Worley
+/// gives round cellular BILLOWS, ridged Perlin gives thin, branching FILAMENT
+/// structure -- exactly the streaky look of real cirrus. In [0, 1], tiling
+/// preserved because `perlin3` tiles and the |.| is pointwise.
+pub fn ridged3(p: [f32; 3], freq: u32, seed: u32) -> f32 {
+    let v = perlin3(p, freq, seed);
+    (1.0 - (2.0 * v - 1.0).abs()).clamp(0.0, 1.0)
+}
+
+/// Two-octave ridged-Perlin FBM: the DETAIL volume's alpha "filament" channel.
+/// 12 + 24 cells per tile (features a few km on Earth), amplitude 0.6 / 0.4.
+/// Kept below the Worley octaves' cell count so the 64^3 texture resolves it.
+pub fn filament_fbm3(p: [f32; 3], seed: u32) -> f32 {
+    let a = ridged3(p, 12, seed);
+    let b = ridged3(p, 24, seed.wrapping_add(0x0BAD_F00D));
+    (a * 0.6 + b * 0.4).clamp(0.0, 1.0)
+}
+
 /// One SHAPE voxel at tile-space point `p`: R = Perlin-Worley, G/B/A =
 /// inverted Worley at 6/12/24 cells per tile. Public so tests can probe
 /// arbitrary points without generating a whole volume.
@@ -223,16 +245,18 @@ pub fn shape_voxel(p: [f32; 3]) -> [u8; 4] {
 }
 
 /// One DETAIL voxel: R/G/B = inverted Worley at 8/16/32 cells per tile
-/// (the shader assembles them as a 0.625/0.25/0.125 FBM), A = 255.
+/// (the shader assembles them as a 0.625/0.25/0.125 FBM), A = a ridged-Perlin
+/// filament FBM (the shader uses it to fray cloud sheets into cirrus streaks).
 pub fn detail_voxel(p: [f32; 3]) -> [u8; 4] {
     let d0 = worley3(p, 8, SEED_D0);
     let d1 = worley3(p, 16, SEED_D1);
     let d2 = worley3(p, 32, SEED_D2);
+    let fil = filament_fbm3(p, SEED_FIL);
     [
         (d0 * 255.0).round() as u8,
         (d1 * 255.0).round() as u8,
         (d2 * 255.0).round() as u8,
-        255,
+        (fil * 255.0).round() as u8,
     ]
 }
 
@@ -378,6 +402,36 @@ mod tests {
         let idx = ((7 * 16 + 5) * 16 + 3) * 4;
         let expect = detail_voxel([3.0 / 16.0, 5.0 / 16.0, 7.0 / 16.0]);
         assert_eq!(&one[idx..idx + 4], &expect);
+    }
+
+    #[test]
+    fn filament_channel_tiles_ranges_and_varies() {
+        // The ridged-Perlin filament FBM (DETAIL alpha) must stay in unit
+        // range, tile exactly on every axis (it rides the repeat sampler),
+        // and actually vary (a flat channel would fray nothing).
+        let mut lo = f32::MAX;
+        let mut hi = f32::MIN;
+        for p in probes() {
+            let base = filament_fbm3(p, SEED_FIL);
+            assert!((0.0..=1.0).contains(&base), "filament out of range: {base}");
+            lo = lo.min(base);
+            hi = hi.max(base);
+            for axis in 0..3 {
+                let mut q = p;
+                q[axis] += 1.0; // exact for multiples of 1/64
+                assert_eq!(
+                    filament_fbm3(q, SEED_FIL),
+                    base,
+                    "filament breaks tiling at {p:?} axis {axis}"
+                );
+            }
+        }
+        assert!(hi - lo > 0.35, "filament too flat: {lo}..{hi}");
+        // Ridged crests reach high (near 1) somewhere -- that is the streak.
+        assert!(hi > 0.7, "filament has no sharp ridges: max {hi}");
+        // It must land in the DETAIL voxel's alpha slot (not the old 255).
+        let v = detail_voxel([0.3, 0.6, 0.1]);
+        assert_eq!(v[3], (filament_fbm3([0.3, 0.6, 0.1], SEED_FIL) * 255.0).round() as u8);
     }
 
     #[test]

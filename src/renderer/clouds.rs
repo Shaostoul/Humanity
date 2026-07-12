@@ -123,8 +123,26 @@ pub const CLOUD_DETAIL_FREQ: f32 = 60.0;
 /// Mirrors `CLOUD_DETAIL_ERODE`: how deeply the detail octaves erode the
 /// shape's edges.
 pub const CLOUD_DETAIL_ERODE: f32 = 0.38;
-/// Mirrors `CLOUD_TYPE_FREQ`: the stratus-vs-cumulus type field frequency.
+/// Mirrors `CLOUD_TYPE_FREQ`: the primary (very-low-frequency) cloud-type
+/// field frequency -- one air mass per cell picks the regime family.
 pub const CLOUD_TYPE_FREQ: f32 = 3.0;
+/// Mirrors `CLOUD_TYPE_FREQ2`: secondary type octave, blended with the primary
+/// so the regime map has organic sub-structure (every type shows somewhere).
+pub const CLOUD_TYPE_FREQ2: f32 = 7.0;
+/// Mirrors `CLOUD_FRAY_FREQ`: coarse edge-fray tile frequency. Deliberately
+/// LOW (Earth ~88 km features) so the fray survives at orbital distance -- the
+/// fix for the "giant blotches" (the fine detail band faded out from orbit,
+/// leaving smooth blobs). The coarse band never fades.
+pub const CLOUD_FRAY_FREQ: f32 = 9.0;
+/// Mirrors `CLOUD_FRAY_ERODE`: global strength of the coarse fray band.
+pub const CLOUD_FRAY_ERODE: f32 = 0.5;
+/// Mirrors `CLOUD_DENSITY_POW`: thin-edge shaping exponent (> 1 makes low
+/// densities translucent while cores stay opaque -- wispy see-through skirts).
+pub const CLOUD_DENSITY_POW: f32 = 1.7;
+/// Mirrors `CLOUD_FIL_LO` / `CLOUD_FIL_HI`: the ridged-filament (detail alpha)
+/// mask window that frays cirrus sheets into thin streaks.
+pub const CLOUD_FIL_LO: f32 = 0.30;
+pub const CLOUD_FIL_HI: f32 = 0.74;
 /// Mirrors `CLOUD_HG_FWD` / `CLOUD_HG_BACK` / `CLOUD_HG_FWD_WEIGHT`: the
 /// dual-lobe Henyey-Greenstein phase.
 pub const CLOUD_HG_FWD: f32 = 0.55;
@@ -386,13 +404,102 @@ pub fn cloud_weather(dir: [f32; 3], t: f32, seed: f32) -> f32 {
     smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.10)
 }
 
-/// Mirrors `cloud_type_envelope`: height profile per cloud type over the
-/// slab fraction h. Stratus (0) hugs the bottom quarter; cumulus (1) rises
-/// from a flat bottom to a domed top past mid-slab.
-pub fn cloud_type_envelope(h: f32, ctype: f32) -> f32 {
-    let strat = smoothstep(0.0, 0.10, h) * (1.0 - smoothstep(0.20, 0.38, h));
-    let cum = smoothstep(0.02, 0.18, h) * (1.0 - smoothstep(0.55, 0.95, h));
-    mix(strat, cum, ctype)
+/// Mirrors the WGSL `CloudRegime` struct: the blended per-regime parameters
+/// for one ray. Order everywhere is cirrus / cumulus / stratus / stratocumulus.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CloudRegime {
+    /// Slab-fraction bottom of the regime's height band.
+    pub h_lo: f32,
+    /// Slab-fraction top of the band.
+    pub h_hi: f32,
+    /// Density scale (cirrus faint, cumulus solid).
+    pub opacity: f32,
+    /// Added to coverage (stratus fills toward overcast).
+    pub cover_bias: f32,
+    /// Coarse edge-fray strength.
+    pub fray: f32,
+    /// Fine cauliflower strength (close-up billow).
+    pub fine: f32,
+    /// Domain anisotropy (cirrus streaks east-west).
+    pub stretch: f32,
+    /// Ridged-filament streaking amount (cirrus).
+    pub filament: f32,
+    /// Luminance factor (overcast reads greyer).
+    pub tint: f32,
+}
+
+/// Dot of a 4-weight vector with a per-regime parameter table.
+fn dot4(w: [f32; 4], v: [f32; 4]) -> f32 {
+    w[0] * v[0] + w[1] * v[1] + w[2] * v[2] + w[3] * v[3]
+}
+
+/// Mirrors `cloud_regime_weights`: overlapping smoothstep tents around four
+/// centers spread across [0, 1], normalized to a partition of unity. Smooth
+/// everywhere, so the four cloud families cross-fade with no hard boundary.
+pub fn cloud_regime_weights(tc: f32) -> [f32; 4] {
+    let centers = [0.0f32, 0.34, 0.67, 1.0];
+    let hw = 0.42f32;
+    let mut w = [0.0f32; 4];
+    let mut s = 0.0f32;
+    for i in 0..4 {
+        let mut wi = (1.0 - (tc - centers[i]).abs() / hw).clamp(0.0, 1.0);
+        wi = wi * wi * (3.0 - 2.0 * wi);
+        w[i] = wi;
+        s += wi;
+    }
+    let inv = 1.0 / s.max(1.0e-4);
+    [w[0] * inv, w[1] * inv, w[2] * inv, w[3] * inv]
+}
+
+/// Mirrors `cloud_regime`: blend the per-regime parameter tables by the
+/// weights. Keep these tables byte-identical with the WGSL `cloud_regime`.
+pub fn cloud_regime(tc: f32) -> CloudRegime {
+    let w = cloud_regime_weights(tc);
+    //                         cirrus cumulus stratus stratocu
+    CloudRegime {
+        h_lo: dot4(w, [0.68, 0.05, 0.00, 0.05]),
+        h_hi: dot4(w, [1.00, 0.72, 0.20, 0.40]),
+        opacity: dot4(w, [0.34, 1.00, 0.80, 0.62]),
+        cover_bias: dot4(w, [0.06, -0.03, 0.34, 0.03]),
+        fray: dot4(w, [1.00, 0.55, 0.18, 0.80]),
+        fine: dot4(w, [0.35, 0.95, 0.30, 0.80]),
+        stretch: dot4(w, [3.40, 1.15, 1.50, 1.70]),
+        filament: dot4(w, [0.90, 0.10, 0.04, 0.30]),
+        tint: dot4(w, [1.00, 1.00, 0.80, 0.90]),
+    }
+}
+
+/// Mirrors `cloud_type_coord`: two low-frequency octaves -> the [0,1] type
+/// coordinate that selects the cloud family at a planet-fixed direction.
+pub fn cloud_type_coord(dir: [f32; 3], t: f32, seed: f32) -> f32 {
+    let d = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
+    let a = cloud_noise(d, CLOUD_TYPE_FREQ, seed + 211.0);
+    let b = cloud_noise(d, CLOUD_TYPE_FREQ2, seed + 331.0);
+    (0.62 * a + 0.38 * b).clamp(0.0, 1.0)
+}
+
+/// Mirrors `cloud_height_band`: smooth rise / plateau / fall over the slab
+/// fraction h for a regime's [h_lo, h_hi] altitude band.
+pub fn cloud_height_band(h: f32, h_lo: f32, h_hi: f32) -> f32 {
+    let a = mix(h_lo, h_hi, 0.30);
+    let b = mix(h_lo, h_hi, 0.62);
+    smoothstep(h_lo, a, h) * (1.0 - smoothstep(b, h_hi, h))
+}
+
+/// Mirrors `cloud_stretch_domain`: slow the sample coordinate along the zonal
+/// tangent (east-west, perpendicular to the spin axis Y) so noise features
+/// elongate into streaks. No-ops smoothly at the poles.
+pub fn cloud_stretch_domain(p: [f32; 3], dir: [f32; 3], stretch: f32) -> [f32; 3] {
+    // cross((0,1,0), dir) = (dir.z, 0, -dir.x)
+    let mut tang = [dir[2], 0.0, -dir[0]];
+    let tl = (tang[0] * tang[0] + tang[1] * tang[1] + tang[2] * tang[2]).sqrt();
+    if tl < 1.0e-4 {
+        return p;
+    }
+    tang = [tang[0] / tl, tang[1] / tl, tang[2] / tl];
+    let d = p[0] * tang[0] + p[1] * tang[1] + p[2] * tang[2];
+    let k = d * (1.0 - 1.0 / stretch);
+    [p[0] - tang[0] * k, p[1] - tang[1] * k, p[2] - tang[2] * k]
 }
 
 /// Mirrors `cloud_scatter_energy`: 3-octave multiple-scattering
@@ -613,6 +720,12 @@ mod tests {
             ("CLOUD_DETAIL_FREQ", CLOUD_DETAIL_FREQ),
             ("CLOUD_DETAIL_ERODE", CLOUD_DETAIL_ERODE),
             ("CLOUD_TYPE_FREQ", CLOUD_TYPE_FREQ),
+            ("CLOUD_TYPE_FREQ2", CLOUD_TYPE_FREQ2),
+            ("CLOUD_FRAY_FREQ", CLOUD_FRAY_FREQ),
+            ("CLOUD_FRAY_ERODE", CLOUD_FRAY_ERODE),
+            ("CLOUD_DENSITY_POW", CLOUD_DENSITY_POW),
+            ("CLOUD_FIL_LO", CLOUD_FIL_LO),
+            ("CLOUD_FIL_HI", CLOUD_FIL_HI),
             ("CLOUD_HG_FWD", CLOUD_HG_FWD),
             ("CLOUD_HG_BACK", CLOUD_HG_BACK),
             ("CLOUD_HG_FWD_WEIGHT", CLOUD_HG_FWD_WEIGHT),
@@ -725,23 +838,110 @@ mod tests {
     }
 
     #[test]
-    fn type_envelope_shapes_stratus_low_and_cumulus_tall() {
-        // Both types: zero at the exact base and top of the slab.
-        for ty in [0.0f32, 0.5, 1.0] {
-            assert_eq!(cloud_type_envelope(0.0, ty), 0.0);
-            assert!(cloud_type_envelope(1.0, ty) < 1e-6);
+    fn regime_weights_are_a_smooth_partition_of_unity() {
+        // At every type coordinate the four family weights sum to 1 (a
+        // partition of unity -> seamless blend) and stay non-negative.
+        for i in 0..=100 {
+            let tc = i as f32 / 100.0;
+            let w = cloud_regime_weights(tc);
+            let s: f32 = w.iter().sum();
+            assert!((s - 1.0).abs() < 1e-4, "weights don't sum to 1 at {tc}: {s}");
+            for &wi in &w {
+                assert!((0.0..=1.0001).contains(&wi), "weight out of range: {wi}");
+            }
         }
-        // Stratus: fully developed low, gone by mid-slab.
-        assert_eq!(cloud_type_envelope(0.15, 0.0), 1.0);
-        assert_eq!(cloud_type_envelope(0.5, 0.0), 0.0);
-        // Cumulus: fully developed through the middle, fading in the dome.
-        assert_eq!(cloud_type_envelope(0.3, 1.0), 1.0);
-        assert_eq!(cloud_type_envelope(0.5, 1.0), 1.0);
-        let dome = cloud_type_envelope(0.75, 1.0);
-        assert!(dome > 0.0 && dome < 1.0, "cumulus dome not soft: {dome}");
-        // The blend is monotone in ctype where the two disagree.
-        let at_half = cloud_type_envelope(0.5, 0.5);
-        assert!(at_half > 0.0 && at_half < 1.0);
+        // Each family dominates near its own center (cirrus low tc, cumulus
+        // ~0.34, stratus ~0.67, stratocumulus high tc).
+        let argmax = |w: [f32; 4]| {
+            (0..4).max_by(|&a, &b| w[a].partial_cmp(&w[b]).unwrap()).unwrap()
+        };
+        assert_eq!(argmax(cloud_regime_weights(0.0)), 0, "cirrus should peak at tc 0");
+        assert_eq!(argmax(cloud_regime_weights(0.34)), 1, "cumulus should peak mid-low");
+        assert_eq!(argmax(cloud_regime_weights(0.67)), 2, "stratus should peak mid-high");
+        assert_eq!(argmax(cloud_regime_weights(1.0)), 3, "stratocumulus should peak at tc 1");
+    }
+
+    #[test]
+    fn regime_params_match_the_four_families() {
+        // The blended params at each family's center must express its physical
+        // character: this is the "all cloud types" contract.
+        let cirrus = cloud_regime(0.0);
+        let cumulus = cloud_regime(0.34);
+        let stratus = cloud_regime(0.67);
+        let stratocu = cloud_regime(1.0);
+        // Cirrus: HIGH in the slab, thin/faint, very streaky (stretch + fila).
+        assert!(cirrus.h_lo > 0.5, "cirrus not high: h_lo {}", cirrus.h_lo);
+        assert!(cirrus.opacity < 0.6, "cirrus not faint: {}", cirrus.opacity);
+        assert!(cirrus.stretch > 2.0, "cirrus not streaky: {}", cirrus.stretch);
+        assert!(cirrus.filament > 0.5, "cirrus not filamentary: {}", cirrus.filament);
+        // Cumulus: reaches low, solid, tallest band, minimal streaking.
+        assert!(cumulus.h_lo < 0.2 && cumulus.h_hi > 0.6, "cumulus band off");
+        assert!(cumulus.opacity > 0.9, "cumulus not solid: {}", cumulus.opacity);
+        assert!(cumulus.filament < 0.2, "cumulus should not streak: {}", cumulus.filament);
+        // Stratus: hugs the base, overcast (positive cover bias), grey tint.
+        assert!(stratus.h_hi < 0.35, "stratus not low: h_hi {}", stratus.h_hi);
+        assert!(stratus.cover_bias > 0.2, "stratus not overcast: {}", stratus.cover_bias);
+        assert!(stratus.tint < 0.9, "stratus not greyer: {}", stratus.tint);
+        // Stratocumulus: low-mid, broken (high fray), moderate everything.
+        assert!(stratocu.fray > 0.6, "stratocumulus not broken: {}", stratocu.fray);
+        assert!(stratocu.h_hi > 0.3 && stratocu.h_hi < 0.55, "stratocu band off");
+        // Determinism.
+        assert_eq!(cloud_regime(0.5), cloud_regime(0.5));
+    }
+
+    #[test]
+    fn type_coord_is_deterministic_and_in_range() {
+        for dir in sample_dirs(200) {
+            let a = cloud_type_coord(dir, 12.0, 42.0);
+            assert_eq!(a, cloud_type_coord(dir, 12.0, 42.0), "type coord not pure");
+            assert!((0.0..=1.0).contains(&a), "type coord out of range: {a}");
+        }
+        // A different seed decorrelates the type map (so worlds differ).
+        let mut differ = 0;
+        for dir in sample_dirs(64) {
+            if (cloud_type_coord(dir, 0.0, 42.0) - cloud_type_coord(dir, 0.0, 900.0)).abs() > 1e-3 {
+                differ += 1;
+            }
+        }
+        assert!(differ > 40, "type map correlates across seeds: {differ}/64");
+    }
+
+    #[test]
+    fn height_band_zero_outside_and_peaks_inside() {
+        // A mid-slab cumulus-like band [0.05, 0.72].
+        assert_eq!(cloud_height_band(0.0, 0.05, 0.72), 0.0);
+        assert_eq!(cloud_height_band(0.05, 0.05, 0.72), 0.0);
+        assert_eq!(cloud_height_band(0.72, 0.05, 0.72), 0.0);
+        assert_eq!(cloud_height_band(1.0, 0.05, 0.72), 0.0);
+        // Plateau in the interior (between the 0.30 and 0.62 mix points).
+        let mid = cloud_height_band(mix(0.05, 0.72, 0.46), 0.05, 0.72);
+        assert!((mid - 1.0).abs() < 1e-5, "band interior not full: {mid}");
+        // A high cirrus band [0.68, 1.0] must be zero low down, alive up high.
+        assert_eq!(cloud_height_band(0.2, 0.68, 1.0), 0.0);
+        assert!(cloud_height_band(0.85, 0.68, 1.0) > 0.0, "cirrus band dead up high");
+    }
+
+    #[test]
+    fn stretch_domain_elongates_along_zonal_and_noops_at_poles() {
+        // Equatorial direction: the zonal tangent is well-defined, so a point
+        // offset along it is pulled toward the origin (features vary slower
+        // there -> elongated). Perpendicular offsets are untouched.
+        let dir = [1.0f32, 0.0, 0.0];
+        // tangent = cross((0,1,0),(1,0,0)) = (0,0,-1); pick p along +z.
+        let p = [0.0f32, 0.0, 1.0];
+        let out = cloud_stretch_domain(p, dir, 3.0);
+        // z-projection scaled by 1/3 (stretched), x/y unchanged.
+        assert!((out[2] - (1.0 / 3.0)).abs() < 1e-5, "zonal not stretched: {out:?}");
+        assert!(out[0].abs() < 1e-6 && out[1].abs() < 1e-6);
+        // A point purely meridional (along y) is not stretched at all.
+        let py = [0.0f32, 0.5, 0.0];
+        assert_eq!(cloud_stretch_domain(py, dir, 3.0), py);
+        // At the pole the tangent vanishes -> exact no-op (no NaN).
+        let pole = [0.0f32, 1.0, 0.0];
+        let any = [0.3f32, 0.4, 0.5];
+        assert_eq!(cloud_stretch_domain(any, pole, 4.0), any);
+        // stretch == 1 is always the identity.
+        assert_eq!(cloud_stretch_domain(any, dir, 1.0), any);
     }
 
     #[test]
