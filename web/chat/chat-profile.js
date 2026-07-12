@@ -1016,17 +1016,23 @@ function openLinkThisDeviceModal() {
       <div style="font-size:.72rem;color:var(--success)">${pro}</div>
       <div style="font-size:.72rem;color:var(--text-muted)">${con}</div>
     </button>`;
+  const groupLabel = (text) => `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin:var(--space-lg) 0 var(--space-sm)">${text}</div>`;
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">🔗 Link this device to your identity</h2>
-      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:var(--space-xl)">
-        Bring your existing identity (name, role, history) to this device. All methods are secure; they differ in convenience.
-        <strong style="color:var(--danger)">This replaces any identity currently on this device.</strong>
+      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:0">
+        Two ways to do this. The first four make this device fully <em>become</em> you (same key: chat, uploads, DMs, history).
       </p>
-      ${method('📷', 'Scan a QR code', 'Fastest, no typing.', 'Needs your other device to show its "Link New Device" QR + a camera here.', 'ltd-scan')}
-      ${method('📋', 'Paste identity code', 'Works on any browser.', 'Copy the code text from your other device\'s Link New Device screen.', 'ltd-paste')}
+      ${groupLabel('Fully become this identity (recommended)')}
+      ${method('📷', 'Scan a QR code', 'Fastest, no typing. Gets everything incl. DMs.', 'Needs your other device to show its identity QR + a camera here.', 'ltd-scan')}
+      ${method('📋', 'Paste identity code', 'Works on any browser.', 'Copy the code text from your other device\'s "Show my identity" screen.', 'ltd-paste')}
       ${method('🌱', 'Enter seed phrase', 'From your written 24-word backup; no other device needed.', 'You type/paste 24 words.', 'ltd-seed')}
       ${method('💾', 'Encrypted backup file', 'A file you saved, protected by your passphrase.', 'You transfer the file to this device first.', 'ltd-file')}
+      ${groupLabel('Companion device (keep this device\'s own key)')}
+      <p style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-sm)">
+        On your other device type <code style="color:var(--accent)">/link</code> in chat to get a one-time code, then enter it here. This device shows under your name and can post + upload, but keeps its own key (it can't read your private DMs).
+      </p>
+      ${method('🔗', 'Enter a link code', 'No seed or QR needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
       <div style="text-align:right;margin-top:var(--space-md)">
         <button onclick="document.getElementById('link-this-device-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
@@ -1038,11 +1044,47 @@ function openLinkThisDeviceModal() {
   document.getElementById('ltd-scan').onclick = () => { close(); scanQrWithCamera(importIdentityFromLinkString); };
   document.getElementById('ltd-paste').onclick = () => {
     close();
-    const s = prompt('Paste your identity code (the JSON from the other device\'s "Link New Device" screen):');
+    const s = prompt('Paste your identity code (the JSON from the other device\'s "Show my identity" screen):');
     if (s) importIdentityFromLinkString(s);
   };
   document.getElementById('ltd-seed').onclick = () => { close(); openRestoreFromMnemonicModal(); };
   document.getElementById('ltd-file').onclick = () => { close(); openRestoreIdentityModal(); };
+  document.getElementById('ltd-code').onclick = () => { close(); linkThisDeviceWithCode(); };
+}
+
+/**
+ * Companion-device path: this device KEEPS its own key but registers under your
+ * name by redeeming a one-time /link code from your other device. The relay copies
+ * your role to this device's key (so it can upload), but because DMs are
+ * end-to-end encrypted to a specific key, this device won't read your existing
+ * DMs (use "Enter seed phrase" / QR for that). Reconnects so the code rides the
+ * identify message (app.js consumes `pendingLinkCode`).
+ */
+function linkThisDeviceWithCode() {
+  const name = prompt('Your name (the same name as on your other device):');
+  if (!name) return;
+  const trimmedName = name.trim();
+  if (!/^[A-Za-z0-9_-]{1,24}$/.test(trimmedName)) {
+    alert('Names can only contain letters (A-Z), numbers, underscores, and dashes. Max 24 characters.');
+    return;
+  }
+  const code = prompt('Link code from your other device (type /link there to get one):');
+  if (!code || !code.trim()) return;
+
+  // Set the display name locally + persist it so it survives a reload, then push
+  // the code onto the pending-identify slot and force a clean re-identify.
+  myName = trimmedName;
+  try { localStorage.setItem('humanity_name', trimmedName); } catch (e) {}
+  const nameInput = document.getElementById('name-input');
+  if (nameInput) nameInput.value = trimmedName;
+  pendingLinkCode = code.trim();
+  identityConfirmed = false;
+  if (typeof ws !== 'undefined' && ws) {
+    try { ws.onclose = null; ws.close(); } catch (e) {}
+    ws = null;
+  }
+  openSocket();
+  alert('Linking this device as "' + trimmedName + '"…\nIf the code is valid it will reconnect under that name with your permissions.');
 }
 
 async function doRestoreIdentity() {

@@ -240,21 +240,50 @@ impl Storage {
                 .unwrap_or_default()
                 .as_millis() as i64;
 
+            // Fetch the name AND who created the code, so the new device can
+            // inherit the creator's capabilities (see role inheritance below).
             let result = conn.query_row(
-                "SELECT name FROM link_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
+                "SELECT name, created_by FROM link_codes WHERE code = ?1 COLLATE NOCASE AND expires_at > ?2",
                 params![code, now],
-                |row| row.get::<_, String>(0),
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             );
 
             match result {
-                Ok(name) => {
-                    // Delete the used code.
+                Ok((name, created_by)) => {
+                    // Delete the used code (one-time).
                     conn.execute("DELETE FROM link_codes WHERE code = ?1 COLLATE NOCASE", params![code])?;
-                    // Register the new key.
+                    // Register the new key under the name.
                     conn.execute(
                         "INSERT OR IGNORE INTO registered_names (name, public_key, registered_at) VALUES (?1, ?2, ?3)",
                         params![name, public_key, now],
                     )?;
+                    // Role inheritance: a linked device keeps its OWN key, and every
+                    // capability gate (uploads, mod/admin actions) checks the KEY's
+                    // role via user_roles, NOT the name. Without this, a device you
+                    // linked to your own admin/verified account would show under your
+                    // name yet be silently unverified and unable to upload (the roster
+                    // even aggregates role by name, so it LOOKED verified while the gate
+                    // wasn't). Copy the creator's role to the new key. Safe: the link
+                    // code is one-time, 5-minute, private to the creator, and the
+                    // creator is identify-authenticated, so this is a deliberate "this
+                    // is also my device" grant. If the creator has no role, the linked
+                    // device stays at the default (unverified), which is correct.
+                    let creator_role = match conn.query_row(
+                        "SELECT role FROM user_roles WHERE public_key = ?1",
+                        params![created_by],
+                        |row| row.get::<_, String>(0),
+                    ) {
+                        Ok(r) => r,
+                        Err(rusqlite::Error::QueryReturnedNoRows) => String::new(),
+                        Err(e) => return Err(e),
+                    };
+                    if !creator_role.is_empty() {
+                        conn.execute(
+                            "INSERT INTO user_roles (public_key, role) VALUES (?1, ?2)
+                             ON CONFLICT(public_key) DO UPDATE SET role = ?2",
+                            params![public_key, creator_role],
+                        )?;
+                    }
                     Ok(Some(name))
                 }
                 Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -376,5 +405,76 @@ mod anti_spam_helpers_tests {
         assert!(!db.pubkey_is_registered("pk_new").unwrap());
         db.register_name("bob", "pk_new").unwrap();
         assert!(db.pubkey_is_registered("pk_new").unwrap());
+    }
+}
+
+#[cfg(test)]
+mod link_code_tests {
+    //! The /link device-pairing flow: create_link_code (typed `/link`) hands out
+    //! a one-time 5-minute code; redeem_link_code (a second device presenting the
+    //! code at identify) registers that device's OWN key under the name AND makes
+    //! it inherit the creator's role. The role inheritance is the fix for the
+    //! "linked phone shows under my name but silently can't upload" gap: capability
+    //! gates check the KEY's role, so a fresh linked key needs the role copied.
+    use super::*;
+
+    fn fresh_db() -> Storage {
+        let pid = std::process::id();
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path = std::env::temp_dir().join(format!("hum_link_code_{pid}_{nanos}.db"));
+        Storage::open(&path).expect("open test db")
+    }
+
+    #[test]
+    fn redeeming_a_link_code_registers_the_new_key_and_inherits_role() {
+        let db = fresh_db();
+        // Device 1 is a verified admin, registered under the name.
+        db.register_name("shaostoul", "pk_pc").unwrap();
+        db.set_role("pk_pc", "admin").unwrap();
+
+        // Device 1 types /link -> a code bound to the name + creator key.
+        let code = db.create_link_code("shaostoul", "pk_pc").expect("create code");
+
+        // Device 2 (its OWN fresh key, no role) presents the code.
+        let redeemed = db.redeem_link_code(&code, "pk_phone").expect("redeem").expect("valid");
+        assert_eq!(redeemed, "shaostoul");
+
+        // The phone key is now registered under the name...
+        assert!(db.pubkey_is_registered("pk_phone").unwrap());
+        // ...AND inherited the creator's role, so capability gates (uploads,
+        // etc.) that read get_role(key) now pass for the linked device.
+        assert_eq!(db.get_role("pk_phone").unwrap(), "admin");
+    }
+
+    #[test]
+    fn redeeming_from_a_roleless_creator_leaves_the_device_unverified() {
+        let db = fresh_db();
+        db.register_name("plainuser", "pk_a").unwrap();
+        // pk_a has no role set (default unverified).
+        let code = db.create_link_code("plainuser", "pk_a").expect("create");
+        db.redeem_link_code(&code, "pk_b").expect("redeem").expect("valid");
+        // No role to inherit -> the linked device stays at the default.
+        assert_eq!(db.get_role("pk_b").unwrap(), "");
+    }
+
+    #[test]
+    fn a_link_code_is_one_time_and_invalid_codes_do_nothing() {
+        let db = fresh_db();
+        db.register_name("shaostoul", "pk_pc").unwrap();
+        db.set_role("pk_pc", "verified").unwrap();
+        let code = db.create_link_code("shaostoul", "pk_pc").expect("create");
+
+        // First redeem works.
+        assert!(db.redeem_link_code(&code, "pk_phone1").unwrap().is_some());
+        // Second redeem of the SAME code fails (one-time) and grants nothing.
+        assert!(db.redeem_link_code(&code, "pk_phone2").unwrap().is_none());
+        assert!(!db.pubkey_is_registered("pk_phone2").unwrap());
+        assert_eq!(db.get_role("pk_phone2").unwrap(), "");
+
+        // A never-issued code is simply invalid.
+        assert!(db.redeem_link_code("DEADBEEF", "pk_phone3").unwrap().is_none());
     }
 }
