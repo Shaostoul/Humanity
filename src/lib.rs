@@ -10047,6 +10047,119 @@ mod native_app {
                         }
                     }
 
+                    // Dev SURFACE landing (2026-07-12): drop to LOW altitude over
+                    // a surface point + engage surface mode, instead of the 4-radii
+                    // orbit `pending_dev_teleport` gives (operator: the GUI teleport
+                    // left the planet "rotating super fast underneath" because it
+                    // parks in orbit; the AI camera tool lands on the surface via
+                    // lat/lon). This mirrors poll_camera_request's lat/lon branch:
+                    // park just above the DRAWN ground at a default coordinate so
+                    // the per-frame frame-lock engages surface mode (radial up,
+                    // gravity settle, planet held still) next frame.
+                    if let Some(target) = state.gui_state.pending_dev_surface.take() {
+                        let dev_mode =
+                            state.gui_state.settings.play_mode == crate::config::PlayMode::Dev;
+                        if state.gui_state.copresence_active && !dev_mode {
+                            log::warn!("Dev travel: surface landing requires Dev play mode while in the shared world");
+                        } else if let Some(body) = crate::cosmos::find_body(&target) {
+                            if state.gui_state.copresence_active && !state.gui_state.copresence_solo {
+                                state.gui_state.copresence_solo = true;
+                                state.dev_travel_stepped_out = true;
+                            }
+                            let sim_t = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs_f64())
+                                .unwrap_or(0.0)
+                                - 946_728_000.0;
+                            let earth_helio_au = crate::cosmos::find_body("earth")
+                                .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+                                .unwrap_or(glam::DVec3::ZERO);
+                            let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+                                - earth_helio_au)
+                                * crate::cosmos::M_PER_AU;
+                            // A pleasant default landing coordinate: Earth -> the
+                            // Oahu coast (a known-good scenic spot); other bodies
+                            // -> the equatorial prime meridian.
+                            let (lat, lon) = if target == "earth" {
+                                (21.3_f32, -157.8_f32)
+                            } else {
+                                (0.0_f32, 0.0_f32)
+                            };
+                            let altitude_km = 1.5_f64;
+                            let spin = state.start_time.elapsed().as_secs_f64()
+                                * crate::dev_travel::PLANET_SPIN_RATE;
+                            let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat, lon);
+                            let world_dir = glam::DQuat::from_rotation_y(spin)
+                                * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);
+                            let dir_out = world_dir.normalize_or_zero();
+                            let surface_radius = ground_radius_m(
+                                state.planet_defs.get(&target),
+                                state.planet_heightmaps.get(&target),
+                                unit,
+                            );
+                            let vantage =
+                                body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);
+                            if state.dev_travel_home.is_none() {
+                                state.dev_travel_home = Some((
+                                    state.ship_world_pos,
+                                    state.camera.position,
+                                    state.camera.yaw,
+                                    state.camera.pitch,
+                                ));
+                            }
+                            state.ship_world_pos = vantage;
+                            if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
+                                state
+                                    .camera
+                                    .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+                            }
+                            let hull_top =
+                                state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
+                            state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
+                            // Aim toward the horizon (85 deg off straight-down) so
+                            // the landing view shows ground + sky; surface mode
+                            // preserves this look across the basis change.
+                            let fwd = (body_rel_earth - vantage).normalize_or_zero();
+                            let aim = {
+                                let mut right = fwd.cross(glam::DVec3::Y);
+                                if right.length_squared() < 1e-9 {
+                                    right = fwd.cross(glam::DVec3::X);
+                                }
+                                let right = right.normalize_or_zero();
+                                let ang = 85.0_f64.to_radians();
+                                (fwd * ang.cos() + right.cross(fwd) * ang.sin()).normalize_or_zero()
+                            };
+                            state.camera.clear_surface();
+                            let (yaw, pitch) = crate::dev_travel::look_angles(aim);
+                            state.camera.yaw = yaw;
+                            state.camera.pitch = pitch;
+                            state.gui_state.dev_fly_mode = true;
+                            state.controller.fly_mode = true;
+                            state.gui_state.dev_travel_away = true;
+                            let cam_local = glam::DVec3::new(
+                                state.camera.position.x as f64,
+                                state.camera.position.y as f64,
+                                state.camera.position.z as f64,
+                            );
+                            state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                                body_rel_earth,
+                                spin,
+                                vantage + cam_local,
+                            );
+                            state.frame_lock_last_spin = spin;
+                            state.frame_lock_body = Some(target.clone());
+                            log::info!(
+                                "Dev travel: landed on {} surface at ({:.1}, {:.1}), {:.1} km alt (surface mode engages next frame)",
+                                body.name,
+                                lat,
+                                lon,
+                                altitude_km
+                            );
+                        } else {
+                            log::warn!("Dev travel: unknown body id {target} (surface)");
+                        }
+                    }
+
                     // Dev spawn tool (v0.777, Platform > Dev): spawn any creature/
                     // NPC ~2 m in front of the player, despawn them all, and
                     // publish the live count for the Dev page. Reads the camera

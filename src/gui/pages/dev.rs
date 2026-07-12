@@ -341,6 +341,40 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
         });
+
+        // Land on surface (2026-07-12): the buttons above arrive in ORBIT (~4
+        // radii out), where the planet rotates beneath you (the ISS view) and
+        // flying down to the ground is fiddly. THIS row drops you straight to
+        // low altitude over the surface and engages surface mode - "down"
+        // points at the planet centre, the horizon is level, gravity settles
+        // you to standing height, and the ground is held STILL (the same place
+        // the AI camera tool lands). Offered for the non-star bodies.
+        ui.add_space(theme.spacing_xs);
+        ui.label(
+            RichText::new("Land on surface (stand on the ground, planet held still):")
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.horizontal_wrapped(|ui| {
+            for b in crate::cosmos::sol_bodies() {
+                let is_sun = b.body_type == "star";
+                let direct_solar = b.parent.as_deref() == Some("sun");
+                if is_sun || (!direct_solar && b.id != "moon") {
+                    continue;
+                }
+                if ui
+                    .button(&b.name)
+                    .on_hover_text(format!(
+                        "Drop to the surface of {} and stand on the ground (surface \
+                         mode: local gravity, level horizon, the planet held still).",
+                        b.name
+                    ))
+                    .clicked()
+                {
+                    state.pending_dev_surface = Some(b.id.clone());
+                }
+            }
+        });
         if state.dev_travel_away {
             ui.label(
                 RichText::new("You are away from home. Vitals are safe while fly mode is on.")

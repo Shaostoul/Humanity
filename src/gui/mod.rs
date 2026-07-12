@@ -2094,6 +2094,14 @@ pub struct GuiState {
     /// stashed pre-teleport position. Offline/local world only (lib.rs +
     /// the Dev page both gate on copresence_active).
     pub pending_dev_teleport: Option<String>,
+    /// Dev travel SURFACE landing (2026-07-12): when Some(body_id), lib.rs drops
+    /// the viewpoint to LOW altitude over a surface point of that body and
+    /// engages surface mode (radial up, gravity settles to standing height, the
+    /// planet held STILL), instead of the 4-radii orbit `pending_dev_teleport`
+    /// gives. Reuses the same lat/lon surface path as debug/camera_request.json,
+    /// so the GUI "Land" matches the AI dev-tool. Only offered for bodies with a
+    /// real heightmap.
+    pub pending_dev_surface: Option<String>,
     /// Dev fly mode (free flight: no gravity, no wall collision). Synced into
     /// CameraController.fly_mode each frame; forced off when cheats are off or
     /// a shared world is joined.
@@ -4063,6 +4071,7 @@ impl Default for GuiState {
             dev_edit_species: String::new(),
             pending_dev_edit_despawn: false,
             pending_dev_teleport: None,
+            pending_dev_surface: None,
             dev_fly_mode: false,
             dev_fly_speed_mult: 1.0,
             dev_travel_away: false,
