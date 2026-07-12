@@ -5881,6 +5881,10 @@ mod native_app {
                 state.renderer.surface_format(),
                 catalog,
                 &state.data_dir,
+                // Ultra Milky Way glow tier (2026-07-11): built here with the
+                // rest of the sky, so a tier change applies next world entry
+                // (same convention as the star catalog tiers).
+                state.gui_state.settings.sky_glow_tier == "ultra",
             )
         });
 
@@ -7480,6 +7484,12 @@ mod native_app {
                 gui_state.star_catalog_installed[tier.index()] =
                     std::fs::metadata(data_dir.join(tier.filename())).ok().map(|m| m.len());
             }
+            // Ultra Milky Way glow texture installed? (2026-07-11) Same
+            // one-stat-at-boot pattern as the catalog tiers above.
+            gui_state.galaxy_glow_installed =
+                std::fs::metadata(data_dir.join(crate::renderer::stars::GALAXY_GLOW_ULTRA_FILE))
+                    .ok()
+                    .map(|m| m.len());
 
             // Clean up .old files from previous updates
             crate::updater::Updater::cleanup_old_versions();
@@ -18412,6 +18422,152 @@ mod native_app {
                                     std::fs::metadata(state.data_dir.join(tier.filename()))
                                         .ok()
                                         .map(|m| m.len());
+                            }
+
+                            // ── Ultra Milky Way glow download/remove (2026-07-11) ── same
+                            // mechanics as the star catalog above: background thread, stream
+                            // to a .tmp sibling, verify, rename into place. Verification here
+                            // is the PNG header dimensions (must be exactly the published
+                            // 16384x8192 bake) PLUS a full decode - a truncated or wrong
+                            // asset never lands where the loader will find it.
+                            if state.gui_state.galaxy_glow_download {
+                                state.gui_state.galaxy_glow_download = false;
+                                let failed = state
+                                    .gui_state
+                                    .galaxy_glow_dl
+                                    .as_ref()
+                                    .and_then(|p| p.lock().ok().map(|g| g.2.starts_with("FAILED")))
+                                    .unwrap_or(false);
+                                if failed {
+                                    state.gui_state.galaxy_glow_dl = None;
+                                }
+                                if state.gui_state.galaxy_glow_dl.is_none() {
+                                    let prog = std::sync::Arc::new(std::sync::Mutex::new(
+                                        (0u64, 0u64, "Connecting...".to_string()),
+                                    ));
+                                    state.gui_state.galaxy_glow_dl = Some(prog.clone());
+                                    let dest = state
+                                        .data_dir
+                                        .join(crate::renderer::stars::GALAXY_GLOW_ULTRA_FILE);
+                                    let url = crate::renderer::stars::GALAXY_GLOW_ULTRA_URL;
+                                    std::thread::spawn(move || {
+                                        let result = (|| -> Result<(), String> {
+                                            let resp = ureq::get(url)
+                                                .set("User-Agent", "HumanityOS")
+                                                .call()
+                                                .map_err(|e| format!("HTTP error: {e}"))?;
+                                            let total = resp
+                                                .header("Content-Length")
+                                                .and_then(|v| v.parse::<u64>().ok())
+                                                .unwrap_or(0);
+                                            if let Ok(mut g) = prog.lock() {
+                                                g.1 = total;
+                                                g.2 = "Downloading".to_string();
+                                            }
+                                            let tmp = dest.with_extension("png.tmp");
+                                            let mut reader = resp.into_reader();
+                                            let mut file = std::fs::File::create(&tmp)
+                                                .map_err(|e| format!("create failed: {e}"))?;
+                                            let mut buf = [0u8; 65536];
+                                            let mut done: u64 = 0;
+                                            loop {
+                                                let n = std::io::Read::read(&mut reader, &mut buf)
+                                                    .map_err(|e| format!("read failed: {e}"))?;
+                                                if n == 0 {
+                                                    break;
+                                                }
+                                                std::io::Write::write_all(&mut file, &buf[..n])
+                                                    .map_err(|e| format!("write failed: {e}"))?;
+                                                done += n as u64;
+                                                if let Ok(mut g) = prog.lock() {
+                                                    g.0 = done;
+                                                }
+                                            }
+                                            drop(file);
+                                            if let Ok(mut g) = prog.lock() {
+                                                g.2 = "Verifying".to_string();
+                                            }
+                                            let want =
+                                                crate::renderer::stars::GALAXY_GLOW_ULTRA_DIMS;
+                                            let dims = image::image_dimensions(&tmp)
+                                                .map_err(|e| format!("verify failed: {e}"))?;
+                                            if dims != want {
+                                                let _ = std::fs::remove_file(&tmp);
+                                                return Err(format!(
+                                                    "downloaded file is {}x{}, expected {}x{}",
+                                                    dims.0, dims.1, want.0, want.1
+                                                ));
+                                            }
+                                            // Full decode (~30s of CPU in this background
+                                            // thread): the header check above cannot catch a
+                                            // truncated transfer; a decode of every scanline
+                                            // can.
+                                            if let Err(e) = image::open(&tmp) {
+                                                let _ = std::fs::remove_file(&tmp);
+                                                return Err(format!("decode check failed: {e}"));
+                                            }
+                                            std::fs::rename(&tmp, &dest)
+                                                .map_err(|e| format!("install failed: {e}"))?;
+                                            Ok(())
+                                        })();
+                                        if let Ok(mut g) = prog.lock() {
+                                            g.2 = match result {
+                                                Ok(()) => "Done".to_string(),
+                                                Err(e) => format!("FAILED: {e}"),
+                                            };
+                                        }
+                                    });
+                                }
+                            }
+                            if state.gui_state.galaxy_glow_remove {
+                                state.gui_state.galaxy_glow_remove = false;
+                                let dest = state
+                                    .data_dir
+                                    .join(crate::renderer::stars::GALAXY_GLOW_ULTRA_FILE);
+                                match std::fs::remove_file(&dest) {
+                                    Ok(()) => {
+                                        state.gui_state.galaxy_glow_installed = None;
+                                        // Point the setting back at the texture that exists;
+                                        // leaving it on ultra would just warn-and-fall-back
+                                        // every world entry.
+                                        if state.gui_state.settings.sky_glow_tier == "ultra" {
+                                            state.gui_state.settings.sky_glow_tier =
+                                                "standard".to_string();
+                                            state.gui_state.settings_dirty = true;
+                                        }
+                                        log::info!(
+                                            "Ultra Milky Way glow texture removed; standard glow on next world entry"
+                                        );
+                                    }
+                                    Err(e) => log::warn!("Could not remove {}: {e}", dest.display()),
+                                }
+                            }
+                            // Glow download finished this frame? Reflect installed state,
+                            // drop the handle (Done) or keep it visible (FAILED, cleared on
+                            // retry), and select the ultra tier: the user clicked Download
+                            // because they want the sharper bake, so it goes live on the
+                            // next world entry without a second trip to the chooser.
+                            let glow_dl_done = state
+                                .gui_state
+                                .galaxy_glow_dl
+                                .as_ref()
+                                .and_then(|p| p.lock().ok().map(|g| g.2 == "Done"))
+                                .unwrap_or(false);
+                            if glow_dl_done {
+                                state.gui_state.galaxy_glow_dl = None;
+                                state.gui_state.galaxy_glow_installed = std::fs::metadata(
+                                    state
+                                        .data_dir
+                                        .join(crate::renderer::stars::GALAXY_GLOW_ULTRA_FILE),
+                                )
+                                .ok()
+                                .map(|m| m.len());
+                                if state.gui_state.galaxy_glow_installed.is_some()
+                                    && state.gui_state.settings.sky_glow_tier != "ultra"
+                                {
+                                    state.gui_state.settings.sky_glow_tier = "ultra".to_string();
+                                    state.gui_state.settings_dirty = true;
+                                }
                             }
 
                             // ── Apply settings changes from GUI to engine ──
