@@ -104,12 +104,28 @@
 >    per-pixel Blue Marble Earth (first texture bind group), volumetric
 >    cloud raymarch, atmosphere close-range exposure fix, the asin LOD
 >    root-cause fix (chunks could NEVER activate before), ocean/land
->    grading, hi-res screenshot capture (4K/8K while playing 1440p), and
+>    grading, hi-res screenshot capture (4K/8K while playing 1440p), water
+>    shader (v0.818, 6-octave waves + fresnel + sun sparkle + land detail),
+>    and
 >    the camera_request.json dev tool (scripted look-anywhere captures).
->    NEXT in this lane: task #75 close-range content polish (cloud
->    sub-135km octaves, ocean detail, land relief pass, cloud ground
->    shadows). LATER R&D: sky FILTER modes (UV / H-alpha / infrared layers
->    for gas clouds + nebulae); per-point light sampling along strip paths.
+>    ** THE REAL NEXT UNLOCK (finding 2026-07-11): the water shader is
+>    shipped and correct but its wave detail is UN-WITNESSABLE from any
+>    reachable viewpoint - every octave fades by pixel footprint (keeps
+>    orbit smooth) and the lowest the camera reaches (~9 km) still views the
+>    sea from km away. The ocean is a smooth sphere, no walkable surface,
+>    flight stays far above wave height. So "stand on the beach and watch
+>    waves/tides" is a GET-TO-THE-SURFACE problem, not a shader problem:
+>    (a) sub-orbital descent / low-altitude flight to near sea level, (b) a
+>    near-surface ocean LOD that keeps wave + foam detail alive close up,
+>    (c) eventually a walkable shoreline + tide sim. This is higher-leverage
+>    than more water/cloud shader tuning and gates the operator's biggest
+>    dream. ** Lower-priority polish (task #75): cloud sub-135km octaves +
+>    Nubis-style volumetric clouds (a renderer agent's cloud_noise.rs +
+>    bind-group work is PRESERVED unmerged in worktree agent-a1a5aa9f96a972f77,
+>    died mid-wiring at the Fable spend cap - revive in a fresh budget
+>    window), ocean/land close-range content, cloud ground shadows. LATER
+>    R&D: sky FILTER modes (UV / H-alpha / infrared layers for gas clouds +
+>    nebulae); per-point light sampling along strip paths.
 > 4. FEDERATION - LATER. REALITY CHECK: our.universe is Namecheap SHARED
 >    cPanel hosting (plan EXPIRING Jul 14 2026); it CANNOT run the Rust relay
 >    (no root / persistent process / custom ports). Do NOT renew it for a
