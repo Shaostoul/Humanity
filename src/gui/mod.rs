@@ -3792,6 +3792,8 @@ pub struct GuiState {
     pub studio_streaming_config: StudioStreamingConfig,
     /// Donate page FAQ entries (`data/donate/faq.json`).
     pub donate_faq: Vec<DonateFaqEntry>,
+    /// Direct-support donation methods (`data/donate/methods.json`).
+    pub donate_methods: Vec<DonateMethod>,
     /// QA test tasks (`data/testing/qa_tasks.json`) shown on the Testing page.
     pub qa_test_tasks: Vec<QaTestTask>,
     /// Per-task local status: id → "passed" / "issue" / "" (untouched).
@@ -4793,6 +4795,7 @@ impl Default for GuiState {
             studio_source_presets: Vec::new(),
             studio_streaming_config: StudioStreamingConfig::default(),
             donate_faq: Vec::new(),
+            donate_methods: Vec::new(),
             qa_test_tasks: Vec::new(),
             qa_test_status: std::collections::HashMap::new(),
             qa_test_note: std::collections::HashMap::new(),
@@ -6116,6 +6119,33 @@ pub fn load_donate_faq(data_dir: &std::path::Path) -> Vec<DonateFaqEntry> {
     struct File { entries: Vec<DonateFaqEntry> }
     read_data_json::<File>(data_dir, "donate/faq.json")
         .map(|f| f.entries)
+        .unwrap_or_default()
+}
+
+/// One direct-support donation link (GitHub Sponsors, Patreon, PayPal, Cash
+/// App). These go to the maintainer, not the Sponsor-A-Can 501c3. Data-driven
+/// from `data/donate/methods.json` so adding a method needs no code change; the
+/// same file is read by the web donate page.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DonateMethod {
+    pub network: String,
+    #[serde(default)] pub label: String,
+    pub value: String,
+    /// "url" (external link) or "address". Deserialized from the JSON `type` key.
+    #[serde(rename = "type", default)] pub kind: String,
+    #[serde(default)] pub abbrev: String,
+    /// Badge color as "#rrggbb"; parsed to a Color32 at render time.
+    #[serde(default)] pub color: String,
+}
+
+/// Load direct-support donation methods from `data/donate/methods.json`.
+#[cfg(feature = "native")]
+pub fn load_donate_methods(data_dir: &std::path::Path) -> Vec<DonateMethod> {
+    #[derive(serde::Deserialize)]
+    struct File { methods: Vec<DonateMethod> }
+    read_data_json::<File>(data_dir, "donate/methods.json")
+        .map(|f| f.methods)
         .unwrap_or_default()
 }
 

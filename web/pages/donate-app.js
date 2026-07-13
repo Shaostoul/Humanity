@@ -128,8 +128,8 @@
       var card = document.createElement('div');
       card.className = 'source-card';
 
-      var abbrev = networkAbbrev(entry.network);
-      var color = networkColor(entry.network);
+      var abbrev = entry.abbrev || networkAbbrev(entry.network);
+      var color = entry.color || networkColor(entry.network);
       var label = entry.label || '';
       var value = entry.value || '';
       var hasValue = value && value.length > 0;
@@ -396,6 +396,23 @@
     if (!entries || entries.length === 0) {
       entries = defaultConfig.addresses;
       useNewFormat = true;
+    }
+
+    // Merge the direct-support link methods (data/donate/methods.json) into the
+    // grid, de-duped by network name so a server-config GitHub isn't doubled.
+    // Only in the new-format path (renderAddressCards handles url + address).
+    if (useNewFormat) {
+      try {
+        var mResp = await fetch('/data/donate/methods.json', { cache: 'no-cache' });
+        var mJson = await mResp.json();
+        if (mJson && Array.isArray(mJson.methods)) {
+          var have = {};
+          entries.forEach(function (e) { if (e.network) have[e.network.toLowerCase()] = true; });
+          mJson.methods.forEach(function (m) {
+            if (m && m.network && !have[m.network.toLowerCase()]) entries.push(m);
+          });
+        }
+      } catch (e) { /* methods.json is optional; ignore if absent */ }
     }
 
     // Render cards using appropriate renderer

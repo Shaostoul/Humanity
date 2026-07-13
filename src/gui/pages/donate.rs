@@ -56,8 +56,45 @@ fn network_abbrev(name: &str) -> String {
 /// Preference order: the CONNECTED server's funding list (fetched from
 /// /api/server-info on connect, v0.659) > the locally-configured Settings list
 /// (a self-hosting operator's own) > the legacy hardcoded fallback.
+/// Parse a "#rrggbb" hex color, falling back to the network-name color.
+fn parse_hex_color(hex: &str, fallback: Color32) -> Color32 {
+    let h = hex.trim().trim_start_matches('#');
+    if h.len() == 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&h[0..2], 16),
+            u8::from_str_radix(&h[2..4], 16),
+            u8::from_str_radix(&h[4..6], 16),
+        ) {
+            return Color32::from_rgb(r, g, b); // theme-exempt: color parsed from data/donate/methods.json, not a hardcoded literal
+        }
+    }
+    fallback
+}
+
 fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
     let mut sources = Vec::new();
+
+    // Direct-support link methods from data/donate/methods.json (GitHub, Patreon,
+    // PayPal, Cash App). Data-driven + shared with the web donate page. These go
+    // to the maintainer, not the Sponsor-A-Can 501c3.
+    for m in &state.donate_methods {
+        let color = parse_hex_color(&m.color, network_color(&m.network));
+        let abbrev = if m.abbrev.is_empty() { network_abbrev(&m.network) } else { m.abbrev.clone() };
+        sources.push(DonationSource {
+            network: m.network.clone(),
+            label: m.label.clone(),
+            value: m.value.clone(),
+            is_url: m.kind == "url",
+            icon_abbrev: abbrev,
+            icon_color: color,
+        });
+    }
+
+    // Networks already added from methods.json, so a server-config duplicate
+    // (e.g. GitHub Sponsors also in the relay's funding config) isn't listed
+    // twice. Mirrors the web donate page's de-dupe.
+    let mut seen: std::collections::HashSet<String> =
+        sources.iter().map(|s| s.network.to_lowercase()).collect();
 
     let dynamic = if !state.donate_addresses_server.is_empty() {
         &state.donate_addresses_server
@@ -66,6 +103,7 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
     };
     if !dynamic.is_empty() {
         for addr in dynamic {
+            if !seen.insert(addr.network.to_lowercase()) { continue; }
             let abbrev = network_abbrev(&addr.network);
             let color = network_color(&addr.network);
             sources.push(DonationSource {
@@ -80,16 +118,7 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
         return sources;
     }
 
-    // Fallback: build from legacy fields
-    sources.push(DonationSource {
-        network: "GitHub Sponsors".into(),
-        label: "Recurring or one-time sponsorship via GitHub.".into(),
-        value: "https://github.com/sponsors/Shaostoul".into(),
-        is_url: true,
-        icon_abbrev: "GH".into(),
-        icon_color: Color32::from_rgb(110, 84, 148),
-    });
-
+    // Crypto fallback (GitHub Sponsors now comes from data/donate/methods.json).
     let sol_address = if !state.donate_solana_address.is_empty() {
         state.donate_solana_address.clone()
     } else if !state.profile_public_key.is_empty() {

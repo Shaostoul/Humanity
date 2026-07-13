@@ -1,0 +1,37 @@
+{
+  "_comment": "Direct-support donation links for the maintainer (NOT the Sponsor-A-Can 501c3, NOT tax-deductible). Read by BOTH the web donate page (fetch /data/donate/methods.json, merged + de-duped by network into the source grid) AND native donate.rs (load_donate_methods -> build_donation_sources). Add a method = add an object here; no code change (infinite-of-X). Crypto addresses are handled separately (they need balance display), not listed here.",
+  "methods": [
+    {
+      "network": "GitHub Sponsors",
+      "type": "url",
+      "value": "https://github.com/sponsors/Shaostoul",
+      "label": "Recurring or one-time sponsorship via GitHub.",
+      "abbrev": "GH",
+      "color": "#6e5494"
+    },
+    {
+      "network": "Patreon",
+      "type": "url",
+      "value": "https://www.patreon.com/c/Shaostoul",
+      "label": "Monthly membership support.",
+      "abbrev": "PAT",
+      "color": "#f96854"
+    },
+    {
+      "network": "PayPal",
+      "type": "url",
+      "value": "https://paypal.me/Shaostoul",
+      "label": "One-time or recurring via PayPal.",
+      "abbrev": "PP",
+      "color": "#0070ba"
+    },
+    {
+      "network": "Cash App",
+      "type": "url",
+      "value": "https://cash.app/$Shaostoul",
+      "label": "Send to $Shaostoul on Cash App.",
+      "abbrev": "$",
+      "color": "#00d632"
+    }
+  ]
+}
