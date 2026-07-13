@@ -4825,565 +4825,377 @@ fn mime_for_filename(name: &str) -> &'static str {
 
 // ─────────────────────────────── User Profile Modal ────────────────────────
 
-fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
+pub(crate) fn draw_user_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     if !state.chat_user_modal_open { return; }
 
-    let mut close_modal = false;
+    let name = state.chat_user_modal_name.clone();
+    let key = state.chat_user_modal_key.clone();
 
-    egui::Window::new("User Profile")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .fixed_size(Vec2::new(320.0, 0.0))
-        .title_bar(false)
-        .frame(Frame::NONE.fill(theme.bg_sidebar_dark()).inner_margin(20.0).rounding(Rounding::same(8)).stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 60))))
-        .show(ctx, |ui| {
-            let name = state.chat_user_modal_name.clone();
-            let key = state.chat_user_modal_key.clone();
+    // ── Derive everything read-only up front (one borrow of state), so the
+    // dialog closure only needs state for the action mutations. ──
+    let user_entry = state.chat_users.iter().find(|u| u.public_key == key);
+    let user_role = user_entry.map(|u| u.role.clone()).unwrap_or_default();
+    let user_status = user_entry.map(|u| u.status.clone()).unwrap_or_else(|| "offline".to_string());
+    // Empty status but present in the roster ⇒ treat as online.
+    let effective_status = if user_status.is_empty() { "online".to_string() } else { user_status };
 
-            // Title bar with close X
+    // Relationship (both directions, v0.721 — mirrors the web profile's
+    // Friends / Following / Follows you).
+    let is_following = state.chat_following_keys.contains(&key)
+        || state.chat_friends.iter().any(|f| f.public_key == key);
+    let follows_me = state.chat_followers.contains(&key);
+
+    // Voice call (v0.705). Disabled when we're already in any call state or
+    // calling ourselves; the ring goes out and the callee (web or native)
+    // sees the incoming-call prompt.
+    let can_call = key != state.profile_public_key
+        && state.call_active.is_none()
+        && state.call_outgoing.is_none()
+        && state.call_incoming.is_none()
+        && state.voice_active_room.is_none();
+
+    let my_role = viewer_role(state);
+    let is_mod = my_role == "moderator" || my_role == "mod" || my_role == "admin";
+    let is_admin = my_role == "admin";
+    let roles = state.chat_roles.clone();
+
+    let mut open = true;
+    let mut close_after = false;
+
+    widgets::dialog(ctx, theme, "user_profile_dialog", "Profile", &mut open, |ui| {
+        ui.set_min_width(320.0);
+
+        // ── Identity header (avatar, name, status), all centered ──
+        ui.vertical_centered(|ui| {
+            // Avatar: filled disc in the name's hash color, wrapped in a soft
+            // ring of the same hue so it reads as an intentional badge.
+            let icon_color = name_color(&name);
+            let (rect, _) = ui.allocate_exact_size(Vec2::splat(80.0), egui::Sense::hover());
+            ui.painter().circle_filled(rect.center(), 38.0, icon_color.gamma_multiply(0.30));
+            ui.painter().circle_filled(rect.center(), 32.0, icon_color);
+            let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                &initial,
+                egui::FontId::proportional(32.0),
+                Color32::WHITE,
+            );
+
+            ui.add_space(theme.spacing_sm);
+
+            // Name + role badge
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("User Profile")
-                        .size(theme.font_size_body)
-                        .color(theme.text_muted()),
+                    RichText::new(&name)
+                        .size(theme.font_size_heading)
+                        .color(theme.text_primary())
+                        .strong(),
                 );
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.add(egui::Button::new(
-                        RichText::new("X").size(theme.font_size_body).color(theme.text_secondary()),
-                    ).fill(Color32::TRANSPARENT).frame(false)).clicked() {
-                        close_modal = true;
-                    }
-                });
-            });
-            ui.add_space(8.0);
-
-            // Avatar circle with initial
-            ui.vertical_centered(|ui| {
-                let icon_color = name_color(&name);
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(64.0), egui::Sense::hover());
-                ui.painter().circle_filled(rect.center(), 30.0, icon_color);
-                let initial = name.chars().next().unwrap_or('?').to_uppercase().to_string();
-                ui.painter().text(
-                    rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    &initial,
-                    egui::FontId::proportional(28.0),
-                    Color32::WHITE,
-                );
-            });
-
-            ui.add_space(8.0);
-
-            // Display name (bold) + role badge
-            let user_role = state.chat_users.iter()
-                .find(|u| u.public_key == key)
-                .map(|u| u.role.clone())
-                .unwrap_or_default();
-
-            ui.vertical_centered(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(&name)
-                            .size(theme.font_size_heading)
-                            .color(theme.text_primary())
-                            .strong(),
-                    );
-                    if !user_role.is_empty() && user_role != "member" {
-                        draw_role_badges(ui, theme, &user_role, &state.chat_roles);
-                    }
-                });
-            });
-
-            ui.add_space(4.0);
-
-            // Online/offline status - user is online if they appear in chat_users
-            // (peer_list only contains connected users; full_user_list has an "online" field)
-            let user_entry = state.chat_users.iter().find(|u| u.public_key == key);
-            let user_status = user_entry
-                .map(|u| u.status.clone())
-                .unwrap_or_else(|| "offline".to_string());
-            // If status is empty or unrecognized, and user exists in the list, default to online
-            let effective_status = if user_status.is_empty() { "online".to_string() } else { user_status };
-            ui.vertical_centered(|ui| {
-                let (dot_color, status_text) = match effective_status.as_str() {
-                    "offline" => (Color32::from_rgb(100, 100, 100), "Offline"),
-                    "away" => (theme.warning(), "Away"),
-                    "busy" | "dnd" => (theme.danger(), "Do Not Disturb"),
-                    _ => (theme.success(), "Online"),
-                };
-                ui.horizontal(|ui| {
-                    let (rect, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
-                    ui.painter().circle_filled(rect.center(), 4.0, dot_color);
-                    ui.label(
-                        RichText::new(status_text)
-                            .size(theme.font_size_small)
-                            .color(theme.text_muted()),
-                    );
-                });
-            });
-
-            ui.add_space(8.0);
-            ui.separator();
-            ui.add_space(4.0);
-
-            // Public key (truncated) with Copy button
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Key:")
-                        .size(theme.font_size_small)
-                        .color(theme.text_muted()),
-                );
-                let display_key = if key.len() > 16 {
-                    format!("{}...{}", &key[..8], &key[key.len()-8..])
-                } else {
-                    key.clone()
-                };
-                ui.label(
-                    RichText::new(&display_key)
-                        .size(theme.font_size_small)
-                        .color(theme.text_secondary()),
-                );
-                if ui.add(egui::Button::new(
-                    RichText::new("Copy").size(theme.font_size_small - 1.0).color(theme.text_muted()),
-                ).fill(Color32::from_rgb(45, 45, 55))).clicked() {
-                    ui.ctx().copy_text(key.clone());
+                if !user_role.is_empty() && user_role != "member" {
+                    draw_role_badges(ui, theme, &user_role, &roles);
                 }
             });
 
-            ui.add_space(12.0);
+            ui.add_space(4.0);
 
-            // Determine relationship state (both directions, v0.721 —
-            // mirrors the web profile's Friends / Following / Follows you).
-            let is_following = state.chat_following_keys.contains(&key)
-                || state.chat_friends.iter().any(|f| f.public_key == key);
-            let follows_me = state.chat_followers.contains(&key);
+            // Status dot + label
+            let (dot_color, status_text) = match effective_status.as_str() {
+                "offline" => (theme.text_muted(), "Offline"),
+                "away" => (theme.warning(), "Away"),
+                "busy" | "dnd" => (theme.danger(), "Do Not Disturb"),
+                "streaming" => (theme.accent(), "Live"),
+                _ => (theme.success(), "Online"),
+            };
+            ui.horizontal(|ui| {
+                let (dot, _) = ui.allocate_exact_size(Vec2::splat(8.0), egui::Sense::hover());
+                ui.painter().circle_filled(dot.center(), 4.0, dot_color);
+                ui.label(
+                    RichText::new(status_text)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            });
+
+            // Relationship line (plain words — U+2190 "←" is tofu in the app font).
             let relationship = match (is_following, follows_me) {
-                // Plain words, no arrow chars — U+2190 "←" is tofu in the
-                // app font (see the members-row badge note).
-                (true, true) => Some(("Friends (you follow each other)", theme.success())),
+                (true, true) => Some(("Friends", theme.success())),
                 (true, false) => Some(("You follow them", theme.text_secondary())),
                 (false, true) => Some(("Follows you", theme.warning())),
                 (false, false) => None,
             };
             if let Some((txt, color)) = relationship {
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new(txt).size(theme.font_size_small).color(color));
+                ui.add_space(2.0);
+                ui.label(RichText::new(txt).size(theme.font_size_small).color(color));
+            }
+        });
+
+        ui.add_space(theme.spacing_md);
+
+        // ── Public key, in a subtle framed row with an inline Copy ──
+        let display_key = if key.len() > 16 {
+            format!("{}...{}", &key[..8], &key[key.len()-8..])
+        } else {
+            key.clone()
+        };
+        Frame::none()
+            .fill(theme.bg_secondary())
+            .rounding(Rounding::same(theme.border_radius as u8))
+            .inner_margin(theme.spacing_sm)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Key")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new(&display_key)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        if widgets::Button::ghost("Copy").show(ui, theme) {
+                            ui.ctx().copy_text(key.clone());
+                        }
+                    });
                 });
-                ui.add_space(6.0);
+            });
+
+        ui.add_space(theme.spacing_md);
+
+        // ── Primary actions ──
+        // Send DM — the most common action, full width.
+        if widgets::Button::primary("Send DM").full_width().show(ui, theme) {
+            let dm_channel = format!("dm:{}", key);
+            if !state.chat_dms.iter().any(|d| d.user_key == key) {
+                state.chat_dms.push(crate::gui::ChatDm {
+                    user_name: name.clone(),
+                    user_key: key.clone(),
+                    last_message: String::new(),
+                    timestamp: String::new(),
+                    unread: false,
+                });
+            }
+            if state.chat_active_channel != dm_channel {
+                state.chat_active_channel = dm_channel;
+                state.chat_messages.clear();
+                state.history_fetched = false;
+                if let Some(ref client) = state.ws_client {
+                    if client.is_connected() {
+                        let msg = serde_json::json!({ "type": "dm_open", "partner": key });
+                        client.send(&msg.to_string());
+                    }
+                }
+            }
+            close_after = true;
+        }
+
+        ui.add_space(theme.spacing_sm);
+
+        // Call + Follow/Unfollow, equal width side by side.
+        ui.columns(2, |cols| {
+            // Voice call
+            if widgets::Button::secondary("Call")
+                .disabled(!can_call)
+                .full_width()
+                .tooltip(if can_call { "Start a voice call" } else { "Unavailable during another call" })
+                .show(&mut cols[0], theme)
+            {
+                if let Some(ref client) = state.ws_client {
+                    let _ = client.send(&serde_json::json!({
+                        "type": "voice_call",
+                        "from": state.profile_public_key,
+                        "to": key,
+                        "action": "ring",
+                    }).to_string());
+                }
+                state.call_outgoing = Some((key.clone(), name.clone()));
+                state.call_outgoing_deadline =
+                    Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
+                state.call_muted = false;
+                close_after = true;
             }
 
-            // Check if target user is streaming
-            let is_streaming = state.chat_users.iter()
-                .find(|u| u.public_key == key)
-                .map(|u| u.status == "streaming")
-                .unwrap_or(false);
-
-            // Action buttons
-            let btn_width = 140.0;
-            ui.vertical_centered(|ui| {
-                // Row 1: Send DM (always) + Follow/Unfollow toggle
-                ui.horizontal(|ui| {
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Send DM")
-                                .size(theme.font_size_body)
-                                .color(theme.text_primary()),
-                        )
-                        .fill(Color32::from_rgb(45, 45, 55))
-                        .min_size(Vec2::new(btn_width, 30.0)),
-                    ).clicked() {
-                        // Open DM with this user
-                        let dm_channel = format!("dm:{}", key);
-                        // Add to DMs list if not already there
-                        if !state.chat_dms.iter().any(|d| d.user_key == key) {
-                            state.chat_dms.push(crate::gui::ChatDm {
-                                user_name: name.clone(),
-                                user_key: key.clone(),
-                                last_message: String::new(),
-                                timestamp: String::new(),
-                                unread: false,
-                            });
-                        }
-                        if state.chat_active_channel != dm_channel {
-                            state.chat_active_channel = dm_channel;
-                            state.chat_messages.clear();
-                            state.history_fetched = false;
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "dm_open",
-                                        "partner": key,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                        }
-                        close_modal = true;
-                    }
-
-                    ui.add_space(4.0);
-
-                    // Voice call (v0.705). Disabled when we're already in any
-                    // call state or calling ourselves; the ring goes out and
-                    // the callee (web or native) sees the incoming-call prompt.
-                    let can_call = key != state.profile_public_key
-                        && state.call_active.is_none()
-                        && state.call_outgoing.is_none()
-                        && state.call_incoming.is_none()
-                        && state.voice_active_room.is_none();
-                    if ui
-                        .add_enabled(
-                            can_call,
-                            egui::Button::new(
-                                RichText::new("Call")
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(35, 50, 40))
-                            .min_size(Vec2::new(btn_width, 30.0)),
-                        )
-                        .clicked()
-                    {
-                        if let Some(ref client) = state.ws_client {
-                            let _ = client.send(&serde_json::json!({
-                                "type": "voice_call",
-                                "from": state.profile_public_key,
-                                "to": key,
-                                "action": "ring",
-                            }).to_string());
-                        }
-                        state.call_outgoing = Some((key.clone(), name.clone()));
-                        state.call_outgoing_deadline =
-                            Some(std::time::Instant::now() + std::time::Duration::from_secs(30));
-                        state.call_muted = false;
-                        close_modal = true;
-                    }
-
-                    ui.add_space(4.0);
-
-                    if is_following {
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new("Unfollow")
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_secondary()),
-                            )
-                            .fill(Color32::from_rgb(50, 35, 35))
-                            .min_size(Vec2::new(btn_width, 30.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "unfollow",
-                                        // Field is "target_key" — must match
-                                        // RelayMessage::Unfollow + the web
-                                        // client. Was "target" (silently
-                                        // dropped by the relay; Unfollow
-                                        // never worked). Fixed v0.243.
-                                        "target_key": key,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                            // Remove from local follow state immediately
-                            state.chat_friends.retain(|f| f.public_key != key);
-                            state.chat_following_keys.remove(&key);
-                        }
-                    } else {
-                        // "Follow back" when they already follow you — makes the
-                        // asymmetry actionable in one glance. (v0.721)
-                        let follow_label = if follows_me { "Follow back" } else { "Follow" };
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new(follow_label)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_on_accent()),
-                            )
-                            .fill(theme.accent())
-                            .min_size(Vec2::new(btn_width, 30.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "follow",
-                                        // Field is "target_key" — must match
-                                        // RelayMessage::Follow + the web
-                                        // client. Was "target" (silently
-                                        // dropped by the relay; Follow never
-                                        // worked from the native app). v0.243.
-                                        "target_key": key,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                            // Reflect locally right away (the relay's
-                            // follow_update echo confirms it).
-                            state.chat_following_keys.insert(key.clone());
-                            if !state.chat_friends.iter().any(|f| f.public_key == key) {
-                                if let Some(u) = state.chat_users.iter().find(|u| u.public_key == key).cloned() {
-                                    state.chat_friends.push(u);
-                                }
-                            }
+            // Follow / Unfollow (Follow reads as a positive confirm ⇒ success green)
+            if is_following {
+                if widgets::Button::secondary("Unfollow").full_width().show(&mut cols[1], theme) {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            // Field is "target_key" — must match
+                            // RelayMessage::Unfollow + the web client (v0.243).
+                            let msg = serde_json::json!({ "type": "unfollow", "target_key": key });
+                            client.send(&msg.to_string());
                         }
                     }
-                });
-
-                // Watch Stream (only if user is streaming)
-                if is_streaming {
-                    ui.add_space(4.0);
-                    if ui.add(
-                        egui::Button::new(
-                            RichText::new("Watch Stream")
-                                .size(theme.font_size_body)
-                                .color(theme.text_on_accent()),
-                        )
-                        .fill(Color32::from_rgb(100, 50, 150))
-                        .min_size(Vec2::new(btn_width * 2.0 + 4.0, 30.0)),
-                    ).clicked() {
-                        // Placeholder for stream watching
-                    }
+                    state.chat_friends.retain(|f| f.public_key != key);
+                    state.chat_following_keys.remove(&key);
                 }
-
-                // Moderator section (only if viewer is mod or admin)
-                let my_role = viewer_role(state);
-                let is_mod = my_role == "moderator" || my_role == "mod" || my_role == "admin";
-                let is_admin = my_role == "admin";
-
-                if is_mod {
-                    ui.add_space(8.0);
-                    ui.separator();
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new("Moderation")
-                            .size(theme.font_size_small)
-                            .color(theme.warning())
-                            .strong(),
-                    );
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new("Mute")
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(60, 50, 30))
-                            .min_size(Vec2::new(btn_width, 28.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "mod_action",
-                                        "action": "mute",
-                                        "target": key,
-                                        "target_name": name,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
+            } else {
+                // "Follow back" when they already follow you (v0.721).
+                let follow_label = if follows_me { "Follow back" } else { "Follow" };
+                if widgets::Button::success(follow_label).full_width().show(&mut cols[1], theme) {
+                    if let Some(ref client) = state.ws_client {
+                        if client.is_connected() {
+                            let msg = serde_json::json!({ "type": "follow", "target_key": key });
+                            client.send(&msg.to_string());
                         }
-
-                        ui.add_space(4.0);
-
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new("Kick")
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(70, 40, 30))
-                            .min_size(Vec2::new(btn_width, 28.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "mod_action",
-                                        "action": "kick",
-                                        "target": key,
-                                        "target_name": name,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                        }
-                    });
-                }
-
-                // Admin section (only if viewer is admin)
-                if is_admin {
-                    ui.add_space(4.0);
-                    ui.label(
-                        RichText::new("Admin")
-                            .size(theme.font_size_small)
-                            .color(theme.danger())
-                            .strong(),
-                    );
-                    ui.add_space(4.0);
-                    ui.horizontal(|ui| {
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new("Ban")
-                                    .size(theme.font_size_body)
-                                    .color(Color32::WHITE),
-                            )
-                            .fill(Color32::from_rgb(120, 30, 30))
-                            .min_size(Vec2::new(90.0, 28.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let msg = serde_json::json!({
-                                        "type": "mod_action",
-                                        "action": "ban",
-                                        "target": key,
-                                        "target_name": name,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                        }
-
-                        ui.add_space(4.0);
-
-                        let target_is_mod = user_role == "moderator" || user_role == "mod";
-                        let mod_btn_label = if target_is_mod { "Unmod" } else { "Mod" };
-                        if ui.add(
-                            egui::Button::new(
-                                RichText::new(mod_btn_label)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(50, 50, 70))
-                            .min_size(Vec2::new(90.0, 28.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let action = if target_is_mod { "unmod" } else { "mod" };
-                                    let msg = serde_json::json!({
-                                        "type": "mod_action",
-                                        "action": action,
-                                        "target": key,
-                                        "target_name": name,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                        }
-
-                        // Verified badge quick action (v0.687, operator field
-                        // report: "I do not see a way of verifying users" -- the
-                        // Verify button lived only on Server Settings; this is
-                        // the same set_role path, one click from the profile).
-                        let target_is_verified = user_role == "verified";
-                        // Only plain members can be verified (the relay refuses
-                        // elevated targets too -- v0.692: an unguarded Verify
-                        // click silently demoted mods/admins via role overwrite).
-                        let verify_applicable = target_is_verified
-                            || matches!(user_role.as_str(), "" | "member" | "user" | "unverified");
-                        let verify_label = if target_is_verified { "Unverify" } else { "Verify" };
-                        if verify_applicable && ui.add(
-                            egui::Button::new(
-                                RichText::new(verify_label)
-                                    .size(theme.font_size_body)
-                                    .color(theme.text_primary()),
-                            )
-                            .fill(Color32::from_rgb(50, 50, 70)) // theme-exempt: matches the adjacent Mod button literal pending the modal token migration
-                            .min_size(Vec2::new(90.0, 28.0)),
-                        ).clicked() {
-                            if let Some(ref client) = state.ws_client {
-                                if client.is_connected() {
-                                    let action = if target_is_verified { "unverify" } else { "verify" };
-                                    let msg = serde_json::json!({
-                                        "type": "mod_action",
-                                        "action": action,
-                                        "target": key,
-                                        "target_name": name,
-                                    });
-                                    client.send(&msg.to_string());
-                                }
-                            }
-                        }
-                    });
-
-                    // ── Role assignment dropdown (roles Phase R2) ──
-                    // Lists every role from the relay's role_list. Picking
-                    // one sends set_user_role. This is the operator's
-                    // chosen assignment path for custom roles (e.g. give
-                    // dad a "Family" role with can_stream). Mod/Unmod above
-                    // stay as quick shortcuts.
-                    if !state.chat_roles.is_empty() {
-                        ui.add_space(6.0);
-                        let roles = state.chat_roles.clone();
-                        let current_label = roles
-                            .iter()
-                            .find(|r| r.id == user_role)
-                            .map(|r| r.label.clone())
-                            .unwrap_or_else(|| {
-                                if user_role.is_empty() { "Unverified".to_string() }
-                                else { user_role.clone() }
-                            });
-                        let mut picked: Option<String> = None;
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                RichText::new("Role:")
-                                    .size(theme.font_size_small)
-                                    .color(theme.text_muted()),
-                            );
-                            egui::ComboBox::from_id_salt(("user_role_combo", key.as_str()))
-                                .selected_text(current_label)
-                                .show_ui(ui, |ui| {
-                                    for r in &roles {
-                                        // Label in the role's own badge
-                                        // color so custom roles read
-                                        // distinctly. selectable_label's
-                                        // highlight conveys the current
-                                        // selection (no glyph needed —
-                                        // keeps icon_glyph_lint happy).
-                                        let sel = r.id == user_role;
-                                        if ui.selectable_label(
-                                            sel,
-                                            RichText::new(&r.label)
-                                                .color(parse_role_color(&r.color, theme)),
-                                        ).clicked() {
-                                            picked = Some(r.id.clone());
-                                        }
-                                    }
-                                });
-                        });
-                        if let Some(rid) = picked {
-                            if rid != user_role {
-                                if let Some(ref client) = state.ws_client {
-                                    if client.is_connected() {
-                                        let msg = serde_json::json!({
-                                            "type": "set_user_role",
-                                            "target": key,
-                                            "role_id": rid,
-                                        });
-                                        client.send(&msg.to_string());
-                                    }
-                                }
-                            }
+                    }
+                    state.chat_following_keys.insert(key.clone());
+                    if !state.chat_friends.iter().any(|f| f.public_key == key) {
+                        if let Some(u) = state.chat_users.iter().find(|u| u.public_key == key).cloned() {
+                            state.chat_friends.push(u);
                         }
                     }
                 }
+            }
+        });
 
-                ui.add_space(8.0);
+        // (v0.845: the old "Watch Stream" button was a dead no-op — the native
+        // roster carries no per-user stream URL and there's no native stream
+        // viewer, so it was a false affordance. The "Live" status dot above
+        // already signals that a user is streaming; the button is removed until
+        // a real in-app viewer exists. Tracked in docs/UI-AUDIT.md.)
 
-                if ui.add(
-                    egui::Button::new(
-                        RichText::new("Close")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    )
-                    .fill(Color32::from_rgb(40, 40, 48))
-                    .min_size(Vec2::new(btn_width * 2.0 + 4.0, 28.0)),
-                ).clicked() {
-                    close_modal = true;
+        // ── Moderation (mods + admins) ──
+        if is_mod {
+            ui.add_space(theme.spacing_md);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Moderation")
+                    .size(theme.font_size_small)
+                    .color(theme.warning())
+                    .strong(),
+            );
+            ui.add_space(4.0);
+            ui.columns(2, |cols| {
+                if widgets::Button::secondary("Mute").full_width().show(&mut cols[0], theme) {
+                    send_mod_action(state, "mute", &key, &name);
+                }
+                if widgets::Button::secondary("Kick").full_width().show(&mut cols[1], theme) {
+                    send_mod_action(state, "kick", &key, &name);
                 }
             });
-        });
-    if close_modal {
+        }
+
+        // ── Admin ──
+        if is_admin {
+            ui.add_space(theme.spacing_sm);
+            ui.label(
+                RichText::new("Admin")
+                    .size(theme.font_size_small)
+                    .color(theme.danger())
+                    .strong(),
+            );
+            ui.add_space(4.0);
+            ui.columns(2, |cols| {
+                if widgets::Button::danger("Ban").full_width().show(&mut cols[0], theme) {
+                    send_mod_action(state, "ban", &key, &name);
+                }
+                let target_is_mod = user_role == "moderator" || user_role == "mod";
+                let mod_btn_label = if target_is_mod { "Unmod" } else { "Mod" };
+                if widgets::Button::secondary(mod_btn_label).full_width().show(&mut cols[1], theme) {
+                    send_mod_action(state, if target_is_mod { "unmod" } else { "mod" }, &key, &name);
+                }
+            });
+
+            // Verify quick action (v0.687). Only plain members can be verified
+            // (the relay refuses elevated targets — v0.692 an unguarded click
+            // silently demoted mods/admins via role overwrite).
+            let target_is_verified = user_role == "verified";
+            let verify_applicable = target_is_verified
+                || matches!(user_role.as_str(), "" | "member" | "user" | "unverified");
+            if verify_applicable {
+                ui.add_space(4.0);
+                let verify_label = if target_is_verified { "Unverify" } else { "Verify" };
+                if widgets::Button::secondary(verify_label).full_width().show(ui, theme) {
+                    send_mod_action(state, if target_is_verified { "unverify" } else { "verify" }, &key, &name);
+                }
+            }
+
+            // ── Role assignment dropdown (roles Phase R2) ──
+            // Lists every role from the relay's role_list; picking one sends
+            // set_user_role. The operator's chosen path for custom roles (e.g.
+            // give dad a "Family" role with can_stream). Mod/Unmod stay as
+            // quick shortcuts above.
+            if !roles.is_empty() {
+                ui.add_space(theme.spacing_sm);
+                let current_label = roles
+                    .iter()
+                    .find(|r| r.id == user_role)
+                    .map(|r| r.label.clone())
+                    .unwrap_or_else(|| {
+                        if user_role.is_empty() { "Unverified".to_string() } else { user_role.clone() }
+                    });
+                let mut picked: Option<String> = None;
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Role")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    egui::ComboBox::from_id_salt(("user_role_combo", key.as_str()))
+                        .selected_text(current_label)
+                        .show_ui(ui, |ui| {
+                            for r in &roles {
+                                // Each label in its own badge color so custom
+                                // roles read distinctly; selectable_label's
+                                // highlight marks the current selection (no
+                                // glyph needed — keeps icon_glyph_lint happy).
+                                let sel = r.id == user_role;
+                                if ui.selectable_label(
+                                    sel,
+                                    RichText::new(&r.label).color(parse_role_color(&r.color, theme)),
+                                ).clicked() {
+                                    picked = Some(r.id.clone());
+                                }
+                            }
+                        });
+                });
+                if let Some(rid) = picked {
+                    if rid != user_role {
+                        if let Some(ref client) = state.ws_client {
+                            if client.is_connected() {
+                                let msg = serde_json::json!({
+                                    "type": "set_user_role",
+                                    "target": key,
+                                    "role_id": rid,
+                                });
+                                client.send(&msg.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ui.add_space(theme.spacing_md);
+        if widgets::Button::ghost("Close").full_width().show(ui, theme) {
+            close_after = true;
+        }
+    });
+
+    if !open || close_after {
         state.chat_user_modal_open = false;
+    }
+}
+
+/// Send a `mod_action` WS message (mute/kick/ban/mod/unmod/verify/unverify).
+/// Extracted so the moderation + admin buttons in the user modal share one
+/// well-formed message shape instead of copy-pasting the JSON six times.
+fn send_mod_action(state: &GuiState, action: &str, target_key: &str, target_name: &str) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({
+                "type": "mod_action",
+                "action": action,
+                "target": target_key,
+                "target_name": target_name,
+            });
+            client.send(&msg.to_string());
+        }
     }
 }
 

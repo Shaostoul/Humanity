@@ -875,6 +875,38 @@ fn snapshot_garden_modal_tower() {
         crate::gui::pages::inventory::draw(ctx, theme, state);
     });
 }
+
+/// The chat User-Profile modal (v0.845 redesign — themed `widgets::dialog`
+/// backdrop, tokenized buttons, avatar badge, admin controls). Viewer = admin
+/// looking at a mutual-follow "verified" user, so every section renders: Send
+/// DM / Call / Follow, Moderation, Admin (Ban/Mod/Verify/Role).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_user_profile_modal() {
+    render_page_png("user_profile_modal", 560, 860, |ctx, theme, state| {
+        use crate::relay::storage::RoleDef;
+        let me = "me00000000000000000000000000000000".to_string();
+        let target = "aria1111111111111111111111111111ffff".to_string();
+        state.profile_public_key = me.clone();
+        state.chat_users = vec![
+            crate::gui::ChatUser { name: "You".into(),  public_key: me.clone(),     role: "admin".into(),    status: "online".into() },
+            crate::gui::ChatUser { name: "Aria".into(), public_key: target.clone(), role: "verified".into(), status: "online".into() },
+        ];
+        state.chat_roles = vec![
+            RoleDef { id: "unverified".into(), label: "Unverified".into(), color: "#9E9E9E".into(), ..Default::default() },
+            RoleDef { id: "verified".into(),   label: "Verified".into(),   color: "#4FC3F7".into(), ..Default::default() },
+            RoleDef { id: "moderator".into(),  label: "Moderator".into(),  color: "#81C784".into(), ..Default::default() },
+            RoleDef { id: "admin".into(),      label: "Admin".into(),      color: "#E57373".into(), ..Default::default() },
+        ];
+        // Mutual follow ⇒ "Friends".
+        state.chat_following_keys.insert(target.clone());
+        state.chat_followers.insert(target.clone());
+        state.chat_user_modal_open = true;
+        state.chat_user_modal_name = "Aria".into();
+        state.chat_user_modal_key = target.clone();
+        crate::gui::pages::chat::draw_user_modal(ctx, theme, state);
+    });
+}
 page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 
 // The construction editor needs a selected room with machines, so it gets a custom setup

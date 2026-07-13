@@ -12,7 +12,7 @@ never deletion.
 Work top-to-bottom. Check items as they ship.
 
 ## 1. Mechanical quick wins
-- [x] **Malformed CSS in web-chat identity/seed/backup modals** (`chat-profile.js`): `1var(--…)` and `var(--x)var(--y)` (no space) silently dropped by the browser → cramped security modals. Fixed 2026-07-13 (v0.845.x).
+- [x] **Malformed CSS in web-chat identity/seed/backup modals** (`chat-profile.js`): `1var(--…)` and `var(--x)var(--y)` (no space) silently dropped by the browser → cramped security modals. Fixed 2026-07-13 (v0.844.1).
 - [x] **Voice-modal View-profile wrong-arg bug** (`chat-voice-modal.js:255`): `requestViewProfile(key)` → `requestViewProfile(name, key)`. Fixed 2026-07-13.
 - [ ] **Passphrase-import modal fully hardcoded hex** (`chat-ui.js:696` `showPassphraseModal`): only chat modal never tokenized; swap literals for `var(--bg-secondary/--border/--text-muted/--danger/--radius)`.
 
@@ -24,7 +24,7 @@ Work top-to-bottom. Check items as they ship.
 - [ ] Native **Identity page** (`identity.rs`): `identity_lookup_pending` never consumed; cards print literal `GET /api/v2/…` strings. Consume the flag + resolve the DID.
 - [ ] Native **Recovery page** (`recovery.rs`): `recovery_lookup_pending`/`recovery_guardian_pending` never consumed. Call `GET /api/v2/recovery/setup/{did}`.
 - [ ] Native **chat mute action** (`chat.rs:1769` `TODO: implement mute`): send the WS moderation message like the other mod actions.
-- [ ] Native **User-Profile "Watch Stream" button** (`chat.rs:5135`): empty handler. Wire to the profile stream URL or remove.
+- [x] Native **User-Profile "Watch Stream" button** (`chat.rs`): empty handler. **Removed v0.845.0** — the native roster carries no per-user stream URL and there's no native stream viewer, so it was a false affordance; the "Live" status dot already signals streaming. Re-add when an in-app viewer exists.
 - [ ] Verify **BugReport submit** (`bugs.rs`): confirm reports persist to the relay, not just an in-session Vec.
 
 ## 4. Rescue orphaned, fully-built surfaces
@@ -37,7 +37,7 @@ Work top-to-bottom. Check items as they ship.
 - [ ] Native standalone **Profile page** (`profile.rs`) vs the **Real "Profile" tab** (`real.rs`): diverge (standalone keeps a Streaming section). Repoint `server_settings.rs:238` "Open Profile" + onboarding `/profile` links at `GuiPage::Real`, retire standalone (keep `draw_section_content`).
 - [ ] Web **Edit-Profile modal** (`chat-profile.js`) vs standalone **/profile page** (`profile.html`): sidebar link opens the page, `/profile` command opens the modal. Pick one canonical editor.
 - [ ] Web **Restore-Identity-file modal** vs **Restore-from-Seed modal**: fold file-restore into the seed modal's encrypted-file tab; share the 24-word validation with Login Seed Recovery (`chat-ui.js:756`).
-- [ ] Native **User-Profile modal** (`chat.rs draw_user_modal`): the one chat modal hand-rolling its own `egui::Window` (no backdrop, no click-outside, ~10 hardcoded colors). Port to `widgets::dialog`. **(This is the modal the operator asked to improve — doubles as merge + polish.)**
+- [x] Native **User-Profile modal** (`chat.rs draw_user_modal`): the one chat modal hand-rolling its own `egui::Window` (no backdrop, no click-outside, ~14 hardcoded colors). **Ported to `widgets::dialog` v0.845.0** — themed backdrop + click-outside-to-close + title bar, avatar badge with hued ring, tokenized `widgets::Button` variants throughout (Send DM primary / Call + Follow columns / Moderation / Admin), a shared `send_mod_action` helper (was 6× copy-pasted JSON), and a snapshot test (`snapshot_user_profile_modal`). Zero hardcoded `Color32` literals remain. **(The modal the operator asked to improve — doubled as merge + polish.)**
 
 ## 6. Placeholder / parity gaps
 - [ ] Web **crafting.html**: bare "Coming soon" box on a PRIMARY nav tab while native has a full Crafting page. Build a recipe browser mirroring native, or an honest desktop hand-off.
@@ -46,7 +46,7 @@ Work top-to-bottom. Check items as they ship.
 - [ ] **Library/Accord naming**: web "Library" tab → `/resources` (links), but the built Accord viewer (`accord.html`) has no nav entry. Native "Library" shows Accord docs. Reconcile.
 
 ## 7. Aesthetic tokenization sweep (quick items first)
-- [ ] Native User-Profile modal → tokens (with #5).
+- [x] Native User-Profile modal → tokens (done with #5, v0.845.0).
 - [ ] `passphrase_modal.rs` + `main_menu.rs draw_storage_chooser`: hardcoded `Color32`/font sizes → `bg_card()`/`success()`/`theme.font_size_*`.
 - [ ] Planet info tooltip (`lib.rs:18699`): 13-arm hardcoded name→resources match → source from `data/solar_system/`; theme the frame.
 - [ ] `calendar.html` / `chat-onboarding.js` / `showUserContextMenu` literal colors → tokens.
