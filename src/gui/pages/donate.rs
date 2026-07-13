@@ -199,13 +199,13 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     ui.add_space(theme.spacing_xs);
                     ui.label(
-                        RichText::new("Our primary donation route: a registered 501(c)(3) nonprofit. Support funds full-time open-source development and free infrastructure for everyone.")
+                        RichText::new("A registered 501(c)(3) nonprofit fighting poverty through sanitation and recycling programs, and the nonprofit behind HumanityOS's maintainer. Supporting it sustains both its mission and continued work on HumanityOS. Gifts are not earmarked to HumanityOS; tax-deductibility depends on your situation (see sponsor-a-can.org).")
                             .size(theme.font_size_body)
                             .color(theme.text_secondary()),
                     );
                     ui.add_space(theme.spacing_sm);
                     if widgets::Button::primary("Donate via Sponsor-A-Can").show(ui, theme) {
-                        ui.ctx().open_url(egui::OpenUrl::new_tab("https://www.sponsor-a-can.org/"));
+                        ui.ctx().open_url(egui::OpenUrl::new_tab("https://www.sponsor-a-can.org/donate/"));
                     }
                 });
                 ui.add_space(theme.spacing_lg);
