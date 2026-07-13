@@ -452,6 +452,45 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                     }
                 }
             }
+
+            // ── Replace Identity (v0.842) ──
+            // Generate a fresh identity that REPLACES the current one. The
+            // "Generate New Identity" button (above) only renders when the device
+            // has NO identity yet, so once you have one -- which is everyone after
+            // first run -- there was no in-app way to ROTATE, e.g. away from a
+            // compromised/exposed key. Two-click confirm since it replaces the key.
+            ui.add_space(theme.spacing_lg);
+            ui.label(RichText::new("Replace Identity").color(theme.text_secondary()).strong());
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new("Generate a brand-new identity (new seed + keys) on this device, replacing the current one -- for rotating away from a compromised or exposed key. Back up your current seed above first if you still need it.").color(theme.text_muted()).size(theme.font_size_small));
+            ui.add_space(theme.spacing_xs);
+            let regen_id = egui::Id::new("regen_identity_confirm");
+            let regen_confirming = ui.ctx().data(|d| d.get_temp::<bool>(regen_id).unwrap_or(false));
+            if !regen_confirming {
+                if widgets::secondary_button(ui, theme, "Generate New Identity (replace current)") {
+                    ui.ctx().data_mut(|d| d.insert_temp(regen_id, true));
+                }
+            } else {
+                ui.label(RichText::new("This permanently replaces the identity on THIS device. Your current seed is gone unless you backed it up. Continue?").color(theme.warning()).size(theme.font_size_small));
+                ui.add_space(theme.spacing_xs);
+                if widgets::primary_button(ui, theme, "  Yes, generate a new identity  ") {
+                    let seed = crate::net::identity::generate_new_seed();
+                    state.private_key_bytes = Some(seed);
+                    state.apply_pq_identity();
+                    state.settings.seed_phrase_visible = true;
+                    state.settings.seed_phrase_recovery_status =
+                        "New identity generated. WRITE DOWN the 24 words above -- they are the ONLY backup.".to_string();
+                    state.passphrase_needed = true;
+                    state.passphrase_mode = crate::gui::PassphraseMode::SetNew;
+                    // Drop the cached device-link QR so it rebuilds for the NEW identity.
+                    state.link_device_qr = None;
+                    state.link_device_qr_show = false;
+                    ui.ctx().data_mut(|d| d.insert_temp(regen_id, false));
+                }
+                if widgets::secondary_button(ui, theme, "Cancel") {
+                    ui.ctx().data_mut(|d| d.insert_temp(regen_id, false));
+                }
+            }
         }
 
         ui.add_space(theme.spacing_lg);
