@@ -252,7 +252,7 @@
         note.textContent = 'Audio controls take effect once they are speaking in your channel.';
         std.appendChild(note);
       }
-      row(std, 'View profile', 'tier-standard', function () { withTarget(name, key, function () { if (typeof requestViewProfile === 'function') requestViewProfile(key); else if (typeof viewProfileFromCtx === 'function') viewProfileFromCtx(); }); });
+      row(std, 'View profile', 'tier-standard', function () { withTarget(name, key, function () { if (typeof requestViewProfile === 'function') requestViewProfile(name, key); else if (typeof viewProfileFromCtx === 'function') viewProfileFromCtx(); }); });
       row(std, 'Direct message', 'tier-standard', function () { closeVoiceUserModal(); withTarget(name, key, function () { if (typeof dmFromCtx === 'function') dmFromCtx(); else if (typeof openDmConversation === 'function') openDmConversation(key, name); }); });
       // Follow / Unfollow: same wording + state as the right-side user list and
       // the right-click menu (operator: keep terminology consistent).

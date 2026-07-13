@@ -678,7 +678,7 @@ async function openSeedPhraseModal() {
       </p>
       <div style="display:flex;justify-content:flex-end">
         <button onclick="document.getElementById('seed-phrase-overlay').remove()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
   `;
@@ -737,7 +737,7 @@ function openRestoreFromMnemonicModal() {
       </p>
 
       <!-- Tab: type words -->
-      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl)var(--space-xs);margin-bottom:var(--space-lg)">
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl) var(--space-xs);margin-bottom:var(--space-lg)">
         <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 var(--space-md)">✍️ Type or paste your 24 words</p>
         <textarea id="rm-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
@@ -745,7 +745,7 @@ function openRestoreFromMnemonicModal() {
       </div>
 
       <!-- Tab: decrypt encrypted file -->
-      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl)var(--space-xs);margin-bottom:var(--space-xl)">
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl) var(--space-xs);margin-bottom:var(--space-xl)">
         <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 var(--space-sm)">${hosIcon('save', 14)} Restore from encrypted phrase file</p>
         <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 var(--space-md)">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
         <div style="display:flex;gap:var(--space-md);align-items:center;flex-wrap:wrap">
@@ -762,9 +762,9 @@ function openRestoreFromMnemonicModal() {
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="rm-btn" onclick="doRestoreFromMnemonic()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
@@ -859,9 +859,9 @@ function openEncryptedBackupModal() {
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="this.closest('#encrypted-backup-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="eb-btn" onclick="doEncryptedBackup()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
   `;
@@ -924,9 +924,9 @@ function openRestoreIdentityModal() {
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="this.closest('#restore-identity-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="ri-btn" onclick="doRestoreIdentity()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
@@ -1143,7 +1143,7 @@ function openKeyProtectionModal() {
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">${hosIcon('lock', 14)} Key Protection</h2>
-      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:1var(--space-xs)">
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:var(--space-xs)">
         ${wrapped
           ? `<span style="color:var(--success);font-weight:600">${hosIcon('check', 14)} Protected</span>, your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
           : `<span style="color:var(--accent);font-weight:600">⚠️ Not protected</span>, your private key is stored as readable plaintext in your browser's <code style="color:var(--text-muted)">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
@@ -1159,12 +1159,12 @@ function openKeyProtectionModal() {
       <div id="kp-msg" style="font-size:.75rem;margin-bottom:.var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
         <button onclick="document.getElementById('key-protection-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
-          style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer"
+          style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
         <button id="kp-save-btn" onclick="doEnableKeyProtection()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>
     </div>
