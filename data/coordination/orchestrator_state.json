@@ -809,12 +809,18 @@
       "date": "2026-07-13",
       "decision": "GAVE the operator a self-custodial crypto-receiving recommendation (advice, not built): two-track fork = (A) tax-deductible crypto must flow THROUGH SAC the 501c3 via a nonprofit processor (The Giving Block / Endaoment) as a BOARD decision, separate from personal; (B) personal tips = self-custodial wallets to the maintainer (not deductible). Core rule flagged: use a SEPARATE dedicated donation seed, NOT the HumanityOS identity seed (which = his Solana wallet and was exposed in the 2026-07-12 Brave leak). Recommended a hardware wallet (Ledger/Trezor) as the donation root + posting SOL/USDC, ETH-or-Base/USDC, and BTC receive addresses; USDC for stability; Cake/Feather for Monero if wanted. NEXT when he sets up wallets: add the receive addresses to data/donate/methods.json as type:address entries (render with copy+QR on both clients).",
       "why": "Operator asked for self-custodial crypto solutions. Context makes the separate-seed point critical (recent leak) and the tax fork important (personal vs the 501c3). Addresses are the precursor to lighting up the currently-'coming soon' crypto cards."
+    },
+    {
+      "id": 45,
+      "date": "2026-07-13",
+      "decision": "v0.847.0 donate reframe (operator direction). HumanityOS has NO entity (CC0, no company/nonprofit), so donations to it go to the MAINTAINER directly; and instead of coupling Sponsor-A-Can to HumanityOS as 'the donation route' (which risked the 501c3), SAC is now the first entry in a curated 'Charities I support' list the maintainer personally endorses. Fully decouples the nonprofit. Both clients: hero reframed (CC0/no-entity/support-the-maintainer); primary section 'Support the maintainer' (methods.json links + crypto, labeled personal/not-deductible); new section 'Charities I support' from a NEW data/donate/charities.json (name/mission/url/note/abbrev/color), read by web (renderCharities) + native (load_donate_charities -> section render). Removed the SAC primary card; rewrote the tax FAQ. To add a charity = add a JSON entry (infinite-of-X). Verified live.",
+      "why": "Operator: 'donations going to me since the nonprofit isnt explicitly for HumanityOS... make a thing for supporting charities that I personally approve and make the charity the first one... That way we dont endanger the nonprofit at all.' Honest (no entity => gifts go to the person) and protects SAC from any HumanityOS-funding misrepresentation. The charities list is his to grow (he collects charity info, AI adds entries)."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.846.2 (Latest). Session tail: v0.846.1 (donate: official /donate/ URL + honest framing after reading the SAC bylaws) -> v0.846.2 (donate: Patreon/PayPal/Cash App via a shared data/donate/methods.json read by BOTH web+native). Native donate copy/URL + methods list are source-updated but ride the NEXT native build (v0.846.0 exe still has the old root URL + old copy). Releases v0.837-v0.846.2 UNSIGNED (operator-only).",
+  "version_state": "main==origin: v0.847.0 (Latest). v0.847.0 = donate page reframed around the maintainer + a curated 'Charities I support' data list (SAC first). Native donate REBUILT into the v0.847.0 exe (had 3 turns of donate source fixes never compiled). Web verified live via read_page; native via snapshot_donate. Releases v0.837-v0.847.0 UNSIGNED.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
