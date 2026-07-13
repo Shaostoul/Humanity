@@ -1212,23 +1212,10 @@ function doRemoveKeyProtection() {
   } catch(e) {}
 }
 
-// ── Key Rotation UI ───────────────────────────────────────────────────────────
-// Goal: let a user generate a new Ed25519 identity that cryptographically
-// inherits their old one. Both keys sign a rotation certificate so peers know
-// the change was authorised, not an impersonation.
-
-/**
- * Open the key rotation modal.
- * Delegates to the shared openKeyRotationModal() in crypto.js.
- * Kept as a thin wrapper for backward compatibility with any callers.
- */
-// openKeyRotationModal and doKeyRotation are now defined in crypto.js
-// and available globally on any page that loads crypto.js.
-
-// Legacy stubs removed -- the canonical implementations live in crypto.js.
-// If chat-profile.js is loaded after crypto.js, the global functions are already available.
-
-// doKeyRotation and storeNewRotatedIdentity moved to crypto.js (_storeRotatedIdentity)
+// (Key-rotation UI removed v0.845.2: the relay's key_rotation WS route was
+// deleted in Inc5b/v0.265 and no caller remained, so the modal sent an ignored
+// message yet swapped the local key regardless — a desync hazard. In-app key
+// replacement now lives in the native Settings "Replace Identity" flow.)
 
 /** Force re-render user list with updated block indicators. */
 function rerenderUserList() {

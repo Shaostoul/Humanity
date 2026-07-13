@@ -18,7 +18,7 @@ Work top-to-bottom. Check items as they ship.
 
 ## 2. Delete confirmed dead code (matches 2026-07-05 orphan-deletion precedent)
 - [ ] Native **Create Channel modal** (`chat.rs` `draw_create_channel_modal` + `show_create_channel_modal` + dispatch): `show_create_channel_modal` never set true since v0.187; channel creation lives in Server Settings. Safe delete.
-- [ ] Web **Key-Rotation modal** (`crypto.js` `openKeyRotationModal`/`doKeyRotation`): no caller + targets a relay route DELETED in Inc5b (v0.265) + replaces local key regardless of server ack (desync risk). Delete.
+- [x] Web **Key-Rotation modal** (`crypto.js` `openKeyRotationModal`/`doKeyRotation`): no caller + targets a relay route DELETED in Inc5b (v0.265) + replaces local key regardless of server ack (desync risk). **Deleted v0.845.2** — removed the whole cluster (openKeyRotationModal / doKeyRotation / _sendRotationToRelay / _storeRotatedIdentity, crypto.js tail) + the stale chat-profile.js doc block. Traced zero live callers first. In-app key replacement lives in the native Settings "Replace Identity" flow.
 
 ## 3. Wire surfaces that look done but are stubs
 - [ ] Native **Identity page** (`identity.rs`): `identity_lookup_pending` never consumed; cards print literal `GET /api/v2/…` strings. Consume the flag + resolve the DID.
