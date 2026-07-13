@@ -2717,9 +2717,26 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                     }
                 }
 
-                // Check name registration (skip for bot keys).
+                // Placeholder / throwaway names (empty, "Anonymous",
+                // "DesktopUser_NNNN", "Player") are NOT registered or joined as
+                // members. They only cluttered the roster, re-appeared after the
+                // operator cleaned them, and (on reconnect) overwrote a real name
+                // with "Anonymous" — the "anonymous flash" on a second device.
+                // (operator report, 2026-07-13). A real registered name is only
+                // created when the user deliberately sets one.
+                let is_placeholder_name = |name: &str| -> bool {
+                    let n = name.trim();
+                    n.is_empty()
+                        || n.eq_ignore_ascii_case("anonymous")
+                        || n.eq_ignore_ascii_case("player")
+                        || (n.len() > 12
+                            && n.starts_with("DesktopUser_")
+                            && n[12..].bytes().all(|b| b.is_ascii_digit()))
+                };
+
+                // Check name registration (skip for bot keys + placeholders).
                 if !public_key.starts_with("bot_") {
-                    if let Some(ref name) = final_name {
+                    if let Some(name) = final_name.as_ref().filter(|n| !is_placeholder_name(n.as_str())) {
                         match state.db.check_name(name, &public_key) {
                             Ok(None) => {
                                 // Name is free — check lockdown before registering.
@@ -2825,8 +2842,9 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 if !public_key.starts_with("bot_")
                     && !public_key.starts_with("viewer_")
                     && !is_test_bot_name
+                    && !is_placeholder_name(nm)
                 {
-                    let member_name = if nm.is_empty() { "Anonymous" } else { nm };
+                    let member_name = nm; // non-placeholder means non-empty: a real chosen name
                     if state.db.is_member(&public_key) {
                         // Already a member — update last_seen and name.
                         let _ = state.db.update_last_seen(&public_key);

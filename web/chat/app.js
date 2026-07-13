@@ -74,7 +74,12 @@ function resetMsgStripe() {
 
 // Persist name across sessions, auto-login if returning user.
 const savedName = localStorage.getItem('humanity_name');
-if (savedName) {
+// Skip the stale-identity auto-connect when a device-link QR import is pending:
+// otherwise the OLD identity connects as its old/default name for a moment (the
+// "anonymous flash" a second device saw) before the import + reload swaps in the
+// real identity. The device-link handler (below) imports then reloads, and the
+// clean reload auto-connects as the new identity.
+if (savedName && location.hash.indexOf('devicelink=') === -1) {
   document.getElementById('name-input').value = savedName;
   // Skip login screen immediately, show chat with "Connecting..." status.
   document.getElementById('login-screen').style.display = 'none';
