@@ -286,7 +286,26 @@ fn build_link_qr_texture(ctx: &egui::Context, payload: &str) -> Option<egui::Tex
 pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::form_row(ui, theme, "Display name", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
+            let resp = ui.add(egui::TextEdit::singleline(&mut state.user_name).desired_width(200.0));
+            // Commit on Enter or the Save button. WITHOUT this the name was
+            // session-only: it never saved to config (so a restart bounced to a
+            // DesktopUser_NNNN default) and never re-registered with the relay, so
+            // the name never actually stuck (operator-reported, 2026-07-13).
+            let enter = resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let save = widgets::secondary_button(ui, theme, "Save");
+            if enter || save {
+                let cleaned: String = state.user_name.trim().chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+                    .take(24)
+                    .collect();
+                if !cleaned.is_empty() {
+                    state.user_name = cleaned;
+                    // Persist immediately, then reconnect so the relay
+                    // re-registers this name to our key.
+                    crate::config::AppConfig::from_gui_state(state).save();
+                    state.apply_pq_identity();
+                }
+            }
         });
 
         widgets::form_row(ui, theme, "Boot page", |ui| {
