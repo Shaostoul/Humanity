@@ -63,6 +63,40 @@ Also: the theme system is the gold standard, `theme_editor_coverage` test ENFORC
 
 Each step is its own increment; each pays down real CLI debt and demonstrably advances the no-terminal-required goal.
 
+## Relay Control Center (operator ask 2026-07-13, "all three as tabs")
+
+The operator wants **one main-menu button for everything about the one-or-more relays he owns, from his one PC**:
+
+> "Maybe we should create a dedicated relay or server button on the main menu for everything I could ever want to do to the one or more relays I own from my one PC?"
+
+This ELEVATES the ops surface: instead of ops being buried inside `Server Settings` (which is scoped to the currently-connected server), promote it to a top-level `GuiPage::Relays` page that treats each relay the operator administers as a first-class, switchable entity. He chose the full build: **three tabs**.
+
+### Shape
+
+```
+Main menu → "Relays"
+┌─────────────┬──────────────────────────────────────────┐
+│ MY RELAYS   │  [ Health ] [ Control ] [ Config ]        │
+│ ● united-…  │                                            │
+│ ○ localhost │  (tab content for the selected relay)      │
+│ + Add relay │                                            │
+└─────────────┴──────────────────────────────────────────┘
+```
+
+- **Left rail — my relays.** Lists saved servers where the operator's role is admin/owner, each with a live health dot (green up / red down / grey unknown), the display name, and version. `+ Add relay` registers another (URL + it inherits the operator's identity for auth). Selecting one focuses the tabs on it. Single-relay operators just see one row — the multi-relay model costs nothing when there's one.
+- **Tab 1 — Health (read).** Reuse the EXISTING System-health fetch (the Server Settings → admin "System health" path, native v0.720.0: status / deployed build / uptime / messages / peers via public `/health` + `/api/stats`, worker-thread fetch + Refresh). Add disk / cert-expiry / watchdog-state once the signed `/api/admin/system` read endpoint exists (tracked above).
+- **Tab 2 — Control (act).** Restart relay (via the existing `service_control`/`service_state` WS path + admin-Dilithium auth), tail recent logs, and surface + embed the WATCHDOG (the VPS `humanity-relay-watchdog` timer): show its up/suspect/healing/down state and last check. Where an endpoint does not yet exist (logs, watchdog read), the button shows the honest CLI fallback (`just logs`, `systemctl status humanity-relay-watchdog`) rather than pretending — and that gap is logged here, never silently accepted (the GUI-first rule).
+- **Tab 3 — Config (edit).** The GUI-first config surface: server name, roles, channels, announcements, policy/limits — all of which ALREADY exist as admin-authed editors in `server_settings.rs`. Tab 3 renders/hosts those same editors for the selected relay (reuse, do not reimplement), so "Config" is the one place to change how a relay behaves without a terminal.
+
+### Increment plan
+
+1. **Page shell + main-menu entry + left rail + tabs**, with Tab 1 (Health) wired to the existing health fetch for the *connected* relay. Multi-relay list seeded from saved servers filtered to admin role. (First shippable cut — delivers "one button, live health of my relay.")
+2. **Tab 3 (Config)** hosts the existing `server_settings.rs` editors for the selected relay.
+3. **Tab 2 (Control)**: Restart (existing service-control WS) + logs + watchdog state — building the missing `/api/admin/system` + logs read endpoints as needed; honest CLI-fallback labels until each lands.
+4. **Multi-relay depth**: add-relay flow, per-relay auth, switch-and-act across several relays.
+
+This is the natural convergence point for the CLI-debt table above: every row's "in-app home" becomes a panel under this page's Config or Control tab, and once several exist the action-registry factoring falls out.
+
 ## Guardrails
 
 - **Auth**: every admin action is Dilithium-authed (the relay's `verify_dilithium_signature` path), admin/owner role required. Never expose an unauthenticated ops endpoint.
