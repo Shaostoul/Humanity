@@ -18485,6 +18485,7 @@ mod native_app {
                                     GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.415.0: Play / Resources / Onboarding arms removed with their pages.
                                     GuiPage::ServerSettings => server_settings::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::RelayControl => crate::gui::pages::relay_control::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Identity => identity::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Governance => governance::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Laws => crate::gui::pages::laws::draw(ctx, &state.theme, &mut state.gui_state),

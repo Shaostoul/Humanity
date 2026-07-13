@@ -353,6 +353,12 @@ pub enum GuiPage {
     /// sufficiency summary. The "homes as save profiles" surface, offline-first
     /// (server/real homes come later). See pages/homes.rs + homes-as-profiles.md.
     Homes,
+    /// Relays — the Relay Control Center (v0.846): one main-menu entry to manage
+    /// every relay the operator owns from one PC. Left rail lists the operator's
+    /// relays; the detail has Health / Control / Config tabs. Elevates the
+    /// Server Settings ops panels into a top-level, multi-relay surface. See
+    /// docs/design/in-app-ops.md "Relay Control Center".
+    RelayControl,
     // v0.699.0: removed the two-tier-nav-era category-browse subsystem --
     // the 5 Overview* category landing pages (OverviewReality/Sim/Tools/
     // Settings/Dev) and the 12 Settings* sub-page variants (SettingsAccount
@@ -1538,6 +1544,35 @@ pub struct SystemHealth {
     pub uptime_seconds: u64,
     pub total_messages: u64,
     pub connected_peers: u64,
+}
+
+/// Rich admin health snapshot from the SIGNED `GET /api/admin/stats` — the data
+/// an operator currently SSHes for (disk, watchdog state, backup age). Only
+/// available when the operator holds the admin role on the target relay; the
+/// Relay Control Center's Health tab fetches it (v0.846). All fields are
+/// best-effort: the relay returns null for any probe that fails, so an
+/// `Option::None` here just means "the relay couldn't measure it".
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, Default)]
+pub struct RelayAdminStats {
+    pub user_count: u64,
+    pub online_count: u64,
+    pub total_messages: u64,
+    pub message_count_24h: u64,
+    pub db_size_bytes: u64,
+    pub upload_size_bytes: u64,
+    pub uptime_seconds: u64,
+    pub version: String,
+    /// Watchdog last-known state: "up" / "suspect" / "healing" / "down-critical"
+    /// / "unknown". Read by the relay from /run/humanity-relay-watchdog.state.
+    pub watchdog_state: String,
+    /// Disk usage of the relay's filesystem, when the relay could probe it.
+    pub disk_used_pct: Option<u32>,
+    pub disk_total_bytes: Option<u64>,
+    pub disk_avail_bytes: Option<u64>,
+    /// Newest DB backup age in seconds + total backup count, when present.
+    pub backup_age_secs: Option<u64>,
+    pub backup_count: Option<u64>,
 }
 
 /// One federated-server row from GET /api/federation/servers (Server
@@ -3700,6 +3735,19 @@ pub struct GuiState {
     pub system_health_status: String,
     /// In-flight system-health fetch (worker thread → per-frame drain).
     pub system_health_rx: Option<std::sync::mpsc::Receiver<Result<SystemHealth, String>>>,
+    // ── Relay Control Center (v0.846) ──
+    /// Active detail tab in the Relay Control Center: 0 Health / 1 Control / 2 Config.
+    pub relay_cc_tab: usize,
+    /// The relay URL currently focused in the Relay Control Center left rail
+    /// (defaults to the connected server on first open).
+    pub relay_cc_selected: Option<String>,
+    /// Rich admin health snapshot from the signed /api/admin/stats (Relay
+    /// Control Center → Health). Only populated when the operator is admin.
+    pub relay_admin_stats: Option<RelayAdminStats>,
+    /// Admin-stats fetch status line ("Loading…", error text, or empty).
+    pub relay_admin_stats_status: String,
+    /// In-flight admin-stats fetch (worker thread → per-frame drain).
+    pub relay_admin_stats_rx: Option<std::sync::mpsc::Receiver<Result<RelayAdminStats, String>>>,
     /// Federated-server list (Server Settings → Federation, v0.722).
     pub federation_servers: Vec<FederationServerRow>,
     /// Federation panel status line ("Loading…", error text, or empty).
@@ -4720,6 +4768,11 @@ impl Default for GuiState {
             system_health: None,
             system_health_status: String::new(),
             system_health_rx: None,
+            relay_cc_tab: 0,
+            relay_cc_selected: None,
+            relay_admin_stats: None,
+            relay_admin_stats_status: String::new(),
+            relay_admin_stats_rx: None,
             federation_servers: Vec::new(),
             federation_status: String::new(),
             federation_rx: None,

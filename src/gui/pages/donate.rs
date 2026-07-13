@@ -179,6 +179,37 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
                 ui.add_space(theme.spacing_lg);
 
+                // Primary route: Sponsor-A-Can (the operator's 501(c)(3)).
+                // Mirrors the web donate page (v0.845.1): the headline donation
+                // channel, crypto demoted below. No tax-deductibility claim is
+                // made pending the operator confirming the earmarking + the exact
+                // donation URL; links the org's site for now.
+                widgets::card(ui, theme, |ui| {
+                    ui.label(
+                        RichText::new("501(c)(3) nonprofit")
+                            .size(theme.font_size_small)
+                            .color(theme.accent())
+                            .strong(),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(
+                        RichText::new("Donate through Sponsor-A-Can")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
+                    );
+                    ui.add_space(theme.spacing_xs);
+                    ui.label(
+                        RichText::new("Our primary donation route: a registered 501(c)(3) nonprofit. Support funds full-time open-source development and free infrastructure for everyone.")
+                            .size(theme.font_size_body)
+                            .color(theme.text_secondary()),
+                    );
+                    ui.add_space(theme.spacing_sm);
+                    if widgets::Button::primary("Donate via Sponsor-A-Can").show(ui, theme) {
+                        ui.ctx().open_url(egui::OpenUrl::new_tab("https://www.sponsor-a-can.org/"));
+                    }
+                });
+                ui.add_space(theme.spacing_lg);
+
                 // Funding goal -- the CONNECTED server's real goal from
                 // /api/server-info `funding.goal_usd`/`goal_label` (v0.659). Only
                 // renders when a real goal exists; the old card showed a hardcoded
@@ -212,9 +243,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_lg);
                 }
 
-                // Donation method cards
+                // Donation method cards (secondary: direct crypto)
                 ui.label(
-                    RichText::new("Ways to Donate")
+                    RichText::new("Or donate crypto directly")
                         .size(theme.font_size_heading)
                         .color(theme.text_primary()),
                 );

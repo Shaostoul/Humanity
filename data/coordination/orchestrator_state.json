@@ -785,12 +785,24 @@
       "date": "2026-07-13",
       "decision": "v0.845.1 donate page: Sponsor-A-Can (operator brother-run 501c3, he is VP) is now the PRIMARY donation route. Added an accent-bordered hero card + Donate-via-Sponsor-A-Can CTA (links https://www.sponsor-a-can.org/ root), moved the dynamic crypto wallet cards under an Or-donate-crypto-directly secondary heading, rewrote the tax FAQ to route receipt/deductibility questions to the nonprofit. Deliberately did NOT assert tax-deductibility (operator has not confirmed the earmarking arrangement, and I do not have the exact earmarked donate URL). Verified live via read_page.",
       "why": "Operator: donations can be handled through sponsor-a-can.org (applying for grants). Public tax/legal framing is a genuine operator-only fork, so I built the safe part (route + nonprofit framing) and left deductibility copy for after his confirmation. AskUserQuestion answers: donations=Primary-route-crypto-secondary; relay-center=all-three-as-tabs."
+    },
+    {
+      "id": 41,
+      "date": "2026-07-13",
+      "decision": "v0.845.2 removed the dead web Key-Rotation modal cluster (crypto.js openKeyRotationModal/doKeyRotation/_sendRotationToRelay/_storeRotatedIdentity + chat-profile.js doc block). Zero live callers; targeted the relay key_rotation route deleted in Inc5b; swapped the local key without server ack (desync hazard). node --check clean.",
+      "why": "Audit section 2 dead-code removal. In-app key replacement lives in native Settings Replace-Identity now."
+    },
+    {
+      "id": 42,
+      "date": "2026-07-13",
+      "decision": "v0.846.0 BUILT THE RELAY CONTROL CENTER (operator ask, chose all-three-as-tabs). New GuiPage::RelayControl + Relays nav entry + paint_server icon + src/gui/pages/relay_control.rs. Left rail lists saved servers + connected relay with health dots. THREE tabs: Health (the native app FIRST-EVER call to the signed GET /api/admin/stats via net::identity::pq_sign_chat over the admin_stats preimage -> version, uptime, users, messages, db+upload size, disk pct, watchdog state, backup age), Control (watchdog chip + honest CLI-fallback cards for restart+logs since no endpoint exists yet + a Services hand-off), Config (deep-links the existing server_settings.rs editors). Added RelayAdminStats struct + a fetch trio on GuiState. Snapshots relay_control_health + relay_control_actions verified visually. ALSO folded in the native donate Sponsor-A-Can primary card (parity with web v0.845.1) + snapshot_donate. Fixed a tofu arrow glyph (replaced -> with plain text). relay build clean; theme/emdash/glyph lints pass. docs/design/in-app-ops.md increment-1 marked shipped.",
+      "why": "Operator wanted one main-menu button for everything about the relays he owns from one PC. Increment 1 is the full 3-tab shell with a genuinely rich Health tab (admin-stats was web-only before). Control/Config depth (real restart/log endpoints, inline config, persisted multi-relay) tracked as increments 2-4. Honest CLI-fallback where no endpoint exists yet (GUI-first rule: surface the gap, never fake it)."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.845.1 (Latest). This session bumped 0.844.0->0.844.1 (web CSS+voice fix)->0.845.0 (native profile-modal redesign, minor=Rust; versioned exe v0.845.0 archived+stable refreshed)->0.845.1 (web donate reroute). Releases v0.837-v0.845.1 are UNSIGNED (operator-only: just sign-release, needs HUMANITY_SIGNING_PASSPHRASE). Relay build verified clean (cargo check --features relay) after the native change.",
+  "version_state": "main==origin: v0.846.0 (Latest). Session: 0.844.0->0.844.1 (web CSS+voice)->0.845.0 (native profile modal)->0.845.1 (web donate reroute)->0.845.2 (web dead Key-Rotation modal removed)->0.846.0 (NATIVE relay control center + native donate card, minor=Rust; v0.846.0 exe archived+stable refreshed). Releases v0.837-v0.846.0 UNSIGNED (operator-only sign-release). Relay build verified clean after every native change.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

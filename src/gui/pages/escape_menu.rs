@@ -238,6 +238,18 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 separator_dot(ui, border);
                 ui.add_space(6.0);
 
+                // Relays — the Relay Control Center (v0.846): one entry to manage
+                // every relay the operator owns (health / control / config) from
+                // one PC. Ops-colored, next to Platform.
+                let relays_items = [
+                    NavItem { label: "Relays", page: GuiPage::RelayControl, description: "Manage the relays you own: health, control, config" },
+                ];
+                nav_group(ui, &relays_items, theme.nav_tools(), text_muted, theme, state);
+
+                ui.add_space(6.0);
+                separator_dot(ui, border);
+                ui.add_space(6.0);
+
                 // Settings — its OWN top-level tab (operator 2026-06-04: "have
                 // settings as its own top level page ... always easily accessible,
                 // never buried in another menu"). Big enough to warrant its own

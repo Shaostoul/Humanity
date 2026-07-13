@@ -42,6 +42,7 @@ pub mod studio;
 pub use crate::gui::widgets::passphrase_modal;
 pub mod onboarding;
 pub mod server_settings;
+pub mod relay_control;
 pub mod game_admin;
 pub mod identity;
 pub mod governance;

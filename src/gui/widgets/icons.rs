@@ -755,6 +755,31 @@ pub fn paint_globe(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.line_segment([Pos2::new(c.x - r * 0.85, c.y + r * 0.45), Pos2::new(c.x + r * 0.85, c.y + r * 0.45)], stroke);
 }
 
+/// Server rack — Relay Control Center. Two stacked units, each with a status
+/// LED on the left, reads as "servers/relays I run".
+pub fn paint_server(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let c = rect.center();
+    let w = rect.width().min(rect.height());
+    let stroke = Stroke::new((w * 0.08).max(1.0), color);
+    let unit_w = w * 0.62;
+    let unit_h = w * 0.24;
+    let gap = w * 0.12;
+    for i in 0..2 {
+        let top = c.y - unit_h - gap * 0.5 + (i as f32) * (unit_h + gap);
+        let unit = Rect::from_min_size(
+            Pos2::new(c.x - unit_w * 0.5, top),
+            Vec2::new(unit_w, unit_h),
+        );
+        painter.rect_stroke(unit, egui::Rounding::same(1), stroke, egui::StrokeKind::Inside);
+        // Status LED near the left edge of each unit.
+        painter.circle_filled(
+            Pos2::new(unit.left() + unit_w * 0.16, top + unit_h * 0.5),
+            (w * 0.05).max(1.0),
+            color,
+        );
+    }
+}
+
 /// Router: paint the icon for a given GUI page. Returns true if an icon
 /// was painted, false if the page has no icon assigned (caller can fall
 /// back to a generic placeholder or skip the icon).
@@ -783,6 +808,7 @@ pub fn paint_nav_icon(painter: &egui::Painter, rect: Rect, page: crate::gui::Gui
         // paint_chart are kept (other future pages might use them).
         P::Cosmos      => { paint_globe(painter, rect, color); true }
         P::Settings    => { paint_cog(painter, rect, color); true }
+        P::RelayControl => { paint_server(painter, rect, color); true }
         P::Tools       => { paint_wrench(painter, rect, color); true }
         P::BugReport   => { paint_bug(painter, rect, color); true }
         P::Testing     => { paint_clipboard(painter, rect, color); true }

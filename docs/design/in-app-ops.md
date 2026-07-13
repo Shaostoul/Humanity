@@ -90,10 +90,10 @@ Main menu → "Relays"
 
 ### Increment plan
 
-1. **Page shell + main-menu entry + left rail + tabs**, with Tab 1 (Health) wired to the existing health fetch for the *connected* relay. Multi-relay list seeded from saved servers filtered to admin role. (First shippable cut — delivers "one button, live health of my relay.")
-2. **Tab 3 (Config)** hosts the existing `server_settings.rs` editors for the selected relay.
-3. **Tab 2 (Control)**: Restart (existing service-control WS) + logs + watchdog state — building the missing `/api/admin/system` + logs read endpoints as needed; honest CLI-fallback labels until each lands.
-4. **Multi-relay depth**: add-relay flow, per-relay auth, switch-and-act across several relays.
+1. **Page shell + main-menu entry + left rail + tabs + all three tabs live.** **SHIPPED v0.846.0** (`src/gui/pages/relay_control.rs`, `GuiPage::RelayControl`, "Relays" nav entry, `paint_server` icon). Left rail lists saved servers + the connected relay with health dots; a new signed `/api/admin/stats` fetch (native's first — `net::identity::pq_sign_chat` over "admin_stats") drives a rich Health tab (version, uptime, users, messages, DB/upload size, disk %, watchdog state, backup age). Control tab shows the watchdog chip + honest CLI-fallback cards for restart/logs (no endpoint yet) + a Services hand-off. Config tab deep-links the existing `server_settings.rs` editors. Snapshots: `relay_control_health`, `relay_control_actions`.
+2. **Tab 2 (Control) depth**: build the missing `/api/admin/system`-style restart + log-tail endpoints (sudo-gated relay→system bridge) so restart/logs work in-app instead of the CLI fallback.
+3. **Tab 3 (Config) depth**: host the `server_settings.rs` editors inline (currently a deep-link jump) so config for a *non-connected* relay is editable in place.
+4. **Multi-relay depth**: persist the relay registry (today `chat_servers` is ephemeral + role-less), per-relay admin auth, public-health fallback for relays where the operator isn't admin, switch-and-act across several relays.
 
 This is the natural convergence point for the CLI-debt table above: every row's "in-app home" becomes a panel under this page's Config or Control tab, and once several exist the action-registry factoring falls out.
 

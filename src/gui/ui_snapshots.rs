@@ -907,6 +907,87 @@ fn snapshot_user_profile_modal() {
         crate::gui::pages::chat::draw_user_modal(ctx, theme, state);
     });
 }
+/// The Relay Control Center (v0.846) — left rail of the operator's relays +
+/// the Health tab showing the rich signed /api/admin/stats snapshot. Seeds two
+/// relays (one connected) and a sample admin-stats payload so the full grid
+/// (disk, watchdog, backup) renders.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_relay_control_health() {
+    render_page_png("relay_control_health", 1100, 720, |ctx, theme, state| {
+        let mk = |name: &str, url: &str, connected: bool| crate::gui::ChatServer {
+            name: name.to_string(),
+            channels: Vec::new(),
+            voice_channels: Vec::new(),
+            id: format!("srv_{url}"),
+            url: url.to_string(),
+            connected,
+        };
+        state.chat_servers = vec![
+            mk("united-humanity", "https://united-humanity.us", true),
+            mk("localhost", "http://localhost:3210", false),
+        ];
+        state.server_url = "https://united-humanity.us".into();
+        state.relay_cc_selected = Some("https://united-humanity.us".into());
+        state.relay_cc_tab = 0;
+        state.relay_admin_stats = Some(crate::gui::RelayAdminStats {
+            user_count: 128,
+            online_count: 7,
+            total_messages: 20_431,
+            message_count_24h: 342,
+            db_size_bytes: 84_500_000,
+            upload_size_bytes: 1_620_000_000,
+            uptime_seconds: 3 * 86_400 + 4 * 3600 + 12 * 60,
+            version: "77fc620-1720000000".into(),
+            watchdog_state: "up".into(),
+            disk_used_pct: Some(38),
+            disk_total_bytes: Some(50_000_000_000),
+            disk_avail_bytes: Some(31_000_000_000),
+            backup_age_secs: Some(1800),
+            backup_count: Some(20),
+        });
+        crate::gui::pages::relay_control::draw(ctx, theme, state);
+    });
+}
+
+/// Relay Control Center — Control tab: watchdog chip + honest CLI-fallback
+/// cards (restart/logs) + the Services hand-off.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_relay_control_actions() {
+    render_page_png("relay_control_actions", 1100, 720, |ctx, theme, state| {
+        state.chat_servers = vec![crate::gui::ChatServer {
+            name: "united-humanity".into(),
+            channels: Vec::new(),
+            voice_channels: Vec::new(),
+            id: "srv_uh".into(),
+            url: "https://united-humanity.us".into(),
+            connected: true,
+        }];
+        state.server_url = "https://united-humanity.us".into();
+        state.relay_cc_selected = Some("https://united-humanity.us".into());
+        state.relay_cc_tab = 1;
+        state.relay_admin_stats = Some(crate::gui::RelayAdminStats {
+            watchdog_state: "up".into(),
+            backup_age_secs: Some(1800),
+            ..Default::default()
+        });
+        crate::gui::pages::relay_control::draw(ctx, theme, state);
+    });
+}
+
+/// Native donate page — the Sponsor-A-Can (501c3) primary card above the crypto
+/// section (mirrors web v0.845.1).
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_donate() {
+    render_page_png("donate", 1000, 900, |ctx, theme, state| {
+        state.donate_solana_address = "So1anaExampleAddress1111111111111111111111".into();
+        state.donate_btc_address = "bc1qexamplebitcoinaddress00000000000000".into();
+        crate::gui::pages::donate::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 
 // The construction editor needs a selected room with machines, so it gets a custom setup
