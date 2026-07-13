@@ -196,48 +196,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     );
                     ui.add_space(theme.spacing_sm);
                     ui.label(
-                        RichText::new("Help us end poverty and unite humanity through open-source technology.")
+                        RichText::new("HumanityOS is free and public-domain (CC0), with no company or nonprofit behind it.")
                             .size(theme.font_size_body)
                             .color(theme.text_secondary()),
                     );
                     ui.label(
-                        RichText::new("Every contribution, no matter how small, makes a difference.")
+                        RichText::new("It is built in the open by one person, so supporting the maintainer directly is what keeps the work going.")
                             .size(theme.font_size_body)
                             .color(theme.text_secondary()),
                     );
                 });
                 ui.add_space(theme.spacing_lg);
 
-                // Primary route: Sponsor-A-Can (the operator's 501(c)(3)).
-                // Mirrors the web donate page (v0.845.1): the headline donation
-                // channel, crypto demoted below. No tax-deductibility claim is
-                // made pending the operator confirming the earmarking + the exact
-                // donation URL; links the org's site for now.
-                widgets::card(ui, theme, |ui| {
-                    ui.label(
-                        RichText::new("501(c)(3) nonprofit")
-                            .size(theme.font_size_small)
-                            .color(theme.accent())
-                            .strong(),
-                    );
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new("Donate through Sponsor-A-Can")
-                            .size(theme.font_size_heading)
-                            .color(theme.text_primary()),
-                    );
-                    ui.add_space(theme.spacing_xs);
-                    ui.label(
-                        RichText::new("A registered 501(c)(3) nonprofit fighting poverty through sanitation and recycling programs, and the nonprofit behind HumanityOS's maintainer. Supporting it sustains both its mission and continued work on HumanityOS. Gifts are not earmarked to HumanityOS; tax-deductibility depends on your situation (see sponsor-a-can.org).")
-                            .size(theme.font_size_body)
-                            .color(theme.text_secondary()),
-                    );
-                    ui.add_space(theme.spacing_sm);
-                    if widgets::Button::primary("Donate via Sponsor-A-Can").show(ui, theme) {
-                        ui.ctx().open_url(egui::OpenUrl::new_tab("https://www.sponsor-a-can.org/donate/"));
-                    }
-                });
-                ui.add_space(theme.spacing_lg);
+                // (v0.846.3: the Sponsor-A-Can "primary route" card was removed.
+                // HumanityOS has no entity/nonprofit attached, so donations to it
+                // go to the maintainer directly; Sponsor-A-Can is now listed as an
+                // independent endorsed charity in the "Charities I support" section
+                // below, decoupling the 501c3 from any HumanityOS-funding claim.)
 
                 // Funding goal -- the CONNECTED server's real goal from
                 // /api/server-info `funding.goal_usd`/`goal_label` (v0.659). Only
@@ -272,11 +247,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     ui.add_space(theme.spacing_lg);
                 }
 
-                // Donation method cards (secondary: direct crypto)
+                // Primary: direct support to the maintainer (links + crypto).
                 ui.label(
-                    RichText::new("Or donate crypto directly")
+                    RichText::new("Support the maintainer")
                         .size(theme.font_size_heading)
                         .color(theme.text_primary()),
+                );
+                ui.label(
+                    RichText::new("Personal gifts, not charitable donations, and not tax-deductible.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
                 );
                 ui.add_space(theme.spacing_sm);
 
@@ -366,6 +346,57 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 });
 
                 ui.add_space(theme.spacing_lg);
+
+                // Charities the maintainer personally endorses (independent
+                // nonprofits from data/donate/charities.json). NOT HumanityOS
+                // funding: a gift goes to that organization directly. Sponsor-A-Can
+                // is the first entry (v0.846.3, decoupled from HumanityOS).
+                if !state.donate_charities.is_empty() {
+                    ui.label(
+                        RichText::new("Charities I support")
+                            .size(theme.font_size_heading)
+                            .color(theme.text_primary()),
+                    );
+                    ui.label(
+                        RichText::new("Independent nonprofits I personally stand behind, unaffiliated with HumanityOS. Donate to them directly; deductibility depends on the charity and your situation.")
+                            .size(theme.font_size_small)
+                            .color(theme.text_muted()),
+                    );
+                    ui.add_space(theme.spacing_sm);
+                    for c in &state.donate_charities {
+                        widgets::card(ui, theme, |ui| {
+                            ui.label(
+                                RichText::new(&c.name)
+                                    .size(theme.font_size_heading)
+                                    .color(theme.text_primary()),
+                            );
+                            if !c.mission.is_empty() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new(&c.mission)
+                                        .size(theme.font_size_body)
+                                        .color(theme.text_secondary()),
+                                );
+                            }
+                            if !c.note.is_empty() {
+                                ui.add_space(theme.spacing_xs);
+                                ui.label(
+                                    RichText::new(&c.note)
+                                        .size(theme.font_size_small)
+                                        .color(theme.text_muted()),
+                                );
+                            }
+                            if !c.url.is_empty() {
+                                ui.add_space(theme.spacing_sm);
+                                if widgets::Button::primary("Donate").show(ui, theme) {
+                                    ui.ctx().open_url(egui::OpenUrl::new_tab(&c.url));
+                                }
+                            }
+                        });
+                        ui.add_space(theme.spacing_sm);
+                    }
+                    ui.add_space(theme.spacing_lg);
+                }
 
                 // FAQ section
                 ui.label(

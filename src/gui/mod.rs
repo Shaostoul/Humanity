@@ -3794,6 +3794,8 @@ pub struct GuiState {
     pub donate_faq: Vec<DonateFaqEntry>,
     /// Direct-support donation methods (`data/donate/methods.json`).
     pub donate_methods: Vec<DonateMethod>,
+    /// Endorsed charities (`data/donate/charities.json`).
+    pub donate_charities: Vec<DonateCharity>,
     /// QA test tasks (`data/testing/qa_tasks.json`) shown on the Testing page.
     pub qa_test_tasks: Vec<QaTestTask>,
     /// Per-task local status: id → "passed" / "issue" / "" (untouched).
@@ -4796,6 +4798,7 @@ impl Default for GuiState {
             studio_streaming_config: StudioStreamingConfig::default(),
             donate_faq: Vec::new(),
             donate_methods: Vec::new(),
+            donate_charities: Vec::new(),
             qa_test_tasks: Vec::new(),
             qa_test_status: std::collections::HashMap::new(),
             qa_test_note: std::collections::HashMap::new(),
@@ -6146,6 +6149,32 @@ pub fn load_donate_methods(data_dir: &std::path::Path) -> Vec<DonateMethod> {
     struct File { methods: Vec<DonateMethod> }
     read_data_json::<File>(data_dir, "donate/methods.json")
         .map(|f| f.methods)
+        .unwrap_or_default()
+}
+
+/// One charity the maintainer personally endorses on the donate page. These are
+/// INDEPENDENT nonprofits (not HumanityOS, not the maintainer): a gift goes to
+/// that organization directly. Data-driven from `data/donate/charities.json`,
+/// shared with the web donate page.
+#[cfg(feature = "native")]
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct DonateCharity {
+    pub name: String,
+    #[serde(default)] pub mission: String,
+    #[serde(default)] pub url: String,
+    /// Deductibility / relationship disclosure shown under the card.
+    #[serde(default)] pub note: String,
+    #[serde(default)] pub abbrev: String,
+    #[serde(default)] pub color: String,
+}
+
+/// Load endorsed charities from `data/donate/charities.json`.
+#[cfg(feature = "native")]
+pub fn load_donate_charities(data_dir: &std::path::Path) -> Vec<DonateCharity> {
+    #[derive(serde::Deserialize)]
+    struct File { charities: Vec<DonateCharity> }
+    read_data_json::<File>(data_dir, "donate/charities.json")
+        .map(|f| f.charities)
         .unwrap_or_default()
 }
 

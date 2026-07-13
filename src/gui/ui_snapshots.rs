@@ -981,9 +981,23 @@ fn snapshot_relay_control_actions() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_donate() {
-    render_page_png("donate", 1000, 900, |ctx, theme, state| {
+    render_page_png("donate", 1000, 1200, |ctx, theme, state| {
         state.donate_solana_address = "So1anaExampleAddress1111111111111111111111".into();
         state.donate_btc_address = "bc1qexamplebitcoinaddress00000000000000".into();
+        state.donate_methods = vec![
+            crate::gui::DonateMethod { network: "Patreon".into(), label: "Monthly membership support.".into(), value: "https://www.patreon.com/c/Shaostoul".into(), kind: "url".into(), abbrev: "PAT".into(), color: "#f96854".into() },
+            crate::gui::DonateMethod { network: "PayPal".into(), label: "One-time or recurring via PayPal.".into(), value: "https://paypal.me/Shaostoul".into(), kind: "url".into(), abbrev: "PP".into(), color: "#0070ba".into() },
+        ];
+        state.donate_charities = vec![
+            crate::gui::DonateCharity {
+                name: "Sponsor-A-Can".into(),
+                mission: "A registered 501(c)(3) fighting poverty through sanitation, recycling, and community clean-up.".into(),
+                url: "https://www.sponsor-a-can.org/donate/".into(),
+                note: "Independent 501(c)(3). The maintainer volunteers as its VP. Deductibility depends on your situation.".into(),
+                abbrev: "SAC".into(),
+                color: "#3fae49".into(),
+            },
+        ];
         crate::gui::pages::donate::draw(ctx, theme, state);
     });
 }

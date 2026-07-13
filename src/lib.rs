@@ -7675,6 +7675,7 @@ mod native_app {
             gui_state.studio_streaming_config = crate::gui::load_studio_streaming_config(&data_dir);
             gui_state.donate_faq = crate::gui::load_donate_faq(&data_dir);
             gui_state.donate_methods = crate::gui::load_donate_methods(&data_dir);
+            gui_state.donate_charities = crate::gui::load_donate_charities(&data_dir);
             gui_state.qa_test_tasks = crate::gui::load_qa_test_tasks(&data_dir);
             gui_state.browser_bookmarks = crate::gui::load_browser_bookmarks(&data_dir);
             // v0.197.0: ai_usage_filters loader removed.
