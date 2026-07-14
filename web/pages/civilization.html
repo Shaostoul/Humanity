@@ -84,6 +84,15 @@
     @media (prefers-reduced-motion: reduce) {
       .civ-card, .civ-meta button { transition:none; }
     }
+    .civ-empty {
+      grid-column:1/-1;
+      text-align:center; padding:var(--space-3xl) var(--space-xl);
+      border:1px dashed var(--border); border-radius:var(--radius-lg);
+      color:var(--text-muted); max-width:600px; margin:0 auto;
+    }
+    .civ-empty h3 { color:var(--text); font-size:var(--text-lg); margin:0 0 var(--space-md); }
+    .civ-empty p { line-height:1.5; margin:0 0 var(--space-sm); }
+    .civ-empty a { color:var(--accent); }
   </style>
 </head>
 <body>

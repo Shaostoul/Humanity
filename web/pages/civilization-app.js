@@ -78,42 +78,17 @@
     const grid = document.getElementById('sim-grid');
     if (!grid) return;
 
+    // Sim mode = your running simulation. The simulation lives in the desktop
+    // app, and there is no web-accessible game save, so we show an honest
+    // hand-off instead of fabricated colony numbers. (Real mode above is wired
+    // to the live /api/civilization community dashboard.)
     grid.innerHTML =
-      civCard('Colony Stats', 47, 'colonists', [
-        'Morale: 78%',
-        'Growth Rate: +2/day',
-        'Happiness: Good'
-      ], '#27ae60') +
-      civCard('Buildings', 12, 'structures', [
-        '3 under construction',
-        '0 damaged',
-        '2 upgraded this week'
-      ], '#3498db') +
-      civCard('Technology', 8, 'of 45 researched', [
-        'Current: Advanced Farming',
-        'Progress: 67%',
-        'ETA: 3 days'
-      ], '#e67e22') +
-      civCard('Diplomacy', 2, 'alliances', [
-        '5 trade routes',
-        'Reputation: Friendly',
-        'No active conflicts'
-      ], '#9b59b6') +
-      civCard('Military', 15, 'units', [
-        'Defense Rating: C',
-        'Threats: None',
-        'Patrols: Active'
-      ], '#e74c3c') +
-      civCard('Economy', 12450, 'credits', [
-        'Income: +340/day',
-        'Expenses: -180/day',
-        'Net: +160/day'
-      ], '#1abc9c');
-
-    grid.querySelectorAll('.civ-stat-num').forEach(el => {
-      const target = parseInt(el.dataset.target) || 0;
-      animateCounter(el, target, 800);
-    });
+      '<div class="civ-empty">' +
+        '<h3>Your simulation stats live in the desktop app</h3>' +
+        '<p>Colony, buildings, technology, economy, and more are tracked inside your running HumanityOS simulation. ' +
+        'Open the <a href="/download">desktop app</a> to see them.</p>' +
+        '<p>Switch to <strong>Real</strong> mode above for the live community dashboard, which works right here on the web.</p>' +
+      '</div>';
   }
 
   // ── Card HTML builder ─────────────────────────────────────
