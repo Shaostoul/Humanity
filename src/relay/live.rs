@@ -373,6 +373,237 @@ mod tests {
         assert!(reg.get("nobody").await.is_none());
     }
 
+    /// End to end, in-process, over a real TCP socket: a publisher authenticates with
+    /// a Dilithium signature, publishes a frame, and a viewer receives it byte for
+    /// byte. Then a SECOND viewer joins late and is immediately primed with the
+    /// cached keyframe rather than waiting for the next one.
+    ///
+    /// This is the test that would have caught every way this feature can be subtly
+    /// broken: a bad preimage, an unregistered name, the fanout dropping the payload,
+    /// or the priming cache not being replayed to late joiners.
+    #[tokio::test]
+    async fn publish_authenticates_fans_out_and_primes_a_late_viewer() {
+        use axum::routing::get;
+        use futures::{SinkExt, StreamExt};
+
+        // --- A relay with one registered name, "streamer", owned by a test key.
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path =
+            std::env::temp_dir().join(format!("hum_live_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+
+        let seed = [7u8; 32];
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let pubkey = hex::encode(dil.public_key());
+        db.register_name("streamer", &pubkey).expect("register name");
+
+        let state = Arc::new(RelayState::new(db));
+        let app = axum::Router::new()
+            .route("/ws/live/pub", get(pub_handler))
+            .route("/ws/live/sub/{stream}", get(sub_handler))
+            .with_state(state);
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        // --- Publisher: connect, then authenticate IN-BAND.
+        let (mut pubsock, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/pub"))
+                .await
+                .expect("publisher connects");
+
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        // The exact preimage the relay verifies: "live_publish\n{ts}".
+        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+        let auth = serde_json::json!({
+            "key": pubkey, "timestamp": ts, "sig": sig, "title": "Test stream",
+        });
+        pubsock
+            .send(tokio_tungstenite::tungstenite::Message::Text(auth.to_string().into()))
+            .await
+            .unwrap();
+
+        let reply = pubsock.next().await.unwrap().unwrap().into_text().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(v["ok"], true, "relay rejected a valid publisher: {reply}");
+        assert_eq!(
+            v["stream"], "streamer",
+            "the stream id must be the key's REGISTERED NAME, resolved server-side"
+        );
+
+        // --- Viewer 1 subscribes BEFORE any frame is sent.
+        let (mut viewer1, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/sub/streamer"))
+                .await
+                .expect("viewer connects");
+
+        // Give the viewer time to register with the broadcast channel; otherwise the
+        // frame below can be sent before anyone is listening and this races.
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // --- Publish one keyframe.
+        let mut frame = vec![1u8]; // tag 1 = keyframe
+        frame.extend_from_slice(&12_345u64.to_be_bytes()); // PTS
+        frame.extend_from_slice(b"fake-jpeg-bytes");
+        pubsock
+            .send(tokio_tungstenite::tungstenite::Message::Binary(frame.clone().into()))
+            .await
+            .unwrap();
+
+        // --- Viewer 1 gets it, byte for byte.
+        let got = tokio::time::timeout(Duration::from_secs(3), viewer1.next())
+            .await
+            .expect("viewer received a frame before the timeout")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            got.into_data().to_vec(),
+            frame,
+            "the fanout must deliver the frame unmodified"
+        );
+
+        // --- Viewer 2 joins LATE. It must be primed with the cached keyframe
+        // immediately rather than staring at black until the next one.
+        let (mut viewer2, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/sub/streamer"))
+                .await
+                .expect("late viewer connects");
+
+        let primed = tokio::time::timeout(Duration::from_secs(3), viewer2.next())
+            .await
+            .expect("a late viewer must be primed without waiting for the next keyframe")
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            primed.into_data().to_vec(),
+            frame,
+            "the late viewer must receive the CACHED keyframe"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A key with no registered name cannot publish. The stream id is the name, so
+    /// without one there is nothing to publish to -- and allowing it would let an
+    /// anonymous key squat an id.
+    #[tokio::test]
+    async fn an_unregistered_key_cannot_publish() {
+        use axum::routing::get;
+        use futures::{SinkExt, StreamExt};
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path =
+            std::env::temp_dir().join(format!("hum_live_unreg_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+        let state = Arc::new(RelayState::new(db));
+
+        let app = axum::Router::new()
+            .route("/ws/live/pub", get(pub_handler))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        // A valid signature from a key nobody has registered a name for.
+        let seed = [9u8; 32];
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        let sig = hex::encode(dil.sign(format!("live_publish\n{ts}").as_bytes()));
+
+        let (mut sock, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/pub"))
+                .await
+                .unwrap();
+        sock.send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::json!({
+                "key": hex::encode(dil.public_key()), "timestamp": ts, "sig": sig, "title": "",
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+        let reply = sock.next().await.unwrap().unwrap().into_text().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(v["ok"], false, "an unregistered key must be refused");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A forged signature must be refused. This is the whole authorization gate: if
+    /// it passes, anyone can broadcast as anyone.
+    #[tokio::test]
+    async fn a_bad_signature_cannot_publish() {
+        use axum::routing::get;
+        use futures::{SinkExt, StreamExt};
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let path =
+            std::env::temp_dir().join(format!("hum_live_forge_{}_{nanos}.db", std::process::id()));
+        let db = crate::relay::storage::Storage::open(&path).expect("open test db");
+
+        let seed = [7u8; 32];
+        let dil_seed = crate::relay::core::pq_crypto::derive_dilithium_seed(&seed);
+        let dil = crate::relay::core::pq_crypto::DilithiumKeypair::from_seed(&dil_seed);
+        let pubkey = hex::encode(dil.public_key());
+        // The name IS registered -- only the signature is wrong.
+        db.register_name("streamer", &pubkey).expect("register name");
+
+        let state = Arc::new(RelayState::new(db));
+        let app = axum::Router::new()
+            .route("/ws/live/pub", get(pub_handler))
+            .with_state(state);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        let (mut sock, _) =
+            tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/ws/live/pub"))
+                .await
+                .unwrap();
+        sock.send(tokio_tungstenite::tungstenite::Message::Text(
+            serde_json::json!({
+                "key": pubkey, "timestamp": ts, "sig": "00".repeat(3309), "title": "",
+            })
+            .to_string()
+            .into(),
+        ))
+        .await
+        .unwrap();
+
+        let reply = sock.next().await.unwrap().unwrap().into_text().unwrap();
+        let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
+        assert_eq!(v["ok"], false, "a forged signature must never be accepted");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
     #[tokio::test]
     async fn a_joining_viewer_is_primed_with_config_then_keyframe() {
         let (tx, _) = broadcast::channel(8);
