@@ -29,17 +29,31 @@
 >    profile pages to one scroll (v0.849.0), crafting condensed to columnar rows +
 >    Studio live-chat panel (v0.850.0), relay admin-stats 414 fixed via POST body
 >    (v0.851.0).
-> 2. **IN FLIGHT**: remaining docs/UI-AUDIT.md backlog (web data-extraction,
->    discoverability, market/trade inline styles, Library/Accord nav), Studio
->    labels/help polish, and clearing tests/theme_token_lint.rs LEGACY_OFFENDERS
->    (21 files, ~158 hardcoded colors) to zero.
-> 3. **THE BIG ONE - STREAMING TRANSPORT**: Studio's "Go Live" is still only a
->    local rehearsal. There is no capture, no encode, no transport. Stream Settings
->    already default to Platform = "HumanityOS Server", so the intent is
->    SELF-HOSTED streaming to their own relay, not Twitch. Research is underway on
->    capture (Windows), encode (no C-toolchain constraint), and transport
->    (str0m/WebRTC vs a WS path over the existing relay). Design doc + incremental
->    build to follow. This is what actually lets the operator go live.
+> 2. **SHIPPED (v0.855.0)** most of the docs/UI-AUDIT.md backlog: native + web
+>    profile editors each collapsed to one; the orphaned Civilization dashboard
+>    rescued into the Humanity tab; bug reports wired to the relay (they were NOT
+>    persisting); the two web identity restore flows folded into one tabbed modal;
+>    ~62 theme literals migrated (LEGACY_OFFENDERS 17 -> 12). STILL OPEN: UI-AUDIT
+>    s6 (web civilization.html Sim mode still shows fake colony stats) and s7
+>    (remaining literal tokenization: showUserContextMenu, planet tooltip,
+>    calendar/onboarding). LEGACY_OFFENDERS is now 12 files, keep shrinking to zero.
+> 3. **THE BIG ONE - STREAMING TRANSPORT: SHIPPED (v0.853-0.855) and LIVE.** Studio's
+>    "Go Live" now really broadcasts: non-blocking GPU capture -> downscale + JPEG on
+>    a worker thread -> binary WebSocket -> relay fanout -> the public /watch page.
+>    Self-hosted to the operator's own relay, no third party. MJPEG for v1 (zero new
+>    deps); an adversarial review found + fixed 8 bugs. Full design + the encoder
+>    tradeoff table in docs/design/streaming.md. NEXT RUNGS (not yet built):
+>    Rung 2 = hardware H.264 via the `windows` crate + Media Foundation MFT (NVENC on
+>    the operator's RTX 4070, no C toolchain, Windows-only first) + real screen/camera
+>    capture; Rung 3 = HLS, because VPS egress (not the protocol) is the scaling
+>    ceiling. Rung 2 is the highest-value streaming follow-up.
+>
+>    OPERATOR-ONLY pending for streaming: (a) sign releases v0.853-v0.855 so desktop
+>    auto-update offers them; (b) rotate the TURN credential committed in plaintext at
+>    src/net/webrtc.rs + web/chat/chat-voice-rooms.js and move to short-lived TURN
+>    creds (found during the streaming research); (c) OPTIONAL nginx one-liner for a
+>    /watch pretty-URL (works today as /watch.html; the sed edit was blocked by the
+>    auto-mode classifier and needs the operator to run it or approve it).
 >
 > The co-presence pivot below REMAINS the strategic bar (playable multiplayer with
 > a second real human); it is paused, not cancelled, while production-readiness and
