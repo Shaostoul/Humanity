@@ -412,7 +412,7 @@ function step4() {
 
     <p style="font-size:.75rem;color:#444;line-height:1.5;margin:0">
       💡 You can reopen this guide anytime via <strong style="color:#555">Help → Getting Started</strong> in the sidebar.
-      Your seed phrase is always available under <strong style="color:#555">Profile → Seed Phrase</strong>.
+      Your seed phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/seed</code> or <code>/backup</code>.
     </p>
   `;
 }

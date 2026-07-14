@@ -19,6 +19,124 @@
     #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1100px;width:100%;margin:0 auto}
     button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
     @media (prefers-reduced-motion: reduce){*{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
+
+    /* =================================================================
+       Classes consumed by /pages/market-app.js. These replace the inline
+       style="..." strings the JS used to emit, so every listing, review,
+       message and store card now follows the theme (dark/light), compact
+       mode and the accessibility settings.
+       ================================================================= */
+
+    /* Small button sizing for JS-emitted buttons */
+    .btn-sm{min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-xl);font-size:0.8rem}
+    /* Invalid-field highlight (JS adds this class when a required field is empty) */
+    .input-error{border-color:var(--danger)}
+
+    /* Star ratings (renderStars / renderStarSelector) */
+    .stars{display:inline-flex;gap:1px;line-height:1;font-size:0.875rem}
+    .stars.stars-lg{font-size:1.125rem}
+    .stars.stars-sm{font-size:0.75rem}
+    .stars.stars-xs{font-size:0.7rem}
+    .star{color:var(--text-muted)}
+    .star.on{color:var(--warning)}
+    .star-selector{display:inline-flex;gap:2px;cursor:pointer}
+    .star-selector .star{font-size:1.5rem;transition:color 0.1s;user-select:none}
+    .star-selector .star:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+    /* Listing cards (renderListingCard) */
+    .listing-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;transition:border-color 0.2s}
+    .listing-card:hover,.listing-card:focus-visible{border-color:var(--accent)}
+    .listing-thumb{height:120px;background:var(--bg-panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem}
+    .listing-body{padding:var(--space-xl)}
+    .listing-head{display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--space-sm)}
+    .listing-title{font-weight:600;font-size:0.85rem;color:var(--text);flex:1}
+    .listing-price{font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)}
+    .listing-chips{display:flex;gap:var(--space-sm);flex-wrap:wrap;margin-bottom:var(--space-sm)}
+    .listing-seller{font-size:0.72rem;color:var(--text-muted)}
+    .listing-rating{display:flex;align-items:center;gap:var(--space-xs);margin-top:var(--space-xs)}
+    .listing-rating-count{font-size:0.6rem;color:var(--text-muted)}
+    .listing-location{font-size:0.68rem;color:var(--text-muted);display:flex;align-items:center;gap:var(--space-xs)}
+
+    /* Chips + status badges. --cat / --cat-bg are per-category DATA values the JS
+       sets from CATEGORY_COLORS; every other value here is a theme token. */
+    .cat-chip{background:var(--cat-bg,var(--bg-panel));color:var(--cat,var(--text-muted));font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:var(--radius)}
+    .cond-chip{background:var(--bg-panel);border:1px solid var(--border);color:var(--text-muted);font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:var(--radius)}
+    .status-badge{background:var(--success);color:var(--text-on-accent);font-size:0.6rem;padding:var(--space-xs) var(--space-md);border-radius:var(--radius);margin-left:var(--space-sm)}
+    .status-badge.withdrawn{background:var(--text-muted)}
+
+    /* Card actions */
+    .listing-actions{display:flex;gap:var(--space-sm);margin-top:var(--space-md)}
+    .listing-action{flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-muted);cursor:pointer;font-size:0.7rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-xs)}
+    .listing-action:hover{border-color:var(--accent)}
+    .listing-action.is-sold{color:var(--success)}
+    .listing-action.is-delete{color:var(--danger);border-color:var(--danger)}
+
+    /* Listing detail modal (showListingDetail) */
+    .detail-close{float:right;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer}
+    .detail-close:hover{color:var(--text)}
+    .detail-title{color:var(--text);margin:0 0 var(--space-md);font-size:1.05rem}
+    .detail-price{font-size:1.1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)}
+    .detail-chips{display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-lg)}
+    .detail-chips .cat-chip,.detail-chips .cond-chip{font-size:0.7rem}
+    .detail-desc{font-size:0.85rem;color:var(--text-muted);margin-bottom:var(--space-lg);white-space:pre-wrap;line-height:1.5}
+    .detail-meta{font-size:0.8rem;color:var(--text-muted);margin-bottom:var(--space-sm)}
+    .detail-meta strong{color:var(--text)}
+    .detail-location{font-size:0.78rem;margin-bottom:var(--space-lg);display:flex;align-items:center;gap:var(--space-sm)}
+    .detail-rating{display:flex;align-items:center;gap:var(--space-sm);margin-bottom:var(--space-md)}
+    .detail-rating-count{font-size:0.75rem;color:var(--text-muted)}
+    .detail-actions{display:flex;gap:var(--space-md);margin-top:var(--space-md);margin-bottom:var(--space-xl)}
+    .detail-action{flex:1;padding:var(--space-sm);background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;justify-content:center;gap:var(--space-sm)}
+    .detail-action:hover{border-color:var(--accent)}
+    .detail-action.is-sold{color:var(--success)}
+    .detail-action.is-delete{color:var(--danger);border-color:var(--danger)}
+    .detail-section{border-top:1px solid var(--border);padding-top:var(--space-xl);margin-top:var(--space-xl)}
+    .detail-section-title{color:var(--text);margin:0 0 var(--space-lg);font-size:0.9rem}
+    .detail-empty{color:var(--text-muted);font-size:0.8rem;font-style:italic;margin-bottom:var(--space-md)}
+
+    /* Reviews (renderDetailReviews) */
+    .review-summary{margin-bottom:var(--space-lg);display:flex;align-items:center;gap:var(--space-md)}
+    .review-avg{font-size:0.85rem;font-weight:600;color:var(--text)}
+    .review-count{font-size:0.75rem;color:var(--text-muted)}
+    .review-sort{margin-bottom:var(--space-lg)}
+    .review-sort select{padding:var(--space-sm) var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.75rem}
+    .review-form{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);margin-bottom:var(--space-xl)}
+    .review-form-title{font-size:0.8rem;font-weight:600;color:var(--text);margin-bottom:var(--space-md)}
+    .review-field{margin-bottom:var(--space-md)}
+    .review-label{font-size:0.7rem;color:var(--text-muted);display:block;margin-bottom:var(--space-xs)}
+    .review-comment{width:100%;padding:var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem;resize:vertical;font-family:inherit}
+    .review-error{color:var(--danger);font-size:0.75rem;margin-top:var(--space-sm)}
+    .review-row{border-bottom:1px solid var(--border);padding:var(--space-lg) 0}
+    .review-row-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-sm)}
+    .review-author{font-size:0.8rem;color:var(--text)}
+    .review-stars{margin-left:var(--space-md)}
+    .review-meta{display:flex;align-items:center;gap:var(--space-md)}
+    .review-date{font-size:0.68rem;color:var(--text-muted)}
+    .review-delete{background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.7rem;padding:2px}
+    .review-body{font-size:0.8rem;color:var(--text-muted);line-height:1.4}
+    .reviews-empty{color:var(--text-muted);font-style:italic;font-size:0.8rem;padding:var(--space-lg) 0}
+
+    /* Buyer-seller messages on a listing (renderListingMessages) */
+    .lmsg-list{max-height:240px;overflow-y:auto;margin-bottom:var(--space-md)}
+    .lmsg-compose{display:flex;gap:var(--space-sm)}
+    .lmsg-input{flex:1;padding:var(--space-sm) var(--space-md);background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.8rem}
+    .lmsg{margin-bottom:var(--space-md);padding:var(--space-sm) var(--space-md);background:var(--bg-panel);border-radius:var(--radius)}
+    .lmsg.mine{background:var(--accent-dim)}
+    .lmsg-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-xs)}
+    .lmsg-author{font-size:0.75rem;color:var(--text)}
+    .lmsg.mine .lmsg-author{color:var(--accent)}
+    .lmsg-time{font-size:0.65rem;color:var(--text-muted)}
+    .lmsg-body{font-size:0.8rem;color:var(--text);white-space:pre-wrap;word-break:break-word}
+
+    /* Store directory (renderStoreDirectory) */
+    .store-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl);transition:border-color 0.2s}
+    .store-card:hover{border-color:var(--accent)}
+    .store-icon{font-size:1.5rem;margin-bottom:var(--space-md)}
+    .store-name{font-weight:600;font-size:0.9rem;color:var(--text);margin-bottom:var(--space-xs)}
+    .store-category{font-size:0.7rem;color:var(--text-muted);margin-bottom:var(--space-md)}
+    .store-desc{font-size:0.78rem;color:var(--text-muted);margin-bottom:var(--space-lg)}
+    .store-link{display:inline-block;padding:var(--space-sm) var(--space-xl);background:var(--accent);color:var(--text-on-accent);border-radius:var(--radius);text-decoration:none;font-size:0.75rem;font-weight:600}
+    .store-link:hover{background:var(--accent-hover);color:var(--text-on-accent)}
+    .stores-empty{color:var(--text-muted);font-style:italic;padding:var(--space-3xl);text-align:center}
 </style>
 </head>
 <body>

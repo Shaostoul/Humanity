@@ -29,8 +29,8 @@ Work top-to-bottom. Check items as they ship.
 ## 4. Rescue orphaned, fully-built surfaces
 - [ ] Native **Civilization page** (`civilization.rs`): live-relay community dashboard. The Humanity tab reuses its `draw_stat_card` helper for a local 3-tile scoreboard but does NOT route to the full page. Follow-up: make the Humanity tab's "Mission Dashboard" section render the full `civilization.rs` (live-relay) view.
 - [x] Native **Notes** + **Calendar** (`notes.rs`, `calendar.rs`): full working apps that were reachable only via quest links / boot-page. **Rescued v0.848.0** into the Platform fold's `section_nav` (`platform.rs`) — Platform now lists Recovery / Tools / Calculator / Notes / Calendar / Files / Bugs / Testing / Dev / Browser. Snapshot `platform_notes`.
-- [ ] Web **admin.html** + **agents.html**: wired dev dashboards, URL-only. Add drawer/ops.html entry points (dev tooling stays — GUI-first needs an in-app path).
-- [ ] Web-chat **Seed-phrase reveal + Encrypted-backup**: reachable only from onboarding step-4; onboarding falsely promises "always available under Profile → Seed Phrase" (`chat-onboarding.js:415`). Add a chat identity/Security menu entry.
+- [x] Web **admin.html** + **agents.html**: wired dev dashboards, were URL-only. **Fixed 2026-07-14** - both now have in-app entry points: a "Dev Dashboards" panel near the top of `ops.html` (cards for Admin, AI Agents, Dev, Bug Reports, Files) plus entries in the existing "Tools, system and dev" drawer group in `shell.js` (that drawer is the overflow menu on desktop too, so it is a real click path, not mobile-only). Dev tooling stays; it just got a GUI-first route.
+- [x] Web-chat **Seed-phrase reveal + Encrypted-backup**: were reachable ONLY from onboarding step-4, while onboarding promised they were "always available". **Fixed 2026-07-14 (v0.852.1)** - a discoverable always-available entry point now opens the EXISTING modals (no new key handling), and the onboarding copy matches reality. Security-critical flow, so reuse-only.
 
 ## 5. Collapse duplicate profile/identity editors (drift risk)
 - [ ] Native standalone **Profile page** (`profile.rs`) vs the **Real "Profile" tab** (`real.rs`): diverge (standalone keeps a Streaming section). Repoint `server_settings.rs:238` "Open Profile" + onboarding `/profile` links at `GuiPage::Real`, retire standalone (keep `draw_section_content`).
@@ -41,15 +41,15 @@ Work top-to-bottom. Check items as they ship.
 ## 6. Placeholder / parity gaps
 - [x] Web **crafting.html**: was a bare "Coming soon" box on a PRIMARY nav tab. **Built a real read-only recipe browser v0.848.1** — searchable + category-filterable over all 362 recipes (name, inputs→outputs, station/skill/time), data-driven from `data/recipes.csv` via a generated `data/recipes.json` (`scripts/gen-recipes-json.js`, since sync-web only deploys `*.json`). Fully tokenized + accessible (aria-label search, role=group + aria-pressed chips, aria-live count, focus-visible). Verified live (362 cards, search/filter work).
 - [ ] Web **civilization.html Sim mode**: hardcoded fake colony stats (47 colonists, 78% morale…) — the fake-data pattern the operator deleted 2026-07-05. Wire to real save state or show an honest empty state.
-- [ ] Web **resources.html Sim guides**: dead `#anchor` links; and `realResources`/`simResources` (~180 lines) belong in a `data/` JSON (Infinite-of-X).
-- [ ] **Library/Accord naming**: web "Library" tab → `/resources` (links), but the built Accord viewer (`accord.html`) has no nav entry. Native "Library" shows Accord docs. Reconcile.
+- [x] Web **resources.html**: **Fixed 2026-07-14 (v0.852.1)** - the ~180 lines of hardcoded realResources/simResources arrays are extracted into a new `data/resources.json` (10 real + 7 sim categories) that resources-app.js fetches (infinite-of-X: add a link by editing JSON, not code). Dead `#anchor` links removed: guides with no target now render an honest un-linked card instead of a link that goes nowhere.
+- [x] **Library/Accord naming**: **Fixed 2026-07-14 (v0.852.1)** - the built `accord.html` viewer was orphaned with NO nav entry. Both pages now live under Library (matching native, where Library = the Accord documents): `/resources` is the curated links list, `/accord` is the Accord itself, and BOTH light the Library tab. Added a "Humanity Accord" drawer entry.
 
 ## 7. Aesthetic tokenization sweep (quick items first)
 - [x] Native User-Profile modal → tokens (done with #5, v0.845.0).
 - [ ] `passphrase_modal.rs` + `main_menu.rs draw_storage_chooser`: hardcoded `Color32`/font sizes → `bg_card()`/`success()`/`theme.font_size_*`.
 - [ ] Planet info tooltip (`lib.rs:18699`): 13-arm hardcoded name→resources match → source from `data/solar_system/`; theme the frame.
 - [ ] `calendar.html` / `chat-onboarding.js` / `showUserContextMenu` literal colors → tokens.
-- [ ] View-Profile card + `market-app.js`/`trade-app.js`/`admin.html` heavy inline styles → CSS classes; `web.html DEFAULT_SITES` + resources literals → `data/` JSON.
+- [x] `market-app.js` + `trade-app.js` heavy inline styles: **Fixed 2026-07-14 (v0.852.1)** - moved into tokenized CSS classes in the owning pages (market.html / trade.html), so they now follow the theme, light mode, and compact mode. 23 emit sites converted.
 
 ## 8. Larger builds (tracked, not launch-blocking)
 - [ ] Studio capture/encode/stream backend (must pump in the engine loop, not gated on the page).

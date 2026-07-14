@@ -240,7 +240,10 @@
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
+    // Library = the Accord documents + the external-resources list (mirrors the
+    // native Library page's two faces), so BOTH pages light up the Library tab.
     else if (p.startsWith('/resources')) active = 'library';
+    else if (p.startsWith('/accord'))    active = 'library';
     else if (p.startsWith('/bugs'))     active = 'bugs';
     else active = '';
   }
@@ -769,6 +772,10 @@
       mobileLink('/maps',      'Map') +
       mobileLink('/tools',     'Platform') +
       mobileLink('/resources', 'Library') +
+      // The Accord viewer was BUILT but had no nav entry at all (orphaned page).
+      // Native's Library shows the Accord documents, so both live under Library
+      // here: /resources is the curated links list, /accord is the Accord itself.
+      mobileLink('/accord',    'Humanity Accord') +
       mobileLink('/settings',  'Settings') +
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
@@ -1360,7 +1367,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.852.0';
+    var CURRENT_VERSION = '0.852.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

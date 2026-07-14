@@ -869,6 +869,19 @@ sendMessage = async function() {
     downloadIdentityBackup(myName);
     return;
   }
+  // Security & recovery, always available (mirrors the Account & Identity menu in
+  // the header). Reuses the existing modals in chat-profile.js; the /seed reveal
+  // goes through the same confirm guard as the menu button.
+  if (val === '/seed') {
+    input.value = '';
+    confirmRevealSeedPhrase();
+    return;
+  }
+  if (val === '/backup') {
+    input.value = '';
+    openEncryptedBackupModal();
+    return;
+  }
   if (val === '/blocklist') {
     input.value = '';
     showBlockList();

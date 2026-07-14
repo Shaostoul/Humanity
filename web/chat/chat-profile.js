@@ -824,6 +824,27 @@ async function doRestoreFromMnemonic() {
   }
 }
 
+/**
+ * Confirm-then-reveal wrapper for the seed phrase.
+ *
+ * openSeedPhraseModal() paints all 24 words the instant it opens, which is the
+ * last thing you want from a stray click while screen-sharing or streaming. The
+ * permanent entry points (the Account & Identity menu button and the /seed
+ * command) therefore route through this guard. Onboarding step 4 still calls the
+ * modal directly, because there the user is deliberately in a set-up-my-backups
+ * flow and has just been told what the words are for.
+ *
+ * No key material is touched here. This asks, then delegates.
+ */
+function confirmRevealSeedPhrase() {
+  if (!confirm(
+    'Reveal your 24-word seed phrase?\n\n' +
+    'Anyone who reads these words controls your identity permanently.\n' +
+    'Make sure you are NOT screen-sharing, streaming, or being recorded.'
+  )) return;
+  openSeedPhraseModal();
+}
+
 // ── Identity Backup / Restore UI ──
 // Goal: give users a secure, frictionless way to protect and recover their
 // cryptographic identity from loss of device or browser data clear.

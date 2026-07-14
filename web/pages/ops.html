@@ -40,6 +40,16 @@
     @keyframes rainbow-border { 0%{border-color:#f44}16%{border-color:#f80}33%{border-color:#ff0}50%{border-color:#0f4}66%{border-color:#08f}83%{border-color:#80f}100%{border-color:#f44} }
     h3 { font-size: 0.9rem; color: var(--text); margin: var(--space-xl) 0 var(--space-sm); }
 
+    /* Dev-dashboard link grid. Dev/debug tooling is permanent infrastructure, so
+       every dev surface needs a GUI-first path instead of a typed URL. */
+    .dev-dash { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--space-lg); margin-top: var(--space-md); }
+    .dev-dash a { display: block; padding: var(--space-lg); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); text-decoration: none; transition: border-color 0.15s; }
+    .dev-dash a:hover { border-color: var(--accent); }
+    .dev-dash a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .dd-name { font-size: 0.86rem; font-weight: 700; color: var(--accent); margin-bottom: var(--space-xs); }
+    .dd-desc { font-size: 0.78rem; color: var(--text-muted); line-height: 1.45; }
+    @media (prefers-reduced-motion: reduce) { .dev-dash a { transition: none; } }
+
   </style>
 </head>
 <body>
@@ -240,7 +250,7 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.852.0';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.852.1';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';

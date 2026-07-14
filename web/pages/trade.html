@@ -63,6 +63,36 @@
     .ob-table .cancel-order-btn{background:transparent;color:var(--danger,#f44);border:1px solid var(--danger,#f44);border-radius:6px;padding:2px 10px;font-size:.75rem;cursor:pointer}
     .ob-table .cancel-order-btn:hover{background:var(--danger,#f44);color:#fff}
 
+    /* =================================================================
+       Classes consumed by /pages/trade-app.js. These replace the inline
+       style="..." strings the JS used to emit, so trade cards, the detail
+       view and the order book follow the theme and compact mode.
+       ================================================================= */
+    .btn-confirm.btn-sm,.btn-cancel.btn-sm{font-size:.75rem;padding:var(--space-sm) var(--space-lg)}
+    .trade-empty{color:var(--text-muted);text-align:center;padding:var(--space-2xl)}
+    .trade-card:focus-visible{border-color:var(--accent)}
+    .trade-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)}
+    .trade-card-title{font-size:.85rem;font-weight:600}
+    .trade-card-msg{font-size:.8rem;color:var(--text-muted);margin-bottom:var(--space-sm)}
+    .trade-card-counts{font-size:.75rem;color:var(--text-muted)}
+    .trade-card-actions{margin-top:var(--space-md);display:flex;gap:var(--space-md)}
+
+    /* the status pill also renders in the detail header, outside .trade-card */
+    #trade-detail-header .status{display:inline-block;padding:2px 10px;border-radius:12px;font-size:.75rem;font-weight:600;text-transform:uppercase}
+    .trade-detail-head{display:flex;justify-content:space-between;align-items:center}
+    .trade-detail-title{margin:0;font-size:1.1rem}
+    .trade-detail-msg{color:var(--text-muted);font-size:.8rem;margin:var(--space-sm) 0 0 0}
+    .trade-detail-actions{margin-top:var(--space-lg);display:flex;gap:var(--space-md)}
+    .trade-col-empty{color:var(--text-muted);font-size:.8rem}
+
+    .add-item-form .qty{max-width:60px}
+    .add-item-form .item-type{max-width:100px}
+    .add-item-form .btn-primary{font-size:.75rem;padding:var(--space-sm) var(--space-md)}
+
+    .ob-error{color:var(--danger);text-align:center}
+    .ob-empty{color:var(--text-muted);text-align:center;padding:var(--space-xl)}
+    .ob-history-empty{color:var(--text-muted);font-size:.85rem}
+
     @media(max-width:700px){
       .trade-view{grid-template-columns:1fr;gap:var(--space-md)}
       .trade-divider{flex-direction:row;padding:0}

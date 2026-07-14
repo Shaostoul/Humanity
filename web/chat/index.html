@@ -186,7 +186,13 @@
           <div id="my-key-display" style="font-family:monospace;font-size:0.55rem;opacity:0.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;cursor:pointer;"
             data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
             onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='var(--accent)';setTimeout(()=>this.style.color='',800)})"></div>
-          <!-- Security buttons moved to Settings → Security to prevent accidental exposure during streams -->
+          <!-- Security & Recovery lives in the #identity-security section below. This whole
+               #my-identity block is relocated at runtime into the header's "Account & Identity"
+               popover by relocateIdentityToMenu() (chat-ui.js), so these controls are always
+               reachable but are never sitting exposed on the visible sidebar during a stream.
+               (The previous note here pointed at a "Settings > Security" panel that does not
+               exist in web/shared/settings.js, which is how the seed/backup flows ended up
+               reachable only from onboarding step 4.) -->
           <div style="display:flex;gap:0.2rem;margin-top:0.2rem;">
             <button onclick="exportContactCard()"
               data-tip-title="Share Card" data-tip-desc="Generate a QR code contact card for others to scan."
@@ -197,6 +203,27 @@
             <button onclick="syncAllPeers()"
               data-tip-title="Sync Peers" data-tip-desc="Push data to all connected P2P contacts (E2E encrypted)."
               style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">🔄 Sync</button>
+          </div>
+          <!-- Security & Recovery: the ONLY always-available entry points to the seed phrase and
+               the encrypted identity backup. Previously both were reachable only from onboarding
+               step 4, a one-shot wizard, while onboarding promised they were permanently
+               available. Both buttons reuse the existing modals in chat-profile.js; no key
+               handling happens here. The seed reveal goes through confirmRevealSeedPhrase() so a
+               stray click cannot paint 24 words on screen mid-stream. -->
+          <div id="identity-security" style="margin-top:var(--space-sm);padding-top:var(--space-sm);border-top:1px solid var(--border);">
+            <div style="font-size:0.6rem;color:var(--text-muted);font-weight:600;letter-spacing:0.05em;margin-bottom:0.25rem;">SECURITY &amp; RECOVERY</div>
+            <div style="display:flex;gap:0.2rem;">
+              <button onclick="confirmRevealSeedPhrase()" id="seed-phrase-btn"
+                aria-label="Reveal your 24 word seed phrase"
+                data-tip-title="Seed Phrase" data-tip-desc="Reveal your 24-word recovery phrase. Anyone who reads it controls your identity."
+                data-tip-detail="Asks you to confirm first, so a stray click cannot expose it mid-stream"
+                style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:var(--radius);font-size:0.62rem;cursor:pointer;">🌱 Seed</button>
+              <button onclick="openEncryptedBackupModal()" id="encrypted-backup-btn"
+                aria-label="Download an encrypted backup of your identity"
+                data-tip-title="Encrypted Backup" data-tip-desc="Download a passphrase-encrypted backup file of your identity."
+                data-tip-detail="Keep the file and its passphrase in separate places"
+                style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:var(--radius);font-size:0.62rem;cursor:pointer;">🔑 Backup</button>
+            </div>
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
@@ -457,6 +484,8 @@
       <div class="cmd"><code>/users</code>, List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
       <div class="cmd"><code>/export</code>, Download your identity backup file</div>
+      <div class="cmd"><code>/seed</code>, Reveal your 24-word seed phrase (asks you to confirm first)</div>
+      <div class="cmd"><code>/backup</code>, Download an encrypted backup of your identity</div>
       <div class="cmd"><code>/dm &lt;name&gt; &lt;message&gt;</code>, Send a direct message</div>
       <div class="cmd"><code>/dms</code>, List your DM conversations</div>
       <div class="cmd"><code>/block &lt;name&gt;</code>, Block a user (hides their messages)</div>
