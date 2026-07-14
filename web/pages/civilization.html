@@ -12,7 +12,7 @@
     .civ-header-left h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
     .civ-header-left p { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
     .civ-meta { display:flex; align-items:center; gap:var(--space-md); font-size:var(--text-sm); color:var(--text-muted); }
-    .civ-meta button { background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); padding:4px 12px; border-radius:var(--radius); cursor:pointer; font-size:var(--text-sm); }
+    .civ-meta button { background:var(--bg-card); border:1px solid var(--border); color:var(--text-muted); padding:var(--space-sm) var(--space-md); border-radius:var(--radius); cursor:pointer; font-size:var(--text-sm); }
     .civ-meta button:hover { border-color:var(--accent); color:var(--text); }
     .civ-grid {
       display:grid;
@@ -30,7 +30,7 @@
     }
     .civ-card:hover {
       border-color:var(--accent);
-      box-shadow:0 2px 12px rgba(255,136,17,0.08);
+      box-shadow:0 2px 12px var(--accent-dim);
     }
     .civ-card-accent {
       position:absolute;
@@ -77,6 +77,13 @@
       .civ-grid { grid-template-columns:1fr; }
       .civ-stat-num { font-size:2rem; }
     }
+    .civ-meta button:focus-visible {
+      outline:2px solid var(--border-focus);
+      outline-offset:2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .civ-card, .civ-meta button { transition:none; }
+    }
   </style>
 </head>
 <body>
@@ -95,7 +102,7 @@
     </div>
     <div class="civ-meta">
       <span>Updated <span id="civ-last-updated">...</span></span>
-      <button id="civ-refresh">Refresh</button>
+      <button id="civ-refresh" type="button" aria-label="Refresh community stats now">Refresh</button>
     </div>
   </div>
 

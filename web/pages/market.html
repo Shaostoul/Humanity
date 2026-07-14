@@ -8,7 +8,6 @@
   <style>
     :root {
   --bg-panel: #141414;
-  --accent: #22aa66;
   --error: var(--danger);
 }
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
@@ -18,6 +17,8 @@
     .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl) var(--space-2xl);margin-bottom:var(--space-2xl)}
 
     #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1100px;width:100%;margin:0 auto}
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+    @media (prefers-reduced-motion: reduce){*{animation-duration:0.01ms !important;animation-iteration-count:1 !important;transition-duration:0.01ms !important;scroll-behavior:auto !important}}
 </style>
 </head>
 <body>
@@ -34,9 +35,9 @@
 <div id=page-app><div id="tab-market" class="tab-content" style="padding:var(--space-xl);overflow-y:auto;">
   <!-- Sub-navigation -->
   <div style="display:flex;gap:var(--space-md);margin-bottom:var(--space-xl);flex-wrap:wrap;align-items:center;">
-   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16"></span> Marketplace</button>
-   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16"></span> Stores</button>
-   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16"></span> My Listings</button>
+   <button class="btn btn-clickable" onclick="showMarketSection('marketplace')" id="market-nav-marketplace" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="market" data-size="16" aria-hidden="true"></span> Marketplace</button>
+   <button class="btn" onclick="showMarketSection('stores')" id="market-nav-stores" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="storefront" data-size="16" aria-hidden="true"></span> Stores</button>
+   <button class="btn" onclick="showMarketSection('mylistings')" id="market-nav-mylistings" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:inline-flex;align-items:center;gap:var(--space-sm);"><span data-icon="tasklist" data-size="16" aria-hidden="true"></span> My Listings</button>
    <span style="flex:1;"></span>
    <button class="btn btn-clickable" onclick="openListingModal()" id="market-create-btn" style="min-width:auto;min-height:32px;padding:var(--space-sm) var(--space-lg);font-size:0.8rem;display:none;">+ Create Listing</button>
   </div>
@@ -44,18 +45,18 @@
   <!-- Marketplace Section -->
   <div id="market-section-marketplace">
    <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);align-items:center;position:sticky;top:0;z-index:10;background:var(--bg);padding:var(--space-md) 0;">
-    <input type="text" id="market-search" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
-    <select id="market-category-filter" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <input type="text" id="market-search" aria-label="Search listings" placeholder="🔍 Search listings…" oninput="renderMarketListings()" style="flex:1;min-width:150px;padding:var(--space-md) var(--space-lg);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-category-filter" aria-label="Filter by category" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">All Categories</option>
      <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
      <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
      <option>Sports</option><option>Crafts</option><option>Food/Garden</option><option>Services</option><option>3D Models</option><option>Other</option>
     </select>
-    <select id="market-condition-filter" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-condition-filter" aria-label="Filter by condition" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">Any Condition</option>
      <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
     </select>
-    <select id="market-sort" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="market-sort" aria-label="Sort listings" onchange="renderMarketListings()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="newest">Newest</option>
      <option value="oldest">Oldest</option>
      <option value="alpha">A-Z</option>
@@ -68,7 +69,7 @@
   <!-- Store Directory Section -->
   <div id="market-section-stores" style="display:none;">
    <div style="margin-bottom:var(--space-xl);">
-    <select id="store-category-filter" onchange="renderStoreDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
+    <select id="store-category-filter" aria-label="Filter stores by category" onchange="renderStoreDirectory()" style="padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.8rem;">
      <option value="">All Categories</option>
     </select>
    </div>
@@ -82,36 +83,36 @@
   </div>
 
   <!-- Seller Profile Modal -->
-  <div id="seller-profile-modal" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
+  <div id="seller-profile-modal" role="dialog" aria-modal="true" aria-label="Seller profile" style="display:none;position:fixed;inset:0;z-index:1100;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeSellerProfile()">
    <div style="max-width:520px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="seller-profile-content"></div>
    </div>
   </div>
 
   <!-- Listing Detail Modal -->
-  <div id="listing-detail-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
+  <div id="listing-detail-modal" role="dialog" aria-modal="true" aria-label="Listing details" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingDetail()">
    <div style="max-width:600px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
     <div id="listing-detail-content"></div>
    </div>
   </div>
 
   <!-- Create/Edit Listing Modal -->
-  <div id="listing-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
+  <div id="listing-modal" role="dialog" aria-modal="true" aria-labelledby="listing-modal-title" style="display:none;position:fixed;inset:0;z-index:1000;background:var(--bg-modal);backdrop-filter:blur(4px);overflow-y:auto;" onclick="if(event.target===this)closeListingModal()">
    <div style="max-width:500px;margin:3rem auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:var(--space-2xl);">
-    <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:1rem;" id="listing-modal-title">Create Listing</h2>
+    <h2 style="color:var(--accent);margin-bottom:var(--space-xl);font-size:var(--text-base);" id="listing-modal-title">Create Listing</h2>
     <input type="hidden" id="listing-edit-id" value="">
     <div style="display:flex;flex-direction:column;gap:var(--space-lg);">
      <div>
-      <label style="font-size:0.75rem;color:var(--text-muted);">Title *</label>
+      <label for="listing-title" style="font-size:var(--text-sm);color:var(--text-muted);">Title *</label>
       <input type="text" id="listing-title" maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
-      <label style="font-size:0.75rem;color:var(--text-muted);">Description</label>
+      <label for="listing-description" style="font-size:var(--text-sm);color:var(--text-muted);">Description</label>
       <textarea id="listing-description" rows="3" maxlength="2000" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;resize:vertical;"></textarea>
      </div>
      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);">
       <div>
-       <label style="font-size:0.75rem;color:var(--text-muted);">Category *</label>
+       <label for="listing-category" style="font-size:var(--text-sm);color:var(--text-muted);">Category *</label>
        <select id="listing-category" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
         <option>Electronics</option><option>Vehicles</option><option>Clothing</option><option>Tools</option>
         <option>Furniture</option><option>Home</option><option>Books/Media</option><option>Gaming</option>
@@ -119,14 +120,14 @@
        </select>
       </div>
       <div>
-       <label style="font-size:0.75rem;color:var(--text-muted);">Condition</label>
+       <label for="listing-condition" style="font-size:var(--text-sm);color:var(--text-muted);">Condition</label>
        <select id="listing-condition" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
         <option>New</option><option>Like New</option><option>Good</option><option>Fair</option><option>Poor</option><option>N/A</option>
        </select>
       </div>
      </div>
      <div id="listing-3d-subcategory-wrap" style="display:none;">
-      <label style="font-size:0.75rem;color:var(--text-muted);">Model Subcategory</label>
+      <label for="listing-3d-subcategory" style="font-size:var(--text-sm);color:var(--text-muted);">Model Subcategory</label>
       <select id="listing-3d-subcategory" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
        <option value="">None</option>
        <option>Vehicles</option><option>Architecture</option><option>Characters</option><option>Props</option>
@@ -135,20 +136,20 @@
      </div>
      <div id="listing-images-area"></div>
      <div>
-      <label style="font-size:0.75rem;color:var(--text-muted);">Price</label>
+      <label for="listing-price" style="font-size:var(--text-sm);color:var(--text-muted);">Price</label>
       <input type="text" id="listing-price" placeholder='$50, Trade, Free, Best offer…' maxlength="50" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
       <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);flex-wrap:wrap;">
-       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Free</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Donations Welcome</button>
-       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:4px;font-size:0.65rem;cursor:pointer;">Pay What You Want</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Free'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Free</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Free (donations welcome)'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Donations Welcome</button>
+       <button type="button" onclick="document.getElementById('listing-price').value='Pay what you want'" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:var(--space-xs) var(--space-md);border-radius:var(--radius);font-size:var(--text-xs);cursor:pointer;">Pay What You Want</button>
       </div>
      </div>
      <div>
-      <label style="font-size:0.75rem;color:var(--text-muted);">Payment Methods</label>
+      <label for="listing-payment" style="font-size:var(--text-sm);color:var(--text-muted);">Payment Methods</label>
       <input type="text" id="listing-payment" placeholder='Venmo, Cash, Crypto, Trade…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div>
-      <label style="font-size:0.75rem;color:var(--text-muted);">Location</label>
+      <label for="listing-location" style="font-size:var(--text-sm);color:var(--text-muted);">Location</label>
       <input type="text" id="listing-location" placeholder='Seattle area, Ships worldwide…' maxlength="100" style="width:100%;padding:var(--space-md);background:var(--bg-panel);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:0.85rem;">
      </div>
      <div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-md);">

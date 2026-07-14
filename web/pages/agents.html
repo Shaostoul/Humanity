@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body { line-height: 1.5; min-height: 100vh; padding-bottom: 80px; }
-    .container { max-width: 1400px; margin: 0 auto; padding: 0 16px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 var(--space-lg); }
 
     .ag-hero { padding: 24px 0 12px; }
     .ag-hero h1 { font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 800; margin-bottom: 4px; }
@@ -32,13 +32,13 @@
     }
     .toolbar input {
       flex: 1; min-width: 200px;
-      padding: 6px 12px; border-radius: var(--radius);
+      padding: var(--space-sm) var(--space-md); border-radius: var(--radius);
       background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
       font-size: 0.85rem;
     }
     .toolbar button {
-      padding: 6px 14px; border-radius: var(--radius);
-      background: var(--accent); color: #000; border: none;
+      padding: var(--space-sm) var(--space-lg); border-radius: var(--radius);
+      background: var(--accent); color: var(--text-on-accent); border: none;
       font-weight: 600; font-size: 0.82rem; cursor: pointer;
     }
 
@@ -66,15 +66,15 @@
       display: inline-block; padding: 2px 8px; border-radius: 10px;
       font-size: 0.7rem; font-weight: 700;
     }
-    .badge.complete { background: rgba(42,184,112,0.2); color: #2ab870; }
-    .badge.partial  { background: rgba(245,184,59,0.2); color: #f5b83b; }
+    .badge.complete { background: rgba(42,184,112,0.2); color: var(--success); }
+    .badge.partial  { background: rgba(245,184,59,0.2); color: var(--warning); }
     .badge.scaffold { background: rgba(255,136,17,0.2); color: var(--accent); }
-    .badge.missing  { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+    .badge.missing  { background: rgba(239,79,79,0.2); color: var(--danger); }
     .badge.unknown  { background: var(--bg); color: var(--text-muted); }
 
-    .badge.active   { background: rgba(74,158,255,0.2); color: #4a9eff; }
+    .badge.active   { background: rgba(74,158,255,0.2); color: var(--info); }
     .badge.passive  { background: rgba(120,120,140,0.2); color: var(--text-muted); }
-    .badge.blocked  { background: rgba(239,79,79,0.2); color: #ef4f4f; }
+    .badge.blocked  { background: rgba(239,79,79,0.2); color: var(--danger); }
     .badge.off      { background: rgba(120,120,140,0.4); color: var(--text-muted); text-decoration: line-through; }
 
     .runtime-pill {
@@ -83,7 +83,7 @@
       font-size: 0.72rem;
       background: var(--bg);
     }
-    .runtime-pill.fresh { background: rgba(42,184,112,0.15); color: #2ab870; }
+    .runtime-pill.fresh { background: rgba(42,184,112,0.15); color: var(--success); }
     .runtime-pill.stale { background: rgba(120,120,140,0.15); color: var(--text-muted); }
     .runtime-pill.empty { color: var(--text-muted); }
 
@@ -93,10 +93,18 @@
       font-size: 0.78rem; cursor: pointer;
     }
 
+    /* Keyboard focus: visible ring on every interactive control (a11y) */
+    .toolbar input:focus-visible,
+    .toolbar button:focus-visible,
+    .override-select:focus-visible {
+      outline: 2px solid var(--border-focus);
+      outline-offset: 2px;
+    }
+
     .empty-state { padding: 40px; text-align: center; color: var(--text-muted); }
     .error-banner {
       background: rgba(239,79,79,0.1); border: 1px solid rgba(239,79,79,0.3);
-      color: #ef4f4f; padding: 10px 14px; border-radius: var(--radius);
+      color: var(--danger); padding: var(--space-md) var(--space-lg); border-radius: var(--radius);
       font-size: 0.85rem; margin-bottom: 12px;
     }
   </style>
@@ -121,13 +129,13 @@
     </div>
 
     <div class="toolbar">
-      <input type="text" id="filter" placeholder="Filter by scope_id, file path, or summary..." />
+      <input type="text" id="filter" placeholder="Filter by scope_id, file path, or summary..." aria-label="Filter agent scopes by ID, file path, or summary" />
       <button id="refresh-btn">Refresh</button>
     </div>
 
-    <div id="error-area"></div>
+    <div id="error-area" aria-live="assertive"></div>
 
-    <table class="agents-table" id="agents-table">
+    <table class="agents-table" id="agents-table" aria-label="AI agent scopes: status, recommendation, ownership, runtime, and override">
       <thead>
         <tr>
           <th>Scope</th>
@@ -254,7 +262,7 @@
 
         const currentOverride = overrideMap[s.id] || '';
         const overrideSelect =
-          '<select class="override-select" data-scope="' + escapeHtml(s.id) + '">' +
+          '<select class="override-select" aria-label="Override effective status for this scope" data-scope="' + escapeHtml(s.id) + '">' +
             '<option value="">' + (currentOverride ? '- clear -' : 'no override') + '</option>' +
             ['active', 'passive', 'blocked', 'off'].map(opt =>
               '<option value="' + opt + '"' + (currentOverride === opt ? ' selected' : '') + '>' + opt + '</option>'
