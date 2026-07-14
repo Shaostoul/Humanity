@@ -707,6 +707,88 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
     });
+
+    // Live chat panel (v0.850): read the stream's chat right inside Studio, with a
+    // channel selector, so you can watch #general while broadcasting.
+    draw_studio_chat(ui, theme, state);
+}
+
+/// Read-only live chat inside Studio + a channel selector. Reuses the same
+/// message stream as the Chat page (`state.chat_messages` = the active channel's
+/// messages); picking a channel here switches the active channel and refetches.
+fn draw_studio_chat(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    ui.add_space(theme.spacing_sm);
+    ui.separator();
+    ui.add_space(theme.spacing_sm);
+
+    ui.horizontal(|ui| {
+        ui.label(RichText::new("Live Chat").size(theme.font_size_heading).color(theme.text_primary()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let current = state.chat_active_channel.clone();
+            let mut picked: Option<String> = None;
+            egui::ComboBox::from_id_salt("studio_chat_channel")
+                .selected_text(format!("#{}", current.trim_start_matches('#')))
+                .show_ui(ui, |ui| {
+                    for ch in &state.chat_channels {
+                        let sel = ch.id == current;
+                        if ui.selectable_label(sel, format!("#{}", ch.name.trim_start_matches('#'))).clicked() {
+                            picked = Some(ch.id.clone());
+                        }
+                    }
+                });
+            ui.label(RichText::new("Channel").size(theme.font_size_small).color(theme.text_muted()));
+            if let Some(id) = picked {
+                if id != state.chat_active_channel {
+                    state.chat_active_channel = id;
+                    state.chat_messages.clear();
+                    state.history_fetched = false;
+                }
+            }
+        });
+    });
+    ui.add_space(theme.spacing_xs);
+
+    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    if !connected {
+        ui.label(
+            RichText::new("Connect to a relay on the Chat page to see live messages here.")
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+        );
+        return;
+    }
+
+    egui::ScrollArea::vertical()
+        .id_salt("studio_chat_scroll")
+        .stick_to_bottom(true)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            if state.chat_messages.is_empty() {
+                ui.add_space(theme.spacing_sm);
+                ui.label(
+                    RichText::new("No messages yet in this channel.")
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+            }
+            let start = state.chat_messages.len().saturating_sub(200);
+            for msg in &state.chat_messages[start..] {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 5.0;
+                    ui.label(
+                        RichText::new(&msg.sender_name)
+                            .size(theme.font_size_small)
+                            .color(crate::gui::pages::chat::name_color(&msg.sender_name))
+                            .strong(),
+                    );
+                    ui.label(
+                        RichText::new(&msg.content)
+                            .size(theme.font_size_small)
+                            .color(theme.text_secondary()),
+                    );
+                });
+            }
+        });
 }
 
 // ── Right Panel ─────────────────────────────────────────────────────────────

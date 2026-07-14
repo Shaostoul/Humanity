@@ -15,6 +15,37 @@ fn category_matches(filter: &str, recipe_cat: &str) -> bool {
     filter.eq_ignore_ascii_case(recipe_cat)
 }
 
+/// Prettify a raw item/station id like "iron_ore_0" into "Iron Ore" for display.
+fn pretty_id(id: &str) -> String {
+    id.trim_end_matches(|c: char| c == '_' || c.is_ascii_digit())
+        .split('_')
+        .filter(|s| !s.is_empty())
+        .map(|w| {
+            let mut ch = w.chars();
+            ch.next()
+                .map(|f| f.to_uppercase().collect::<String>() + ch.as_str())
+                .unwrap_or_default()
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Fixed-width column cell for the recipe-list table, so columns line up row to
+/// row. Content is left-aligned + vertically centered within the cell.
+fn col(ui: &mut egui::Ui, w: f32, content: impl FnOnce(&mut egui::Ui)) {
+    ui.allocate_ui_with_layout(
+        egui::Vec2::new(w, 18.0),
+        egui::Layout::left_to_right(egui::Align::Center),
+        content,
+    );
+}
+
+// Recipe-table column widths (shared by the header + every row so they align).
+const CRAFT_NAME_W: f32 = 190.0;
+const CRAFT_TIME_W: f32 = 46.0;
+const CRAFT_STATION_W: f32 = 118.0;
+const CRAFT_SKILL_W: f32 = 96.0;
+
 /// Sidebar sentinel for the blueprint-building section (v0.746): not a recipe
 /// category, so it can never collide with data/crafting/categories.json.
 const STRUCTURES_CATEGORY: &str = "__structures";
@@ -31,6 +62,10 @@ struct CraftPageState {
     search: String,
     queue: Vec<CraftQueueItem>,
     last_frame_time: f64,
+    /// One-shot: `Some(true/false)` forces every category group open/closed for a
+    /// single frame (the Expand-all / Collapse-all buttons), then clears so the
+    /// groups return to per-header user control.
+    force_groups_open: Option<bool>,
 }
 
 impl Default for CraftPageState {
@@ -39,6 +74,7 @@ impl Default for CraftPageState {
             search: String::new(),
             queue: Vec::new(),
             last_frame_time: 0.0,
+            force_groups_open: None,
         }
     }
 }
@@ -78,7 +114,16 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     .size(theme.font_size_heading)
                     .color(theme.text_primary()),
             );
-            ui.add_space(theme.spacing_sm);
+            ui.add_space(theme.spacing_xs);
+            ui.horizontal(|ui| {
+                if widgets::Button::ghost("Expand all").size(widgets::ButtonSize::Small).show(ui, theme) {
+                    with_local(|l| l.force_groups_open = Some(true));
+                }
+                if widgets::Button::ghost("Collapse all").size(widgets::ButtonSize::Small).show(ui, theme) {
+                    with_local(|l| l.force_groups_open = Some(false));
+                }
+            });
+            ui.add_space(theme.spacing_xs);
 
             ScrollArea::vertical().show(ui, |ui| {
                 // Data-driven collapsible group -> category tree (from
@@ -116,6 +161,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 }
                 ui.add_space(theme.spacing_xs);
 
+                // Expand-all / Collapse-all: consume the one-shot flag so it forces
+                // every group this frame, then reverts to user control.
+                let force_open = with_local(|l| l.force_groups_open.take());
                 for group in &groups {
                     egui::CollapsingHeader::new(
                         RichText::new(&group.name)
@@ -123,6 +171,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .color(theme.text_secondary()),
                     )
                     .id_salt(&group.name)
+                    .open(force_open)
                     .default_open(true)
                     .show(ui, |ui| {
                         for cat in &group.categories {
@@ -364,6 +413,23 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 return;
             }
 
+            // Column header (fixed, above the scroll so it stays put). Single-row
+            // columnar layout (operator 2026-07-13): Name / Time / Station / Skill /
+            // Materials (widest, have/need + what it makes).
+            ui.horizontal(|ui| {
+                let h = |ui: &mut egui::Ui, w: f32, label: &str| {
+                    col(ui, w, |ui| {
+                        ui.label(RichText::new(label).size(theme.font_size_small).color(theme.text_muted()).strong());
+                    });
+                };
+                h(ui, CRAFT_NAME_W, "Recipe");
+                h(ui, CRAFT_TIME_W, "Time");
+                h(ui, CRAFT_STATION_W, "Station");
+                h(ui, CRAFT_SKILL_W, "Skill");
+                ui.label(RichText::new("Materials (have / need) and output").size(theme.font_size_small).color(theme.text_muted()).strong());
+            });
+            ui.separator();
+
             ScrollArea::vertical()
                 .id_salt("craft_recipe_list")
                 .auto_shrink([false, false])
@@ -404,48 +470,58 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                             .fill(fill)
                             .rounding(Rounding::same(3))
                             .stroke(stroke)
-                            .inner_margin(4.0);
+                            .inner_margin(egui::Margin::symmetric(4, 3));
 
-                        // Compact two-line row (name + craft-time on line 1, ingredient
-                        // have/need on line 2; the redundant category line is dropped —
-                        // it's the sidebar selection). Whole frame is clickable + full
-                        // width. Roughly half the old three-line height so far more
-                        // recipes are visible at once.
+                        // One aligned row per recipe (was two lines). Fixed-width
+                        // columns via `col`; Materials takes the remaining width.
                         let inner = frame.show(ui, |ui| {
                             ui.set_width(ui.available_width());
                             ui.horizontal(|ui| {
-                                ui.label(
-                                    RichText::new(&recipe.name)
-                                        .size(theme.font_size_body)
-                                        .color(theme.text_primary()),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.label(
-                                            RichText::new(format!("{}s", recipe.craft_time_sec))
-                                                .size(theme.font_size_small)
-                                                .color(theme.text_muted()),
-                                        );
-                                    },
-                                );
-                            });
-                            let inputs_str: String = recipe
-                                .inputs
-                                .iter()
-                                .map(|(id, qty)| {
+                                col(ui, CRAFT_NAME_W, |ui| {
+                                    ui.add(egui::Label::new(
+                                        RichText::new(&recipe.name).size(theme.font_size_body).color(theme.text_primary()),
+                                    ).truncate());
+                                });
+                                col(ui, CRAFT_TIME_W, |ui| {
+                                    ui.label(RichText::new(format!("{}s", recipe.craft_time_sec)).size(theme.font_size_small).color(theme.text_muted()));
+                                });
+                                col(ui, CRAFT_STATION_W, |ui| {
+                                    let st = if recipe.station_required.is_empty() || recipe.station_required == "none" {
+                                        "-".to_string()
+                                    } else {
+                                        pretty_id(&recipe.station_required)
+                                    };
+                                    ui.add(egui::Label::new(
+                                        RichText::new(st).size(theme.font_size_small).color(theme.text_secondary()),
+                                    ).truncate());
+                                });
+                                col(ui, CRAFT_SKILL_W, |ui| {
+                                    let sk = match &recipe.skill_required {
+                                        Some(s) if recipe.skill_level > 0 => format!("{} {}", pretty_id(s), recipe.skill_level),
+                                        _ => "-".to_string(),
+                                    };
+                                    ui.add(egui::Label::new(
+                                        RichText::new(sk).size(theme.font_size_small).color(theme.text_muted()),
+                                    ).truncate());
+                                });
+                                // Materials (widest, remaining): inputs have/need + output.
+                                let mats = recipe.inputs.iter().map(|(id, qty)| {
                                     let have = count_in_inventory(state, id);
-                                    format!("{} {}/{}", id, have, qty)
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ");
-                            if !inputs_str.is_empty() {
-                                ui.label(
-                                    RichText::new(inputs_str)
-                                        .size(theme.font_size_small)
-                                        .color(theme.text_muted()),
-                                );
-                            }
+                                    format!("{} {}/{}", pretty_id(id), have, qty)
+                                }).collect::<Vec<_>>().join(", ");
+                                let outs = recipe.outputs.iter().map(|(id, qty)| {
+                                    if *qty > 1 { format!("{} x{}", pretty_id(id), qty) } else { pretty_id(id) }
+                                }).collect::<Vec<_>>().join(", ");
+                                let line = match (mats.is_empty(), outs.is_empty()) {
+                                    (false, false) => format!("{}  ·  makes {}", mats, outs),
+                                    (true, false) => format!("makes {}", outs),
+                                    (false, true) => mats,
+                                    (true, true) => String::new(),
+                                };
+                                ui.add(egui::Label::new(
+                                    RichText::new(line).size(theme.font_size_small).color(theme.text_muted()),
+                                ).truncate());
+                            });
                         });
                         if inner.response.interact(egui::Sense::click()).clicked() {
                             state.craft_selected = Some(*idx);

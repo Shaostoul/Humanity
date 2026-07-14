@@ -6959,7 +6959,7 @@ fn parse_role_color(hex: &str, theme: &Theme) -> Color32 {
     theme.text_primary()
 }
 
-fn name_color(name: &str) -> Color32 {
+pub(crate) fn name_color(name: &str) -> Color32 {
     let hash: u32 = name.bytes().fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     let hue = (hash % 360) as f32;
     let s = 0.5_f32;
