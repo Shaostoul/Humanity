@@ -815,12 +815,18 @@
       "date": "2026-07-13",
       "decision": "v0.847.0 donate reframe (operator direction). HumanityOS has NO entity (CC0, no company/nonprofit), so donations to it go to the MAINTAINER directly; and instead of coupling Sponsor-A-Can to HumanityOS as 'the donation route' (which risked the 501c3), SAC is now the first entry in a curated 'Charities I support' list the maintainer personally endorses. Fully decouples the nonprofit. Both clients: hero reframed (CC0/no-entity/support-the-maintainer); primary section 'Support the maintainer' (methods.json links + crypto, labeled personal/not-deductible); new section 'Charities I support' from a NEW data/donate/charities.json (name/mission/url/note/abbrev/color), read by web (renderCharities) + native (load_donate_charities -> section render). Removed the SAC primary card; rewrote the tax FAQ. To add a charity = add a JSON entry (infinite-of-X). Verified live.",
       "why": "Operator: 'donations going to me since the nonprofit isnt explicitly for HumanityOS... make a thing for supporting charities that I personally approve and make the charity the first one... That way we dont endanger the nonprofit at all.' Honest (no entity => gifts go to the person) and protects SAC from any HumanityOS-funding misrepresentation. The charities list is his to grow (he collects charity info, AI adds entries)."
+    },
+    {
+      "id": 46,
+      "date": "2026-07-13",
+      "decision": "UI-audit backlog wave 1 (v0.848.0). RESCUED Notes+Calendar (fully-built apps, previously only reachable via quest links/boot page) into platform.rs section_nav -> now under Platform. DELETED the dead Create-Channel modal (never opened since v0.187; channel creation is in Server Settings) incl its 3 unused GuiState fields. REMOVED the no-op 'Mute Server' cog-menu button (audit mis-scoped it as a mod action; it's a notification mute and native has NO notification system / server-unread to mute -> removed like Watch-Stream, re-add when notifications exist). DEFERRED with reasons: Identity+Recovery pages preview an UNBUILT v2 DID/trust/VC backend (the /api/v2/did|trust|credentials|ai-status|recovery endpoints do not exist), so they need backend work not a flag-consume; the full Civilization live-relay dashboard merge into the Humanity tab (which currently only reuses its stat-card helper) is a follow-up. Snapshot platform_notes. Lints+relay clean.",
+      "why": "Operator asked to work the UI-audit backlog. Did the clean high-confidence items (rescue built-but-hidden pages, delete confirmed dead code, remove honest-placeholder buttons) and honestly deferred the ones that need backend/refactor rather than fake-wiring them. Matches the Watch-Stream removal precedent + the operator's production-not-placeholder bar."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.847.0 (Latest). v0.847.0 = donate page reframed around the maintainer + a curated 'Charities I support' data list (SAC first). Native donate REBUILT into the v0.847.0 exe (had 3 turns of donate source fixes never compiled). Web verified live via read_page; native via snapshot_donate. Releases v0.837-v0.847.0 UNSIGNED.",
+  "version_state": "main==origin: v0.848.0 (Latest). v0.848.0 = UI-audit backlog wave 1 (native, exe rebuilt): rescued Notes+Calendar into the Platform fold; deleted the dead Create-Channel modal (+3 unused GuiState fields); removed the no-op Mute-Server button. Releases v0.837-v0.848.0 UNSIGNED.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
