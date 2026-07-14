@@ -1,0 +1,18 @@
+{
+  "_purpose": "Resource + status line shown in the in-world planet-info tooltip (aim at a body). Data-driven per the infinite-of-X rule: add a body here, no recompile. Keyed by the display name the targeting code resolves. Unlisted bodies fall back to Unknown / Uncharted.",
+  "bodies": {
+    "Mercury":  { "resources": "Iron, Nickel, Silicates",      "status": "Unmined" },
+    "Venus":    { "resources": "CO2, Sulfuric acid, N2",       "status": "Hostile atmosphere" },
+    "Earth":    { "resources": "Water, O2, Biomass, Metals",   "status": "Inhabited (8B+ pop)" },
+    "Mars":     { "resources": "Iron oxide, Water ice, CO2",   "status": "Colonization target" },
+    "Jupiter":  { "resources": "H2, He, Deuterium",            "status": "Gas harvesting potential" },
+    "Saturn":   { "resources": "H2, He, Ring ice, Titan CH4",  "status": "Ring mining potential" },
+    "Uranus":   { "resources": "CH4, H2O, NH3, H2",            "status": "Deep ice giant" },
+    "Neptune":  { "resources": "CH4, H2, He",                  "status": "Remote ice giant" },
+    "Ceres":    { "resources": "Water ice, Clays, Salts",      "status": "Asteroid belt dwarf" },
+    "Pluto":    { "resources": "N2 ice, CH4, CO, H2O",         "status": "Kuiper belt object" },
+    "Haumea":   { "resources": "Crystalline ice",              "status": "Elongated, fast spinner" },
+    "Makemake": { "resources": "CH4, C2H6 ices",              "status": "Distant TNO" },
+    "Eris":     { "resources": "N2, CH4 ices",                "status": "Most massive dwarf planet" }
+  }
+}

@@ -444,17 +444,19 @@ function showUserContextMenu(e, name, publicKey) {
   const ci = (onclick, label, tier) => {
     const borderStyle = {
       mod:    'border-left:3px solid var(--success);padding-left:9px;',
-      admin:  'border-left:3px solid #56b;padding-left:9px;',
-      danger: 'border-left:3px solid var(--danger);padding-left:9px;color:#e88;',
+      admin:  'border-left:3px solid var(--info);padding-left:9px;',
+      danger: 'border-left:3px solid var(--danger);padding-left:9px;color:var(--danger);',
     }[tier] || '';
     return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
   };
 
-  // Role badge for target user header
+  // Role badge for target user header.
+  // Badge text stays #fff (white on a saturated colored badge, legible in both
+  // light and dark themes); theme.css has no "always-white" token, so it is kept.
   const roleBadge = {
-    admin: '<span style="font-size:0.68rem;background:#56b;color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">ADMIN</span>',
+    admin: '<span style="font-size:0.68rem;background:var(--info);color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">ADMIN</span>',
     mod:   '<span style="font-size:0.68rem;background:var(--success);color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">MOD</span>',
-  }[targetRole] || '<span style="font-size:0.68rem;background:#444;color:var(--text-muted);padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">USER</span>';
+  }[targetRole] || '<span style="font-size:0.68rem;background:var(--border);color:var(--text-muted);padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">USER</span>';
 
   const isBot = publicKey && publicKey.startsWith('bot_');
   let html = '';
@@ -493,7 +495,7 @@ function showUserContextMenu(e, name, publicKey) {
         html += ci("ctxCommand('/ban')", '\uD83D\uDEB7 Ban', 'danger');
       }
       if (amAdmin) {
-        html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:var(--space-sm);">\u2014 Admin Actions \u2014</div>';
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:var(--info);pointer-events:none;padding-top:var(--space-sm);">\u2014 Admin Actions \u2014</div>';
         html += ci("ctxCommand('/verify')", '\u2736 Verify', 'admin');
         html += ci("ctxCommand('/mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
         html += ci("ctxCommand('/unmod')", '\u2B07\uFE0F Demote', 'admin');

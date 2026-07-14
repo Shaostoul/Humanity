@@ -82,13 +82,13 @@ function buildStep(step, mnemonic) {
 
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-2xl)">
         <div>${dots}</div>
-        <span style="font-size:.7rem;color:#444">${step + 1} of 5</span>
+        <span style="font-size:.7rem;color:var(--text-muted)">${step + 1} of 5</span>
       </div>
 
       ${content}
 
       <div style="display:flex;gap:var(--space-lg);justify-content:space-between;align-items:center;margin-top:var(--space-2xl);flex-wrap:wrap">
-        <button id="ob-skip" style="background:none;border:none;color:#444;font-size:.75rem;cursor:pointer;padding:var(--space-sm) var(--space-md);text-decoration:underline">
+        <button id="ob-skip" style="background:none;border:none;color:var(--text-muted);font-size:.75rem;cursor:pointer;padding:var(--space-sm) var(--space-md);text-decoration:underline">
           ${isLast ? '' : 'Skip intro'}
         </button>
         <div style="display:flex;gap:var(--space-lg)">
@@ -96,7 +96,7 @@ function buildStep(step, mnemonic) {
             style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);
                    padding:var(--space-md) var(--space-xl);font-size:.85rem;cursor:pointer">← Back</button>` : ''}
           <button id="ob-next"
-            style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);
+            style="background:var(--accent);color:var(--text-on-accent);border:none;border-radius:var(--radius);
                    padding:var(--space-md) var(--space-xl);font-size:.85rem;font-weight:700;cursor:pointer">
             ${isLast ? '🚀 Let\'s go!' : 'Next →'}
           </button>
@@ -110,13 +110,13 @@ function buildStep(step, mnemonic) {
 function step0() {
   return `
     <h2 style="font-size:1.4rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-md)">👋 Welcome to Humanity!</h2>
-    <p style="font-size:.9rem;line-height:1.65;color:#ccc;margin:0 0 var(--space-xl)">
+    <p style="font-size:.9rem;line-height:1.65;color:var(--text-secondary);margin:0 0 var(--space-xl)">
       We just created a <strong style="color:var(--text)">unique digital identity</strong> for you, and we want to explain what that means
       in plain language before you dive in.
     </p>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-2xl);margin-bottom:var(--space-xl)">
-      <p style="font-size:.85rem;color:#ccc;margin:0 0 var(--space-lg);font-weight:600">🤔 Wait, no account? No password?</p>
+      <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 var(--space-lg);font-weight:600">🤔 Wait, no account? No password?</p>
       <p style="font-size:.82rem;color:var(--text-muted);line-height:1.6;margin:0">
         That's right. Instead of a username and password stored on a server somewhere, we generated a
         <strong style="color:var(--text)">secret key</strong> that lives right here in your browser.
@@ -125,7 +125,7 @@ function step0() {
     </div>
 
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-2xl)">
-      <p style="font-size:.85rem;color:#ccc;margin:0 0 var(--space-lg);font-weight:600">✅ What this means for you</p>
+      <p style="font-size:.85rem;color:var(--text-secondary);margin:0 0 var(--space-lg);font-weight:600">✅ What this means for you</p>
       <ul style="font-size:.82rem;color:var(--text-muted);line-height:1.8;margin:0;padding-left:var(--space-2xl)">
         <li>No company holds your account, not us, not anyone.</li>
         <li>You can't be banned, shadowbanned, or deplatformed.</li>
@@ -158,7 +158,7 @@ function step1(mnemonic) {
         ${words.map((w, i) => `
           <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);
                       padding:var(--space-sm) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)">
-            <span style="font-size:.58rem;color:#444;min-width:15px;text-align:right">${i+1}.</span>
+            <span style="font-size:.58rem;color:var(--text-muted);min-width:15px;text-align:right">${i+1}.</span>
             <span style="font-size:.8rem;color:var(--accent);font-weight:600">${w}</span>
           </div>`).join('')}
       </div>`
@@ -171,12 +171,12 @@ function step1(mnemonic) {
     <h2 style="font-size:1.15rem;font-weight:800;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Recovery Phrase</h2>
     <p style="font-size:.8rem;line-height:1.5;color:var(--text-muted);margin:0 0 var(--space-md)">
       These 24 words <em>are</em> your identity, they can recreate your account on any device, forever.
-      Think of them as a master key. <strong style="color:#ccc">Anyone who has them is you.</strong>
+      Think of them as a master key. <strong style="color:var(--text-secondary)">Anyone who has them is you.</strong>
     </p>
 
     ${wordGrid}
 
-    <p style="font-size:.75rem;color:#555;margin:0 0 var(--space-lg)">Choose at least one backup method below. Two is better.</p>
+    <p style="font-size:.75rem;color:var(--text-muted);margin:0 0 var(--space-lg)">Choose at least one backup method below. Two is better.</p>
 
     <!-- Option A: Paper -->
     <div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-xl) var(--space-xl);margin-bottom:var(--space-md)">
@@ -378,9 +378,9 @@ function step4() {
       Your identity is live. Here's a quick reference you can always come back to.
     </p>
 
-    ${pubKey ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.75rem;color:#555">
+    ${pubKey ? `<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg) var(--space-xl);margin-bottom:var(--space-xl);font-size:.75rem;color:var(--text-muted)">
       Your public ID: <code style="color:var(--text-muted)">${pubKey}…</code>
-      <br><span style="font-size:.68rem;color:#3a3a3a">This is your address, share it freely. Your private key never leaves your device.</span>
+      <br><span style="font-size:.68rem;color:var(--text-muted)">This is your address, share it freely. Your private key never leaves your device.</span>
     </div>` : ''}
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-md);margin-bottom:var(--space-xl)">
@@ -410,8 +410,8 @@ function step4() {
       </button>
     </div>
 
-    <p style="font-size:.75rem;color:#444;line-height:1.5;margin:0">
-      💡 You can reopen this guide anytime via <strong style="color:#555">Help → Getting Started</strong> in the sidebar.
+    <p style="font-size:.75rem;color:var(--text-muted);line-height:1.5;margin:0">
+      💡 You can reopen this guide anytime via <strong style="color:var(--text-muted)">Help → Getting Started</strong> in the sidebar.
       Your seed phrase and encrypted backup stay available under the 👤 <strong style="color:var(--text-muted)">Account &amp; Identity</strong> menu in the top bar, in the <strong style="color:var(--text-muted)">Security &amp; Recovery</strong> section, or by typing <code>/seed</code> or <code>/backup</code>.
     </p>
   `;

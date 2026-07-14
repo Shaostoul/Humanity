@@ -2047,6 +2047,47 @@ mod native_app {
         }
     }
 
+    /// Resources + status shown in the planet-info tooltip, sourced from
+    /// `data/planets/tooltips.json` (infinite-of-X: the body list is data, not a
+    /// match arm). Parsed once and cached. Unlisted bodies fall back to
+    /// Unknown/Uncharted, exactly as the old hardcoded match did.
+    fn planet_tooltip_info(name: &str) -> (String, String) {
+        use std::collections::HashMap;
+        use std::sync::OnceLock;
+        static TABLE: OnceLock<HashMap<String, (String, String)>> = OnceLock::new();
+        let table = TABLE.get_or_init(|| {
+            let mut m = HashMap::new();
+            // Disk first (so an operator can edit it live), embedded fallback for a
+            // distributed exe shipped without the data/ folder.
+            let text = std::fs::read_to_string("data/planets/tooltips.json")
+                .unwrap_or_else(|_| crate::embedded_data::PLANET_TOOLTIPS_JSON.to_string());
+            {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+                    if let Some(bodies) = v.get("bodies").and_then(|b| b.as_object()) {
+                        for (body, info) in bodies {
+                            let res = info
+                                .get("resources")
+                                .and_then(|r| r.as_str())
+                                .unwrap_or("Unknown")
+                                .to_string();
+                            let status = info
+                                .get("status")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("Uncharted")
+                                .to_string();
+                            m.insert(body.clone(), (res, status));
+                        }
+                    }
+                }
+            }
+            m
+        });
+        table
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| ("Unknown".to_string(), "Uncharted".to_string()))
+    }
+
     /// Drive the live broadcast for one frame (v0.853). Called right before
     /// `present()`, so the captured frame is exactly what the operator sees.
     ///
@@ -18855,22 +18896,10 @@ mod native_app {
                                                 .show(ui, |ui| {
                                                     ui.heading(planet_name);
                                                     ui.separator();
-                                                    let (resources, status) = match planet_name.as_str() {
-                                                        "Mercury" => ("Iron, Nickel, Silicates", "Unmined"),
-                                                        "Venus" => ("CO2, Sulfuric acid, N2", "Hostile atmosphere"),
-                                                        "Earth" => ("Water, O2, Biomass, Metals", "Inhabited (8B+ pop)"),
-                                                        "Mars" => ("Iron oxide, Water ice, CO2", "Colonization target"),
-                                                        "Jupiter" => ("H2, He, Deuterium", "Gas harvesting potential"),
-                                                        "Saturn" => ("H2, He, Ring ice, Titan CH4", "Ring mining potential"),
-                                                        "Uranus" => ("CH4, H2O, NH3, H2", "Deep ice giant"),
-                                                        "Neptune" => ("CH4, H2, He", "Remote ice giant"),
-                                                        "Ceres" => ("Water ice, Clays, Salts", "Asteroid belt dwarf"),
-                                                        "Pluto" => ("N2 ice, CH4, CO, H2O", "Kuiper belt object"),
-                                                        "Haumea" => ("Crystalline ice", "Elongated, fast spinner"),
-                                                        "Makemake" => ("CH4, C2H6 ices", "Distant TNO"),
-                                                        "Eris" => ("N2, CH4 ices", "Most massive dwarf planet"),
-                                                        _ => ("Unknown", "Uncharted"),
-                                                    };
+                                                    // Data-driven (infinite-of-X): the body table lives in
+                                                    // data/planets/tooltips.json, not a match arm here.
+                                                    let (resources, status) =
+                                                        planet_tooltip_info(planet_name);
                                                     ui.label(format!("Resources: {resources}"));
                                                     ui.label(format!("Status: {status}"));
                                                 });

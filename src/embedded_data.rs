@@ -55,6 +55,9 @@ pub const SCENIC_VIEWS_RON: &str = include_str!("../data/scenic_views.ron");
 pub const PLANET_EARTH_RON: &str = include_str!("../data/planets/earth.ron");
 pub const PLANET_MARS_RON: &str = include_str!("../data/planets/mars.ron");
 pub const PLANET_MOON_RON: &str = include_str!("../data/planets/moon.ron");
+/// Resources + status for the in-world planet-info tooltip (v0.856). Embedded so a
+/// distributed exe without the data/ folder still shows the curated table.
+pub const PLANET_TOOLTIPS_JSON: &str = include_str!("../data/planets/tooltips.json");
 
 // ── Solar system body definitions (RON) ─────────────────────────────
 pub const SOLAR_BODY_EARTH_RON: &str = include_str!("../data/solar_system/earth.ron");
@@ -178,6 +181,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "star_systems/sol.json" => Some(SOLAR_SYSTEM_JSON),
         "star_systems/index.json" => Some(STAR_SYSTEMS_INDEX_JSON),
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
+        "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
         "tools/catalog.json" => Some(TOOLS_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),

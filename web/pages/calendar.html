@@ -45,7 +45,9 @@
       transition: all 0.15s;
     }
     .nav-btn:hover { background: var(--bg-input); color: var(--text); }
-    .nav-btn.today { color: var(--accent); border-color: #553300; background: #1f1508; }
+    /* #553300 (border) and #2a1d0a (hover) are accent-tinted surfaces with no
+       matching dim-accent-border / accent-hover token in theme.css; kept literal. */
+    .nav-btn.today { color: var(--accent); border-color: #553300; background: var(--accent-dim); }
     .nav-btn.today:hover { background: #2a1d0a; }
 
     #cal-title {
@@ -65,13 +67,15 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .view-tab.active { background: #1f1508; border-color: #553300; color: var(--accent); }
+    .view-tab.active { background: var(--accent-dim); border-color: #553300; color: var(--accent); } /* #553300: accent-tinted border, no token */
     .view-tab:hover:not(.active) { background: var(--bg-input); color: var(--border); }
 
+    /* Green "add" button: text maps to --success; the dark-green surface tints
+       (#1a3a1a bg, #2a5a2a border, #1e481e hover) have no green-surface token. */
     #add-event-btn {
       background: #1a3a1a;
       border: 1px solid #2a5a2a;
-      color: #4caf50;
+      color: var(--success);
       border-radius: var(--radius-sm);
       padding: var(--space-sm) var(--space-xl);
       font-size: 0.8rem;
@@ -135,7 +139,7 @@
     }
     .cal-day:hover { background: var(--bg-card); }
     .cal-day.other-month { opacity: 0.35; }
-    .cal-day.today { background: #181208; }
+    .cal-day.today { background: var(--accent-dim); }
 
     .day-num {
       font-size: 0.78rem;
@@ -147,7 +151,7 @@
       color: var(--accent);
       width: 22px;
       height: 22px;
-      background: #FF881122;
+      background: var(--accent-dim);
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -192,7 +196,7 @@
       border-left: 1px solid var(--bg-secondary);
     }
     .week-header-cell .wday { color: var(--text-muted); text-transform: uppercase; font-size: 0.62rem; letter-spacing: 0.05em; }
-    .week-header-cell .wdate { font-weight: 700; font-size: 0.9rem; color: #bbb; }
+    .week-header-cell .wdate { font-weight: 700; font-size: 0.9rem; color: var(--text-secondary); }
     .week-header-cell.today-col .wdate { color: var(--accent); }
 
     .week-grid-wrap { flex: 1; overflow-y: auto; display: flex; }
@@ -200,7 +204,7 @@
       width: 48px;
       flex-shrink: 0;
       border-right: 1px solid var(--bg-secondary);
-      background: #0c0c0c;
+      background: #0c0c0c; /* slightly-lighter-than-black gutter; no matching token */
     }
     .week-time-label {
       height: 48px;
@@ -258,7 +262,7 @@
       flex-shrink: 0;
     }
     .day-grid-wrap { flex: 1; overflow-y: auto; display: flex; }
-    .day-time-col { width: 56px; flex-shrink: 0; border-right: 1px solid var(--bg-secondary); background: #0c0c0c; }
+    .day-time-col { width: 56px; flex-shrink: 0; border-right: 1px solid var(--bg-secondary); background: #0c0c0c; } /* gutter tint: no matching token */
     .day-hour-label {
       height: 56px;
       display: flex;
@@ -371,9 +375,11 @@
       transition: all 0.15s;
     }
     .ev-btn:hover { background: var(--bg-hover); color: var(--text); }
-    .ev-btn.primary { background: #1a3a1a; border-color: #2a5a2a; color: #4caf50; }
+    /* Primary = green (text -> --success), Danger = red (text -> --danger). The
+       dark tinted bg/border/hover surfaces have no green/red surface token. */
+    .ev-btn.primary { background: #1a3a1a; border-color: #2a5a2a; color: var(--success); }
     .ev-btn.primary:hover { background: #1e481e; }
-    .ev-btn.danger { background: #2a1010; border-color: #5a2a2a; color: #e74c3c; }
+    .ev-btn.danger { background: #2a1010; border-color: #5a2a2a; color: var(--danger); }
     .ev-btn.danger:hover { background: #381010; }
 
     ::-webkit-scrollbar { width: 6px; }
@@ -693,7 +699,7 @@ function updateTitle() {
   else if (view === 'week') {
     const ws = weekStart(cursor);
     const we = new Date(ws); we.setDate(we.getDate() + 6);
-    t = `${MONTHS[ws.getMonth()]} ${ws.getDate()} – ${ws.getMonth() !== we.getMonth() ? MONTHS[we.getMonth()] + ' ' : ''}${we.getDate()}, ${we.getFullYear()}`;
+    t = `${MONTHS[ws.getMonth()]} ${ws.getDate()} - ${ws.getMonth() !== we.getMonth() ? MONTHS[we.getMonth()] + ' ' : ''}${we.getDate()}, ${we.getFullYear()}`;
   } else {
     t = `${DAYS[cursor.getDay()]}, ${MONTHS[cursor.getMonth()]} ${cursor.getDate()}, ${cursor.getFullYear()}`;
   }
@@ -827,7 +833,7 @@ function renderDay() {
     const [eh,em] = (e.endTime||e.startTime).split(':').map(Number);
     const top = (sh*60+sm) * 56/60;
     const height = Math.max(24, ((eh*60+em)-(sh*60+sm)) * 56/60);
-    return `<div class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}–${e.endTime||''}</span></div>`;
+    return `<div class="day-event" style="top:${top}px;height:${height}px;background:${e.color||'#3498db'}" onclick="event.stopPropagation();openEditEvent('${e.id}')">${esc(e.title)}<br><span style="opacity:.7;font-size:.65rem">${e.startTime}-${e.endTime||''}</span></div>`;
   }).join('');
 
   const allDay = eventsOn(ds).filter(e => e.allday);

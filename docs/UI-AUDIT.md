@@ -40,15 +40,15 @@ Work top-to-bottom. Check items as they ship.
 
 ## 6. Placeholder / parity gaps
 - [x] Web **crafting.html**: was a bare "Coming soon" box on a PRIMARY nav tab. **Built a real read-only recipe browser v0.848.1** — searchable + category-filterable over all 362 recipes (name, inputs→outputs, station/skill/time), data-driven from `data/recipes.csv` via a generated `data/recipes.json` (`scripts/gen-recipes-json.js`, since sync-web only deploys `*.json`). Fully tokenized + accessible (aria-label search, role=group + aria-pressed chips, aria-live count, focus-visible). Verified live (362 cards, search/filter work).
-- [ ] Web **civilization.html Sim mode**: hardcoded fake colony stats (47 colonists, 78% morale…) — the fake-data pattern the operator deleted 2026-07-05. Wire to real save state or show an honest empty state.
+- [x] Web **civilization.html Sim mode**: **Already fixed** (verified 2026-07-14). `civilization-app.js` shows an honest hand-off ("there is no web-accessible game save, so we show an honest hand-off instead of fabricated colony numbers") rather than the old fake 47-colonists/78%-morale stats. Real mode is wired to the live relay.
 - [x] Web **resources.html**: **Fixed 2026-07-14 (v0.852.1)** - the ~180 lines of hardcoded realResources/simResources arrays are extracted into a new `data/resources.json` (10 real + 7 sim categories) that resources-app.js fetches (infinite-of-X: add a link by editing JSON, not code). Dead `#anchor` links removed: guides with no target now render an honest un-linked card instead of a link that goes nowhere.
 - [x] **Library/Accord naming**: **Fixed 2026-07-14 (v0.852.1)** - the built `accord.html` viewer was orphaned with NO nav entry. Both pages now live under Library (matching native, where Library = the Accord documents): `/resources` is the curated links list, `/accord` is the Accord itself, and BOTH light the Library tab. Added a "Humanity Accord" drawer entry.
 
 ## 7. Aesthetic tokenization sweep (quick items first)
 - [x] Native User-Profile modal → tokens (done with #5, v0.845.0).
-- [ ] `passphrase_modal.rs` + `main_menu.rs draw_storage_chooser`: hardcoded `Color32`/font sizes → `bg_card()`/`success()`/`theme.font_size_*`.
-- [ ] Planet info tooltip (`lib.rs:18699`): 13-arm hardcoded name→resources match → source from `data/solar_system/`; theme the frame.
-- [ ] `calendar.html` / `chat-onboarding.js` / `showUserContextMenu` literal colors → tokens.
+- [x] `passphrase_modal.rs` + `main_menu.rs draw_storage_chooser`: **Done v0.855.0.** passphrase_modal.rs migrated to `bg_modal()`/`bg_card()`/`success()`; main_menu.rs was already literal-free.
+- [x] Planet info tooltip (`lib.rs`): **Done v0.856.0.** The 13-arm hardcoded name→resources match is now sourced from `data/planets/tooltips.json` (infinite-of-X, lazily parsed + cached via `planet_tooltip_info`). The frame was already themed (`Frame::popup`).
+- [x] `calendar.html` / `chat-onboarding.js` / `showUserContextMenu` literal colors → tokens. **Done v0.856.0.**
 - [x] `market-app.js` + `trade-app.js` heavy inline styles: **Fixed 2026-07-14 (v0.852.1)** - moved into tokenized CSS classes in the owning pages (market.html / trade.html), so they now follow the theme, light mode, and compact mode. 23 emit sites converted.
 
 ## 8. Larger builds (tracked, not launch-blocking)
