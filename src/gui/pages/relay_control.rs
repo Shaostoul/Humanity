@@ -304,16 +304,30 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 .color(theme.text_muted()));
             ui.add_space(theme.spacing_md);
 
-            widgets::tab_bar(ui, theme, &["Health", "Control", "Config"], &mut state.relay_cc_tab);
-            ui.add_space(theme.spacing_md);
-
+            // One continuous scroll (Health / Control / Config stacked) instead of
+            // tabs (operator 2026-07-13: "just have infinite scroll like the
+            // settings menu"). Each section keeps its own heading.
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                 drain_admin_stats(ui, state);
-                match state.relay_cc_tab {
-                    0 => draw_health_tab(ui, theme, state, &sel_url, sel_connected),
-                    1 => draw_control_tab(ui, theme, state, &sel_url),
-                    _ => draw_config_tab(ui, theme, state),
-                }
+
+                let heading = |ui: &mut egui::Ui, t: &str| {
+                    ui.label(RichText::new(t).size(theme.font_size_heading).color(theme.text_primary()).strong());
+                    ui.add_space(theme.spacing_xs);
+                };
+                let divider = |ui: &mut egui::Ui| {
+                    ui.add_space(theme.spacing_xl);
+                    ui.separator();
+                    ui.add_space(theme.spacing_md);
+                };
+
+                heading(ui, "Health");
+                draw_health_tab(ui, theme, state, &sel_url, sel_connected);
+                divider(ui);
+                heading(ui, "Control");
+                draw_control_tab(ui, theme, state, &sel_url);
+                divider(ui);
+                heading(ui, "Config");
+                draw_config_tab(ui, theme, state);
             });
         });
 }

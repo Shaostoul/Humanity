@@ -15,42 +15,42 @@ pub const PERSONAL_DOT: Color32 = Color32::from_rgb(237, 140, 36);
 pub const PUBLIC_DOT: Color32 = Color32::from_rgb(46, 204, 113);
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // Left sidebar with section list
-    egui::SidePanel::left("profile_sidebar")
-        .default_width(200.0)
-        .min_width(160.0)
-        .max_width(260.0)
-        .frame(Frame::none()
-            .fill(theme.bg_sidebar())
-            .inner_margin(egui::Margin::symmetric(8, 12))
-            .stroke(Stroke::new(1.0, theme.border())))
-        .show(ctx, |ui| {
-            // Universal section-nav widget (replaces the old local section_header +
-            // sidebar_item helpers). Same grouped, dot-coded, switcher behaviour —
-            // now reusable by every page in the coming Real/Play consolidation.
-            let items = [
-                widgets::SectionNavItem::new("body", "Body & Measurements", PRIVATE_DOT).group("PRIVATE"),
-                widgets::SectionNavItem::new("identity", "Identity", PRIVATE_DOT),
-                widgets::SectionNavItem::new("notes", "Private Notes", PRIVATE_DOT),
-                widgets::SectionNavItem::new("network", "Network Profile", PERSONAL_DOT).group("PERSONAL"),
-                widgets::SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
-                widgets::SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
-                widgets::SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
-                widgets::SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
-            ];
-            if let Some(clicked) =
-                widgets::section_nav(ui, theme, Some("Profile"), &items, section_id(state.profile_section))
-            {
-                state.profile_section = section_from_id(&clicked);
-            }
-        });
-
-    // Right content area
+    // One continuous scroll through every section (operator 2026-07-13: "same
+    // thing for the profile page" - infinite scroll like Settings, instead of a
+    // left section-nav that showed one section at a time). Grouped by privacy
+    // tier: PRIVATE / PERSONAL / PUBLIC. Each section self-titles.
     egui::CentralPanel::default()
         .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
         .show(ctx, |ui| {
             ScrollArea::vertical().show(ui, |ui| {
-                draw_section_content(ui, theme, state);
+                ui.set_max_width(820.0);
+                let group = |ui: &mut egui::Ui, t: &str| {
+                    ui.add_space(theme.spacing_lg);
+                    ui.label(RichText::new(t).size(theme.font_size_small).color(theme.text_muted()).strong());
+                };
+                let divider = |ui: &mut egui::Ui| {
+                    ui.add_space(theme.spacing_lg);
+                    ui.separator();
+                };
+
+                group(ui, "PRIVATE");
+                draw_body_measurements(ui, theme, state);
+                divider(ui);
+                draw_identity(ui, theme, state);
+                divider(ui);
+                draw_private_notes(ui, theme, state);
+
+                group(ui, "PERSONAL");
+                draw_network_profile(ui, theme, state);
+                divider(ui);
+                draw_interests(ui, theme, state);
+                divider(ui);
+                draw_skills(ui, theme, state);
+
+                group(ui, "PUBLIC");
+                draw_social_links(ui, theme, state);
+                divider(ui);
+                draw_streaming(ui, theme, state);
             });
         });
 }

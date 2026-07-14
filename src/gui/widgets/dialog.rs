@@ -76,7 +76,7 @@ fn dialog_inner(
         }
     }
 
-    egui::Window::new(RichText::new(title).color(theme.text_primary()).strong())
+    let win_resp = egui::Window::new(RichText::new(title).color(theme.text_primary()).strong())
         .id(egui::Id::new(id))
         .open(&mut local_open)
         .anchor(anchor, offset)
@@ -99,6 +99,20 @@ fn dialog_inner(
             shown = true;
             content(ui);
         });
+
+    // Force the modal window to the TOP of its order every frame. The backdrop
+    // Area and this Window both live in `Order::Middle`; without this the
+    // persisted backdrop area can end up above the window and (a) paint its tint
+    // OVER the modal and (b) swallow clicks meant for the modal's own buttons,
+    // so nothing inside the modal is clickable. `move_to_top` makes the window
+    // paint + receive input above the backdrop, while the backdrop (now strictly
+    // below the window) still catches click-outside-to-close in the surrounding
+    // area. Long-standing operator bug: "the tinted background claims the screen;
+    // the modal renders behind it where I can't click anything." (v0.849)
+    if let Some(ref wr) = win_resp {
+        ctx.move_to_top(wr.response.layer_id);
+    }
+
     *open = local_open;
     shown
 }

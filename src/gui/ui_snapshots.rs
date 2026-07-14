@@ -914,7 +914,7 @@ fn snapshot_user_profile_modal() {
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
 fn snapshot_relay_control_health() {
-    render_page_png("relay_control_health", 1100, 720, |ctx, theme, state| {
+    render_page_png("relay_control_health", 1100, 1500, |ctx, theme, state| {
         let mk = |name: &str, url: &str, connected: bool| crate::gui::ChatServer {
             name: name.to_string(),
             channels: Vec::new(),
