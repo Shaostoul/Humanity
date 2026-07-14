@@ -22,6 +22,9 @@ pub mod storage;
 pub mod handlers;
 pub mod core;
 pub mod transport;
+/// Live video fanout (v0.853.0). A separate BINARY WebSocket path — video never
+/// touches the chat relay. See `docs/design/streaming.md`.
+pub mod live;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -555,6 +558,23 @@ pub async fn run_relay() {
     let app = Router::new()
         .route("/ws", get(ws_handler))
         .route("/health", get(health))
+        // Live video fanout (v0.853.0). A SEPARATE binary WebSocket from /ws: the
+        // chat socket is text-only, capped at 128 KB, and rate-limited, so video
+        // must never ride it.
+        //
+        // Mounted UNDER /ws/ on purpose. nginx's `location /ws` is a PREFIX match
+        // that already carries the Upgrade/Connection headers and the 86400s
+        // timeouts a long-lived stream needs, so these routes deploy with zero
+        // nginx changes. A top-level /live/ would need a new proxy block (and would
+        // silently fail to upgrade until someone wrote it).
+        //
+        // The publisher authenticates IN-BAND (first frame), not via query params:
+        // a Dilithium key (3904 hex) plus signature (~6600 hex) is a ~10 KB URL,
+        // which nginx rejects with HTTP 414 -- the exact bug that bit admin-stats.
+        .route("/ws/live/pub", get(live::pub_handler))
+        .route("/ws/live/sub/{stream}", get(live::sub_handler))
+        // Status rides /api/, which nginx already proxies.
+        .route("/api/live", get(live::list_handler))
         // Bot HTTP API
         .route("/api/send", post(api::send_message))
         .route("/api/messages", get(api::get_messages))

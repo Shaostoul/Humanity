@@ -432,15 +432,127 @@ fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: 
 /// below this the panel falls back to one canvas with a pane toggle.
 const SPLIT_MIN_WIDTH: f32 = 660.0;
 
+/// The honest broadcast readout (v0.853): is anything actually leaving the machine,
+/// where can people watch it, how many are watching, and what is it costing in
+/// bandwidth. Every number here is measured, not estimated -- a stream that has
+/// silently died must never look like one that is running.
+fn draw_broadcast_status(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    if !state.studio.broadcast_error.is_empty() {
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Broadcast failed")
+                    .size(theme.font_size_small)
+                    .color(theme.danger())
+                    .strong(),
+            );
+            ui.label(
+                RichText::new(state.studio.broadcast_error.clone())
+                    .size(theme.font_size_small)
+                    .color(theme.text_secondary()),
+            );
+        });
+        return;
+    }
+
+    if !state.studio.broadcast_live {
+        if state.studio.is_live {
+            ui.label(
+                RichText::new("Connecting to the relay...")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        }
+        return;
+    }
+
+    ui.horizontal(|ui| {
+        // Viewers -- the number a streamer actually cares about.
+        ui.label(RichText::new("Watching").size(theme.font_size_small).color(theme.text_muted()));
+        ui.label(
+            RichText::new(state.studio.broadcast_viewers.to_string())
+                .size(theme.font_size_small)
+                .color(theme.accent())
+                .strong(),
+        )
+        .on_hover_text("People connected to your stream right now.");
+
+        ui.separator();
+
+        ui.label(RichText::new("Bitrate").size(theme.font_size_small).color(theme.text_muted()));
+        ui.label(
+            RichText::new(format!("{} kbps", state.studio.broadcast_kbps))
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        )
+        .on_hover_text(
+            "Average outbound bandwidth since you went live. Every viewer costs this much again, \
+             so 25 viewers at 2000 kbps is 50 Mbps out of the server.",
+        );
+
+        ui.separator();
+
+        ui.label(RichText::new("Frames").size(theme.font_size_small).color(theme.text_muted()));
+        let dropped = state.studio.broadcast_dropped;
+        let frame_color = if dropped > state.studio.broadcast_frames / 4 {
+            theme.warning()
+        } else {
+            theme.text_secondary()
+        };
+        ui.label(
+            RichText::new(format!("{} sent, {} dropped", state.studio.broadcast_frames, dropped))
+                .size(theme.font_size_small)
+                .color(frame_color),
+        )
+        .on_hover_text(
+            "Dropped frames mean the encoder could not keep up and skipped ahead rather than \
+             falling behind. A few is normal. A lot means lowering the resolution or frame rate.",
+        );
+    });
+
+    if !state.studio.broadcast_url.is_empty() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Watch at").size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(
+                RichText::new(state.studio.broadcast_url.clone())
+                    .size(theme.font_size_small)
+                    .color(theme.accent()),
+            );
+            if widgets::Button::ghost("Copy link")
+                .tooltip("Copy the public watch link so you can share it.")
+                .show(ui, theme)
+            {
+                ui.ctx().copy_text(state.studio.broadcast_url.clone());
+            }
+        });
+    }
+}
+
 fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Stream status header ──
     ui.horizontal(|ui| {
         if state.studio.is_live {
-            ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong())
-                .on_hover_text(
-                    "A rehearsal session is running. Scene switching and layout are real; no video \
-                     or audio leaves this machine yet.",
-                );
+            // ON AIR means bytes are actually reaching the relay. LIVE without ON AIR
+            // means the session is running locally but nothing is being broadcast --
+            // the distinction has to be visible, or a failed stream looks like a
+            // working one.
+            let (badge, badge_color, badge_tip): (&str, egui::Color32, &str) =
+                if state.studio.broadcast_live {
+                    (
+                        "ON AIR",
+                        theme.success(),
+                        "Video is reaching the relay and viewers can watch. The watch link is \
+                         below.",
+                    )
+                } else {
+                    (
+                        "LIVE",
+                        theme.warning(),
+                        "The session is running locally, but the relay has not accepted a \
+                         broadcast, so nothing is leaving this machine. See the status line below.",
+                    )
+                };
+            ui.label(RichText::new(badge).size(theme.font_size_body).color(badge_color).strong())
+                .on_hover_text(badge_tip);
             // Uptime: time since Go Live was pressed. Labeled, so it is not mistaken
             // for a countdown or a viewer count.
             let elapsed = ui.ctx().input(|i| i.time) - state.studio.live_start_time;
@@ -473,9 +585,12 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             ui.label(
                 RichText::new("Offline").size(theme.font_size_body).color(theme.text_secondary()),
             )
-            .on_hover_text("Nothing is running. Press Go Live to start a local rehearsal.");
+            .on_hover_text("Nothing is running. Press Go Live to start broadcasting.");
         }
     });
+
+    draw_broadcast_status(ui, theme, state);
+
     widgets::body_hint(
         ui,
         theme,
@@ -626,23 +741,36 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // honest tooltip rather than implying a real broadcast is happening.
         if state.studio.is_live {
             // Indicator only — clicking does nothing (use Stop to end stream).
-            widgets::Button::success("LIVE")
-                .tooltip(
-                    "A rehearsal is running. This is an INDICATOR, not a button: press Stop to \
-                     end the session. Nothing is being broadcast anywhere yet.",
+            let (label, tip): (&str, &str) = if state.studio.broadcast_live {
+                (
+                    "ON AIR",
+                    "You are broadcasting. Viewers can watch right now at the link below. \
+                     Press Stop to end the stream.",
                 )
-                .show(ui, theme);
+            } else {
+                (
+                    "LIVE",
+                    "A rehearsal is running, but nothing is leaving this machine: the relay has \
+                     not accepted a broadcast. Check the status line below. Press Stop to end it.",
+                )
+            };
+            widgets::Button::success(label).tooltip(tip).show(ui, theme);
         } else if widgets::Button::primary("Go Live")
             .tooltip(
-                "Start a local rehearsal: the uptime clock starts and the Program pane gets its \
-                 live border, so you can practise scene switching. It does NOT broadcast. Capture, \
-                 encoding, and the transport that would send video are not built yet.",
+                "Start broadcasting. Your Program view is captured, encoded, and sent to the \
+                 relay, which fans it out to viewers. The watch link appears below once the \
+                 relay accepts the stream. Requires a registered name (you stream on your own \
+                 name) and a signed-in identity.",
             )
             .show(ui, theme)
         {
             state.studio.is_live = true;
             state.studio.is_paused = false;
             state.studio.live_start_time = ui.ctx().input(|i| i.time);
+            state.studio.broadcast_error.clear();
+            // The engine loop owns the publisher (it sits next to the renderer); the
+            // page can only ask. It picks this up on the next frame.
+            state.studio.broadcast_request = Some(true);
         }
 
         // Pause / Resume — Secondary that flips to accent fill via .active() when paused.
@@ -664,14 +792,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Stop — Danger variant.
         if widgets::Button::danger("Stop")
             .tooltip(
-                "End the session: clears LIVE, Paused, and Away, and resets the uptime clock to \
-                 zero. Your scenes and sources are kept exactly as they are.",
+                "End the broadcast: viewers are disconnected, LIVE / Paused / Away clear, and the \
+                 uptime clock resets to zero. Your scenes and sources are kept exactly as they are.",
             )
             .show(ui, theme)
         {
             state.studio.is_live = false;
             state.studio.is_paused = false;
             state.studio.is_afk = false;
+            state.studio.broadcast_request = Some(false);
         }
 
         ui.add_space(theme.panel_margin);

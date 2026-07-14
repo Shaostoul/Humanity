@@ -1677,6 +1677,27 @@ pub struct StudioState {
     pub chat_overlay_opacity: f32,
     pub chat_overlay_max_messages: u32,
     pub chat_overlay_bg_opacity: f32,
+
+    // ── Real broadcast (v0.853). The fields above drive the local rehearsal; these
+    // drive an actual stream leaving the machine. The GUI cannot own the publisher
+    // itself (it lives next to the renderer, on the engine side), so the page sets a
+    // REQUEST here and the engine loop acts on it, then mirrors the live counters
+    // back for the page to draw. See `docs/design/streaming.md`.
+    /// Some(true) = start broadcasting, Some(false) = stop. Taken by the engine loop.
+    pub broadcast_request: Option<bool>,
+    /// True once the relay has accepted the stream. Distinct from `is_live`, which is
+    /// only the rehearsal flag: this one means bytes are actually going out.
+    pub broadcast_live: bool,
+    /// Mirrored from the publisher each frame so the page draws honest numbers.
+    pub broadcast_viewers: u32,
+    pub broadcast_kbps: u32,
+    pub broadcast_frames: u64,
+    pub broadcast_dropped: u64,
+    /// Empty unless the publisher failed. Shown verbatim: a stream that silently
+    /// stops must never look like a stream that is running.
+    pub broadcast_error: String,
+    /// Public watch URL, filled in once the relay accepts the stream.
+    pub broadcast_url: String,
 }
 
 #[cfg(feature = "native")]
@@ -1710,6 +1731,14 @@ impl Default for StudioState {
             chat_overlay_opacity: 0.8,
             chat_overlay_max_messages: 15,
             chat_overlay_bg_opacity: 0.3,
+            broadcast_request: None,
+            broadcast_live: false,
+            broadcast_viewers: 0,
+            broadcast_kbps: 0,
+            broadcast_frames: 0,
+            broadcast_dropped: 0,
+            broadcast_error: String::new(),
+            broadcast_url: String::new(),
         }
     }
 }

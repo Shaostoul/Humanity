@@ -46,3 +46,9 @@ pub mod webrtc;
 /// (later phases) WebRTC audio media + the voice mesh. See voice.rs.
 #[cfg(feature = "native")]
 pub mod voice;
+
+/// Live video publishing (v0.853): GPU frame -> downscale -> JPEG -> binary
+/// WebSocket -> the relay's /live/pub fanout. This is what makes Studio's
+/// "Go Live" actually leave the machine. See `docs/design/streaming.md`.
+#[cfg(feature = "native")]
+pub mod live;

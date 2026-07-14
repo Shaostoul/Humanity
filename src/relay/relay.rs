@@ -185,6 +185,10 @@ pub struct RelayState {
     pub max_connections: usize,
     /// Maximum message history kept in memory (from config or default).
     pub max_history: usize,
+    /// Live video streams (v0.853.0). Deliberately its OWN byte-typed fanout —
+    /// video must never ride `broadcast_tx` (a JSON enum re-serialized per socket)
+    /// or the chat WS (text-only, 128 KB cap, rate-limited). See `relay::live`.
+    pub live: crate::relay::live::LiveRegistry,
 }
 
 impl RelayState {
@@ -319,6 +323,7 @@ impl RelayState {
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
+            live: crate::relay::live::LiveRegistry::new(),
             max_connections,
             max_history,
         }

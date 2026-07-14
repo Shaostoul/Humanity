@@ -6,6 +6,14 @@
 pub mod atmosphere;
 pub mod bloom;
 pub mod camera;
+/// Non-blocking swapchain readback for live streaming (v0.853). The screenshot path
+/// stalls the GPU on purpose; a stream must never do that. See stream_capture.rs.
+///
+/// NATIVE-GATED: it hands frames to `net::live`, which is native-only. `renderer` as a
+/// whole is NOT gated, so an ungated submodule that reaches into `net` breaks the relay
+/// build (and therefore CI's VPS deploy) while the native build stays green.
+#[cfg(feature = "native")]
+pub mod stream_capture;
 pub mod cloud_noise;
 pub mod clouds;
 pub mod floating_origin;

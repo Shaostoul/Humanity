@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content="width=device-width, initial-scale=1.0">
+  <title>Watch, HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box}
+
+    .watch-head{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-md)}
+    .watch-title{margin:0;font-size:var(--text-2xl)}
+    .watch-sub{color:var(--text-muted);font-size:var(--text-sm);margin:2px 0 0}
+    .watch-badges{display:flex;align-items:center;gap:var(--space-sm)}
+    .badge{font-size:var(--text-xs);font-weight:700;border-radius:var(--badge-radius);padding:3px var(--space-sm);letter-spacing:.04em}
+    .badge-live{background:var(--danger);color:#fff}
+    .badge-off{background:var(--bg-tertiary);color:var(--text-muted)}
+    .badge-viewers{background:var(--bg-tertiary);color:var(--text-secondary)}
+
+    /* The stage keeps a 16:9 box even before the first frame lands, so the page
+       does not jump when video starts. */
+    .stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .stage canvas{width:100%;height:100%;object-fit:contain;display:block}
+    .stage-msg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:var(--space-sm);color:var(--text-muted);font-size:var(--text-base);text-align:center;padding:var(--space-xl)}
+    .stage-msg strong{color:var(--text);font-size:var(--text-lg)}
+    .stage-msg.hidden{display:none}
+
+    .watch-stats{display:flex;flex-wrap:wrap;gap:var(--space-lg);font-size:var(--text-xs);color:var(--text-muted);margin-top:var(--space-md)}
+    .watch-stats span b{color:var(--text-secondary);font-weight:600}
+
+    .watch-pick{margin-top:var(--space-2xl)}
+    .watch-pick h2{font-size:var(--text-lg);margin:0 0 var(--space-sm)}
+    .stream-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--space-md)}
+    .stream-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);display:flex;flex-direction:column;gap:4px;text-decoration:none;color:inherit;transition:border-color .15s}
+    .stream-card:hover,.stream-card:focus-visible{border-color:var(--accent);outline:none}
+    .stream-card .n{font-weight:600}
+    .stream-card .t{font-size:var(--text-sm);color:var(--text-muted)}
+    .stream-card .v{font-size:var(--text-xs);color:var(--accent)}
+    .watch-empty{color:var(--text-muted);font-size:var(--text-sm)}
+    .watch-note{margin-top:var(--space-2xl);font-size:var(--text-sm);color:var(--text-muted);border-top:1px solid var(--border);padding-top:var(--space-lg)}
+    .watch-note a{color:var(--accent)}
+  </style>
+</head>
+<body>
+  <script src="/shared/shell.js" data-active="chat"></script>
+
+  <div id="page-app">
+    <div class="watch-head">
+      <div>
+        <h1 id="w-title" class="watch-title">Watch</h1>
+        <p id="w-sub" class="watch-sub">Live from the HumanityOS desktop app.</p>
+      </div>
+      <div class="watch-badges">
+        <span id="w-status" class="badge badge-off">OFFLINE</span>
+        <span id="w-viewers" class="badge badge-viewers" hidden>0 watching</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <canvas id="w-canvas" width="1280" height="720"></canvas>
+      <div id="w-msg" class="stage-msg">
+        <strong>Nothing playing</strong>
+        <span id="w-msg-detail">Pick a live stream below, or check back later.</span>
+      </div>
+    </div>
+
+    <div class="watch-stats" id="w-stats" hidden>
+      <span>Resolution <b id="s-res">-</b></span>
+      <span>Frames <b id="s-frames">0</b></span>
+      <span>Bitrate <b id="s-bitrate">0 kbps</b></span>
+    </div>
+
+    <div class="watch-pick">
+      <h2>Live now</h2>
+      <div id="w-list" class="stream-list"></div>
+      <p id="w-list-empty" class="watch-empty" hidden>Nobody is streaming right now.</p>
+    </div>
+
+    <p class="watch-note">
+      Streams are broadcast from the Studio page of the <a href="/download">HumanityOS desktop app</a>
+      straight to this server. No third-party platform is involved, and no account is needed to watch.
+    </p>
+  </div>
+
+  <script>
+    (function(){
+      'use strict';
+
+      // ── Wire format (must match src/relay/live.rs and src/net/live.rs) ──
+      //   [1 byte tag][8 bytes PTS micros, big-endian][payload]
+      // tag 0 = codec config, 1 = keyframe, 2 = delta, 3 = audio.
+      // v1 is MJPEG: every frame is a self-contained JPEG tagged as a keyframe.
+      // When the H.264 encoder lands, only the decode call below changes.
+      const TAG_CONFIG = 0, TAG_KEY = 1, TAG_DELTA = 2;
+      const HEADER_BYTES = 9;
+
+      const $ = (id) => document.getElementById(id);
+      const canvas = $('w-canvas');
+      const ctx = canvas.getContext('2d');
+
+      const params = new URLSearchParams(location.search);
+      // Accept ?s=name, and also a trailing path segment (/watch/name) if nginx
+      // ever routes it that way.
+      const pathTail = location.pathname.replace(/^\/watch\/?/, '');
+      const streamId = (params.get('s') || pathTail || '').trim().toLowerCase();
+
+      let socket = null;
+      let frames = 0;
+      let bytes = 0;
+      let startedAt = 0;
+      // Guard against decoding faster than we can paint: if a frame is still being
+      // decoded when the next arrives, drop the new one. Without this a slow client
+      // builds an unbounded backlog of pending decodes and the tab dies.
+      let decoding = false;
+
+      function setStatus(live, detail) {
+        const badge = $('w-status');
+        badge.textContent = live ? 'LIVE' : 'OFFLINE';
+        badge.className = 'badge ' + (live ? 'badge-live' : 'badge-off');
+        $('w-msg').classList.toggle('hidden', live);
+        $('w-stats').hidden = !live;
+        if (detail) $('w-msg-detail').textContent = detail;
+      }
+
+      function paint(blob) {
+        if (decoding) return;   // see `decoding` above
+        decoding = true;
+        createImageBitmap(blob).then((bmp) => {
+          if (canvas.width !== bmp.width || canvas.height !== bmp.height) {
+            canvas.width = bmp.width;
+            canvas.height = bmp.height;
+            $('s-res').textContent = bmp.width + 'x' + bmp.height;
+          }
+          ctx.drawImage(bmp, 0, 0);
+          // Release the bitmap's memory immediately. Skipping this is the classic
+          // way to OOM a tab in under a minute.
+          bmp.close();
+          decoding = false;
+        }).catch(() => { decoding = false; });
+      }
+
+      function updateStats() {
+        $('s-frames').textContent = frames;
+        const secs = Math.max(1, (Date.now() - startedAt) / 1000);
+        $('s-bitrate').textContent = Math.round(bytes * 8 / secs / 1000) + ' kbps';
+      }
+
+      function connect(id) {
+        if (socket) { socket.close(); socket = null; }
+        frames = 0; bytes = 0; startedAt = Date.now();
+
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        socket = new WebSocket(proto + '//' + location.host + '/ws/live/sub/' + encodeURIComponent(id));
+        socket.binaryType = 'arraybuffer';
+
+        socket.onmessage = (ev) => {
+          // A text frame is the relay telling us something went wrong.
+          if (typeof ev.data === 'string') {
+            try {
+              const v = JSON.parse(ev.data);
+              if (v.ok === false) setStatus(false, v.error === 'not live'
+                ? id + ' is not streaming right now.'
+                : String(v.error || 'Stream unavailable.'));
+            } catch (_) { /* ignore anything unparseable */ }
+            return;
+          }
+
+          const buf = new Uint8Array(ev.data);
+          if (buf.length < HEADER_BYTES) return;
+          const tag = buf[0];
+          const payload = buf.subarray(HEADER_BYTES);
+
+          if (tag === TAG_KEY || tag === TAG_DELTA) {
+            setStatus(true);
+            frames++;
+            bytes += buf.length;
+            updateStats();
+            paint(new Blob([payload], { type: 'image/jpeg' }));
+          } else if (tag === TAG_CONFIG) {
+            // MJPEG needs no codec config. This is here for the H.264 upgrade,
+            // where it carries the avcC / SPS+PPS a VideoDecoder must be
+            // configured with before the first frame can be decoded.
+          }
+        };
+
+        socket.onclose = () => setStatus(false, 'The stream ended.');
+        socket.onerror = () => setStatus(false, 'Could not connect to the stream.');
+      }
+
+      // ── Directory of what is live, refreshed every 10s ──
+      async function refreshList() {
+        let streams = [];
+        try {
+          const r = await fetch('/api/live');
+          if (r.ok) streams = (await r.json()).streams || [];
+        } catch (_) { /* offline: fall through to the empty state */ }
+
+        const list = $('w-list');
+        list.innerHTML = '';
+        $('w-list-empty').hidden = streams.length > 0;
+
+        for (const s of streams) {
+          const a = document.createElement('a');
+          a.className = 'stream-card';
+          a.href = '/watch.html?s=' + encodeURIComponent(s.id);
+          const n = document.createElement('div'); n.className = 'n'; n.textContent = s.id;
+          const t = document.createElement('div'); t.className = 't'; t.textContent = s.title || '';
+          const v = document.createElement('div'); v.className = 'v';
+          v.textContent = s.viewers + (s.viewers === 1 ? ' watching' : ' watching');
+          a.append(n, t, v);
+          list.appendChild(a);
+        }
+
+        // Keep the viewer count on the badge honest for the stream we are watching.
+        if (streamId) {
+          const mine = streams.find((s) => s.id === streamId);
+          const badge = $('w-viewers');
+          badge.hidden = !mine;
+          if (mine) {
+            badge.textContent = mine.viewers + ' watching';
+            $('w-sub').textContent = mine.title || ('Live from ' + streamId);
+          }
+        }
+      }
+
+      if (streamId) {
+        $('w-title').textContent = streamId;
+        setStatus(false, 'Connecting...');
+        connect(streamId);
+      }
+      refreshList();
+      setInterval(refreshList, 10000);
+    })();
+  </script>
+</body>
+</html>

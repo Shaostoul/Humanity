@@ -2047,6 +2047,132 @@ mod native_app {
         }
     }
 
+    /// Drive the live broadcast for one frame (v0.853). Called right before
+    /// `present()`, so the captured frame is exactly what the operator sees.
+    ///
+    /// Three jobs, all of them cheap and none of them blocking:
+    ///   1. Act on a start/stop request from the Studio page.
+    ///   2. Collect a readback that landed, and hand it to the encoder thread.
+    ///   3. Kick off the next readback, but only if the encoder actually wants a
+    ///      frame -- at 15 fps we skip the GPU copy entirely on ~3 of every 4 frames.
+    ///   4. Mirror the publisher's real counters back so the page draws truth.
+    ///
+    /// When nothing is being broadcast this is a single `Option` check.
+    fn pump_live_broadcast(state: &mut EngineState, frame_texture: &wgpu::Texture) {
+        use crate::net::live::{LiveConfig, LivePublisher};
+        use std::sync::atomic::Ordering;
+
+        // --- 1. Start / stop, requested by the Studio page.
+        match state.gui_state.studio.broadcast_request.take() {
+            Some(true) => {
+                let Some(seed) = state.gui_state.private_key_bytes.clone() else {
+                    state.gui_state.studio.broadcast_error =
+                        "No identity loaded. Sign in first, then go live.".to_string();
+                    state.gui_state.studio.is_live = false;
+                    return;
+                };
+                if !state.renderer.supports_frame_capture() {
+                    state.gui_state.studio.broadcast_error =
+                        "This graphics backend cannot capture the window, so there is nothing to \
+                         broadcast."
+                            .to_string();
+                    state.gui_state.studio.is_live = false;
+                    return;
+                }
+
+                // The Studio server field is a chat WS URL ("wss://host/ws"); the live
+                // publisher wants the plain origin.
+                let server = state
+                    .gui_state
+                    .studio
+                    .stream_server_url
+                    .trim_end_matches('/')
+                    .trim_end_matches("/ws")
+                    .replace("wss://", "https://")
+                    .replace("ws://", "http://");
+
+                let target_height = match state.gui_state.studio.stream_resolution.as_str() {
+                    r if r.starts_with("1280x") => 720,
+                    r if r.starts_with("854x") => 480,
+                    r if r.starts_with("640x") => 360,
+                    _ => 720, // 1080p source downscaled to 720p: the sane live default
+                };
+                let cfg = LiveConfig {
+                    server,
+                    title: state.gui_state.studio.stream_key.clone(),
+                    target_height,
+                    quality: 70,
+                    fps: state.gui_state.studio.stream_fps.clamp(5, 30),
+                };
+                state.live_publisher = Some(LivePublisher::start(cfg, &seed));
+            }
+            Some(false) => {
+                // Dropping the publisher signals its worker to close the socket.
+                state.live_publisher = None;
+                state.gui_state.studio.broadcast_live = false;
+                state.gui_state.studio.broadcast_url.clear();
+            }
+            None => {}
+        }
+
+        let Some(pubr) = state.live_publisher.as_mut() else {
+            return;
+        };
+
+        // --- 2. Collect a landed readback and feed the encoder.
+        if let Some(frame) = state.stream_capture.poll(&state.renderer.device) {
+            pubr.submit_frame(frame);
+        }
+
+        // --- 3. Start the next one, but ONLY if the encoder is due a frame. The GPU
+        // copy is the expensive part; skipping it on frames we would drop anyway is
+        // most of the reason this costs nothing at 60 fps.
+        if pubr.wants_frame() {
+            state.stream_capture.submit(
+                &state.renderer.device,
+                &state.renderer.queue,
+                frame_texture,
+            );
+        }
+
+        // --- 4. Mirror real counters into the page.
+        let stats = pubr.stats();
+        let studio = &mut state.gui_state.studio;
+        studio.broadcast_live = stats.connected.load(Ordering::Relaxed);
+        studio.broadcast_viewers = stats.viewers.load(Ordering::Relaxed);
+        studio.broadcast_frames = stats.sent.load(Ordering::Relaxed);
+        studio.broadcast_dropped = stats.dropped.load(Ordering::Relaxed);
+        studio.broadcast_kbps = pubr.kbps();
+
+        if let Ok(err) = stats.error.lock() {
+            if !err.is_empty() && studio.broadcast_error.is_empty() {
+                studio.broadcast_error = err.clone();
+            }
+        }
+        if studio.broadcast_url.is_empty() {
+            if let Ok(id) = stats.stream_id.lock() {
+                if !id.is_empty() {
+                    let base = state
+                        .gui_state
+                        .studio
+                        .stream_server_url
+                        .trim_end_matches('/')
+                        .trim_end_matches("/ws")
+                        .replace("wss://", "https://")
+                        .replace("ws://", "http://");
+                    state.gui_state.studio.broadcast_url = format!("{base}/live/{id}");
+                }
+            }
+        }
+
+        // A publisher that died must not leave the UI claiming to be on air.
+        if !state.gui_state.studio.broadcast_error.is_empty() {
+            state.live_publisher = None;
+            state.gui_state.studio.broadcast_live = false;
+            state.gui_state.studio.is_live = false;
+        }
+    }
+
     /// Shared executor for every capture trigger (file protocol AND the Testing
     /// page buttons, v0.810): bumps the counter, runs the right capture path,
     /// writes debug/screenshot_done.json, and mirrors the outcome into the GUI's
@@ -7074,6 +7200,13 @@ mod native_app {
         /// Construction-editor undo/redo history (v0.575): bounded snapshot stacks of the editable
         /// home (structure + machines), captured at the dirty-flag choke point.
         construction_history: ConstructionHistory,
+        /// Live broadcast (v0.853). Present only while actually streaming; dropping it
+        /// stops the stream. Lives here rather than in GuiState because it needs the
+        /// renderer's swapchain texture, which the GUI never sees.
+        live_publisher: Option<crate::net::live::LivePublisher>,
+        /// Reusable async readback slot for the broadcast. Cheap when idle (it holds no
+        /// buffer until the first capture).
+        stream_capture: crate::renderer::stream_capture::StreamCapture,
     }
 
     /// One captured editor state for undo/redo (v0.575): a clone of the editable SHIP (all zones,
@@ -7926,6 +8059,8 @@ mod native_app {
                 alt_held: false,
                 lmb_held: false,
                 construction_history: ConstructionHistory::default(),
+                live_publisher: None,
+                stream_capture: crate::renderer::stream_capture::StreamCapture::new(),
             });
         }
 
@@ -18892,6 +19027,12 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
+
+                            // Live broadcast (v0.853). Deliberately here, AFTER egui has
+                            // painted into the swapchain and BEFORE present: what goes out
+                            // is exactly what the operator sees, overlays and all -- the
+                            // same thing OBS's window capture would grab.
+                            pump_live_broadcast(state, &surface_texture.texture);
 
                             surface_texture.present();
 
