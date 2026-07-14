@@ -11,6 +11,40 @@
 
 ## Active focus
 
+> **>>> TIER 0 CURRENT (operator, 2026-07-13/14): PRODUCTION READINESS + GO LIVE.**
+> The operator redirected: "We really need to start getting it production ready.
+> Make it all beautiful. Everything easily described, accessible." And: "It'd be
+> cool if I could start using the streaming software and chat." This serves the
+> funding goal directly (his own framing: shipping content earlier means social
+> posts earlier means donations earlier, under a $1k/mo income cap).
+>
+> WORK ORDER:
+> 1. **SHIPPED** the production-polish pass: web-chat security-modal CSS fix
+>    (v0.844.1), native User-Profile modal redesign (v0.845.0), donate reframed
+>    around the maintainer + a curated charities list (v0.845.1-v0.847.0), Relay
+>    Control Center (v0.846.0), Notes/Calendar rescued + dead code removed
+>    (v0.848.0), crafting.html real recipe browser (v0.848.1), 8-page tokenize +
+>    accessibility sweep (v0.848.2), civilization Sim fake-data killed (v0.848.3),
+>    the long-standing modal-backdrop click-steal bug fixed (v0.849.0), relay +
+>    profile pages to one scroll (v0.849.0), crafting condensed to columnar rows +
+>    Studio live-chat panel (v0.850.0), relay admin-stats 414 fixed via POST body
+>    (v0.851.0).
+> 2. **IN FLIGHT**: remaining docs/UI-AUDIT.md backlog (web data-extraction,
+>    discoverability, market/trade inline styles, Library/Accord nav), Studio
+>    labels/help polish, and clearing tests/theme_token_lint.rs LEGACY_OFFENDERS
+>    (21 files, ~158 hardcoded colors) to zero.
+> 3. **THE BIG ONE - STREAMING TRANSPORT**: Studio's "Go Live" is still only a
+>    local rehearsal. There is no capture, no encode, no transport. Stream Settings
+>    already default to Platform = "HumanityOS Server", so the intent is
+>    SELF-HOSTED streaming to their own relay, not Twitch. Research is underway on
+>    capture (Windows), encode (no C-toolchain constraint), and transport
+>    (str0m/WebRTC vs a WS path over the existing relay). Design doc + incremental
+>    build to follow. This is what actually lets the operator go live.
+>
+> The co-presence pivot below REMAINS the strategic bar (playable multiplayer with
+> a second real human); it is paused, not cancelled, while production-readiness and
+> the ability to broadcast land.
+
 > **>>> TIER 0 - THE PIVOT (operator, 2026-07-08, Opus era): VALIDATION +
 > REAL CO-PRESENCE, not more breadth.** After a long build streak of
 > deep-but-unwitnessed features (the ship corridors the operator found
