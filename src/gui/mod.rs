@@ -3388,9 +3388,6 @@ pub struct GuiState {
     /// Public key of the user shown in the modal.
     pub chat_user_modal_key: String,
 
-    // ── Channel create modal ──
-    pub show_create_channel_modal: bool,
-    pub new_channel_name: String,
     /// "+ Add Server" modal (v0.187.0). Lets the user paste a relay URL
     /// (e.g. https://other-server.example) and connect to it. Maintains
     /// the previous server list rather than swapping — multi-server
@@ -3410,7 +3407,6 @@ pub struct GuiState {
     pub server_settings_channel_drafts: std::collections::HashMap<String, ChannelDraft>,
     /// Pending "new channel" row at the bottom of the Channels grid.
     pub server_settings_new_channel: ChannelDraft,
-    pub new_channel_description: String,
 
     // ── Create group modal (P2P signed-object groups, v0.295+) ──
     pub show_create_group_modal: bool,
@@ -4652,15 +4648,12 @@ impl Default for GuiState {
             chat_user_modal_open: false,
             chat_user_modal_name: String::new(),
             chat_user_modal_key: String::new(),
-            show_create_channel_modal: false,
             show_add_server_modal: false,
             add_server_url_draft: String::new(),
             add_server_name_draft: String::new(),
             server_settings_tab: 0,
             server_settings_channel_drafts: std::collections::HashMap::new(),
             server_settings_new_channel: ChannelDraft::default(),
-            new_channel_name: String::new(),
-            new_channel_description: String::new(),
             show_create_group_modal: false,
             dm_settings_popup_open: false,
             groups_settings_popup_open: false,

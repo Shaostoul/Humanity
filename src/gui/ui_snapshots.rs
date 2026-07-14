@@ -1002,6 +1002,17 @@ fn snapshot_donate() {
     });
 }
 
+/// Platform fold with Notes + Calendar rescued into the section nav (v0.847.x).
+/// Renders the Notes section so both the new sidebar entries and the page draw.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_platform_notes() {
+    render_page_png("platform_notes", 1280, 800, |ctx, theme, state| {
+        state.active_platform_section = "notes".into();
+        crate::gui::pages::platform::draw(ctx, theme, state);
+    });
+}
+
 page_snapshot!(snapshot_homes, "homes", homes, 1280, 1400);
 
 // The construction editor needs a selected room with machines, so it gets a custom setup

@@ -235,10 +235,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     draw_incoming_call_modal(ctx, theme, state);
     draw_call_bar(ctx, theme, state);
 
-    // ── CREATE CHANNEL MODAL ──
-    if state.show_create_channel_modal {
-        draw_create_channel_modal(ctx, theme, state);
-    }
+    // (v0.847.x: the Create Channel modal was removed — it was never opened
+    // since v0.187; channel creation lives in Server Settings > Channels.)
 
     // ── ADD SERVER MODAL (v0.187.0) ──
     if state.show_add_server_modal {
@@ -1765,9 +1763,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             }
                         }
                         ui.separator();
-                        if ui.button("Mute Server").clicked() {
-                            // TODO: implement mute
-                        }
+                        // (v0.847.x: "Mute Server" removed — native has no
+                        // notification/desktop-alert system yet, so there was
+                        // nothing to mute. Re-add wired when notifications land.)
                         if ui.button(RichText::new("Disconnect").color(Color32::from_rgb(200, 80, 80))).clicked() {
                             svr_disconnect = true;
                         }
@@ -5199,61 +5197,6 @@ fn send_mod_action(state: &GuiState, action: &str, target_key: &str, target_name
     }
 }
 
-// ─────────────────────────────── Create Channel Modal ──────────────────────
-
-fn draw_create_channel_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    let mut open = state.show_create_channel_modal;
-    widgets::dialog(ctx, theme, "create_channel_dialog", "Create Channel", &mut open, |ui| {
-        ui.set_min_width(300.0);
-
-        widgets::form_row(ui, theme, "Channel name", |ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut state.new_channel_name)
-                    .desired_width(220.0)
-                    .hint_text("e.g. announcements"),
-            );
-        });
-
-        widgets::form_row(ui, theme, "Description", |ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut state.new_channel_description)
-                    .desired_width(220.0)
-                    .hint_text("What is this channel about?"),
-            );
-        });
-
-        ui.add_space(theme.spacing_md);
-
-        ui.horizontal(|ui| {
-            let name_valid = !state.new_channel_name.trim().is_empty();
-            ui.add_enabled_ui(name_valid, |ui| {
-                if widgets::Button::primary("Create").show(ui, theme) {
-                    if let Some(ref client) = state.ws_client {
-                        if client.is_connected() {
-                            let msg = serde_json::json!({
-                                "type": "channel_create",
-                                "name": state.new_channel_name.trim(),
-                                "description": state.new_channel_description.trim(),
-                            });
-                            client.send(&msg.to_string());
-                            log::info!("Channel create requested: {}", state.new_channel_name.trim());
-                            crate::debug::push_debug(format!("Channel create: {}", state.new_channel_name.trim()));
-                        }
-                    }
-                    state.show_create_channel_modal = false;
-                }
-            });
-            ui.add_space(theme.spacing_sm);
-            if widgets::Button::secondary("Cancel").show(ui, theme) {
-                state.show_create_channel_modal = false;
-            }
-        });
-    });
-    // Apply X-button close back to state.
-    if !open {
-        state.show_create_channel_modal = false;
-    }
-}
 
 // ─────────────────────────────── Add Server Modal ───────────────────────
 

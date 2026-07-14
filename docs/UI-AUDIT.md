@@ -17,19 +17,18 @@ Work top-to-bottom. Check items as they ship.
 - [ ] **Passphrase-import modal fully hardcoded hex** (`chat-ui.js:696` `showPassphraseModal`): only chat modal never tokenized; swap literals for `var(--bg-secondary/--border/--text-muted/--danger/--radius)`.
 
 ## 2. Delete confirmed dead code (matches 2026-07-05 orphan-deletion precedent)
-- [ ] Native **Create Channel modal** (`chat.rs` `draw_create_channel_modal` + `show_create_channel_modal` + dispatch): `show_create_channel_modal` never set true since v0.187; channel creation lives in Server Settings. Safe delete.
+- [x] Native **Create Channel modal** (`chat.rs` `draw_create_channel_modal` + `show_create_channel_modal` + dispatch): `show_create_channel_modal` never set true since v0.187; channel creation lives in Server Settings. **Deleted v0.848.0** (fn + dispatch + the 3 now-unused GuiState fields: show_create_channel_modal / new_channel_name / new_channel_description).
 - [x] Web **Key-Rotation modal** (`crypto.js` `openKeyRotationModal`/`doKeyRotation`): no caller + targets a relay route DELETED in Inc5b (v0.265) + replaces local key regardless of server ack (desync risk). **Deleted v0.845.2** — removed the whole cluster (openKeyRotationModal / doKeyRotation / _sendRotationToRelay / _storeRotatedIdentity, crypto.js tail) + the stale chat-profile.js doc block. Traced zero live callers first. In-app key replacement lives in the native Settings "Replace Identity" flow.
 
 ## 3. Wire surfaces that look done but are stubs
-- [ ] Native **Identity page** (`identity.rs`): `identity_lookup_pending` never consumed; cards print literal `GET /api/v2/…` strings. Consume the flag + resolve the DID.
-- [ ] Native **Recovery page** (`recovery.rs`): `recovery_lookup_pending`/`recovery_guardian_pending` never consumed. Call `GET /api/v2/recovery/setup/{did}`.
-- [ ] Native **chat mute action** (`chat.rs:1769` `TODO: implement mute`): send the WS moderation message like the other mod actions.
+- [ ] **DEFERRED — needs backend.** Native **Identity page** (`identity.rs`) + **Recovery page** (`recovery.rs`): the `*_pending` flags are never consumed AND the cards document `GET /api/v2/did|trust|credentials|ai-status|recovery/...` endpoints that **do not exist on the relay yet**. These are preview pages for the unbuilt v2 DID/trust/VC subsystem; wiring them means building that backend, not consuming a flag. Revisit when the v2 endpoints land.
+- [x] Native **chat "Mute Server" action** (`chat.rs`): the audit mis-scoped this as a moderation action — it's a *notification* mute in the server cog menu. Native has no notification/desktop-alert system and no server-level unread aggregation, so there was nothing to mute. **Removed the dead button v0.848.0** (like Watch Stream); re-add wired when native notifications exist.
 - [x] Native **User-Profile "Watch Stream" button** (`chat.rs`): empty handler. **Removed v0.845.0** — the native roster carries no per-user stream URL and there's no native stream viewer, so it was a false affordance; the "Live" status dot already signals streaming. Re-add when an in-app viewer exists.
 - [ ] Verify **BugReport submit** (`bugs.rs`): confirm reports persist to the relay, not just an in-session Vec.
 
 ## 4. Rescue orphaned, fully-built surfaces
-- [ ] Native **Civilization page** (`civilization.rs`): live-relay community dashboard with NO route. Wire in as the Humanity tab's "Community" content (richer than the local 3-tile scoreboard).
-- [ ] Native **Notes** + **Calendar** (`notes.rs`, `calendar.rs`): full working apps reachable only via quest links / boot-page. Give them a shared nav/section entry (a Tools/productivity cluster).
+- [ ] Native **Civilization page** (`civilization.rs`): live-relay community dashboard. The Humanity tab reuses its `draw_stat_card` helper for a local 3-tile scoreboard but does NOT route to the full page. Follow-up: make the Humanity tab's "Mission Dashboard" section render the full `civilization.rs` (live-relay) view.
+- [x] Native **Notes** + **Calendar** (`notes.rs`, `calendar.rs`): full working apps that were reachable only via quest links / boot-page. **Rescued v0.848.0** into the Platform fold's `section_nav` (`platform.rs`) — Platform now lists Recovery / Tools / Calculator / Notes / Calendar / Files / Bugs / Testing / Dev / Browser. Snapshot `platform_notes`.
 - [ ] Web **admin.html** + **agents.html**: wired dev dashboards, URL-only. Add drawer/ops.html entry points (dev tooling stays — GUI-first needs an in-app path).
 - [ ] Web-chat **Seed-phrase reveal + Encrypted-backup**: reachable only from onboarding step-4; onboarding falsely promises "always available under Profile → Seed Phrase" (`chat-onboarding.js:415`). Add a chat identity/Security menu entry.
 
