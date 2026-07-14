@@ -109,11 +109,19 @@ fn spawn_admin_stats_fetch(state: &mut GuiState, base: &str) {
             // Sign the exact preimage the relay verifies: "admin_stats\n{ts}".
             let sig = crate::net::identity::pq_sign_chat(&seed, "admin_stats", ts);
 
-            let resp = ureq::get(&format!("{base}/api/admin/stats"))
-                .query("key", &key)
-                .query("timestamp", &ts.to_string())
-                .query("sig", &sig)
-                .call();
+            // POST, not GET: the Dilithium key (3904 hex) + signature (~6600 hex)
+            // are ~10 KB, which as query params made the URL exceed nginx's default
+            // header buffer and came back as HTTP 414 URI Too Long. The body has no
+            // such limit. (v0.851)
+            let body = serde_json::json!({
+                "key": key,
+                "timestamp": ts,
+                "sig": sig,
+            })
+            .to_string();
+            let resp = ureq::post(&format!("{base}/api/admin/stats"))
+                .set("Content-Type", "application/json")
+                .send_string(&body);
             let body = match resp {
                 Ok(r) => r.into_string().map_err(|e| format!("read: {e}"))?,
                 Err(ureq::Error::Status(403, _)) =>

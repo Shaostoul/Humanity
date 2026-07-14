@@ -622,7 +622,9 @@ pub async fn run_relay() {
         .route("/api/files/write", post(api::write_file))
         .route("/api/docs/accord", get(api::list_accord_docs))
         .route("/api/docs/accord/{slug}", get(api::get_accord_doc))
-        .route("/api/admin/stats", get(api::get_admin_stats))
+        // POST form carries the ~10KB Dilithium key+signature in the body so it
+        // can't 414 on a proxy URI limit; GET kept for existing callers. (v0.851)
+        .route("/api/admin/stats", get(api::get_admin_stats).post(api::post_admin_stats))
         .route("/api/asset-manifest", get(api::get_asset_manifest))
         .route("/api/web-manifest", get(api::get_web_manifest))
         // === API v2: signed objects substrate (Phase 0 PR 2) ===

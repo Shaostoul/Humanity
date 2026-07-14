@@ -3282,10 +3282,35 @@ pub struct AdminStatsQuery {
 }
 
 /// GET /api/admin/stats — admin-only server analytics.
-/// Authenticated via Ed25519 signature (same pattern as vault_sync).
+///
+/// LEGACY FORM. The chat identity is Dilithium3, so `key` (3904 hex chars) plus
+/// `sig` (~6600 hex chars) push this URL to roughly 10 KB, which blows past a
+/// default nginx `large_client_header_buffers` (4 8k) and comes back as
+/// HTTP 414 URI Too Long. Kept for existing callers; new callers should use the
+/// POST form below, which carries the same auth in the body.
 pub async fn get_admin_stats(
     State(state): State<Arc<RelayState>>,
     Query(q): Query<AdminStatsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    admin_stats_inner(state, q).await
+}
+
+/// POST /api/admin/stats — identical response to the GET form, but the signed
+/// auth rides in the JSON BODY instead of the query string, so the ~10 KB
+/// Dilithium key + signature can never trip a proxy's URI/header limit. Same
+/// freshness check, same signature verification, same admin-role gate. This is
+/// what the native Relay Control Center uses. (v0.851, fixes the 414.)
+pub async fn post_admin_stats(
+    State(state): State<Arc<RelayState>>,
+    Json(q): Json<AdminStatsQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    admin_stats_inner(state, q).await
+}
+
+/// Shared implementation for both the GET and POST admin-stats forms.
+async fn admin_stats_inner(
+    state: Arc<RelayState>,
+    q: AdminStatsQuery,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     use crate::relay::handlers::broadcast::verify_dilithium_signature;
 
