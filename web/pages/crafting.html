@@ -7,11 +7,33 @@
   <link rel="stylesheet" href="/shared/theme.css">
   <style>
     body{background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
-    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:900px;width:100%;margin:0 auto}
-    .craft-hero{text-align:center;margin:var(--space-3xl) 0}
-    .craft-hero h1{font-size:1.6rem;margin:0 0 var(--space-md)}
-    .craft-hero p{color:var(--text-muted);font-size:0.95rem;max-width:560px;margin:0 auto;line-height:1.5}
-    .coming-soon{text-align:center;padding:var(--space-3xl);color:var(--text-muted);font-size:0.9rem;border:1px dashed var(--border);border-radius:12px;margin-top:var(--space-xl)}
+    #page-app{flex:1;overflow-y:auto;padding:var(--space-xl) var(--space-2xl);max-width:1000px;width:100%;margin:0 auto}
+    .craft-hero{text-align:center;margin:var(--space-2xl) 0 var(--space-sm)}
+    .craft-hero h1{font-size:var(--text-3xl);margin:0 0 var(--space-sm)}
+    .craft-hero p{color:var(--text-muted);font-size:var(--text-base);max-width:600px;margin:0 auto;line-height:1.5}
+    .craft-note{text-align:center;font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-xl)}
+    .craft-note a{color:var(--accent)}
+    .craft-controls{display:flex;flex-direction:column;gap:var(--space-md);margin-bottom:var(--space-lg)}
+    .craft-search{width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:var(--text-base);box-sizing:border-box}
+    .craft-search:focus{outline:none;border-color:var(--border-focus)}
+    .cat-filters{display:flex;flex-wrap:wrap;gap:var(--space-sm)}
+    .cat-chip{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--pill-radius);padding:var(--space-xs) var(--space-md);font-size:var(--text-sm);color:var(--text-secondary);cursor:pointer;text-transform:capitalize;transition:border-color .15s,background .15s,color .15s}
+    .cat-chip:hover{border-color:var(--accent)}
+    .cat-chip:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+    .cat-chip[aria-pressed="true"]{background:var(--accent);color:var(--text-on-accent);border-color:var(--accent)}
+    .craft-count{font-size:var(--text-sm);color:var(--text-muted);margin-bottom:var(--space-md)}
+    .recipe-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--space-lg)}
+    .recipe-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-lg);display:flex;flex-direction:column;gap:var(--space-sm)}
+    .recipe-card h3{margin:0;font-size:var(--text-lg);display:flex;align-items:center;justify-content:space-between;gap:var(--space-sm)}
+    .recipe-cat{font-size:var(--text-xs);color:var(--text-muted);background:var(--bg-tertiary);border-radius:var(--badge-radius);padding:2px var(--space-sm);text-transform:capitalize;font-weight:600;white-space:nowrap}
+    .recipe-desc{font-size:var(--text-sm);color:var(--text-muted);line-height:1.4;margin:0}
+    .recipe-io{font-size:var(--text-sm);display:flex;align-items:center;gap:var(--space-sm);flex-wrap:wrap}
+    .io-items{display:flex;flex-wrap:wrap;gap:4px}
+    .io-item{background:var(--bg-tertiary);border-radius:var(--radius-sm);padding:2px var(--space-sm);color:var(--text-secondary);font-size:var(--text-xs)}
+    .io-out .io-item{color:var(--success)}
+    .io-arrow{color:var(--accent);font-weight:700}
+    .recipe-meta{display:flex;flex-wrap:wrap;gap:var(--space-md);font-size:var(--text-xs);color:var(--text-muted);border-top:1px solid var(--border);padding-top:var(--space-sm);margin-top:var(--space-xs)}
+    .craft-empty{text-align:center;padding:var(--space-3xl);color:var(--text-muted)}
   </style>
 </head>
 <body>
@@ -19,30 +41,97 @@
 
   <div id="page-app">
     <div class="craft-hero">
-      <h1 id="craft-heading">Crafting</h1>
-      <p id="craft-desc">Combine materials and components to create tools, structures, and equipment.</p>
+      <h1>Crafting</h1>
+      <p>Every recipe in HumanityOS: what it takes, what it makes, and where to make it. Search and browse the full reference below.</p>
     </div>
-    <div class="coming-soon">
-      <p>Coming soon. The crafting system will let you transform raw resources into useful items.</p>
+    <p class="craft-note">Crafting is interactive in the <a href="/download">desktop app</a>. This page is a read-only reference.</p>
+
+    <div class="craft-controls">
+      <input id="recipe-search" class="craft-search" type="search" placeholder="Search recipes, ingredients, or stations..." aria-label="Search recipes">
+      <div id="cat-filters" class="cat-filters" role="group" aria-label="Filter recipes by category"></div>
     </div>
+    <div id="recipe-count" class="craft-count" aria-live="polite"></div>
+    <div id="recipe-grid" class="recipe-grid"></div>
+    <div id="recipe-empty" class="craft-empty" hidden>No recipes match your search.</div>
   </div>
 
   <script>
-    // React to context toggle
-    function updateCraftContext() {
-      var ctx = window.hos_context || 'real';
-      var heading = document.getElementById('craft-heading');
-      var desc = document.getElementById('craft-desc');
-      if (ctx === 'sim') {
-        heading.textContent = 'Sim Crafting';
-        desc.textContent = 'Combine materials and components to create tools, structures, and equipment in-game.';
-      } else {
-        heading.textContent = 'Crafting';
-        desc.textContent = 'Combine materials and components to create tools, structures, and equipment.';
+    (function(){
+      'use strict';
+      var recipes=[], categories=[], activeCat='all', query='';
+      var grid=document.getElementById('recipe-grid');
+      var countEl=document.getElementById('recipe-count');
+      var emptyEl=document.getElementById('recipe-empty');
+      var searchEl=document.getElementById('recipe-search');
+      var filtersEl=document.getElementById('cat-filters');
+
+      function esc(s){var d=document.createElement('div');d.textContent=(s==null?'':String(s));return d.innerHTML;}
+
+      function itemsHtml(items,cls){
+        if(!items||!items.length) return '<span class="io-items '+cls+'"><span class="io-item">nothing</span></span>';
+        return '<span class="io-items '+cls+'">'+items.map(function(it){
+          return '<span class="io-item">'+esc(it.label)+(it.qty>1?(' x'+it.qty):'')+'</span>';
+        }).join('')+'</span>';
       }
-    }
-    updateCraftContext();
-    window.addEventListener('hos-context-change', updateCraftContext);
+
+      function card(r){
+        var meta=[];
+        if(r.station) meta.push('Station: '+esc(r.station));
+        if(r.skill) meta.push(esc(r.skill)+' Lv '+r.skill_level);
+        if(r.craft_time_sec) meta.push(r.craft_time_sec+'s');
+        return '<div class="recipe-card">'+
+          '<h3>'+esc(r.name)+'<span class="recipe-cat">'+esc(r.category)+'</span></h3>'+
+          (r.description?'<p class="recipe-desc">'+esc(r.description)+'</p>':'')+
+          '<div class="recipe-io">'+itemsHtml(r.inputs,'io-in')+
+            '<span class="io-arrow" aria-label="makes">→</span>'+
+            itemsHtml(r.outputs,'io-out')+'</div>'+
+          (meta.length?('<div class="recipe-meta">'+meta.map(function(m){return '<span>'+m+'</span>';}).join('')+'</div>'):'')+
+        '</div>';
+      }
+
+      function render(){
+        var q=query.trim().toLowerCase();
+        var filtered=recipes.filter(function(r){
+          if(activeCat!=='all' && r.category!==activeCat) return false;
+          if(!q) return true;
+          var hay=(r.name+' '+r.category+' '+r.station+' '+r.skill+' '+
+            r.inputs.map(function(i){return i.label;}).join(' ')+' '+
+            r.outputs.map(function(i){return i.label;}).join(' ')).toLowerCase();
+          return hay.indexOf(q)!==-1;
+        });
+        grid.innerHTML=filtered.map(card).join('');
+        emptyEl.hidden=filtered.length>0;
+        countEl.textContent=filtered.length+' of '+recipes.length+' recipes';
+      }
+
+      function buildFilters(){
+        var cats=['all'].concat(categories);
+        filtersEl.innerHTML=cats.map(function(c){
+          return '<button class="cat-chip" type="button" data-cat="'+esc(c)+'" aria-pressed="'+(c===activeCat)+'">'+esc(c)+'</button>';
+        }).join('');
+        Array.prototype.forEach.call(filtersEl.querySelectorAll('.cat-chip'),function(btn){
+          btn.addEventListener('click',function(){
+            activeCat=btn.dataset.cat;
+            Array.prototype.forEach.call(filtersEl.querySelectorAll('.cat-chip'),function(b){
+              b.setAttribute('aria-pressed', b.dataset.cat===activeCat ? 'true' : 'false');
+            });
+            render();
+          });
+        });
+      }
+
+      searchEl.addEventListener('input',function(){query=searchEl.value;render();});
+
+      fetch('/data/recipes.json',{cache:'no-cache'}).then(function(r){return r.json();}).then(function(d){
+        recipes=(d&&d.recipes)||[];
+        categories=(d&&d.categories)||[];
+        buildFilters();
+        render();
+      }).catch(function(){
+        countEl.textContent='';
+        grid.innerHTML='<div class="craft-empty">Could not load recipes right now. Please try again.</div>';
+      });
+    })();
   </script>
 </body>
 </html>
