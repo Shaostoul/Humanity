@@ -657,18 +657,22 @@ fn draw_scratchpad_row(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     );
 
     if ui.is_rect_visible(rect) {
+        // Active row = a wash of the scratchpad's own identity accent; hover /
+        // rest fall back to the shared surface tokens. All three follow the
+        // theme, so a restyle takes the scratchpad with it.
+        let sp = theme.scratchpad_accent();
         let bg = if is_active {
-            Color32::from_rgb(45, 40, 55)
+            Color32::from_rgba_unmultiplied(sp.r(), sp.g(), sp.b(), 70)
         } else if resp.hovered() {
-            Color32::from_rgb(40, 38, 48)
+            theme.bg_tertiary()
         } else {
-            Color32::from_rgb(32, 32, 38)
+            theme.bg_card()
         };
         ui.painter().rect_filled(rect, 0.0, bg);
 
         if is_active {
             let bar = egui::Rect::from_min_size(rect.min, Vec2::new(3.0, rect.height()));
-            ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(160, 140, 200));
+            ui.painter().rect_filled(bar, 0.0, sp);
         }
 
         let text_color = if is_active { theme.text_primary() } else { theme.text_secondary() };
@@ -714,6 +718,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     let mut dm_cog_clicked = false;
     if tinted_section_header_with_buttons(
         ui,
+        theme,
         &format!("DMs ({})", dm_count),
         collapsed,
         theme.dm_bg(),
@@ -857,10 +862,10 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         };
                         ui.painter().rect_filled(full_rect, 0.0, bg);
 
-                        // Active indicator bar
+                        // Active indicator bar, in the DM lane's identity accent.
                         if is_active {
                             let bar = egui::Rect::from_min_size(full_rect.min, Vec2::new(3.0, full_rect.height()));
-                            ui.painter().rect_filled(bar, 0.0, Color32::from_rgb(200, 80, 80));
+                            ui.painter().rect_filled(bar, 0.0, theme.dm_accent());
                         }
 
                         let mut cursor_x = full_rect.left() + theme.item_padding + 2.0;
@@ -1018,6 +1023,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if tinted_section_header_with_buttons(
         ui,
+        theme,
         &format!("Groups ({})", group_count),
         collapsed,
         theme.group_bg(),
@@ -1025,7 +1031,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // + button (create group)
             {
                 let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-                let plus_color = if plus_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+                let plus_color = if plus_resp.hovered() { Color32::WHITE } else { theme.text_secondary() };
                 crate::gui::widgets::icons::paint_plus(ui.painter(), plus_rect, plus_color);
                 if plus_resp.on_hover_text("Create Group").clicked() {
                     create_clicked = true;
@@ -1159,7 +1165,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let on_cog = cog_rect.contains(
                             ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()),
                         );
-                        let cog_color = if on_cog { theme.accent() } else { Color32::from_rgb(140, 140, 150) };
+                        let cog_color = if on_cog { theme.accent() } else { theme.text_muted() };
                         crate::gui::widgets::icons::paint_cog(
                             ui.painter(),
                             egui::Rect::from_center_size(cog_rect.center(), Vec2::splat(11.0)),
@@ -1286,9 +1292,9 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // Collapse arrow
                         let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
                         if group.collapsed {
-                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, theme.text_secondary());
                         } else {
-                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, theme.text_secondary());
                         }
                         cx += 14.0;
 
@@ -1297,7 +1303,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
                         let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
                         let on_cog = cog_click_rect.contains(hover_pos);
-                        let cog_color = if on_cog { theme.accent() } else { Color32::from_rgb(140, 140, 150) };
+                        let cog_color = if on_cog { theme.accent() } else { theme.text_muted() };
                         crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, cog_color);
                         if on_cog {
                             let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
@@ -1314,7 +1320,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // Unread dot (same look as the DM rows). (v0.717)
                         if group.unread {
                             let dot_r = theme.status_dot_size * 0.375;
-                            ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                            ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.danger());
                             cx += dot_r * 2.0 + 3.0;
                         }
 
@@ -1422,7 +1428,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                         crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
                                     } else {
                                         let on_voice = response.hovered() && voice_icon_rect.contains(hover_pos);
-                                        let mic_color = if on_voice { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
+                                        let mic_color = if on_voice { Color32::WHITE } else { theme.text_muted() };
                                         crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
                                     }
                                     cx += icon_size + 2.0;
@@ -1608,12 +1614,13 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let mut add_server_clicked = false;
     if tinted_section_header_with_buttons(
         ui,
+        theme,
         &header_label,
         collapsed,
         theme.server_bg(),
         |ui| {
             let (plus_rect, plus_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-            let plus_color = if plus_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+            let plus_color = if plus_resp.hovered() { Color32::WHITE } else { theme.text_secondary() };
             crate::gui::widgets::icons::paint_plus(ui.painter(), plus_rect, plus_color);
             if plus_resp.on_hover_text("Add Server").clicked() {
                 add_server_clicked = true;
@@ -1665,9 +1672,9 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         // Collapse arrow
                         let arrow_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
                         if svr_collapsed {
-                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                            crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_icon_rect, theme.text_secondary());
                         } else {
-                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, Color32::from_rgb(160, 160, 170));
+                            crate::gui::widgets::icons::paint_triangle_down(ui.painter(), arrow_icon_rect, theme.text_secondary());
                         }
                         cx += 14.0;
 
@@ -1676,7 +1683,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         let cog_icon_rect = egui::Rect::from_min_size(egui::pos2(cx, cy - 5.0), Vec2::splat(10.0));
                         let hover_pos = ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default());
                         let on_cog = cog_click_rect.contains(hover_pos);
-                        let cog_color = if on_cog { theme.accent() } else { Color32::from_rgb(140, 140, 150) };
+                        let cog_color = if on_cog { theme.accent() } else { theme.text_muted() };
                         crate::gui::widgets::icons::paint_cog(ui.painter(), cog_icon_rect, cog_color);
                         if on_cog {
                             let rgb = crate::gui::widgets::row::rgb_from_time(ctx_time);
@@ -1850,7 +1857,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                                     crate::gui::widgets::icons::paint_speaker(ui.painter(), icon_rect, theme.success());
                                 } else {
                                     let on_voice = response.hovered() && voice_icon_rect.contains(ui.ctx().input(|i| i.pointer.hover_pos().unwrap_or_default()));
-                                    let mic_color = if on_voice { Color32::WHITE } else { Color32::from_rgb(100, 100, 110) };
+                                    let mic_color = if on_voice { Color32::WHITE } else { theme.text_muted() };
                                     crate::gui::widgets::icons::paint_mic(ui.painter(), icon_rect, mic_color);
                                 }
                                 cx += icon_size + 2.0;
@@ -1865,7 +1872,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                             // 2. Unread dot (same look as the DM/group rows). (v0.718)
                             if ch.unread {
                                 let dot_r = theme.status_dot_size * 0.375;
-                                ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                                ui.painter().circle_filled(egui::pos2(cx + dot_r, cy), dot_r, theme.danger());
                                 cx += dot_r * 2.0 + 3.0;
                             }
 
@@ -2279,7 +2286,7 @@ fn draw_user_row(
 
     if ui.is_rect_visible(full_rect) {
         let bg = if response.hovered() {
-            Color32::from_rgb(45, 45, 55)
+            theme.bg_tertiary()
         } else {
             Color32::TRANSPARENT
         };
@@ -2328,12 +2335,14 @@ fn draw_user_row(
 
         // Role badge (single letter pill)
         if !role.is_empty() && role != "member" {
+            // Same role -> token mapping as widgets::role_badge, so the single
+            // badge palette in theme.ron drives every role pill in the app.
             let (badge_color, badge_letter) = match role {
-                "admin" => (Color32::from_rgb(231, 76, 60), "A"),
-                "mod" | "moderator" => (Color32::from_rgb(155, 89, 182), "M"),
-                "verified" => (Color32::from_rgb(52, 152, 219), "V"),
-                "donor" => (Color32::from_rgb(241, 196, 15), "D"),
-                _ => (Color32::from_rgb(100, 100, 100), "?"),
+                "admin" => (theme.badge_admin(), "A"),
+                "mod" | "moderator" => (theme.badge_mod(), "M"),
+                "verified" => (theme.badge_verified(), "V"),
+                "donor" => (theme.badge_donor(), "D"),
+                _ => (theme.text_muted(), "?"),
             };
             let badge_rect = egui::Rect::from_min_size(
                 egui::pos2(cx, cy - 7.0),
@@ -2552,9 +2561,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // as floating Areas anchored to the side-panel boundaries (see the
     // overlays at the bottom of `chat::draw`).
     Frame::NONE
-        .fill(Color32::from_rgb(25, 25, 30))
+        .fill(theme.bg_sidebar_dark())
         .inner_margin(egui::Margin::symmetric(16, 10))
-        .stroke(Stroke::new(1.0, Color32::from_rgb(40, 40, 48)))
+        .stroke(Stroke::new(1.0, theme.border()))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 // Force the horizontal layout (and therefore the Frame
@@ -2581,7 +2590,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.label(
                         RichText::new(format!("DM: {}", partner_name))
                             .size(theme.font_size_heading)
-                            .color(Color32::from_rgb(220, 120, 120))
+                            .color(theme.dm_accent())
                             .strong(),
                     );
                 } else if let Some(gid) = ac.strip_prefix("p2pgroup:") {
@@ -2601,7 +2610,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.label(
                         RichText::new(&group_name)
                             .size(theme.font_size_heading)
-                            .color(Color32::from_rgb(120, 220, 120))
+                            .color(theme.group_accent())
                             .strong(),
                     );
                     // E2EE signal via plain text — the egui font has no lock
@@ -2634,7 +2643,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     ui.label(
                         RichText::new(format!("Group: {}", group_name))
                             .size(theme.font_size_heading)
-                            .color(Color32::from_rgb(120, 220, 120))
+                            .color(theme.group_accent())
                             .strong(),
                     );
                 } else {
@@ -2750,11 +2759,14 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     });
                 }
 
-                // Track alternating user colors
+                // Track alternating user colors. The even/odd row stripes are the
+                // theme's dedicated table-striping tokens (bg_primary = base panel,
+                // row_stripe = the subtle odd-row stripe egui also uses for lists),
+                // so the message list restyles with the rest of the app.
                 let mut last_sender = String::new();
                 let mut sender_parity = false; // toggles each time sender changes
-                let bg_even = Color32::from_rgb(8, 8, 10);
-                let bg_odd = Color32::from_rgb(16, 16, 20);
+                let bg_even = theme.bg_primary();
+                let bg_odd = theme.row_stripe();
                 let ctx_time = ui.ctx().input(|i| i.time);
 
                 // Reactions clicked during render — applied after the loop ends
@@ -3607,7 +3619,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     ui.allocate_ui_at_rect(input_rect, |ui| {
         Frame::NONE
-            .fill(Color32::from_rgb(25, 25, 30))
+            .fill(theme.bg_sidebar_dark())
             .inner_margin(egui::Margin::symmetric(16, 8))
             .show(ui, |ui| {
                 // Reply banner — only shown when a reply context is active.
@@ -3671,7 +3683,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
 
                 Frame::NONE
-                    .fill(Color32::from_rgb(30, 30, 38))
+                    // The message text field is a raised input surface -> the
+                    // tertiary/extreme-bg token (what egui uses for text edits).
+                    .fill(theme.bg_tertiary())
                     .rounding(Rounding::same(theme.border_radius_lg as u8))
                     .stroke(Stroke::new(1.0, theme.border()))
                     .inner_margin(egui::Margin::symmetric(12, 8))
@@ -6335,9 +6349,11 @@ pub(crate) fn handle_p2p_group_obj(state: &mut GuiState, _peer: &str, frame_text
 /// horizontal wrapper or item spacing, so when the caller positions an
 /// Area at the panel boundary the button paints exactly there.
 /// Returns true if the button was clicked (toggle lock state).
-fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bool {
+fn draw_panel_lock_button(ui: &mut egui::Ui, theme: &Theme, locked: bool) -> bool {
     let tooltip = if locked { "Unlock panel width" } else { "Lock panel width" };
-    let color = if locked { Color32::from_rgb(200, 180, 100) } else { Color32::from_rgb(100, 100, 100) };
+    // Locked reads as an active "held" state (warning token); unlocked is a quiet
+    // muted glyph. Both from tokens so the lock affordance restyles with the app.
+    let color = if locked { theme.warning() } else { theme.text_muted() };
     let (rect, resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
     if locked {
         crate::gui::widgets::icons::paint_lock(ui.painter(), rect, color);
@@ -6349,8 +6365,8 @@ fn draw_panel_lock_button(ui: &mut egui::Ui, _theme: &Theme, locked: bool) -> bo
 
 /// Draw a collapsible section header with a tinted background.
 /// Returns true if the header was clicked (toggle).
-fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) -> bool {
-    tinted_section_header_with_buttons(ui, label, collapsed, bg, |_| {})
+fn tinted_section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, collapsed: bool, bg: Color32) -> bool {
+    tinted_section_header_with_buttons(ui, theme, label, collapsed, bg, |_| {})
 }
 
 /// Draw a tinted section header with optional right-aligned buttons.
@@ -6358,6 +6374,7 @@ fn tinted_section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Co
 /// Returns true if the collapse arrow area was clicked (toggle collapse).
 fn tinted_section_header_with_buttons(
     ui: &mut egui::Ui,
+    theme: &Theme,
     label: &str,
     collapsed: bool,
     bg: Color32,
@@ -6396,7 +6413,7 @@ fn tinted_section_header_with_buttons(
         egui::pos2(arrow_left, cy - arrow_size / 2.0),
         Vec2::splat(arrow_size),
     );
-    let arrow_color = Color32::from_rgb(180, 180, 180);
+    let arrow_color = theme.text_secondary();
     if collapsed {
         crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_rect, arrow_color);
     } else {
@@ -6409,8 +6426,8 @@ fn tinted_section_header_with_buttons(
         egui::pos2(label_x, cy),
         egui::Align2::LEFT_CENTER,
         label,
-        egui::FontId::proportional(12.0),
-        Color32::from_rgb(200, 200, 200),
+        egui::FontId::proportional(theme.font_size_small),
+        theme.text_primary(),
     );
 
     // Draw right-aligned buttons using a child UI positioned at the right side
@@ -6440,7 +6457,7 @@ fn section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, collapsed: bool
                 ui.add_space(10.0);
 
                 // Painted collapse/expand triangle
-                let arrow_color = Color32::from_rgb(180, 180, 180);
+                let arrow_color = theme.text_secondary();
                 let (arrow_rect, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
                 if collapsed {
                     crate::gui::widgets::icons::paint_triangle_right(ui.painter(), arrow_rect, arrow_color);
@@ -6449,8 +6466,8 @@ fn section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, collapsed: bool
                 }
                 ui.label(
                     RichText::new(label)
-                        .size(13.0)
-                        .color(Color32::from_rgb(200, 200, 200))
+                        .size(theme.font_size_small)
+                        .color(theme.text_primary())
                         .strong(),
                 );
             },

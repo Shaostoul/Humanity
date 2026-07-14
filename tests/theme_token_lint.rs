@@ -54,10 +54,11 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // Voice-meter state colors + status dots — semantic transient state
     // visualization. Roadmap calls these "mostly legitimate". Audit then
     // either annotate `theme-exempt` or move the palette to theme.ron.
-    "src/gui/pages/chat.rs",
+    // chat.rs migrated to theme tokens 2026-07-14 (v0.851): lane accents
+    // (dm_accent/group_accent/scratchpad_accent) added to theme.ron, role
+    // badges routed to the badge_* palette, header/input surfaces to
+    // bg_sidebar_dark/bg_tertiary, message stripes to bg_primary/row_stripe.
     "src/gui/widgets/row.rs",
-    "src/gui/widgets/passphrase_modal.rs",
-    "src/gui/widgets/mod.rs",
     "src/gui/widgets/alert.rs",
     "src/gui/widgets/image_cache_view.rs",
     // Page-level palettes (category colors, avatar placeholders, semantic
@@ -67,9 +68,7 @@ const LEGACY_OFFENDERS: &[&str] = &[
     "src/gui/pages/hud.rs",
     "src/gui/pages/maps.rs",
     "src/gui/pages/market.rs",
-    "src/gui/pages/placeholder.rs",
     "src/gui/pages/profile.rs",
-    "src/gui/pages/settings.rs",
     "src/gui/pages/server_settings.rs",
     // studio.rs migrated to theme tokens 2026-07-02 (v0.672) and REMOVED from
     // this list -- the first shrink since enforcement began. Its one remaining

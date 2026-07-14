@@ -548,83 +548,10 @@
   <!-- User Context Menu -->
   <div id="user-context-menu"></div>
 
-  <!-- Edit Profile Modal -->
-  <div id="edit-profile-overlay" class="profile-modal-overlay" onclick="closeEditProfileModal(event)">
-    <div class="profile-modal" onclick="event.stopPropagation()">
-      <button class="close-btn" onclick="closeEditProfileOverlay()">✕</button>
-      <h2>✏️ Edit Profile</h2>
-
-      <!-- Avatar & Banner URLs -->
-      <label for="profile-avatar-url">🖼️ Avatar URL</label>
-      <input type="text" id="profile-avatar-url" maxlength="512" placeholder="https://example.com/avatar.png">
-      <label for="profile-banner-url">🏔️ Banner URL</label>
-      <input type="text" id="profile-banner-url" maxlength="512" placeholder="https://example.com/banner.png">
-
-      <!-- Bio -->
-      <label for="profile-bio">📝 Bio</label>
-      <textarea id="profile-bio" rows="3" maxlength="280" placeholder="Tell people about yourself…"></textarea>
-      <div class="bio-counter" id="bio-counter">0 / 280</div>
-
-      <!-- Privacy-toggleable fields, lock icon toggles public ↔ private -->
-      <div class="profile-field-row">
-        <label for="profile-pronouns">🏷️ Pronouns</label>
-        <button type="button" class="privacy-toggle" id="privacy-pronouns" data-field="pronouns"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('pronouns')">🌐</button>
-      </div>
-      <input type="text" id="profile-pronouns" maxlength="64" placeholder="she/her, he/him, they/them…">
-
-      <div class="profile-field-row">
-        <label for="profile-location">📍 Location</label>
-        <button type="button" class="privacy-toggle" id="privacy-location" data-field="location"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('location')">🌐</button>
-      </div>
-      <input type="text" id="profile-location" maxlength="128" placeholder="City, Country">
-
-      <div class="profile-field-row">
-        <label for="profile-website-url">🌐 Website</label>
-        <button type="button" class="privacy-toggle" id="privacy-website" data-field="website"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('website')">🌐</button>
-      </div>
-      <input type="text" id="profile-website-url" maxlength="256" placeholder="https://yoursite.com">
-
-      <!-- Member-directory listing opt-out (audit 2026-06-12). Separate from the
-           per-field locks above: this controls whether you appear in this server's
-           public member directory at all. -->
-      <div class="profile-field-row">
-        <label for="privacy-directory">👥 List me in the public member directory</label>
-        <input type="checkbox" id="privacy-directory" checked
-          data-tip-title="Member Directory"
-          data-tip-desc="When on, you appear in this server's public member list. Turn it off to join and chat without being listed.">
-      </div>
-
-      <!-- Social handles (always public, shown in bio card) -->
-      <label for="profile-website">🌐 Socials, Website</label>
-      <input type="text" id="profile-website" maxlength="200" placeholder="https://yoursite.com">
-      <label for="profile-discord">💬 Discord</label>
-      <input type="text" id="profile-discord" maxlength="100" placeholder="username">
-      <label for="profile-twitter">𝕏 X / Twitter</label>
-      <input type="text" id="profile-twitter" maxlength="100" placeholder="handle (without @)">
-      <label for="profile-youtube">▶️ YouTube</label>
-      <input type="text" id="profile-youtube" maxlength="200" placeholder="https://youtube.com/@channel or channel name">
-      <label for="profile-github">🐙 GitHub</label>
-      <input type="text" id="profile-github" maxlength="200" placeholder="username">
-
-      <p style="font-size:0.7rem;color:var(--text-muted);margin:0.3rem 0 0.6rem;">
-        🌐 = visible to everyone &nbsp;·&nbsp; 🔒 = visible to friends only
-      </p>
-
-      <div class="btn-row">
-        <button class="btn-cancel" onclick="closeEditProfileOverlay()">Cancel</button>
-        <button class="btn-save" onclick="saveProfile()">Save</button>
-      </div>
-    </div>
-  </div>
+  <!-- Edit-Profile modal REMOVED v0.855: profile editing is now the standalone
+       /profile page (the fuller surface, and it mirrors native's profile.rs page).
+       openEditProfileModal() in chat-profile.js opens that page; this dead markup
+       and its onclick="saveProfile()" handlers are gone so nothing stale can fire. -->
 
   <!-- Incoming Call Modal -->
   <div id="incoming-call-overlay">

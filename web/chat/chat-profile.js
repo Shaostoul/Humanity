@@ -1,204 +1,100 @@
 // ── Profile System ──
-// Goal: manage local profile storage, the Edit Profile modal, the View Profile
-// overlay, and the client-side block list.
+// Goal: keep the local profile store in sync with the relay, render the View
+// Profile overlay, and manage the client-side block list.
+//
+// CANONICAL PROFILE EDITOR (2026-07-14, docs/UI-AUDIT.md section 5):
+// the standalone /profile PAGE (web/pages/profile.html) is the ONE place a user
+// edits their profile. It mirrors the native app's Profile page
+// (src/gui/pages/profile.rs) and is the fuller surface (network profile, socials,
+// interests, skills, streaming, private-only sections).
+//
+// The old in-chat "Edit Profile" modal was a SECOND editor over the same data and
+// had already drifted (it only knew a subset of the fields, and the page kept its
+// own separate localStorage key). It is retired:
+//   - openEditProfileModal() now ROUTES every in-chat entry point to /profile
+//     (the /profile command, the Account nav hash, onboarding step 4, the sidebar
+//     link, which already pointed at the page).
+//   - The leftover #edit-profile-overlay markup in chat/index.html is stripped
+//     from the DOM on load (see removeRetiredEditProfileModal below) so its inline
+//     onclick handlers can never fire now that the modal functions are gone.
+//   - FOLLOW-UP for whoever next owns chat/index.html: delete the "Edit Profile
+//     Modal" block (the #edit-profile-overlay div). Nothing references it any more.
+//
+// The /profile page writes the SAME localStorage object this file reads
+// (`humanity_profile`), and this file owns the only push path to the relay
+// (WS `profile_update`): on connect, and immediately via the cross-tab `storage`
+// event when the page saves while chat is open.
+//
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
 //   addSystemMessage, reRenderMessagesForBlockChange, rerenderUserList.
+
+/** Canonical local store for the network-facing profile. Also written by /profile. */
+const PROFILE_LS_KEY = 'humanity_profile';
 
 /** name (lowercase) → { bio, socials, avatar_url, banner_url, pronouns, location, website } */
 let profileCache = {};
 let lastProfileUpdateSent = 0;
 let pendingProfileView = null; // name we're waiting for profile_data on
-/** per-field privacy state while the edit modal is open: field → 'private' | 'public' */
-let editPrivacyMap = {};
 
 /** Persist the full profile object to localStorage for offline pre-fill. */
 function saveProfileLocal(data) {
-  localStorage.setItem('humanity_profile', JSON.stringify(data));
+  localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(data));
 }
 /** Load the locally cached profile object. */
 function loadProfileLocal() {
   try {
-    return JSON.parse(localStorage.getItem('humanity_profile') || '{}');
+    return JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || '{}');
   } catch { return {}; }
 }
 
-/**
- * Toggle the privacy state of a profile field between public and private.
- * Called by the lock-icon button beside each privacy-capable field.
- * @param {string} field - The field name (e.g. 'pronouns', 'location', 'website').
- */
-function togglePrivacyField(field) {
-  const isPrivate = editPrivacyMap[field] === 'private';
-  editPrivacyMap[field] = isPrivate ? 'public' : 'private';
-  const btn = document.getElementById('privacy-' + field);
-  if (btn) {
-    btn.innerHTML = editPrivacyMap[field] === 'private' ? hosIcon('lock', 14) : '🌐';
-    btn.classList.toggle('is-private', editPrivacyMap[field] === 'private');
-    btn.title = editPrivacyMap[field] === 'private' ? 'Visible to friends only, click to make public' : 'Visible to everyone, click to make private';
-  }
-}
+// The retired modal's markup still ships in chat/index.html and its buttons carry
+// inline onclick="saveProfile()" / "togglePrivacyField(...)" handlers for functions
+// that no longer exist. Remove the node so those handlers are unreachable and no
+// stale second editor can be surfaced by accident.
+(function removeRetiredEditProfileModal() {
+  const dead = document.getElementById('edit-profile-overlay');
+  if (dead && dead.parentNode) dead.parentNode.removeChild(dead);
+})();
 
-// ── Edit Profile Modal ──
 /**
- * Open the Edit Profile modal and pre-fill all fields from local storage.
- * Also resets the per-field privacy toggles to match the saved privacy map.
+ * The single "edit my profile" entry point for the chat client. Every in-chat
+ * affordance calls this (the /profile command in chat-ui.js, the #profile hash
+ * from the Account nav button in app.js, onboarding step 4). It no longer opens a
+ * modal, it routes to the canonical editor at /profile.
+ *
+ * Preference is a NEW TAB so the chat socket stays alive and no in-progress flow
+ * (onboarding, a call, an unsent draft) is torn down. When the browser blocks the
+ * popup we fall back to navigating in place, which always works.
+ *
+ * Kept under the old name deliberately: it is the name all four call sites use,
+ * and renaming it would mean editing files this change does not own.
  */
 function openEditProfileModal() {
-  const overlay = document.getElementById('edit-profile-overlay');
-  const local = loadProfileLocal();
-  const socials = local.socials || {};
-
-  // Core fields.
-  document.getElementById('profile-bio').value = local.bio || '';
-  document.getElementById('profile-avatar-url').value = local.avatar_url || '';
-  document.getElementById('profile-banner-url').value = local.banner_url || '';
-  document.getElementById('profile-pronouns').value = local.pronouns || '';
-  document.getElementById('profile-location').value = local.location || '';
-  document.getElementById('profile-website-url').value = local.website || '';
-
-  // Social handles (stored inside the socials object).
-  document.getElementById('profile-website').value = socials.website || '';
-  document.getElementById('profile-discord').value = socials.discord || '';
-  document.getElementById('profile-twitter').value = socials.twitter || '';
-  document.getElementById('profile-youtube').value = socials.youtube || '';
-  document.getElementById('profile-github').value = socials.github || '';
-
-  // Restore privacy toggles.
-  editPrivacyMap = Object.assign({}, local.privacy || {});
-  for (const field of ['pronouns', 'location', 'website']) {
-    const isPrivate = editPrivacyMap[field] === 'private';
-    const btn = document.getElementById('privacy-' + field);
-    if (btn) {
-      btn.innerHTML = isPrivate ? hosIcon('lock', 14) : '🌐';
-      btn.classList.toggle('is-private', isPrivate);
+  let opened = null;
+  try { opened = window.open('/profile', '_blank'); } catch (e) { opened = null; }
+  if (opened) {
+    try { opened.opener = null; } catch (e) { /* cross-origin guard, same-origin here */ }
+    if (typeof addSystemMessage === 'function') {
+      addSystemMessage('Opened your profile page in a new tab. Anything you save there syncs back here right away.');
     }
+    return;
   }
-
-  // Member-directory opt-out (audit 2026-06-12). A separate checkbox, not a
-  // per-field lock: checked = listed in the server's public member directory;
-  // unchecked = directory:"unlisted" (the relay hides you from /api/members).
-  const dirToggle = document.getElementById('privacy-directory');
-  if (dirToggle) dirToggle.checked = editPrivacyMap.directory !== 'unlisted';
-
-  updateBioCounter();
-  overlay.classList.add('open');
+  window.location.href = '/profile'; // popup blocked, go there in this tab
 }
 
-function closeEditProfileModal(e) {
-  if (e.target === document.getElementById('edit-profile-overlay')) {
-    closeEditProfileOverlay();
-  }
-}
-function closeEditProfileOverlay() {
-  document.getElementById('edit-profile-overlay').classList.remove('open');
-}
-
-function updateBioCounter() {
-  const bio = document.getElementById('profile-bio').value;
-  const counter = document.getElementById('bio-counter');
-  counter.textContent = bio.length + ' / 280';
-  counter.className = 'bio-counter' + (bio.length > 280 ? ' over' : bio.length > 240 ? ' warn' : '');
-}
-
-document.getElementById('profile-bio').addEventListener('input', updateBioCounter);
-
-/**
- * Read all profile modal fields, save locally, and push to the server.
- * Includes the new extended fields (avatar, banner, pronouns, location, website)
- * along with the per-field privacy map collected from the lock-icon toggles.
- */
-function saveProfile() {
-  const bio = document.getElementById('profile-bio').value.trim().substring(0, 280);
-  const avatar_url = document.getElementById('profile-avatar-url').value.trim().substring(0, 512);
-  const banner_url = document.getElementById('profile-banner-url').value.trim().substring(0, 512);
-  const pronouns   = document.getElementById('profile-pronouns').value.trim().substring(0, 64);
-  const location   = document.getElementById('profile-location').value.trim().substring(0, 128);
-  const website    = document.getElementById('profile-website-url').value.trim().substring(0, 256);
-
-  const socials = {
-    website: document.getElementById('profile-website').value.trim().substring(0, 200),
-    discord: document.getElementById('profile-discord').value.trim().substring(0, 100),
-    twitter: document.getElementById('profile-twitter').value.trim().substring(0, 100),
-    youtube: document.getElementById('profile-youtube').value.trim().substring(0, 200),
-    github:  document.getElementById('profile-github').value.trim().substring(0, 200),
-  };
-
-  // Strip empty socials fields before serialising.
-  const cleanSocials = {};
-  for (const [k, v] of Object.entries(socials)) {
-    if (v) cleanSocials[k] = v;
-  }
-
-  // Build a clean privacy map: only include fields that are explicitly set to private.
-  const privacyMap = {};
-  for (const [field, state] of Object.entries(editPrivacyMap)) {
-    if (state === 'private') privacyMap[field] = 'private';
-  }
-  // Member-directory opt-out (separate from the per-field locks): when the user
-  // un-checks "list me in the directory", persist directory:"unlisted" so the relay
-  // hides them from the public /api/members directory (audit 2026-06-12).
-  const dirToggle = document.getElementById('privacy-directory');
-  if (dirToggle && !dirToggle.checked) privacyMap.directory = 'unlisted';
-
-  // Save all fields locally so the modal pre-fills correctly next time.
-  saveProfileLocal({ bio, socials: cleanSocials, avatar_url, banner_url, pronouns, location, website, privacy: privacyMap });
-
-  // Push to server.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const now = Date.now();
-    if (now - lastProfileUpdateSent < 30000) {
-      addSystemMessage('⏳ Please wait 30 seconds between profile updates.');
-    } else {
-      lastProfileUpdateSent = now;
-      ws.send(JSON.stringify({
-        type: 'profile_update',
-        bio,
-        socials: JSON.stringify(cleanSocials),
-        avatar_url: avatar_url || undefined,
-        banner_url: banner_url || undefined,
-        pronouns:   pronouns   || undefined,
-        location:   location   || undefined,
-        website:    website    || undefined,
-        privacy:    JSON.stringify(privacyMap),
-      }));
-      addSystemMessage('Profile saved.');
-    }
-  } else {
-    addSystemMessage('Profile saved locally. It will sync when you connect.');
-  }
-
-  closeEditProfileOverlay();
-}
-
-/**
- * Push locally cached profile data to the server on connect so the server
- * has the latest version after a page reload or new device login.
- */
-function syncProfileOnConnect() {
-  // Merge any pending sync from the standalone profile.html page.
-  let local = loadProfileLocal();
-  try {
-    const pending = JSON.parse(localStorage.getItem('humanity_profile_pending_sync') || 'null');
-    if (pending) {
-      if (pending.bio)        local.bio        = pending.bio;
-      if (pending.avatar_url) local.avatar_url = pending.avatar_url;
-      if (pending.banner_url) local.banner_url = pending.banner_url;
-      if (pending.pronouns)   local.pronouns   = pending.pronouns;
-      if (pending.location)   local.location   = pending.location;
-      if (pending.website)    local.website    = pending.website;
-      saveProfileLocal(local);
-      localStorage.removeItem('humanity_profile_pending_sync');
-    }
-  } catch (e) { /* ignore parse errors */ }
-
-  const hasData = local.bio
+/** True when the locally stored profile holds anything worth sending. */
+function hasProfileData(local) {
+  return !!(local.bio
     || (local.socials && Object.keys(local.socials).length > 0)
     || local.avatar_url || local.banner_url
-    || local.pronouns  || local.location || local.website;
-  if (!hasData) return;
+    || local.pronouns || local.location || local.website
+    || (local.privacy && Object.keys(local.privacy).length > 0));
+}
 
-  ws.send(JSON.stringify({
+/** Shape the locally stored profile into the relay's profile_update message. */
+function buildProfileUpdate(local) {
+  return {
     type: 'profile_update',
     bio:        local.bio        || '',
     socials:    JSON.stringify(local.socials || {}),
@@ -207,10 +103,54 @@ function syncProfileOnConnect() {
     pronouns:   local.pronouns   || undefined,
     location:   local.location   || undefined,
     website:    local.website    || undefined,
+    // privacy: per-field locks ({pronouns|location|website: "private"}) plus the
+    // member-directory opt-out ({directory: "unlisted"} hides you from /api/members).
     privacy:    JSON.stringify(local.privacy || {}),
-  }));
-  lastProfileUpdateSent = Date.now();
+  };
 }
+
+let profilePushTimer = null;
+
+/**
+ * Push the locally stored profile to the relay. This is the ONLY write path to
+ * the server's copy of the profile; the /profile page edits the local store and
+ * this function ships it.
+ *
+ * Self-throttled to one update per 30s (the server's rate limit). A save inside
+ * that window is DEFERRED, not dropped, so the last edit always lands.
+ */
+function pushProfileToRelay() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const local = loadProfileLocal();
+  if (!hasProfileData(local)) return;
+
+  const waitMs = 30000 - (Date.now() - lastProfileUpdateSent);
+  if (waitMs > 0) {
+    clearTimeout(profilePushTimer);
+    profilePushTimer = setTimeout(pushProfileToRelay, waitMs + 100);
+    return;
+  }
+  lastProfileUpdateSent = Date.now();
+  ws.send(JSON.stringify(buildProfileUpdate(local)));
+}
+
+/**
+ * Push locally cached profile data to the server on connect so the server has the
+ * latest version after a page reload, a new device login, or edits made on
+ * /profile while chat was closed. Called from app.js once the socket is open.
+ */
+function syncProfileOnConnect() {
+  pushProfileToRelay();
+}
+
+// Cross-tab sync: the /profile page writes the same `humanity_profile` store, and
+// the browser fires `storage` in THIS tab when another tab changes it. So a chat
+// tab that is already connected ships profile edits to the relay the moment the
+// user saves them on the profile page, instead of waiting for a reconnect.
+window.addEventListener('storage', (e) => {
+  if (e.key !== PROFILE_LS_KEY) return;
+  pushProfileToRelay();
+});
 
 // ── View Profile Modal ──
 /**
@@ -1177,7 +1117,7 @@ function openKeyProtectionModal() {
         <input id="kp-pass2" type="password" placeholder="Confirm passphrase…" autocomplete="new-password"
           style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none">
       </div>
-      <div id="kp-msg" style="font-size:.75rem;margin-bottom:.var(--space-md);min-height:1.2em"></div>
+      <div id="kp-msg" style="font-size:.75rem;margin-bottom:var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
         <button onclick="document.getElementById('key-protection-overlay').remove()"
           style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
@@ -1235,7 +1175,7 @@ function doRemoveKeyProtection() {
 
 // (Key-rotation UI removed v0.845.2: the relay's key_rotation WS route was
 // deleted in Inc5b/v0.265 and no caller remained, so the modal sent an ignored
-// message yet swapped the local key regardless — a desync hazard. In-app key
+// message yet swapped the local key regardless, a desync hazard. In-app key
 // replacement now lives in the native Settings "Replace Identity" flow.)
 
 /** Force re-render user list with updated block indicators. */

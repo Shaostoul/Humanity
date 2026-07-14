@@ -658,25 +658,25 @@ document.getElementById('peer-list').addEventListener('contextmenu', function(e)
 // Profile system, block list -> see chat-profile.js
 
 // ── Import file handler (login screen) ──
-// Handles both plain JSON backups and passphrase-encrypted backups.
+// The hidden #import-file-input on the login screen (index.html) points here.
+// It no longer owns a modal of its own: it parses the picked file and hands it
+// to the ONE restore surface (openLoginRestoreModal below), opened on its
+// "Backup file" tab. Plain and passphrase-encrypted backups both land there, so
+// there is a single place where the user sees what is about to become their
+// identity on this device, with a Cancel.
 async function handleImportFile(event) {
   const file = event.target.files[0];
   if (!file) return;
+  const errEl = document.getElementById('login-error');
   try {
-    const text = await file.text();
-    const jsonData = JSON.parse(text);
-
-    if (jsonData.encrypted) {
-      // Show passphrase modal for encrypted backups
-      showPassphraseModal(jsonData);
-    } else {
-      const identity = await importIdentityFromJSON(jsonData);
-      finishImport(identity);
-    }
+    const jsonData = JSON.parse(await file.text());
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    openLoginRestoreModal({ tab: 'file', backup: jsonData, fileName: file.name });
   } catch (e) {
-    const errEl = document.getElementById('login-error');
-    errEl.textContent = '❌ Import failed: ' + e.message;
-    errEl.style.display = 'block';
+    if (errEl) {
+      errEl.textContent = '❌ Import failed: ' + e.message;
+      errEl.style.display = 'block';
+    }
   }
   // Reset file input so the same file can be re-selected
   event.target.value = '';
@@ -692,165 +692,445 @@ function finishImport(identity) {
   connect();
 }
 
-/** Modal for entering passphrase to decrypt an encrypted backup. */
-function showPassphraseModal(jsonData) {
+// ── Restore your identity (login screen) ─────────────────────────────────────
+// ONE surface, two methods. This used to be two modals that asked for different
+// halves of the same question ("how do you want to prove this identity is
+// yours?"): a seed-phrase modal, and a passphrase modal that only appeared when
+// an encrypted backup file happened to be picked (and was the last chat modal
+// still painted in hardcoded hex). They are one tabbed modal now:
+//
+//   Seed phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
+//   Backup file  -> importIdentityBackup()         (plain OR encrypted .json)
+//
+// NO KEY HANDLING LIVES HERE. Both tabs call the SAME crypto.js functions the
+// old modals called, with the same arguments. This code only collects input,
+// shape-checks it (via the shared normalizeMnemonicInput in crypto.js, so the
+// word rules cannot drift between restore surfaces), and reports errors.
+// Secrets are never logged, never put in the URL, and never written anywhere
+// except through those existing crypto.js paths.
+//
+// Styling is 100% theme tokens (data/gui/theme.ron -> theme.css). No hex.
+
+/**
+ * Open the restore modal.
+ * @param {object} [opts]
+ * @param {'seed'|'file'} [opts.tab='seed'] - Tab to open on.
+ * @param {object} [opts.backup]   - Already-parsed backup JSON, pre-staged on the
+ *                                   file tab (the login screen's Import button
+ *                                   parses the file, then hands it over).
+ * @param {string} [opts.fileName] - Its filename, echoed back so the user can
+ *                                   confirm they picked the right file.
+ */
+function openLoginRestoreModal(opts) {
+  opts = opts || {};
+
+  // Only ever one restore surface on screen.
+  const existing = document.getElementById('login-restore-overlay');
+  if (existing) existing.remove();
+
+  // The staged backup lives in this closure for the life of the modal: not in
+  // localStorage, not on window, and gone the moment the modal closes.
+  let stagedBackup = opts.backup || null;
+  let stagedFileName = opts.fileName || '';
+
   const overlay = document.createElement('div');
-  overlay.id = 'passphrase-modal-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.id = 'login-restore-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg-modal);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent,#f80);margin:0 0 .5rem">🔒 Encrypted Backup</h2>
-      <p style="font-size:.82rem;color:#888;line-height:1.5;margin:0 0 1rem">Enter the passphrase you used when creating this backup.</p>
-      <div style="position:relative;margin-bottom:.75rem">
-        <input id="pp-input" type="password" placeholder="Passphrase" autocomplete="current-password"
-          style="width:100%;background:#111;border:1px solid #333;border-radius:6px;padding:.5rem .75rem;padding-right:2.5rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box">
-        <button id="pp-toggle" type="button" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#666;cursor:pointer;font-size:.75rem;padding:4px 6px" title="Show/hide passphrase">Show</button>
-      </div>
-      <div id="pp-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
-      <div style="display:flex;gap:.5rem;justify-content:flex-end">
-        <button id="pp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="pp-submit" style="background:var(--accent,#f80);color:#000;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer">Decrypt & Import</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const input = document.getElementById('pp-input');
-  const toggle = document.getElementById('pp-toggle');
-  const msg = document.getElementById('pp-msg');
-  const submit = document.getElementById('pp-submit');
-
-  // Show/hide passphrase toggle
-  toggle.addEventListener('click', () => {
-    const isPassword = input.type === 'password';
-    input.type = isPassword ? 'text' : 'password';
-    toggle.textContent = isPassword ? 'Hide' : 'Show';
-  });
-
-  // Cancel
-  document.getElementById('pp-cancel').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  // Submit
-  async function doSubmit() {
-    const pass = input.value;
-    if (!pass) { msg.innerHTML = '<span style="color:#e55">Enter your passphrase.</span>'; return; }
-    submit.disabled = true; submit.textContent = 'Decrypting…';
-    msg.innerHTML = '';
-    try {
-      const identity = await importIdentityBackup(jsonData, pass);
-      overlay.remove();
-      finishImport(identity);
-    } catch (e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed') + '</span>';
-      submit.disabled = false; submit.textContent = 'Decrypt & Import';
-    }
-  }
-  submit.addEventListener('click', doSubmit);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSubmit(); });
-  input.focus();
-}
-
-// ── Login-screen seed phrase recovery ──
-// Shows a modal with a textarea for 24 words + a name input, then restores
-// the identity and connects to the network without a page reload.
-function openLoginSeedRecovery() {
-  const overlay = document.createElement('div');
-  overlay.id = 'login-seed-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
-
-  overlay.innerHTML = `
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Recover from Seed Phrase</h2>
-      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
-        Enter the 24-word recovery phrase and choose a display name to rejoin the network.
+    <style>
+      #login-restore-overlay [hidden] { display: none !important; }
+      #login-restore-overlay .lr-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-2xl);
+        width: 100%;
+        max-width: 540px;
+        max-height: 90vh;
+        overflow-y: auto;
+        color: var(--text);
+        box-sizing: border-box;
+      }
+      #login-restore-overlay h2 {
+        font-size: var(--text-base);
+        font-weight: 700;
+        color: var(--accent);
+        margin: 0 0 var(--space-sm);
+      }
+      #login-restore-overlay .lr-sub {
+        font-size: var(--text-sm);
+        color: var(--text-muted);
+        line-height: 1.5;
+        margin: 0 0 var(--space-xl);
+      }
+      #login-restore-overlay .lr-tabs {
+        display: flex;
+        gap: var(--space-sm);
+        border-bottom: 1px solid var(--border);
+        margin-bottom: var(--space-xl);
+      }
+      #login-restore-overlay .lr-tab {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        color: var(--text-muted);
+        font: inherit;
+        font-size: var(--text-sm);
+        padding: var(--space-md) var(--space-lg);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-tab:hover { color: var(--text); }
+      #login-restore-overlay .lr-tab[aria-selected="true"] {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: 700;
+      }
+      #login-restore-overlay .lr-field { margin-bottom: var(--space-lg); }
+      #login-restore-overlay label {
+        display: block;
+        font-size: var(--text-sm);
+        color: var(--text-muted);
+        margin-bottom: var(--space-sm);
+      }
+      #login-restore-overlay input[type="text"],
+      #login-restore-overlay input[type="password"],
+      #login-restore-overlay input[type="file"],
+      #login-restore-overlay textarea {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text);
+        font-size: var(--text-sm);
+        outline: none;
+        box-sizing: border-box;
+      }
+      #login-restore-overlay input[type="file"] { color: var(--text-muted); cursor: pointer; }
+      #login-restore-overlay textarea {
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+        resize: vertical;
+      }
+      #login-restore-overlay input:focus,
+      #login-restore-overlay textarea:focus { border-color: var(--border-focus); }
+      #login-restore-overlay .lr-pass-wrap { position: relative; }
+      #login-restore-overlay .lr-pass-wrap input { padding-right: var(--space-3xl); }
+      #login-restore-overlay .lr-reveal {
+        position: absolute;
+        right: var(--space-sm);
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font: inherit;
+        font-size: var(--text-xs);
+        padding: var(--space-xs) var(--space-sm);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-reveal:hover { color: var(--text); }
+      #login-restore-overlay .lr-hint {
+        font-size: var(--text-xs);
+        color: var(--text-muted);
+        margin-top: var(--space-sm);
+        line-height: 1.5;
+      }
+      #login-restore-overlay .lr-hint.ok { color: var(--success); }
+      #login-restore-overlay .lr-msg {
+        font-size: var(--text-sm);
+        color: var(--danger);
+        min-height: 1.2em;
+        margin-bottom: var(--space-lg);
+        line-height: 1.5;
+      }
+      #login-restore-overlay .lr-actions {
+        display: flex;
+        gap: var(--space-lg);
+        justify-content: flex-end;
+      }
+      #login-restore-overlay .lr-btn {
+        background: none;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        border-radius: var(--radius);
+        padding: var(--space-md) var(--space-xl);
+        font: inherit;
+        font-size: var(--text-sm);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-btn:hover { color: var(--text); border-color: var(--border-focus); }
+      #login-restore-overlay .lr-btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--text-on-accent);
+        font-weight: 700;
+      }
+      #login-restore-overlay .lr-btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        color: var(--text-on-accent);
+      }
+      #login-restore-overlay .lr-btn[disabled] { opacity: 0.6; cursor: default; }
+      #login-restore-overlay :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+    </style>
+    <div class="lr-card" role="dialog" aria-modal="true" aria-labelledby="lr-title">
+      <h2 id="lr-title">🔑 Restore your identity</h2>
+      <p class="lr-sub">
+        Two ways back in: the 24 words you wrote down, or a backup file you saved.
+        Both rebuild the same key in this browser. Nothing is uploaded.
       </p>
 
-      <div style="margin-bottom:var(--space-lg)">
-        <label for="lsr-name" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Display name</label>
-        <input id="lsr-name" type="text" placeholder="Choose a name" autocomplete="off" maxlength="24"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none;box-sizing:border-box">
+      <div class="lr-tabs" role="tablist" aria-label="Restore method">
+        <button type="button" class="lr-tab" id="lr-tab-seed" role="tab"
+          aria-selected="true" aria-controls="lr-panel-seed">🌱 Seed phrase</button>
+        <button type="button" class="lr-tab" id="lr-tab-file" role="tab"
+          aria-selected="false" aria-controls="lr-panel-file" tabindex="-1">💾 Backup file</button>
       </div>
 
-      <div style="margin-bottom:var(--space-lg)">
-        <label for="lsr-words" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Recovery phrase (24 words)</label>
-        <textarea id="lsr-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
-        <div id="lsr-word-count" style="font-size:.7rem;color:var(--text-muted);margin:var(--space-sm) 0 0">0 / 24 words</div>
-      </div>
+      <section id="lr-panel-seed" role="tabpanel" aria-labelledby="lr-tab-seed">
+        <div class="lr-field">
+          <label for="lr-name">Display name</label>
+          <input id="lr-name" type="text" placeholder="Choose a name" autocomplete="off" maxlength="24">
+        </div>
+        <div class="lr-field">
+          <label for="lr-words">Recovery phrase (24 words)</label>
+          <textarea id="lr-words" rows="3" placeholder="word1 word2 word3 … word24"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            aria-describedby="lr-word-count"></textarea>
+          <div id="lr-word-count" class="lr-hint" aria-live="polite">0 / 24 words</div>
+        </div>
+        <div id="lr-seed-msg" class="lr-msg" role="status" aria-live="polite"></div>
+        <div class="lr-actions">
+          <button type="button" class="lr-btn" data-lr-close>Cancel</button>
+          <button type="button" class="lr-btn lr-btn-primary" id="lr-seed-submit">Recover and connect</button>
+        </div>
+      </section>
 
-      <div id="lsr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
-      <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button id="lsr-cancel"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="lsr-submit"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:700;cursor:pointer">Recover & Connect</button>
-      </div>
+      <section id="lr-panel-file" role="tabpanel" aria-labelledby="lr-tab-file" hidden>
+        <div class="lr-field">
+          <label for="lr-file">Backup file (.json)</label>
+          <input id="lr-file" type="file" accept=".json,application/json" aria-describedby="lr-file-name">
+          <div id="lr-file-name" class="lr-hint" aria-live="polite"></div>
+        </div>
+        <div class="lr-field" id="lr-pass-field">
+          <label for="lr-pass">Passphrase</label>
+          <div class="lr-pass-wrap">
+            <input id="lr-pass" type="password" placeholder="Passphrase" autocomplete="off"
+              autocorrect="off" autocapitalize="off" spellcheck="false" aria-describedby="lr-pass-hint">
+            <button type="button" class="lr-reveal" id="lr-pass-toggle"
+              aria-pressed="false" aria-label="Show passphrase">Show</button>
+          </div>
+          <div id="lr-pass-hint" class="lr-hint">Only encrypted backups need one. Leave it blank for a plain backup file.</div>
+        </div>
+        <div id="lr-file-msg" class="lr-msg" role="status" aria-live="polite"></div>
+        <div class="lr-actions">
+          <button type="button" class="lr-btn" data-lr-close>Cancel</button>
+          <button type="button" class="lr-btn lr-btn-primary" id="lr-file-submit">Decrypt and import</button>
+        </div>
+      </section>
     </div>
   `;
   document.body.appendChild(overlay);
 
-  // Close on overlay click or Cancel
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('lsr-cancel').addEventListener('click', () => overlay.remove());
+  // Scope every lookup to the overlay: ids stay local to this modal and can
+  // never collide with the other identity modals (chat-profile.js).
+  const el = (id) => overlay.querySelector('#' + id);
 
-  // Word counter
-  const ta = document.getElementById('lsr-words');
-  const counter = document.getElementById('lsr-word-count');
-  ta.addEventListener('input', () => {
-    const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
-    counter.textContent = `${count} / 24 words`;
-    counter.style.color = count === 24 ? 'var(--success)' : 'var(--text-muted)';
+  // ── Close (Cancel button, backdrop click, Escape) ──
+  function onKeydown(e) { if (e.key === 'Escape') closeModal(); }
+  function closeModal() {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+  }
+  document.addEventListener('keydown', onKeydown);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  overlay.querySelectorAll('[data-lr-close]').forEach((b) => b.addEventListener('click', closeModal));
+
+  // ── Tabs (WAI-ARIA tab pattern: click, plus Left/Right arrows) ──
+  const tabs = { seed: el('lr-tab-seed'), file: el('lr-tab-file') };
+  const panels = { seed: el('lr-panel-seed'), file: el('lr-panel-file') };
+
+  function showTab(which, focusTheTab) {
+    ['seed', 'file'].forEach((key) => {
+      const on = key === which;
+      tabs[key].setAttribute('aria-selected', on ? 'true' : 'false');
+      tabs[key].tabIndex = on ? 0 : -1;
+      panels[key].hidden = !on;
+    });
+    if (focusTheTab) { tabs[which].focus(); return; }
+    // Land on the first control the user actually needs to fill in.
+    if (which === 'seed') el('lr-words').focus();
+    else (stagedBackup ? el('lr-pass') : el('lr-file')).focus();
+  }
+  tabs.seed.addEventListener('click', () => showTab('seed'));
+  tabs.file.addEventListener('click', () => showTab('file'));
+  overlay.querySelector('.lr-tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    showTab(tabs.seed.getAttribute('aria-selected') === 'true' ? 'file' : 'seed', true);
   });
 
-  // Pre-fill name from login input if user already typed one
-  const loginName = document.getElementById('name-input');
-  if (loginName && loginName.value.trim()) {
-    document.getElementById('lsr-name').value = loginName.value.trim();
+  // ── Method 1: 24-word seed phrase ──
+  const wordsEl = el('lr-words');
+  const wordCountEl = el('lr-word-count');
+  const seedBtn = el('lr-seed-submit');
+  const seedMsg = el('lr-seed-msg');
+
+  // Live word counter, shares the SAME normalizer the submit path uses, so what
+  // the counter calls "24 / 24" is exactly what gets submitted.
+  wordsEl.addEventListener('input', () => {
+    const shape = normalizeMnemonicInput(wordsEl.value);
+    wordCountEl.textContent = shape.wordCount + ' / ' + MNEMONIC_WORD_COUNT + ' words';
+    wordCountEl.classList.toggle('ok', shape.ok);
+  });
+
+  // Carry over whatever name the user already typed on the login screen.
+  const loginNameInput = document.getElementById('name-input');
+  if (loginNameInput && loginNameInput.value.trim()) {
+    el('lr-name').value = loginNameInput.value.trim();
   }
 
-  // Submit handler
-  const submitBtn = document.getElementById('lsr-submit');
-  const msgEl = document.getElementById('lsr-msg');
-
-  async function doRecover() {
-    const name = document.getElementById('lsr-name').value.trim();
-    const mnemonic = ta.value.trim().toLowerCase().replace(/\s+/g, ' ');
-    const wordCount = mnemonic.split(' ').filter(Boolean).length;
+  async function doSeedRecover() {
+    const name = el('lr-name').value.trim();
+    const shape = normalizeMnemonicInput(wordsEl.value);
 
     if (!name || !/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
-      msgEl.innerHTML = '<span style="color:var(--danger)">Enter a valid name (letters, numbers, underscores, dashes, max 24 chars).</span>';
+      seedMsg.textContent = 'Enter a valid name (letters, numbers, underscores, dashes, max 24 chars).';
       return;
     }
-    if (wordCount !== 24) {
-      msgEl.innerHTML = `<span style="color:var(--danger)">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
-      return;
-    }
+    if (!shape.ok) { seedMsg.textContent = shape.error; return; }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Recovering…';
-    msgEl.innerHTML = '';
+    seedBtn.disabled = true;
+    seedBtn.textContent = 'Recovering…';
+    seedMsg.textContent = '';
 
     try {
-      // Validate checksum and restore identity
-      await restoreIdentityFromMnemonic(mnemonic);
+      // Unchanged crypto path: crypto.js checks the BIP39 checksum, rebuilds the
+      // Ed25519 seed key, and persists it (IndexedDB + localStorage backup).
+      await restoreIdentityFromMnemonic(shape.mnemonic);
 
-      // Set name and populate login input so connect() picks it up
+      // Name goes back into the login input so connect() picks it up.
       localStorage.setItem('humanity_name', name);
-      document.getElementById('name-input').value = name;
+      if (loginNameInput) loginNameInput.value = name;
 
-      overlay.remove();
+      closeModal();
       connect();
     } catch (e) {
-      const isChecksum = /checksum/i.test(e.message);
-      msgEl.innerHTML = `<span style="color:var(--danger)">${isChecksum ? 'Invalid recovery phrase, check your words and try again.' : e.message}</span>`;
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Recover & Connect';
+      const isChecksum = /checksum/i.test(e.message || '');
+      seedMsg.textContent = isChecksum
+        ? 'Invalid recovery phrase, check your words and try again.'
+        : (e.message || 'Recovery failed.');
+      seedBtn.disabled = false;
+      seedBtn.textContent = 'Recover and connect';
     }
   }
+  seedBtn.addEventListener('click', doSeedRecover);
+  wordsEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) doSeedRecover(); });
 
-  submitBtn.addEventListener('click', doRecover);
-  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) doRecover(); });
-  document.getElementById('lsr-name').focus();
+  // ── Method 2: backup file (plain or passphrase-encrypted) ──
+  const fileEl = el('lr-file');
+  const fileNameEl = el('lr-file-name');
+  const passField = el('lr-pass-field');
+  const passEl = el('lr-pass');
+  const passToggle = el('lr-pass-toggle');
+  const fileMsg = el('lr-file-msg');
+  const fileBtn = el('lr-file-submit');
+
+  // Reflect the staged file back at the user: which file, whether it is
+  // encrypted (so a passphrase is required), and who it will sign them in as.
+  // textContent everywhere: a hostile backup file cannot inject markup here.
+  function renderStagedFile() {
+    if (!stagedBackup) {
+      fileNameEl.textContent = '';
+      fileNameEl.classList.remove('ok');
+      passField.hidden = false;
+      fileBtn.textContent = 'Decrypt and import';
+      return;
+    }
+    const encrypted = !!stagedBackup.encrypted;
+    const label = stagedFileName || 'Backup file';
+    if (encrypted) {
+      fileNameEl.textContent = label + ' is encrypted. Enter its passphrase below.';
+      fileNameEl.classList.remove('ok');
+      fileBtn.textContent = 'Decrypt and import';
+    } else {
+      fileNameEl.textContent = label + ' is ready to import'
+        + (stagedBackup.name ? ' as "' + stagedBackup.name + '"' : '') + '.';
+      fileNameEl.classList.add('ok');
+      fileBtn.textContent = 'Import identity';
+    }
+    passField.hidden = !encrypted;
+  }
+
+  fileEl.addEventListener('change', async () => {
+    const f = fileEl.files && fileEl.files[0];
+    if (!f) return;
+    fileMsg.textContent = '';
+    try {
+      stagedBackup = JSON.parse(await f.text());
+      stagedFileName = f.name;
+    } catch (e) {
+      stagedBackup = null;
+      stagedFileName = '';
+      fileMsg.textContent = 'That file is not valid JSON. Pick the .json backup you downloaded.';
+    }
+    renderStagedFile();
+  });
+
+  passToggle.addEventListener('click', () => {
+    const wasHidden = passEl.type === 'password';
+    passEl.type = wasHidden ? 'text' : 'password';
+    passToggle.textContent = wasHidden ? 'Hide' : 'Show';
+    passToggle.setAttribute('aria-pressed', wasHidden ? 'true' : 'false');
+    passToggle.setAttribute('aria-label', wasHidden ? 'Hide passphrase' : 'Show passphrase');
+    passEl.focus();
+  });
+
+  async function doFileImport() {
+    if (!stagedBackup) { fileMsg.textContent = 'Choose your backup file first.'; return; }
+    const encrypted = !!stagedBackup.encrypted;
+    const passphrase = passEl.value;
+    if (encrypted && !passphrase) {
+      fileMsg.textContent = 'Enter the passphrase you used when creating this backup.';
+      return;
+    }
+
+    const restoreLabel = fileBtn.textContent;
+    fileBtn.disabled = true;
+    fileBtn.textContent = encrypted ? 'Decrypting…' : 'Importing…';
+    fileMsg.textContent = '';
+
+    try {
+      // Unchanged crypto path, and the one entry point that already handles BOTH
+      // shapes: an encrypted bundle (PBKDF2 600k -> AES-256-GCM, needs the
+      // passphrase) and a plain JSON backup (delegates to importIdentityFromJSON).
+      const identity = await importIdentityBackup(stagedBackup, passphrase || undefined);
+      closeModal();
+      finishImport(identity);
+    } catch (e) {
+      fileMsg.textContent = e.message || 'Import failed.';
+      fileBtn.disabled = false;
+      fileBtn.textContent = restoreLabel;
+    }
+  }
+  fileBtn.addEventListener('click', doFileImport);
+  passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') doFileImport(); });
+
+  renderStagedFile();
+  showTab(opts.tab === 'file' ? 'file' : 'seed');
+}
+
+/**
+ * The login screen's "Recover from Seed Phrase" button (index.html) calls this.
+ * It is simply the seed-phrase door into the one restore modal above.
+ */
+function openLoginSeedRecovery() {
+  openLoginRestoreModal({ tab: 'seed' });
 }
 
 // Handle /profile, /block, /unblock, /blocklist commands.

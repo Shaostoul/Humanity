@@ -5,7 +5,7 @@
 //! - Startup with encrypted key (Unlock): user must enter passphrase
 //! - Changing passphrase (Change): user enters old + new passphrase
 
-use egui::{Align2, Color32, Frame, RichText, Rounding, Stroke, Vec2};
+use egui::{Align2, Frame, RichText, Rounding, Stroke, Vec2};
 use crate::gui::{GuiState, PassphraseMode};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
@@ -17,7 +17,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             let screen = ui.ctx().screen_rect();
-            ui.painter().rect_filled(screen, 0.0, Color32::from_rgba_unmultiplied(0, 0, 0, 180));
+            // bg_modal IS the modal-scrim token (a black at ~70% alpha by default).
+            ui.painter().rect_filled(screen, 0.0, Theme::c32(&theme.bg_modal));
         });
 
     egui::Window::new("Passphrase Required")
@@ -26,7 +27,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .fixed_size(Vec2::new(400.0, 0.0))
         .frame(Frame::window(&ctx.style())
-            .fill(Color32::from_rgb(28, 28, 36))
+            .fill(theme.bg_card())
             .rounding(Rounding::same(8))
             .stroke(Stroke::new(1.0, theme.accent()))
             .inner_margin(20.0))
@@ -332,7 +333,7 @@ fn draw_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if !state.passphrase_status.is_empty() {
         let color = if state.passphrase_status.starts_with("Passphrase changed") {
-            Color32::from_rgb(46, 204, 113)
+            theme.success()
         } else {
             theme.danger()
         };
@@ -670,7 +671,7 @@ fn draw_pin_change(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     if !state.pin_status.is_empty() {
         let ok = state.pin_status.starts_with("PIN changed");
-        let color = if ok { egui::Color32::from_rgb(46, 204, 113) } else { theme.danger() };
+        let color = if ok { theme.success() } else { theme.danger() };
         ui.label(RichText::new(&state.pin_status)
             .color(color)
             .size(theme.font_size_small));

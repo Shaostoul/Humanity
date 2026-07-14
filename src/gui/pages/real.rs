@@ -2,8 +2,12 @@
 //!
 //! ONE page with a `section_nav` sidebar that folds in Profile's sections
 //! (Body / Identity / Notes / Network / Interests / Skills / Social /
-//! Streaming) PLUS Possessions (Inventory), Wallet, Tasks, Map, Market — per the
-//! operator's call to merge Profile's sidebar in rather than special-case it.
+//! Streaming) PLUS Wallet, Market, Trade, Guilds — per the operator's call to
+//! merge Profile's sidebar in rather than special-case it.
+//!
+//! This IS the profile editor. `GuiPage::Profile` is only an alias that forwards
+//! here (`pages::profile::draw`); there is no second page-level editor, because
+//! the two used to drift against each other over the same GuiState fields.
 //!
 //! The content area to the right delegates: Profile sections render Profile's
 //! section content directly; the other sections delegate to the existing page's
@@ -42,8 +46,15 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
                 SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
                 SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
+                // Streaming is back in the nav (UI audit section 5): it is a PUBLIC
+                // profile field pair, and while the standalone Profile page still
+                // existed it was the only surface that showed it, which is exactly the
+                // drift that made two editors a bug source. Studio's right panel edits
+                // the SAME two GuiState fields as a broadcast-context shortcut, so the
+                // two surfaces cannot disagree, they are one value.
+                SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
                 // Wallet + Market stay here; Possessions/Tasks/Map became their own
-                // top-level tabs (operator 2026-06-07) and Streaming moved into Studio.
+                // top-level tabs (operator 2026-06-07).
                 SectionNavItem::new("wallet", "Wallet", belongings).group("BELONGINGS"),
                 SectionNavItem::new("market", "Market", life).group("LIFE"),
                 // Trade + Guilds rejoined the nav here (v0.699): both are P2P

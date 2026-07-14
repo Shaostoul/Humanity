@@ -230,12 +230,16 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
         ui.add_space(theme.spacing_md);
         ui.horizontal(|ui| {
             if widgets::Button::secondary("Open Profile")
-                .tooltip("Edit your display name, avatar, bio, and pronouns. Your profile is \
-                          signed and replicates across federated servers.")
+                .tooltip("Edit your display name, bio, and pronouns. The Network Profile \
+                          section there is the one that gets signed and replicated across \
+                          federated servers.")
                 .show(ui, theme)
             {
+                // The Real page IS the profile editor (GuiPage::Profile is only an
+                // alias for it), so land there directly on the Identity section.
                 // push_nav_to so Esc returns to ServerSettings.
-                state.push_nav_to(GuiPage::Profile);
+                state.active_real_section = "identity".to_string();
+                state.push_nav_to(GuiPage::Real);
             }
             ui.add_space(theme.spacing_sm);
             if widgets::Button::secondary("Notification preferences")

@@ -865,6 +865,38 @@ async function seedFromMnemonic(mnemonic) {
   return seed;
 }
 
+/** How many BIP39 words a HumanityOS recovery phrase has. One place, so no
+ *  restore surface can quietly disagree with another. */
+const MNEMONIC_WORD_COUNT = 24;
+
+/**
+ * Normalize and SHAPE-validate a typed or pasted recovery phrase.
+ *
+ * PURE STRING HANDLING, no crypto: this only lowercases, collapses runs of
+ * whitespace, and counts the words, so every restore surface (login modal,
+ * in-chat restore modal, settings page) applies the SAME rules and prints the
+ * SAME message instead of hand-rolling its own copy. The authoritative check
+ * is still the BIP39 checksum inside seedFromMnemonic(), which
+ * restoreIdentityFromMnemonic() runs, this does not replace it and must never
+ * be treated as proof the phrase is valid.
+ *
+ * @param {string} text - Raw textarea/input contents.
+ * @returns {{mnemonic: string, wordCount: number, ok: boolean, error: string|null}}
+ */
+function normalizeMnemonicInput(text) {
+  const mnemonic = String(text == null ? '' : text).trim().toLowerCase().replace(/\s+/g, ' ');
+  const wordCount = mnemonic ? mnemonic.split(' ').filter(Boolean).length : 0;
+  const ok = wordCount === MNEMONIC_WORD_COUNT;
+  return {
+    mnemonic,
+    wordCount,
+    ok,
+    error: ok
+      ? null
+      : `Expected ${MNEMONIC_WORD_COUNT} words, got ${wordCount}. Check for extra spaces or missing words.`,
+  };
+}
+
 /**
  * Return the current identity as a 24-word BIP39 mnemonic.
  * @returns {Promise<string|null>} Mnemonic string or null if unavailable.

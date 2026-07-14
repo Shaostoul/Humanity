@@ -2091,17 +2091,23 @@ mod native_app {
                     .replace("wss://", "https://")
                     .replace("ws://", "http://");
 
-                let target_height = match state.gui_state.studio.stream_resolution.as_str() {
-                    r if r.starts_with("1280x") => 720,
-                    r if r.starts_with("854x") => 480,
-                    r if r.starts_with("640x") => 360,
-                    _ => 720, // 1080p source downscaled to 720p: the sane live default
-                };
+                // Parse the height out of the "WIDTHxHEIGHT" picker value rather than
+                // prefix-matching a fixed list (the old match silently mapped 1080p,
+                // 1440p, and 4K all to 720). See LiveConfig::height_from_resolution.
+                let target_height = crate::net::live::LiveConfig::height_from_resolution(
+                    &state.gui_state.studio.stream_resolution,
+                );
+                // MJPEG has no rate controller: you set image quality and the bitrate
+                // falls out of it. So map the operator's kbps target onto a JPEG
+                // quality, clamped to a sane band (below ~45 it looks like a fax, above
+                // ~92 the file size explodes for no visible gain). A real rate
+                // controller comes with the H.264 encoder.
+                let quality = (40 + state.gui_state.studio.stream_bitrate / 120).clamp(45, 92) as u8;
                 let cfg = LiveConfig {
                     server,
                     title: state.gui_state.studio.stream_key.clone(),
                     target_height,
-                    quality: 70,
+                    quality,
                     fps: state.gui_state.studio.stream_fps.clamp(5, 30),
                 };
                 state.live_publisher = Some(LivePublisher::start(cfg, &seed));
@@ -2137,10 +2143,16 @@ mod native_app {
 
         // --- 4. Mirror real counters into the page.
         let stats = pubr.stats();
+        let frames_sent = stats.sent.load(Ordering::Relaxed);
         let studio = &mut state.gui_state.studio;
-        studio.broadcast_live = stats.connected.load(Ordering::Relaxed);
+        // ON AIR means bytes are actually reaching the relay, which the badge and its
+        // tooltip promise. The socket being connected is NOT that: the relay accepts
+        // the publisher before the first frame is captured, so gate ON AIR on at least
+        // one frame actually sent. Until then the page shows "Connecting...".
+        studio.broadcast_live =
+            stats.connected.load(Ordering::Relaxed) && frames_sent > 0;
         studio.broadcast_viewers = stats.viewers.load(Ordering::Relaxed);
-        studio.broadcast_frames = stats.sent.load(Ordering::Relaxed);
+        studio.broadcast_frames = frames_sent;
         studio.broadcast_dropped = stats.dropped.load(Ordering::Relaxed);
         studio.broadcast_kbps = pubr.kbps();
 
@@ -2160,7 +2172,7 @@ mod native_app {
                         .trim_end_matches("/ws")
                         .replace("wss://", "https://")
                         .replace("ws://", "http://");
-                    state.gui_state.studio.broadcast_url = format!("{base}/live/{id}");
+                    state.gui_state.studio.broadcast_url = format!("{base}/watch.html?s={id}");
                 }
             }
         }

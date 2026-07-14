@@ -75,6 +75,29 @@ const AUTH_TIMEOUT: Duration = Duration::from_secs(10);
 /// us exactly that via `RecvError::Lagged`.
 const VIEWER_QUEUE: usize = 64;
 
+/// Longest a stream title may be. The publisher is authenticated but not trusted:
+/// the title is echoed to every unauthenticated /api/live poller, so an unbounded
+/// one is a memory + egress amplifier. 200 chars is plenty for a human title.
+const MAX_TITLE_LEN: usize = 200;
+
+/// Per-stream viewer ceiling. This fanout is not an SFU: every viewer is a unicast
+/// copy, so VPS egress is the real limit (bitrate x viewers). This caps the blast
+/// radius of a viewer flood on a live stream; beyond it, new viewers are turned away
+/// with an honest "at capacity" rather than being allowed to exhaust the server.
+/// HLS is the answer for a genuinely large audience (see docs/design/streaming.md).
+const MAX_VIEWERS_PER_STREAM: usize = 200;
+
+/// Truncate a caller-supplied title to a safe length on a char boundary.
+fn clamp_title(s: &str) -> String {
+    if s.len() <= MAX_TITLE_LEN {
+        return s.to_string();
+    }
+    s.char_indices()
+        .take_while(|(i, _)| *i < MAX_TITLE_LEN)
+        .map(|(_, c)| c)
+        .collect()
+}
+
 /// One live stream, keyed by the publisher's registered name.
 pub struct LiveStream {
     /// Byte fanout to viewers. Arc so a frame is cloned once, not per viewer.
@@ -243,7 +266,7 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
         title: std::sync::Mutex::new(if auth.title.is_empty() {
             format!("{id} is live")
         } else {
-            auth.title.clone()
+            clamp_title(&auth.title)
         }),
         started: Instant::now(),
         frames: AtomicUsize::new(0),
@@ -278,7 +301,7 @@ async fn publisher_loop(mut socket: WebSocket, state: Arc<RelayState>) {
             Message::Text(t) => {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&t) {
                     if let Some(title) = v.get("title").and_then(|t| t.as_str()) {
-                        *stream.title.lock().unwrap() = title.to_string();
+                        *stream.title.lock().unwrap() = clamp_title(title);
                     }
                 }
             }
@@ -310,6 +333,16 @@ async fn viewer_loop(mut socket: WebSocket, state: Arc<RelayState>, id: String) 
             .await;
         return;
     };
+
+    // Turn away viewers past the per-stream ceiling BEFORE subscribing, so a flood
+    // cannot exhaust server egress. This fanout is unicast (not an SFU), so every
+    // viewer is another full copy of the bitrate; HLS is the path to a big audience.
+    if stream.viewers.load(Ordering::Relaxed) >= MAX_VIEWERS_PER_STREAM {
+        let _ = socket
+            .send(Message::Text(r#"{"ok":false,"error":"at capacity"}"#.into()))
+            .await;
+        return;
+    }
 
     let mut rx = stream.tx.subscribe();
     stream.viewers.fetch_add(1, Ordering::Relaxed);
@@ -364,6 +397,18 @@ mod tests {
         assert_eq!(pts, 1_234_567);
         assert_eq!(&f[9..], b"payload");
         assert!(f.len() >= 9, "a valid frame is at least a header");
+    }
+
+    #[test]
+    fn clamp_title_bounds_length_on_a_char_boundary() {
+        assert_eq!(clamp_title("short"), "short");
+        let long = "x".repeat(500);
+        assert_eq!(clamp_title(&long).len(), MAX_TITLE_LEN);
+        // Multi-byte chars must not be split mid-codepoint (would panic or corrupt).
+        let emoji = "a live stream ".to_string() + &"emoji test with lots of text ".repeat(20);
+        let clamped = clamp_title(&emoji);
+        assert!(clamped.len() <= MAX_TITLE_LEN);
+        assert!(std::str::from_utf8(clamped.as_bytes()).is_ok(), "must stay valid UTF-8");
     }
 
     #[tokio::test]

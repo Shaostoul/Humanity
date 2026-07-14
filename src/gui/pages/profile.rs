@@ -1,12 +1,19 @@
-//! Player Profile page with sidebar navigation and content panels.
+//! Profile section content: the editors for your character / identity.
 //!
-//! Sections organized by privacy level:
+//! This module owns the SECTIONS, not a page. The one profile editor is the
+//! **Real** page (`pages::real`), whose section_nav renders these through
+//! [`draw_section_content`]. Sections are grouped by privacy level:
 //! - PRIVATE (red): Body & Measurements, Identity, Private Notes
 //! - PERSONAL (orange): Network Profile, Interests, Skills
 //! - PUBLIC (green): Social Links, Streaming
+//!
+//! `GuiPage::Profile` used to be a SECOND full editor over the same GuiState
+//! fields, and the two had already drifted (this page kept Streaming after the
+//! Real tab dropped it). It is now an alias that lands on the Real page, see
+//! [`draw`].
 
-use egui::{Color32, Frame, RichText, Rounding, ScrollArea, Stroke, Vec2};
-use crate::gui::{GuiState, ProfileSection};
+use egui::{Color32, RichText, Rounding, Stroke, Vec2};
+use crate::gui::{GuiPage, GuiState, ProfileSection};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
@@ -14,51 +21,22 @@ pub const PRIVATE_DOT: Color32 = Color32::from_rgb(231, 76, 60);
 pub const PERSONAL_DOT: Color32 = Color32::from_rgb(237, 140, 36);
 pub const PUBLIC_DOT: Color32 = Color32::from_rgb(46, 204, 113);
 
+/// `GuiPage::Profile` is an ALIAS for the canonical editor, not a second one.
+/// Two page-level editors over one set of fields is a drift generator, so every
+/// caller that still asks for `GuiPage::Profile` (onboarding's "profile" step,
+/// any older nav push) is forwarded to the Real page with the profile section it
+/// last had open already selected. Forwarding happens in-frame, so there is no
+/// blank frame between the two pages.
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
-    // One continuous scroll through every section (operator 2026-07-13: "same
-    // thing for the profile page" - infinite scroll like Settings, instead of a
-    // left section-nav that showed one section at a time). Grouped by privacy
-    // tier: PRIVATE / PERSONAL / PUBLIC. Each section self-titles.
-    egui::CentralPanel::default()
-        .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
-        .show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                ui.set_max_width(820.0);
-                let group = |ui: &mut egui::Ui, t: &str| {
-                    ui.add_space(theme.spacing_lg);
-                    ui.label(RichText::new(t).size(theme.font_size_small).color(theme.text_muted()).strong());
-                };
-                let divider = |ui: &mut egui::Ui| {
-                    ui.add_space(theme.spacing_lg);
-                    ui.separator();
-                };
-
-                group(ui, "PRIVATE");
-                draw_body_measurements(ui, theme, state);
-                divider(ui);
-                draw_identity(ui, theme, state);
-                divider(ui);
-                draw_private_notes(ui, theme, state);
-
-                group(ui, "PERSONAL");
-                draw_network_profile(ui, theme, state);
-                divider(ui);
-                draw_interests(ui, theme, state);
-                divider(ui);
-                draw_skills(ui, theme, state);
-
-                group(ui, "PUBLIC");
-                draw_social_links(ui, theme, state);
-                divider(ui);
-                draw_streaming(ui, theme, state);
-            });
-        });
+    state.active_real_section = section_id(state.profile_section).to_string();
+    state.active_page = GuiPage::Real;
+    super::real::draw(ctx, theme, state);
 }
 
-/// Render the currently-selected Profile section's content into `ui` — extracted
-/// from `draw` so the merged **Real** tab can compose Profile's sections
-/// alongside Inventory / Wallet / Tasks / Map / Market in ONE unified
-/// section_nav page. The caller supplies the panel + scroll area.
+/// Render the currently-selected Profile section's content into `ui`. The
+/// **Real** tab composes Profile's sections alongside Wallet / Market / Trade /
+/// Guilds in ONE unified section_nav page. The caller supplies the panel + scroll
+/// area.
 pub fn draw_section_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     match state.profile_section {
         ProfileSection::BodyMeasurements => draw_body_measurements(ui, theme, state),

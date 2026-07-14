@@ -196,6 +196,23 @@ pub struct Theme {
     #[serde(default = "default_server_row_hover")]
     pub server_row_hover: C,
 
+    // ── Chat lane identity accents (v0.851) ──
+    // The dm_* / group_* tokens above are deliberately DARK lane tints (they
+    // are row backgrounds). Each lane also needs a BRIGHT companion for the
+    // marks that must read on top of those tints: the active-row indicator
+    // bar and the lane's header text. Migrated from hardcoded Color32
+    // literals in pages/chat.rs.
+    /// Readable identity accent for the DM lane (active-row bar + "DM: name" header).
+    #[serde(default = "default_dm_accent")]
+    pub dm_accent: C,
+    /// Readable identity accent for the Groups lane (group header text).
+    #[serde(default = "default_group_accent")]
+    pub group_accent: C,
+    /// Identity accent for the local Scratchpad channel row: its active-row
+    /// indicator bar, and (alpha-tinted) its active-row background.
+    #[serde(default = "default_scratchpad_accent")]
+    pub scratchpad_accent: C,
+
     // ── Studio source-type palette (v0.670) ──
     // Broadcasting Studio canvas colors: each source kind (camera, screen
     // share, mic, chat overlay, image, text, timer) gets a semantic fill so
@@ -393,6 +410,20 @@ impl Theme {
     pub fn server_bg(&self) -> Color32 { Self::c32(&self.server_bg) }
     pub fn server_row_bg(&self) -> Color32 { Self::c32(&self.server_row_bg) }
     pub fn server_row_hover(&self) -> Color32 { Self::c32(&self.server_row_hover) }
+
+    // Chat lane identity accents (v0.851) — see field docs above.
+    pub fn dm_accent(&self) -> Color32 { Self::c32(&self.dm_accent) }
+    pub fn group_accent(&self) -> Color32 { Self::c32(&self.group_accent) }
+    pub fn scratchpad_accent(&self) -> Color32 { Self::c32(&self.scratchpad_accent) }
+
+    // Badge palette accessors. The badge_* tokens were previously only reachable
+    // through `Theme::c32(&theme.badge_x)`; these give call sites the same shape
+    // as every other token so a role badge never needs a literal.
+    pub fn badge_admin(&self) -> Color32 { Self::c32(&self.badge_admin) }
+    pub fn badge_mod(&self) -> Color32 { Self::c32(&self.badge_mod) }
+    pub fn badge_verified(&self) -> Color32 { Self::c32(&self.badge_verified) }
+    pub fn badge_donor(&self) -> Color32 { Self::c32(&self.badge_donor) }
+    pub fn badge_live(&self) -> Color32 { Self::c32(&self.badge_live) }
 
     // Studio source-type palette (v0.670) — see field docs above.
     pub fn studio_source_camera(&self) -> Color32 { Self::c32(&self.studio_source_camera) }
@@ -638,6 +669,11 @@ fn default_group_row_hover() -> C { (0.098, 0.275, 0.098, 1.0) }
 fn default_server_bg() -> C { (0.059, 0.059, 0.176, 1.0) }
 fn default_server_row_bg() -> C { (0.078, 0.078, 0.216, 1.0) }
 fn default_server_row_hover() -> C { (0.098, 0.098, 0.275, 1.0) }
+// Chat lane identity accents (v0.851). Same RGB values the pre-migration
+// literals in pages/chat.rs used, so existing themes look identical.
+fn default_dm_accent() -> C { (0.863, 0.471, 0.471, 1.0) }         // #DC7878 — DM lane red
+fn default_group_accent() -> C { (0.471, 0.863, 0.471, 1.0) }      // #78DC78 — Groups lane green
+fn default_scratchpad_accent() -> C { (0.627, 0.549, 0.784, 1.0) } // #A08CC8 — scratchpad purple
 fn default_max_messages() -> usize { 200 }
 
 // Studio source-type palette defaults (v0.670). Same RGB values as the
@@ -776,6 +812,10 @@ fn default_theme() -> Theme {
         server_bg: default_server_bg(),
         server_row_bg: default_server_row_bg(),
         server_row_hover: default_server_row_hover(),
+        // Chat lane identity accents (v0.851)
+        dm_accent: default_dm_accent(),
+        group_accent: default_group_accent(),
+        scratchpad_accent: default_scratchpad_accent(),
         // Studio source-type palette (v0.670)
         studio_source_camera: default_studio_source_camera(),
         studio_source_screen: default_studio_source_screen(),

@@ -209,6 +209,62 @@
       margin-top: var(--space-sm);
     }
 
+    /* ── Per-field privacy lock (public 🌐 <-> private, friends only) ── */
+    .field-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-sm);
+    }
+    .privacy-lock {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      padding: 2px var(--space-sm);
+      flex-shrink: 0;
+    }
+    .privacy-lock:hover { background: var(--bg-hover); color: var(--text); }
+    .privacy-lock.is-private { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Checkbox row (member directory opt-out) ── */
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .check-row input { width: auto; }
+
+    /* ── Field helpers ── */
+    .field-hint {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      margin-top: var(--space-xs);
+      line-height: 1.4;
+    }
+    .bio-count {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      text-align: right;
+      margin-top: var(--space-xs);
+    }
+    .bio-count.warn { color: var(--warning); }
+    .bio-count.over { color: var(--danger); font-weight: 600; }
+
+    /* ── Keyboard focus, every interactive control ── */
+    .prof-section-btn:focus-visible,
+    .privacy-lock:focus-visible,
+    .save-btn:focus-visible,
+    .check-row input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     /* ── Hidden sections ── */
     .prof-tab { display: none; }
     .prof-tab.active { display: block; }
@@ -616,7 +672,12 @@
         </div>
       </div>
 
-      <!-- ── Network Profile (Personal) ── -->
+      <!-- ── Network Profile (Personal) ──
+           This is the ONE profile editor (docs/UI-AUDIT.md section 5). The chat
+           client's old Edit-Profile modal was retired; every "edit profile" entry
+           point in chat now routes here. The fields below are the ones the relay
+           actually stores, and web/chat/chat-profile.js pushes them from the
+           shared `humanity_profile` localStorage object this page writes. ── -->
       <div class="prof-tab" id="tab-profile">
         <div class="section-header personal">
           <div>
@@ -629,38 +690,68 @@
           <h3>Identity on the Network</h3>
           <div class="field-grid">
             <div class="field-group personal-field">
-              <label>Display Name</label>
-              <input type="text" id="f-display-name" placeholder="How others see you">
+              <label for="f-display-name">Display Name</label>
+              <input type="text" id="f-display-name" maxlength="24" placeholder="How others see you" aria-describedby="display-name-hint">
+              <p class="field-hint" id="display-name-hint">Your network name is bound to your identity key and is set when you connect in Chat. This copy is kept on this device.</p>
             </div>
             <div class="field-group personal-field">
-              <label>Pronouns</label>
-              <input type="text" id="f-pronouns" placeholder="e.g. he/him, she/her, they/them">
+              <div class="field-label-row">
+                <label for="f-pronouns">Pronouns</label>
+                <button type="button" class="privacy-lock" id="privacy-pronouns"
+                  onclick="togglePrivacy('pronouns')" aria-pressed="false"
+                  aria-label="Pronouns visibility: public. Activate to make it visible to friends only."
+                  title="Visible to everyone, click to make it friends only">🌐 Public</button>
+              </div>
+              <input type="text" id="f-pronouns" maxlength="64" placeholder="e.g. he/him, she/her, they/them">
             </div>
             <div class="field-group personal-field" style="grid-column: 1/-1;">
-              <label>Bio</label>
-              <textarea id="f-bio" rows="4" placeholder="Tell people about yourself..."></textarea>
+              <label for="f-bio">Bio</label>
+              <textarea id="f-bio" rows="4" maxlength="280" placeholder="Tell people about yourself..." aria-describedby="bio-count"></textarea>
+              <div class="bio-count" id="bio-count">0 / 280</div>
             </div>
             <div class="field-group personal-field">
-              <label>Public Location</label>
-              <input type="text" id="f-location" placeholder="e.g. Pacific Northwest, USA">
+              <div class="field-label-row">
+                <label for="f-location">Public Location</label>
+                <button type="button" class="privacy-lock" id="privacy-location"
+                  onclick="togglePrivacy('location')" aria-pressed="false"
+                  aria-label="Location visibility: public. Activate to make it visible to friends only."
+                  title="Visible to everyone, click to make it friends only">🌐 Public</button>
+              </div>
+              <input type="text" id="f-location" maxlength="128" placeholder="e.g. Pacific Northwest, USA">
             </div>
             <div class="field-group personal-field">
-              <label>Website</label>
-              <input type="url" id="f-website" placeholder="https://yoursite.com">
+              <div class="field-label-row">
+                <label for="f-website">Website</label>
+                <button type="button" class="privacy-lock" id="privacy-website"
+                  onclick="togglePrivacy('website')" aria-pressed="false"
+                  aria-label="Website visibility: public. Activate to make it visible to friends only."
+                  title="Visible to everyone, click to make it friends only">🌐 Public</button>
+              </div>
+              <input type="url" id="f-website" maxlength="256" placeholder="https://yoursite.com">
             </div>
           </div>
+          <p class="privacy-note">🌐 Public = visible to everyone &nbsp;&middot;&nbsp; 🔒 Friends = visible only to people you follow who follow you back.</p>
+        </div>
+
+        <div class="prof-card">
+          <h3>Member Directory</h3>
+          <label class="check-row" for="f-directory-listed">
+            <input type="checkbox" id="f-directory-listed" checked aria-describedby="directory-hint">
+            <span>List me in this server's public member directory</span>
+          </label>
+          <p class="field-hint" id="directory-hint">Separate from the per-field locks above. Turn it off to join and chat without appearing in the member list at all.</p>
         </div>
 
         <div class="prof-card">
           <h3>Avatar &amp; Banner</h3>
           <div class="field-grid two-col">
             <div class="field-group personal-field">
-              <label>Avatar URL</label>
-              <input type="url" id="f-avatar-url" placeholder="https://...">
+              <label for="f-avatar-url">Avatar URL</label>
+              <input type="url" id="f-avatar-url" maxlength="512" placeholder="https://...">
             </div>
             <div class="field-group personal-field">
-              <label>Banner URL</label>
-              <input type="url" id="f-banner-url" placeholder="https://...">
+              <label for="f-banner-url">Banner URL</label>
+              <input type="url" id="f-banner-url" maxlength="512" placeholder="https://...">
             </div>
           </div>
           <p class="privacy-note" style="margin-top:var(--space-md);"><span data-icon="dot-green" data-size="14"></span> Avatar and banner are shared with friends and visible on your public profile card.</p>
@@ -669,9 +760,10 @@
         <div class="prof-card" id="sync-card">
           <h3>Sync to Network</h3>
           <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:var(--space-lg);">
-            Sync your network profile to the relay so friends can view it. Requires an active Network connection.
+            Your network profile (bio, pronouns, location, website, avatar, banner, social links, and the privacy choices above) is saved on this device and pushed to the relay by the Chat client.
+            If a Chat tab is open it goes out immediately, otherwise it syncs the next time you connect.
           </p>
-          <button class="save-btn" onclick="syncNetworkProfile()">🔄 Sync to Network</button>
+          <button class="save-btn" onclick="syncNetworkProfile()">🔄 Save &amp; Sync to Network</button>
           <span id="sync-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:var(--space-lg);"></span>
         </div>
       </div>
@@ -990,6 +1082,7 @@
       'emergency-name','emergency-rel','emergency-phone',
       'allergies','medical','private-notes',
       'display-name','pronouns','bio','location','website','avatar-url','banner-url',
+      'directory-listed',
       'interests','skills','looking-for',
       'twitter','youtube','twitch','github','discord','instagram','tiktok','mastodon','linkedin','portfolio',
       'kofi','patreon',
@@ -1007,7 +1100,8 @@
 
     // Checkbox fields that use .checked instead of .value
     var CHECKBOX_FIELDS = ['yt-enabled','twitch-enabled','rumble-enabled','facebook-enabled',
-      'x-enabled','kick-enabled','tiktok-enabled','linkedin-enabled','custom-enabled'];
+      'x-enabled','kick-enabled','tiktok-enabled','linkedin-enabled','custom-enabled',
+      'directory-listed'];
 
     // ── Load from localStorage ──
     function loadProfile() {
@@ -1047,25 +1141,113 @@
       saveTimer = setTimeout(saveAll, 800);
     });
 
-    // ── Sync network profile to relay via postMessage (if network page is open) ──
+    // ── Per-field privacy (public 🌐 <-> friends only) ──
+    // Persisted in its own key so it round-trips on page reload; folded into the
+    // canonical `humanity_profile` privacy map on sync.
+    var PRIVACY_KEY = 'humanity_profile_privacy';
+    var PRIVACY_FIELDS = ['pronouns', 'location', 'website'];
+    var profilePrivacy = {};
+
+    function loadPrivacy() {
+      try { profilePrivacy = JSON.parse(localStorage.getItem(PRIVACY_KEY) || '{}') || {}; }
+      catch (_) { profilePrivacy = {}; }
+      PRIVACY_FIELDS.forEach(function(f) { renderPrivacyLock(f); });
+    }
+
+    function renderPrivacyLock(field) {
+      var btn = document.getElementById('privacy-' + field);
+      if (!btn) return;
+      var isPrivate = profilePrivacy[field] === 'private';
+      btn.classList.toggle('is-private', isPrivate);
+      btn.setAttribute('aria-pressed', isPrivate ? 'true' : 'false');
+      var name = field.charAt(0).toUpperCase() + field.slice(1);
+      if (isPrivate) {
+        btn.textContent = '🔒 Friends';
+        btn.title = 'Visible to friends only, click to make it public';
+        btn.setAttribute('aria-label', name + ' visibility: friends only. Activate to make it public.');
+      } else {
+        btn.textContent = '🌐 Public';
+        btn.title = 'Visible to everyone, click to make it friends only';
+        btn.setAttribute('aria-label', name + ' visibility: public. Activate to make it visible to friends only.');
+      }
+    }
+
+    function togglePrivacy(field) {
+      profilePrivacy[field] = profilePrivacy[field] === 'private' ? 'public' : 'private';
+      localStorage.setItem(PRIVACY_KEY, JSON.stringify(profilePrivacy));
+      renderPrivacyLock(field);
+    }
+
+    // ── Bio character counter ──
+    function updateBioCount() {
+      var bio = document.getElementById('f-bio');
+      var counter = document.getElementById('bio-count');
+      if (!bio || !counter) return;
+      var len = bio.value.length;
+      counter.textContent = len + ' / 280';
+      counter.className = 'bio-count' + (len > 280 ? ' over' : len > 240 ? ' warn' : '');
+    }
+
+    /**
+     * Derive a bare handle from a full URL or an already-bare handle, so the
+     * chat View-Profile card (which builds x.com/{handle}, github.com/{handle})
+     * links correctly. `x.com/foo` -> `foo`; `@foo` -> `foo`; `foo` -> `foo`.
+     */
+    function bareHandle(v) {
+      if (!v) return '';
+      return String(v).trim()
+        .replace(/^https?:\/\//i, '')
+        .replace(/^(www\.)?[^\/]+\//, '')
+        .replace(/^@/, '')
+        .replace(/\/+$/, '');
+    }
+
+    // ── Save the network-facing profile to the canonical `humanity_profile`
+    // store, the SAME object web/chat/chat-profile.js reads and pushes to the
+    // relay. Writing it fires a cross-tab `storage` event, so an already-open
+    // Chat tab syncs to the relay immediately; otherwise it syncs on next connect.
+    // (This replaces the old `humanity_profile_pending_sync` hand-off, which only
+    // applied after a full reconnect.) ──
     function syncNetworkProfile() {
-      var data = {};
-      FIELDS.forEach(function(f) { var el = document.getElementById('f-' + f); if (el) data[f] = el.value; });
-      // Try to communicate with an open /chat tab
+      var val = function(id) { var el = document.getElementById('f-' + id); return el ? el.value.trim() : ''; };
+
+      // Social handles, shaped to what the chat profile card renders.
+      var socials = {};
+      var portfolio = val('portfolio');
+      if (portfolio)      socials.website = portfolio;              // rendered as a link
+      if (val('discord')) socials.discord = val('discord');        // plain text
+      if (val('twitter')) socials.twitter = bareHandle(val('twitter'));
+      if (val('youtube')) socials.youtube = val('youtube');        // card accepts full URL or @handle
+      if (val('github'))  socials.github  = bareHandle(val('github'));
+
+      // Privacy map: only record fields the user explicitly set to private, plus
+      // the member-directory opt-out (unchecked = hidden from /api/members).
+      var privacy = {};
+      PRIVACY_FIELDS.forEach(function(f) { if (profilePrivacy[f] === 'private') privacy[f] = 'private'; });
+      var dir = document.getElementById('f-directory-listed');
+      if (dir && !dir.checked) privacy.directory = 'unlisted';
+
+      var profile = {
+        bio: val('bio').substring(0, 280),
+        socials: socials,
+        avatar_url: val('avatar-url').substring(0, 512),
+        banner_url: val('banner-url').substring(0, 512),
+        pronouns: val('pronouns').substring(0, 64),
+        location: val('location').substring(0, 128),
+        website: val('website').substring(0, 256),
+        privacy: privacy,
+      };
+
+      // Persist the full page state too, so nothing typed is lost on reload.
+      saveAll();
+      localStorage.setItem('humanity_profile', JSON.stringify(profile));
+
       var status = document.getElementById('sync-status');
-      status.textContent = 'Opening Network…';
-      // Store pending sync in localStorage; /chat will pick it up on load
-      localStorage.setItem('humanity_profile_pending_sync', JSON.stringify({
-        display_name: data['display-name'],
-        bio: data['bio'],
-        pronouns: data['pronouns'],
-        location: data['location'],
-        website: data['website'],
-        avatar_url: data['avatar-url'],
-        banner_url: data['banner-url'],
-      }));
-      status.textContent = '✓ Queued, open Network to sync';
-      setTimeout(function() { status.textContent = ''; }, 4000);
+      // If a Chat tab is open in this browser it will catch the `storage` event
+      // and push to the relay right away; if not, it syncs on next connect.
+      status.textContent = '✓ Saved. Syncing to the network via Chat…';
+      status.style.color = 'var(--success)';
+      setTimeout(function() { status.textContent = ''; status.style.color = ''; }, 5000);
     }
 
     // ── Copy OBS multistream config ──
@@ -1107,8 +1289,41 @@
       });
     }
 
+    // Backfill the network-profile fields from the canonical `humanity_profile`
+    // store (what Chat reads/pushes) for anything the page's own store doesn't
+    // already hold, e.g. a profile first set from the chat client. The page's
+    // typed state wins; this only fills blanks so the page reflects what will sync.
+    function backfillFromCanonical() {
+      var canon;
+      try { canon = JSON.parse(localStorage.getItem('humanity_profile') || '{}') || {}; }
+      catch (_) { return; }
+      var map = {
+        'bio': canon.bio, 'pronouns': canon.pronouns, 'location': canon.location,
+        'website': canon.website, 'avatar-url': canon.avatar_url, 'banner-url': canon.banner_url,
+      };
+      Object.keys(map).forEach(function(id) {
+        var el = document.getElementById('f-' + id);
+        if (el && !el.value && map[id]) el.value = map[id];
+      });
+      // Directory opt-out from the canonical privacy map.
+      var dir = document.getElementById('f-directory-listed');
+      if (dir && canon.privacy && canon.privacy.directory === 'unlisted') dir.checked = false;
+      // Seed the privacy locks if the page has no privacy state of its own yet.
+      if (!localStorage.getItem(PRIVACY_KEY) && canon.privacy) {
+        PRIVACY_FIELDS.forEach(function(f) {
+          if (canon.privacy[f] === 'private') profilePrivacy[f] = 'private';
+        });
+      }
+    }
+
     // ── Init ──
     loadProfile();
+    loadPrivacy();
+    backfillFromCanonical();
+    PRIVACY_FIELDS.forEach(renderPrivacyLock);
+    updateBioCount();
+    var bioEl = document.getElementById('f-bio');
+    if (bioEl) bioEl.addEventListener('input', updateBioCount);
 
     // ═══════════════════════════════════════════════════════
     // Skills tab, domains, XP, endorsements

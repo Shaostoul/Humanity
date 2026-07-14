@@ -57,6 +57,21 @@ pub struct LiveConfig {
     pub fps: u32,
 }
 
+impl LiveConfig {
+    /// Parse the target height out of a "WIDTHxHEIGHT" picker string, clamped to a
+    /// sane MJPEG band. Below 240 is pointless; above 1080 the bandwidth explodes for
+    /// a hobby stream. The downscale never upscales, so a smaller window caps it further.
+    /// A garbage string falls back to 720. Shared with lib.rs so the go-live path and
+    /// its test agree.
+    pub fn height_from_resolution(res: &str) -> u32 {
+        res.split(['x', 'X'])
+            .nth(1)
+            .and_then(|h| h.trim().parse::<u32>().ok())
+            .unwrap_or(720)
+            .clamp(240, 1080)
+    }
+}
+
 impl Default for LiveConfig {
     fn default() -> Self {
         Self {
@@ -287,7 +302,44 @@ fn worker(
     stats.connected.store(true, Ordering::Relaxed);
 
     let start = Instant::now();
-    let mut last_viewer_poll = Instant::now() - Duration::from_secs(10);
+
+    // Viewer count runs on ITS OWN thread. It used to be inline in the pump loop
+    // below, where a slow /api/live (VPS under load) blocked the frame drain for up
+    // to the 2s ureq timeout, stalling video and dropping every frame in that window.
+    // ureq is a blocking client, so the only correct place for it is off the hot path.
+    {
+        let poll_stop = stop.clone();
+        let poll_stats = stats.clone();
+        let poll_server = cfg.server.clone();
+        let poll_id = stream_id.clone();
+        if !poll_id.is_empty() {
+            thread::spawn(move || {
+                let url = format!("{}/api/live", poll_server.trim_end_matches('/'));
+                while !poll_stop.load(Ordering::Relaxed) {
+                    if let Ok(resp) = ureq::get(&url).timeout(Duration::from_secs(2)).call() {
+                        if let Ok(body) = resp.into_string() {
+                            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
+                                let n = v["streams"]
+                                    .as_array()
+                                    .and_then(|a| a.iter().find(|s| s["id"] == poll_id.as_str()))
+                                    .and_then(|s| s["viewers"].as_u64())
+                                    .unwrap_or(0);
+                                poll_stats.viewers.store(n as u32, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                    // Sleep in small slices so Stop is honored within ~200ms rather
+                    // than after a full 3s.
+                    for _ in 0..15 {
+                        if poll_stop.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(200));
+                    }
+                }
+            });
+        }
+    }
 
     // --- Pump.
     while !stop.load(Ordering::Relaxed) {
@@ -329,24 +381,6 @@ fn worker(
         }
         stats.sent.fetch_add(1, Ordering::Relaxed);
         stats.bytes.fetch_add(n, Ordering::Relaxed);
-
-        // Viewer count, every 3s. Cheap REST poll rather than a second socket.
-        if last_viewer_poll.elapsed() > Duration::from_secs(3) && !stream_id.is_empty() {
-            last_viewer_poll = Instant::now();
-            let url = format!("{}/api/live", cfg.server.trim_end_matches('/'));
-            if let Ok(resp) = ureq::get(&url).timeout(Duration::from_secs(2)).call() {
-                if let Ok(body) = resp.into_string() {
-                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
-                    let n = v["streams"]
-                        .as_array()
-                        .and_then(|a| a.iter().find(|s| s["id"] == stream_id.as_str()))
-                        .and_then(|s| s["viewers"].as_u64())
-                        .unwrap_or(0);
-                    stats.viewers.store(n as u32, Ordering::Relaxed);
-                }
-                }
-            }
-        }
     }
 
     let _ = socket.close(None);
@@ -528,6 +562,22 @@ mod tests {
         assert!(publisher.stats().bytes.load(Ordering::Relaxed) > 0, "bitrate must be measured");
 
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// The resolution picker must actually change the output height. The old code
+    /// prefix-matched a fixed list and silently mapped 1080p, 1440p, and 4K all to
+    /// 720, so the picker was a no-op above 720p. Guard every offered option.
+    #[test]
+    fn resolution_string_parses_to_the_right_clamped_height() {
+        assert_eq!(LiveConfig::height_from_resolution("640x360"), 360);
+        assert_eq!(LiveConfig::height_from_resolution("854x480"), 480);
+        assert_eq!(LiveConfig::height_from_resolution("1280x720"), 720);
+        assert_eq!(LiveConfig::height_from_resolution("1920x1080"), 1080);
+        // Above 1080 clamps down (MJPEG bandwidth sanity), not silently to 720.
+        assert_eq!(LiveConfig::height_from_resolution("3840x2160"), 1080);
+        // Below 240 clamps up; garbage falls back to 720.
+        assert_eq!(LiveConfig::height_from_resolution("160x120"), 240);
+        assert_eq!(LiveConfig::height_from_resolution("nonsense"), 720);
     }
 
     /// Only ever downscale: a 480p source asked for 720p must stay 480p rather than

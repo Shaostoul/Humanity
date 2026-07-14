@@ -591,11 +591,17 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
     draw_broadcast_status(ui, theme, state);
 
+    // The single most important thing to be clear about: v1 broadcasts THE APP WINDOW,
+    // the same thing OBS's window capture would grab. So while you sit on this page,
+    // viewers see this page. Go live, then switch to the game. Compositing the PROGRAM
+    // scene offscreen and streaming only that is the next rung (docs/design/streaming.md).
     widgets::body_hint(
         ui,
         theme,
-        "PROGRAM is what viewers would see. PREVIEW is your staging area, which nobody else sees. \
-         Stage a scene in Preview, then press Cut to Program to put it on air.",
+        "While you are live, viewers see YOUR APP WINDOW, whatever you have open. So press Go \
+         Live here, then switch to the game and play: that is what gets broadcast. Staying on \
+         this page means streaming this page. PROGRAM and PREVIEW below are the scene staging \
+         area: stage a scene in Preview, then press Cut to Program to put it on air.",
     );
     ui.add_space(theme.section_gap);
 
@@ -1144,14 +1150,20 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         widgets::body_hint(
             ui,
             theme,
-            "What a real broadcast WOULD send. These are saved settings, not a live connection: \
-             capture, encoding, and the transport are not built yet, so nothing here sends anything.",
+            "How your broadcast is sent. Changes take effect the next time you press Go Live, \
+             not mid-stream.",
         );
         ui.add_space(theme.section_gap);
 
-        // Platform selector
+        // Platform selector. Only the HumanityOS Server path actually broadcasts today;
+        // the others are placeholders, and saying so is better than letting someone
+        // pick Twitch, press Go Live, and quietly stream to nobody.
         ui.label(RichText::new("Platform").size(theme.font_size_small).color(theme.text_secondary()))
-            .on_hover_text("Where the stream would be sent. Your choice only changes which fields below are asked for.");
+            .on_hover_text(
+                "Where the stream is sent. Only HumanityOS Server broadcasts today: it sends to \
+                 your own relay, which fans the stream out to viewers with no third party \
+                 involved. The other platforms are placeholders and do not send anything yet.",
+            );
         egui::ComboBox::from_id_salt("studio_platform")
             .selected_text(&state.studio.stream_platform)
             .width(190.0)
@@ -1163,6 +1175,16 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // Stream key (hidden for HumanityOS)
         if state.studio.stream_platform != "HumanityOS Server" {
+            ui.add_space(theme.section_gap);
+            ui.label(
+                RichText::new("Not broadcasting yet")
+                    .size(theme.font_size_small)
+                    .color(theme.warning()),
+            )
+            .on_hover_text(
+                "Sending to this platform is not built. Pick HumanityOS Server to actually go \
+                 live. Details are in docs/design/streaming.md.",
+            );
             ui.add_space(theme.section_gap);
             ui.label(RichText::new("Stream Key").size(theme.font_size_small).color(theme.text_secondary()));
             ui.add(
@@ -1176,12 +1198,26 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // Server URL (for HumanityOS)
         if state.studio.stream_platform == "HumanityOS Server" {
             ui.add_space(theme.section_gap);
-            ui.label(RichText::new("Server URL").size(theme.font_size_small).color(theme.text_secondary()));
+            ui.label(RichText::new("Server URL").size(theme.font_size_small).color(theme.text_secondary()))
+                .on_hover_text(
+                    "The relay you broadcast to. You stream under your REGISTERED NAME, resolved \
+                     from your signed-in identity, so nobody else can broadcast as you and there \
+                     is no stream key to keep secret.",
+                );
             ui.add(
                 egui::TextEdit::singleline(&mut state.studio.stream_server_url)
                     .desired_width(190.0)
                     .hint_text("wss://..."),
             );
+
+            ui.add_space(theme.section_gap);
+            ui.label(RichText::new("Stream title").size(theme.font_size_small).color(theme.text_secondary()));
+            ui.add(
+                egui::TextEdit::singleline(&mut state.studio.stream_key)
+                    .desired_width(190.0)
+                    .hint_text("What are you streaming?"),
+            )
+            .on_hover_text("Shown to viewers on the watch page. Optional.");
         }
 
         ui.add_space(theme.section_gap);
@@ -1202,9 +1238,18 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         ui.add_space(theme.section_gap);
 
-        // Bitrate
-        ui.label(RichText::new("Bitrate (kbps)").size(theme.font_size_small).color(theme.text_secondary()));
-        ui.add(egui::Slider::new(&mut state.studio.stream_bitrate, 1000..=10000).step_by(100.0).show_value(true));
+        // Bitrate. Honest framing: this is a QUALITY target, not a hard cap. The v1
+        // encoder is MJPEG, where you set image quality and the bitrate falls out of
+        // it; a real rate controller arrives with the H.264 encoder. Claiming a hard
+        // cap we do not enforce would be a lie the viewer's buffering would expose.
+        ui.label(RichText::new("Quality target (kbps)").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.add(egui::Slider::new(&mut state.studio.stream_bitrate, 1000..=10000).step_by(100.0).show_value(true))
+            .on_hover_text(
+                "Higher means a sharper picture and more bandwidth, for you AND for the server, \
+                 which pays this again for every viewer. This is a target rather than a hard \
+                 cap: the live Bitrate readout above the canvas tells you what you are actually \
+                 sending.",
+            );
 
         ui.add_space(theme.section_gap);
 

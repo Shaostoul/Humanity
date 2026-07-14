@@ -131,8 +131,11 @@ pub fn draw(ctx: &egui::Context, theme: &mut Theme, state: &mut GuiState) {
             for (label, cat) in &categories {
                 let is_active = state.settings.category == *cat;
                 let text_color = if is_active { Color32::WHITE } else { theme.text_muted() };
+                // Active category: a faint wash of the accent token (the same
+                // alpha-derived tint widgets::section_nav uses), not a literal.
+                let a = theme.accent();
                 let bg = if is_active {
-                    Color32::from_rgba_unmultiplied(237, 140, 36, 30)
+                    Color32::from_rgba_unmultiplied(a.r(), a.g(), a.b(), 30)
                 } else {
                     Color32::TRANSPARENT
                 };
@@ -404,8 +407,12 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 let phrase = state.private_key_bytes.as_ref()
                     .and_then(|s| crate::net::identity::mnemonic_from_seed(s))
                     .unwrap_or_else(|| "(cannot render, key is not a 32-byte BIP39 seed)".to_string());
+                // Seed-phrase box: a warm wash of the warning token (it holds the
+                // single most dangerous string in the app), derived from the token
+                // via alpha rather than a hardcoded brown.
+                let w = theme.warning();
                 egui::Frame::none()
-                    .fill(Color32::from_rgb(40, 30, 20))
+                    .fill(Color32::from_rgba_unmultiplied(w.r(), w.g(), w.b(), 40))
                     .rounding(Rounding::same(4))
                     .inner_margin(8.0)
                     .stroke(Stroke::new(1.0, theme.warning()))
@@ -575,7 +582,7 @@ pub(crate) fn draw_account_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 let color = if state.settings.seed_phrase_recovery_status.starts_with("Error") {
                     theme.danger()
                 } else {
-                    Color32::from_rgb(46, 204, 113)
+                    theme.success()
                 };
                 ui.label(RichText::new(&state.settings.seed_phrase_recovery_status).color(color).size(theme.font_size_small));
             }
@@ -1041,6 +1048,7 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("DM row (hover)",            &mut theme.dm_row_hover as *mut _),
                     ("Group lane background",     &mut theme.group_bg as *mut _),
                     ("Group row background",      &mut theme.group_row_bg as *mut _),
+                    ("DM accent (bar + header)",  &mut theme.dm_accent as *mut _),
                 ];
                 for (label, ptr) in labels_left {
                     let ui_l = &mut cols[0];
@@ -1054,6 +1062,8 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
                     ("Server lane background",    &mut theme.server_bg as *mut _),
                     ("Server row background",     &mut theme.server_row_bg as *mut _),
                     ("Server row (hover)",        &mut theme.server_row_hover as *mut _),
+                    ("Group accent (header)",     &mut theme.group_accent as *mut _),
+                    ("Scratchpad accent",         &mut theme.scratchpad_accent as *mut _),
                     ("Slider track",              &mut theme.slider_track as *mut _),
                     ("Badge: donor",              &mut theme.badge_donor as *mut _),
                     ("Badge: live",               &mut theme.badge_live as *mut _),
@@ -1414,8 +1424,14 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
     let spacing_md = theme.spacing_md;
     let heading_sz = theme.font_size_heading;
 
-    let label_color = Color32::from_rgb(136, 136, 148);
-    let text_color = Color32::from_rgb(232, 232, 234);
+    let label_color = theme.text_muted();
+    let text_color = theme.text_primary();
+    // Preview-only surfaces, all read from tokens so the live preview shows the
+    // user's ACTUAL theme rather than a frozen snapshot of some old palette.
+    let preview_avatar = widgets::swatch_color("Alice");
+    let preview_row_bg = theme.bg_card();
+    let preview_row_bg_alt = theme.bg_tertiary();
+    let preview_offline = theme.text_muted();
     let ss = SliderStyle::from_theme(theme);
 
     // Two-column layout: sliders on left, live preview on right
@@ -1559,12 +1575,12 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     ui,
                     theme,
                     'A',
-                    Color32::from_rgb(52, 152, 219),
+                    preview_avatar,
                     "Alice",
                     "12:34 PM",
                     "This is a sample message to preview how the row widget looks with the current theme settings.",
                     true,
-                    Color32::from_rgb(26, 26, 34),
+                    preview_row_bg,
                     false,
                     0.0,
                     0.0, // pill_width = 0 → preview keeps inline timestamp
@@ -1577,12 +1593,12 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     ui,
                     theme,
                     'A',
-                    Color32::from_rgb(52, 152, 219),
+                    preview_avatar,
                     "Alice",
                     "",
                     "A continuation message from the same user.",
                     false,
-                    Color32::from_rgb(30, 30, 38),
+                    preview_row_bg_alt,
                     false,
                     0.0,
                     0.0, // pill_width = 0
@@ -1601,10 +1617,12 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     |ui| {
                         let full_rect = ui.max_rect();
                         let hover = ui.rect_contains_pointer(full_rect);
+                        // Mirrors the real chat server-lane row (chat.rs), so the
+                        // preview moves when the user edits those lane tokens.
                         let fill = if hover {
-                            Color32::from_rgb(35, 35, 50)
+                            theme.server_row_hover()
                         } else {
-                            Color32::from_rgb(20, 20, 55)
+                            theme.server_row_bg()
                         };
                         ui.painter().rect_filled(full_rect, 0.0, fill);
                         ui.add_space(theme.item_padding * 2.0);
@@ -1636,11 +1654,11 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     ui.add_space(theme.item_padding);
                     let dot_sz = theme.status_dot_size;
                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, Color32::from_rgb(100, 100, 100));
+                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, preview_offline);
                     ui.label(
                         RichText::new("Charlie")
                             .size(theme.body_size)
-                            .color(Color32::from_rgb(106, 106, 117)),
+                            .color(preview_offline),
                     );
                 });
             });

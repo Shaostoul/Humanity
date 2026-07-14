@@ -51,7 +51,13 @@ upgrade is a payload swap, not a rewrite.
 
 ## Build plan
 
-### Rung 1 - MAKE "GO LIVE" ACTUALLY BROADCAST (self-hosted, no encoder dependency)
+### Rung 1 - MAKE "GO LIVE" ACTUALLY BROADCAST (self-hosted, no encoder dependency) - SHIPPED v0.853-v0.854
+
+Done. `src/relay/live.rs` (fanout), `src/net/live.rs` (publisher), `src/renderer/stream_capture.rs`
+(non-blocking readback), `web/pages/watch.html` (viewer). Routes are `/ws/live/{pub,sub}` and
+`/api/live`. Proven end to end by a test that decodes the received JPEG, plus a real-GPU readback
+test. What follows is the original plan, kept for the record.
+
 
 A dedicated binary WebSocket live route on the relay, MJPEG frames from the app, a browser
 viewer. This is the fastest path to a real stream the operator can point people at, and the

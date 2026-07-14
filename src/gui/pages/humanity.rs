@@ -13,7 +13,7 @@ use egui::{Align2, Frame, Margin, RichText, Rounding, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{governance, identity, donate};
+use super::{civilization, governance, identity, donate};
 
 /// The Humanity Accord, embedded at compile time from the canonical repo copy so
 /// it is readable in-app with no network and no separate data file to ship or let
@@ -132,6 +132,10 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         // pages (neither was in the sidebar; Library + the dashboard cover them).
         // Default = the Mission Dashboard (the real Humanity landing).
         _ => {
+            // The Mission Dashboard embeds the live community dashboard, so its
+            // relay fetch has to be pumped from here (poll_stats needs the
+            // Context; draw_mission_dashboard only gets a Ui).
+            civilization::poll_stats(ctx, state);
             egui::CentralPanel::default()
                 .frame(Frame::none().fill(theme.bg_panel()).inner_margin(theme.card_padding))
                 .show(ctx, |ui| {
@@ -390,29 +394,43 @@ fn draw_mission_dashboard(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState
     });
     ui.add_space(theme.spacing_md);
 
-    // Where we stand (live scoreboard)
+    // Where we stand: the REAL community dashboard, live from the relay.
+    //
+    // Until now this section only borrowed civilization.rs's `draw_stat_card`
+    // (v0.662) for three local tiles, one of which counted `chat_users` while
+    // the other two were placeholder words. The full page it borrowed from was
+    // already built and already fetching GET /api/civilization, but nothing in
+    // the app ever routed to it, so members / messages / market / tasks /
+    // follows were invisible to users. It renders HERE now (same fetch, same
+    // GuiState cache, one visual language). The standalone Civilization page
+    // still exists and still works; this is a rescue, not a replacement.
     widgets::card_with_header(ui, theme, "Where we stand", |ui| {
         ui.label(
-            RichText::new("This is the beginning. Every person who joins and every contribution moves the needle.")
+            RichText::new("This is the beginning. Every person who joins and every contribution moves the needle. These are the server's real numbers, not estimates.")
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),
         );
         ui.add_space(theme.spacing_sm);
-        // chat_users is real (people connected to this server now). Platform
-        // wide totals (humans/AI onboarded, donations, federation) need a
-        // relay fetch, wired next; honestly framed for now, never faked.
-        // Stat cards reuse civilization.rs's draw_stat_card (v0.662) AND its
-        // Grid container (v0.684): the earlier horizontal_wrapped layout
-        // stair-stepped the three tiles downward (wrapped rows baseline-drift
-        // as item heights differ -- operator screenshot 2026-07-04); a Grid
-        // top-aligns every cell, matching the Civilization page exactly.
+        ui.horizontal(|ui| {
+            if widgets::Button::secondary("Refresh").show(ui, theme) {
+                // poll_stats (pumped from `draw`) re-fetches on the next frame.
+                state.civ_stats_loaded = false;
+            }
+        });
+        ui.add_space(theme.spacing_xs);
+        civilization::draw_live_body(ui, theme, state);
+        ui.add_space(theme.spacing_md);
+        // The two things the mission is measured by that no relay counter can
+        // report. Qualitative on purpose: never dressed up as a fake number.
+        // A Grid (not horizontal_wrapped) because wrapped rows baseline-drift as
+        // tile heights differ, which stair-stepped the old scoreboard (operator
+        // screenshot 2026-07-04); a Grid top-aligns every cell.
         egui::Grid::new("humanity_scoreboard_grid")
-            .num_columns(3)
+            .num_columns(2)
             .spacing(egui::Vec2::new(theme.spacing_sm, theme.spacing_sm))
             .show(ui, |ui| {
-                super::civilization::draw_stat_card(ui, theme, "People online now", &state.chat_users.len().to_string(), "", 0.0);
-                super::civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
-                super::civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
+                civilization::draw_stat_card(ui, theme, "AI building alongside us", "Yes", "", 0.0);
+                civilization::draw_stat_card(ui, theme, "Federated communities", "Forming", "", 0.0);
                 ui.end_row();
             });
     });

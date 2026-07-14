@@ -328,12 +328,16 @@ fn custom_slider_with_width(
             }
         }
 
-        // Draw thumb: filled circle with animated RGB border
+        // Draw thumb: filled circle with animated RGB border. The thumb is a
+        // light knob that must read against the gradient track: brightest on
+        // hover/drag, a step down at rest. Both come from text tokens (primary =
+        // the app's brightest ink, secondary = one step down) so a user who
+        // restyles the palette gets a thumb that still matches it.
         let thumb_center = egui::pos2(thumb_x, center_y);
         let thumb_fill = if response.hovered() || response.dragged() {
-            Color32::from_rgb(240, 240, 245)
+            theme.text_primary()
         } else {
-            Color32::from_rgb(210, 210, 220)
+            theme.text_secondary()
         };
         painter.circle_filled(thumb_center, thumb_r, thumb_fill);
         // RGB animated border (1.5px)
@@ -1293,12 +1297,14 @@ pub fn stat_card(
     });
 }
 
-/// Standard page frame. Use instead of hardcoding Color32::from_rgb(20, 20, 25).
+/// Standard page frame. Use this instead of a hardcoded panel fill -- it reads
+/// the `bg_panel` theme token, so the Settings colour editor restyles every page.
 pub fn page_frame(theme: &Theme) -> egui::Frame {
     egui::Frame::NONE.fill(theme.bg_panel()).inner_margin(theme.card_padding)
 }
 
-/// Standard sidebar frame. Use instead of hardcoding Color32::from_rgb(22, 22, 28).
+/// Standard sidebar frame. Use this instead of a hardcoded sidebar fill -- it
+/// reads the `bg_sidebar` theme token.
 pub fn sidebar_frame(theme: &Theme) -> egui::Frame {
     egui::Frame::NONE.fill(theme.bg_sidebar()).inner_margin(theme.panel_margin)
 }

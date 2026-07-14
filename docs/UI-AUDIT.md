@@ -52,6 +52,6 @@ Work top-to-bottom. Check items as they ship.
 - [x] `market-app.js` + `trade-app.js` heavy inline styles: **Fixed 2026-07-14 (v0.852.1)** - moved into tokenized CSS classes in the owning pages (market.html / trade.html), so they now follow the theme, light mode, and compact mode. 23 emit sites converted.
 
 ## 8. Larger builds (tracked, not launch-blocking)
-- [ ] Studio capture/encode/stream backend (must pump in the engine loop, not gated on the page).
+- [x] Studio capture/encode/stream backend. **SHIPPED v0.853-0.854.** Go Live now really broadcasts: non-blocking GPU readback (`src/renderer/stream_capture.rs`) -> downscale + JPEG on a worker thread (`src/net/live.rs`) -> binary WebSocket -> relay fanout (`src/relay/live.rs`) -> a public watch page (`web/pages/watch.html`). Pumps in the engine loop right before present, so what goes out is exactly what the operator sees. MJPEG for v1 (zero new deps); H.264 via the `windows` crate + Media Foundation is the next rung. Proven end to end by a test that decodes the received JPEG + a real-GPU readback test. Full design: `docs/design/streaming.md`.
 - [ ] In-app browser webview (R&D, own lightweight browser per operator).
 - [ ] Optional relay/vault sync for localStorage-only web pages (calendar, notes, bookmarks).

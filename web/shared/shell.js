@@ -779,6 +779,9 @@
       mobileLink('/settings',  'Settings') +
     '</div>' +
     '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
+      // Live streams broadcast from the desktop app's Studio page, fanned out by our
+      // own relay. No third-party platform, and no account needed to watch. (v0.855)
+      mobileLink('/watch.html','Watch live') +
       mobileLink('/wallet',    'Wallet') +
       mobileLink('/market',    'Market') +
       mobileLink('/trade',     'Trade') +
@@ -1367,7 +1370,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.854.0';
+    var CURRENT_VERSION = '0.855.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

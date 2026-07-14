@@ -8,12 +8,12 @@
     "Custom RTMP"
   ],
   "resolutions": [
+    "640x360",
+    "854x480",
     "1280x720",
-    "1920x1080",
-    "2560x1440",
-    "3840x2160"
+    "1920x1080"
   ],
-  "fps": [30, 60],
+  "fps": [15, 24, 30],
   "chat_positions": [
     "Top-Left",
     "Top-Right",
