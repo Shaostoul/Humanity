@@ -125,13 +125,13 @@ fn spawn_reviews_fetch(state: &mut GuiState, listing_id: &str) {
 fn category_color(category: &str) -> Color32 {
     match category {
         "Tools" => Color32::from_rgb(70, 130, 180),
-        "Materials" => Color32::from_rgb(139, 119, 101),
-        "Food" => Color32::from_rgb(60, 150, 60),
-        "Equipment" => Color32::from_rgb(180, 140, 50),
-        "Vehicles" => Color32::from_rgb(140, 80, 160),
-        "Electronics" => Color32::from_rgb(50, 150, 200),
-        "Services" => Color32::from_rgb(200, 100, 80),
-        _ => Color32::from_rgb(120, 120, 130),
+        "Materials" => Color32::from_rgb(139, 119, 101), // theme-exempt: categorical badge palette (brown), no semantic token exists for it
+        "Food" => Color32::from_rgb(60, 150, 60), // theme-exempt: categorical badge palette (green), category identity not a success state
+        "Equipment" => Color32::from_rgb(180, 140, 50), // theme-exempt: categorical badge palette (amber), category identity not a warning state
+        "Vehicles" => Color32::from_rgb(140, 80, 160), // theme-exempt: categorical badge palette (purple), no semantic token exists for it
+        "Electronics" => Color32::from_rgb(50, 150, 200), // theme-exempt: categorical badge palette (cyan blue), must stay distinct from the Tools blue
+        "Services" => Color32::from_rgb(200, 100, 80), // theme-exempt: categorical badge palette (terracotta), category identity not a danger state
+        _ => Color32::from_rgb(120, 120, 130), // theme-exempt: categorical badge palette fallback (neutral grey) for unknown/custom categories from data/market/categories.json
     }
 }
 

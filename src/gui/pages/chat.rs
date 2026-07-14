@@ -512,7 +512,7 @@ fn draw_left_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Show connect UI only when disconnected (no separate connection bar when connected)
     if !is_connected {
         Frame::NONE
-            .fill(Color32::from_rgb(40, 30, 30))
+            .fill(theme.bg_card())
             .inner_margin(egui::Margin::symmetric(8, 8))
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
@@ -719,7 +719,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         theme.dm_bg(),
         |ui| {
             let (cog_rect, cog_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-            let cog_color = if cog_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+            let cog_color = if cog_resp.hovered() { Color32::WHITE } else { theme.text_muted() };
             crate::gui::widgets::icons::paint_cog(ui.painter(), cog_rect, cog_color);
             cog_rect_cell.set(Some(cog_rect));
             if cog_resp.on_hover_text("DM Settings").clicked() {
@@ -875,7 +875,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // Unread dot
                         if dm.unread {
                             let dot_r = theme.status_dot_size * 0.375;
-                            ui.painter().circle_filled(egui::pos2(cursor_x + dot_r, cy), dot_r, Color32::from_rgb(200, 80, 80));
+                            ui.painter().circle_filled(egui::pos2(cursor_x + dot_r, cy), dot_r, theme.danger());
                             cursor_x += dot_r * 2.0 + 3.0;
                         }
 
@@ -948,7 +948,7 @@ fn draw_dm_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.chat_user_modal_key = dm.user_key.clone();
                             ui.close_menu();
                         }
-                        if ui.button(RichText::new("Close Conversation").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                        if ui.button(RichText::new("Close Conversation").color(theme.danger())).clicked() {
                             state.chat_dms.retain(|d| d.user_key != dm.user_key);
                             if state.chat_active_channel == format!("dm:{}", dm.user_key) {
                                 state.chat_active_channel = "general".to_string();
@@ -1034,7 +1034,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             // Join button (arrow icon)
             {
                 let (arrow_rect, arrow_resp) = crate::gui::widgets::icons::icon_button(ui, 14.0);
-                let arrow_color = if arrow_resp.hovered() { Color32::WHITE } else { Color32::from_rgb(160, 160, 170) };
+                let arrow_color = if arrow_resp.hovered() { Color32::WHITE } else { theme.text_muted() };
                 crate::gui::widgets::icons::paint_arrow_right(ui.painter(), arrow_rect, arrow_color);
                 if arrow_resp.on_hover_text("Join Group").clicked() {
                     join_clicked = true;
@@ -1373,7 +1373,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                             state.active_help_topic = Some("groups-vs-servers".to_string());
                         }
                         ui.separator();
-                        if ui.button(RichText::new("Leave Group").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                        if ui.button(RichText::new("Leave Group").color(theme.danger())).clicked() {
                             leave_group_id = Some(group.id.clone());
                         }
                     });
@@ -1384,7 +1384,7 @@ fn draw_groups_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let is_group_admin = is_group_admin(&group.role);
                         for (ci, ch) in group.channels.iter().enumerate() {
                             let is_active = state.chat_active_channel == ch.id;
-                            let accent = Color32::from_rgb(80, 200, 80);
+                            let accent = theme.success();
                             let base_bg = if is_active {
                                 Color32::from_rgb(accent.r() / 5 + 15, accent.g() / 5 + 15, accent.b() / 5 + 15)
                             } else {
@@ -1766,7 +1766,7 @@ fn draw_servers_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
                         // (v0.847.x: "Mute Server" removed — native has no
                         // notification/desktop-alert system yet, so there was
                         // nothing to mute. Re-add wired when notifications land.)
-                        if ui.button(RichText::new("Disconnect").color(Color32::from_rgb(200, 80, 80))).clicked() {
+                        if ui.button(RichText::new("Disconnect").color(theme.danger())).clicked() {
                             svr_disconnect = true;
                         }
                     });
@@ -2205,7 +2205,7 @@ fn draw_studio_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // Header carries a LIVE badge at a glance (em-dash + text — both render
     // reliably in the bundled font; no risky glyphs).
     let title = if live { "Studio, LIVE" } else { "Studio" };
-    if section_header(ui, title, collapsed, theme.bg_tertiary()) {
+    if section_header(ui, theme, title, collapsed, theme.bg_tertiary()) {
         state.chat_studio_collapsed = !state.chat_studio_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
     }
@@ -2301,7 +2301,7 @@ fn draw_user_row(
 
         // Online/offline dot
         let dot_color = match status {
-            "offline" => Color32::from_rgb(100, 100, 100),
+            "offline" => theme.text_muted(),
             "away" => theme.warning(),
             "busy" | "dnd" => theme.danger(),
             _ => theme.success(),
@@ -2401,7 +2401,7 @@ fn draw_friends_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let collapsed = state.chat_friends_collapsed;
     let friend_count = state.chat_friends.len();
 
-    if section_header(ui, &format!("Friends ({})", friend_count), collapsed, Color32::from_rgb(35, 35, 42)) {
+    if section_header(ui, theme, &format!("Friends ({})", friend_count), collapsed, theme.bg_tertiary()) {
         state.chat_friends_collapsed = !state.chat_friends_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
     }
@@ -2438,7 +2438,7 @@ fn draw_members_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) 
     let member_count = state.chat_users.len();
     let server_name = server_display_name(&state.server_url);
 
-    if section_header(ui, &format!("{} ({})", server_name, member_count), collapsed, Color32::from_rgb(35, 35, 42)) {
+    if section_header(ui, theme, &format!("{} ({})", server_name, member_count), collapsed, theme.bg_tertiary()) {
         state.chat_members_collapsed = !state.chat_members_collapsed;
         crate::config::AppConfig::from_gui_state(state).save();
     }
@@ -6429,7 +6429,7 @@ fn tinted_section_header_with_buttons(
 }
 
 /// Draw a plain collapsible section header (for right panel).
-fn section_header(ui: &mut egui::Ui, label: &str, collapsed: bool, bg: Color32) -> bool {
+fn section_header(ui: &mut egui::Ui, theme: &Theme, label: &str, collapsed: bool, bg: Color32) -> bool {
     let response = ui
         .allocate_ui_with_layout(
             Vec2::new(ui.available_width(), 32.0),
@@ -7144,7 +7144,7 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             .auto_shrink([false, false])
             .max_height(440.0)
             .show(ui, |ui| {
-                    let section_color = Color32::from_rgb(100, 180, 255);
+                    let section_color = theme.info();
                     let cmd_color = theme.text_primary();
                     let desc_color = theme.text_muted();
 
@@ -7175,7 +7175,7 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
 
                     ui.add_space(10.0);
-                    ui.label(RichText::new("Moderator").size(theme.font_size_body + 2.0).color(Color32::from_rgb(255, 180, 80)).strong());
+                    ui.label(RichText::new("Moderator").size(theme.font_size_body + 2.0).color(theme.warning()).strong());
                     ui.add_space(4.0);
                     let mod_cmds = [
                         ("/kick <name>", "Disconnect a user"),
@@ -7194,7 +7194,7 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
 
                     ui.add_space(10.0);
-                    ui.label(RichText::new("Admin").size(theme.font_size_body + 2.0).color(Color32::from_rgb(255, 100, 100)).strong());
+                    ui.label(RichText::new("Admin").size(theme.font_size_body + 2.0).color(theme.danger()).strong());
                     ui.add_space(4.0);
                     let admin_cmds = [
                         ("/ban <name>", "Ban a user"),
@@ -7225,7 +7225,7 @@ fn draw_help_modal(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                     }
 
                     ui.add_space(10.0);
-                    ui.label(RichText::new("Federation").size(theme.font_size_body + 2.0).color(Color32::from_rgb(100, 220, 160)).strong());
+                    ui.label(RichText::new("Federation").size(theme.font_size_body + 2.0).color(theme.success()).strong());
                     ui.add_space(4.0);
                     let fed_cmds = [
                         ("/server-add <url> [name]", "Add a federated server"),

@@ -18739,7 +18739,7 @@ mod native_app {
                                         egui::Id::new("crosshair"),
                                     ));
                                     let color = if state.targeted_planet.is_some() {
-                                        egui::Color32::from_rgb(100, 200, 255) // highlight blue when targeting
+                                        state.theme.info() // targeting highlight - the theme's blue info token
                                     } else {
                                         egui::Color32::from_white_alpha(180)
                                     };

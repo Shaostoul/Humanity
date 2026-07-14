@@ -386,14 +386,24 @@ fn draw_scene_canvas(
 /// Label row above a canvas pane: PROGRAM (or LIVE while live) / PREVIEW plus the
 /// scene name currently on that side.
 fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: bool) {
+    // One shared wording for both panes, so PROGRAM/PREVIEW mean the same thing
+    // wherever they are hovered (wide split and narrow single-canvas alike).
+    const PROGRAM_TIP: &str =
+        "PROGRAM is the live side: what your viewers would see right now. It changes ONLY when \
+         you press Cut to Program. (Rehearsal for now: nothing is actually broadcast yet.)";
+    const PREVIEW_TIP: &str =
+        "PREVIEW is your staging area: nobody sees it. Set up the next scene here, then press \
+         Cut to Program to put it on air.";
     ui.horizontal(|ui| {
         if program_side {
             if state.studio.is_live {
-                ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong());
+                ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong())
+                    .on_hover_text(PROGRAM_TIP);
             } else {
                 ui.label(
                     RichText::new("PROGRAM").size(theme.font_size_body).color(theme.text_secondary()).strong(),
-                );
+                )
+                .on_hover_text(PROGRAM_TIP);
             }
             let scene_name = state
                 .studio
@@ -401,16 +411,19 @@ fn pane_label(ui: &mut egui::Ui, theme: &Theme, state: &GuiState, program_side: 
                 .get(state.studio.program_scene_index)
                 .map(|s| s.name.as_str())
                 .unwrap_or("");
-            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()))
+                .on_hover_text("The scene currently on the live side.");
         } else {
-            ui.label(RichText::new("PREVIEW").size(theme.font_size_body).color(theme.accent()).strong());
+            ui.label(RichText::new("PREVIEW").size(theme.font_size_body).color(theme.accent()).strong())
+                .on_hover_text(PREVIEW_TIP);
             let scene_name = state
                 .studio
                 .scenes
                 .get(state.studio.preview_scene_index)
                 .map(|s| s.name.as_str())
                 .unwrap_or("");
-            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()));
+            ui.label(RichText::new(scene_name).size(theme.font_size_small).color(theme.text_muted()))
+                .on_hover_text("The scene you are staging. Press Cut to Program to make it live.");
         }
     });
 }
@@ -423,24 +436,52 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     // ── Stream status header ──
     ui.horizontal(|ui| {
         if state.studio.is_live {
-            ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong());
-            // Elapsed time indicator
+            ui.label(RichText::new("LIVE").size(theme.font_size_body).color(theme.success()).strong())
+                .on_hover_text(
+                    "A rehearsal session is running. Scene switching and layout are real; no video \
+                     or audio leaves this machine yet.",
+                );
+            // Uptime: time since Go Live was pressed. Labeled, so it is not mistaken
+            // for a countdown or a viewer count.
             let elapsed = ui.ctx().input(|i| i.time) - state.studio.live_start_time;
             let secs = elapsed as u64;
             let h = secs / 3600;
             let m = (secs % 3600) / 60;
             let s = secs % 60;
+            ui.label(RichText::new("Uptime").size(theme.font_size_small).color(theme.text_muted()));
             ui.label(
                 RichText::new(format!("{}:{:02}:{:02}", h, m, s))
                     .size(theme.font_size_small)
                     .color(theme.success()),
-            );
+            )
+            .on_hover_text("Time since you pressed Go Live. Stop resets it to zero.");
+            if state.studio.is_paused {
+                ui.label(
+                    RichText::new("PAUSED").size(theme.font_size_small).color(theme.warning()).strong(),
+                )
+                .on_hover_text("Session is held. The uptime clock keeps running. Press Resume to carry on.");
+            }
+            if state.studio.is_afk {
+                ui.label(
+                    RichText::new("AWAY").size(theme.font_size_small).color(theme.studio_afk()).strong(),
+                )
+                .on_hover_text("You are marked away. Press AFK or BRB again to come back.");
+            }
+            // Keep the uptime clock ticking even when the mouse is still.
+            ui.ctx().request_repaint();
         } else {
             ui.label(
                 RichText::new("Offline").size(theme.font_size_body).color(theme.text_secondary()),
-            );
+            )
+            .on_hover_text("Nothing is running. Press Go Live to start a local rehearsal.");
         }
     });
+    widgets::body_hint(
+        ui,
+        theme,
+        "PROGRAM is what viewers would see. PREVIEW is your staging area, which nobody else sees. \
+         Stage a scene in Preview, then press Cut to Program to put it on air.",
+    );
     ui.add_space(theme.section_gap);
 
     // ── Program/Preview canvases ──
@@ -548,6 +589,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.add_space(theme.panel_margin);
 
     // ── Controls bar ──
+    // Keyboard shortcut: Ctrl+Enter performs the cut, so a streamer can transition
+    // without hunting for the button. Ignored while any text field has focus, so
+    // typing a stream key / scene name can never fire a cut by accident.
+    if !ui.ctx().wants_keyboard_input()
+        && ui.ctx().input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Enter))
+    {
+        state.studio.cut_to_program();
+    }
+
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
 
@@ -556,8 +606,9 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // staged preview to program (a hard cut; fades are a later add).
         if widgets::Button::primary("Cut to Program")
             .tooltip(
-                "Make the Preview scene the live Program output. Rehearsal mode: \
-                 no video/audio is actually broadcast yet.",
+                "Swap what is in PREVIEW onto the live PROGRAM side, in other words go on air \
+                 with it. This is the ONLY thing that changes the Program side. Shortcut: \
+                 Ctrl+Enter. Honest limit: rehearsal only, no video or audio is broadcast yet.",
             )
             .show(ui, theme)
         {
@@ -576,10 +627,17 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         if state.studio.is_live {
             // Indicator only — clicking does nothing (use Stop to end stream).
             widgets::Button::success("LIVE")
-                .tooltip("Rehearsal mode only -- no video/audio is actually being sent anywhere yet.")
+                .tooltip(
+                    "A rehearsal is running. This is an INDICATOR, not a button: press Stop to \
+                     end the session. Nothing is being broadcast anywhere yet.",
+                )
                 .show(ui, theme);
         } else if widgets::Button::primary("Go Live")
-            .tooltip("Rehearsal mode: lets you practice scenes/sources. Streaming isn't connected to a real broadcast yet.")
+            .tooltip(
+                "Start a local rehearsal: the uptime clock starts and the Program pane gets its \
+                 live border, so you can practise scene switching. It does NOT broadcast. Capture, \
+                 encoding, and the transport that would send video are not built yet.",
+            )
             .show(ui, theme)
         {
             state.studio.is_live = true;
@@ -589,15 +647,28 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
         // Pause / Resume — Secondary that flips to accent fill via .active() when paused.
         let pause_label = if state.studio.is_paused { "Resume" } else { "Pause" };
+        let pause_tip: &str = if state.studio.is_paused {
+            "Resume the session and clear the PAUSED marker."
+        } else {
+            "Hold the session for a short break. The uptime clock keeps running. Rehearsal only, \
+             so this sets a status marker rather than pausing a real broadcast."
+        };
         if widgets::Button::secondary(pause_label)
             .active(state.studio.is_paused)
+            .tooltip(pause_tip)
             .show(ui, theme)
         {
             state.studio.is_paused = !state.studio.is_paused;
         }
 
         // Stop — Danger variant.
-        if widgets::Button::danger("Stop").show(ui, theme) {
+        if widgets::Button::danger("Stop")
+            .tooltip(
+                "End the session: clears LIVE, Paused, and Away, and resets the uptime clock to \
+                 zero. Your scenes and sources are kept exactly as they are.",
+            )
+            .show(ui, theme)
+        {
             state.studio.is_live = false;
             state.studio.is_paused = false;
             state.studio.is_afk = false;
@@ -610,6 +681,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // AFK toggle — Secondary that flips to accent when active.
         if widgets::Button::secondary("AFK")
             .active(state.studio.is_afk)
+            .tooltip(
+                "AFK means Away From Keyboard. One press marks you away, holds the session, AND \
+                 cuts the BRB scene straight to Program, so the audience side flips to your \
+                 placeholder immediately. Press again to come back.",
+            )
             .show(ui, theme)
         {
             state.studio.is_afk = !state.studio.is_afk;
@@ -631,6 +707,11 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // BRB — same toggle state as AFK, different label.
         if widgets::Button::secondary("BRB")
             .active(state.studio.is_afk)
+            .tooltip(
+                "BRB means Be Right Back. Marks you away and holds the session, but leaves the \
+                 current scene on Program. Use AFK instead if you also want the BRB scene cut to \
+                 air. Press again to come back.",
+            )
             .show(ui, theme)
         {
             state.studio.is_afk = !state.studio.is_afk;
@@ -666,8 +747,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // stream is actually running (a mic test or a live voice session), which is
         // honest: Studio itself doesn't open the mic, so silence here means nothing is
         // capturing yet, not that the meter is broken.
-        ui.label(RichText::new("Audio:").size(theme.font_size_small).color(theme.text_muted()));
-        let (meter_rect, _) = ui.allocate_exact_size(Vec2::new(80.0, 12.0), egui::Sense::hover());
+        const AUDIO_TIP: &str =
+            "Microphone level. This is your REAL mic peak, but Studio never opens the mic itself: \
+             it reads zero unless a mic test or a voice call is already running (Settings, or the \
+             Chat page). Green is a healthy level, yellow is loud, red is clipping.";
+        ui.label(RichText::new("Audio:").size(theme.font_size_small).color(theme.text_muted()))
+            .on_hover_text(AUDIO_TIP);
+        let (meter_rect, meter_resp) =
+            ui.allocate_exact_size(Vec2::new(80.0, 12.0), egui::Sense::hover());
+        let _ = meter_resp.on_hover_text(AUDIO_TIP);
         let painter = ui.painter_at(meter_rect);
         painter.rect_filled(meter_rect, 2.0, theme.studio_meter_bg());
         let level = crate::net::voice::mic_level();
@@ -697,13 +785,19 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     RichText::new("Rehearsing (not broadcasting)")
                         .size(theme.font_size_small)
                         .color(theme.warning()),
+                )
+                .on_hover_text(
+                    "Studio can build, arrange, and switch scenes today. The streaming transport \
+                     (capture, encode, send) is not built yet, so nothing is leaving this machine. \
+                     Everything you set up here is what WOULD go out once it lands.",
                 );
             } else {
                 ui.label(
                     RichText::new("Offline")
                         .size(theme.font_size_small)
                         .color(theme.text_muted()),
-                );
+                )
+                .on_hover_text("No session running. Press Go Live to start a local rehearsal.");
             }
         });
     });
@@ -746,6 +840,12 @@ fn draw_studio_chat(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             }
         });
     });
+    widgets::body_hint(
+        ui,
+        theme,
+        "Read the room while you broadcast. This is the same feed as the Chat page, so switching \
+         the channel here switches it there too. Read only: type replies on the Chat page.",
+    );
     ui.add_space(theme.spacing_xs);
 
     let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
@@ -912,10 +1012,17 @@ fn draw_right_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_heading)
                 .color(theme.text_primary()),
         );
+        widgets::body_hint(
+            ui,
+            theme,
+            "What a real broadcast WOULD send. These are saved settings, not a live connection: \
+             capture, encoding, and the transport are not built yet, so nothing here sends anything.",
+        );
         ui.add_space(theme.section_gap);
 
         // Platform selector
-        ui.label(RichText::new("Platform").size(theme.font_size_small).color(theme.text_secondary()));
+        ui.label(RichText::new("Platform").size(theme.font_size_small).color(theme.text_secondary()))
+            .on_hover_text("Where the stream would be sent. Your choice only changes which fields below are asked for.");
         egui::ComboBox::from_id_salt("studio_platform")
             .selected_text(&state.studio.stream_platform)
             .width(190.0)

@@ -51,7 +51,6 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // Inline avatar placeholder colors derived from name hash. Could move
     // to a palette in theme.ron. Medium priority.
     "src/gui/mod.rs",
-    "src/gui/widgets/icons.rs",
     // Voice-meter state colors + status dots — semantic transient state
     // visualization. Roadmap calls these "mostly legitimate". Audit then
     // either annotate `theme-exempt` or move the palette to theme.ron.
@@ -64,7 +63,6 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // Page-level palettes (category colors, avatar placeholders, semantic
     // domain markers like map biomes). High priority — these are exactly
     // the theme-token rule's intended target.
-    "src/gui/pages/donate.rs",
     "src/gui/pages/inventory.rs",
     "src/gui/pages/hud.rs",
     "src/gui/pages/maps.rs",
@@ -76,13 +74,11 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // studio.rs migrated to theme tokens 2026-07-02 (v0.672) and REMOVED from
     // this list -- the first shrink since enforcement began. Its one remaining
     // literal call is an alpha-composite of a token, inline theme-exempt.
-    "src/gui/pages/wallet.rs",
     // theme.rs is the authoritative source; literal calls in `c32` and
     // accessor implementations are by design. Always allowed.
     "src/gui/theme.rs",
     // lib.rs has one literal in the engine bootstrap (clear color or
     // similar). Audit + likely add a renderer/clear-color token.
-    "src/lib.rs",
 ];
 
 /// Directories scanned for violations. Anything outside these trees

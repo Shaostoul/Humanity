@@ -4347,7 +4347,7 @@ impl Default for GuiState {
             cal_events: Vec::new(),
             cal_new_title: String::new(),
             cal_new_time: String::new(),
-            cal_new_color: egui::Color32::from_rgb(237, 140, 36),
+            cal_new_color: egui::Color32::from_rgb(237, 140, 36), // theme-exempt: seed value of the user's per-event colour picker (calendar.rs color_edit_button_srgba); stored as event data, and Default for GuiState has no Theme in scope.
 
             // Notes defaults
             notes: Vec::new(),
@@ -4427,7 +4427,7 @@ impl Default for GuiState {
             guild_show_create: false,
             guild_new_name: String::new(),
             guild_new_desc: String::new(),
-            guild_new_color: egui::Color32::from_rgb(46, 134, 193),
+            guild_new_color: egui::Color32::from_rgb(46, 134, 193), // theme-exempt: seed value of the create-guild colour picker (guilds.rs color_edit_button_srgba); sent to the relay as guild data, and Default for GuiState has no Theme in scope.
 
             player_health: 100.0,
             player_health_max: 100.0,

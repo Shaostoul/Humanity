@@ -23,16 +23,16 @@ struct DonationSource {
 /// Map network name to an icon color.
 fn network_color(name: &str) -> Color32 {
     let lower = name.to_lowercase();
-    if lower.contains("github") { return Color32::from_rgb(110, 84, 148); }
-    if lower.contains("solana") { return Color32::from_rgb(153, 69, 255); }
-    if lower.contains("bitcoin") || lower.contains("btc") { return Color32::from_rgb(247, 147, 26); }
-    if lower.contains("ethereum") || lower.contains("eth") { return Color32::from_rgb(98, 126, 234); }
-    if lower.contains("monero") || lower.contains("xmr") { return Color32::from_rgb(255, 102, 0); }
-    if lower.contains("litecoin") || lower.contains("ltc") { return Color32::from_rgb(191, 187, 187); }
-    if lower.contains("polygon") || lower.contains("matic") { return Color32::from_rgb(130, 71, 229); }
-    if lower.contains("cardano") || lower.contains("ada") { return Color32::from_rgb(0, 51, 173); }
-    if lower.contains("dogecoin") || lower.contains("doge") { return Color32::from_rgb(194, 166, 51); }
-    Color32::from_rgb(74, 153, 153) // default teal
+    if lower.contains("github") { return Color32::from_rgb(110, 84, 148); } // theme-exempt: GitHub brand color, third-party identity, not a design token
+    if lower.contains("solana") { return Color32::from_rgb(153, 69, 255); } // theme-exempt: Solana brand color, third-party identity, not a design token
+    if lower.contains("bitcoin") || lower.contains("btc") { return Color32::from_rgb(247, 147, 26); } // theme-exempt: Bitcoin brand color, third-party identity, not a design token
+    if lower.contains("ethereum") || lower.contains("eth") { return Color32::from_rgb(98, 126, 234); } // theme-exempt: Ethereum brand color, third-party identity, not a design token
+    if lower.contains("monero") || lower.contains("xmr") { return Color32::from_rgb(255, 102, 0); } // theme-exempt: Monero brand color, third-party identity, not a design token
+    if lower.contains("litecoin") || lower.contains("ltc") { return Color32::from_rgb(191, 187, 187); } // theme-exempt: Litecoin brand color, third-party identity, not a design token
+    if lower.contains("polygon") || lower.contains("matic") { return Color32::from_rgb(130, 71, 229); } // theme-exempt: Polygon brand color, third-party identity, not a design token
+    if lower.contains("cardano") || lower.contains("ada") { return Color32::from_rgb(0, 51, 173); } // theme-exempt: Cardano brand color, third-party identity, not a design token
+    if lower.contains("dogecoin") || lower.contains("doge") { return Color32::from_rgb(194, 166, 51); } // theme-exempt: Dogecoin brand color, third-party identity, not a design token
+    Color32::from_rgb(74, 153, 153) // theme-exempt: neutral fallback in the brand-color lookup for an unrecognized network (default teal)
 }
 
 /// Extract abbreviation from network name, e.g. "Solana (SOL)" -> "SOL"
@@ -134,7 +134,7 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
         value: sol_address,
         is_url: false,
         icon_abbrev: "SOL".into(),
-        icon_color: Color32::from_rgb(153, 69, 255),
+        icon_color: Color32::from_rgb(153, 69, 255), // theme-exempt: Solana brand color, third-party identity, not a design token
     });
 
     let btc_address = state.donate_btc_address.clone();
@@ -144,7 +144,7 @@ fn build_donation_sources(state: &GuiState) -> Vec<DonationSource> {
         value: btc_address,
         is_url: false,
         icon_abbrev: "BTC".into(),
-        icon_color: Color32::from_rgb(247, 147, 26),
+        icon_color: Color32::from_rgb(247, 147, 26), // theme-exempt: Bitcoin brand color, third-party identity, not a design token
     });
 
     sources

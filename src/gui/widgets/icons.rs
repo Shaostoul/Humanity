@@ -36,7 +36,7 @@ pub fn paint_cog(painter: &egui::Painter, rect: Rect, color: Color32) {
     painter.circle_stroke(c, inner_r * 1.1, Stroke::new(r * 0.18, color));
     // Inner hole
     painter.circle_filled(c, inner_r * 0.4, color);
-    painter.circle_filled(c, inner_r * 0.2, Color32::from_rgb(30, 30, 36));
+    painter.circle_filled(c, inner_r * 0.2, Color32::from_rgb(30, 30, 36)); // theme-exempt: fixed dark knockout punched into the cog hub; icons.rs painter helpers get no Theme handle
 }
 
 /// Helper: a point at fractional (fx, fy) inside `rect` (0..1).
@@ -571,7 +571,7 @@ pub fn paint_pin(painter: &egui::Painter, rect: Rect, color: Color32) {
     ];
     painter.add(PathShape::convex_polygon(pts, color, Stroke::NONE));
     // Inner hole
-    painter.circle_filled(Pos2::new(c.x, c.y - w * 0.1), r * 0.4, Color32::from_rgb(20, 20, 26));
+    painter.circle_filled(Pos2::new(c.x, c.y - w * 0.1), r * 0.4, Color32::from_rgb(20, 20, 26)); // theme-exempt: fixed dark knockout for the map-pin hole; icons.rs painter helpers get no Theme handle
 }
 
 /// Shopping bag — Market.

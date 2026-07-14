@@ -847,7 +847,7 @@ pub fn swatch_color(seed: &str) -> Color32 {
     } else {
         (c, 0.0, x)
     };
-    Color32::from_rgb(((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8)
+    Color32::from_rgb(((r + m) * 255.0) as u8, ((g + m) * 255.0) as u8, ((b + m) * 255.0) as u8) // theme-exempt: FNV-1a hash to HSV-to-RGB, an infinite data-seeded palette (one color per arbitrary id)
 }
 
 /// A colored placeholder tile for "image / 3D model goes here" slots — a rounded

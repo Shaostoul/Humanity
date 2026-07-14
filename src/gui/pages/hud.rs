@@ -187,7 +187,7 @@ pub fn draw(
                     gt.season,
                 );
                 let day_icon = if gt.is_daytime { "☀" } else { "☾" };
-                let day_color = if gt.is_daytime { theme.warning() } else { Color32::from_rgb(140, 160, 220) };
+                let day_color = if gt.is_daytime { theme.warning() } else { theme.info() };
                 text_shadowed(
                     painter,
                     Pos2::new(screen.right() - 16.0, 32.0),
@@ -715,7 +715,10 @@ pub fn draw(
                     Pos2::new(screen.right() - 260.0, 64.0),
                     Vec2::new(244.0, 44.0),
                 );
-                painter.rect_filled(toast_rect, Rounding::same(6), Color32::from_rgba_premultiplied(20, 20, 25, 230));
+                // Panel-colored toast fill. RGB comes from the theme (bg_panel);
+                // only the ~90% alpha is intentional here so the toast reads over the 3D scene.
+                let toast_bg = theme.bg_panel();
+                painter.rect_filled(toast_rect, Rounding::same(6), Color32::from_rgba_premultiplied(toast_bg.r(), toast_bg.g(), toast_bg.b(), 230));
                 painter.rect_stroke(toast_rect, Rounding::same(6), egui::Stroke::new(1.0, theme.accent()), egui::StrokeKind::Outside);
                 painter.text(
                     toast_rect.center(),

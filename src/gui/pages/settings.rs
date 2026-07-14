@@ -1547,7 +1547,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
             .fill(theme.bg_panel())
             .rounding(Rounding::same(4))
             .inner_margin(8.0)
-            .stroke(Stroke::new(1.0, Color32::from_rgb(42, 42, 53)))
+            .stroke(Stroke::new(1.0, theme.border()))
             .show(ui, |ui| {
                 ui.label(RichText::new("Live Preview").size(heading_sz).color(text_color));
                 ui.add_space(spacing_sm);
@@ -1625,7 +1625,7 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
                     ui.add_space(theme.item_padding);
                     let dot_sz = theme.status_dot_size;
                     let (rect, _) = ui.allocate_exact_size(Vec2::splat(dot_sz), egui::Sense::hover());
-                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, Color32::from_rgb(51, 191, 77));
+                    ui.painter().circle_filled(rect.center(), dot_sz / 2.0, theme.success());
                     ui.label(
                         RichText::new("Bob")
                             .size(theme.body_size)
@@ -2479,7 +2479,7 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
                 for (action, key) in &keybinds {
                     ui.label(RichText::new(*action).color(theme.text_secondary()));
                     egui::Frame::none()
-                        .fill(Color32::from_rgb(40, 40, 50))
+                        .fill(theme.bg_tertiary())
                         .rounding(Rounding::same(3))
                         .inner_margin(Vec2::new(8.0, 2.0))
                         .show(ui, |ui| {
@@ -2788,7 +2788,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
                 ui.label(RichText::new("Release Notes").color(theme.text_secondary()).strong());
                 ui.add_space(theme.spacing_xs);
                 egui::Frame::none()
-                    .fill(Color32::from_rgb(30, 30, 38))
+                    .fill(theme.bg_sidebar_dark())
                     .rounding(Rounding::same(4))
                     .inner_margin(8.0)
                     .show(ui, |ui| {

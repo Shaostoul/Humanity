@@ -54,14 +54,14 @@ fn with_state<R>(f: impl FnOnce(&mut InventoryPageState) -> R) -> R {
 fn category_color(category: &str) -> Color32 {
     match category {
         "clothing" => Color32::from_rgb(100, 140, 200),
-        "tool" => Color32::from_rgb(180, 150, 80),
-        "weapon" => Color32::from_rgb(200, 80, 80),
-        "furniture" => Color32::from_rgb(140, 120, 100),
-        "food" => Color32::from_rgb(80, 180, 80),
-        "material" => Color32::from_rgb(160, 160, 140),
-        "machine" => Color32::from_rgb(140, 140, 180),
-        "vehicle" => Color32::from_rgb(180, 100, 180),
-        _ => Color32::from_rgb(120, 120, 120),
+        "tool" => Color32::from_rgb(180, 150, 80), // theme-exempt: categorical item-badge hue (gold), not a design token
+        "weapon" => Color32::from_rgb(200, 80, 80), // theme-exempt: categorical item-badge hue (red), not a design token
+        "furniture" => Color32::from_rgb(140, 120, 100), // theme-exempt: categorical item-badge hue (brown), not a design token
+        "food" => Color32::from_rgb(80, 180, 80), // theme-exempt: categorical item-badge hue (green), not a design token
+        "material" => Color32::from_rgb(160, 160, 140), // theme-exempt: categorical item-badge hue (warm grey), not a design token
+        "machine" => Color32::from_rgb(140, 140, 180), // theme-exempt: categorical item-badge hue (blue-grey), not a design token
+        "vehicle" => Color32::from_rgb(180, 100, 180), // theme-exempt: categorical item-badge hue (purple), not a design token
+        _ => Color32::from_rgb(120, 120, 120), // theme-exempt: categorical item-badge fallback hue for unknown data-defined categories
     }
 }
 
