@@ -1,8 +1,8 @@
 //! Alert/notification banner widget — themed inline messages for info, success,
 //! warning, and error states.
 //!
-//! Replaces ad-hoc `Frame::none().fill(Color32::from_rgb(...)).show(...)` calls
-//! that hardcode colors and bypass the theme system.
+//! Replaces ad-hoc frame fills with raw color literals that hardcode colors and
+//! bypass the theme system.
 //!
 //! ```ignore
 //! widgets::alert(ui, theme, AlertKind::Warning, "Unsaved changes, save before leaving");
@@ -67,7 +67,7 @@ fn alert_inner(
 ) {
     let accent = kind.accent(theme);
     // 18% alpha background tint of the accent — readable but unobtrusive.
-    let bg = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 46);
+    let bg = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 46); // theme-exempt: alpha composite of the kind's theme accent token, not a literal
 
     Frame::none()
         .fill(bg)

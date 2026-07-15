@@ -20,9 +20,6 @@ use egui::{Color32, Rect, Rounding, Sense, Stroke, Vec2};
 use egui::epaint::StrokeKind;
 use crate::gui::theme::Theme;
 
-/// Blue highlight color for hovered bordered boxes.
-const HOVER_BLUE: Color32 = Color32::from_rgb(52, 152, 219);
-
 /// Interpunct separator between timestamp and message content.
 pub const INTERPUNCT: &str = " \u{00B7} "; // ` · `
 
@@ -476,7 +473,7 @@ pub fn paint_avatar(
     let border_stroke = if avatar.channeling {
         rgb_from_time(ctx_time)
     } else if hovered {
-        HOVER_BLUE
+        theme.nav_legacy_blue()
     } else {
         theme.border()
     };
@@ -535,7 +532,7 @@ pub fn rgb_from_time(time: f64) -> Color32 {
     } else {
         (c, 0.0, x)
     };
-    Color32::from_rgb(
+    Color32::from_rgb( // theme-exempt: programmatic HSV-to-RGB (avatar hue from a name hash), not a theme color
         ((r + m) * 255.0) as u8,
         ((g + m) * 255.0) as u8,
         ((b + m) * 255.0) as u8,

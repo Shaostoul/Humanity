@@ -25,7 +25,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) {
         .fixed_pos(screen.min)
         .show(ctx, |ui| {
             let (_, resp) = ui.allocate_exact_size(screen.size(), Sense::click());
-            ui.painter().rect_filled(screen, Rounding::ZERO, Color32::from_rgba_unmultiplied(0, 0, 0, 230));
+            ui.painter().rect_filled(screen, Rounding::ZERO, Color32::from_rgba_unmultiplied(0, 0, 0, 230)); // theme-exempt: full-screen image lightbox always dims to near-black so the photo pops, regardless of theme
             if resp.clicked() {
                 should_close = true;
             }

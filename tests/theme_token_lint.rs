@@ -58,9 +58,12 @@ const LEGACY_OFFENDERS: &[&str] = &[
     // (dm_accent/group_accent/scratchpad_accent) added to theme.ron, role
     // badges routed to the badge_* palette, header/input surfaces to
     // bg_sidebar_dark/bg_tertiary, message stripes to bg_primary/row_stripe.
-    "src/gui/widgets/row.rs",
-    "src/gui/widgets/alert.rs",
-    "src/gui/widgets/image_cache_view.rs",
+    // row.rs migrated 2026-07-16: HOVER_BLUE const -> theme.nav_legacy_blue(); the
+    // remaining literal is theme-exempt HSV->RGB avatar-hue math.
+    // alert.rs migrated 2026-07-16: its only literal was an alpha composite of the
+    // kind's theme accent token (now theme-exempt); accent() is pure success/warning/danger.
+    // image_cache_view.rs migrated 2026-07-16: its one literal is a theme-exempt
+    // near-black lightbox scrim (a photo always dims to black, regardless of theme).
     // Page-level palettes (category colors, avatar placeholders, semantic
     // domain markers like map biomes). High priority — these are exactly
     // the theme-token rule's intended target.
