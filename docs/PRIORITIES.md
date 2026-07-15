@@ -11,7 +11,36 @@
 
 ## Active focus
 
-> **>>> TIER 0 CURRENT (operator, 2026-07-13/14): PRODUCTION READINESS + GO LIVE.**
+> **>>> TIER 0 NEWEST (operator, 2026-07-14 eve): ALL-IN-ONE + INLINE-FIRST + WEB PARITY.**
+> A direction statement while asking how to SSH (he'd let the AI do all VPS ops for
+> months). Full context in memory `feedback_all_in_one_inline_first.md`. The stance:
+> the app must be genuinely all-in-one because "loading any other app is a potential
+> failure point" (a SAFETY argument), everything a 5-year-old could use, explained
+> inline on the thing, not in manuals/modals. Concrete queue, ranked:
+> 1. **SHIPPED (v0.858.0):** in-app VPS Console in the Relay Control Center - runs
+>    server commands over SSH from the app (one-click status/restart/logs/disk/memory
+>    + a free command box), so admin no longer means a second terminal. Shells to the
+>    OS `ssh` with the `humanity-vps` alias + the operator's existing key.
+> 2. **NEXT - header word-wrap + hint-display modes.** (a) The top nav (app egui +
+>    web `.hub-nav` in shell.js) should WRAP overflowing buttons into view instead of
+>    horizontal-scroll/hide. (b) A user setting for button presentation: icon-only /
+>    icon+text / text-only (compact mode = icons). Operator wants icon+text by default
+>    for the screenshots he shares (screenshots -> social -> donations). Cross-cutting
+>    (touches shared nav + a Settings toggle + per-button rendering), so do it as a
+>    focused, width-tested pass, not a tail-of-turn rush.
+> 3. **In-app documentation / tutorials / walkthroughs / AI guides.** Ship the docs
+>    INSIDE the app (data-driven, like the Library already does for the Accord), so
+>    there is no external manual to lose or fail to find. Tech-illiterate-first.
+> 4. **Inline-first hints everywhere.** Put the instruction ON the widget/machine/
+>    button, controlled by the hint-display modes from (2). Get close, not absolute.
+> 5. **Web near-pixel parity with the app.** He shared a side-by-side and wants the
+>    website chrome (nav, chat layout) to mimic the native app as closely as possible.
+>
+> The production-readiness + go-live focus below is DONE for this pass (streaming
+> shipped v0.853-857, UI-audit closed v0.855-856, TURN + watch v0.857). This
+> all-in-one arc is the new top of TIER 0.
+
+> **>>> TIER 0 PRIOR (operator, 2026-07-13/14): PRODUCTION READINESS + GO LIVE.**
 > The operator redirected: "We really need to start getting it production ready.
 > Make it all beautiful. Everything easily described, accessible." And: "It'd be
 > cool if I could start using the streaming software and chat." This serves the
