@@ -46,8 +46,8 @@ use std::path::{Path, PathBuf};
 ///    `// theme-exempt: <reason>` on the same line.
 /// 5. Remove the file from this list.
 const LEGACY_OFFENDERS: &[&str] = &[
-    // Transient debug visualization, low priority. Remove after audit.
-    "src/debug.rs",
+    // (src/debug.rs removed 2026-07-16: it is outside SCAN_DIRS so this entry was
+    // inert; its F12-console literals are now theme-exempt annotated in place anyway.)
     // Inline avatar placeholder colors derived from name hash. Could move
     // to a palette in theme.ron. Medium priority.
     "src/gui/mod.rs",
@@ -71,7 +71,8 @@ const LEGACY_OFFENDERS: &[&str] = &[
     "src/gui/pages/hud.rs",
     "src/gui/pages/maps.rs",
     "src/gui/pages/market.rs",
-    "src/gui/pages/profile.rs",
+    // profile.rs migrated 2026-07-16: the PRIVATE/PERSONAL/PUBLIC_DOT consts moved to
+    // theme tokens (nav_legacy_red / accent / success) at real.rs's call site.
     // server_settings.rs migrated 2026-07-16: the USER/MOD/ADMIN section-tier consts
     // (#e74c3c / #2ecc71 / #3498db) now come from theme tokens (nav_legacy_red /
     // success / nav_legacy_blue) at the call sites; the one remaining literal is the

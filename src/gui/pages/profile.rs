@@ -17,9 +17,8 @@ use crate::gui::{GuiPage, GuiState, ProfileSection};
 use crate::gui::theme::Theme;
 use crate::gui::widgets;
 
-pub const PRIVATE_DOT: Color32 = Color32::from_rgb(231, 76, 60);
-pub const PERSONAL_DOT: Color32 = Color32::from_rgb(237, 140, 36);
-pub const PUBLIC_DOT: Color32 = Color32::from_rgb(46, 204, 113);
+// Privacy-tier dot colors moved to theme tokens at the call site (real.rs uses
+// nav_legacy_red / accent / success) so the theme editor can restyle them.
 
 /// `GuiPage::Profile` is an ALIAS for the canonical editor, not a second one.
 /// Two page-level editors over one set of fields is a drift generator, so every

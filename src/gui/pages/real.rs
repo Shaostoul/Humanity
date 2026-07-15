@@ -19,7 +19,7 @@ use egui::{Frame, RichText, ScrollArea, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::profile::{self, PRIVATE_DOT, PERSONAL_DOT, PUBLIC_DOT};
+use super::profile;
 use super::{wallet, market, trade, guilds};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
@@ -37,22 +37,27 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         .show(ctx, |ui| {
             let belongings = theme.warning(); // your stuff
             let life = theme.info(); // your activities
+            // Privacy-tier dots from theme tokens (were profile.rs consts): private=red,
+            // personal=accent orange, public=green.
+            let private = theme.nav_legacy_red();
+            let personal = theme.accent();
+            let public = theme.success();
             let items = [
                 // Profile sections (flattened in; the old standalone sidebar is gone).
-                SectionNavItem::new("body", "Body & Measurements", PRIVATE_DOT).group("PRIVATE"),
-                SectionNavItem::new("identity", "Identity", PRIVATE_DOT),
-                SectionNavItem::new("notes", "Private Notes", PRIVATE_DOT),
-                SectionNavItem::new("network", "Network Profile", PERSONAL_DOT).group("PERSONAL"),
-                SectionNavItem::new("interests", "Interests", PERSONAL_DOT),
-                SectionNavItem::new("skills", "Skills", PERSONAL_DOT),
-                SectionNavItem::new("social", "Social Links", PUBLIC_DOT).group("PUBLIC"),
+                SectionNavItem::new("body", "Body & Measurements", private).group("PRIVATE"),
+                SectionNavItem::new("identity", "Identity", private),
+                SectionNavItem::new("notes", "Private Notes", private),
+                SectionNavItem::new("network", "Network Profile", personal).group("PERSONAL"),
+                SectionNavItem::new("interests", "Interests", personal),
+                SectionNavItem::new("skills", "Skills", personal),
+                SectionNavItem::new("social", "Social Links", public).group("PUBLIC"),
                 // Streaming is back in the nav (UI audit section 5): it is a PUBLIC
                 // profile field pair, and while the standalone Profile page still
                 // existed it was the only surface that showed it, which is exactly the
                 // drift that made two editors a bug source. Studio's right panel edits
                 // the SAME two GuiState fields as a broadcast-context shortcut, so the
                 // two surfaces cannot disagree, they are one value.
-                SectionNavItem::new("streaming", "Streaming", PUBLIC_DOT),
+                SectionNavItem::new("streaming", "Streaming", public),
                 // Wallet + Market stay here; Possessions/Tasks/Map became their own
                 // top-level tabs (operator 2026-06-07).
                 SectionNavItem::new("wallet", "Wallet", belongings).group("BELONGINGS"),

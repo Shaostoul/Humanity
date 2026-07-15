@@ -75,7 +75,7 @@ pub fn draw_debug_console(ctx: &egui::Context, debug_log: &mut Vec<String>, visi
             ui.set_clip_rect(panel_rect);
 
             egui::Frame::NONE
-                .fill(egui::Color32::from_rgba_premultiplied(15, 15, 20, 220))
+                .fill(egui::Color32::from_rgba_premultiplied(15, 15, 20, 220)) // theme-exempt: F12 debug console overlay, fixed dev styling (no theme threaded to draw_debug_console)
                 .inner_margin(egui::Margin::same(6))
                 .show(ui, |ui| {
                     ui.set_min_size(egui::vec2(screen.width() - 12.0, panel_height - 12.0));
@@ -85,7 +85,7 @@ pub fn draw_debug_console(ctx: &egui::Context, debug_log: &mut Vec<String>, visi
                         ui.label(
                             egui::RichText::new("Debug Console (F12)")
                                 .size(13.0)
-                                .color(egui::Color32::from_rgb(237, 140, 36))
+                                .color(egui::Color32::from_rgb(237, 140, 36)) // theme-exempt: F12 debug console overlay, fixed dev styling (no theme threaded to draw_debug_console)
                                 .strong()
                                 .family(egui::FontFamily::Monospace),
                         );
@@ -100,7 +100,7 @@ pub fn draw_debug_console(ctx: &egui::Context, debug_log: &mut Vec<String>, visi
                             ui.label(
                                 egui::RichText::new(format!("{} entries", debug_log.len()))
                                     .size(11.0)
-                                    .color(egui::Color32::from_rgb(140, 140, 160))
+                                    .color(egui::Color32::from_rgb(140, 140, 160)) // theme-exempt: F12 debug console overlay, fixed dev styling (no theme threaded to draw_debug_console)
                                     .family(egui::FontFamily::Monospace),
                             );
                         });
@@ -118,7 +118,7 @@ pub fn draw_debug_console(ctx: &egui::Context, debug_log: &mut Vec<String>, visi
                                 ui.label(
                                     egui::RichText::new(line)
                                         .size(11.0)
-                                        .color(egui::Color32::from_rgb(200, 200, 210))
+                                        .color(egui::Color32::from_rgb(200, 200, 210)) // theme-exempt: F12 debug console overlay, fixed dev styling (no theme threaded to draw_debug_console)
                                         .family(egui::FontFamily::Monospace),
                                 );
                             }
