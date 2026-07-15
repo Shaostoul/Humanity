@@ -266,7 +266,10 @@
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
       padding: 0 0.5rem;
-      height: 40px;
+      /* min-height (not height) so a wrapped multi-row nav grows instead of the
+         extra rows overflowing below a fixed 40px box (v0.859 word-wrap). */
+      min-height: 40px;
+      align-content: center;
       gap: 0.2rem;
       flex-shrink: 0;
       position: fixed;
@@ -276,21 +279,36 @@
       z-index: 5500;
       isolation: isolate;
       font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
-      /* Web-native parity (Track W): labels are always shown (below), so the
-         row can exceed the viewport width, scroll horizontally rather than
-         clip/overflow. Thin scrollbar keeps it unobtrusive. */
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: thin;
+      /* v0.859: WRAP overflowing buttons into a second row instead of hiding them
+         behind a horizontal scroll (operator: "any that go off screen are made
+         visible again"). The spacer height below is kept in sync with the actual
+         (possibly multi-row) nav height by a ResizeObserver in JS. */
+      flex-wrap: wrap;
+      overflow: visible;
+      row-gap: 2px;
     }
-    .hub-nav::-webkit-scrollbar { height: 4px; }
-    .hub-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    /* Spacer pushes page content below the fixed nav */
+    /* Spacer pushes page content below the fixed nav. JS sets its height to the
+       nav's real height so a wrapped 2-row nav never overlaps the page. */
     .hub-nav-spacer {
-      height: 41px; /* 40px nav + 1px separator */
+      height: 41px; /* default: 40px nav + 1px separator, overridden by JS */
       flex-shrink: 0;
       pointer-events: none;
     }
+    /* ── Button presentation modes (v0.859), a user toggle for screenshots +
+       accessibility. Default is icon+text; compact is icon-only; text-only drops
+       the glyphs. The context toggle + help button stay visible in every mode. */
+    .hub-nav[data-navmode="icon"] .tab .tab-label { display: none; }
+    .hub-nav[data-navmode="text"] .tab .tab-icon { display: none; }
+    /* The mode-cycle button itself. */
+    .hub-nav .navmode-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 28px; padding: 0 0.5rem; margin-left: 0.15rem;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text-muted);
+      font-size: 0.7rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+      white-space: nowrap; font-family: inherit;
+    }
+    .hub-nav .navmode-btn:hover { color: var(--text); border-color: var(--accent); }
 
     /* ── Brand ── */
     .hub-nav .brand {
@@ -619,7 +637,7 @@
 
     /* ── Responsive: hide flat tabs on mobile, show hamburger ── */
     @media (max-width: 768px) {
-      .hub-nav { padding: 0 0.4rem; gap: 0.15rem; height: 36px; }
+      .hub-nav { padding: 0 0.4rem; gap: 0.15rem; min-height: 36px; }
       .hub-nav .tab { display: none !important; }
       .hub-nav .nav-divider { display: none !important; }
       .hub-nav .nav-group-red,
@@ -734,6 +752,9 @@
       /* Spacer pushes hamburger to the right */
       '<div class="spacer"></div>' +
 
+      /* Button-presentation cycle: icon+text -> icon -> text (v0.859). */
+      '<button class="navmode-btn" id="hos-navmode-btn" type="button" aria-label="Change how header buttons are shown" title="Header buttons: icon + text">Aa</button>' +
+
       /* Mobile hamburger, only visible on small screens */
       '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="More pages" title="More pages" data-tip="More pages">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
@@ -744,6 +765,49 @@
   var navSpacer = document.createElement('div');
   navSpacer.className = 'hub-nav-spacer';
   nav.insertAdjacentElement('afterend', navSpacer);
+
+  // ── Header button-presentation mode (v0.859) ──
+  // icon+text (default) / icon-only / text-only. Persisted so it holds across
+  // pages; the spacer tracks the nav's real height so a wrapped row never hides
+  // page content.
+  (function setupNavMode() {
+    var navEl = nav.querySelector('.hub-nav');
+    if (!navEl) return;
+    var MODES = ['both', 'icon', 'text'];
+    var LABELS = { both: 'icon + text', icon: 'icon only', text: 'text only' };
+    var GLYPH = { both: 'Aa', icon: 'A', text: 'aa' };
+    function applyMode(m) {
+      if (MODES.indexOf(m) === -1) m = 'both';
+      navEl.setAttribute('data-navmode', m);
+      var btn = document.getElementById('hos-navmode-btn');
+      if (btn) { btn.textContent = GLYPH[m]; btn.title = 'Header buttons: ' + LABELS[m]; }
+      syncSpacer();
+    }
+    function syncSpacer() {
+      // A wrapped nav can be taller than one row; keep the spacer matched (+1px
+      // separator) so nothing slides under the fixed nav.
+      var h = Math.ceil(navEl.getBoundingClientRect().height) + 1;
+      navSpacer.style.height = h + 'px';
+    }
+    var btn = document.getElementById('hos-navmode-btn');
+    if (btn) {
+      btn.addEventListener('click', function() {
+        var cur = localStorage.getItem('humanity_navmode') || 'both';
+        var next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
+        localStorage.setItem('humanity_navmode', next);
+        applyMode(next);
+      });
+    }
+    // React to a resize (viewport width change re-wraps the row).
+    if (window.ResizeObserver) {
+      new ResizeObserver(syncSpacer).observe(navEl);
+    } else {
+      window.addEventListener('resize', syncSpacer);
+    }
+    applyMode(localStorage.getItem('humanity_navmode') || 'both');
+    // One more sync after layout/fonts settle.
+    setTimeout(syncSpacer, 60);
+  })();
 
   // Mobile drawer fallback menu (for reliable touch nav)
   var mobileBackdrop = document.createElement('div');
@@ -1370,7 +1434,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.858.0';
+    var CURRENT_VERSION = '0.858.1';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
