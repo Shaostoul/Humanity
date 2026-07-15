@@ -2067,6 +2067,44 @@ impl ConstructionRoom {
     }
 }
 
+/// How the top-nav buttons present themselves (v0.859), mirroring the web header's
+/// icon/text toggle. `Both` is the default (icon + label); `IconOnly` is the compact
+/// mode the operator wanted; `TextOnly` drops the glyphs.
+#[cfg(feature = "native")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum NavDisplayMode {
+    #[default]
+    Both,
+    IconOnly,
+    TextOnly,
+}
+
+#[cfg(feature = "native")]
+impl NavDisplayMode {
+    /// Cycle Both -> IconOnly -> TextOnly -> Both.
+    pub fn next(self) -> Self {
+        match self {
+            NavDisplayMode::Both => NavDisplayMode::IconOnly,
+            NavDisplayMode::IconOnly => NavDisplayMode::TextOnly,
+            NavDisplayMode::TextOnly => NavDisplayMode::Both,
+        }
+    }
+    /// The cycle button's label glyphs (ASCII, so never tofu).
+    pub fn glyph(self) -> &'static str {
+        match self {
+            NavDisplayMode::Both => "Aa",
+            NavDisplayMode::IconOnly => "A",
+            NavDisplayMode::TextOnly => "aa",
+        }
+    }
+    pub fn show_icon(self) -> bool {
+        !matches!(self, NavDisplayMode::TextOnly)
+    }
+    pub fn show_label(self) -> bool {
+        !matches!(self, NavDisplayMode::IconOnly)
+    }
+}
+
 /// Tracks all GUI state for the native app.
 #[cfg(feature = "native")]
 pub struct GuiState {
@@ -2669,6 +2707,10 @@ pub struct GuiState {
     pub watch_last_fetch: f64,
     /// Manual "watch by name" entry on the Watch page.
     pub watch_input: String,
+
+    /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
+    /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
+    pub nav_display_mode: NavDisplayMode,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -4419,6 +4461,7 @@ impl Default for GuiState {
             watch_streams_rx: None,
             watch_last_fetch: 0.0,
             watch_input: String::new(),
+            nav_display_mode: NavDisplayMode::default(),
             civ_stats: None,
             civ_stats_loaded: false,
             civ_stats_rx: None,

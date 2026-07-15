@@ -56,7 +56,10 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
         // doubled line compared to other separators in the layout.
         .show_separator_line(false)
         .show(ctx, |ui| {
-            ui.horizontal(|ui| {
+            // horizontal_WRAPPED (v0.859): buttons that overflow the window width wrap
+            // into a second row instead of being clipped off the right edge, matching
+            // the web header. The TopBottomPanel auto-grows to fit the extra rows.
+            ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
 
                 // (v0.363) The separate brand "H" button was REMOVED — it
@@ -274,6 +277,27 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 nav_group(ui, &settings_items, theme.nav_settings(), text_muted, theme, state);
                 // v0.479: the "Game Admin" nav button was removed -- game-world
                 // bans are now a subsection of Server Settings > ADMIN.
+
+                // Presentation-mode cycle (v0.859): icon+text / icon-only / text-only,
+                // mirroring the web header's Aa button. Sits at the end of the row.
+                ui.add_space(8.0);
+                let mode_resp = ui.add(
+                    egui::Button::new(
+                        RichText::new(state.nav_display_mode.glyph())
+                            .size(11.0)
+                            .color(text_muted),
+                    )
+                    .fill(theme.bg_secondary())
+                    .min_size(Vec2::new(26.0, 26.0)),
+                );
+                if mode_resp
+                    .on_hover_text(
+                        "How header buttons show: icon + text, icon only, or text only.",
+                    )
+                    .clicked()
+                {
+                    state.nav_display_mode = state.nav_display_mode.next();
+                }
             });
         });
 
@@ -460,6 +484,11 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
     const ICON_LABEL_GAP: f32 = 5.0;
     const BUTTON_H: f32 = 28.0;
 
+    // Presentation mode (v0.859): icon+text / icon-only / text-only.
+    let mode = state.nav_display_mode;
+    let show_icon = mode.show_icon();
+    let show_label = mode.show_label();
+
     for item in items {
         let is_active = std::mem::discriminant(&state.active_page)
             == std::mem::discriminant(&item.page);
@@ -472,8 +501,12 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
             egui::FontId::proportional(11.0),
             text_color,
         );
-        let label_w = galley.size().x;
-        let total_w = PAD_X + ICON_W + ICON_LABEL_GAP + label_w + PAD_X;
+        let label_w = if show_label { galley.size().x } else { 0.0 };
+        // Width depends on which parts show. In icon-only mode there is no label or
+        // gap; in text-only mode no icon or gap.
+        let icon_part = if show_icon { ICON_W } else { 0.0 };
+        let gap_part = if show_icon && show_label { ICON_LABEL_GAP } else { 0.0 };
+        let total_w = PAD_X + icon_part + gap_part + label_w + PAD_X;
 
         let (rect, response) = ui.allocate_exact_size(
             Vec2::new(total_w, BUTTON_H),
@@ -505,23 +538,31 @@ fn nav_group(ui: &mut egui::Ui, items: &[NavItem], color: Color32, text_muted: C
         painter.rect_filled(rect, Rounding::same(6), bg_fill);
         painter.rect_stroke(rect, Rounding::same(6), border_stroke, egui::StrokeKind::Inside);
 
-        // Paint the icon centered vertically in a 14×14 box at the left.
-        let icon_rect = Rect::from_min_size(
-            egui::pos2(rect.left() + PAD_X, rect.center().y - ICON_W * 0.5),
-            Vec2::splat(ICON_W),
-        );
-        // Icon color tracks text — active = white, otherwise muted —
-        // so the icon reads as part of the label, not a separate element.
-        let _has_icon = crate::gui::widgets::icons::paint_nav_icon(
-            painter, icon_rect, item.page.clone(), text_color,
-        );
+        // Paint the icon centered vertically in a 14×14 box at the left (unless
+        // text-only mode hides it).
+        if show_icon {
+            let icon_rect = Rect::from_min_size(
+                egui::pos2(rect.left() + PAD_X, rect.center().y - ICON_W * 0.5),
+                Vec2::splat(ICON_W),
+            );
+            // Icon color tracks text — active = white, otherwise muted —
+            // so the icon reads as part of the label, not a separate element.
+            let _has_icon = crate::gui::widgets::icons::paint_nav_icon(
+                painter, icon_rect, item.page.clone(), text_color,
+            );
+        }
 
-        // Paint the label to the right of the icon, vertically centered.
-        let label_pos = egui::pos2(
-            rect.left() + PAD_X + ICON_W + ICON_LABEL_GAP,
-            rect.center().y - galley.size().y * 0.5,
-        );
-        painter.galley(label_pos, galley, text_color);
+        // Paint the label after the icon (or at the left padding when there is no
+        // icon), vertically centered. Hidden entirely in icon-only mode.
+        if show_label {
+            let label_x = if show_icon {
+                rect.left() + PAD_X + ICON_W + ICON_LABEL_GAP
+            } else {
+                rect.left() + PAD_X
+            };
+            let label_pos = egui::pos2(label_x, rect.center().y - galley.size().y * 0.5);
+            painter.galley(label_pos, galley, text_color);
+        }
 
         // Unread indicator on the Chat tab: a small dot at the button's
         // top-right corner whenever any DM / group / channel holds unread

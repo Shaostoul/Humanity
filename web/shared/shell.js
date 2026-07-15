@@ -588,42 +588,127 @@
     }
     .footer-toggle:hover { color: #fff; background: rgba(30,20,10,0.98); }
 
-    /* ── Mobile drawer ── */
+    /* ── Mobile / More menu: clean FULL-SCREEN popup ──
+       The hamburger opens this as a full-screen overlay that fully covers the page
+       (opaque var(--bg)), giving a clean separation between menu and page. Layout is
+       a flex column: a NON-scrolling header band that pins the RGB close control at
+       top-center so it never scrolls away (the "like the footer menu" feel the
+       operator asked for), and a scrolling body that holds the grouped page list. */
     #mobile-hub-backdrop {
+      /* Opaque so the page is instantly blanked while the drawer slides up. */
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.45);
+      background: var(--bg);
       z-index: 7600;
       display: none;
     }
+    #mobile-hub-backdrop.open { display: block; }
     #mobile-hub-drawer {
       position: fixed;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(13,13,13,0.92);
+      background: var(--bg);
       z-index: 7700;
-      transform: translateX(100%);
-      transition: transform 0.2s ease;
-      overflow-y: auto;
-      padding: 0.65rem 0.6rem 1rem;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.22s ease;
       box-sizing: border-box;
-      backdrop-filter: blur(2px);
     }
-    #mobile-hub-drawer.open { transform: translateX(0); }
-    #mobile-hub-backdrop.open { display: block; }
-    .mobile-hub-group { margin-bottom: 0.65rem; border:1px solid var(--border); border-radius:var(--radius); }
-    .mobile-hub-group h4 { margin:0; padding:0.45rem 0.55rem; font-size:0.72rem; color:var(--text-muted); border-bottom:1px solid var(--border); text-transform:uppercase; letter-spacing:.08em; }
-    .mobile-hub-group a { display:block; color:var(--text); text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid var(--bg-secondary); }
-    .mobile-hub-group a:last-child { border-bottom:none; }
-    .mobile-hub-group a:hover { background: rgba(255,255,255,0.05); }
-    .mobile-hub-group a.active {
-      color: #fff;
-      background: rgba(255,255,255,0.06);
-      animation: channeling 3s linear infinite;
+    #mobile-hub-drawer.open { transform: translateY(0); }
+    /* Header band: flex-shrink:0 so it never scrolls, keeping the close button put. */
+    .mobile-hub-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg) var(--space-md);
+      border-bottom: 1px solid var(--border);
+    }
+    /* Circular RGB "channeling" close control: accent glow, cycles the same 6-stop
+       rainbow the nav brand + active tabs use, so it reads as the same accent family. */
+    #mobile-hub-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3.25rem;
+      height: 3.25rem;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 2px solid var(--accent);
+      color: var(--text);
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+      touch-action: manipulation;
+      animation: mobile-hub-close-rgb 3s linear infinite;
+      transition: transform 0.12s ease;
+    }
+    #mobile-hub-close:hover { transform: scale(1.06); }
+    #mobile-hub-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    /* Honor the Accessibility "Disable RGB Effects" toggle (data-no-rgb on <html>).
+       theme.css already covers the other RGB elements; this covers the new button. */
+    [data-no-rgb] #mobile-hub-close { animation: none; border-color: var(--accent); }
+    @keyframes mobile-hub-close-rgb {
+      /* Literal rainbow stops are inherent to the RGB accent effect (same 6-stop
+         cycle as @keyframes channeling above); theme vars cannot express a gradient. */
+      0%   { border-color:#f44; box-shadow:0 0 14px rgba(255,68,68,0.55); }
+      16%  { border-color:#f80; box-shadow:0 0 14px rgba(255,136,0,0.55); }
+      33%  { border-color:#ff0; box-shadow:0 0 14px rgba(255,255,0,0.55); }
+      50%  { border-color:#0f4; box-shadow:0 0 14px rgba(0,255,68,0.55); }
+      66%  { border-color:#08f; box-shadow:0 0 14px rgba(0,136,255,0.55); }
+      83%  { border-color:#80f; box-shadow:0 0 14px rgba(136,0,255,0.55); }
+      100% { border-color:#f44; box-shadow:0 0 14px rgba(255,68,68,0.55); }
+    }
+    /* Scrolling body: holds the page list, comfortable large touch targets. */
+    .mobile-hub-scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: var(--space-lg) var(--space-md) 2rem;
+      box-sizing: border-box;
+    }
+    .mobile-hub-group {
+      margin: 0 auto var(--space-lg);
+      max-width: 30rem;
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      margin: 0.15rem;
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+    .mobile-hub-group h4 {
+      margin: 0;
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .mobile-hub-group a {
+      display: flex;
+      align-items: center;
+      min-height: 3rem;
+      color: var(--text);
+      text-decoration: none;
+      padding: var(--space-md) var(--space-lg);
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mobile-hub-group a:last-child { border-bottom: none; }
+    .mobile-hub-group a:hover,
+    .mobile-hub-group a:focus-visible {
+      background: var(--bg-secondary);
+      color: var(--accent-hover);
+      outline: none;
+    }
+    .mobile-hub-group a.active {
+      color: var(--text);
+      background: var(--bg-secondary);
+      animation: channeling 3s linear infinite;
     }
 
     /* ── Nav group wrappers ── */
@@ -822,7 +907,19 @@
 
   // Mobile drawer holds EVERYTHING: the app-mirrored main tabs PLUS the web-only
   // utility pages that dropped off the desktop row, so nothing is unreachable. (v0.469.1)
+  // Full-screen popup: role=dialog + aria-modal for assistive tech; aria-hidden is
+  // toggled in open/close so it is not announced while closed.
+  mobileDrawer.setAttribute('role', 'dialog');
+  mobileDrawer.setAttribute('aria-modal', 'true');
+  mobileDrawer.setAttribute('aria-label', 'Site menu');
+  mobileDrawer.setAttribute('aria-hidden', 'true');
   mobileDrawer.innerHTML =
+    // Header band pins the always-reachable RGB close button at top-center.
+    '<div class="mobile-hub-header">' +
+      '<button id="mobile-hub-close" type="button" aria-label="Close menu">X</button>' +
+    '</div>' +
+    // Scrolling body holds the full grouped page list beneath the fixed close button.
+    '<div class="mobile-hub-scroll">' +
     '<div class="mobile-hub-group group-red"><h4>Main (mirrors the app)</h4>' +
       mobileLink('/',          'Humanity') +
       mobileLink('/chat',      'Chat') +
@@ -868,18 +965,42 @@
       mobileLink('/ops',       'Ops') +
       mobileLink('/bugs',      'Bug Reports') +
       mobileLink('/dev',       'Dev') +
-    '</div>';
+    '</div>' +
+    '</div>'; // close .mobile-hub-scroll
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
 
   var mobileMenuBtn = document.getElementById('mobile-hub-menu-btn');
+  var mobileCloseBtn = document.getElementById('mobile-hub-close');
+  // Escape closes the full-screen overlay. Declared as a hoisted function so
+  // closeMobileDrawer (below) can removeEventListener it.
+  function onMobileDrawerKey(e) {
+    if (e.key === 'Escape') closeMobileDrawer();
+  }
   function closeMobileDrawer() {
     mobileBackdrop.classList.remove('open');
     mobileDrawer.classList.remove('open');
+    // Drive the slide via inline style with !important, not the .open class: some
+    // webviews do not reliably apply the higher-specificity `.open` transform (or
+    // even a plain inline transform) over the base rule, leaving the menu stuck
+    // off-screen. An !important inline style wins in every engine.
+    mobileDrawer.style.setProperty('transform', 'translateY(100%)', 'important');
+    mobileDrawer.setAttribute('aria-hidden', 'true');
+    // Restore the page's body scroll (locked while the overlay was open).
+    document.body.style.overflow = mobileDrawer._prevBodyOverflow || '';
+    document.removeEventListener('keydown', onMobileDrawerKey);
   }
   function openMobileDrawer() {
     mobileBackdrop.classList.add('open');
     mobileDrawer.classList.add('open');
+    mobileDrawer.style.setProperty('transform', 'translateY(0)', 'important'); // see closeMobileDrawer note
+    mobileDrawer.setAttribute('aria-hidden', 'false');
+    // Lock body scroll so the page behind cannot scroll under the full-screen menu.
+    mobileDrawer._prevBodyOverflow = document.body.style.overflow || '';
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onMobileDrawerKey);
+    // Move focus to the close button for keyboard / screen-reader users.
+    if (mobileCloseBtn) { try { mobileCloseBtn.focus(); } catch (err) {} }
   }
   if (mobileMenuBtn) {
     mobileMenuBtn.addEventListener('click', function(e) {
@@ -893,6 +1014,18 @@
       e.stopPropagation();
       if (mobileDrawer.classList.contains('open')) closeMobileDrawer();
       else openMobileDrawer();
+    }, { passive: false });
+  }
+  if (mobileCloseBtn) {
+    mobileCloseBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMobileDrawer();
+    });
+    mobileCloseBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMobileDrawer();
     }, { passive: false });
   }
   mobileBackdrop.addEventListener('click', closeMobileDrawer);
@@ -1434,7 +1567,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.858.1';
+    var CURRENT_VERSION = '0.859.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

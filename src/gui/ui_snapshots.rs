@@ -712,6 +712,27 @@ fn snapshot_watch() {
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_bar_wrapped() {
+    // Narrow width (v0.859): the top nav must WRAP its buttons into extra rows
+    // rather than clip them off the right edge. 720px is too narrow for all ~18
+    // buttons on one row, so this proves the wrap.
+    render_page_png("nav_bar_wrapped", 720, 200, |ctx, theme, state| {
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_nav_bar_icon_only() {
+    // Icon-only compact mode (v0.859): labels hidden, icons remain.
+    render_page_png("nav_bar_icon_only", 720, 200, |ctx, theme, state| {
+        state.nav_display_mode = crate::gui::NavDisplayMode::IconOnly;
+        crate::gui::pages::escape_menu::draw_nav_bar(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_onboarding_identity() {
     render_page_png("onboarding_identity", 1280, 900, |ctx, theme, state| {
         // First-run identity step WITH the in-place 24-word backup card
