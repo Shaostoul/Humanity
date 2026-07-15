@@ -19295,7 +19295,18 @@ mod native_app {
                                             }
                                             let want =
                                                 crate::renderer::stars::GALAXY_GLOW_ULTRA_DIMS;
-                                            let dims = image::image_dimensions(&tmp)
+                                            // Verify by CONTENT, not file extension. The download
+                                            // lands in a `.tmp` file, and image::image_dimensions
+                                            // guesses the format from the extension, so it wrongly
+                                            // rejected a perfectly good PNG with "the file
+                                            // extension .tmp was not recognized as an image
+                                            // format". with_guessed_format() sniffs the magic
+                                            // bytes instead. (bugfix v0.860)
+                                            let dims = image::ImageReader::open(&tmp)
+                                                .map_err(|e| format!("verify failed: {e}"))?
+                                                .with_guessed_format()
+                                                .map_err(|e| format!("verify failed: {e}"))?
+                                                .into_dimensions()
                                                 .map_err(|e| format!("verify failed: {e}"))?;
                                             if dims != want {
                                                 let _ = std::fs::remove_file(&tmp);
@@ -19307,10 +19318,19 @@ mod native_app {
                                             // Full decode (~30s of CPU in this background
                                             // thread): the header check above cannot catch a
                                             // truncated transfer; a decode of every scanline
-                                            // can.
-                                            if let Err(e) = image::open(&tmp) {
+                                            // can. Also content-based (see the dims note): a
+                                            // `.tmp` extension must not defeat the format sniff.
+                                            let decode_result = image::ImageReader::open(&tmp)
+                                                .and_then(|r| r.with_guessed_format())
+                                                .map_err(|e| format!("decode check failed: {e}"))
+                                                .and_then(|r| {
+                                                    r.decode()
+                                                        .map(|_| ())
+                                                        .map_err(|e| format!("decode check failed: {e}"))
+                                                });
+                                            if let Err(e) = decode_result {
                                                 let _ = std::fs::remove_file(&tmp);
-                                                return Err(format!("decode check failed: {e}"));
+                                                return Err(e);
                                             }
                                             std::fs::rename(&tmp, &dest)
                                                 .map_err(|e| format!("install failed: {e}"))?;

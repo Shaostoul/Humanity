@@ -2145,13 +2145,24 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             if let Some(dl) = &state.galaxy_glow_dl {
                 if let Ok(g) = dl.lock() {
                     let (done, total, ref status) = *g;
-                    let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
-                    ui.add(egui::ProgressBar::new(frac).text(format!(
-                        "Ultra glow: {} ({} / {} MB)",
-                        status,
-                        done / 1_048_576,
-                        total.max(1) / 1_048_576
-                    )));
+                    if status.starts_with("FAILED") {
+                        // Render a failure as a plain danger-colored line, NOT white text
+                        // on the filled orange progress bar (which is hard to read,
+                        // especially with astigmatism). Operator feedback 2026-07-15.
+                        ui.label(
+                            RichText::new(format!("Ultra glow download {}", status.to_lowercase()))
+                                .color(theme.danger())
+                                .size(theme.font_size_small),
+                        );
+                    } else {
+                        let frac = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                        ui.add(egui::ProgressBar::new(frac).text(format!(
+                            "Ultra glow: {} ({} / {} MB)",
+                            status,
+                            done / 1_048_576,
+                            total.max(1) / 1_048_576
+                        )));
+                    }
                 }
             }
             if state.galaxy_glow_installed.is_some() && state.galaxy_glow_dl.is_none() {

@@ -447,6 +447,13 @@ clean-worktrees:
 # List all current worktrees with sizes
 worktrees:
     @git worktree list
+
+# Reclaim disk: wipe the main Rust build cache AND every agent worktree's target/
+# dir (build artifacts ONLY -- source, git, and unmerged worktree commits untouched).
+# The main target/ can grow to ~1 TB over many builds; worktree targets pile up ~7 GB
+# each. Run when the repo gets huge. `cargo build` repopulates target/ afterward.
+clean-heavy:
+    @bash scripts/clean-heavy.sh
     @echo ""
     @du -sh .claude/worktrees/ 2>/dev/null || echo "No worktrees directory"
 
