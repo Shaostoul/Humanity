@@ -239,6 +239,23 @@
   padding: 0.28rem 0.42rem;
   font-size: var(--text-xs);
 }
+/* App parity (v0.861): the native chat sidebar tints its three left-rail section
+   headers DMs=red, Groups=green, Servers=blue (see chat.rs). Echo that on the web
+   with a colored left bar + a faint matching tint, keyed off the section data-sid,
+   so the sidebar reads the same across app and web. color-mix degrades gracefully
+   to just the border on browsers that lack it. */
+.unified-section[data-sid="dms"] > .unified-header {
+  border-left: 3px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.unified-section[data-sid="groups"] > .unified-header {
+  border-left: 3px solid var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.unified-section[data-sid="servers"] > .unified-header {
+  border-left: 3px solid var(--info);
+  background: color-mix(in srgb, var(--info) 12%, transparent);
+}
 .sidebar-unified-left .unified-body,
 #right-sidebar .unified-body {
   padding: 0.22rem 0.28rem;
