@@ -197,13 +197,12 @@ const MAX_POLL_INTERVAL: Duration = Duration::from_millis(50);
 // The credentials are already hardcoded/public in that client JS, so reusing
 // them as consts here exposes nothing new.
 
-/// TURN server address (the UDP `turn:` listener). Resolved with `ToSocketAddrs`
-/// like the STUN servers — bare `host:port`, no `turn:` URL scheme.
+/// Default TURN server host:port if the relay does not tell us one. Resolved with
+/// `ToSocketAddrs` like the STUN servers, bare `host:port`, no `turn:` scheme.
+/// The username/password are NO LONGER constants: they are short-lived credentials
+/// fetched from the relay's `/api/turn-credentials` at allocation time (v0.857), so
+/// no TURN secret is committed here. See `fetch_turn_credentials`.
 const TURN_SERVER: &str = "united-humanity.us:3478";
-/// TURN long-term-credential username.
-const TURN_USERNAME: &str = "humanity";
-/// TURN long-term-credential password (a.k.a. the credential / shared secret).
-const TURN_PASSWORD: &str = "turnRelay2026!secure";
 
 /// How often to (re)try the initial Allocate until we either succeed or give up
 /// for this session. Mirrors `STUN_RETRY_INTERVAL` — a request or its 401/reply
@@ -428,6 +427,10 @@ pub struct WebrtcManager {
     /// TURN server address and begin an allocation. Best-effort: if it never
     /// reaches `Allocated`, host+srflx still work — TURN just adds nothing.
     turn: Option<turn::TurnClient>,
+    /// When we last tried to fetch TURN credentials from the relay (v0.857).
+    /// Gates the blocking fetch to a slow cadence so a down/unconfigured relay
+    /// does not stall the WebRTC loop with a network call every turn.
+    turn_last_fetch: Option<Instant>,
 }
 
 /// Per-peer connection state.
@@ -521,6 +524,7 @@ impl WebrtcManager {
                 // inc-3b: TURN starts uninitialized; the run-loop kicks off the
                 // allocation lazily (so a startup DNS hiccup isn't fatal).
                 turn: None,
+                turn_last_fetch: None,
             };
             mgr.run();
         });
@@ -1847,6 +1851,40 @@ impl WebrtcManager {
     //  inc-3b — TURN relay client (RFC 5766)
     // ════════════════════════════════════════════════════════════════════
 
+    /// Fetch short-lived TURN credentials from the relay's `/api/turn-credentials`
+    /// (v0.857). Returns `(host:port, username, password)` for the `turn:` entry, or
+    /// `None` if the relay is unreachable or has no TURN configured (STUN-only).
+    ///
+    /// The relay base defaults to the production host and can be overridden with
+    /// `HUMANITY_RELAY_BASE` for a self-hoster. A blocking call, gated by the
+    /// caller to a slow cadence; TURN is best-effort so a 4s timeout is fine.
+    fn fetch_turn_credentials() -> Option<(String, String, String)> {
+        let base = std::env::var("HUMANITY_RELAY_BASE")
+            .unwrap_or_else(|_| "https://united-humanity.us".to_string());
+        let url = format!("{}/api/turn-credentials", base.trim_end_matches('/'));
+        // ureq has no `json` feature here, so read the body and parse it ourselves.
+        let body = ureq::get(&url)
+            .timeout(Duration::from_secs(4))
+            .call()
+            .ok()?
+            .into_string()
+            .ok()?;
+        let v: serde_json::Value = serde_json::from_str(&body).ok()?;
+        let servers = v.get("iceServers")?.as_array()?;
+        // Take the first plain `turn:` entry (not `turns:`, since the native client
+        // speaks UDP TURN, not TLS). Pull host:port out of the `turn:HOST:PORT` url.
+        for s in servers {
+            let urls = s.get("urls").and_then(|u| u.as_str()).unwrap_or("");
+            if let Some(rest) = urls.strip_prefix("turn:") {
+                let host = rest.split('?').next().unwrap_or(rest).to_string();
+                let username = s.get("username").and_then(|u| u.as_str())?.to_string();
+                let password = s.get("credential").and_then(|c| c.as_str())?.to_string();
+                return Some((host, username, password));
+            }
+        }
+        None
+    }
+
     /// Drive the TURN client state machine once per loop turn. Lazily resolves
     /// the TURN server + starts the Allocate, retries a failed/lost Allocate on
     /// a cadence, and refreshes a live allocation before LIFETIME expiry.
@@ -1863,7 +1901,25 @@ impl WebrtcManager {
         // Lazily construct + resolve the TURN client. Like STUN, a transient DNS
         // failure at startup just means we try again next turn — never fatal.
         if self.turn.is_none() {
-            match turn::TurnClient::resolve(TURN_SERVER) {
+            // Gate the (blocking) credential fetch to a slow cadence so a down or
+            // TURN-less relay never stalls the loop with a request every turn.
+            let due = self
+                .turn_last_fetch
+                .map(|t| t.elapsed() >= Duration::from_secs(30))
+                .unwrap_or(true);
+            if !due {
+                return;
+            }
+            self.turn_last_fetch = Some(Instant::now());
+
+            // Short-lived credentials from the relay (v0.857). If the relay has no
+            // TURN configured, this returns None and we stay STUN-only, exactly as
+            // before when an allocation failed. No secret is compiled in.
+            let (host, username, password) = match Self::fetch_turn_credentials() {
+                Some(c) => c,
+                None => return,
+            };
+            match turn::TurnClient::resolve(&host, username, password) {
                 Some(client) => {
                     log::info!("WebRTC: TURN server resolved to {}", client.server_addr());
                     crate::debug::push_debug(format!(
@@ -2457,6 +2513,11 @@ mod turn {
     pub struct TurnClient {
         /// Resolved TURN server UDP address.
         server: SocketAddr,
+        /// Short-lived TURN username (the expiry timestamp), fetched from the relay.
+        /// Was a hardcoded constant before v0.857.
+        username: String,
+        /// Short-lived TURN credential (base64 HMAC), fetched from the relay.
+        password: String,
         phase: Phase,
         /// REALM from the 401 challenge (needed for the auth key + the attribute).
         realm: Option<String>,
@@ -2498,13 +2559,15 @@ mod turn {
         /// Resolve the TURN server hostname to a UDP `SocketAddr`. Returns `None`
         /// (caller retries) on DNS failure or no IPv4 result. We prefer IPv4 so
         /// the relayed candidate's `local` base (our IPv4 socket) matches family.
-        pub fn resolve(host: &str) -> Option<TurnClient> {
+        pub fn resolve(host: &str, username: String, password: String) -> Option<TurnClient> {
             let addr = host
                 .to_socket_addrs()
                 .ok()?
                 .find(|a| a.is_ipv4())?;
             Some(TurnClient {
                 server: addr,
+                username,
+                password,
                 phase: Phase::Allocating,
                 realm: None,
                 nonce: None,
@@ -3016,10 +3079,10 @@ mod turn {
                 (Some(r), Some(n)) => (r, n),
                 _ => return, // no credentials yet — caller checked have_credentials
             };
-            append_attr(msg, ATTR_USERNAME, super::TURN_USERNAME.as_bytes());
+            append_attr(msg, ATTR_USERNAME, self.username.as_bytes());
             append_attr(msg, ATTR_REALM, realm.as_bytes());
             append_attr(msg, ATTR_NONCE, nonce.as_bytes());
-            let key = long_term_key(super::TURN_USERNAME, realm, super::TURN_PASSWORD);
+            let key = long_term_key(&self.username, realm, &self.password);
             append_message_integrity(msg, &key);
         }
     }
@@ -3324,6 +3387,8 @@ mod turn {
         fn channel_data_frame_and_parse() {
             let mut client = TurnClient {
                 server: "1.2.3.4:3478".parse().unwrap(),
+                username: "1000:hos".into(),
+                password: "test-credential".into(),
                 phase: Phase::Allocated,
                 realm: Some("r".into()),
                 nonce: Some("n".into()),

@@ -25,6 +25,9 @@ pub mod transport;
 /// Live video fanout (v0.853.0). A separate BINARY WebSocket path — video never
 /// touches the chat relay. See `docs/design/streaming.md`.
 pub mod live;
+/// Ephemeral TURN credentials (v0.857). Replaces the static committed TURN
+/// password with short-lived HMAC credentials so no secret ships to clients.
+pub mod turn;
 /// Server→Services privilege bridge (v0.262.16). Tightly-allowlisted
 /// daemon start/stop for operator feature control. SECURITY-SENSITIVE —
 /// see the module docs; the allowlist is the trust boundary.
@@ -575,6 +578,8 @@ pub async fn run_relay() {
         .route("/ws/live/sub/{stream}", get(live::sub_handler))
         // Status rides /api/, which nginx already proxies.
         .route("/api/live", get(live::list_handler))
+        // Short-lived TURN credentials (v0.857). No secret ships to clients.
+        .route("/api/turn-credentials", get(turn::turn_credentials))
         // Bot HTTP API
         .route("/api/send", post(api::send_message))
         .route("/api/messages", get(api::get_messages))

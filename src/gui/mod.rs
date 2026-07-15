@@ -297,6 +297,10 @@ pub enum GuiPage {
     Donate,
     Tools,
     Studio,
+    /// Watch live streams inside the app (v0.857). The viewer half of Studio:
+    /// lists what is live from /api/live and plays a selected MJPEG stream.
+    /// Mirrors the web `/watch` page.
+    Watch,
     Quests,
     /// Server / group administration settings page. Opened from the cog
     /// menu on the server or group row in the chat sidebar.
@@ -2652,6 +2656,20 @@ pub struct GuiState {
     pub civ_stats_rx: Option<std::sync::mpsc::Receiver<Result<GuiCivStats, String>>>,
     pub civ_status: String,
 
+    // ── Watch page state (in-app stream viewer, v0.857) ──
+    /// The active viewer decoding a stream in the background. None when not watching.
+    pub watch_viewer: Option<crate::net::live_viewer::LiveViewer>,
+    /// The current decoded frame as an egui texture, re-uploaded when a new frame lands.
+    pub watch_texture: Option<egui::TextureHandle>,
+    /// Directory of live streams from GET /api/live: (id, title, viewers).
+    pub watch_streams: Vec<(String, String, u64)>,
+    /// Background result channel for the directory fetch.
+    pub watch_streams_rx: Option<std::sync::mpsc::Receiver<Vec<(String, String, u64)>>>,
+    /// Last time the directory was refreshed (egui time seconds), for periodic polling.
+    pub watch_last_fetch: f64,
+    /// Manual "watch by name" entry on the Watch page.
+    pub watch_input: String,
+
     // ── Wallet state ──
     pub wallet_balance: f64,
     pub wallet_address: String,
@@ -4384,6 +4402,12 @@ impl Default for GuiState {
             notes_next_id: 1,
 
             // Civilization defaults
+            watch_viewer: None,
+            watch_texture: None,
+            watch_streams: Vec::new(),
+            watch_streams_rx: None,
+            watch_last_fetch: 0.0,
+            watch_input: String::new(),
             civ_stats: None,
             civ_stats_loaded: false,
             civ_stats_rx: None,

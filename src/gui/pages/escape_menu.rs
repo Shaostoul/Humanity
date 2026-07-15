@@ -130,6 +130,7 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                 // main menu to the right of the chat button").
                 let studio_items = [
                     NavItem { label: "Studio", page: GuiPage::Studio, description: "" },
+                    NavItem { label: "Watch", page: GuiPage::Watch, description: "" },
                 ];
                 nav_group(ui, &studio_items, theme.nav_legacy_red(), text_muted, theme, state);
 

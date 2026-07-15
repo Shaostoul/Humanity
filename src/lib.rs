@@ -2213,7 +2213,7 @@ mod native_app {
                         .trim_end_matches("/ws")
                         .replace("wss://", "https://")
                         .replace("ws://", "http://");
-                    state.gui_state.studio.broadcast_url = format!("{base}/watch.html?s={id}");
+                    state.gui_state.studio.broadcast_url = format!("{base}/watch?s={id}");
                 }
             }
         }
@@ -18671,6 +18671,7 @@ mod native_app {
                                     GuiPage::Donate => donate::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Tools => tools::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Studio => studio::draw(ctx, &state.theme, &mut state.gui_state),
+                                    GuiPage::Watch => crate::gui::pages::watch::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Quests => quests::draw(ctx, &state.theme, &mut state.gui_state),
                                     GuiPage::Homes => homes::draw(ctx, &state.theme, &mut state.gui_state),
                                     // v0.415.0: Play / Resources / Onboarding arms removed with their pages.

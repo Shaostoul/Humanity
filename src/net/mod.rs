@@ -52,3 +52,9 @@ pub mod voice;
 /// "Go Live" actually leave the machine. See `docs/design/streaming.md`.
 #[cfg(feature = "native")]
 pub mod live;
+
+/// Live video viewing (v0.857): the receive side. Connects to /ws/live/sub,
+/// decodes the MJPEG frames, and hands the newest to the Watch page so streams
+/// play inside the native app, not only on the web.
+#[cfg(feature = "native")]
+pub mod live_viewer;

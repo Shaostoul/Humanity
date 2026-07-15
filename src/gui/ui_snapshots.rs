@@ -701,6 +701,17 @@ fn settings_panel(
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_watch() {
+    render_page_png("watch", 1280, 900, |ctx, theme, state| {
+        // Empty-directory state: no streams live, no viewer open. Exercises the
+        // page layout, the "Nobody is streaming" state, and the watch-by-name entry
+        // without needing a network connection.
+        crate::gui::pages::watch::draw(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_onboarding_identity() {
     render_page_png("onboarding_identity", 1280, 900, |ctx, theme, state| {
         // First-run identity step WITH the in-place 24-word backup card

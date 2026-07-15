@@ -14,15 +14,43 @@
 //   activeGroupId, dmConversations)
 // ─────────────────────────────────────────────────────────────────────────
 
-// ── WebRTC Config (shared by rooms and 1-on-1 calls) ──
+// ── WebRTC Config (shared by rooms, 1-on-1 calls, and P2P) ──
+// Starts STUN-only. The TURN entries carry a SHORT-LIVED credential fetched from
+// the relay (/api/turn-credentials) rather than a static password committed here,
+// so no secret ships in this served JS and rotation is a server-side change.
+// rtcConfig is a shared mutable object: every `new RTCPeerConnection(rtcConfig)`
+// reads iceServers at connection time, so refreshing it below updates them all.
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'turn:united-humanity.us:3478', username: 'humanity', credential: 'turnRelay2026!secure' },
-    { urls: 'turns:united-humanity.us:5349', username: 'humanity', credential: 'turnRelay2026!secure' },
   ],
 };
+
+// Fetch fresh TURN credentials and splice them into rtcConfig. Called on load and
+// on a timer before the ~1h credential expires. On any failure we keep whatever
+// iceServers we already have (STUN at minimum), so voice degrades to STUN-only
+// rather than breaking, exactly as it did whenever a TURN allocation failed.
+async function refreshTurnCredentials() {
+  try {
+    const r = await fetch('/api/turn-credentials', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (Array.isArray(data.iceServers) && data.iceServers.length) {
+      rtcConfig.iceServers = data.iceServers;
+    }
+    // Re-fetch a minute before expiry so long calls never run on a stale credential.
+    const ttlMs = Math.max(60, (data.ttl || 3600) - 60) * 1000;
+    clearTimeout(window._turnRefreshTimer);
+    window._turnRefreshTimer = setTimeout(refreshTurnCredentials, ttlMs);
+  } catch (_) {
+    // Network hiccup: keep the current (at least STUN) config, try again in 5 min.
+    clearTimeout(window._turnRefreshTimer);
+    window._turnRefreshTimer = setTimeout(refreshTurnCredentials, 5 * 60 * 1000);
+  }
+}
+// Prime it as soon as this script loads so credentials are ready before any call.
+refreshTurnCredentials();
 
 // ── Voice Channels (Persistent, SQLite-backed) ──
 window._voiceChannels = [];
