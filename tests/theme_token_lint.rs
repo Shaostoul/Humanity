@@ -72,7 +72,10 @@ const LEGACY_OFFENDERS: &[&str] = &[
     "src/gui/pages/maps.rs",
     "src/gui/pages/market.rs",
     "src/gui/pages/profile.rs",
-    "src/gui/pages/server_settings.rs",
+    // server_settings.rs migrated 2026-07-16: the USER/MOD/ADMIN section-tier consts
+    // (#e74c3c / #2ecc71 / #3498db) now come from theme tokens (nav_legacy_red /
+    // success / nav_legacy_blue) at the call sites; the one remaining literal is the
+    // already-exempt data-driven role color.
     // studio.rs migrated to theme tokens 2026-07-02 (v0.672) and REMOVED from
     // this list -- the first shrink since enforcement began. Its one remaining
     // literal call is an alpha-composite of a token, inline theme-exempt.

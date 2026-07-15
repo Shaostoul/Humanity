@@ -34,9 +34,8 @@ use crate::gui::{GuiPage, GuiState};
 /// referenced by both `widgets::tinted_section` calls AND the design
 /// language documentation. Editing means a tier semantic change, not a
 /// theme change. (Same convention as nav category colors.)
-const USER_COLOR:  Color32 = Color32::from_rgb(231, 76, 60);   // RED — identity
-const MOD_COLOR:   Color32 = Color32::from_rgb(46, 204, 113);  // GREEN — contextual
-const ADMIN_COLOR: Color32 = Color32::from_rgb(52, 152, 219);  // BLUE — system
+// Section tier colors now come from theme tokens (nav_legacy_red / success /
+// nav_legacy_blue) at the call sites, so the app theme can restyle them.
 
 /// Shared cell height for the channel spreadsheet — used by EVERY cell
 /// (text edits, checkboxes, Save/Delete/Create buttons) so the row reads
@@ -205,7 +204,7 @@ fn draw_header(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 // ── User Section ────────────────────────────────────────────────────────────
 
 fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, role: &str) {
-    widgets::tinted_section(ui, theme, "USER", USER_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
+    widgets::tinted_section(ui, theme, "USER", theme.nav_legacy_red(), SECTION_MAX_WIDTH, |ui, theme| {
         widgets::body_hint(
             ui, theme,
             "What you see no matter your role. Your connection details, profile shortcuts, \
@@ -388,7 +387,7 @@ fn draw_user_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, rol
 // ── Mod Section ─────────────────────────────────────────────────────────────
 
 fn draw_mod_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::tinted_section(ui, theme, "MODERATOR", MOD_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
+    widgets::tinted_section(ui, theme, "MODERATOR", theme.success(), SECTION_MAX_WIDTH, |ui, theme| {
         widgets::body_hint(
             ui, theme,
             "Mods can take action on members and review reported messages. Type a username \
@@ -903,7 +902,7 @@ fn draw_system_health_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
 // ── Admin Section ───────────────────────────────────────────────────────────
 
 fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
-    widgets::tinted_section(ui, theme, "ADMIN", ADMIN_COLOR, SECTION_MAX_WIDTH, |ui, theme| {
+    widgets::tinted_section(ui, theme, "ADMIN", theme.nav_legacy_blue(), SECTION_MAX_WIDTH, |ui, theme| {
         widgets::body_hint(
             ui, theme,
             "Admin-only controls: who can join, what channels exist, and which users get \
@@ -1857,6 +1856,8 @@ fn draw_server_policy_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiSta
             // now). ONE builder so the two entry points can never drift.
             send_server_settings_update(state, &draft);
             state.server_settings_draft = None;
+            let now = ui.ctx().input(|i| i.time);
+            state.toast("Server settings sent to the relay", crate::gui::ToastKind::Success, now);
         }
         if cancel_clicked {
             state.server_settings_draft = None;
@@ -2283,6 +2284,8 @@ fn draw_services_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
             {
                 send_server_settings_update(state, &draft);
                 state.server_settings_draft = None;
+                let now = ui.ctx().input(|i| i.time);
+                state.toast("Feature toggles sent to the relay", crate::gui::ToastKind::Success, now);
             }
         });
         ui.add_space(theme.spacing_sm);
