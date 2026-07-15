@@ -2067,6 +2067,26 @@ impl ConstructionRoom {
     }
 }
 
+/// A transient confirmation toast (v0.861). Reusable feedback so an action like
+/// "Save theme" is never silent -- the universal answer to the operator's complaint
+/// that save buttons "don't change when clicked". Any code path can push one; they
+/// stack bottom-center and fade out. Replaces the one-off per-button "Saved" notes.
+#[cfg(feature = "native")]
+pub struct Toast {
+    pub text: String,
+    /// egui time (seconds) when it was created; stamped on push.
+    pub created: f64,
+    pub kind: ToastKind,
+}
+
+#[cfg(feature = "native")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ToastKind {
+    Success,
+    Info,
+    Error,
+}
+
 /// How the top-nav buttons present themselves (v0.859), mirroring the web header's
 /// icon/text toggle. `Both` is the default (icon + label); `IconOnly` is the compact
 /// mode the operator wanted; `TextOnly` drops the glyphs.
@@ -2711,6 +2731,9 @@ pub struct GuiState {
     /// Top-nav button presentation (v0.859): icon+text / icon-only / text-only.
     /// Mirrors the web header's Aa toggle. Cycled by the nav's mode button.
     pub nav_display_mode: NavDisplayMode,
+
+    /// Active confirmation toasts (v0.861), drawn + expired by `draw_toasts`.
+    pub toasts: Vec<Toast>,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -4143,6 +4166,17 @@ impl GuiState {
         self.nav_back_stack.clear();
     }
 
+    /// Push a confirmation toast (v0.861). `now` is the current egui time
+    /// (`ui.ctx().input(|i| i.time)`). Use this after any save/apply so the action
+    /// is never silent -- e.g. `state.toast("Theme saved", ToastKind::Success, now)`.
+    pub fn toast(&mut self, text: impl Into<String>, kind: ToastKind, now: f64) {
+        // Cap the stack so a rapid-fire loop can't grow it unbounded.
+        if self.toasts.len() > 6 {
+            self.toasts.remove(0);
+        }
+        self.toasts.push(Toast { text: text.into(), created: now, kind });
+    }
+
     /// True while an in-world MODAL PANEL is open (the interactive chat panel,
     /// the walk-up creature editor, or the NPC dialogue card). THE single
     /// predicate for the modal input plumbing in lib.rs -- reconcile_cursor's
@@ -4462,6 +4496,7 @@ impl Default for GuiState {
             watch_last_fetch: 0.0,
             watch_input: String::new(),
             nav_display_mode: NavDisplayMode::default(),
+            toasts: Vec::new(),
             civ_stats: None,
             civ_stats_loaded: false,
             civ_stats_rx: None,

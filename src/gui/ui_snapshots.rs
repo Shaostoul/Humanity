@@ -723,6 +723,17 @@ fn snapshot_nav_bar_wrapped() {
 
 #[test]
 #[ignore = "GPU snapshot; run via `just snapshots`"]
+fn snapshot_toast() {
+    // The confirmation toast that fires on save (v0.861). Push one, render it.
+    render_page_png("toast", 700, 320, |ctx, theme, state| {
+        let now = ctx.input(|i| i.time);
+        state.toast("Theme saved", crate::gui::ToastKind::Success, now);
+        crate::gui::widgets::draw_toasts(ctx, theme, state);
+    });
+}
+
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots`"]
 fn snapshot_nav_bar_icon_only() {
     // Icon-only compact mode (v0.859): labels hidden, icons remain.
     render_page_png("nav_bar_icon_only", 720, 200, |ctx, theme, state| {

@@ -39,6 +39,67 @@ pub use alert::{alert, alert_with_title, AlertKind};
 pub use dialog::{dialog, dialog_anchored};
 pub use tree::{tree_node, tree_leaf, tree_leaf_colored, TreeState, TreeNodeResponse};
 
+/// Draw + expire the confirmation toasts (v0.861). Stacked at bottom-center, each
+/// fading out over its last half-second. Call once per frame from the main render
+/// loop, ABOVE the pages, so a "Theme saved" style confirmation floats over whatever
+/// is on screen. The universal answer to "the save button doesn't show it worked".
+pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiState) {
+    use super::ToastKind;
+    const LIFE: f64 = 2.6; // seconds fully visible + fade
+    const FADE: f64 = 0.5; // fade-out window at the end
+
+    let now = ctx.input(|i| i.time);
+    state.toasts.retain(|t| now - t.created < LIFE);
+    if state.toasts.is_empty() {
+        return;
+    }
+    ctx.request_repaint(); // keep the fade animating even with no input
+
+    // Newest toast sits lowest; older ones stack upward.
+    for (i, t) in state.toasts.iter().enumerate() {
+        let age = now - t.created;
+        let alpha = if age > LIFE - FADE {
+            (((LIFE - age) / FADE) as f32).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        let a = |c: Color32| Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), (c.a() as f32 * alpha) as u8);
+        // Colour carries the kind (green/blue/red). No leading font glyph: the app
+        // font renders a check mark / warning sign as tofu, so we paint a small
+        // filled dot instead (a shape, never tofu).
+        let accent = match t.kind {
+            ToastKind::Success => theme.success(),
+            ToastKind::Info => theme.accent(),
+            ToastKind::Error => theme.danger(),
+        };
+        let y_off = -(48.0 + i as f32 * 40.0);
+        egui::Area::new(egui::Id::new(("hos_toast", i)))
+            .order(egui::Order::Foreground)
+            .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, y_off))
+            .interactable(false)
+            .show(ctx, |ui| {
+                egui::Frame::none()
+                    .fill(a(theme.bg_card()))
+                    .stroke(Stroke::new(1.5, a(accent)))
+                    .rounding(Rounding::same(theme.border_radius as u8))
+                    .inner_margin(egui::Margin::symmetric(14, 9))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            // Painted status dot -- font-independent, so it never tofus.
+                            let (rect, _) = ui.allocate_exact_size(Vec2::splat(9.0), Sense::hover());
+                            ui.painter().circle_filled(rect.center(), 4.0, a(accent));
+                            ui.add_space(2.0);
+                            ui.label(
+                                RichText::new(&t.text)
+                                    .size(theme.font_size_body)
+                                    .color(a(theme.text_primary())),
+                            );
+                        });
+                    });
+            });
+    }
+}
+
 /// Styled card container with background.
 pub fn card(ui: &mut Ui, theme: &Theme, add_contents: impl FnOnce(&mut Ui)) {
     egui::Frame::none()

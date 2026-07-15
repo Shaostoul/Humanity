@@ -18930,6 +18930,10 @@ mod native_app {
                                 // Diagnostics dev-HUD overlays (F2/F3/F4), v0.482.
                                 crate::gui::pages::diagnostics::draw(ctx, &state.theme, &state.gui_state);
 
+                                // Confirmation toasts (v0.861): floats a "Saved" style
+                                // note over everything so actions are never silent.
+                                crate::gui::widgets::draw_toasts(ctx, &state.theme, &mut state.gui_state);
+
                                 // Draw debug console overlay (F12 toggle, on top of everything)
                                 crate::debug::draw_debug_console(
                                     ctx,

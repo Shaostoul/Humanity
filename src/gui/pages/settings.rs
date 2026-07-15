@@ -1172,12 +1172,15 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
 
             ui.add_space(theme.spacing_md);
             ui.horizontal(|ui| {
+                let now = ui.ctx().input(|i| i.time);
                 if widgets::Button::primary("Save Theme").show(ui, theme) {
                     theme.save();
+                    state.toast("Theme saved", crate::gui::ToastKind::Success, now);
                 }
                 if widgets::Button::secondary("Reset Colors").show(ui, theme) {
                     theme.reset_color_defaults();
                     any_color_changed = true;
+                    state.toast("Colors reset to defaults", crate::gui::ToastKind::Info, now);
                 }
             });
         });
@@ -1369,6 +1372,8 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
     ui.add_space(md);
     if widgets::Button::primary("Save Animations").show(ui, theme) {
         theme.save();
+        let now = ui.ctx().input(|i| i.time);
+        state.toast("Animation settings saved", crate::gui::ToastKind::Success, now);
     }
 
     if changed {
@@ -1543,12 +1548,15 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
 
         // Save / Reset buttons
         ui.horizontal(|ui| {
+            let now = ui.ctx().input(|i| i.time);
             if widgets::primary_button(ui, theme, "Save Theme") {
                 theme.save();
+                state.toast("Theme saved", crate::gui::ToastKind::Success, now);
             }
             if widgets::secondary_button(ui, theme, "Reset to Defaults") {
                 theme.reset_widget_defaults();
                 any_changed = true;
+                state.toast("Widget styles reset to defaults", crate::gui::ToastKind::Info, now);
             }
         });
 
