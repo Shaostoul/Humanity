@@ -3791,6 +3791,17 @@ pub struct GuiState {
     pub relay_admin_stats_status: String,
     /// In-flight admin-stats fetch (worker thread → per-frame drain).
     pub relay_admin_stats_rx: Option<std::sync::mpsc::Receiver<Result<RelayAdminStats, String>>>,
+
+    // ── In-app VPS console (v0.858): run server commands over SSH from the app ──
+    /// The command being typed into the console input.
+    pub vps_console_input: String,
+    /// Accumulated console transcript (commands + their output), newest at the bottom.
+    pub vps_console_output: String,
+    /// In-flight command result (worker thread → per-frame drain): (label, output, ok).
+    pub vps_console_rx: Option<std::sync::mpsc::Receiver<(String, String, bool)>>,
+    /// True while a command is running, so the UI can show a spinner + block re-runs.
+    pub vps_console_running: bool,
+
     /// Federated-server list (Server Settings → Federation, v0.722).
     pub federation_servers: Vec<FederationServerRow>,
     /// Federation panel status line ("Loading…", error text, or empty).
@@ -4823,6 +4834,10 @@ impl Default for GuiState {
             relay_admin_stats: None,
             relay_admin_stats_status: String::new(),
             relay_admin_stats_rx: None,
+            vps_console_input: String::new(),
+            vps_console_output: String::new(),
+            vps_console_rx: None,
+            vps_console_running: false,
             federation_servers: Vec::new(),
             federation_status: String::new(),
             federation_rx: None,

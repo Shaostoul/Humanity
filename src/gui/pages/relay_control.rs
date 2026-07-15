@@ -334,6 +334,9 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 heading(ui, "Control");
                 draw_control_tab(ui, theme, state, &sel_url);
                 divider(ui);
+                heading(ui, "Console");
+                draw_console_section(ui, theme, state);
+                divider(ui);
                 heading(ui, "Config");
                 draw_config_tab(ui, theme, state);
             });
@@ -439,16 +442,27 @@ fn draw_control_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _sel
     }
     ui.add_space(theme.spacing_md);
 
-    // Restart + Logs: no in-app endpoint yet - show the honest CLI fallback so
-    // the operator knows exactly what to run (GUI-first: surface the gap).
-    cli_fallback_card(ui, theme, "Restart relay",
-        "No in-app restart endpoint yet - a relay can't cleanly restart its own \
-         process. Run this on the relay host:",
-        "sudo systemctl restart humanity-relay");
-    ui.add_space(theme.spacing_sm);
-    cli_fallback_card(ui, theme, "Tail logs",
-        "No in-app log stream yet. Follow the live log on the relay host:",
-        "journalctl -u humanity-relay -n 100 -f");
+    // Restart + Logs: these now RUN over SSH (v0.858) via the Console below, so the
+    // operator never has to leave the app for a second terminal. The buttons queue
+    // the command into the Console section, where the output appears.
+    ui.horizontal(|ui| {
+        if widgets::Button::secondary("Restart relay")
+            .tooltip("Runs `sudo systemctl restart humanity-relay` on the server over SSH. \
+                      Output appears in the Console below.")
+            .disabled(state.vps_console_running)
+            .show(ui, theme)
+        {
+            run_vps_command(state, "Restart relay", "sudo systemctl restart humanity-relay");
+        }
+        if widgets::Button::secondary("Tail logs")
+            .tooltip("Runs `journalctl -u humanity-relay -n 100 --no-pager` on the server. \
+                      Output appears in the Console below.")
+            .disabled(state.vps_console_running)
+            .show(ui, theme)
+        {
+            run_vps_command(state, "Tail logs", "journalctl -u humanity-relay -n 100 --no-pager");
+        }
+    });
     ui.add_space(theme.spacing_md);
 
     ui.label(RichText::new("Auxiliary services")
@@ -462,34 +476,175 @@ fn draw_control_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState, _sel
     }
 }
 
-/// A card describing an action that currently requires the CLI, with the exact
-/// command and a Copy button. Honest fallback until an in-app endpoint exists.
-fn cli_fallback_card(ui: &mut egui::Ui, theme: &Theme, title: &str, blurb: &str, cmd: &str) {
-    Frame::none()
-        .fill(theme.bg_card())
-        .stroke(Stroke::new(1.0, theme.border()))
-        .rounding(Rounding::same(theme.border_radius as u8))
-        .inner_margin(theme.spacing_md)
-        .show(ui, |ui| {
-            ui.label(RichText::new(title).size(theme.font_size_body).color(theme.text_primary()).strong());
-            ui.add_space(2.0);
-            ui.label(RichText::new(blurb).size(theme.font_size_small).color(theme.text_muted()));
-            ui.add_space(theme.spacing_xs);
-            Frame::none()
-                .fill(theme.bg_secondary())
-                .rounding(Rounding::same(theme.border_radius as u8))
-                .inner_margin(theme.spacing_sm)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(cmd).size(theme.font_size_small).color(theme.text_secondary()));
-                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                            if widgets::Button::ghost("Copy").show(ui, theme) {
-                                ui.ctx().copy_text(cmd.to_string());
-                            }
-                        });
-                    });
-                });
+/// The in-app server console (v0.858). Runs commands on the VPS over SSH straight
+/// from the app, so administering the server is not "go open another program" — the
+/// all-in-one principle (docs/design/in-app-ops.md). It shells to the system `ssh`
+/// with the `humanity-vps` host alias, which uses the operator's existing key + config;
+/// on a machine without that key the command simply fails with an SSH error, so the
+/// box is naturally operator-gated by key possession.
+fn draw_console_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    drain_vps_console(state);
+
+    widgets::body_hint(ui, theme,
+        "Run commands on the server over SSH, without leaving the app. Uses your saved \
+         SSH key for the 'humanity-vps' host, so this only works on a machine that has it. \
+         Commands run as configured (root), so double-check before you run anything destructive.");
+    ui.add_space(theme.spacing_sm);
+
+    // One-click common operations. Each is a plain, readable command so there is no
+    // hidden behavior, and the operator can see exactly what runs.
+    ui.label(RichText::new("Common tasks").size(theme.font_size_small).color(theme.text_secondary()).strong());
+    ui.add_space(theme.spacing_xs);
+    let quick: [(&str, &str); 5] = [
+        ("Relay status", "systemctl status humanity-relay --no-pager -n 5"),
+        ("Disk usage", "df -h /"),
+        ("Memory", "free -h"),
+        ("nginx test", "nginx -t"),
+        ("Uptime", "uptime"),
+    ];
+    ui.horizontal_wrapped(|ui| {
+        for (label, cmd) in quick {
+            if widgets::Button::ghost(label)
+                .tooltip(cmd)
+                .disabled(state.vps_console_running)
+                .show(ui, theme)
+            {
+                run_vps_command(state, label, cmd);
+            }
+        }
+    });
+    ui.add_space(theme.spacing_md);
+
+    // Free command entry. Enter or Run submits.
+    ui.label(RichText::new("Run a command").size(theme.font_size_small).color(theme.text_secondary()).strong());
+    ui.add_space(theme.spacing_xs);
+    ui.horizontal(|ui| {
+        let resp = ui.add(
+            egui::TextEdit::singleline(&mut state.vps_console_input)
+                .desired_width(ui.available_width() - 90.0)
+                .hint_text("e.g. ls /opt/Humanity"),
+        );
+        let submit = (resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+            || widgets::Button::primary("Run").disabled(state.vps_console_running).show(ui, theme);
+        if submit && !state.vps_console_running {
+            let cmd = state.vps_console_input.trim().to_string();
+            if !cmd.is_empty() {
+                state.vps_console_input.clear();
+                run_vps_command(state, &cmd.clone(), &cmd);
+            }
+        }
+    });
+    ui.add_space(theme.spacing_sm);
+
+    if state.vps_console_running {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(RichText::new("Running...").size(theme.font_size_small).color(theme.text_muted()));
         });
+        ui.ctx().request_repaint();
+        ui.add_space(theme.spacing_xs);
+    }
+
+    // Output transcript. Monospace, scrollable, newest at the bottom.
+    if !state.vps_console_output.is_empty() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Output").size(theme.font_size_small).color(theme.text_secondary()).strong());
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if widgets::Button::ghost("Clear").show(ui, theme) {
+                    state.vps_console_output.clear();
+                }
+                if widgets::Button::ghost("Copy").show(ui, theme) {
+                    ui.ctx().copy_text(state.vps_console_output.clone());
+                }
+            });
+        });
+        ui.add_space(theme.spacing_xs);
+        Frame::none()
+            .fill(theme.bg_secondary())
+            .rounding(Rounding::same(theme.border_radius as u8))
+            .inner_margin(theme.spacing_sm)
+            .show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .max_height(320.0)
+                    .stick_to_bottom(true)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::Label::new(
+                                RichText::new(&state.vps_console_output)
+                                    .monospace()
+                                    .size(theme.font_size_small)
+                                    .color(theme.text_secondary()),
+                            )
+                            .wrap(),
+                        );
+                    });
+            });
+    }
+}
+
+/// Spawn `ssh humanity-vps <command>` on a worker thread and stream the result back.
+/// Never blocks the UI. `BatchMode=yes` means it fails fast instead of hanging on a
+/// password prompt; `ConnectTimeout` bounds a dead host.
+fn run_vps_command(state: &mut GuiState, label: &str, command: &str) {
+    // Echo the command into the transcript immediately so the operator sees what ran.
+    state.vps_console_output.push_str(&format!("$ {command}\n"));
+    state.vps_console_running = true;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    state.vps_console_rx = Some(rx);
+
+    let label = label.to_string();
+    let command = command.to_string();
+    std::thread::spawn(move || {
+        let result = std::process::Command::new("ssh")
+            .arg("-o")
+            .arg("BatchMode=yes")
+            .arg("-o")
+            .arg("ConnectTimeout=10")
+            .arg("humanity-vps")
+            .arg(&command)
+            .output();
+        let (out, ok) = match result {
+            Ok(o) => {
+                let mut s = String::from_utf8_lossy(&o.stdout).into_owned();
+                let err = String::from_utf8_lossy(&o.stderr);
+                if !err.trim().is_empty() {
+                    s.push_str(&err);
+                }
+                if s.trim().is_empty() {
+                    s = "(no output)\n".to_string();
+                }
+                (s, o.status.success())
+            }
+            Err(e) => (
+                format!(
+                    "Could not run ssh: {e}\nThis machine may not have the 'humanity-vps' SSH \
+                     key/host configured.\n"
+                ),
+                false,
+            ),
+        };
+        let _ = tx.send((label, out, ok));
+    });
+}
+
+/// Drain a finished command into the transcript.
+fn drain_vps_console(state: &mut GuiState) {
+    if let Some(rx) = &state.vps_console_rx {
+        if let Ok((_label, out, ok)) = rx.try_recv() {
+            state.vps_console_output.push_str(&out);
+            if !out.ends_with('\n') {
+                state.vps_console_output.push('\n');
+            }
+            if !ok {
+                state.vps_console_output.push_str("[command exited non-zero]\n");
+            }
+            state.vps_console_output.push('\n');
+            state.vps_console_rx = None;
+            state.vps_console_running = false;
+        }
+    }
 }
 
 fn draw_config_tab(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
