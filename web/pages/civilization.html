@@ -84,15 +84,6 @@
     @media (prefers-reduced-motion: reduce) {
       .civ-card, .civ-meta button { transition:none; }
     }
-    .civ-empty {
-      grid-column:1/-1;
-      text-align:center; padding:var(--space-3xl) var(--space-xl);
-      border:1px dashed var(--border); border-radius:var(--radius-lg);
-      color:var(--text-muted); max-width:600px; margin:0 auto;
-    }
-    .civ-empty h3 { color:var(--text); font-size:var(--text-lg); margin:0 0 var(--space-md); }
-    .civ-empty p { line-height:1.5; margin:0 0 var(--space-sm); }
-    .civ-empty a { color:var(--accent); }
   </style>
 </head>
 <body>
@@ -106,7 +97,6 @@
   <div class="civ-header">
     <div class="civ-header-left">
       <h1 id="real-title">Civilization</h1>
-      <h1 id="sim-title" style="display:none">Colony Overview</h1>
       <p id="civ-desc">Live stats from the community. Auto-refreshes every 60 seconds.</p>
     </div>
     <div class="civ-meta">
@@ -116,7 +106,6 @@
   </div>
 
   <div id="real-grid" class="civ-grid"></div>
-  <div id="sim-grid" class="civ-grid" style="display:none"></div>
 </div>
 
 <script src="/pages/civilization-app.js"></script>

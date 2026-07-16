@@ -193,47 +193,6 @@ h4 { font-size: var(--text-base); }
 .nav-group-green .tab.active::before { opacity: 1; }
 .nav-group-blue .tab.active::before { opacity: 1; }
 
-/* ── Context Toggle (Real/Sim pill) ── */
-.context-toggle {
-  display: inline-flex;
-  align-items: center;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1px;
-  flex-shrink: 0;
-  height: 24px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  user-select: none;
-}
-.context-toggle .ctx-seg {
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: var(--text-muted);
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
-  white-space: nowrap;
-}
-.context-toggle .ctx-seg.active {
-  color: #fff;
-}
-.context-toggle.ctx-real .ctx-seg.active {
-  background: #27ae60;
-}
-.context-toggle.ctx-sim .ctx-seg.active {
-  background: #6c5ce7;
-}
-.context-toggle .ctx-seg:not(.active):hover {
-  color: var(--text);
-}
-[data-theme="light"] .context-toggle {
-  background: var(--bg-input);
-  border-color: #bbb;
-}
-
 /* Mobile drawer colored section headers */
 .mobile-hub-group.group-red h4 { color: rgba(231, 76, 60, 0.85); }
 .mobile-hub-group.group-green h4 { color: rgba(46, 204, 113, 0.85); }

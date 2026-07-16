@@ -10,32 +10,22 @@
 
   var activeCategory = null; // null = show all
 
-  function getContext() {
-    return window.hos_context || 'real';
-  }
-
-  // The block for the active context ({ title, subtitle, categories }), or null
-  // while the data file is still loading (or failed to load).
+  // The app commits to your real life (no Real/Sim toggle; see
+  // docs/design/two-realities.md). This page shows real-world resources.
   function getData() {
     if (!resourceData || !resourceData.contexts) return null;
-    var ctx = getContext();
-    return resourceData.contexts[ctx] || resourceData.contexts.real || null;
+    return resourceData.contexts.real || null;
   }
 
   function updateHeader() {
-    var ctx = getContext();
     var title = document.getElementById('res-title');
     var subtitle = document.getElementById('res-subtitle');
     if (!title || !subtitle) return;
     var data = getData();
-    // Headings ship with the data, so adding a context needs no code change.
-    // The literals below are only the pre-load fallback.
-    title.textContent = (data && data.title) ||
-      (ctx === 'sim' ? 'Game Guides' : 'Resources');
+    // Headings ship with the data; the literals below are the pre-load fallback.
+    title.textContent = (data && data.title) || 'Resources';
     subtitle.textContent = (data && data.subtitle) ||
-      (ctx === 'sim'
-        ? 'In-game wiki, tutorials, and reference guides for HumanityOS simulation.'
-        : 'Curated links to real-world help: education, health, legal, housing, and more.');
+      'Curated links to real-world help: education, health, legal, housing, and more.';
   }
 
   function renderFilterBar() {
@@ -175,14 +165,6 @@
       render(this.value);
     });
   }
-
-  // ── Context change listener ──
-  window.addEventListener('hos-context-change', function() {
-    activeCategory = null;
-    updateHeader();
-    renderFilterBar();
-    render(searchEl ? searchEl.value : '');
-  });
 
   // ── Load data/resources.json, then render ──
   function rerender() {

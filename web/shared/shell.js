@@ -62,8 +62,7 @@
         '.hos-help-close{background:var(--accent,#FF8811);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
         '.hos-help-close:hover{filter:brightness(1.1);}' +
         '.hos-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1px solid var(--border,#333);color:var(--text-muted,#888);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;margin-left:8px;transition:all 0.15s;line-height:1;padding:0;flex-shrink:0;}' +
-        '.hos-help-btn:hover{border-color:var(--accent,#FF8811);color:var(--accent,#FF8811);}' +
-        '.context-wrap{display:inline-flex;align-items:center;}';
+        '.hos-help-btn:hover{border-color:var(--accent,#FF8811);color:var(--accent,#FF8811);}';
       document.head.appendChild(st);
     }
     var existing = document.getElementById('hos-help-modal-root');
@@ -108,9 +107,6 @@
       })
       .catch(function (err) {
         console.warn('[HOS] Could not load help topics:', err);
-        // Fallback: register a minimal real-sim topic so the ? icon still works.
-        window.hosHelp.register('real-sim', 'Real mode vs. Sim mode',
-          '<p>Real mode uses real-life data. Sim mode uses game-world data. Same tools, different context.</p>');
       });
   })();
 
@@ -729,7 +725,6 @@
       .hub-nav .nav-group-green,
       .hub-nav .nav-group-blue { display: none !important; }
       .hub-nav .spacer { display: none !important; }
-      .hub-nav .context-toggle { display: none !important; }
       .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
@@ -749,30 +744,12 @@
     '</a>';
   }
 
-  // ── Context toggle (Real / Game) ──
-  var savedContext = localStorage.getItem('humanity_context') || 'real';
-  // Backward compat: treat legacy "game" as "sim"
-  if (savedContext === 'game') { savedContext = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
-  if (savedContext !== 'real' && savedContext !== 'sim') savedContext = 'real';
-  Object.defineProperty(window, 'hos_context', {
-    get: function() {
-      var v = localStorage.getItem('humanity_context') || 'real';
-      if (v === 'game') { v = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
-      return v;
-    },
-    configurable: true
-  });
-
-  function buildContextToggle() {
-    var ctx = window.hos_context;
-    return '<div class="context-wrap">' +
-      '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
-        '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
-        '<span class="ctx-seg' + (ctx === 'sim' ? ' active' : '') + '" data-ctx="sim">Sim</span>' +
-      '</div>' +
-      '<button class="hos-help-btn" type="button" aria-label="What does Real/Sim mean?" data-help-id="real-sim" title="What does this do?">?</button>' +
-    '</div>';
-  }
+  // ── The app commits to one reality: your real life. ──
+  // There is NO Real/Sim toggle (removed from native in v0.197.0; the web
+  // machinery was excised for parity 2026-07-16). App pages are always your
+  // real life; game systems live inside the 3D world, entered via Play. The
+  // two realities are separated by navigation, not a mode switch. See
+  // docs/design/two-realities.md.
 
   // ── Inject Nav ──
   const nav = document.createElement('div');
@@ -1041,28 +1018,6 @@
     e.preventDefault();
     e.stopPropagation();
     window.hosHelp.show(helpBtn.dataset.helpId);
-  });
-
-  // ── Context toggle handler ──
-  document.addEventListener('click', function(e) {
-    // Click anywhere on the toggle to switch (not just the text)
-    var toggle = e.target.closest('.context-toggle');
-    if (!toggle) return;
-    // Clicking anywhere on the pill toggles to the other context
-    var newCtx = window.hos_context === 'real' ? 'sim' : 'real';
-    if (!newCtx) return;
-    localStorage.setItem('humanity_context', newCtx);
-    // Update all toggle instances on the page
-    document.querySelectorAll('.context-toggle .ctx-seg').forEach(function(el) {
-      el.classList.toggle('active', el.getAttribute('data-ctx') === newCtx);
-    });
-    // Update color coding on toggle containers
-    document.querySelectorAll('.context-toggle').forEach(function(el) {
-      el.classList.toggle('ctx-real', newCtx === 'real');
-      el.classList.toggle('ctx-sim', newCtx === 'sim');
-    });
-    // Dispatch event so pages can react
-    window.dispatchEvent(new CustomEvent('hos-context-change', { detail: { context: newCtx } }));
   });
 
   // Rich tooltips (label + short explanation)
@@ -1567,7 +1522,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.3';
+    var CURRENT_VERSION = '0.861.4';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

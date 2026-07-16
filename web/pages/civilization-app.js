@@ -73,24 +73,6 @@
     });
   }
 
-  // ── Render sim-mode dashboard ─────────────────────────────
-  function renderSim() {
-    const grid = document.getElementById('sim-grid');
-    if (!grid) return;
-
-    // Sim mode = your running simulation. The simulation lives in the desktop
-    // app, and there is no web-accessible game save, so we show an honest
-    // hand-off instead of fabricated colony numbers. (Real mode above is wired
-    // to the live /api/civilization community dashboard.)
-    grid.innerHTML =
-      '<div class="civ-empty">' +
-        '<h3>Your simulation stats live in the desktop app</h3>' +
-        '<p>Colony, buildings, technology, economy, and more are tracked inside your running HumanityOS simulation. ' +
-        'Open the <a href="/download">desktop app</a> to see them.</p>' +
-        '<p>Switch to <strong>Real</strong> mode above for the live community dashboard, which works right here on the web.</p>' +
-      '</div>';
-  }
-
   // ── Card HTML builder ─────────────────────────────────────
   function civCard(title, mainStat, unit, subStats, accentColor) {
     const subs = subStats.map(s => '<div class="civ-sub">' + s + '</div>').join('');
@@ -127,52 +109,24 @@
     }
   }
 
-  // ── Context switching ─────────────────────────────────────
-  function applyContext() {
-    const ctx = (localStorage.getItem('humanity_context') || 'real');
-    const realGrid = document.getElementById('real-grid');
-    const simGrid = document.getElementById('sim-grid');
-    const realTitle = document.getElementById('real-title');
-    const simTitle = document.getElementById('sim-title');
-
-    if (ctx === 'sim') {
-      if (realGrid) realGrid.style.display = 'none';
-      if (simGrid) simGrid.style.display = '';
-      if (realTitle) realTitle.style.display = 'none';
-      if (simTitle) simTitle.style.display = '';
-      renderSim();
-    } else {
-      if (realGrid) realGrid.style.display = '';
-      if (simGrid) simGrid.style.display = 'none';
-      if (realTitle) realTitle.style.display = '';
-      if (simTitle) simTitle.style.display = 'none';
-      fetchCivData();
-    }
-  }
-
   // ── Init ──────────────────────────────────────────────────
+  // This is a real-life page (the live community dashboard). Game/colony
+  // stats live inside the desktop app, not behind a web toggle. See
+  // docs/design/two-realities.md.
   document.addEventListener('DOMContentLoaded', function() {
-    applyContext();
+    fetchCivData();
 
     // Auto-refresh
     refreshTimer = setInterval(function() {
-      const ctx = localStorage.getItem('humanity_context') || 'real';
-      if (ctx !== 'sim') fetchCivData();
+      fetchCivData();
       updateTimestamp();
     }, REFRESH_INTERVAL);
 
     // Update "ago" text every 10s
     setInterval(updateTimestamp, 10000);
 
-    // Context toggle
-    document.addEventListener('hos-context-change', applyContext);
-
     // Manual refresh button
     const btn = document.getElementById('civ-refresh');
-    if (btn) btn.addEventListener('click', function() {
-      const ctx = localStorage.getItem('humanity_context') || 'real';
-      if (ctx === 'sim') renderSim();
-      else fetchCivData();
-    });
+    if (btn) btn.addEventListener('click', fetchCivData);
   });
 })();
