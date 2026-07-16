@@ -48,7 +48,7 @@
         (inf.voice_channels || 0) + ' voice channels',
         (inf.projects || 0) + ' projects',
         (inf.total_messages || 0).toLocaleString() + ' total messages'
-      ], '#3498db') +
+      ], 'var(--nav-blue)') +
       civCard('Economy', eco.active_listings || 0, 'listings', [
         (eco.total_trades || 0) + ' trades',
         (eco.total_reviews || 0) + ' reviews'
@@ -60,7 +60,7 @@
       ], '#9b59b6') +
       civCard('Social', soc.total_follows || 0, 'connections', [
         (soc.total_dms || 0) + ' direct messages'
-      ], '#e74c3c') +
+      ], 'var(--nav-red)') +
       civCard('Activity', act.messages_today || 0, 'messages today', [
         'Most active: #' + (act.most_active_channel || 'general'),
         'Peak online: ' + (act.peak_online || 0)

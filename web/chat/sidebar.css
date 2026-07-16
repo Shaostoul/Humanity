@@ -494,9 +494,9 @@
 }
 .role-admin { background: #e67e22; color: #fff; }
 .role-mod { background: #27ae60; color: #fff; }
-.role-verified { background: #3498db; color: #fff; }
+.role-verified { background: var(--badge-verified); color: #fff; }
 .role-donor { background: #9b59b6; color: #fff; }
-.role-streaming { background: #e74c3c; color: #fff; font-size: 0.55rem; }
+.role-streaming { background: var(--badge-live); color: #fff; font-size: 0.55rem; }
 
 /* ── DM Section ── */
 .dm-section h4 {

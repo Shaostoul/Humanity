@@ -358,7 +358,7 @@ async function handleVoiceRoomSignal(msg) {
     .vr-btn { font-size:0.7rem; padding:var(--space-xs) var(--space-md); cursor:pointer; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-input); color:var(--text-primary); }
     .vr-btn:hover { background:var(--bg-hover); }
     .vr-join { color:var(--success); border-color:var(--success); }
-    .vr-leave { color:#e74c3c; border-color:#e74c3c; }
+    .vr-leave { color:var(--danger); border-color:var(--danger); }
   `;
   document.head.appendChild(style);
 })();
