@@ -127,5 +127,23 @@
   {"id": "oberon", "name": "Oberon", "planetId": "uranus", "radius": 761.4, "mass": 3.01e21, "gravity": 0.346,
    "orbit": {"semiMajor": 583500, "period": 13.46, "eccentricity": 0.001, "inclination": 0.07},
    "temperature": {"min": -203, "avg": -198, "max": -198}, "color": "#998888"}
+ ],
+ "dwarfPlanets": [
+  {"id": "ceres", "name": "Ceres", "starId": "SOL", "type": "dwarf", "radius": 473, "mass": 9.393e20,
+   "orbit": {"semiMajor": 2.766, "period": 1679.82, "eccentricity": 0.0758, "inclination": 10.594},
+   "rings": false, "color": "#8c8073",
+   "description": "Largest object in the asteroid belt"},
+  {"id": "haumea", "name": "Haumea", "starId": "SOL", "type": "dwarf", "radius": 816, "mass": 4.006e21,
+   "orbit": {"semiMajor": 43.13, "period": 103468, "eccentricity": 0.1912, "inclination": 28.19},
+   "rings": true, "color": "#d9d9d9",
+   "description": "Fast-spinning elongated dwarf planet with a ring"},
+  {"id": "makemake", "name": "Makemake", "starId": "SOL", "type": "dwarf", "radius": 715, "mass": 3.1e21,
+   "orbit": {"semiMajor": 45.79, "period": 113226, "eccentricity": 0.1559, "inclination": 28.96},
+   "rings": false, "color": "#bfa68c",
+   "description": "Bright dwarf planet in the Kuiper belt"},
+  {"id": "eris", "name": "Eris", "starId": "SOL", "type": "dwarf", "radius": 1163, "mass": 1.66e22,
+   "orbit": {"semiMajor": 67.67, "period": 203500, "eccentricity": 0.4407, "inclination": 44.04},
+   "rings": false, "color": "#d9d9d9",
+   "description": "Most massive known dwarf planet, beyond the Kuiper belt"}
  ]
 }

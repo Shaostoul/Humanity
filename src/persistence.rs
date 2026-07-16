@@ -57,6 +57,12 @@ pub struct WorldSave {
     /// read by the live save path) — do not conflate the two.
     #[serde(default)]
     pub deployed_vehicles: Vec<VehicleSave>,
+    /// Growing crops (v0.863): every CropInstance round-trips so the garden
+    /// survives restarts (operator: "We should just be able to load up and have
+    /// our changes persist"). serde-default so older saves load with none, and
+    /// the showcase auto-seed then fills the grow surfaces instead.
+    #[serde(default)]
+    pub crops: Vec<crate::ecs::components::CropInstance>,
     /// The player's credit balance (v0.747, ladder rung 3). serde-default -1 =
     /// "no wallet saved yet" so pre-v0.747 saves keep the fresh-start default
     /// (10,000 CR) instead of loading as broke.
@@ -118,6 +124,7 @@ impl WorldSave {
             outfit: Default::default(),
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
+            crops: Vec::new(),
             credits: -1,
             quests: None,
         }
@@ -291,6 +298,7 @@ mod tests {
             outfit: Default::default(),
             placed_items: Vec::new(),
             deployed_vehicles: Vec::new(),
+            crops: Vec::new(),
             credits: -1,
             quests: None,
         }

@@ -1,0 +1,9 @@
+[
+  {
+    "id": "uhs-mothership",
+    "name": "UHS Mothership",
+    "status": "in design",
+    "orbit_body": "earth",
+    "note": "First vessel of the server fleet. Currently being designed in the HumanityOS shipyard; the native game world is this ship in Earth orbit."
+  }
+]

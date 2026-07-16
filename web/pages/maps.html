@@ -293,6 +293,13 @@ const PC_METERS = 3.086e16;
 const EARTH_RADIUS = 6.371e6;
 const EARTH_CIRC = 4.007e7;
 
+// Accent color from theme tokens (canvas cannot use var() directly).
+const ACCENT = (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '').trim() || '#ed8c24';
+
+// Reduced motion freezes ambient ANIMATION only (pulses, auto-rotation, orbital drift).
+// The static galaxy backdrop still draws; it only moves with user input.
+const REDUCED_MOTION = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 // ---- Zoom state ----
 // zoomLevel: 0 = galaxy, 60 = street. Continuous float.
 const state = {
@@ -375,6 +382,88 @@ const PLANETS = [
 PLANETS.forEach((p, i) => {
   p.startAngle = (i * 137.508 * DEG2RAD) % TWO_PI;
 });
+
+// ---- Belt landmarks (facts from data/world/solar_system.ron) ----
+const BELTS = [
+  { name: 'Asteroid Belt', type: 'Belt region', landmarkAU: 2.77, labelAngle: 2.4,
+    desc: 'Main belt between Mars and Jupiter, roughly 2.1 to 3.3 AU out. Ceres is its largest member.',
+    mass: '2.39e21 kg (total)' },
+  { name: 'Kuiper Belt', type: 'Belt region', landmarkAU: 40, labelAngle: 5.5,
+    desc: 'Icy debris disk beyond Neptune, roughly 30 to 55 AU out. Home of Pluto, Haumea, Makemake and countless comets.',
+    mass: '3.0e22 kg (est. total)' },
+];
+
+// ---- Moons + dwarf planets from the repo dataset (/data/solar-system.json) ----
+// The page still works from the built-in skeleton if this fetch fails.
+const MOONS = [];
+function formatMass(kg) {
+  if (typeof kg !== 'number') return kg;
+  return kg.toExponential(2).replace('e+', 'e') + ' kg';
+}
+fetch('/data/solar-system.json')
+  .then(r => (r.ok ? r.json() : null))
+  .then(data => {
+    if (!data) return;
+    const moonById = {};
+    for (const m of (data.moons || [])) moonById[m.id] = m;
+    for (const p of (data.planets || [])) {
+      const local = PLANETS.find(x => x.name.toLowerCase() === p.id);
+      if (!local) continue;
+      if (p.dayLength) local.dayLength = p.dayLength;
+      if (p.temperature) local.tempRange = p.temperature;
+      if (p.resources && p.resources.length) local.resources = p.resources;
+      local.moonList = [];
+      local.moonNames = [];
+      for (const mid of (p.moons || [])) {
+        const m = moonById[mid];
+        if (!m) continue;
+        const moon = {
+          name: m.name,
+          type: 'Moon',
+          desc: 'Moon of ' + local.name,
+          radiusKm: m.radius,
+          mass: formatMass(m.mass),
+          gravity: m.gravity + ' m/s2',
+          orbitKm: m.orbit.semiMajor,
+          periodDays: m.orbit.period,
+          ecc: m.orbit.eccentricity,
+          tempRange: m.temperature,
+          color: m.color || '#aaaaaa',
+        };
+        local.moonList.push(moon);
+        local.moonNames.push(m.name);
+        MOONS.push(moon);
+      }
+    }
+    for (const d of (data.dwarfPlanets || [])) {
+      if (PLANETS.some(x => x.name.toLowerCase() === d.id)) continue;
+      PLANETS.push({
+        name: d.name,
+        semiMajor: d.orbit.semiMajor,
+        period: +(d.orbit.period / 365.25).toFixed(2),
+        ecc: d.orbit.eccentricity,
+        incl: d.orbit.inclination,
+        color: d.color,
+        radius: d.radius,
+        mass: formatMass(d.mass),
+        type: 'Dwarf planet',
+        desc: d.description || '',
+        dwarf: true,
+        startAngle: (PLANETS.length * 137.508 * DEG2RAD) % TWO_PI,
+      });
+    }
+    requestRender();
+  })
+  .catch(() => {});
+
+// ---- Server fleet (/data/fleet.json; a 404 means no fleet is shown) ----
+let FLEET = [];
+fetch('/data/fleet.json')
+  .then(r => (r.ok ? r.json() : null))
+  .then(list => {
+    if (Array.isArray(list)) { FLEET = list; requestRender(); }
+  })
+  .catch(() => {});
 
 // ---- Asteroid belt ----
 const ASTEROID_COUNT = 400;
@@ -488,6 +577,44 @@ class TileCache {
 }
 const tileCache = new TileCache();
 
+// ---- Galaxy sky backdrop ----
+// A faint all-sky panorama (crop centered near the galactic core) drawn behind the
+// map content in space-scale views. It pans with the camera yaw/pitch, so nearby
+// galaxies and cosmic structure act as fixed landmarks while you spin the map.
+const galaxySky = new Image();
+let galaxySkyReady = false;
+galaxySky.onload = () => { galaxySkyReady = true; requestRender(); };
+galaxySky.src = '/shared/bg/galaxy-core.jpg';
+
+function drawGalaxyBackdrop() {
+  if (!galaxySkyReady) return;
+  const z = state.zoomLevel;
+  // Space-scale views only: fade out as the street-level tile map fades in.
+  let alpha = 0.25;
+  if (state.focusPlanet && state.focusPlanet.hasMap && z >= ZOOM_TILE_MIN) {
+    alpha *= 1 - smoothstep(ZOOM_TILE_MIN, ZOOM_TILE_MIN + 2, z);
+  }
+  if (alpha <= 0.005) return;
+
+  const iw = galaxySky.naturalWidth, ih = galaxySky.naturalHeight;
+  if (!iw || !ih) return;
+  // Cover the viewport with margin so pitch panning never exposes an edge.
+  const s = Math.max(W / iw, H / ih) * 1.3;
+  const dw = iw * s, dh = ih * s;
+  // Camera yaw pans the panorama horizontally; one full turn wraps one image width.
+  const yawFrac = ((state.orbitRotation / TWO_PI) % 1 + 1) % 1;
+  const ox = yawFrac * dw;
+  // Camera pitch shifts it vertically within the overflow margin.
+  const tiltFrac = Math.max(0, Math.min(1, state.orbitTilt / (Math.PI * 0.45)));
+  const oy = (H - dh) * (0.25 + 0.5 * tiltFrac);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(galaxySky, -ox, oy, dw, dh);
+  if (dw - ox < W) ctx.drawImage(galaxySky, dw - ox, oy, dw, dh);
+  ctx.restore();
+}
+
 // ---- 3D projection helper ----
 // Project a 3D point (x, y, z) to 2D screen using tilt and rotation.
 function project3D(x, y, z, cx, cy, scale) {
@@ -564,6 +691,9 @@ function render(ts) {
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, W, H);
 
+  // Faint galaxy panorama behind everything (space-scale views only)
+  drawGalaxyBackdrop();
+
   // Background stars
   drawBackgroundStars();
 
@@ -596,9 +726,10 @@ function render(ts) {
   updateAttribution();
   zoomSlider.value = z;
 
-  // Continue animating for system/globe views
-  if ((z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) ||
-      (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet)) {
+  // Continue animating for system/globe views (ambient motion; skipped under reduced motion)
+  if (!REDUCED_MOTION &&
+      ((z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) ||
+       (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet))) {
     requestRender();
   }
 }
@@ -697,7 +828,7 @@ function renderGalaxy(ctx, alpha) {
   }
 
   ctx.restore();
-  if (alpha > 0 && state.zoomLevel < 3) requestRender();
+  if (!REDUCED_MOTION && alpha > 0 && state.zoomLevel < 3) requestRender();
 }
 
 // ============================================================================
@@ -884,6 +1015,10 @@ function renderSystem3D(ctx, alpha) {
   // Sort by depth for proper occlusion
   renderOrder.sort((a, b) => a.depth - b.depth);
 
+  // Moons resolve once zoomed in enough to separate them from the planet disc
+  const showMoons = state.zoomLevel >= ZOOM_SYSTEM_MIN + 4;
+  const dayNumber = Date.now() / 86400000;
+
   for (const { planet, px, py, planetR, angle, orbitR } of renderOrder) {
     // Saturn rings
     if (planet.name === 'Saturn') {
@@ -918,6 +1053,80 @@ function renderSystem3D(ctx, alpha) {
     planet._sx = px;
     planet._sy = py;
     planet._sr = planetR;
+
+    // Moons (real data from /data/solar-system.json), exaggerated orbit spacing
+    if (planet.moonList && planet.moonList.length) {
+      if (showMoons) {
+        for (let mi = 0; mi < planet.moonList.length; mi++) {
+          const moon = planet.moonList[mi];
+          const mr = planetR + 7 + mi * 5;
+          const ma = (dayNumber / moon.periodDays) * TWO_PI + mi * 1.9;
+          const msx = px + mr * Math.cos(ma);
+          const msy = py + mr * Math.sin(ma) * cosTilt;
+          const dotR = Math.max(1, Math.min(2.5, Math.log2(moon.radiusKm / 300 + 1.5)));
+          ctx.fillStyle = moon.color;
+          ctx.beginPath();
+          ctx.arc(msx, msy, dotR, 0, TWO_PI);
+          ctx.fill();
+          moon._sx = msx;
+          moon._sy = msy;
+          moon._sr = dotR;
+        }
+      } else {
+        for (const moon of planet.moonList) moon._sx = undefined;
+      }
+    }
+  }
+
+  // Belt landmarks (clickable labels; facts from data/world/solar_system.ron)
+  for (const belt of BELTS) {
+    const br = auToPixels(belt.landmarkAU);
+    const bx = cx + br * Math.cos(belt.labelAngle);
+    const by = cy + br * Math.sin(belt.labelAngle) * cosTilt;
+    if (br < 50 || bx < 20 || bx > W - 20 || by < 20 || by > H - 20) {
+      belt._sx = undefined;
+      continue;
+    }
+    ctx.fillStyle = 'rgba(170,160,140,0.55)';
+    ctx.font = 'italic 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(belt.name, bx, by - 4);
+    belt._sx = bx;
+    belt._sy = by;
+  }
+
+  // Server fleet markers (/data/fleet.json), anchored to the body they orbit
+  if (state.focusStar && state.focusStar.name === 'Sol' && FLEET.length) {
+    for (const ship of FLEET) {
+      const host = PLANETS.find(p => p.name.toLowerCase() === String(ship.orbit_body || '').toLowerCase());
+      if (!host || host._sx === undefined) { ship._sx = undefined; continue; }
+      const hr = Math.max(6, host._sr || 6);
+      const fx = host._sx + hr + 12;
+      const fy = host._sy - hr - 10;
+      // Leader line from the planet to the marker
+      ctx.strokeStyle = 'rgba(220,220,240,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(host._sx + hr * 0.7, host._sy - hr * 0.7);
+      ctx.lineTo(fx - 4, fy + 4);
+      ctx.stroke();
+      // Ship glyph: small accent diamond
+      ctx.fillStyle = ACCENT;
+      ctx.beginPath();
+      ctx.moveTo(fx, fy - 5);
+      ctx.lineTo(fx + 4, fy);
+      ctx.lineTo(fx, fy + 5);
+      ctx.lineTo(fx - 4, fy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(ship.name + ' (' + ship.status + ')', fx + 8, fy + 3);
+      ship._sx = fx;
+      ship._sy = fy;
+    }
+  } else {
+    for (const ship of FLEET) ship._sx = undefined;
   }
 
   // Hint
@@ -1065,7 +1274,7 @@ function renderGlobe(ctx, alpha) {
   }
 
   ctx.restore();
-  requestRender();
+  if (!REDUCED_MOTION) requestRender();
 }
 
 // ============================================================================
@@ -1220,16 +1429,25 @@ function showInfo(obj) {
 
   const rows = [];
   if (obj.type) rows.push(['Type', obj.type]);
+  if (obj.status) rows.push(['Status', obj.status]);
+  if (obj.orbitBody) rows.push(['Orbiting', obj.orbitBody]);
   if (obj.spectral) rows.push(['Spectral Type', obj.spectral]);
   if (obj.temp !== undefined) rows.push(['Temperature', `${obj.temp}${obj.spectral ? ' K' : ' C'}`]);
+  if (obj.tempRange && obj.tempRange.min !== obj.tempRange.max) rows.push(['Temp Range', `${obj.tempRange.min} to ${obj.tempRange.max} C`]);
   if (obj.radius) rows.push(['Radius', typeof obj.radius === 'number' && obj.radius > 100 ? `${obj.radius.toLocaleString()} km` : `${obj.radius} R\u2609`]);
+  if (obj.radiusKm !== undefined) rows.push(['Radius', `${obj.radiusKm.toLocaleString()} km`]);
   if (obj.gravity) rows.push(['Gravity', obj.gravity]);
   if (obj.atmo) rows.push(['Atmosphere', obj.atmo]);
   if (obj.mass) rows.push(['Mass', obj.mass]);
   if (obj.semiMajor) rows.push(['Semi-major Axis', `${obj.semiMajor} AU`]);
   if (obj.period) rows.push(['Orbital Period', `${obj.period} yr`]);
+  if (obj.orbitKm !== undefined) rows.push(['Orbit Distance', `${obj.orbitKm.toLocaleString()} km`]);
+  if (obj.periodDays !== undefined) rows.push(['Orbital Period', `${obj.periodDays} days`]);
+  if (obj.dayLength !== undefined) rows.push(['Day Length', `${obj.dayLength} h`]);
   if (obj.ecc !== undefined) rows.push(['Eccentricity', obj.ecc.toFixed(3)]);
   if (obj.moons !== undefined) rows.push(['Known Moons', obj.moons]);
+  if (obj.moonNames && obj.moonNames.length) rows.push(['Major Moons', obj.moonNames.join(', ')]);
+  if (obj.resources && obj.resources.length) rows.push(['Resources', obj.resources.join(', ')]);
   if (obj.mag !== undefined) rows.push(['Apparent Mag', obj.mag.toFixed(2)]);
   if (obj.absMag !== undefined) rows.push(['Absolute Mag', obj.absMag.toFixed(2)]);
 
@@ -1574,6 +1792,40 @@ function handleClick(mx, my) {
   }
 
   if (z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX + 2 && state.focusStar) {
+    // Fleet markers first (they sit close to their host planet)
+    for (const ship of FLEET) {
+      if (ship._sx === undefined) continue;
+      const dx = mx - ship._sx, dy = my - ship._sy;
+      if (dx * dx + dy * dy < 12 * 12) {
+        const body = String(ship.orbit_body || '');
+        showInfo({
+          name: ship.name,
+          type: 'Fleet vessel',
+          desc: ship.note || '',
+          status: ship.status,
+          orbitBody: body ? body.charAt(0).toUpperCase() + body.slice(1) : undefined,
+        });
+        return;
+      }
+    }
+    // Moons next (smaller hit radius than their planet)
+    for (const moon of MOONS) {
+      if (moon._sx === undefined) continue;
+      const dx = mx - moon._sx, dy = my - moon._sy;
+      if (dx * dx + dy * dy < 6 * 6) {
+        showInfo(moon);
+        return;
+      }
+    }
+    // Belt landmark labels
+    for (const belt of BELTS) {
+      if (belt._sx === undefined) continue;
+      const dx = mx - belt._sx, dy = my - belt._sy;
+      if (dx * dx + dy * dy < 30 * 30) {
+        showInfo(belt);
+        return;
+      }
+    }
     for (const planet of PLANETS) {
       if (planet._sx === undefined) continue;
       const dx = mx - planet._sx, dy = my - planet._sy;
@@ -1612,7 +1864,22 @@ function handleHover(mx, my, clientX, clientY) {
   }
 
   if (!found && z >= ZOOM_SYSTEM_MIN && z < ZOOM_SYSTEM_MAX && state.focusStar) {
-    for (const planet of PLANETS) {
+    for (const ship of FLEET) {
+      if (ship._sx === undefined) continue;
+      const dx = mx - ship._sx, dy = my - ship._sy;
+      if (dx * dx + dy * dy < 12 * 12) { found = { name: ship.name + ' (' + ship.status + ')' }; break; }
+    }
+    if (!found) for (const moon of MOONS) {
+      if (moon._sx === undefined) continue;
+      const dx = mx - moon._sx, dy = my - moon._sy;
+      if (dx * dx + dy * dy < 6 * 6) { found = moon; break; }
+    }
+    if (!found) for (const belt of BELTS) {
+      if (belt._sx === undefined) continue;
+      const dx = mx - belt._sx, dy = my - belt._sy;
+      if (dx * dx + dy * dy < 30 * 30) { found = belt; break; }
+    }
+    if (!found) for (const planet of PLANETS) {
       if (planet._sx === undefined) continue;
       const dx = mx - planet._sx, dy = my - planet._sy;
       const hitR = Math.max(10, planet._sr) * 2;
@@ -1624,7 +1891,7 @@ function handleHover(mx, my, clientX, clientY) {
     tooltip.style.display = 'block';
     tooltip.style.left = (clientX - canvas.getBoundingClientRect().left + 12) + 'px';
     tooltip.style.top = (clientY - canvas.getBoundingClientRect().top - 10) + 'px';
-    tooltip.textContent = found.name + (found.spectral ? ` (${found.spectral})` : '') + (found.semiMajor ? ` \u2014 ${found.semiMajor} AU` : '');
+    tooltip.textContent = found.name + (found.spectral ? ` (${found.spectral})` : '') + (found.semiMajor ? ` - ${found.semiMajor} AU` : '');
     canvas.style.cursor = 'pointer';
   } else {
     tooltip.style.display = 'none';
@@ -1646,9 +1913,10 @@ window.addEventListener('resize', resize);
 resize();
 requestRender();
 
-// Continuous animation loop
+// Continuous animation loop (ambient only; reduced motion renders on input instead)
 requestAnimationFrame(function tick(ts) {
   animationTime = ts;
+  if (REDUCED_MOTION) return;
   const z = state.zoomLevel;
   if (z < ZOOM_STELLAR_MIN || (z >= ZOOM_GLOBE_MIN && z < ZOOM_GLOBE_MAX && state.focusPlanet)) {
     if (Math.floor(ts / 50) % 3 === 0) requestRender();

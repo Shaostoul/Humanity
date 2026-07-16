@@ -1554,28 +1554,40 @@ mod native_app {
             ));
         }
         state.machine_objects = objs;
-        // Record tower anchors for the procedural plant pass (v0.862): every
-        // placed machine whose catalog key names an aeroponic tower. The type
-        // is looked up by instance id (placements carry no catalog key).
-        state.tower_positions.clear();
+        // Record grow anchors for the procedural plant pass (v0.862/0.863):
+        // EVERY placed machine, with its catalog type, footprint and top
+        // height, so the plant pass can dress towers (helix) and beds/fields
+        // (grid across the footprint at top_y). Type looked up by instance id
+        // (placements carry no catalog key).
+        state.grow_positions.clear();
         if let Some(home) = state.gui_state.home_machines.as_ref() {
             let type_by_id: HashMap<String, String> =
                 home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
             for p in &placements {
                 if let Some(ty) = type_by_id.get(&p.id) {
-                    if ty.starts_with("aeroponic_tower_") {
-                        state.tower_positions.push((
-                            ty.clone(),
-                            p.id.clone(),
-                            Vec3::new(p.pos.0, p.pos.1, p.pos.2),
-                            p.rotation,
-                        ));
-                    }
+                    state.grow_positions.push(GrowSpot {
+                        ty: ty.clone(),
+                        id: p.id.clone(),
+                        pos: Vec3::new(p.pos.0, p.pos.1, p.pos.2),
+                        yaw: p.rotation,
+                        top_y: p.top_y,
+                        size: p.size,
+                    });
                 }
             }
         }
-        state.plant_mesh_sig = 0; // tower layout may have moved: replant visuals
+        state.plant_mesh_sig = 0; // machine layout may have moved: replant visuals
         rebuild_connection_objects(state);
+    }
+
+    /// One placed machine's world anchor for the plant pass (v0.863).
+    struct GrowSpot {
+        ty: String,
+        id: String,
+        pos: Vec3,
+        yaw: f32,
+        top_y: f32,
+        size: (f32, f32, f32),
     }
 
     /// Procedural plants (v0.862): build ONE merged world-space mesh per planted
@@ -1600,7 +1612,7 @@ mod native_app {
             c.tower_slot.hash(&mut h);
             ((c.health / 10.0) as u32).hash(&mut h);
         }
-        state.tower_positions.len().hash(&mut h);
+        state.grow_positions.len().hash(&mut h);
         let sig = h.finish().max(1);
         if sig == state.plant_mesh_sig {
             return;
@@ -1639,16 +1651,34 @@ mod native_app {
 
         let mut builders: Vec<crate::renderer::plant_mesh::PlantMeshBuilder> = Vec::new();
         for (cfg_id, crops) in &by_tower {
-            let Some(cfg) = tower_cfgs.iter().find(|t| t.id == *cfg_id) else { continue };
-            // First placed column of this tower type anchors the visuals.
-            let cat_key = format!("aeroponic_tower_{cfg_id}");
-            let Some((_, _, base, _yaw)) =
-                state.tower_positions.iter().find(|(ty, ..)| *ty == cat_key)
-            else {
+            // Resolve the crop group's world layout. Three key shapes:
+            // - legacy tower CONFIG id ("nutrition", from the GUI Plant button):
+            //   dress the first placed column of that type;
+            // - tower INSTANCE id ("ntower_5", from the showcase auto-seed):
+            //   dress that exact column;
+            // - bed/field/rack INSTANCE id: grid across the machine footprint.
+            let (helix_cfg, base, grid_spot) = if let Some(cfg) =
+                tower_cfgs.iter().find(|t| t.id == *cfg_id)
+            {
+                let cat_key = format!("aeroponic_tower_{cfg_id}");
+                match state.grow_positions.iter().find(|g| g.ty == cat_key) {
+                    Some(g) => (Some(cfg), g.pos, None),
+                    None => continue,
+                }
+            } else if let Some(g) = state.grow_positions.iter().find(|g| g.id == *cfg_id) {
+                if let Some(cfg_key) = g.ty.strip_prefix("aeroponic_tower_") {
+                    match tower_cfgs.iter().find(|t| t.id == cfg_key) {
+                        Some(cfg) => (Some(cfg), g.pos, None),
+                        None => continue,
+                    }
+                } else {
+                    (None, g.pos, Some(g))
+                }
+            } else {
                 continue;
             };
-            let slots = cfg.slots.max(1);
-            let radius = cfg.diameter_m * 0.5;
+            let slots = helix_cfg.map(|c| c.slots.max(1)).unwrap_or(1);
+            let radius = helix_cfg.map(|c| c.diameter_m * 0.5).unwrap_or(0.0);
             let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
             for (def_id, stage, slot, health) in crops {
                 let Some(vis) = visuals.get(def_id) else { continue };
@@ -1670,20 +1700,40 @@ mod native_app {
                         .unwrap_or(0.1)
                 };
                 let wilt = if dead { 1.0 } else { (1.0 - health / 100.0).clamp(0.0, 1.0) };
-                // Helix slot position up the column, plant facing outward.
-                let frac = *slot as f32 / slots as f32;
-                let ang = frac * cfg.helix_turns * std::f32::consts::TAU;
-                let y = 0.18 + frac * (cfg.height_m - 0.45);
-                let out = [ang.cos(), 0.0, ang.sin()];
-                let pos = [
-                    base.x + out[0] * radius,
-                    base.y + y,
-                    base.z + out[2] * radius,
-                ];
+                let (pos, out) = if let Some(cfg) = helix_cfg {
+                    // Helix slot position up the column, plant facing outward.
+                    let frac = *slot as f32 / slots as f32;
+                    let ang = frac * cfg.helix_turns * std::f32::consts::TAU;
+                    let y = 0.18 + frac * (cfg.height_m - 0.45);
+                    let out = [ang.cos(), 0.0, ang.sin()];
+                    (
+                        [base.x + out[0] * radius, base.y + y, base.z + out[2] * radius],
+                        out,
+                    )
+                } else if let Some(g) = grid_spot {
+                    // Bed/field/rack: grid across the footprint at the machine top.
+                    let n = crops.len().max(1) as u32;
+                    let cols = (n as f32).sqrt().ceil().max(1.0) as u32;
+                    let rows = n.div_ceil(cols);
+                    let (cx, rz) = (*slot % cols, (*slot / cols).min(rows - 1));
+                    let fx = (cx as f32 + 0.5) / cols as f32 - 0.5;
+                    let fz = (rz as f32 + 0.5) / rows as f32 - 0.5;
+                    (
+                        [
+                            g.pos.x + fx * g.size.0 * 0.85,
+                            g.top_y,
+                            g.pos.z + fz * g.size.2 * 0.85,
+                        ],
+                        [0.7, 0.0, 0.7],
+                    )
+                } else {
+                    continue;
+                };
                 // Tower plants render at reduced scale so a tree in a net cup
                 // reads as a dwarf/espalier rather than a full orchard tree.
+                // Bed/field plants grow full size.
                 let mut vis_scaled = vis.clone();
-                if vis_scaled.height_m > 0.6 {
+                if helix_cfg.is_some() && vis_scaled.height_m > 0.6 {
                     let k = 0.6 / vis_scaled.height_m;
                     vis_scaled.height_m *= k;
                     vis_scaled.spread_m *= k;
@@ -1722,6 +1772,137 @@ mod native_app {
             }
         }
         state.plant_objects = objs;
+    }
+
+    /// data/world/showcase.ron shape (v0.863 perpetual showcase).
+    #[derive(serde::Deserialize)]
+    struct ShowcaseCfg {
+        enabled: bool,
+        #[serde(default)]
+        bed_crops: std::collections::HashMap<String, String>,
+        #[serde(default)]
+        bed_units: u32,
+        #[serde(default)]
+        tower_overrides: std::collections::HashMap<String, String>,
+    }
+
+    /// Perpetual showcase auto-seed (v0.863). Operator: "just preload everything
+    /// with plants at different stages... a perpetual showcase." Whenever the
+    /// world holds ZERO crops (fresh boot, empty save, everything harvested),
+    /// replant every grow surface at staggered growth stages: each tower column
+    /// gets its config's curated plantings (or a whole-tower override, e.g. the
+    /// ntower_0 strawberry hero), each bed/field/rack gets its mapped crop.
+    /// Crops persist in the save now, so this fires only on a genuinely empty
+    /// garden. Called every frame; the empty check makes it ~free.
+    fn auto_seed_showcase(state: &mut EngineState) {
+        // One-shot guard diagnostics: when seeding is NOT happening, say why
+        // once, so an empty garden is never a silent mystery.
+        static DIAGNOSED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        let diag = |why: &str| {
+            if !DIAGNOSED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+                log::info!("[Showcase] auto-seed idle: {why}");
+            }
+        };
+        if state
+            .game_world
+            .world
+            .query::<&crate::ecs::components::CropInstance>()
+            .iter()
+            .next()
+            .is_some()
+        {
+            diag("crops already present");
+            return;
+        }
+        if state.gui_state.home_machines.is_none() {
+            diag("home machines not loaded yet");
+            return;
+        }
+        if state.grow_positions.is_empty() {
+            diag("no machine anchors recorded yet");
+            return;
+        }
+        let Ok(text) = std::fs::read_to_string(crate::data_dir().join("world/showcase.ron"))
+        else {
+            diag("data/world/showcase.ron missing");
+            return;
+        };
+        let Ok(cfg) = ron::from_str::<ShowcaseCfg>(&text) else {
+            log::warn!("showcase.ron failed to parse; auto-seed skipped");
+            return;
+        };
+        if !cfg.enabled {
+            return;
+        }
+        let Some(reg) = state
+            .data_store
+            .get::<crate::systems::farming::PlantRegistry>("plant_registry")
+        else {
+            return;
+        };
+        let elapsed = state
+            .data_store
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
+            .map(|gt| gt.elapsed_seconds)
+            .unwrap_or(0.0);
+        let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+        const DAY: f64 = 1200.0; // farming SECONDS_PER_DAY
+
+        // Collect the spawn list first (no world borrow while iterating data).
+        let mut to_spawn: Vec<crate::ecs::components::CropInstance> = Vec::new();
+        let mut stagger = |list: &mut Vec<crate::ecs::components::CropInstance>,
+                           plant_id: &str,
+                           grow_id: &str,
+                           slot: u32,
+                           frac: f32| {
+            let Some(def) = reg.get(plant_id) else { return };
+            let stages = def.stages();
+            let n = stages.len().max(1);
+            let stage_i = ((frac * n as f32).floor() as usize).min(n - 1);
+            list.push(crate::ecs::components::CropInstance {
+                crop_def_id: plant_id.to_string(),
+                growth_stage: stages[stage_i].to_string(),
+                planted_at: elapsed - def.growth_days as f64 * DAY * frac as f64 * 0.98,
+                water_level: 1.0,
+                health: 100.0,
+                tower_id: Some(grow_id.to_string()),
+                tower_slot: Some(slot),
+            });
+        };
+        for g in &state.grow_positions {
+            if let Some(cfg_key) = g.ty.strip_prefix("aeroponic_tower_") {
+                let Some(tcfg) = tower_cfgs.iter().find(|t| t.id == cfg_key) else { continue };
+                let slots = tcfg.slots.max(1);
+                // A whole-tower override, or the config's curated plantings cycled.
+                let cycle: Vec<String> = if let Some(p) = cfg.tower_overrides.get(&g.id) {
+                    vec![p.clone()]
+                } else {
+                    tcfg.plantings.iter().map(|p| p.plant.clone()).collect()
+                };
+                if cycle.is_empty() {
+                    continue;
+                }
+                for slot in 0..slots {
+                    let frac = slot as f32 / (slots.max(2) - 1) as f32;
+                    stagger(&mut to_spawn, &cycle[slot as usize % cycle.len()], &g.id, slot, frac);
+                }
+            } else if let Some(plant) = cfg.bed_crops.get(&g.ty) {
+                let units = cfg.bed_units.max(1);
+                for u in 0..units {
+                    let frac = u as f32 / (units.max(2) - 1) as f32;
+                    stagger(&mut to_spawn, plant, &g.id, u, frac);
+                }
+            }
+        }
+        if to_spawn.is_empty() {
+            return;
+        }
+        let count = to_spawn.len();
+        for c in to_spawn {
+            state.game_world.world.spawn((c,));
+        }
+        log::info!("[Showcase] auto-seeded {count} crops across the grow surfaces");
     }
 
     /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
@@ -2180,15 +2361,29 @@ mod native_app {
             let q1 = rest[q0..].find('"')? + q0;
             Some(rest[q0..q1].to_string())
         };
-        let tower = grab("tower").unwrap_or_else(|| "nutrition".into());
-        let plant = grab("plant").unwrap_or_else(|| "strawberry".into());
-        if let Some(slot) = state
-            .data_store
-            .get::<std::sync::Mutex<Option<(String, String)>>>("showcase_tower_request")
-        {
-            if let Ok(mut s) = slot.lock() {
-                *s = Some((tower, plant));
+        // Plant only when BOTH keys are present; a cam-only request just moves
+        // the camera (the perpetual-showcase auto-seed owns default planting).
+        if let (Some(tower), Some(plant)) = (grab("tower"), grab("plant")) {
+            if let Some(slot) = state
+                .data_store
+                .get::<std::sync::Mutex<Option<(String, String)>>>("showcase_tower_request")
+            {
+                if let Ok(mut s) = slot.lock() {
+                    *s = Some((tower, plant));
+                }
             }
+        }
+        // Optional "enter":"default" mimics the Play button: load the default
+        // character into the world (machines + garden come alive), falling
+        // back to the character picker when no default is set.
+        if grab("enter").is_some() {
+            if !state.gui_state.launcher_default_character.is_empty() {
+                state.gui_state.launcher_pending_load =
+                    Some(state.gui_state.launcher_default_character.clone());
+            } else {
+                state.gui_state.launcher_open_select = true;
+            }
+            state.gui_state.active_page = crate::gui::GuiPage::None;
         }
         // Optional camera framing in the same request: "cam":"x,y,z,yaw,pitch"
         // parks the free camera there and drops into the world view (page None)
@@ -2196,6 +2391,20 @@ mod native_app {
         if let Some(cam) = grab("cam") {
             let v: Vec<f32> = cam.split(',').filter_map(|p| p.trim().parse().ok()).collect();
             if v.len() == 5 {
+                // In first person the camera derives from the PLAYER each
+                // frame, so teleport the player body; yaw/pitch live on the
+                // camera itself (mouse deltas accumulate onto them) so those
+                // stick when set directly.
+                for (_e, (t, _c)) in state
+                    .game_world
+                    .world
+                    .query_mut::<(
+                        &mut crate::ecs::components::Transform,
+                        &crate::ecs::components::Controllable,
+                    )>()
+                {
+                    t.position = Vec3::new(v[0], v[1], v[2]);
+                }
                 state.camera.position = Vec3::new(v[0], v[1], v[2]);
                 state.camera.yaw = v[3];
                 state.camera.pitch = v[4];
@@ -5941,6 +6150,7 @@ mod native_app {
         // spheres (operator feedback 2026-06-24).
         state.placeholder_objects.clear();
         state.machine_objects.clear();
+        state.grow_positions.clear();
 
         // ── Machine layout (data-driven, v0.427) ──
         // Rudimentary primitives for the homestead machines + pipes/tubes for the
@@ -6071,6 +6281,18 @@ mod native_app {
                     state.machine_objects.push((mesh_idx, mat, draw_pos, inst.rotation));
                     // Floating label anchor: just above the machine's top.
                     let top_y = if def.shape == "sphere" { pos.y + 2.0 * sx } else { pos.y + sy };
+                    // Grow anchor for the procedural plant pass (v0.863): the
+                    // INITIAL load path must record these too, not just
+                    // rebuild_machine_objects, or a fresh boot has no anchors
+                    // and the showcase auto-seed stays idle until an edit.
+                    state.grow_positions.push(GrowSpot {
+                        ty: inst.machine.clone(),
+                        id: inst.id.clone(),
+                        pos,
+                        yaw: inst.rotation,
+                        top_y,
+                        size: def.size,
+                    });
                     let name = if def.label.is_empty() { inst.machine.clone() } else { def.label.clone() };
                     state.gui_state.machine_labels.push(crate::gui::MachineLabel {
                         pos: Vec3::new(pos.x, top_y + 0.4, pos.z),
@@ -7099,10 +7321,10 @@ mod native_app {
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
         machine_pick: Vec<(String, Vec3, f32)>,
-        /// Aeroponic tower world anchors for procedural PLANTS (v0.862): (catalog key,
-        /// instance id, base pos, yaw deg), recorded by rebuild_machine_objects so the
-        /// plant pass knows where each tower column stands.
-        tower_positions: Vec<(String, String, Vec3, f32)>,
+        /// Machine world anchors for procedural PLANTS (v0.862/0.863), recorded by
+        /// rebuild_machine_objects: catalog type + instance id + placement, so the
+        /// plant pass can dress towers (helix) and beds/fields (footprint grid).
+        grow_positions: Vec<GrowSpot>,
         /// Procedural plant meshes (v0.862): one merged world-space mesh per planted
         /// tower config, one draw each: (mesh_idx, mat_idx). See rebuild_plant_meshes.
         plant_objects: Vec<(usize, usize)>,
@@ -8204,7 +8426,7 @@ mod native_app {
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
-                tower_positions: Vec::new(),
+                grow_positions: Vec::new(),
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
                 machine_pick: Vec::new(),
@@ -9293,9 +9515,11 @@ mod native_app {
                     if changes.iter().any(|c| c.ends_with("plants_visual.ron")) {
                         state.plant_mesh_sig = 0;
                     }
-                    // Procedural plants (v0.862): regenerate the tower plant
-                    // meshes whenever growth actually moved (cheap sig gate,
-                    // so this per-frame call is nearly free).
+                    // Perpetual showcase (v0.863): an empty garden replants
+                    // itself at staggered stages, then the plant meshes
+                    // regenerate whenever growth actually moved (both calls
+                    // are sig/empty-gated, so per-frame is nearly free).
+                    auto_seed_showcase(state);
                     rebuild_plant_meshes(state);
                     // Hull-profile hot-reload (v0.770): saving
                     // data/blueprints/hull_profile.ron regrows the hull next

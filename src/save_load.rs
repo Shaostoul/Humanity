@@ -120,12 +120,20 @@ pub fn extract_world_save(world: &hecs::World) -> WorldSave {
         save.quests = Some(tracker.clone());
         break;
     }
+    // Crops (v0.863): the whole garden round-trips. planted_at is game-time
+    // seconds and game_time is saved above, so growth resumes exactly where
+    // it left off.
+    save.crops = world
+        .query::<&crate::ecs::components::CropInstance>()
+        .iter()
+        .map(|(_e, c)| c.clone())
+        .collect();
     save
 }
 
-/// Apply a loaded WorldSave's inventory + skills onto the live player entity.
-/// Other state (health/position/vitals/crops/quests) is left fresh -- not yet
-/// persisted. Idempotent; called once at startup.
+/// Apply a loaded WorldSave's inventory + skills + vehicles + crops onto the
+/// live world. Health/position/vitals are left fresh -- not yet persisted.
+/// Idempotent; called at startup and on character select.
 pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
     // Only offline homes are supported today.
     if save.kind != "offline" {
@@ -225,6 +233,19 @@ pub fn apply_save_to_world(world: &mut hecs::World, save: &WorldSave) {
                 seat_type: "pilot".to_string(),
             },
         ));
+    }
+    // Crops (v0.863): save is AUTHORITATIVE, same clear-then-rebuild rule as
+    // vehicles above (this fn re-applies on character select, not just boot).
+    let existing: Vec<hecs::Entity> = world
+        .query_mut::<&crate::ecs::components::CropInstance>()
+        .into_iter()
+        .map(|(e, _)| e)
+        .collect();
+    for e in existing {
+        let _ = world.despawn(e);
+    }
+    for c in &save.crops {
+        world.spawn((c.clone(),));
     }
 }
 
