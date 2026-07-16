@@ -1,0 +1,121 @@
+// Procedural plant appearance definitions (v0.862). Each entry is the FULL
+// visual recipe for a species: src/renderer/plant_mesh.rs turns these numbers
+// into a 3D model at any growth stage. Edit this file while the game runs and
+// the plants regenerate live (hot reload). Colors are linear RGB 0..1.
+//
+// forms: rosette | herb | vine | tree | bulb | bromeliad (unknown -> rosette)
+// flower_at / fruit_at: growth fraction (0..1) where flowers/fruit appear.
+(
+    plants: {
+        // Strawberry: low leafy rosette, white 5-petal flowers, red hanging cones.
+        "strawberry": (
+            form: "rosette", height_m: 0.22, spread_m: 0.35, stem_radius: 0.006,
+            stem_color: (0.35, 0.5, 0.25),
+            leaf_count: 8, leaf_color: (0.16, 0.45, 0.18), leaf_droop_deg: 15.0,
+            petal_count: 5, flower_color: (0.95, 0.95, 0.9), flower_center_color: (0.95, 0.8, 0.2),
+            flower_at: 0.55, fruit_at: 0.75,
+            fruit_kind: "cone", fruit_size: 0.035, fruit_count: 4,
+            fruit_color_unripe: (0.55, 0.7, 0.4), fruit_color_ripe: (0.85, 0.12, 0.15),
+            show_roots: true,
+        ),
+        // Tomato: leaning vine, yellow flowers, red fruit clusters.
+        "tomato": (
+            form: "vine", height_m: 0.9, spread_m: 0.5, stem_radius: 0.01,
+            stem_color: (0.3, 0.48, 0.22),
+            leaf_count: 10, leaf_color: (0.18, 0.42, 0.16), leaf_droop_deg: 20.0,
+            petal_count: 5, flower_color: (0.95, 0.85, 0.2), flower_center_color: (0.9, 0.7, 0.1),
+            flower_at: 0.5, fruit_at: 0.65,
+            fruit_kind: "sphere", fruit_size: 0.06, fruit_count: 6,
+            fruit_color_unripe: (0.5, 0.65, 0.3), fruit_color_ripe: (0.85, 0.18, 0.1),
+            show_roots: true,
+        ),
+        // Amaranth: tall upright herb with a deep-red seed plume.
+        "amaranth": (
+            form: "herb", height_m: 1.4, spread_m: 0.5, stem_radius: 0.012,
+            stem_color: (0.5, 0.25, 0.2),
+            leaf_count: 12, leaf_color: (0.25, 0.45, 0.2), leaf_droop_deg: 25.0,
+            petal_count: 1, flower_color: (0.6, 0.1, 0.15), flower_center_color: (0.6, 0.1, 0.15),
+            flower_at: 0.6, fruit_at: 0.95,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.5, 0.3), fruit_color_ripe: (0.55, 0.3, 0.2),
+            show_roots: false,
+        ),
+        // Apple: small trunked tree, white blossom, red spheres.
+        "apple": (
+            form: "tree", height_m: 2.2, spread_m: 1.6, stem_radius: 0.06,
+            stem_color: (0.4, 0.28, 0.18),
+            leaf_count: 12, leaf_color: (0.2, 0.42, 0.16), leaf_droop_deg: 10.0,
+            petal_count: 5, flower_color: (0.97, 0.94, 0.94), flower_center_color: (0.95, 0.8, 0.3),
+            flower_at: 0.45, fruit_at: 0.7,
+            fruit_kind: "sphere", fruit_size: 0.08, fruit_count: 4,
+            fruit_color_unripe: (0.5, 0.65, 0.3), fruit_color_ripe: (0.8, 0.15, 0.12),
+            show_roots: false,
+        ),
+        // Orange: rounder evergreen crown, orange spheres.
+        "orange": (
+            form: "tree", height_m: 2.0, spread_m: 1.5, stem_radius: 0.055,
+            stem_color: (0.38, 0.27, 0.17),
+            leaf_count: 14, leaf_color: (0.12, 0.35, 0.14), leaf_droop_deg: 8.0,
+            petal_count: 5, flower_color: (0.98, 0.97, 0.92), flower_center_color: (0.95, 0.85, 0.4),
+            flower_at: 0.45, fruit_at: 0.7,
+            fruit_kind: "sphere", fruit_size: 0.075, fruit_count: 5,
+            fruit_color_unripe: (0.35, 0.55, 0.25), fruit_color_ripe: (0.95, 0.55, 0.1),
+            show_roots: false,
+        ),
+        // Lemon: like orange but lighter foliage and yellow fruit.
+        "lemon": (
+            form: "tree", height_m: 1.9, spread_m: 1.4, stem_radius: 0.05,
+            stem_color: (0.4, 0.29, 0.18),
+            leaf_count: 13, leaf_color: (0.16, 0.4, 0.16), leaf_droop_deg: 8.0,
+            petal_count: 5, flower_color: (0.98, 0.97, 0.9), flower_center_color: (0.95, 0.85, 0.4),
+            flower_at: 0.45, fruit_at: 0.7,
+            fruit_kind: "sphere", fruit_size: 0.06, fruit_count: 5,
+            fruit_color_unripe: (0.4, 0.58, 0.25), fruit_color_ripe: (0.95, 0.85, 0.15),
+            show_roots: false,
+        ),
+        // Garlic: strap leaves from a pale bulb.
+        "garlic": (
+            form: "bulb", height_m: 0.5, spread_m: 0.25, stem_radius: 0.005,
+            stem_color: (0.4, 0.55, 0.3),
+            leaf_count: 7, leaf_color: (0.3, 0.5, 0.28), leaf_droop_deg: 18.0,
+            petal_count: 0, flower_color: (0.9, 0.9, 0.85), flower_center_color: (0.9, 0.9, 0.85),
+            flower_at: 0.8, fruit_at: 0.99,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.9, 0.88, 0.8), fruit_color_ripe: (0.92, 0.9, 0.82),
+            show_roots: true,
+        ),
+        // Carrot: feathery rosette; the prize is underground.
+        "carrot": (
+            form: "rosette", height_m: 0.3, spread_m: 0.3, stem_radius: 0.004,
+            stem_color: (0.3, 0.5, 0.25),
+            leaf_count: 10, leaf_color: (0.2, 0.5, 0.2), leaf_droop_deg: 12.0,
+            petal_count: 0, flower_color: (0.95, 0.95, 0.9), flower_center_color: (0.9, 0.9, 0.8),
+            flower_at: 0.95, fruit_at: 0.99,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.9, 0.5, 0.1), fruit_color_ripe: (0.95, 0.55, 0.1),
+            show_roots: true,
+        ),
+        // Dandelion: toothed rosette, yellow disc flower, then a seed puff.
+        "dandelion": (
+            form: "rosette", height_m: 0.25, spread_m: 0.22, stem_radius: 0.003,
+            stem_color: (0.35, 0.5, 0.28),
+            leaf_count: 9, leaf_color: (0.22, 0.48, 0.2), leaf_droop_deg: 20.0,
+            petal_count: 10, flower_color: (0.98, 0.85, 0.1), flower_center_color: (0.9, 0.7, 0.1),
+            flower_at: 0.5, fruit_at: 0.85,
+            fruit_kind: "sphere", fruit_size: 0.03, fruit_count: 2,
+            fruit_color_unripe: (0.92, 0.92, 0.9), fruit_color_ripe: (0.96, 0.96, 0.95),
+            show_roots: false,
+        ),
+        // Pineapple: stiff spiky rosette with the crowned fruit on a stalk.
+        "pineapple": (
+            form: "bromeliad", height_m: 0.9, spread_m: 0.9, stem_radius: 0.02,
+            stem_color: (0.35, 0.45, 0.25),
+            leaf_count: 16, leaf_color: (0.2, 0.42, 0.25), leaf_droop_deg: 5.0,
+            petal_count: 0, flower_color: (0.7, 0.2, 0.4), flower_center_color: (0.7, 0.2, 0.4),
+            flower_at: 0.55, fruit_at: 0.65,
+            fruit_kind: "sphere", fruit_size: 0.16, fruit_count: 1,
+            fruit_color_unripe: (0.35, 0.5, 0.25), fruit_color_ripe: (0.85, 0.65, 0.15),
+            show_roots: false,
+        ),
+    },
+)

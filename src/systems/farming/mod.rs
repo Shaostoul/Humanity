@@ -603,6 +603,45 @@ impl System for FarmingSystem {
             }
         }
 
+        // SHOWCASE TOWER (v0.862): fill a tower with ONE species at STAGGERED
+        // ages so every growth stage is visible at once on the helix (operator:
+        // "1 aeroponic tower full of strawberries at the various growth stages").
+        // Replaces whatever was planted; demo/dev tool, creative-style (no seeds).
+        let showcase = data
+            .get::<std::sync::Mutex<Option<(String, String)>>>("showcase_tower_request")
+            .and_then(|m| m.lock().ok().and_then(|mut s| s.take()));
+        if let Some((tower_id, plant_id)) = showcase {
+            if let Some(def) = plant_registry.and_then(|r| r.get(&plant_id)) {
+                let doomed: Vec<hecs::Entity> = world
+                    .query::<&CropInstance>()
+                    .iter()
+                    .filter(|(_, c)| c.tower_id.as_deref() == Some(tower_id.as_str()))
+                    .map(|(e, _)| e)
+                    .collect();
+                for e in doomed {
+                    let _ = world.despawn(e);
+                }
+                let slots = 50u32;
+                let growth_seconds = def.growth_days as f64 * SECONDS_PER_DAY;
+                let stages = def.stages();
+                let n_stages = stages.len().max(1);
+                for slot in 0..slots {
+                    let frac = slot as f32 / (slots - 1) as f32;
+                    let stage_i = ((frac * n_stages as f32).floor() as usize).min(n_stages - 1);
+                    world.spawn((CropInstance {
+                        crop_def_id: plant_id.clone(),
+                        growth_stage: stages[stage_i].to_string(),
+                        planted_at: elapsed_seconds - growth_seconds * frac as f64,
+                        water_level: 1.0,
+                        health: 100.0,
+                        tower_id: Some(tower_id.clone()),
+                        tower_slot: Some(slot),
+                    },));
+                }
+                log::info!("[Farming] showcase: {tower_id} filled with staggered {plant_id}");
+            }
+        }
+
         // PLANT BED (v0.738 grain loop): sow one crop per UNIT of a bed / tray /
         // field grow area. Same rules as tower planting — idempotent slot fill
         // (live crop keeps its unit, dead ones are replaced), one seed per unit

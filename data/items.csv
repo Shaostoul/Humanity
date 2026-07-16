@@ -826,3 +826,5 @@ wurm_scale_0,Wurm Scale,material,creature_part,chitin,0.4,20,0,Hard plating from
 wurm_tooth_0,Wurm Tooth,material,creature_part,bone,0.3,20,0,Skeletal material from a creature,solid,0.45
 wyvern_scale_0,Wyvern Scale,material,creature_part,chitin,0.4,20,0,Hard plating from a creature,solid,0.6
 wyvern_wing_0,Wyvern Wing,material,fiber,organic,0.05,20,0,Light material from a creature,solid,0.08
+grain_amaranth_0,Amaranth Grain,food,grain,plant_fiber,0.5,20,0,Threshed amaranth seed 500g,dry_goods,0.93
+herb_dandelion_0,Dandelion Greens,food,herb,plant_fiber,0.05,20,0,Fresh dandelion leaves and flowers,dry_goods,0.15

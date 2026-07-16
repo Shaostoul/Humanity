@@ -1554,7 +1554,174 @@ mod native_app {
             ));
         }
         state.machine_objects = objs;
+        // Record tower anchors for the procedural plant pass (v0.862): every
+        // placed machine whose catalog key names an aeroponic tower. The type
+        // is looked up by instance id (placements carry no catalog key).
+        state.tower_positions.clear();
+        if let Some(home) = state.gui_state.home_machines.as_ref() {
+            let type_by_id: HashMap<String, String> =
+                home.all_instances().into_iter().map(|i| (i.id, i.machine)).collect();
+            for p in &placements {
+                if let Some(ty) = type_by_id.get(&p.id) {
+                    if ty.starts_with("aeroponic_tower_") {
+                        state.tower_positions.push((
+                            ty.clone(),
+                            p.id.clone(),
+                            Vec3::new(p.pos.0, p.pos.1, p.pos.2),
+                            p.rotation,
+                        ));
+                    }
+                }
+            }
+        }
+        state.plant_mesh_sig = 0; // tower layout may have moved: replant visuals
         rebuild_connection_objects(state);
+    }
+
+    /// Procedural plants (v0.862): build ONE merged world-space mesh per planted
+    /// tower config from the live CropInstances, colored via the type-12 packed-UV
+    /// trick, and draw it as a single RenderObject. Crops bind to a tower CONFIG
+    /// id ("nutrition"), not a physical column, so each config's 50 slots render
+    /// on the FIRST placed tower of that type until per-instance planting exists.
+    /// Cheap change-signature gate: rebuilds only when growth actually moves.
+    fn rebuild_plant_meshes(state: &mut EngineState) {
+        use std::hash::{Hash, Hasher};
+        // Signature over everything that changes a plant's look.
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for (_e, c) in state
+            .game_world
+            .world
+            .query::<&crate::ecs::components::CropInstance>()
+            .iter()
+        {
+            c.crop_def_id.hash(&mut h);
+            c.growth_stage.hash(&mut h);
+            c.tower_id.hash(&mut h);
+            c.tower_slot.hash(&mut h);
+            ((c.health / 10.0) as u32).hash(&mut h);
+        }
+        state.tower_positions.len().hash(&mut h);
+        let sig = h.finish().max(1);
+        if sig == state.plant_mesh_sig {
+            return;
+        }
+        state.plant_mesh_sig = sig;
+
+        let plant_reg = state
+            .data_store
+            .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+        // Visual defs: read fresh from disk each rebuild (rebuilds are rare and
+        // this is what makes live-editing plants_visual.ron work), with the
+        // committed file as the only source (no embedded fallback yet).
+        let vis_text = std::fs::read_to_string(crate::data_dir().join("plants_visual.ron"))
+            .unwrap_or_default();
+        let visuals = crate::renderer::plant_mesh::PlantVisualRegistry::from_ron(&vis_text)
+            .unwrap_or_default();
+        let tower_cfgs = crate::gui::load_tower_configs(&crate::data_dir());
+
+        // Group crops by tower config id.
+        let mut by_tower: std::collections::HashMap<String, Vec<(String, String, u32, f32)>> =
+            std::collections::HashMap::new();
+        for (_e, c) in state
+            .game_world
+            .world
+            .query::<&crate::ecs::components::CropInstance>()
+            .iter()
+        {
+            let (Some(tid), Some(slot)) = (c.tower_id.clone(), c.tower_slot) else { continue };
+            by_tower.entry(tid).or_default().push((
+                c.crop_def_id.clone(),
+                c.growth_stage.clone(),
+                slot,
+                c.health,
+            ));
+        }
+
+        let mut builders: Vec<crate::renderer::plant_mesh::PlantMeshBuilder> = Vec::new();
+        for (cfg_id, crops) in &by_tower {
+            let Some(cfg) = tower_cfgs.iter().find(|t| t.id == *cfg_id) else { continue };
+            // First placed column of this tower type anchors the visuals.
+            let cat_key = format!("aeroponic_tower_{cfg_id}");
+            let Some((_, _, base, _yaw)) =
+                state.tower_positions.iter().find(|(ty, ..)| *ty == cat_key)
+            else {
+                continue;
+            };
+            let slots = cfg.slots.max(1);
+            let radius = cfg.diameter_m * 0.5;
+            let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
+            for (def_id, stage, slot, health) in crops {
+                let Some(vis) = visuals.get(def_id) else { continue };
+                // Stage index -> growth t (same bucketing the GUI shows).
+                let stages: Vec<&str> = plant_reg
+                    .and_then(|r| r.get(def_id))
+                    .map(|d| d.stages())
+                    .unwrap_or_else(|| {
+                        crate::ecs::components::DEFAULT_GROWTH_STAGES.iter().copied().collect()
+                    });
+                let dead = stage.as_str() == crate::ecs::components::STAGE_DEAD;
+                let t = if dead {
+                    0.6
+                } else {
+                    stages
+                        .iter()
+                        .position(|s| *s == stage.as_str())
+                        .map(|i| (i as f32 + 1.0) / stages.len().max(1) as f32)
+                        .unwrap_or(0.1)
+                };
+                let wilt = if dead { 1.0 } else { (1.0 - health / 100.0).clamp(0.0, 1.0) };
+                // Helix slot position up the column, plant facing outward.
+                let frac = *slot as f32 / slots as f32;
+                let ang = frac * cfg.helix_turns * std::f32::consts::TAU;
+                let y = 0.18 + frac * (cfg.height_m - 0.45);
+                let out = [ang.cos(), 0.0, ang.sin()];
+                let pos = [
+                    base.x + out[0] * radius,
+                    base.y + y,
+                    base.z + out[2] * radius,
+                ];
+                // Tower plants render at reduced scale so a tree in a net cup
+                // reads as a dwarf/espalier rather than a full orchard tree.
+                let mut vis_scaled = vis.clone();
+                if vis_scaled.height_m > 0.6 {
+                    let k = 0.6 / vis_scaled.height_m;
+                    vis_scaled.height_m *= k;
+                    vis_scaled.spread_m *= k;
+                    vis_scaled.stem_radius *= k;
+                }
+                let seed = {
+                    let mut sh = std::collections::hash_map::DefaultHasher::new();
+                    cfg_id.hash(&mut sh);
+                    slot.hash(&mut sh);
+                    sh.finish()
+                };
+                crate::renderer::plant_mesh::build_plant(&mut b, &vis_scaled, pos, out, t, wilt, seed);
+            }
+            if !b.vertices.is_empty() {
+                builders.push(b);
+            }
+        }
+
+        // Upload: reuse existing mesh/material slots in place (renderer free path).
+        let prior = std::mem::take(&mut state.plant_objects);
+        let mut objs = Vec::with_capacity(builders.len());
+        for (i, b) in builders.into_iter().enumerate() {
+            let mesh = crate::renderer::mesh::Mesh::from_vertices(
+                &state.renderer.device,
+                &b.vertices,
+                &b.indices,
+            );
+            if let Some(&(mi, ma)) = prior.get(i) {
+                state.renderer.replace_mesh(mi, mesh);
+                objs.push((mi, ma));
+            } else {
+                let mi = state.renderer.add_mesh(mesh);
+                // Type 12: albedo comes from the packed per-face UV colors.
+                let ma = state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 12.0);
+                objs.push((mi, ma));
+            }
+        }
+        state.plant_objects = objs;
     }
 
     /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
@@ -1990,6 +2157,51 @@ mod native_app {
         // next frame (and every frame after) would just retry forever.
         let _ = std::fs::remove_file(REQUEST_PATH);
         execute_screenshot_capture(state, frame_texture, size, lists);
+    }
+
+    /// Showcase-tower dev trigger (v0.862, same file-drop pattern as screenshots):
+    /// drop `debug/showcase_request.json` containing `{"tower":"nutrition",
+    /// "plant":"strawberry"}` while the game runs and FarmingSystem replants that
+    /// tower with the species at staggered growth stages (the procedural-plant
+    /// demo ladder). Consumed on read. An in-Garden GUI button is tracked as
+    /// in-app-ops debt (docs/design/in-app-ops.md).
+    fn poll_showcase_request(state: &mut EngineState) {
+        const REQ: &str = "debug/showcase_request.json";
+        if !std::path::Path::new(REQ).exists() {
+            return;
+        }
+        let text = std::fs::read_to_string(REQ).unwrap_or_default();
+        let _ = std::fs::remove_file(REQ);
+        let grab = |key: &str| -> Option<String> {
+            let k = format!("\"{key}\"");
+            let at = text.find(&k)? + k.len();
+            let rest = &text[at..];
+            let q0 = rest.find('"')? + 1;
+            let q1 = rest[q0..].find('"')? + q0;
+            Some(rest[q0..q1].to_string())
+        };
+        let tower = grab("tower").unwrap_or_else(|| "nutrition".into());
+        let plant = grab("plant").unwrap_or_else(|| "strawberry".into());
+        if let Some(slot) = state
+            .data_store
+            .get::<std::sync::Mutex<Option<(String, String)>>>("showcase_tower_request")
+        {
+            if let Ok(mut s) = slot.lock() {
+                *s = Some((tower, plant));
+            }
+        }
+        // Optional camera framing in the same request: "cam":"x,y,z,yaw,pitch"
+        // parks the free camera there and drops into the world view (page None)
+        // so a follow-up screenshot_request captures the framed 3D scene.
+        if let Some(cam) = grab("cam") {
+            let v: Vec<f32> = cam.split(',').filter_map(|p| p.trim().parse().ok()).collect();
+            if v.len() == 5 {
+                state.camera.position = Vec3::new(v[0], v[1], v[2]);
+                state.camera.yaw = v[3];
+                state.camera.pitch = v[4];
+                state.gui_state.active_page = crate::gui::GuiPage::None;
+            }
+        }
     }
 
     /// Borrowed views of THIS frame's already-built scene draw lists (v0.810).
@@ -6887,6 +7099,15 @@ mod native_app {
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
         machine_pick: Vec<(String, Vec3, f32)>,
+        /// Aeroponic tower world anchors for procedural PLANTS (v0.862): (catalog key,
+        /// instance id, base pos, yaw deg), recorded by rebuild_machine_objects so the
+        /// plant pass knows where each tower column stands.
+        tower_positions: Vec<(String, String, Vec3, f32)>,
+        /// Procedural plant meshes (v0.862): one merged world-space mesh per planted
+        /// tower config, one draw each: (mesh_idx, mat_idx). See rebuild_plant_meshes.
+        plant_objects: Vec<(usize, usize)>,
+        /// Change signature of the last plant build; 0 forces a rebuild (hot reload).
+        plant_mesh_sig: u64,
         /// Port pick volumes for viewport DRAG-TO-CONNECT (v0.625): (machine id, port index, the Port,
         /// world gizmo position) for every machine's derived ports. Only the SELECTED machine's ports
         /// render + are grab-able, but building all is cheap. Drag a port onto another machine to wire
@@ -7466,6 +7687,13 @@ mod native_app {
                 "plant_tower_request",
                 std::sync::Mutex::new(Option::<(String, Vec<String>)>::None),
             );
+            // Showcase-fill a tower with one species at staggered growth stages
+            // (v0.862): (tower config id, plant id). Demo tool for the plant
+            // visuals; also triggerable via debug/showcase_request.json.
+            data_store.insert(
+                "showcase_tower_request",
+                std::sync::Mutex::new(Option::<(String, String)>::None),
+            );
             // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id,
             // plant id, unit count). One CropInstance per unit, tagged with the
             // machine id as its grow-area so the Garden GUI groups them.
@@ -7976,6 +8204,9 @@ mod native_app {
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
+                tower_positions: Vec::new(),
+                plant_objects: Vec::new(),
+                plant_mesh_sig: 0,
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
@@ -9054,6 +9285,18 @@ mod native_app {
                     }) {
                         reload_planet_defs(state);
                     }
+                    // Plant-visual hot-reload (v0.862): saving
+                    // data/plants_visual.ron regenerates every procedural
+                    // plant next frame (the rebuild re-reads the file; zeroing
+                    // the signature forces it) - edit a leaf color, alt-tab,
+                    // and the garden already wears it.
+                    if changes.iter().any(|c| c.ends_with("plants_visual.ron")) {
+                        state.plant_mesh_sig = 0;
+                    }
+                    // Procedural plants (v0.862): regenerate the tower plant
+                    // meshes whenever growth actually moved (cheap sig gate,
+                    // so this per-frame call is nearly free).
+                    rebuild_plant_meshes(state);
                     // Hull-profile hot-reload (v0.770): saving
                     // data/blueprints/hull_profile.ron regrows the hull next
                     // frame - silhouette tuning is save-file-see-hull, the
@@ -11882,6 +12125,17 @@ mod native_app {
                             all_objects.push(RenderObject {
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()), // v0.633 machine yaw
+                                scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        // Procedural plants (v0.862): one merged mesh per planted
+                        // tower, geometry already in world coordinates.
+                        for &(mesh_idx, mat_idx) in &state.plant_objects {
+                            all_objects.push(RenderObject {
+                                position: Vec3::ZERO,
+                                rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
                                 mesh: mesh_idx,
                                 material: mat_idx,
@@ -19073,6 +19327,7 @@ mod native_app {
                                 );
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
+                            poll_showcase_request(state);
 
                             // Live broadcast (v0.853). Deliberately here, AFTER egui has
                             // painted into the swapchain and BEFORE present: what goes out

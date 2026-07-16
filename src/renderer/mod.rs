@@ -22,6 +22,7 @@ pub mod light;
 pub mod line;
 pub mod mesh;
 pub mod multi_scale;
+pub mod plant_mesh;
 pub mod particles;
 pub mod pipeline;
 pub mod shader_loader;
