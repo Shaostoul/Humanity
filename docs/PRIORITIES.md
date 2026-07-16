@@ -35,18 +35,19 @@
 >    button, controlled by the hint-display modes from (2). Get close, not absolute.
 > 5. **Web near-pixel parity with the app.** He shared a side-by-side and wants the
 >    website chrome (nav, chat layout) to mimic the native app as closely as possible.
->    PROGRESS (2026-07-16): removed the web Real/Sim toggle to match native, which
->    committed to Real in v0.197.0 (v0.861.4); aligned the site-wide accent from the
->    stale #FF8811 to native's #ed8c24 (v0.861.5) + routed the backup/seed amber to
->    the accent token and removed dead nav-brand CSS (v0.861.6). NEXT parity step =
->    the NEUTRAL-PALETTE decision in orchestrator_state open_questions: web renders
->    dark-grey (#0d0d0d/#e0e0e0/#333 via presets.json themes.dark overriding the
->    generated tokens) while native is near-black (#000000/#e8e8ea/#2a2a35 from
->    theme.ron). Aligning it is the biggest remaining parity win but is a broad
->    near-black shift that needs an operator eye (AI-session screenshots are broken),
->    so it is flagged for greenlight rather than swept blind. Nav-tab styling
->    (native = colored pill borders per group; web = a 3px bottom color bar) is a
->    second, lower-risk parity gap to consider.
+>    PROGRESS (2026-07-16, largely DONE): v0.861.4 removed the web Real/Sim toggle
+>    (native killed it in v0.197.0; separation is by navigation, docs/design/
+>    two-realities.md). v0.861.5-8 aligned the accent (#FF8811 -> #ed8c24 sitewide)
+>    and migrated nav-legacy hex to theme tokens. v0.861.9 OPERATOR-GREENLIT black:
+>    presets.json themes.dark now carries native's exact neutrals, plus the sitewide
+>    galactic-core space background (our own 25M-star bake, faint, drift + scroll
+>    parallax, Settings toggle). v0.861.10 app-style nav pills (category borders per
+>    the native nav_group recipe, 5 categories). v0.861.11 landing redesign: 7-screen
+>    picture-book scroll, real screenshots, mission essay moved verbatim to /mission.
+>    REMAINING: (a) swap landing screen 2's cosmos stand-in for a composed live 3D
+>    capture (needs the operator in-game for 60 seconds); (b) chat-page layout parity
+>    (the deepest surface, untouched this pass); (c) consider the faint galaxy bake
+>    behind native egui pages so native mirrors the web treatment back.
 >
 > The production-readiness + go-live focus below is DONE for this pass (streaming
 > shipped v0.853-857, UI-audit closed v0.855-856, TURN + watch v0.857). This
