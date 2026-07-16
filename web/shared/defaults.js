@@ -22,6 +22,8 @@
     successColor: '',
     dangerColor: '',
     warningColor: '',
+    // Space background (faint galactic-core image behind every page)
+    'space-bg': true,
     // Audio/chat
     soundEnabled: true,
     timestampMode: 'relative',

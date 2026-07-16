@@ -189,6 +189,10 @@
     setAttr('data-no-rgb', !!s['no-rgb']);
     setAttr('data-focus-ring', !!s['focus-ring']);
     setAttr('data-dyslexia-font', !!s['dyslexia-font']);
+    // Space background (the faint galactic-core image behind every page).
+    // ON by default; the attribute marks the OFF state so pages without
+    // saved settings still get the galaxy.
+    setAttr('data-space-bg-off', s['space-bg'] === false);
   };
   window.hosApplyA11yToggles();
 
@@ -198,6 +202,62 @@
   document.querySelectorAll('.hub-nav, .nav-separator, .site-footer, #webview-tabs-bar, #footer-toggle').forEach(function(el){
     if (el && el.parentNode) el.parentNode.removeChild(el);
   });
+
+  // ── Space background: the faint galactic core behind every page ──
+  // The image is a crop of OUR OWN Milky Way bake (data/galaxy_glow_ultra.png,
+  // integrated from a real 25M-star catalog by scripts/build-galaxy-glow.js),
+  // so the website background IS the same sky the game renders. Two layers:
+  // the outer carries a very slow drift zoom (CSS transform, composited); the
+  // inner carries scroll parallax (JS translate3d, composited, rAF-throttled).
+  // Solid-background surfaces (cards, panels, chat) naturally cover it, which
+  // is what keeps text readable. Guards: reduced motion stops all movement,
+  // high contrast and the light theme hide it entirely, and Settings can turn
+  // it off (data-space-bg-off, set in hosApplyA11yToggles above).
+  (function injectSpaceBg() {
+    if (document.getElementById('hos-space-bg')) return;
+    var css = document.createElement('style');
+    css.id = 'hos-space-bg-style';
+    css.textContent =
+      '#hos-space-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;overflow:hidden;pointer-events:none;}' +
+      '#hos-space-bg .hos-space-img{position:absolute;left:0;right:0;top:-14vh;height:128vh;' +
+        'background:url(/shared/bg/galaxy-core.jpg) center 35%/cover no-repeat;' +
+        'opacity:0.34;will-change:transform;}' +
+      '@media (prefers-reduced-motion: no-preference){' +
+        '#hos-space-bg{animation:hos-space-drift 240s ease-in-out infinite alternate;}}' +
+      '@keyframes hos-space-drift{from{transform:scale(1);}to{transform:scale(1.06);}}' +
+      '[data-reduced-motion] #hos-space-bg{animation:none !important;}' +
+      '[data-high-contrast] #hos-space-bg,' +
+      '[data-space-bg-off] #hos-space-bg,' +
+      '[data-theme="light"] #hos-space-bg{display:none;}';
+    document.head.appendChild(css);
+
+    var bg = document.createElement('div');
+    bg.id = 'hos-space-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = '<div class="hos-space-img"></div>';
+    document.body.insertBefore(bg, document.body.firstChild);
+
+    // Scroll parallax: clamped so long pages never run the image out of its
+    // 14vh headroom; skipped entirely when the user prefers reduced motion.
+    var img = bg.firstChild;
+    var ticking = false;
+    function reducedMotion() {
+      return document.body.hasAttribute('data-reduced-motion') ||
+        (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        ticking = false;
+        if (reducedMotion()) { img.style.transform = ''; return; }
+        var max = window.innerHeight * 0.12;
+        var y = Math.min(max, window.scrollY * 0.12);
+        img.style.transform = 'translate3d(0,' + (-y) + 'px,0)';
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
 
   // ── Detect active tab ──
   const scriptTag = document.currentScript;
@@ -1495,7 +1555,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.8';
+    var CURRENT_VERSION = '0.861.9';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
