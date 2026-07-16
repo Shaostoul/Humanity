@@ -97,9 +97,13 @@
   --nav-red: #e74c3c;
   --nav-green: #2ecc71;
   --nav-blue: #3498db;
+  --nav-sim: #6c5ce7;
+  --nav-settings: #7f8c8d;
   --nav-red-rgb: 231, 76, 60;
   --nav-green-rgb: 46, 204, 113;
   --nav-blue-rgb: 52, 152, 219;
+  --nav-sim-rgb: 108, 92, 231;
+  --nav-settings-rgb: 127, 140, 141;
 
   /* Chat section tints — shared with native draw_dm/groups/servers_section */
   --dm-bg: #2d0f0f;
@@ -179,28 +183,8 @@ h4 { font-size: var(--text-base); }
   --space-3xl: 1.2rem;
 }
 
-/* ── Nav Group Color Indicators ── */
-/* Uses ::before so it doesn't conflict with ::after tooltips on hover */
-.nav-group-red .tab::before,
-.nav-group-green .tab::before,
-.nav-group-blue .tab::before {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-  right: 2px;
-  height: 3px;
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.4;
-}
-.nav-group-red .tab::before { background: var(--nav-red); }
-.nav-group-green .tab::before { background: var(--nav-green); }
-.nav-group-blue .tab::before { background: var(--nav-blue); }
-.nav-group-red .tab.active::before { opacity: 1; }
-.nav-group-green .tab.active::before { opacity: 1; }
-.nav-group-blue .tab.active::before { opacity: 1; }
+/* (The nav-group bottom color bars were replaced 2026-07-16 by app-style
+   category-bordered pills, styled with the nav tabs in shell.js.) */
 
 /* Mobile drawer colored section headers */
 .mobile-hub-group.group-red h4 { color: rgba(var(--nav-red-rgb), 0.85); }

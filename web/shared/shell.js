@@ -366,7 +366,11 @@
     }
     .hub-nav .navmode-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* ── Tab (icon + label, native-parity: labels always shown) ── */
+    /* ── Tab (icon + label, native-parity pill: category-tinted fill +
+       category border, exactly like nav_group() in escape_menu.rs:
+       fill alpha 10/255 idle, 18/255 hover, 30/255 active; 1px border at
+       60/255 idle; hover border = nav blue; active border = the channeling
+       animation web already shares with native. ── */
     .hub-nav .tab {
       position: relative;
       display: inline-flex;
@@ -378,11 +382,13 @@
       gap: 0.3rem;
       color: var(--text-muted);
       cursor: pointer;
-      border-radius: var(--radius);
+      border-radius: 6px;
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.04);
+      border: 1px solid rgba(var(--tab-cat-rgb, 148, 148, 159), 0.235);
       user-select: none;
       text-decoration: none;
       flex-shrink: 0;
-      transition: color 0.1s, box-shadow 0.1s;
+      transition: color 0.1s, box-shadow 0.1s, background 0.1s, border-color 0.1s;
       overflow: visible;
     }
     .hub-nav .tab .tab-icon {
@@ -414,9 +420,10 @@
       color: inherit;
     }
 
-    /* ── Hover: tooltip below, icon stays fully visible ── */
+    /* ── Hover: brighter category tint + the nav blue border (native) ── */
     .hub-nav .tab:not(.active):hover {
-      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.07);
+      border-color: var(--nav-blue);
       color: var(--text);
     }
     .hub-nav .tab:not(.active):hover .tab-icon img,
@@ -441,12 +448,13 @@
       letter-spacing: 0.03em;
     }
 
-    /* ── Active: expand to show icon + label, RGB border ── */
+    /* ── Active: strongest category tint, white text, RGB channeling border ── */
     .hub-nav .tab.active {
       width: auto;
       padding: 0 0.5rem;
       gap: 0.3rem; /* match the base tab gap now that all tabs show icon+label */
       color: #fff;
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.12);
       animation: channeling 3s linear infinite;
     }
     .hub-nav .tab.active .tab-label { display: inline; }
@@ -478,7 +486,7 @@
     }
 
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
-    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); box-shadow: inset 0 0 0 1px #2a6; }
+    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
 
@@ -741,14 +749,26 @@
       animation: channeling 3s linear infinite;
     }
 
-    /* ── Nav group wrappers ── */
+    /* ── Nav group wrappers ──
+       Each wrapper sets the category color its tabs tint from, mirroring the
+       native nav_group() categories (escape_menu.rs): red = platform entry
+       (Humanity, Chat, Studio, Library), green = you (Profile, Home),
+       sim purple = the game (Play, Quests, Tasks, Inventory, Crafting, Map),
+       blue = tools (Platform), gray = Settings. */
     .hub-nav .nav-group-red,
     .hub-nav .nav-group-green,
-    .hub-nav .nav-group-blue {
+    .hub-nav .nav-group-blue,
+    .hub-nav .nav-group-sim,
+    .hub-nav .nav-group-settings {
       display: inline-flex;
       align-items: center;
       gap: 0.2rem;
     }
+    .hub-nav .nav-group-red      { --tab-cat: var(--nav-red);      --tab-cat-rgb: var(--nav-red-rgb); }
+    .hub-nav .nav-group-green    { --tab-cat: var(--nav-green);    --tab-cat-rgb: var(--nav-green-rgb); }
+    .hub-nav .nav-group-blue     { --tab-cat: var(--nav-blue);     --tab-cat-rgb: var(--nav-blue-rgb); }
+    .hub-nav .nav-group-sim      { --tab-cat: var(--nav-sim);      --tab-cat-rgb: var(--nav-sim-rgb); }
+    .hub-nav .nav-group-settings { --tab-cat: var(--nav-settings); --tab-cat-rgb: var(--nav-settings-rgb); }
 
     /* ── Responsive: hide flat tabs on mobile, show hamburger ── */
     @media (max-width: 768px) {
@@ -757,7 +777,9 @@
       .hub-nav .nav-divider { display: none !important; }
       .hub-nav .nav-group-red,
       .hub-nav .nav-group-green,
-      .hub-nav .nav-group-blue { display: none !important; }
+      .hub-nav .nav-group-blue,
+      .hub-nav .nav-group-sim,
+      .hub-nav .nav-group-settings { display: none !important; }
       .hub-nav .spacer { display: none !important; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
@@ -796,10 +818,12 @@
          App-only desktop features map to their nearest web target (Play/Studio ->
          Download, Platform -> Tools, Library -> Resources); the former web-only utility
          tabs (Wallet, Market, Donate, Ops, Bugs, Dev, Audit, ...) stay reachable via
-         the mobile drawer + URL. Colour bars (theme.css) group into three clean blocks:
-         RED = platform entry (Play, Humanity, Chat, Studio), GREEN = your stuff
-         (Profile, Home, Quests, Tasks, Inventory, Crafting, Map), BLUE = system. ── */
-      '<span class="nav-group-red">' +
+         the mobile drawer + URL. Category colors mirror the native nav_group()
+         calls in escape_menu.rs: SIM PURPLE = the game (Play, Quests, Tasks,
+         Inventory, Crafting, Map), RED = platform entry (Humanity, Chat, Studio,
+         Library), GREEN = you (Profile, Home), BLUE = tools (Platform), GRAY =
+         Settings. Tabs render as category-bordered pills like the app. ── */
+      '<span class="nav-group-sim">' +
         navTab('/download', 'games', 'Play', 'play') +
       '</span>' +
 
@@ -828,7 +852,7 @@
 
       '<div class="nav-divider"></div>' +
 
-      '<span class="nav-group-green">' +
+      '<span class="nav-group-sim">' +
         navTab('/onboarding', 'compass',   'Quests',    'quests') +
         navTab('/tasks',      'tasklist',  'Tasks',     'tasks') +
         navTab('/inventory',  'inventory', 'Inventory', 'gear') +
@@ -840,7 +864,17 @@
 
       '<span class="nav-group-blue">' +
         navTab('/tools',     'grid',     'Platform', 'platform') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-red">' +
         navTab('/resources', 'journal',  'Library',  'library') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-settings">' +
         navTab('/settings',  'settings', 'Settings', 'settings') +
       '</span>' +
 
@@ -1555,7 +1589,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.9';
+    var CURRENT_VERSION = '0.861.10';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

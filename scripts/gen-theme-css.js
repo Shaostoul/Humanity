@@ -195,9 +195,13 @@ function buildCss(tokens) {
   lines.push(`  --nav-red: ${c('nav_legacy_red')};`);
   lines.push(`  --nav-green: ${c('nav_legacy_green')};`);
   lines.push(`  --nav-blue: ${c('nav_legacy_blue')};`);
+  lines.push(`  --nav-sim: ${c('nav_sim')};`);
+  lines.push(`  --nav-settings: ${c('nav_settings')};`);
   lines.push(`  --nav-red-rgb: ${rgbTriple(t.nav_legacy_red)};`);
   lines.push(`  --nav-green-rgb: ${rgbTriple(t.nav_legacy_green)};`);
   lines.push(`  --nav-blue-rgb: ${rgbTriple(t.nav_legacy_blue)};`);
+  lines.push(`  --nav-sim-rgb: ${rgbTriple(t.nav_sim)};`);
+  lines.push(`  --nav-settings-rgb: ${rgbTriple(t.nav_settings)};`);
   lines.push('');
   lines.push('  /* Chat section tints — shared with native draw_dm/groups/servers_section */');
   lines.push(`  --dm-bg: ${c('dm_bg')};`);
