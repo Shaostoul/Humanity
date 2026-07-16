@@ -190,6 +190,15 @@ function buildCss(tokens) {
   lines.push(`  --avatar-gap: ${n(t.avatar_gap, 8)}px;`);
   lines.push(`  --pill-radius: ${n(t.pill_radius, 9)}px;`);
   lines.push('');
+  lines.push('  /* Nav group colors — native nav_legacy_* tokens (RED = platform entry,');
+  lines.push('     GREEN = your stuff, BLUE = system). The -rgb triples exist for rgba() use. */');
+  lines.push(`  --nav-red: ${c('nav_legacy_red')};`);
+  lines.push(`  --nav-green: ${c('nav_legacy_green')};`);
+  lines.push(`  --nav-blue: ${c('nav_legacy_blue')};`);
+  lines.push(`  --nav-red-rgb: ${rgbTriple(t.nav_legacy_red)};`);
+  lines.push(`  --nav-green-rgb: ${rgbTriple(t.nav_legacy_green)};`);
+  lines.push(`  --nav-blue-rgb: ${rgbTriple(t.nav_legacy_blue)};`);
+  lines.push('');
   lines.push('  /* Chat section tints — shared with native draw_dm/groups/servers_section */');
   lines.push(`  --dm-bg: ${c('dm_bg')};`);
   lines.push(`  --dm-row-bg: ${c('dm_row_bg')};`);

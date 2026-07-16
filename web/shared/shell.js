@@ -53,16 +53,16 @@
       st.textContent =
         '.hos-help-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:hos-help-fade 0.15s ease-out;}' +
         '@keyframes hos-help-fade{from{opacity:0}to{opacity:1}}' +
-        '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#FF8811);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
+        '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#ed8c24);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
         '.hos-help-modal h3{margin:0 0 14px;font-size:1.15rem;font-weight:700;color:var(--text,#fff);}' +
         '.hos-help-body{font-size:0.95rem;line-height:1.65;color:var(--text-muted,#bbb);margin-bottom:22px;}' +
         '.hos-help-body p{margin:0 0 12px;}' +
         '.hos-help-body p:last-child{margin-bottom:0;}' +
         '.hos-help-body strong{color:var(--text,#fff);}' +
-        '.hos-help-close{background:var(--accent,#FF8811);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
+        '.hos-help-close{background:var(--accent,#ed8c24);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
         '.hos-help-close:hover{filter:brightness(1.1);}' +
         '.hos-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1px solid var(--border,#333);color:var(--text-muted,#888);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;margin-left:8px;transition:all 0.15s;line-height:1;padding:0;flex-shrink:0;}' +
-        '.hos-help-btn:hover{border-color:var(--accent,#FF8811);color:var(--accent,#FF8811);}';
+        '.hos-help-btn:hover{border-color:var(--accent,#ed8c24);color:var(--accent,#ed8c24);}';
       document.head.appendChild(st);
     }
     var existing = document.getElementById('hos-help-modal-root');
@@ -1495,7 +1495,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.6';
+    var CURRENT_VERSION = '0.861.7';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

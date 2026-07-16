@@ -92,6 +92,15 @@
   --avatar-gap: 8px;
   --pill-radius: 9px;
 
+  /* Nav group colors — native nav_legacy_* tokens (RED = platform entry,
+     GREEN = your stuff, BLUE = system). The -rgb triples exist for rgba() use. */
+  --nav-red: #e74c3c;
+  --nav-green: #2ecc71;
+  --nav-blue: #3498db;
+  --nav-red-rgb: 231, 76, 60;
+  --nav-green-rgb: 46, 204, 113;
+  --nav-blue-rgb: 52, 152, 219;
+
   /* Chat section tints — shared with native draw_dm/groups/servers_section */
   --dm-bg: #2d0f0f;
   --dm-row-bg: #371414;
@@ -186,17 +195,17 @@ h4 { font-size: var(--text-base); }
   z-index: 1;
   opacity: 0.4;
 }
-.nav-group-red .tab::before { background: #e74c3c; }
-.nav-group-green .tab::before { background: #2ecc71; }
-.nav-group-blue .tab::before { background: #3498db; }
+.nav-group-red .tab::before { background: var(--nav-red); }
+.nav-group-green .tab::before { background: var(--nav-green); }
+.nav-group-blue .tab::before { background: var(--nav-blue); }
 .nav-group-red .tab.active::before { opacity: 1; }
 .nav-group-green .tab.active::before { opacity: 1; }
 .nav-group-blue .tab.active::before { opacity: 1; }
 
 /* Mobile drawer colored section headers */
-.mobile-hub-group.group-red h4 { color: rgba(231, 76, 60, 0.85); }
-.mobile-hub-group.group-green h4 { color: rgba(46, 204, 113, 0.85); }
-.mobile-hub-group.group-blue h4 { color: rgba(52, 152, 219, 0.85); }
+.mobile-hub-group.group-red h4 { color: rgba(var(--nav-red-rgb), 0.85); }
+.mobile-hub-group.group-green h4 { color: rgba(var(--nav-green-rgb), 0.85); }
+.mobile-hub-group.group-blue h4 { color: rgba(var(--nav-blue-rgb), 0.85); }
 
 /* -- Accessibility -- */
 [data-high-contrast] { --bg: #000; --text: #fff; --border: #fff; --accent: #ff0; }
@@ -219,7 +228,7 @@ h4 { font-size: var(--text-base); }
 /* Large Cursor Focus: thick, high-visibility outline on the focused element. */
 [data-focus-ring] :focus,
 [data-focus-ring] :focus-visible {
-  outline: 3px solid var(--accent, #FF8811) !important;
+  outline: 3px solid var(--accent, #ed8c24) !important;
   outline-offset: 2px !important;
   border-radius: 2px;
 }
