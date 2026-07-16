@@ -219,9 +219,14 @@
     css.id = 'hos-space-bg-style';
     css.textContent =
       '#hos-space-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;overflow:hidden;pointer-events:none;}' +
-      '#hos-space-bg .hos-space-img{position:absolute;left:0;right:0;top:-14vh;height:128vh;' +
+      // The image layer is 60vh taller than the viewport (30vh headroom above
+      // and below) so the scroll parallax has real travel room.
+      '#hos-space-bg .hos-space-img{position:absolute;left:0;right:0;top:-30vh;height:160vh;' +
         'background:url(/shared/bg/galaxy-core.jpg) center 35%/cover no-repeat;' +
         'opacity:0.34;will-change:transform;}' +
+      // Pages that WANT the galaxy loud (the landing) set data-space-bright on
+      // <html>; everything else stays faint for readability.
+      '[data-space-bright] #hos-space-bg .hos-space-img{opacity:0.6;}' +
       '@media (prefers-reduced-motion: no-preference){' +
         '#hos-space-bg{animation:hos-space-drift 240s ease-in-out infinite alternate;}}' +
       '@keyframes hos-space-drift{from{transform:scale(1);}to{transform:scale(1.06);}}' +
@@ -237,8 +242,9 @@
     bg.innerHTML = '<div class="hos-space-img"></div>';
     document.body.insertBefore(bg, document.body.firstChild);
 
-    // Scroll parallax: clamped so long pages never run the image out of its
-    // 14vh headroom; skipped entirely when the user prefers reduced motion.
+    // Scroll parallax: the sky scrolls at 28% of content speed, clamped to the
+    // layer's 28vh of headroom so long pages never run the image off its edge.
+    // Skipped entirely when the user prefers reduced motion.
     var img = bg.firstChild;
     var ticking = false;
     function reducedMotion() {
@@ -251,8 +257,8 @@
       requestAnimationFrame(function () {
         ticking = false;
         if (reducedMotion()) { img.style.transform = ''; return; }
-        var max = window.innerHeight * 0.12;
-        var y = Math.min(max, window.scrollY * 0.12);
+        var max = window.innerHeight * 0.28;
+        var y = Math.min(max, window.scrollY * 0.28);
         img.style.transform = 'translate3d(0,' + (-y) + 'px,0)';
       });
     }
@@ -1589,7 +1595,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.11';
+    var CURRENT_VERSION = '0.861.12';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
