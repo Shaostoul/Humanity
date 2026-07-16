@@ -173,24 +173,58 @@ impl PlantMeshBuilder {
         }
     }
 
-    /// A leaf as a folded diamond: base -> two mid points (left/right of the
-    /// midrib, folded up) -> tip. 4 double-sided triangles. `dir` is the
-    /// midrib direction (unit-ish), `length`/`width` in metres.
+    /// A leaf blade: 3 tapered segments along a bowing midrib with a V-fold
+    /// cross-section (edges sit below the raised midrib), ending in a point.
+    /// Reads as an actual leaf at close range instead of a diamond shard
+    /// (operator close-up feedback, 2026-07-16). 16 double-sided triangles.
+    /// `dir` is the midrib direction (unit-ish), `length`/`width` in metres,
+    /// `fold` 0..1 controls how sharply the blade folds along the midrib.
     fn leaf(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, fold: f32, color: [f32; 3]) {
         let d = norm(dir);
         let side = norm(cross(d, [0.0, 1.0, 0.0]));
-        let mid = [
-            base[0] + d[0] * length * 0.5,
-            base[1] + d[1] * length * 0.5 + fold * length * 0.12,
-            base[2] + d[2] * length * 0.5,
-        ];
+        let bow = length * 0.14; // tip bows down (gravity)
+        let lift = (fold * length * 0.09).max(0.001); // midrib rides above the edges
+        // Midrib station at fraction f (bow grows quadratically toward the tip).
+        let st = |f: f32| {
+            [
+                base[0] + d[0] * length * f,
+                base[1] + d[1] * length * f - bow * f * f + lift * (1.0 - (2.0 * f - 1.0).abs()),
+                base[2] + d[2] * length * f,
+            ]
+        };
+        // Edge point at station f offset s (+1 right / -1 left), width w.
+        let edge = |m: [f32; 3], s: f32, w: f32| {
+            [m[0] + side[0] * s * w, m[1] - lift, m[2] + side[2] * s * w]
+        };
+        let (m1, m2, tip) = (st(0.30), st(0.65), st(1.0));
+        let (w1, w2) = (width * 0.5, width * 0.34);
+        let (l1, r1) = (edge(m1, -1.0, w1), edge(m1, 1.0, w1));
+        let (l2, r2) = (edge(m2, -1.0, w2), edge(m2, 1.0, w2));
+        // Base wedge
+        self.tri2(base, l1, m1, color);
+        self.tri2(base, m1, r1, color);
+        // Mid band
+        self.tri2(l1, l2, m2, color);
+        self.tri2(l1, m2, m1, color);
+        self.tri2(r1, m1, m2, color);
+        self.tri2(r1, m2, r2, color);
+        // Tip taper
+        self.tri2(l2, tip, m2, color);
+        self.tri2(r2, m2, tip, color);
+    }
+
+    /// A small flat petal: single diamond, kept intentionally simple (flowers
+    /// are tiny; the old full leaf() as a petal is what made blossoms read as
+    /// giant pinwheels). 2 double-sided triangles.
+    fn petal(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, color: [f32; 3]) {
+        let d = norm(dir);
+        let side = norm(cross(d, [0.0, 1.0, 0.0]));
+        let mid = lerp3(base, [base[0] + d[0] * length, base[1] + d[1] * length, base[2] + d[2] * length], 0.55);
         let tip = [base[0] + d[0] * length, base[1] + d[1] * length, base[2] + d[2] * length];
-        let l = [mid[0] - side[0] * width * 0.5, mid[1] - fold * length * 0.06, mid[2] - side[2] * width * 0.5];
-        let r = [mid[0] + side[0] * width * 0.5, mid[1] - fold * length * 0.06, mid[2] + side[2] * width * 0.5];
-        self.tri2(base, l, mid, color);
-        self.tri2(base, mid, r, color);
-        self.tri2(l, tip, mid, color);
-        self.tri2(mid, tip, r, color);
+        let l = [mid[0] - side[0] * width * 0.5, mid[1], mid[2] - side[2] * width * 0.5];
+        let r = [mid[0] + side[0] * width * 0.5, mid[1], mid[2] + side[2] * width * 0.5];
+        self.tri2(l, tip, base, color);
+        self.tri2(r, base, tip, color);
     }
 
     /// Low-poly fruit sphere (octahedron subdivided once = 32 faces).
@@ -261,6 +295,13 @@ fn wilted(c: [f32; 3], wilt: f32) -> [f32; 3] {
     lerp3(c, [0.45, 0.33, 0.15], wilt * 0.8)
 }
 
+/// Per-leaf brightness jitter so 50 plants of one species do not read as
+/// clones (value-only: hue stays true to the species).
+fn jit(rng: &mut Rng, c: [f32; 3]) -> [f32; 3] {
+    let k = rng.range(0.88, 1.10);
+    [(c[0] * k).min(1.0), (c[1] * k).min(1.0), (c[2] * k).min(1.0)]
+}
+
 /// Build one plant at `base` (its soil/net-cup point) straight into the
 /// builder. `t` = growth 0..1, `wilt` = 0..1 (health inverse), `seed` gives
 /// stable per-plant variation. Geometry is world-scale metres.
@@ -305,7 +346,7 @@ pub fn build_plant(
                 let at = lerp3(base, top, frac);
                 let ang = i as f32 * 2.39996 + rng.range(-0.2, 0.2); // golden angle
                 let dir = [ang.cos(), -droop.sin(), ang.sin()];
-                b.leaf(at, dir, spread * 0.4 * (1.0 - frac * 0.5), spread * 0.16, 0.8, leaf_c);
+                b.leaf(at, dir, spread * 0.4 * (1.0 - frac * 0.5), spread * 0.16, 0.8, jit(&mut rng, leaf_c));
             }
             // Amaranth-style plume once flowering: a warm cone of color up top.
             if t >= def.flower_at && def.petal_count > 0 {
@@ -327,15 +368,27 @@ pub fn build_plant(
                 ];
                 b.tube(prev, next, def.stem_radius * g * (1.0 - frac * 0.5), def.stem_radius * g * (1.0 - frac * 0.6), 4, stem_c);
                 let ang = rng.range(0.0, std::f32::consts::TAU);
-                b.leaf(next, [ang.cos(), -droop.sin() * 0.5, ang.sin()], spread * 0.3, spread * 0.14, 0.6, leaf_c);
-                // Fruit cluster at mid segments once fruiting.
+                b.leaf(next, [ang.cos(), -droop.sin() * 0.5, ang.sin()], spread * 0.3, spread * 0.14, 0.6, jit(&mut rng, leaf_c));
+                // Fruit truss at mid segments once fruiting: a short stalk
+                // drops from the node and the fruits hang touching it (they
+                // used to float beside the vine unattached).
                 if t >= def.fruit_at && s >= 1 && def.fruit_kind != "none" {
                     let ripeness = ((t - def.fruit_at) / (1.0 - def.fruit_at).max(0.05)).clamp(0.0, 1.0);
-                    let fc = wilted(lerp3(def.fruit_color_unripe, def.fruit_color_ripe, ripeness), wilt * 0.5);
                     let fr = def.fruit_size * 0.5 * (0.4 + 0.6 * ripeness);
+                    let dx = rng.range(-0.03, 0.03);
+                    let dz = rng.range(-0.03, 0.03);
+                    let truss = [next[0] + dx, next[1] - 0.035, next[2] + dz];
+                    b.tube(next, truss, 0.0028, 0.002, 3, stem_c);
                     for k in 0..2u32 {
-                        let off = [rng.range(-0.05, 0.05), -0.04 - 0.03 * k as f32, rng.range(-0.05, 0.05)];
-                        b.fruit_sphere([next[0] + off[0], next[1] + off[1], next[2] + off[2]], fr, 0.9, fc);
+                        let rp = (ripeness + rng.range(-0.3, 0.1)).clamp(0.0, 1.0);
+                        let fc = wilted(lerp3(def.fruit_color_unripe, def.fruit_color_ripe, rp), wilt * 0.5);
+                        let ka = rng.range(0.0, std::f32::consts::TAU);
+                        b.fruit_sphere(
+                            [truss[0] + ka.cos() * fr * 0.7, truss[1] - fr * (0.6 + 0.5 * k as f32), truss[2] + ka.sin() * fr * 0.7],
+                            fr,
+                            0.9,
+                            fc,
+                        );
                     }
                 }
                 prev = next;
@@ -359,12 +412,17 @@ pub fn build_plant(
                     let f = (k as f32 + 1.0) / ((def.leaf_count.max(2) / 2) as f32 + 1.0);
                     let at = lerp3(trunk_top, tip, f);
                     let la = rng.range(0.0, std::f32::consts::TAU);
-                    b.leaf(at, [la.cos(), 0.2 - droop.sin(), la.sin()], spread * 0.2, spread * 0.1, 0.5, leaf_c);
+                    b.leaf(at, [la.cos(), 0.2 - droop.sin(), la.sin()], spread * 0.2, spread * 0.1, 0.5, jit(&mut rng, leaf_c));
                 }
                 if t >= def.fruit_at && def.fruit_kind != "none" && i < def.fruit_count {
                     let ripeness = ((t - def.fruit_at) / (1.0 - def.fruit_at).max(0.05)).clamp(0.0, 1.0);
                     let fc = lerp3(def.fruit_color_unripe, def.fruit_color_ripe, ripeness);
-                    b.fruit_sphere([tip[0], tip[1] - def.fruit_size * 0.8, tip[2]], def.fruit_size * 0.5 * (0.4 + 0.6 * ripeness), 1.0, fc);
+                    let fs = def.fruit_size * 0.5 * (0.4 + 0.6 * ripeness);
+                    // Fruit hangs from a short pedicel off the branch tip
+                    // (was a sphere floating under the branch).
+                    let stem_end = [tip[0], tip[1] - def.fruit_size * 0.45, tip[2]];
+                    b.tube(tip, stem_end, 0.0025, 0.002, 3, stem_c);
+                    b.fruit_sphere([stem_end[0], stem_end[1] - fs * 0.8, stem_end[2]], fs, 1.0, fc);
                 }
             }
         }
@@ -375,7 +433,7 @@ pub fn build_plant(
                 let ang = i as f32 / straps as f32 * std::f32::consts::TAU + rng.range(-0.15, 0.15);
                 let bend = droop.sin() * 0.4 + rng.range(0.0, 0.15);
                 let dir = [ang.cos() * (0.25 + bend), 1.0 - bend, ang.sin() * (0.25 + bend)];
-                b.leaf(base, norm(dir), height, def.spread_m * 0.08, 0.2, leaf_c);
+                b.leaf(base, norm(dir), height, def.spread_m * 0.08, 0.2, jit(&mut rng, leaf_c));
             }
             // Bulb hint at the base.
             b.fruit_sphere([base[0], base[1] + 0.015, base[2]], 0.02 + 0.02 * g, 0.8, [0.92, 0.9, 0.82]);
@@ -387,7 +445,7 @@ pub fn build_plant(
                 let ang = i as f32 * 2.39996;
                 let tilt = 0.5 + (i % 3) as f32 * 0.18 + droop.sin() * 0.3;
                 let dir = norm([ang.cos() * tilt, 1.0 - tilt * 0.6, ang.sin() * tilt]);
-                b.leaf(base, dir, spread * 0.55, spread * 0.09, 0.1, leaf_c);
+                b.leaf(base, dir, spread * 0.55, spread * 0.09, 0.1, jit(&mut rng, leaf_c));
             }
             if t >= def.fruit_at {
                 let ripeness = ((t - def.fruit_at) / (1.0 - def.fruit_at).max(0.05)).clamp(0.0, 1.0);
@@ -404,62 +462,116 @@ pub fn build_plant(
                 }
             }
         }
-        // ── Rosette (default; strawberry/dandelion/carrot): leaf crown from
-        //    the base, flowers on thin stalks, then hanging/held fruit. ──
+        // ── Rosette (default; strawberry/dandelion/carrot): arcing petioles
+        //    ending in TRIFOLIATE leaflet clusters, small true-scale blossoms,
+        //    and berries hanging on drooping stalks with green calyxes. ──
         _ => {
+            // Crown nub: the tiny green heart everything attaches to, so no
+            // part of the plant ever reads as floating.
+            b.fruit_sphere([base[0], base[1] + 0.008, base[2]], 0.012 + 0.01 * g, 0.7, stem_c);
             let leaves = ((def.leaf_count as f32) * (0.3 + 0.7 * g)).ceil().max(2.0) as u32;
             for i in 0..leaves {
                 let ang = i as f32 * 2.39996 + rng.range(-0.15, 0.15); // golden angle spiral
-                let up = 0.65 - droop.sin();
-                let dir = norm([ang.cos(), up.max(-0.3), ang.sin()]);
+                let up = (0.75 - droop.sin()).max(-0.25);
+                let dir = norm([ang.cos(), up, ang.sin()]);
                 let llen = spread * 0.5 * rng.range(0.85, 1.1);
-                // Petiole (thin stalk) then the leaf blade at its end.
-                let pet_end = [
-                    base[0] + dir[0] * llen * 0.4,
-                    base[1] + dir[1] * llen * 0.4,
-                    base[2] + dir[2] * llen * 0.4,
+                // Petiole arcs: rises steeply from the crown, then flattens
+                // outward - two segments so the arc is visible.
+                let knee = [
+                    base[0] + dir[0] * llen * 0.22,
+                    base[1] + (dir[1] * llen * 0.30).max(0.01),
+                    base[2] + dir[2] * llen * 0.22,
                 ];
-                b.tube(base, pet_end, 0.004 * (1.0 + g), 0.003, 3, stem_c);
-                b.leaf(pet_end, dir, llen * 0.6, llen * 0.42, 0.7, leaf_c);
-            }
-            // Flowers: thin stalks rising from the crown with a petal fan.
-            let flowering = t >= def.flower_at && t < def.fruit_at.max(def.flower_at + 0.01);
-            if flowering && def.petal_count > 0 {
-                for i in 0..2u32 {
-                    let ang = rng.range(0.0, std::f32::consts::TAU);
-                    let ftop = [
-                        base[0] + ang.cos() * spread * 0.15,
-                        base[1] + height * 0.9,
-                        base[2] + ang.sin() * spread * 0.15,
+                let pet_end = [
+                    base[0] + dir[0] * llen * 0.55,
+                    knee[1] + llen * 0.06 - droop.sin() * llen * 0.15,
+                    base[2] + dir[2] * llen * 0.55,
+                ];
+                let pr = 0.0035 * (1.0 + g);
+                b.tube(base, knee, pr, pr * 0.85, 3, stem_c);
+                b.tube(knee, pet_end, pr * 0.85, pr * 0.6, 3, stem_c);
+                // Trifoliate cluster: center leaflet along the petiole line,
+                // two side leaflets splayed ~40 degrees, all slightly tilted
+                // up toward the light like a real strawberry leaf.
+                let blade = llen * 0.42;
+                let lc = jit(&mut rng, leaf_c);
+                let flat = norm([dir[0], 0.12 - droop.sin() * 0.5, dir[2]]);
+                b.leaf(pet_end, flat, blade, blade * 0.6, 0.6, lc);
+                for s in [-1.0f32, 1.0] {
+                    let ra = 0.7 * s; // ~40 deg splay
+                    let (sa, ca) = (ra.sin(), ra.cos());
+                    let rot = [
+                        flat[0] * ca - flat[2] * sa,
+                        flat[1] * 0.9,
+                        flat[0] * sa + flat[2] * ca,
                     ];
-                    b.tube(base, ftop, 0.003, 0.002, 3, stem_c);
-                    let _ = i;
-                    // Petal fan (flat shading makes this read as a flower).
-                    for p in 0..def.petal_count {
-                        let pa = p as f32 / def.petal_count as f32 * std::f32::consts::TAU;
-                        b.leaf(ftop, norm([pa.cos(), 0.25, pa.sin()]), def.fruit_size * 0.8, def.fruit_size * 0.45, 0.1, wilted(def.flower_color, wilt));
-                    }
-                    b.fruit_sphere(ftop, def.fruit_size * 0.14, 1.0, def.flower_center_color);
+                    b.leaf(pet_end, norm(rot), blade * 0.85, blade * 0.5, 0.6, jit(&mut rng, leaf_c));
                 }
             }
-            // Fruit: strawberry cones hang below the crown on drooping stalks.
+            // Blossoms: small true-scale flowers (a strawberry bloom is ~2 cm)
+            // on short stalks leaning out of the crown. They linger a little
+            // into fruiting, as real everbearers carry both at once.
+            let flowering = t >= def.flower_at && t < (def.fruit_at + 0.2).min(1.01) && def.petal_count > 0;
+            if flowering {
+                for _ in 0..2u32 {
+                    let ang = rng.range(0.0, std::f32::consts::TAU);
+                    let lean = [ang.cos() * 0.35, 1.0, ang.sin() * 0.35];
+                    let ftop = [
+                        base[0] + lean[0] * height * 0.55,
+                        base[1] + height * 0.62,
+                        base[2] + lean[2] * height * 0.55,
+                    ];
+                    b.tube(base, ftop, 0.0025, 0.0018, 3, stem_c);
+                    let psz = 0.022 + def.fruit_size * 0.25; // petal length, metres
+                    for p in 0..def.petal_count.min(6) {
+                        let pa = p as f32 / def.petal_count.min(6) as f32 * std::f32::consts::TAU;
+                        b.petal(ftop, norm([pa.cos(), 0.18, pa.sin()]), psz, psz * 0.7, wilted(def.flower_color, wilt));
+                    }
+                    // Flower center: a tiny upward cone reads as the yellow eye
+                    // without a whole sphere's triangle count.
+                    b.fruit_cone([ftop[0], ftop[1] + 0.004, ftop[2]], psz * 0.22, 0.006, 4, def.flower_center_color);
+                }
+            }
+            // Fruit: berries HANG below the canopy on arcing stalks (real
+            // strawberries droop to the ground / out of the net cup), each
+            // capped with a small green calyx so it connects visually.
             if t >= def.fruit_at && def.fruit_kind != "none" {
                 let ripeness = ((t - def.fruit_at) / (1.0 - def.fruit_at).max(0.05)).clamp(0.0, 1.0);
-                let fc = lerp3(def.fruit_color_unripe, def.fruit_color_ripe, ripeness);
                 let n = def.fruit_count.max(1);
                 for i in 0..n {
+                    // Per-berry ripeness spread: the cluster ripens unevenly.
+                    let rp = (ripeness + rng.range(-0.35, 0.15)).clamp(0.0, 1.0);
+                    let fc = lerp3(def.fruit_color_unripe, def.fruit_color_ripe, rp);
                     let ang = i as f32 / n as f32 * std::f32::consts::TAU + rng.range(-0.3, 0.3);
-                    let fx = [
-                        base[0] + ang.cos() * spread * 0.35,
-                        base[1] + height * 0.35,
-                        base[2] + ang.sin() * spread * 0.35,
+                    let crown = [base[0], base[1] + height * 0.30, base[2]];
+                    let elbow = [
+                        base[0] + ang.cos() * spread * 0.30,
+                        base[1] + height * 0.22,
+                        base[2] + ang.sin() * spread * 0.30,
                     ];
-                    b.tube([base[0], base[1] + height * 0.5, base[2]], fx, 0.003, 0.002, 3, stem_c);
-                    let fs = def.fruit_size * (0.5 + 0.5 * ripeness);
+                    let hang = [
+                        base[0] + ang.cos() * spread * 0.38,
+                        base[1] - 0.015 - 0.02 * rp,
+                        base[2] + ang.sin() * spread * 0.38,
+                    ];
+                    b.tube(crown, elbow, 0.0028, 0.0022, 3, stem_c);
+                    b.tube(elbow, hang, 0.0022, 0.0016, 3, stem_c);
+                    let fs = def.fruit_size * (0.45 + 0.55 * rp);
                     if def.fruit_kind == "cone" {
-                        b.fruit_cone(fx, fs * 0.45, fs, 6, fc);
+                        b.fruit_cone(hang, fs * 0.42, fs, 6, fc);
                     } else {
-                        b.fruit_sphere([fx[0], fx[1] - fs * 0.4, fx[2]], fs * 0.5, 1.0, fc);
+                        b.fruit_sphere([hang[0], hang[1] - fs * 0.4, hang[2]], fs * 0.5, 1.0, fc);
+                    }
+                    // Calyx: three tiny green sepals draped over the berry top.
+                    for s in 0..3u32 {
+                        let sa = s as f32 / 3.0 * std::f32::consts::TAU;
+                        b.petal(
+                            [hang[0], hang[1] + 0.002, hang[2]],
+                            norm([sa.cos(), -0.25, sa.sin()]),
+                            fs * 0.5,
+                            fs * 0.3,
+                            wilted([0.30, 0.55, 0.25], wilt),
+                        );
                     }
                 }
             }
