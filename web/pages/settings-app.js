@@ -738,7 +738,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.861.5 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.861.6 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -1934,12 +1934,12 @@ async function settingsOpenBackup() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
     '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
     '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-bkp-go" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
+    '<button id="set-bkp-go" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
     '</div>' +
     '<div id="set-bkp-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
@@ -1969,7 +1969,7 @@ function settingsOpenRestore() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
     '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:var(--space-md);font-size:.82rem;color:#888;">' +
@@ -2022,17 +2022,17 @@ async function settingsOpenSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   var grid = words.map(function(w, i) {
-    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:#f0a500;font-weight:600">' + w + '</span></div>';
+    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:var(--accent);font-weight:600">' + w + '</span></div>';
   }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
     '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
     '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
     '<span id="set-seed-msg" style="font-size:.7rem;color:#4ec87a;align-self:center;"></span>' +
     '</div>' +
-    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
+    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -2053,7 +2053,7 @@ function settingsShowNonExtractableOverlay() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
     '<p style="font-size:.82rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-xl)">' +
       'Your key was created before backup support was added. The private key stored in your browser ' +
       'is marked as non-extractable, so a seed phrase cannot be generated from it.' +
@@ -2065,7 +2065,7 @@ function settingsShowNonExtractableOverlay() {
     '</div>' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end">' +
       '<button id="ne-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-      '<button id="ne-rotate" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
+      '<button id="ne-rotate" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
     '</div>' +
   '</div>';
   document.body.appendChild(overlay);
@@ -2114,7 +2114,7 @@ function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
     '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +

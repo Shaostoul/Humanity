@@ -306,32 +306,6 @@
     }
     .hub-nav .navmode-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* ── Brand ── */
-    .hub-nav .brand {
-      font-size: 1.1rem;
-      font-weight: 900;
-      color: #FF8811;
-      width: 32px;
-      height: 28px;
-      border-radius: var(--radius);
-      box-shadow: inset 0 0 0 1px #2a6;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-right: 0.3rem;
-      cursor: pointer;
-      transition: box-shadow 0.15s ease;
-    }
-    .hub-nav .brand:hover {
-      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
-    }
-    .hub-nav .brand.active {
-      color: #fff;
-      animation: channeling 3s linear infinite;
-    }
-
     /* ── Tab (icon + label, native-parity: labels always shown) ── */
     .hub-nav .tab {
       position: relative;
@@ -725,7 +699,6 @@
       .hub-nav .nav-group-green,
       .hub-nav .nav-group-blue { display: none !important; }
       .hub-nav .spacer { display: none !important; }
-      .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
     }
@@ -1522,7 +1495,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.861.5';
+    var CURRENT_VERSION = '0.861.6';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

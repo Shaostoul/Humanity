@@ -210,7 +210,6 @@ h4 { font-size: var(--text-base); }
    selectors mirror the animated rules in shell.js (channeling, rgb-separator,
    footer-toggle-rgb, badgePulse). */
 [data-no-rgb] .hub-nav .tab.active,
-[data-no-rgb] .hub-nav .brand.active,
 [data-no-rgb] .hub-nav .tab.tab-update-ready,
 [data-no-rgb] .hub-nav .tab .tab-update-badge,
 [data-no-rgb] .nav-separator,
