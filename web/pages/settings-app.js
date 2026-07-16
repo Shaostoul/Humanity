@@ -288,7 +288,7 @@ function resetThemeDefaults() {
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';
   document.getElementById('pref-warning-color').value = '#ccaa33';
-  document.getElementById('pref-accent').value = '#FF8811';
+  document.getElementById('pref-accent').value = '#ed8c24';
   applyCustomizerLive();
   savePref();
 }
@@ -738,7 +738,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.861.4 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.861.5 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons

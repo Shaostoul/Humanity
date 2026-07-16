@@ -10,7 +10,7 @@
   // AUTO-GENERATED FROM data/themes/presets.json, do not edit by hand.
   // AUTO-GENERATED FROM data/themes/presets.json — do not edit by hand.
   const ACCENT_PRESETS = [
-    { name: "Orange", color: "#FF8811" },
+    { name: "Orange", color: "#ed8c24" },
     { name: "Blue", color: "#4488ff" },
     { name: "Green", color: "#44cc66" },
     { name: "Purple", color: "#9944ff" },

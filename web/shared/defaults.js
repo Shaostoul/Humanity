@@ -5,7 +5,9 @@
   window.HOS_STORAGE_KEY = 'humanity_settings';
   window.HOS_DEFAULTS = {
     // Core UI
-    accent: '#FF8811',
+    // Mirrors the native accent token in data/gui/theme.ron (--accent in the
+    // generated theme.css). Keep in sync if theme.ron's accent changes.
+    accent: '#ed8c24',
     theme: 'dark',
     fontSize: 'medium',
     fontSizePx: 16,
@@ -29,7 +31,6 @@
     // Navigation
     'rgb-nav': true,
     'nav-tips': true,
-    context: 'real',  // 'real' or 'sim'
     // Notifications
     'notif-dm': true,
     'notif-group': true,

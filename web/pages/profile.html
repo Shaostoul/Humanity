@@ -1608,7 +1608,7 @@
     function skill_refreshCard(skillId, cardEl) {
       var skill = skill_getById(skillId);
       if (!skill) return;
-      var color = skill_activeDomain ? skill_activeDomain.color : '#FF8811';
+      var color = skill_activeDomain ? skill_activeDomain.color : '#ed8c24';
       cardEl.outerHTML = skill_buildCard(skill, color);
     }
 
@@ -1635,7 +1635,7 @@
       overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
       overlay.innerHTML =
         '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:var(--space-2xl);width:100%;max-width:420px;max-height:80vh;overflow-y:auto;font-family:\'Segoe UI\',system-ui,sans-serif;color:#e0e0e0;">' +
-          '<h2 style="font-size:0.95rem;font-weight:700;color:#FF8811;margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
+          '<h2 style="font-size:0.95rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">' + hosIcon('users', 16) + ' ' + skillName + '</h2>' +
           '<p style="font-size:0.73rem;color:#666;margin-bottom:var(--space-xl)">Community members with this skill (from relay database):</p>' +
           '<div id="skill-find-results" style="font-size:0.82rem;">Loading…</div>' +
           '<div style="display:flex;justify-content:flex-end;margin-top:var(--space-xl);">' +
