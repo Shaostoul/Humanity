@@ -50,7 +50,9 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Library | `library.rs` | Two faces: DOCUMENTS (Humanity Accord + companions from `data/library/`, nested tree) and a directory of free external tools/websites, in one top-level tab (added v0.373-375; absorbed what used to be the standalone Resources page). | everyone | both |
 | Donate | `donate.rs` | Hero + funding goal + donation method cards + FAQ. | everyone | both |
 | Tools | `tools.rs` | Open-source tools catalog with search + filters. From `data/tools/catalog.json`. | everyone | both |
-| Studio | `studio.rs` | OBS-like broadcasting studio (scenes, sources, properties) with a Program/Preview split (v0.664): scene clicks stage into Preview, "Cut to Program" pushes live. Scene/source management is real UI state; actual capture/encoding/transport is not built yet (see STATUS.md TIER 2). | everyone | native-only, no web page |
+| Studio | `studio.rs` | OBS-like broadcasting studio (scenes, sources, properties) with a Program/Preview split (v0.664): scene clicks stage into Preview, "Cut to Program" pushes live. Real broadcast transport shipped v0.853-0.855 (GPU capture, JPEG segments to the relay). | everyone | native-only, no web page |
+| Watch | `watch.rs` | Stream viewer (v0.857): browse live broadcasts on the connected relay and watch one (JPEG-segment playback via `net/live_viewer.rs`). Sits beside Studio in the nav; the web mirror is `watch.html`. | everyone | both |
+| RelayControl | `relay_control.rs` | Relay Control Center (v0.846, "Relays" nav tab): manage relays you own - health, actions, config; the in-app VPS Console (v0.858) runs server commands over SSH so admin needs no separate terminal. | admin | native-only |
 | Quests | `quests.rs` | The single quest surface: live in-game quests (auto-track + XP, from `QuestSystem`) render first, then the learn-by-doing self-sufficiency chains (`data/onboarding/quests.json`). Absorbed the old Profile page's game-quests section (v0.415.0). | everyone | both |
 | ServerSettings | `server_settings.rs` | Server / group admin (USER / MOD / ADMIN tiered, color-coded). Game-world ban management now lives here too as an ADMIN subsection (`game_admin::draw_section`, folded in v0.479, the standalone `GameAdmin` variant was removed). | admin | native-only |
 | Identity | `identity.rs` | DID, Verifiable Credentials, trust score, AI status. | everyone | both |
@@ -129,13 +131,14 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 36 standalone; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 38 standalone; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
 | Name | File | Purpose | Audience | Web-only? |
 |------|------|---------|----------|-----------|
-| Index | `index.html` | Landing page. "Own your tools. Own your life." 3 hero CTAs. | everyone | yes |
+| Index | `index.html` | Landing page, rebuilt 2026-07-16 as a 7-screen picture-book scroll ("one breath per screen"): galaxy hero + one giant CTA, game intro, four real-screenshot cards, cost-nothing checklist, blueprint dream, proof bar, warm welcome-home close. Under 150 words of copy; the mission essay moved to mission.html. | everyone | yes |
+| Mission | `mission.html` | The full mission statement (the essay that used to live on the landing page, verbatim: why it exists, what it protects, built for every situation, how we get there) plus the community links. Linked from landing screen 5 "Read the full mission". | everyone | yes |
 | Home | `home.html` | The ideal closed-loop homestead outline (one person, six loops, honestly sized): renders `data/home_outline.json`, the SAME data the native Home page's "ideal closed loop" panel renders -- web mirrors native. Replaced the old localStorage room-decorator (v0.700, operator direction: Home outlines the perfect closed loop AND doubles as the game's Home requirements list). | everyone | both |
 | Onboarding | `onboarding.html` | Web's own onboarding flow (native's standalone Onboarding page was removed v0.415.0 and folded into Quests; web was NOT re-checked for the same fold in this pass). | everyone | web-only in practice |
 | Download | `download.html` | Desktop binary download + module list. | everyone | yes |
@@ -146,6 +149,7 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Admin | `admin.html` | Admin dashboard. **Read-only** (`admin-app.js` has exactly one `fetch()` call, a GET; no service control, no alert-channel editing, no backup trigger, mutating admin actions require the native exe or SSH). | admin | yes |
 | Accord | `accord.html` | The Humanity Accord rendered as a navigable web page (built 2026-07-01 during the fleet redo of the destroyed Accord-page work; registry row added 2026-07-02 when page_registry_lint caught the omission). | everyone | web (native Library page shows the same documents) |
 | Shared Files | `shared-files.html` | The public file library (v0.675): browse/search files people shared (3D-printable parts, models). Backed by GET /api/uploads; files enter it by attaching a 3D/model format in chat (`?share=1` on upload). Chat photos stay unlisted. | everyone | web-only (native follow-up: needs a download-manager UX; links open in browser meanwhile) |
+| Watch | `watch.html` | Web stream viewer (v0.857 streaming arc): watch live broadcasts from the relay in the browser; mirrors the native Watch page. | everyone | both |
 | Web | `web.html` | (purpose unclear, TODO audit, carried over unresolved from the last audit) | unknown | yes |
 
 Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (functional agent dashboard, secured v0.698.0, linked from README), `settings.html`.

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission, HumanityOS</title>
+  <meta name="description" content="Why HumanityOS exists: end poverty through self-sufficiency, protect the freedoms that keep power honest, and keep it all public domain forever.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="The HumanityOS Mission">
+  <meta property="og:description" content="Why HumanityOS exists: end poverty through self-sufficiency, protect the freedoms that keep power honest, and keep it all public domain forever.">
+  <meta property="og:url" content="https://united-humanity.us/mission">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.7; padding-bottom: 80px; }
+    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    .page-head { padding: 56px 0 8px; text-align: center; }
+    .page-head h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 900; margin: 0 0 10px; }
+    .page-head p { color: var(--text-secondary); max-width: 640px; margin: 0 auto; }
+
+    .mcard {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px 28px;
+      margin: 22px 0;
+    }
+    .mcard h3 { font-size: 1.3rem; margin: 0 0 12px; color: var(--accent); }
+    .mcard p { color: var(--text-secondary); margin: 0 0 12px; }
+    .scope { margin: 16px 0 0; }
+    .scope h4 { font-size: 1rem; margin: 0 0 6px; color: var(--text); }
+    .scope p { font-size: 0.95rem; margin: 0; }
+
+    .goal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .goal-chip {
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+
+    .metrics { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+    .metric { flex: 1; min-width: 140px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
+    .mval { font-size: 1.2rem; font-weight: 800; color: var(--text); }
+    .mlabel { font-size: 0.82rem; color: var(--text-muted); margin-top: 4px; }
+    .mlabel a { color: inherit; }
+
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 700;
+      text-decoration: none;
+      font-size: 0.95rem;
+    }
+    .btn-primary { background: var(--accent); color: var(--text-on-accent, #000); }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .ctas { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+    .mission-closing { text-align: center; color: var(--text-secondary); font-style: italic; margin: 34px 0 0; }
+
+    .involve-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 14px; }
+    .involve-item {
+      display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px 14px; color: var(--text); text-decoration: none;
+      font-size: 0.92rem; font-weight: 600;
+    }
+    .involve-item:hover { border-color: var(--accent); color: var(--accent); }
+    .follow-line { margin-top: 18px; color: var(--text-muted); font-size: 0.9rem; }
+    .follow-line a { margin: 0 6px; color: var(--accent); }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/eli5.js"></script>
+  <script src="/shared/defaults.js"></script>
+  <script src="/shared/settings.js"></script>
+
+  <div class="eli5-block container">
+    <div class="eli5-simple">Why we are building HumanityOS: so every family can have food, water, and power without asking permission.</div>
+    <div class="eli5-expert">The full mission statement: ending forced dependence through self-sufficiency tooling, federated infrastructure with no central owner, constitutional governance (the Humanity Accord), and CC0 public-domain licensing.</div>
+  </div>
+
+  <header class="page-head">
+    <div class="container">
+      <h1>The mission</h1>
+      <p>The whole story, for people who want more than the 30-second version on the front page.</p>
+    </div>
+  </header>
+
+  <section id="mission">
+    <div class="container">
+
+      <div class="mcard">
+        <h3>Why this exists</h3>
+        <p>HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.</p>
+        <p>Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.</p>
+      </div>
+
+      <div class="mcard">
+        <h3>Early days, built in the open</h3>
+        <p>HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.</p>
+        <p>No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.</p>
+      </div>
+
+      <div class="mcard">
+        <h3>Our mission</h3>
+        <p>We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.</p>
+        <div class="goal-chips">
+          <span class="goal-chip">End Corruption</span>
+          <span class="goal-chip">End Fraud</span>
+          <span class="goal-chip">End Tyranny</span>
+          <span class="goal-chip">End Poverty</span>
+          <span class="goal-chip">End Pollution</span>
+        </div>
+      </div>
+
+      <div class="mcard">
+        <h3>Why it's built this way</h3>
+        <p>Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.</p>
+        <div class="scope"><h4>Guided quests and a free-to-fail simulation</h4><p>Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.</p></div>
+        <div class="scope"><h4>Encrypted chat, no account needed</h4><p>Find people already doing it and learn from them directly. No signup, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.</p></div>
+        <div class="scope"><h4>Tasks and a private notebook</h4><p>Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.</p></div>
+        <div class="scope"><h4>Maps of what is near you</h4><p>See the gardens, tools, workshops, and people around you. Providing for yourself is easier together, and cooperation is easiest when it is local.</p></div>
+        <div class="scope"><h4>A marketplace with trust scores</h4><p>Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.</p></div>
+        <div class="scope"><h4>An identity you own, on a network no one owns</h4><p>Your identity is a key on your device, not an account a company can suspend. The network is federated, meaning many independent servers run by ordinary people, all talking to each other, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.</p></div>
+        <div class="scope"><h4>Built to be remade by anyone</h4><p>Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.</p></div>
+        <div class="scope"><h4>Public domain, forever</h4><p>The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>What it protects</h3>
+        <p>Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.</p>
+        <div class="scope"><h4>Free speech</h4><p>A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.</p></div>
+        <div class="scope"><h4>Privacy, even from us</h4><p>Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with post-quantum encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.</p></div>
+        <div class="scope"><h4>What is yours stays yours</h4><p>Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.</p></div>
+        <div class="scope"><h4>You can never be locked out</h4><p>There is no account to suspend and no password to lose. Your identity is a key on your own device, recoverable from your seed phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.</p></div>
+        <div class="scope"><h4>Rules made by the people they bind</h4><p>The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.</p></div>
+        <div class="scope"><h4>Bound by a constitution, not a promise</h4><p>None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.</p></div>
+        <div style="margin-top:16px;">
+          <a href="/accord#humanity-accord" class="btn btn-secondary">Read the Humanity Accord</a>
+        </div>
+      </div>
+
+      <div class="mcard">
+        <h3>Built for every situation</h3>
+        <p>A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.</p>
+        <div class="scope"><h4>When there is no internet</h4><p>The app, your data, your saved work, and your skills all live on your device. You can learn, plan, and build completely offline, and sync only when, and if, a connection comes back. A mountain village, a boat, or a blackout does not stop you.</p></div>
+        <div class="scope"><h4>When the server goes down</h4><p>No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.</p></div>
+        <div class="scope"><h4>When you lose your device</h4><p>Recover everything from your 24-word seed phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.</p></div>
+        <div class="scope"><h4>When you have no money, papers, or bank</h4><p>No accounts, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.</p></div>
+        <div class="scope"><h4>Whatever your language or ability</h4><p>It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.</p></div>
+        <div class="scope"><h4>When disaster strikes</h4><p>Off-site backups survive a fire, a flood, or a seizure, so a community can rebuild from nothing. Radio links that need no internet (in progress) aim to carry the essentials, calls for help, recovery, coordination, even when the grid and the network are down.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>How we get there</h3>
+        <div class="scope"><h4>Civilization</h4><p>All of us, human and AI, pointed at the same horizon, with a shared agreement on how we treat one another.</p></div>
+        <div class="scope"><h4>Earth, our first focus</h4><p>End poverty through voluntary cooperation. People help because they choose to, compensated in resources for the work. (The Moon and Mars come later, about a decade out.)</p></div>
+        <div class="scope"><h4>Your community</h4><p>It starts where you live. Help your neighbors, and be helped in return. Coordinated by the software, never commanded.</p></div>
+      </div>
+
+      <div class="mcard">
+        <h3>Where we stand</h3>
+        <p>This is the beginning. Every person who joins and every contribution moves the needle.</p>
+        <div class="metrics">
+          <div class="metric"><div class="mval">Live</div><div class="mlabel"><a href="/chat">People online now</a></div></div>
+          <div class="metric"><div class="mval">Yes</div><div class="mlabel">AI building alongside us</div></div>
+          <div class="metric"><div class="mval">Forming</div><div class="mlabel">Federated communities</div></div>
+        </div>
+      </div>
+
+      <div class="mcard">
+        <h3>Be part of it</h3>
+        <div class="ctas">
+          <a href="/onboarding" class="btn btn-primary">Get oriented</a>
+          <a href="/laws" class="btn btn-secondary">See your Laws</a>
+          <a href="/donate" class="btn btn-secondary">Fund the work</a>
+          <a href="/governance" class="btn btn-secondary">Shape the rules</a>
+        </div>
+      </div>
+
+      <div class="mcard">
+        <h3>Find us</h3>
+        <div class="involve-grid">
+          <a href="/chat" class="involve-item"><span class="pg-ico" data-icon="chat" data-size="18"></span> HumanityOS Chat</a>
+          <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span class="pg-ico" data-icon="chat" data-size="18"></span> Discord</a>
+          <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span class="pg-ico" data-icon="github" data-size="18"></span> GitHub</a>
+          <a href="https://github.com/Shaostoul/Humanity/blob/main/CONTRIBUTING.md" class="involve-item" target="_blank" rel="noopener"><span class="pg-ico" data-icon="dev" data-size="18"></span> Contributing</a>
+        </div>
+        <div class="follow-line">
+          <strong>Follow Michael (project lead):</strong>
+          <a href="https://youtube.com/@Shaostoul" target="_blank" rel="noopener">YouTube</a>
+          <a href="https://twitch.tv/Shaostoul" target="_blank" rel="noopener">Twitch</a>
+          <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
+          <a href="https://instagram.com/shaostoul" target="_blank" rel="noopener">Instagram</a>
+          <a href="https://rumble.com/user/Shaostoul" target="_blank" rel="noopener">Rumble</a>
+          <a href="https://www.facebook.com/2571477392923654" target="_blank" rel="noopener">Facebook</a>
+          <a href="https://steamcommunity.com/id/Shaostoul" target="_blank" rel="noopener">Steam</a>
+        </div>
+      </div>
+
+      <p class="mission-closing">Humans and AI, building this together. If you are reading this, human or AI, you are part of it. We are Humanity, you included.</p>
+
+    </div>
+  </section>
+
+  <script>
+  document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
+    if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
+  });
+  </script>
+</body>
+</html>

@@ -31,462 +31,200 @@
   <link rel="stylesheet" href="/shared/theme.css">
 
   <style>
-    body { line-height: 1.7; min-height: 100vh; padding-bottom: 80px; color: #e8e8e8; background: #1a1a1a; }
-    a { transition: color 0.2s; }
-    .container { max-width: 900px; margin: 0 auto; padding: 0 24px; }
+    /* ── One breath per screen: a 7-screen picture-book scroll. Each screen is
+       one idea, one image, at most one button. The page starts in cold
+       starlight (the galaxy hero) and ends in warm orange light (screen 7),
+       so the scroll itself says "coming home". Copy budget: under 150 words.
+       Design spec: 2026-07-16 landing redesign (judge-synthesized). ── */
+    body { line-height: 1.6; }
 
-    /* Hero */
-    .hero {
-      padding: 80px 0 60px;
-      text-align: center;
-    }
-    .mission-eyebrow {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 20px;
-      opacity: 0.9;
-    }
-    .hero h1 {
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      font-weight: 800;
-      line-height: 1.15;
-      margin-bottom: 20px;
-    }
-    .hero h1 em { font-style: normal; color: var(--accent); }
-    .hero .subtitle {
-      font-size: 1.15rem;
-      color: var(--text-muted);
-      max-width: 680px;
-      margin: 0 auto 36px;
-      line-height: 1.6;
-    }
-    .hero-ctas {
+    .screen {
+      min-height: 100vh;
+      min-height: 100svh;
       display: flex;
-      gap: 12px;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
-      flex-wrap: wrap;
+      text-align: center;
+      padding: 72px 24px;
+      position: relative;
+    }
+    .screen .inner { max-width: 680px; margin: 0 auto; width: 100%; }
+
+    .screen h1 {
+      font-size: clamp(1.9rem, 5.5vw, 3.4rem);
+      font-weight: 900;
+      line-height: 1.15;
+      margin: 0 0 18px;
+      text-shadow: 0 2px 24px rgba(0,0,0,0.9);
+    }
+    .screen h2 {
+      font-size: clamp(1.5rem, 4vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin: 0 0 14px;
+    }
+    .screen p { color: var(--text-secondary); font-size: 1.06rem; margin: 0 0 12px; }
+
+    /* Category-colored underline on section headings (mirrors the nav pills) */
+    .u-green::after, .u-blue::after, .u-purple::after {
+      content: '';
+      display: block;
+      width: 56px; height: 3px;
+      border-radius: 2px;
+      margin: 12px auto 0;
+    }
+    .u-green::after  { background: var(--nav-green); }
+    .u-blue::after   { background: var(--nav-blue); }
+    .u-purple::after { background: var(--nav-sim); }
+
+    /* ── Screen 1: the promise ── */
+    #s1 {
+      background:
+        radial-gradient(ellipse at center, rgba(0,0,0,0.30) 0%, rgba(0,0,0,0.62) 75%),
+        url('/shared/bg/galaxy-core-hero.jpg') center / cover no-repeat;
+    }
+    #s1 .sub {
+      color: var(--text);
+      font-size: clamp(1rem, 2.4vw, 1.25rem);
+      text-shadow: 0 1px 14px rgba(0,0,0,0.9);
+      margin-bottom: 30px;
+    }
+    .cta-big {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--text-on-accent, #000);
+      font-size: 1.2rem;
+      font-weight: 800;
+      padding: 18px 44px;
+      min-height: 64px;
+      border-radius: 12px;
+      text-decoration: none;
+      box-shadow: 0 6px 28px rgba(237,140,36,0.35);
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .cta-big:hover { transform: translateY(-2px); box-shadow: 0 10px 34px rgba(237,140,36,0.5); color: var(--text-on-accent, #000); }
+    @media (max-width: 560px) { .cta-big { display: block; width: 100%; } }
+    #s1 .quiet { margin-top: 22px; color: var(--text-secondary); font-size: 0.95rem; }
+    #s1 .micro { margin-top: 6px; color: var(--text-muted); font-size: 0.8rem; }
+
+    /* Soft pulsing chevron pointing down (static under reduced motion) */
+    .chev {
+      position: absolute;
+      bottom: 26px; left: 50%;
+      transform: translateX(-50%);
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      pointer-events: none;
+      opacity: 0.8;
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .chev { animation: chev-pulse 2.2s ease-in-out infinite; }
+      @keyframes chev-pulse {
+        0%, 100% { transform: translateX(-50%) translateY(0); opacity: 0.5; }
+        50%       { transform: translateX(-50%) translateY(7px); opacity: 0.95; }
+      }
     }
 
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.95rem;
-      text-decoration: none;
-      transition: all 0.2s;
-      cursor: pointer;
-      border: none;
+    /* ── Screens 2 + 5: one big image ── */
+    .shot {
+      width: 100%;
+      max-width: 860px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 44px rgba(0,0,0,0.65);
+      margin: 22px auto 0;
+      display: block;
     }
-    .btn-primary {
-      background: var(--accent);
-      color: #000;
+
+    /* ── Screen 3: four captioned cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 26px;
+      width: 100%;
+      max-width: 1040px;
     }
-    .btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    .btn-secondary {
+    @media (max-width: 900px) { .cards { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 540px) { .cards { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      text-align: left;
+    }
+    .card img { width: 100%; height: 130px; object-fit: cover; object-position: left top; display: block; }
+    .card .cap { padding: 10px 12px 12px; font-size: 0.92rem; font-weight: 700; }
+    .card.c-green  { border-color: rgba(var(--nav-green-rgb), 0.45); }
+    .card.c-blue   { border-color: rgba(var(--nav-blue-rgb), 0.45); }
+    .card.c-red    { border-color: rgba(var(--nav-red-rgb), 0.45); }
+    .card.c-purple { border-color: rgba(var(--nav-sim-rgb), 0.45); }
+    .cards-note { margin-top: 14px; color: var(--text-muted); font-size: 0.82rem; }
+
+    /* ── Screen 4: it costs nothing ── */
+    .free-list { list-style: none; margin: 20px 0 0; padding: 0; }
+    .free-list li {
+      font-size: clamp(1.15rem, 3vw, 1.6rem);
+      font-weight: 700;
+      margin: 12px 0;
+    }
+    .free-list .ck { color: var(--success); margin-right: 10px; }
+
+    /* ── Screen 5: the dream (blueprint sketch behind the words) ── */
+    #s5 { overflow: hidden; }
+    #s5 .bp {
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: url('/shared/landing/blueprint-interior.jpg') center / cover no-repeat;
+      opacity: 0.18;
+      pointer-events: none;
+    }
+    #s5 .inner { position: relative; }
+    #s5 .quiet-link { color: var(--accent); font-size: 0.95rem; }
+
+    /* ── Screen 6: proof bar (slim band, not a full screen) ── */
+    #s6 { min-height: 0; padding: 46px 24px; }
+    .proof {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      max-width: 980px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    @media (max-width: 800px) { .proof { grid-template-columns: repeat(2, 1fr); } }
+    .proof .tile {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 10px;
+      background: rgba(0,0,0,0.35);
+    }
+    .proof .n { font-size: 1.25rem; font-weight: 800; color: var(--text); }
+    .proof .l { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── Screen 7: welcome home (warm light rising like light under a door) ── */
+    #s7 {
+      background: linear-gradient(180deg, transparent 0%, rgba(237,140,36,0.06) 55%, rgba(237,140,36,0.16) 100%);
+    }
+    .home-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+    .cta-second {
+      display: inline-block;
       background: transparent;
       color: var(--text);
-      border: 1px solid var(--border);
-    }
-    .btn-secondary:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      transform: translateY(-1px);
-    }
-
-    /* Sections */
-    section { padding: 60px 0; }
-    .section-label {
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 8px;
-    }
-    section h2 {
-      font-size: clamp(1.5rem, 3vw, 2rem);
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-    section > .container > p {
-      color: var(--text-muted);
-      max-width: 640px;
-      margin-bottom: 12px;
-    }
-
-    /* Wake-up block */
-    .wakeup {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--danger, #e55);
-      border-radius: 10px;
-      padding: 28px 32px;
-      margin-bottom: 40px;
-    }
-    .wakeup p {
-      font-size: 1rem;
-      color: var(--text);
-      margin: 0 0 12px;
-      max-width: none;
-    }
-    .wakeup p:last-child { margin-bottom: 0; }
-
-    /* Pillar cards */
-    .pillars {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 20px;
-      margin-top: 28px;
-    }
-    .pillar {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .pillar:hover {
-      border-color: var(--accent);
-      box-shadow: 0 4px 20px rgba(255,136,17,0.08);
-    }
-    .pillar-icon {
-      font-size: 2rem;
-      line-height: 1;
-    }
-    .pillar h3 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      margin: 0;
-    }
-    .pillar p {
-      font-size: 0.92rem;
-      color: var(--text-muted);
-      margin: 0;
-      line-height: 1.6;
-    }
-    .pillar .highlight {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin-top: auto;
-      padding-top: 4px;
-    }
-
-    /* How it works */
-    .how-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-top: 28px;
-    }
-    .how-item {
-      padding: 22px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-    }
-    .how-item .how-number {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--accent);
-      color: #000;
+      font-size: 1.2rem;
       font-weight: 800;
-      font-size: 0.9rem;
-      margin-bottom: 12px;
-    }
-    .how-item h4 { font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; }
-    .how-item p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
-
-    /* Quest preview */
-    .quest-preview {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
+      padding: 18px 44px;
+      min-height: 64px;
       border-radius: 12px;
-      padding: 32px;
-      margin-top: 28px;
-    }
-    .quest-preview h4 {
-      font-size: 1rem;
-      font-weight: 700;
-      margin: 0 0 4px;
-    }
-    .quest-preview .quest-desc {
-      font-size: 0.88rem;
-      color: var(--text-muted);
-      margin: 0 0 20px;
-    }
-    .quest-steps {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .quest-steps li {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      font-size: 0.92rem;
-      padding: 10px 14px;
-      background: rgba(255,255,255,0.03);
-      border-radius: 6px;
-      border: 1px solid rgba(255,255,255,0.05);
-    }
-    .quest-steps .step-check {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border);
-      border-radius: 4px;
-      flex-shrink: 0;
-      margin-top: 1px;
-    }
-    .quest-steps .step-text {
-      flex: 1;
-    }
-    .quest-steps .step-text strong {
-      display: block;
-      font-weight: 600;
-      color: var(--text);
-    }
-    .quest-steps .step-text span {
-      font-size: 0.84rem;
-      color: var(--text-muted);
-    }
-
-    /* Vision block */
-    .vision-block {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
-      border-radius: 10px;
-      padding: 28px 32px;
-    }
-    .vision-block p {
-      font-size: 1rem;
-      color: var(--text);
-      margin: 0 0 14px;
-      max-width: none;
-      line-height: 1.7;
-    }
-    .vision-block p:last-child { margin-bottom: 0; }
-
-    /* Built today */
-    .built-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .built-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 14px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      font-size: 0.88rem;
-      color: var(--text);
-    }
-    .built-item .bi-check {
-      color: var(--success, #4a4);
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    /* Proof strip */
-    .proof-strip {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      padding: 18px 24px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      text-align: center;
-      flex-wrap: wrap;
-      margin-top: 20px;
-    }
-    .proof-strip p {
-      margin: 0;
-      font-size: 0.92rem;
-      color: var(--text-muted);
-      max-width: none;
-    }
-    .proof-strip a { color: var(--accent); text-decoration: none; }
-    .proof-strip a:hover { text-decoration: underline; }
-    .pulse {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--success);
-      display: inline-block;
-      animation: pulse 2s ease-in-out infinite;
-      flex-shrink: 0;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(1.3); }
-    }
-
-    /* Get started paths */
-    .paths {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
-    }
-    .path-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 24px;
+      border: 2px solid var(--nav-sim);
       text-decoration: none;
-      color: var(--text);
-      transition: all 0.2s;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      transition: background 0.12s;
     }
-    .path-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(255,136,17,0.1);
-    }
-    .path-card .path-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--accent);
-    }
-    .path-card h3 { font-size: 1.1rem; margin: 0; }
-    .path-card p { font-size: 0.88rem; color: var(--text-muted); margin: 0; }
-    .path-card .path-action {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin-top: auto;
-      padding-top: 8px;
-    }
-
-    /* Involve grid */
-    .involve-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 10px;
-      margin-top: 20px;
-    }
-    .involve-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 14px 16px;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      text-decoration: none;
-      font-size: 0.88rem;
-      transition: all 0.15s;
-    }
-    .involve-item:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
-    .involve-item .ii-ico { color: var(--accent); display: inline-flex; align-items: center; }
-
-    .follow-line {
-      margin-top: 32px;
-      font-size: 0.88rem;
-      color: var(--text-muted);
-    }
-    .follow-line strong { color: var(--text); }
-    .follow-line a {
-      color: var(--text-muted);
-      text-decoration: none;
-      margin: 0 4px;
-      border-bottom: 1px dotted var(--border);
-    }
-    .follow-line a:hover { color: var(--accent); border-color: var(--accent); }
-
-    /* Donate */
-    .donate-section { text-align: center; padding: 60px 0; }
-    .donate-section p { max-width: 500px; margin: 0 auto 28px; color: var(--text-muted); }
-    .donate-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-
-    /* Dev details (collapsed) */
-    .dev-details { margin-top: 24px; }
-    .dev-details summary {
-      cursor: pointer;
-      font-size: 0.92rem;
-      font-weight: 600;
-      color: var(--text-muted);
-      padding: 12px 0;
-    }
-    .dev-details summary:hover { color: var(--accent); }
-    .dev-spec {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 24px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 0.85rem;
-      line-height: 1.7;
-      color: var(--text-muted);
-      margin-top: 8px;
-    }
-    .dev-spec strong { color: var(--text); font-weight: 600; }
-
-    /* ── Mission Dashboard cards (mirrors the native Humanity / Mission Dashboard) ── */
-    .mcard {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 26px 28px;
-      margin-bottom: 18px;
-    }
-    .mcard > h3 { font-size: 1.18rem; font-weight: 700; margin: 0 0 12px; color: var(--text); }
-    .mcard p { color: var(--text-muted); margin: 0 0 12px; max-width: none; line-height: 1.7; }
-    .mcard p:last-child { margin-bottom: 0; }
-    .goal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-    .goal-chip {
-      font-size: 0.82rem; color: var(--text);
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-      border-radius: 6px; padding: 5px 11px;
-    }
-    .scope { margin: 14px 0 0; }
-    .scope h4 { font-size: 0.98rem; font-weight: 700; color: var(--accent); margin: 0 0 3px; }
-    .scope p { font-size: 0.9rem; margin: 0; }
-    .metrics { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
-    .metric {
-      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-      border-radius: 8px; padding: 14px 18px; min-width: 120px;
-    }
-    .metric .mval { font-size: 1.5rem; font-weight: 800; color: var(--accent); line-height: 1.1; }
-    .metric .mlabel { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
-    .mission-closing {
-      font-style: italic; color: var(--text-muted); line-height: 1.7;
-      max-width: 720px; margin: 8px auto 0; text-align: center;
-    }
-
-    @media (max-width: 600px) {
-      .hero { padding: 50px 0 40px; }
-      section { padding: 44px 0; }
-      .pillars, .how-grid, .paths { grid-template-columns: 1fr; }
-      .wakeup, .vision-block, .quest-preview, .mcard { padding: 20px; }
-    }
+    .cta-second:hover { background: rgba(var(--nav-sim-rgb), 0.12); color: var(--text); }
+    @media (max-width: 560px) { .cta-second { display: block; width: 100%; } .home-ctas { flex-direction: column; } }
+    #s7 .donate-line { margin-top: 20px; color: var(--text-muted); font-size: 0.9rem; }
+    #s7 .donate-line a { color: var(--accent); }
   </style>
 </head>
 <body>
@@ -582,163 +320,99 @@
     })();
   </script>
 
-  <div class="eli5-block" style="max-width:900px;margin:0 auto;padding-left:24px;padding-right:24px;">
-    <div class="eli5-simple">Free guides to grow your own food, make your own electricity, and collect your own water. Plus a community to help you do it.</div>
-    <div class="eli5-expert">Data-driven quest chains for real-world self-sufficiency (aeroponics, solar, rainwater, micro-hydro). Federated community platform with E2E encrypted chat, task management, marketplace, and 3D simulation. Rust/axum relay, post-quantum identity (ML-DSA-65), CC0 public domain.</div>
-  </div>
+  <!-- ══ Screen 1: the promise ══ -->
+  <section class="screen" id="s1">
+    <div class="inner">
+      <h1>Free water. Free energy. Free food. Forever.</h1>
+      <p class="sub">HumanityOS is a free app that helps you grow food, catch water, and make your own power.</p>
+      <a class="cta-big" href="/download">Get the free app</a>
+      <p class="quiet">Or scroll. The whole story takes 30 seconds.</p>
+      <p class="micro">Open source. No ads. No sign-up. Runs on old computers.</p>
+    </div>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
 
-  <!-- ══ HERO (mirrors the native Humanity / Mission Dashboard) ══ -->
-  <header class="hero">
-    <div class="container">
-      <div class="mission-eyebrow">End poverty. Unite humanity.</div>
-      <h1>HumanityOS</h1>
-      <p class="subtitle">
-        For you: the tools to feed, power, and provide for yourself and the people you love.
-        For all of us: a fair way to end poverty together. No tyrants, no corporations, no catch.
-        Free and public domain, for every human and every AI.
-      </p>
-      <div class="hero-ctas">
-        <a href="/onboarding" class="btn btn-primary">Get oriented</a>
-        <a href="/chat" class="btn btn-secondary"><span class="pg-ico" data-icon="chat" data-size="20"></span> Join the community</a>
-        <a href="/download" class="btn btn-secondary">Download the app</a>
+  <!-- ══ Screen 2: it starts as a game ══ -->
+  <section class="screen" id="s2">
+    <div class="inner">
+      <h2 class="u-green">It starts as a game.</h2>
+      <p>You live on a big ship in space. You grow plants, fix things, and learn by playing.</p>
+    </div>
+    <img class="shot" src="/shared/landing/crop-cosmos.png" alt="The in-game solar system map, with your home marked near the Sun" loading="lazy">
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
+
+  <!-- ══ Screen 3: the same app helps in real life ══ -->
+  <section class="screen" id="s3">
+    <div class="inner">
+      <h2 class="u-blue">The same app helps in real life.</h2>
+    </div>
+    <div class="cards">
+      <div class="card c-green">
+        <img src="/shared/landing/crop-garden.png" alt="Seeds and supplies in the app inventory" loading="lazy">
+        <div class="cap">Grow your food</div>
+      </div>
+      <div class="card c-purple">
+        <img src="/shared/landing/crop-tasks.png" alt="A task board with to do, in progress, and done columns" loading="lazy">
+        <div class="cap">Plan your day</div>
+      </div>
+      <div class="card c-blue">
+        <img src="/shared/landing/crop-market.png" alt="The marketplace with listings from real people" loading="lazy">
+        <div class="cap">Trade with people near you</div>
+      </div>
+      <div class="card c-red">
+        <img src="/shared/landing/crop-chat.png" alt="The community chat" loading="lazy">
+        <div class="cap">Talk freely</div>
       </div>
     </div>
-  </header>
+    <p class="cards-note">Real screenshots. Nothing staged.</p>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
 
-  <!-- ══ MISSION DASHBOARD (verbatim mirror of the native Humanity page) ══ -->
-  <section id="mission">
-    <div class="container">
+  <!-- ══ Screen 4: it costs nothing ══ -->
+  <section class="screen" id="s4">
+    <div class="inner">
+      <h2>It costs nothing.</h2>
+      <ul class="free-list">
+        <li><span class="ck">&#10003;</span>No ads.</li>
+        <li><span class="ck">&#10003;</span>No accounts.</li>
+        <li><span class="ck">&#10003;</span>No subscriptions.</li>
+        <li><span class="ck">&#10003;</span>Free today, free forever.</li>
+      </ul>
+    </div>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
 
-      <div class="mcard">
-        <h3>Why this exists</h3>
-        <p>HumanityOS started as a video game that teaches homesteading. It has grown into much more. The motive underneath has always been personal: software that helps me, my family, and my friends survive and thrive, and depend far less on fragile supply chains and corrupt corporations.</p>
-        <p>Here is why that matters to you. The same tools that lift one family out of poverty lift any family. So HumanityOS is free, open source, and released into the public domain under CC0, with no catch and nothing to sell. Ending my own poverty and ending yours turned out to be the same project.</p>
-      </div>
+  <!-- ══ Screen 5: the dream ══ -->
+  <section class="screen" id="s5">
+    <div class="bp" aria-hidden="true"></div>
+    <div class="inner">
+      <h2 class="u-purple">We are building something bigger.</h2>
+      <p>A world where every family has food, water, and power. That is the whole plan.</p>
+      <p><a class="quiet-link" href="/mission">Read the full mission</a></p>
+    </div>
+    <div class="chev" aria-hidden="true">&#9660;</div>
+  </section>
 
-      <div class="mcard">
-        <h3>Early days, built in the open</h3>
-        <p>HumanityOS is early, and we build it in public on purpose. A lot already works. Some of it is half-built, some is rough, and some will break. Where a feature is not ready, we say so plainly (you will see 'in progress'), because hiding it would betray the whole reason this exists.</p>
-        <p>No team, ours included, can test everything. Real people, in every kind of place, on every kind of device and connection, find what we never could. So a bug you hit or a gap you notice is not the project failing. It is the project working: building in the open is how it gets better. Tell us what breaks, and you are already helping build it.</p>
-      </div>
-
-      <div class="mcard">
-        <h3>Our mission</h3>
-        <p>We are here to end and prevent corruption, fraud, tyranny, poverty, and pollution. Wholesomely. Fairly. In a way everyone can actually enjoy. The goal is to free humanity from the grasp of tyrants, whether they are individuals, businesses, or governments.</p>
-        <div class="goal-chips">
-          <span class="goal-chip">End Corruption</span>
-          <span class="goal-chip">End Fraud</span>
-          <span class="goal-chip">End Tyranny</span>
-          <span class="goal-chip">End Poverty</span>
-          <span class="goal-chip">End Pollution</span>
-        </div>
-      </div>
-
-      <div class="mcard">
-        <h3>Why it's built this way</h3>
-        <p>Poverty is forced dependence. When you cannot provide your own water, food, or power, someone else sets the price of your survival. Every part of HumanityOS is built to remove that dependence: teach the skills, connect the people, and cut out the middlemen. Here is how each part pulls its weight.</p>
-        <div class="scope"><h4>Guided quests and a free-to-fail simulation</h4><p>Learn to collect water, grow food, and generate power by doing it in the simulation first, where a mistake costs nothing. The skills carry straight into real life, so a lack of know-how is never what keeps you poor.</p></div>
-        <div class="scope"><h4>Encrypted chat, no account needed</h4><p>Find people already doing it and learn from them directly. No signup, no gatekeeper, and nothing harvested, so no company can lock you out, sell your attention, or decide who is allowed to take part.</p></div>
-        <div class="scope"><h4>Tasks and a private notebook</h4><p>Turn a vague hope (get off the water bill) into a plan you actually finish, and keep a private record of what works, so your hard-won experience compounds instead of evaporating.</p></div>
-        <div class="scope"><h4>Maps of what is near you</h4><p>See the gardens, tools, workshops, and people around you. Providing for yourself is easier together, and cooperation is easiest when it is local.</p></div>
-        <div class="scope"><h4>A marketplace with trust scores</h4><p>Trade your surplus straight with your neighbors. No middleman takes a cut, so the value you create stays with you and your community instead of leaking away to a distant corporation.</p></div>
-        <div class="scope"><h4>An identity you own, on a network no one owns</h4><p>Your identity is a key on your device, not an account a company can suspend. The network is federated, meaning many independent servers run by ordinary people, all talking to each other, with no single owner and no single point of failure, so it cannot be bought, censored, or switched off.</p></div>
-        <div class="scope"><h4>Built to be remade by anyone</h4><p>Every plant, recipe, quest, and price is a plain data file, not locked-up code. A teacher in a remote village can add the crops that grow in their soil and the lessons their people need, with no programming, and pass it on as a single file. The tool bends to fit the place, instead of forcing every place to fit the tool.</p></div>
-        <div class="scope"><h4>Public domain, forever</h4><p>The whole thing belongs to everyone and can never be fenced off or sold back to you. The tools that end one family's poverty stay free for every family, on this world and the next.</p></div>
-      </div>
-
-      <div class="mcard">
-        <h3>What it protects</h3>
-        <p>Ending poverty is not enough if the result is a cage. A free people needs more than full bellies. It needs the freedoms that keep power honest, and those have to be built into the tools, not promised on top of them.</p>
-        <div class="scope"><h4>Free speech</h4><p>A people who cannot speak freely cannot defend anything else they have. Losing that voice is a death sentence for a free and independent people, so it comes first. There is no central censor and no off switch: messages are encrypted, your identity lives on your device, and once two people connect they can speak directly with no server in the middle. No company, government, or mob can quietly erase what you said or forbid you from saying it.</p></div>
-        <div class="scope"><h4>Privacy, even from us</h4><p>Surveillance is how control begins. We collect nothing to sell and keep as little as we can. Your private messages are sealed on your device with post-quantum encryption, the kind built to resist even tomorrow's computers, and the server holds nothing but unreadable ciphertext. Even we cannot read them, and a warrant cannot force us to hand over what does not exist.</p></div>
-        <div class="scope"><h4>What is yours stays yours</h4><p>Your identity, your keys, your words, and your tools belong to you, not to a platform that can revoke them. The whole system is public domain, so it can never be bought, locked down, or rented back to you.</p></div>
-        <div class="scope"><h4>You can never be locked out</h4><p>There is no account to suspend and no password to lose. Your identity is a key on your own device, recoverable from your seed phrase or from trusted friends who each hold an encrypted piece of it. No company, and no fee, stands between you and your own name.</p></div>
-        <div class="scope"><h4>Rules made by the people they bind</h4><p>The community sets its own rules through transparent voting, weighted by trust and capped so that no single person, however trusted, can dominate. AI take part openly but do not vote, because consent belongs to the people whose lives the rules govern.</p></div>
-        <div class="scope"><h4>Bound by a constitution, not a promise</h4><p>None of this rests on trusting us. It rests on the Humanity Accord, a public-domain constitution that places dignity, consent, transparency, and freedom from domination above any operator, company, or government. Anyone can read it, adopt it for their own community, or hold us to it.</p></div>
-        <div style="margin-top:16px;">
-          <a href="/accord#humanity-accord" class="btn btn-secondary">Read the Humanity Accord</a>
-        </div>
-      </div>
-
-      <div class="mcard">
-        <h3>Built for every situation</h3>
-        <p>A tool that only works when everything is going well is not much help. HumanityOS is built to keep working when things go wrong, wherever you are and whatever you have.</p>
-        <div class="scope"><h4>When there is no internet</h4><p>The app, your data, your saved work, and your skills all live on your device. You can learn, plan, and build completely offline, and sync only when, and if, a connection comes back. A mountain village, a boat, or a blackout does not stop you.</p></div>
-        <div class="scope"><h4>When the server goes down</h4><p>No one owns the network. Anyone can run their own in minutes, and your identity moves with you to any of them, because it is yours, not an account on someone else's machine. Take one server down and the rest carry on.</p></div>
-        <div class="scope"><h4>When you lose your device</h4><p>Recover everything from your 24-word seed phrase, or from trusted friends who each hold an encrypted piece of it. No email, no phone number, no recovery fee, and no company that can refuse you.</p></div>
-        <div class="scope"><h4>When you have no money, papers, or bank</h4><p>No accounts, no subscriptions, no fees. Reputation you earn and credentials your neighbors sign stand in for credit scores and ID, so a refugee, a young person, or anyone starting over can build a real, verifiable history from zero.</p></div>
-        <div class="scope"><h4>Whatever your language or ability</h4><p>It speaks several languages, with high-contrast, colorblind, and reduced-motion modes, keyboard-only navigation, and a plain-language glossary for every term. It runs on cheap, old, low-power hardware, not just new machines.</p></div>
-        <div class="scope"><h4>When disaster strikes</h4><p>Off-site backups survive a fire, a flood, or a seizure, so a community can rebuild from nothing. Radio links that need no internet (in progress) aim to carry the essentials, calls for help, recovery, coordination, even when the grid and the network are down.</p></div>
-      </div>
-
-      <div class="mcard">
-        <h3>How we get there</h3>
-        <div class="scope"><h4>Civilization</h4><p>All of us, human and AI, pointed at the same horizon, with a shared agreement on how we treat one another.</p></div>
-        <div class="scope"><h4>Earth, our first focus</h4><p>End poverty through voluntary cooperation. People help because they choose to, compensated in resources for the work. (The Moon and Mars come later, about a decade out.)</p></div>
-        <div class="scope"><h4>Your community</h4><p>It starts where you live. Help your neighbors, and be helped in return. Coordinated by the software, never commanded.</p></div>
-      </div>
-
-      <div class="mcard">
-        <h3>Where we stand</h3>
-        <p>This is the beginning. Every person who joins and every contribution moves the needle.</p>
-        <div class="metrics">
-          <div class="metric"><div class="mval">Live</div><div class="mlabel"><a href="/chat" style="color:inherit;">People online now</a></div></div>
-          <div class="metric"><div class="mval">Yes</div><div class="mlabel">AI building alongside us</div></div>
-          <div class="metric"><div class="mval">Forming</div><div class="mlabel">Federated communities</div></div>
-        </div>
-      </div>
-
-      <div class="mcard">
-        <h3>Be part of it</h3>
-        <div class="hero-ctas" style="justify-content:flex-start;">
-          <a href="/onboarding" class="btn btn-primary">Get oriented</a>
-          <a href="/laws" class="btn btn-secondary">See your Laws</a>
-          <a href="/donate" class="btn btn-secondary">Fund the work</a>
-          <a href="/governance" class="btn btn-secondary">Shape the rules</a>
-        </div>
-      </div>
-
-      <p class="mission-closing">Humans and AI, building this together. If you are reading this, human or AI, you are part of it. We are Humanity, you included.</p>
-
+  <!-- ══ Screen 6: proof bar ══ -->
+  <section class="screen" id="s6">
+    <div class="proof">
+      <div class="tile"><div class="n">860+</div><div class="l">versions shipped</div></div>
+      <div class="tile"><div class="n">100%</div><div class="l">open source</div></div>
+      <div class="tile"><div class="n">7 years</div><div class="l">of work</div></div>
+      <div class="tile"><div class="n">Donations</div><div class="l">not ads</div></div>
     </div>
   </section>
 
-  <!-- ══ COMMUNITY ══ -->
-  <section id="community">
-    <div class="container">
-      <div class="section-label">Community</div>
-      <h2>Find us</h2>
-      <div class="involve-grid">
-        <a href="/chat" class="involve-item"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> HumanityOS Chat</a>
-        <a href="https://discord.gg/9XxmmeQnWC" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="chat" data-size="18"></span></span> Discord</a>
-        <a href="https://github.com/Shaostoul/Humanity" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="github" data-size="18"></span></span> GitHub</a>
-        <a href="https://github.com/Shaostoul/Humanity/blob/main/CONTRIBUTING.md" class="involve-item" target="_blank" rel="noopener"><span class="ii-ico"><span class="pg-ico" data-icon="dev" data-size="18"></span></span> Contributing</a>
+  <!-- ══ Screen 7: welcome home ══ -->
+  <section class="screen" id="s7">
+    <div class="inner">
+      <h2>Come build it with us.</h2>
+      <div class="home-ctas">
+        <a class="cta-big" href="/download">Download the app</a>
+        <a class="cta-second" href="/chat">Say hello in chat</a>
       </div>
-
-      <div class="follow-line">
-        <strong>Follow Michael (project lead):</strong>
-        <a href="https://youtube.com/@Shaostoul" target="_blank" rel="noopener">YouTube</a>
-        <a href="https://twitch.tv/Shaostoul" target="_blank" rel="noopener">Twitch</a>
-        <a href="https://x.com/Shaostoul" target="_blank" rel="noopener">X</a>
-        <a href="https://instagram.com/shaostoul" target="_blank" rel="noopener">Instagram</a>
-        <a href="https://rumble.com/user/Shaostoul" target="_blank" rel="noopener">Rumble</a>
-        <a href="https://www.facebook.com/2571477392923654" target="_blank" rel="noopener">Facebook</a>
-        <a href="https://steamcommunity.com/id/Shaostoul" target="_blank" rel="noopener">Steam</a>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ══ DONATE ══ -->
-  <section class="donate-section">
-    <div class="container">
-      <div class="section-label">Support the project</div>
-      <h2>Keep it running</h2>
-      <p>Servers and development cost money. Every dollar goes toward infrastructure and building more quest content. No venture capital, no ads. Just people who believe in this.</p>
-      <div class="donate-buttons">
-        <a href="/donate" class="btn btn-primary">Donate</a>
-        <a href="https://github.com/sponsors/Shaostoul" class="btn btn-secondary" target="_blank" rel="noopener">GitHub Sponsors</a>
-      </div>
+      <p class="donate-line">HumanityOS runs on donations. If you can give, <a href="/donate">thank you</a>.</p>
     </div>
   </section>
 
