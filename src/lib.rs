@@ -6673,26 +6673,38 @@ mod native_app {
         // Ultra read entirely. Default "auto" => cap 2 => biggest installed
         // wins (unchanged for players).
         let t_sky = Instant::now();
-        let star_tier_cap = crate::renderer::stars::StarCatalogTier::resolve_cap(
-            &state.gui_state.settings.star_catalog_tier,
-        );
-        let star_catalog = crate::renderer::stars::StarCatalog::load(&state.data_dir, star_tier_cap);
-        state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
-            crate::renderer::stars::StarRenderer::new(
-                &state.renderer.device,
-                &state.renderer.queue,
-                state.renderer.surface_format(),
-                catalog,
-                &state.data_dir,
-                // Ultra Milky Way glow tier (2026-07-11): built here with the
-                // rest of the sky, so a tier change applies next world entry
-                // (same convention as the star catalog tiers). Also gated by the
-                // star-tier cap so the dev fast path (cap < 2) ALSO drops the
-                // heavy Ultra glow texture, per the operator's "the mega skybox
-                // thing AND the other versions".
-                state.gui_state.settings.sky_glow_tier == "ultra" && star_tier_cap >= 2,
-            )
-        });
+        if let Some(rx) = state.star_preload_rx.take() {
+            // First entry: the boot-time background thread (see resumed())
+            // built the sky already - or is about to finish; recv() blocks at
+            // most as long as the old synchronous path took. Boot-time
+            // settings apply, matching the "tier changes apply next world
+            // entry" convention.
+            state.star_renderer = rx.recv().ok().flatten();
+        } else {
+            // Later entries (character switch / tier change): synchronous
+            // rebuild with the CURRENT settings, exactly as before.
+            let star_tier_cap = crate::renderer::stars::StarCatalogTier::resolve_cap(
+                &state.gui_state.settings.star_catalog_tier,
+            );
+            let star_catalog =
+                crate::renderer::stars::StarCatalog::load(&state.data_dir, star_tier_cap);
+            state.star_renderer = star_catalog.as_ref().and_then(|catalog| {
+                crate::renderer::stars::StarRenderer::new(
+                    &state.renderer.device,
+                    &state.renderer.queue,
+                    state.renderer.surface_format(),
+                    catalog,
+                    &state.data_dir,
+                    // Ultra Milky Way glow tier (2026-07-11): built here with the
+                    // rest of the sky, so a tier change applies next world entry
+                    // (same convention as the star catalog tiers). Also gated by the
+                    // star-tier cap so the dev fast path (cap < 2) ALSO drops the
+                    // heavy Ultra glow texture, per the operator's "the mega skybox
+                    // thing AND the other versions".
+                    state.gui_state.settings.sky_glow_tier == "ultra" && star_tier_cap >= 2,
+                )
+            });
+        }
         state.boot_timer.since("star_catalog_and_glow", t_sky);
 
         // ── Planets (procedural fractal surfaces, v0.763) ──
@@ -7223,6 +7235,13 @@ mod native_app {
         system_runner: SystemRunner,
         data_store: DataStore,
         star_renderer: Option<crate::renderer::stars::StarRenderer>,
+        /// Background star-sky prebuild (v0.865 boot speed): a thread spawned
+        /// at startup loads the catalog + Milky Way glow and builds the whole
+        /// StarRenderer while the user reads the chat screen; world entry then
+        /// just receives it (or blocks briefly if they beat the thread).
+        /// None once consumed - a later world entry (tier change) rebuilds
+        /// synchronously as before.
+        star_preload_rx: Option<std::sync::mpsc::Receiver<Option<crate::renderer::stars::StarRenderer>>>,
         floating_origin: crate::renderer::floating_origin::FloatingOrigin,
         /// Procedural surface parameters per sky body, loaded from
         /// `data/planets/<body_id>.ron` at world load (v0.763). Bodies
@@ -8267,6 +8286,46 @@ mod native_app {
             let t_boot = std::time::Instant::now();
             load_data_registries(&mut data_store, &data_dir);
             boot_timer.since("eager_data_registries", t_boot);
+            // ── Background star-sky prebuild (v0.865 boot speed) ──
+            // star_catalog_and_glow measured 4100 ms ON the world-entry path:
+            // catalog read + vertex packing + glow PNG decode + GPU upload.
+            // None of it needs the main thread (wgpu Device/Queue are Arc-backed
+            // and thread-safe), so build the ENTIRE StarRenderer while the user
+            // is still on the chat screen. Entering the world receives the
+            // finished sky; only someone who beats the thread waits (and then
+            // exactly as long as they would have anyway).
+            let star_preload_rx = {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let device = renderer.device.clone();
+                let queue = renderer.queue.clone();
+                let format = renderer.surface_format();
+                let sky_dir = data_dir.clone();
+                let tier_setting = gui_state.settings.star_catalog_tier.clone();
+                let ultra_glow = gui_state.settings.sky_glow_tier == "ultra";
+                std::thread::spawn(move || {
+                    let t = std::time::Instant::now();
+                    let cap = crate::renderer::stars::StarCatalogTier::resolve_cap(&tier_setting);
+                    let built = crate::renderer::stars::StarCatalog::load(&sky_dir, cap)
+                        .as_ref()
+                        .and_then(|catalog| {
+                            crate::renderer::stars::StarRenderer::new(
+                                &device,
+                                &queue,
+                                format,
+                                catalog,
+                                &sky_dir,
+                                ultra_glow && cap >= 2,
+                            )
+                        });
+                    log::info!(
+                        "[Boot] star sky prebuilt in background: {} ms ({})",
+                        t.elapsed().as_millis(),
+                        if built.is_some() { "ok" } else { "unavailable" }
+                    );
+                    let _ = tx.send(built);
+                });
+                Some(rx)
+            };
             // STARTER VEHICLES (v0.694, operator: "update the player home to have
             // a prebuilt vehicle so I don't have to assemble the factory, mine
             // resources, etc." -- headlined by their 1975 Chevy Nova, the first
@@ -8413,6 +8472,7 @@ mod native_app {
                 data_store,
                 // 3D world state: empty defaults, loaded lazily on first Enter World
                 star_renderer: None,
+                star_preload_rx,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
