@@ -30,9 +30,9 @@
 //! tiling, range, and determinism below.
 
 /// Shape texture edge length (texels per axis). 128^3 RGBA8 = 8 MiB.
-pub const SHAPE_SIZE: u32 = 128;
+pub const SHAPE_SIZE: u32 = 192;
 /// Detail texture edge length. 64^3 RGBA8 = 1 MiB.
-pub const DETAIL_SIZE: u32 = 64;
+pub const DETAIL_SIZE: u32 = 128;
 
 // Channel seeds: arbitrary fixed constants so the volume is deterministic
 // across machines and sessions (the per-planet variety comes from the

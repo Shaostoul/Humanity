@@ -156,6 +156,27 @@ impl Renderer {
         let width = size.width.max(1);
         let height = size.height.max(1);
 
+        // Cloud-noise generation starts NOW on a background thread so the
+        // 192^3 + 128^3 volume bake overlaps adapter/device/shader-compile
+        // time; init() recv()s only the unfinished remainder (v0.872).
+        let cloud_rx = {
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || {
+                let threads =
+                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+                let t0 = std::time::Instant::now();
+                let shape = cloud_noise::generate_shape(threads);
+                let detail = cloud_noise::generate_detail(threads);
+                log::info!(
+                    "Cloud noise volumes generated in background: {:.0} ms ({} threads)",
+                    t0.elapsed().as_secs_f32() * 1000.0,
+                    threads
+                );
+                let _ = tx.send((shape, detail));
+            });
+            Some(rx)
+        };
+
         // DX12-only on Windows. wgpu unconditionally compiles Vulkan support
         // (hardcoded in wgpu's Cargo.toml for wgpu-core). Even with Backends::DX12,
         // wgpu still loads vulkan-1.dll during instance creation and enumerates
@@ -215,7 +236,7 @@ impl Renderer {
 
         let surface = instance.create_surface(window).expect("Failed to create surface");
 
-        Self::init(instance, surface, width, height).await
+        Self::init(instance, surface, width, height, cloud_rx).await
     }
 
     /// Create a new renderer attached to a WASM canvas element.
@@ -233,15 +254,18 @@ impl Renderer {
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas))
             .expect("Failed to create surface from canvas");
 
-        Self::init(instance, surface, width, height).await
+        Self::init(instance, surface, width, height, None).await
     }
 
     /// Shared initialization: adapter, device, pipeline, depth buffer.
+    /// `cloud_rx`: pre-spawned cloud-noise generation (native path) so the
+    /// volume bake overlaps device/shader init; None generates inline (wasm).
     async fn init(
         instance: wgpu::Instance,
         surface: wgpu::Surface<'static>,
         width: u32,
         height: u32,
+        cloud_rx: Option<std::sync::mpsc::Receiver<(Vec<u8>, Vec<u8>)>>,
     ) -> Self {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -447,18 +471,28 @@ impl Renderer {
         );
         let white_view = white_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Tiling 3D cloud-noise volumes (clouds increment 3): generated
-        // procedurally at startup (multithreaded, deterministic, no repo
-        // assets) and shared by every group-3 bind group at bindings 2..4.
-        // 128^3 + 64^3 RGBA8 = 9 MiB VRAM total.
-        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+        // Tiling 3D cloud-noise volumes (clouds increment 3; res raised
+        // 128/64 -> 192/128 in v0.872): generated procedurally, deterministic,
+        // no repo assets, shared by every group-3 bind group at bindings 2..4.
+        // Generation runs on a BACKGROUND thread spawned at the very top of
+        // renderer creation, overlapping the DXC shader compiles, so the
+        // bigger volumes cost boot nothing: this recv() only blocks for
+        // whatever remainder has not finished by the time uploads start.
         let gen_start = std::time::Instant::now();
-        let shape_bytes = cloud_noise::generate_shape(threads);
-        let detail_bytes = cloud_noise::generate_detail(threads);
+        let (shape_bytes, detail_bytes) = match cloud_rx {
+            Some(rx) => rx.recv().expect("cloud noise generator thread died"),
+            None => {
+                // Fallback (wasm / callers without the pre-spawn): inline.
+                let threads =
+                    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
+                (cloud_noise::generate_shape(threads), cloud_noise::generate_detail(threads))
+            }
+        };
         log::info!(
-            "Cloud noise volumes generated: 128^3 shape + 64^3 detail in {:.0} ms ({} threads)",
+            "Cloud noise volumes ready: {s}^3 shape + {d}^3 detail (waited {:.0} ms at upload)",
             gen_start.elapsed().as_secs_f32() * 1000.0,
-            threads
+            s = cloud_noise::SHAPE_SIZE,
+            d = cloud_noise::DETAIL_SIZE,
         );
         let make_volume = |label: &str, size: u32, bytes: &[u8]| -> wgpu::TextureView {
             let tex = device.create_texture(&wgpu::TextureDescriptor {

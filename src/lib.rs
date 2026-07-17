@@ -2868,6 +2868,21 @@ mod native_app {
     /// fly integration is separately gated off in surface mode).
     const SURFACE_SPEED_MULT_MAX: f64 = 2000.0;
 
+    /// Co-rotation ceiling (v0.872, operator: "when I desync from Earth once I
+    /// get like 10 miles up my camera resets... I'm still very close to
+    /// Earth"). The frame rides the planet's spin through the whole
+    /// atmosphere band - a plane at 15 km moves with the atmosphere - so the
+    /// old 10 km cliff no longer exists. Walk/gravity mechanics still gate on
+    /// SURFACE_ENGAGE_ALT; 10-100 km is free co-rotating flight.
+    const CO_ROTATE_MAX_ALT: f64 = 100_000.0;
+    /// Between CO_ROTATE_MAX_ALT and this altitude the camera's up-vector
+    /// EASES from radial (horizon level) to inertial world-Y (the orbit/ISS
+    /// view) instead of snapping, and position goes inertial. Beyond it the
+    /// surface basis fully releases. (True Hill-sphere/SOI frame hierarchy
+    /// governs TRANSLATION when we leave Earth's locale - Earth is the frame
+    /// origin today, so what the player feels is this rotation/up handoff.)
+    const INERTIAL_BLEND_MAX_ALT: f64 = 1_000_000.0;
+
     /// Ground radius (metres from the body centre) of the DRAWN surface at a
     /// unit direction in the body's UNROTATED local frame. Samples the real
     /// heightmap (analytic, no mesh raycast) and applies `displaced_radius_f64`
@@ -7267,6 +7282,14 @@ mod native_app {
         /// deep patches + the ground clamp sample it via tile_or_base. An
         /// empty/absent tile dir simply leaves the base grid in charge.
         terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles,
+        /// True while the player is in the surface WALK band (< 10 km): edge-
+        /// detects touchdown for the gear reset (v0.872 band split).
+        surface_walk_band: bool,
+        /// True while the co-rotate band OWNS translation (walk + atmospheric
+        /// flight, < 100 km): gates the world-scale FTL integration. One frame
+        /// stale by design (the frame-lock section runs after the fly
+        /// integration each frame).
+        surface_owns_translation: bool,
         floating_origin: crate::renderer::floating_origin::FloatingOrigin,
         /// Procedural surface parameters per sky body, loaded from
         /// `data/planets/<body_id>.ron` at world load (v0.763). Bodies
@@ -8508,6 +8531,8 @@ mod native_app {
                 terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
+                surface_walk_band: false,
+                surface_owns_translation: false,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
@@ -9934,12 +9959,15 @@ mod native_app {
                         && state.controller.fly_speed_mult
                             > crate::renderer::camera::LOCAL_FLY_MULT_MAX
                         // Never let the world-scale FTL integration run while
-                        // standing on a surface (2026-07-12): otherwise the one
-                        // wheel notch past the cap (1000 -> 10000x) turns a tiny
-                        // W/Space tap into an 80-800 km/frame launch that flings
-                        // the player straight off the planet to orbit. Surface
-                        // speed is scaled smoothly in the frame-lock branch below.
-                        && !state.camera.surface_mode
+                        // the SURFACE branch owns translation (2026-07-12):
+                        // otherwise the one wheel notch past the cap turns a
+                        // tiny W/Space tap into an 80-800 km/frame launch.
+                        // v0.872: gate on the translation-ownership flag, NOT
+                        // camera.surface_mode - surface_mode now stays on
+                        // through the 100-1000 km up-blend band where the FTL
+                        // wheel MUST keep working (operator: "my movement stops
+                        // adjusting based on my mouse wheel warp speed").
+                        && !state.surface_owns_translation
                     {
                         let wish = state.controller.fly_wish_dir(&state.camera);
                         if wish.length_squared() > 0.0 {
@@ -10034,9 +10062,15 @@ mod native_app {
                         let hm = state.planet_heightmaps.get(&lock_body);
                         let ground_r =
                             ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero().as_vec3());
-                        let surface_engaged = (dist - ground_r) < SURFACE_ENGAGE_ALT;
+                        // Altitude bands (v0.872): walk/gravity below 10 km,
+                        // co-rotating free flight to 100 km, an up-vector
+                        // blend to 1000 km, inertial beyond. No more cliff.
+                        let alt = dist - ground_r;
+                        let in_walk_band = alt < SURFACE_ENGAGE_ALT;
+                        let in_corotate_band = alt < CO_ROTATE_MAX_ALT;
+                        let in_blend_band = alt < INERTIAL_BLEND_MAX_ALT;
 
-                        if surface_engaged {
+                        if in_corotate_band {
                             // Was surface mode already engaged last frame? MUST be
                             // read BEFORE set_surface_up (which flips it true).
                             let just_engaged = !state.camera.surface_mode;
@@ -10044,12 +10078,15 @@ mod native_app {
                             // moving around" report): the mouse-wheel fly multiplier
                             // CARRIES OVER from space flight, so arriving from an
                             // FTL descent left walking geared up to 2000x - one W
-                            // tap crossed a county. Snap the wheel to 1x the frame
-                            // the surface engages; scrolling up afterwards still
-                            // reaches the deliberate fast-travel ceiling.
-                            if just_engaged {
+                            // tap crossed a county. Snap the wheel to 1x when
+                            // entering the WALK band specifically (v0.872: the
+                            // co-rotate band now reaches 100 km, where a gear
+                            // reset would be premature).
+                            if in_walk_band && !state.surface_walk_band {
                                 state.controller.fly_speed_mult = 1.0;
                             }
+                            state.surface_walk_band = in_walk_band;
+                            state.surface_owns_translation = true;
                             // Surface HUD readout (v0.867): altitude above the
                             // drawn ground + wheel gear, so height and speed are
                             // never a guess while landing/walking.
@@ -10126,13 +10163,21 @@ mod native_app {
                             if radial_wish > 0.0 {
                                 // Thrust up (Space): the fly control lifts you off.
                                 r += walk_speed.max(1.0) * dt as f64;
-                            } else {
+                            } else if in_walk_band {
+                                // Gravity only in the walk band: on/near the
+                                // ground you settle to standing height.
                                 r = crate::surface_walk::settle_radius(
                                     r,
                                     rest,
                                     dt as f64,
                                     SURFACE_SETTLE_RATE,
                                 );
+                            } else if radial_wish < 0.0 {
+                                // Atmospheric flight band (10-100 km): Shift
+                                // descends deliberately; altitude otherwise
+                                // holds (no gravity drag - this also stops
+                                // parked aerial cameras sinking).
+                                r += radial_wish * walk_speed * dt as f64;
                             }
                             r = crate::surface_walk::clamp_above_ground(
                                 r,
@@ -10154,25 +10199,50 @@ mod native_app {
                             // holds the same compass bearing on the ground.
                             // Subtracting a delta here would spin the world under
                             // a standing player.
+                        } else if in_blend_band {
+                            // ── Ascent transition (100-1000 km, v0.872) ──
+                            // Position is inertial (no co-rotation - the ISS
+                            // regime begins), but the camera's up-vector EASES
+                            // from radial to world-Y across the band instead of
+                            // snapping the moment co-rotation ends (operator:
+                            // "my camera resets... I'm still very close to
+                            // Earth"). set_surface_up preserves the look
+                            // direction each frame, so the handoff is seamless
+                            // in both directions.
+                            state.surface_walk_band = false;
+                            let t = ((alt - CO_ROTATE_MAX_ALT)
+                                / (INERTIAL_BLEND_MAX_ALT - CO_ROTATE_MAX_ALT))
+                                .clamp(0.0, 1.0);
+                            let s = (t * t * (3.0 - 2.0 * t)) as f32; // smoothstep
+                            let up = (radial * (1.0 - s) + glam::Vec3::Y * s).normalize();
+                            state.camera.set_surface_up(up);
+                            state.gui_state.surface_altitude_m = Some(alt.max(0.0) as f32);
+                            state.gui_state.surface_speed_mult =
+                                state.controller.fly_speed_mult as f32;
+                            // Translation is NOT owned here: the normal local
+                            // fly + FTL wheel integration handles movement (the
+                            // ownership flag below releases the FTL gate).
+                            state.surface_owns_translation = false;
+                            state.frame_lock_anchor =
+                                crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
+                            state.frame_lock_last_spin = spin;
                         } else {
-                            // ── Inertial orbit (the ISS view) ── Above the
-                            // surface-engage altitude we do NOT co-rotate: the
-                            // position is left where it is (ship_world_pos
-                            // untouched) and the view yaw is NOT wheeled, so the
-                            // STARFIELD stays fixed and the planet rotates
-                            // naturally beneath the camera. We only TRACK the
-                            // anchor (refresh it from the current position) so a
-                            // later descent re-locks onto the ground right here.
-                            // Pinning + yaw co-rotation used to run out to ~50
-                            // body radii, which slowly turned the whole sky in
-                            // high orbit (operator feedback) - that behaviour now
-                            // lives only in the surface branch above.
+                            // ── Inertial orbit (the ISS view) ── Beyond the
+                            // blend band we do NOT co-rotate: the position is
+                            // left where it is (ship_world_pos untouched) and
+                            // the view yaw is NOT wheeled, so the STARFIELD
+                            // stays fixed and the planet rotates naturally
+                            // beneath the camera. We only TRACK the anchor
+                            // (refresh it from the current position) so a later
+                            // descent re-locks onto the ground right here.
+                            state.surface_walk_band = false;
                             state.camera.clear_surface();
                             state.frame_lock_anchor =
                                 crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
                             state.frame_lock_last_spin = spin;
                         }
                     } else {
+                        state.surface_owns_translation = false;
                         // Not locked to any body (e.g. after "Return home"):
                         // ensure the surface FPS basis is released so the ship /
                         // space camera uses world-Y up again.
@@ -14054,6 +14124,18 @@ mod native_app {
                     // J2000 from the real clock, so the sky matches the
                     // real date (same as Maps "Now").
                     let elapsed = (now - state.start_time).as_secs_f32();
+                    // Planet spin in f64, reduced mod TAU (v0.872 SURFACE JITTER
+                    // FIX): the render path used f32 seconds for the spin angle
+                    // while the frame lock used f64 from the SAME clock. The
+                    // f32 quantization stair-steps a little more every frame,
+                    // rotating the drawn ground relative to the f64-placed
+                    // camera - the "not locked to the planet" jitter, growing
+                    // with uptime (~1 m after 5 minutes). ONE f64 spin value now
+                    // feeds both sides, and the angle is range-reduced before
+                    // any f32 quaternion is built from it.
+                    let spin_f64 = ((now - state.start_time).as_secs_f64()
+                        * crate::dev_travel::PLANET_SPIN_RATE)
+                        .rem_euclid(std::f64::consts::TAU);
                     {
                         let sim_t = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -14083,7 +14165,7 @@ mod native_app {
                             as u32;
                         let viewport_h = state.renderer.surface_size().1 as f32;
                         let fov_deg = state.camera.fov_degrees;
-                        let rotation = Quat::from_rotation_y(elapsed * 0.01);
+                        let rotation = Quat::from_rotation_y(spin_f64 as f32);
                         // Chunked-LOD patch builds are budgeted PER FRAME
                         // across all bodies (in practice at most one body
                         // is ever close enough to be chunk-active).
@@ -14240,7 +14322,7 @@ mod native_app {
                                 // spin the uniform body uses, but composed in
                                 // f64 for anchor placement (precision rule:
                                 // narrow to f32 only at the very end).
-                                let rot_d = glam::DQuat::from_rotation_y((elapsed * 0.01) as f64);
+                                let rot_d = glam::DQuat::from_rotation_y(spin_f64);
                                 // Camera position in the planet's UNROTATED
                                 // local frame, f64 end to end. The camera
                                 // lives at metre scale near the origin (dev

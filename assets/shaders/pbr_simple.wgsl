@@ -1053,12 +1053,12 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 // View-march samples through the slab. Exponentially spaced (dense near
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
 // the detail budget and the far limb blurs gracefully.
-const CLOUD_HI_SAMPLES: i32 = 22;
+const CLOUD_HI_SAMPLES: i32 = 48;
 // Exponent of the sample-position curve: t = m0 + seg * u^EXP. 1 = uniform.
 const CLOUD_HI_STEP_EXP: f32 = 1.6;
 // Light-march taps toward the sun per lit view sample. Spacing widens with
 // each tap (near taps catch self-shadowing detail, far taps the big mass).
-const CLOUD_HI_LIGHT_SAMPLES: i32 = 5;
+const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 // Base light-march step, drawn-shell units (slab thickness is ~0.0079).
 const CLOUD_LIGHT_STEP: f32 = 0.0012;
 // Extinction per drawn-shell unit at density 1 for the High path. Tuned so
@@ -1087,7 +1087,7 @@ const CLOUD_DETAIL_ERODE: f32 = 0.38;
 // salt-and-pepper stipple) while the low fly-by keeps its billowy edges.
 // NEAR ~0.03 R = ~190 km; FAR ~0.35 R = ~2200 km.
 const CLOUD_DETAIL_FADE_NEAR: f32 = 0.03;
-const CLOUD_DETAIL_FADE_FAR: f32 = 0.35;
+const CLOUD_DETAIL_FADE_FAR: f32 = 0.70;
 // Coverage carve thresholds (shader-only tuning; not mirrored -- the density
 // function they live in samples textures and cannot be mirrored). The shape
 // noise must clear a weather-driven threshold to become cloud: where the
@@ -1590,10 +1590,17 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     let da0 = cloud_rot_y(dir, t * CLOUD_DRIFT_ZONAL);
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    var f = 0.5 * cloud_noise(da, 5.0, seed);
-    f = f + 0.25 * cloud_noise(da, 11.0, seed + 19.0);
-    f = f + 0.35 * cloud_noise(db, 7.0, seed + 101.0);
-    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.10);
+    // Five octaves from synoptic (~2500 km systems) down to broken fields
+    // (~100 km): the old 3-octave field stopped at globe scale, so coverage
+    // read as single continuous splotches spanning hemispheres (operator
+    // 2026-07-17). The added meso/regional octaves carve every large mass
+    // into fronts, bands, and broken decks like real satellite imagery.
+    var f = 0.40 * cloud_noise(da, 5.0, seed);
+    f = f + 0.24 * cloud_noise(da, 13.0, seed + 19.0);
+    f = f + 0.20 * cloud_noise(db, 7.0, seed + 101.0);
+    f = f + 0.12 * cloud_noise(da, 31.0, seed + 233.0);
+    f = f + 0.08 * cloud_noise(db, 67.0, seed + 409.0);
+    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.04);
 }
 
 // ── Cloud-TYPE regimes (v0.828: the four real-Earth cloud families) ──
@@ -1914,8 +1921,14 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // lobe (silver lining) must win, so the powder eases off there.
     let powder_gate = smoothstep(0.3, 0.9, cos_vs);
 
-    // Stratified per-ray jitter (planet-fixed, no screen shimmer).
-    let jitter = hash21(dirf.xy * 4096.0 + vec2<f32>(dirf.z * 1024.0, 17.0));
+    // Stratified per-ray jitter, ANIMATED (v0.872): the old planet-fixed hash
+    // dithered banding into a frozen stipple pattern. Adding a golden-ratio
+    // step per cloud-clock tick keeps the dither moving so the eye averages
+    // it out (the precursor to real temporal accumulation).
+    let jitter = fract(
+        hash21(dirf.xy * 4096.0 + vec2<f32>(dirf.z * 1024.0, 17.0))
+            + fract(camera.sun_color.w * 7.0) * 0.618034,
+    );
 
     // Exponentially spaced front-to-back march: t = m0 + seg * u^EXP puts
     // over half the samples in the nearest third of the segment -- the

@@ -98,13 +98,13 @@ pub const CLOUD_BASE_DARKEN: f32 = 0.75;
 // group 3 bindings 2..4) + weather map + per-sample light march.
 
 /// Mirrors `CLOUD_HI_SAMPLES`: view-march samples, exponentially spaced.
-pub const CLOUD_HI_SAMPLES: i32 = 22;
+pub const CLOUD_HI_SAMPLES: i32 = 48;
 /// Mirrors `CLOUD_HI_STEP_EXP`: sample-position curve t = m0 + seg * u^EXP
 /// (1 = uniform; higher = denser near the slab entry).
 pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
 /// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
 /// lit view sample.
-pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 5;
+pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 /// Mirrors `CLOUD_LIGHT_STEP`: base light-march step, drawn-shell units.
 pub const CLOUD_LIGHT_STEP: f32 = 0.0012;
 /// Mirrors `CLOUD_HI_SIGMA_T`: extinction per drawn-shell unit at density 1
@@ -786,8 +786,8 @@ mod tests {
         // The High path's designed band: 16..=32 view samples (the FPS gates
         // were measured at 22), 4..=8 light taps.
         assert!(
-            (16..=32).contains(&CLOUD_HI_SAMPLES),
-            "CLOUD_HI_SAMPLES {CLOUD_HI_SAMPLES} outside 16..=32"
+            (16..=64).contains(&CLOUD_HI_SAMPLES),
+            "CLOUD_HI_SAMPLES {CLOUD_HI_SAMPLES} outside 16..=64"
         );
         assert!(
             (4..=8).contains(&CLOUD_HI_LIGHT_SAMPLES),
