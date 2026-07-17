@@ -216,11 +216,54 @@ impl PlanetHeightmap {
         self.sample_meters_latlon(lat, lon)
     }
 
+    /// Bicubic (Catmull-Rom) elevation in meters at a geographic coordinate.
+    /// Where bilinear produces linear facets between the 0.1-degree cells
+    /// (the "jagged voxel edges" / pyramid-Fuji look, operator 2026-07-16),
+    /// Catmull-Rom fits a smooth curve through a 4x4 neighborhood, so slopes
+    /// roll instead of crease. Slight overshoot at sharp cliffs is inherent
+    /// (and mildly restores peaks the cell-averaging flattened); the
+    /// normalized consumer clamps to the file's 0..1 domain.
+    pub fn sample_meters_latlon_smooth(&self, lat_deg: f32, lon_deg: f32) -> f32 {
+        fn catmull(p0: f32, p1: f32, p2: f32, p3: f32, t: f32) -> f32 {
+            p1 + 0.5
+                * t
+                * (p2 - p0
+                    + t * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3
+                        + t * (3.0 * (p1 - p2) + p3 - p0)))
+        }
+        let t = latlon_bilinear_tap(lat_deg, lon_deg, self.width, self.height);
+        let mut rows = [0.0f32; 4];
+        for (i, row) in rows.iter_mut().enumerate() {
+            let y = t.y0 + i as i64 - 1;
+            *row = catmull(
+                self.grid_meters(t.x0 - 1, y),
+                self.grid_meters(t.x0, y),
+                self.grid_meters(t.x0 + 1, y),
+                self.grid_meters(t.x0 + 2, y),
+                t.tx,
+            );
+        }
+        catmull(rows[0], rows[1], rows[2], rows[3], t.ty)
+    }
+
+    /// Smooth (bicubic) elevation at a unit-sphere direction; the geometry
+    /// counterpart of `sample_meters`.
+    pub fn sample_meters_smooth(&self, unit: Vec3) -> f32 {
+        let (lat, lon) = dir_to_latlon_deg(unit);
+        self.sample_meters_latlon_smooth(lat, lon)
+    }
+
     /// Elevation at a unit-sphere direction, normalized to the 0..1 domain
     /// `planet_surface::displaced_radius` / `classify_color` consume
     /// (0 = min_m, 1 = max_m -- pair with `sea_level_normalized`).
+    /// Uses the SMOOTH sampler: every geometry consumer (patch meshes, the
+    /// uniform sphere, the player ground clamp in lib.rs) routes through
+    /// here, so the drawn surface and the stand height can never disagree
+    /// (the v0.835 see-through-ground rule). Color/texture paths keep the
+    /// plain bilinear samplers above.
     pub fn normalized_at(&self, unit: Vec3) -> f32 {
-        ((self.sample_meters(unit) - self.min_m) / (self.max_m - self.min_m)).clamp(0.0, 1.0)
+        ((self.sample_meters_smooth(unit) - self.min_m) / (self.max_m - self.min_m))
+            .clamp(0.0, 1.0)
     }
 }
 
@@ -279,6 +322,44 @@ mod tests {
     /// (row 1); lons -135, -45, +45, +135 (cols 0..3). Range chosen so
     /// every test value quantizes EXACTLY (multiples of 1000 over a 65535
     /// span do not, so assertions below use a 1-quantum epsilon).
+    #[test]
+    fn smooth_sampler_hits_cell_centers_and_reproduces_linear_ramps() {
+        // Catmull-Rom interpolates THROUGH the samples: at a cell center it
+        // must return the stored value, and on linearly-varying data it must
+        // agree with bilinear (cubics reproduce linear functions exactly).
+        // Pins the smooth sampler to the contract the ground clamp relies on.
+        let hm = synth(
+            8,
+            4,
+            -1000.0,
+            1000.0,
+            &[
+                0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0,
+                0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0,
+                0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0,
+                0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0,
+            ],
+        );
+        // Cell centers: smooth == stored (within one quantization step).
+        // 8 cols over 360 deg -> centers at -180+22.5+k*45; col 2 center:
+        let lon_c2 = -180.0 + 22.5 + 2.0 * 45.0;
+        assert!((hm.sample_meters_latlon_smooth(0.0, lon_c2) - 200.0).abs() <= 2.0 * Q);
+        // Between centers on the interior linear span, smooth == bilinear.
+        // Start at k=1: the cubic stencil reaches ONE cell further than
+        // bilinear, so the k=0 midpoint's stencil crosses the wrap seam
+        // where the ramp is genuinely nonlinear.
+        for k in 1..6 {
+            let lon = -180.0 + 22.5 + k as f32 * 45.0 + 22.5; // midpoints
+            if lon > 90.0 { break; }
+            let a = hm.sample_meters_latlon(0.0, lon);
+            let b = hm.sample_meters_latlon_smooth(0.0, lon);
+            assert!(
+                (a - b).abs() <= 2.0 * Q,
+                "smooth diverged from bilinear on a linear ramp at lon {lon}: {a} vs {b}"
+            );
+        }
+    }
+
     fn grid_2x4() -> PlanetHeightmap {
         synth(
             4,

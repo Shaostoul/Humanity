@@ -49,6 +49,18 @@
 >    (the deepest surface, untouched this pass); (c) consider the faint galaxy bake
 >    behind native egui pages so native mirrors the web treatment back.
 >
+> 6. **PLANET + OCEAN arc (operator, 2026-07-16 night).** Direction set while
+>    flying Earth: (a) higher-detail terrain via the star-catalog pattern - ship a
+>    0.05 deg base grid, downloadable ETOPO 2022 15-arc-sec region tiles for real
+>    mountain shapes (Fuji is a pyramid because data cells are 11 km; the mesh is
+>    fine); bicubic sampling shipped v0.868 smooths the voxel creases meanwhile.
+>    (b) REAL OCEANS - full staged design in docs/design/ocean.md: ocean mask
+>    (flood fill; keeps Death-Valley-type below-sea-level basins dry), Gerstner
+>    wave surface drawn == sampled, swimming, Archimedes buoyancy (sail ships),
+>    depth pressure + hull ratings (submarines), analytic impact displacement
+>    (spaceship crashes, asteroid drops). (c) HOMESTEAD DECOUPLING remains the
+>    known surface bug (home wheels around the player frame on the ground).
+>
 > The production-readiness + go-live focus below is DONE for this pass (streaming
 > shipped v0.853-857, UI-audit closed v0.855-856, TURN + watch v0.857). This
 > all-in-one arc is the new top of TIER 0.
