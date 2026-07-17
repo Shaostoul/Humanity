@@ -257,6 +257,27 @@ pub fn draw(
                 }
             }
 
+            // ── Surface flight/walk readout (v0.867): altitude above the DRAWN
+            // ground + current speed gear, shown only while a planet surface is
+            // engaged. Direct answer to the documented "no altitude / ground-
+            // distance reference" gap (PRIORITIES surface-lock follow-ups) - the
+            // operator could not judge height or scale while landing.
+            if let Some(alt) = state.surface_altitude_m {
+                let alt_text = if alt >= 1000.0 {
+                    format!("Alt: {:.1} km", alt / 1000.0)
+                } else {
+                    format!("Alt: {:.0} m", alt)
+                };
+                text_shadowed(
+                    painter,
+                    Pos2::new(screen.right() - 16.0, 90.0),
+                    Align2::RIGHT_TOP,
+                    &format!("{alt_text}  Gear: x{:.0}", state.surface_speed_mult),
+                    11.0,
+                    theme.accent(),
+                );
+            }
+
             // ── Crosshair (center) ──
             let center = screen.center();
             painter.circle_filled(center, 3.0, Color32::from_white_alpha(180));

@@ -9938,6 +9938,9 @@ mod native_app {
                     // parked near the body we set ship_world_pos + a matching yaw
                     // delta so both position and view co-rotate. Pure math +
                     // tests in dev_travel::frame_lock_*.
+                    // Surface HUD readout resets each frame; the engage branch
+                    // below repopulates it while a surface is actually locked.
+                    state.gui_state.surface_altitude_m = None;
                     if let Some(lock_body) = state.frame_lock_body.clone() {
                         let spin = (now - state.start_time).as_secs_f64()
                             * crate::dev_travel::PLANET_SPIN_RATE;
@@ -10002,6 +10005,23 @@ mod native_app {
                             // Was surface mode already engaged last frame? MUST be
                             // read BEFORE set_surface_up (which flips it true).
                             let just_engaged = !state.camera.surface_mode;
+                            // Touchdown gear reset (v0.867, operator "weird issues
+                            // moving around" report): the mouse-wheel fly multiplier
+                            // CARRIES OVER from space flight, so arriving from an
+                            // FTL descent left walking geared up to 2000x - one W
+                            // tap crossed a county. Snap the wheel to 1x the frame
+                            // the surface engages; scrolling up afterwards still
+                            // reaches the deliberate fast-travel ceiling.
+                            if just_engaged {
+                                state.controller.fly_speed_mult = 1.0;
+                            }
+                            // Surface HUD readout (v0.867): altitude above the
+                            // drawn ground + wheel gear, so height and speed are
+                            // never a guess while landing/walking.
+                            state.gui_state.surface_altitude_m =
+                                Some((dist - ground_r).max(0.0) as f32);
+                            state.gui_state.surface_speed_mult =
+                                state.controller.fly_speed_mult as f32;
                             // Radial "up" so "down" points at the body centre and
                             // the horizon is level (the transition preserves the
                             // current look direction across the basis change).

@@ -2733,6 +2733,12 @@ pub struct GuiState {
     pub nav_display_mode: NavDisplayMode,
 
     /// Active confirmation toasts (v0.861), drawn + expired by `draw_toasts`.
+    /// Altitude above the drawn planet ground, metres, while a surface is
+    /// engaged (v0.867 surface HUD). None away from any surface.
+    pub surface_altitude_m: Option<f32>,
+    /// Current mouse-wheel speed gear shown next to the altitude.
+    pub surface_speed_mult: f32,
+
     pub toasts: Vec<Toast>,
 
     // ── Wallet state ──
@@ -4497,6 +4503,8 @@ impl Default for GuiState {
             watch_input: String::new(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
+            surface_altitude_m: None,
+            surface_speed_mult: 1.0,
             civ_stats: None,
             civ_stats_loaded: false,
             civ_stats_rx: None,

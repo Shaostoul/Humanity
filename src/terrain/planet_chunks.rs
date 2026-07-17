@@ -118,14 +118,17 @@ pub const MAX_CHUNK_LEAVES: usize = 640;
 
 /// Patch mesh builds per frame across all planets. Each build is ~153
 /// heightmap samples + 3 noise octaves + 352 triangles of assembly
-/// (sub-millisecond); 6 keeps worst-case frame cost ~1-2 ms and refines a
-/// from-scratch close approach (~500 patches) in a few seconds.
-pub const PATCH_BUILDS_PER_FRAME: usize = 6;
+/// (sub-millisecond). Raised 6 -> 24 (v0.867): landing dropped the player
+/// onto ground that was still refining beneath them for several seconds
+/// (float-then-snap, operator "weird issues" report); 24 refines a
+/// from-scratch close approach (~500 patches) in under a second while the
+/// worst-case frame cost stays a few ms during descent only.
+pub const PATCH_BUILDS_PER_FRAME: usize = 24;
 
 /// Build requests returned per selection; anything beyond the per-frame
 /// build budget would be discarded anyway (requests are re-derived fresh
 /// every frame, so there is no persistent queue to grow stale).
-pub const MAX_BUILD_REQUESTS: usize = 64;
+pub const MAX_BUILD_REQUESTS: usize = 96;
 
 /// LRU cache byte cap for resident patch meshes (GPU estimate). One patch
 /// is 1056 verts * 32 B + 1056 idx * 4 B = 38,016 B, so 256 MB holds
