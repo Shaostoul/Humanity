@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.869.0"
+version = "0.869.1"
 edition = "2021"
 
 [[bin]]
@@ -213,3 +213,8 @@ winres = "0.1"
 # + wgpu offscreen, so it needs NO extra dependency. (egui_kittest was tried first
 # but its accesskit requirement does not compile against egui-winit 0.31.1.)
 
+
+[dev-dependencies]
+# GeoTIFF reading for the terrain data build tools (examples/ only, never in
+# the shipped binary): decodes the NOAA ETOPO 2022 float32 elevation tiles.
+tiff = "0.9"
