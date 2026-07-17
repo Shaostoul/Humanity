@@ -94,3 +94,4 @@ wallpapers/
 # DXC shader-compiler DLLs beside the taskbar exe (refreshed by archive-build.js)
 /dxcompiler.dll
 /dxil.dll
+/ext_data/
