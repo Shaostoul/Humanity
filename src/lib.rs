@@ -2379,6 +2379,21 @@ mod native_app {
                 }
             }
         }
+        // Optional "time":"9.5" sets the game clock to that hour of the
+        // current day (dev/screenshot control: dawn shots without waiting
+        // out the night). Routed through the TimeSystem's request channel -
+        // its own accumulator is authoritative and re-exports every tick, so
+        // writing the DataStore GameTime copy directly is a lost update.
+        if let Some(hours) = grab("time").and_then(|t| t.parse::<f32>().ok()) {
+            if let Some(req) = state
+                .data_store
+                .get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request")
+            {
+                if let Ok(mut r) = req.lock() {
+                    *r = Some(hours);
+                }
+            }
+        }
         // Optional "enter":"default" mimics the Play button: load the default
         // character into the world (machines + garden come alive), falling
         // back to the character picker when no default is set.
@@ -2863,6 +2878,7 @@ mod native_app {
         def: Option<&PlanetDef>,
         hm: Option<&crate::terrain::planet_heightmap::PlanetHeightmap>,
         detail: Option<&crate::terrain::planet_chunks::DetailNoise>,
+        tiles: Option<&crate::terrain::terrain_tiles::TerrainTiles>,
         unit_dir: glam::Vec3,
     ) -> f64 {
         match def {
@@ -2870,14 +2886,17 @@ mod native_app {
                 let elev = match hm {
                     // With a detail sampler (the eye-height clamp), reproduce
                     // the DRAWN chunk-mesh elevation (base heightmap + land-
-                    // masked sub-grid detail) so the player stands ON the ground
-                    // instead of INSIDE it. Base-only clamps sank the 1.7 m eye
-                    // below the up-to-~120 m detail relief -> see-through ground
-                    // (2026-07-12). Altitude-parking callers pass None (the
-                    // detail is negligible against 1.5 km).
+                    // masked sub-grid detail, tile tier included) so the player
+                    // stands ON the drawn ground instead of INSIDE it. Base-only
+                    // clamps sank the 1.7 m eye below the up-to-~120 m detail
+                    // relief -> see-through ground (2026-07-12). Altitude-parking
+                    // callers pass None (the detail is negligible against 1.5 km).
+                    // `tiles` is EARTH's tier: callers pass it only for earth.
                     Some(h) => match detail {
                         Some(dn) => {
-                            crate::terrain::planet_chunks::drawn_elevation_normalized(h, d, dn, unit_dir)
+                            crate::terrain::planet_chunks::drawn_elevation_normalized(
+                                h, d, dn, tiles, unit_dir,
+                            )
                         }
                         None => h.normalized_at(unit_dir),
                     },
@@ -3015,6 +3034,7 @@ mod native_app {
             ground_radius_m(
                 state.planet_defs.get(&body_id),
                 state.planet_heightmaps.get(&body_id),
+                None,
                 None,
                 unit,
             )
@@ -7242,6 +7262,11 @@ mod native_app {
         /// None once consumed - a later world entry (tier change) rebuilds
         /// synchronously as before.
         star_preload_rx: Option<std::sync::mpsc::Receiver<Option<crate::renderer::stars::StarRenderer>>>,
+        /// Streamed high-detail terrain tiles for EARTH (the downloadable
+        /// terrain tier, ~460 m cells): region residency follows the camera,
+        /// deep patches + the ground clamp sample it via tile_or_base. An
+        /// empty/absent tile dir simply leaves the base grid in charge.
+        terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles,
         floating_origin: crate::renderer::floating_origin::FloatingOrigin,
         /// Procedural surface parameters per sky body, loaded from
         /// `data/planets/<body_id>.ron` at world load (v0.763). Bodies
@@ -7941,6 +7966,13 @@ mod native_app {
                 "showcase_tower_request",
                 std::sync::Mutex::new(Option::<(String, String)>::None),
             );
+            // Jump the game clock to an hour of day (v0.871): the TimeSystem's
+            // accumulator is authoritative, so the capture hook + future in-app
+            // dev controls set time through this channel.
+            data_store.insert(
+                "time_set_hour_request",
+                std::sync::Mutex::new(Option::<f32>::None),
+            );
             // Plant a bed/tray/field grow area (v0.738 grain loop): (machine id,
             // plant id, unit count). One CropInstance per unit, tagged with the
             // machine id as its grow-area so the Garden GUI groups them.
@@ -8473,6 +8505,9 @@ mod native_app {
                 // 3D world state: empty defaults, loaded lazily on first Enter World
                 star_renderer: None,
                 star_preload_rx,
+                terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
+                    data_dir.join("planets/earth_tiles"),
+                ),
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
                 planet_defs: std::collections::HashMap::new(),
                 planet_heightmaps: std::collections::HashMap::new(),
@@ -9998,7 +10033,7 @@ mod native_app {
                         let def = state.planet_defs.get(&lock_body);
                         let hm = state.planet_heightmaps.get(&lock_body);
                         let ground_r =
-                            ground_radius_m(def, hm, None, anchor_pre.normalize_or_zero().as_vec3());
+                            ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero().as_vec3());
                         let surface_engaged = (dist - ground_r) < SURFACE_ENGAGE_ALT;
 
                         if surface_engaged {
@@ -10080,7 +10115,9 @@ mod native_app {
                             // Ground radius at the (possibly moved) surface point,
                             // INCLUDING the drawn detail relief.
                             let dir1 = anchor.normalize_or_zero();
-                            let g = ground_radius_m(def, hm, detail.as_ref(), dir1.as_vec3());
+                            let tiles_for_clamp =
+                                (lock_body == "earth").then_some(&state.terrain_tiles);
+                            let g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1.as_vec3());
                             let rest = crate::surface_walk::rest_radius(
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
@@ -10926,6 +10963,7 @@ mod native_app {
                             let surface_radius = ground_radius_m(
                                 state.planet_defs.get(&target),
                                 state.planet_heightmaps.get(&target),
+                                None,
                                 None,
                                 unit,
                             );
@@ -14244,10 +14282,36 @@ mod native_app {
                                             d, 1.0,
                                         ),
                                 };
+                                // Streamed terrain tiles (Earth): keep the
+                                // camera's 3x3 tile region resident and drain
+                                // arrivals. New/deeper patches then sample the
+                                // 460 m data; earlier base-built patches
+                                // refine progressively as LOD splits past
+                                // them (no forced invalidation - skirts and
+                                // zero-mean deltas cover the mixed window).
+                                if b.id == "earth" {
+                                    let u = cam_local.normalize();
+                                    let (tla, tlo) =
+                                        crate::terrain::planet_heightmap::dir_to_latlon_deg(
+                                            u.as_vec3(),
+                                        );
+                                    state.terrain_tiles.ensure_region(tla, tlo);
+                                    let _ = state.terrain_tiles.poll();
+                                }
+                                let tiles_ref = (b.id == "earth"
+                                    && state.terrain_tiles.tier_installed())
+                                .then_some(&state.terrain_tiles);
                                 let params = chunks::ChunkParams {
                                     radius_m: d.radius,
                                     band,
-                                    max_depth: chunks::MAX_PATCH_DEPTH,
+                                    // The tile tier earns deeper patches
+                                    // (~6.7 m triangles); base-only stops
+                                    // where its data goes flat.
+                                    max_depth: if tiles_ref.is_some() {
+                                        chunks::TILE_MAX_PATCH_DEPTH
+                                    } else {
+                                        chunks::MAX_PATCH_DEPTH
+                                    },
                                     split_px: chunks::CHUNK_SPLIT_PX,
                                     px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
                                     max_leaves: chunks::MAX_CHUNK_LEAVES,
@@ -14291,6 +14355,7 @@ mod native_app {
                                     let src = chunks::ElevationSource::Heightmap {
                                         hm,
                                         detail: &cs.detail,
+                                        tiles: tiles_ref,
                                     };
                                     // Real imagery colors when Earth ships an
                                     // albedo grid; classifier otherwise (same

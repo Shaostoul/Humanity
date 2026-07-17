@@ -11,6 +11,7 @@ pub mod planet;
 pub mod planet_albedo;
 pub mod planet_chunks;
 pub mod ocean_mask;
+pub mod terrain_tiles;
 pub mod planet_heightmap;
 pub mod planet_registry;
 pub mod planet_surface;

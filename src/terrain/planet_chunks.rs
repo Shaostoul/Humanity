@@ -95,6 +95,21 @@ pub const PATCH_TESS: u32 = 16;
 /// micro-detail synthesis.
 pub const MAX_PATCH_DEPTH: u8 = 13;
 
+/// Patch depth at which the streamed high-detail tiles (terrain_tiles,
+/// ~460 m cells from ETOPO 2022) take over elevation sampling from the base
+/// grid when resident: depth 9 triangles (~1.2 km) start resolving what the
+/// 460 m data carries, and the bicubic stencil (4 cells, ~1.8 km) stays
+/// smooth. The depth-8/9 LOD boundary step is absorbed by skirts, exactly
+/// like the fine-octave depth gates below.
+pub const TILE_MIN_DEPTH: u8 = 9;
+
+/// Depth cap when the tile tier is installed: 20*4^16 potential leaves,
+/// ~54 m patches -> ~6.7 m triangles, enough mesh to express the 460 m data
+/// plus the sub-500 m noise octaves. Base-only stays at MAX_PATCH_DEPTH
+/// (deeper triangles over 5.5 km cells buy nothing). PatchId.path holds
+/// 2 bits per level, so depth 16 exactly fills its u32.
+pub const TILE_MAX_PATCH_DEPTH: u8 = 16;
+
 /// Central angle of one root icosahedron edge: acos(1/sqrt(5)).
 /// Adjacent icosahedron vertices at circumradius 1 have dot = 1/sqrt(5)
 /// (e.g. (-1,t,0) and (1,t,0) normalized give (t*t-1)/(t*t+1) = 1/sqrt(5)).
@@ -278,6 +293,47 @@ impl DetailNoise {
         }
         sum as f32
     }
+
+    /// Detail for TILE-backed samples: the base octaves (8/4/2 km) and the
+    /// ~1 km fine octave duplicate structure the 460 m tile data already
+    /// carries, so only the sub-500 m octaves apply on top of tiles -
+    /// procedural wrinkle strictly BELOW the data floor, never fighting it.
+    pub fn sample_m_tile_gated(&self, dir: DVec3, depth: u8) -> f32 {
+        let mut sum = 0.0_f64;
+        for (i, p) in self.fine.iter().enumerate().skip(1) {
+            if depth >= DETAIL_FINE_MIN_DEPTH[i] {
+                let f = DETAIL_FINE_FREQS[i];
+                sum += DETAIL_FINE_AMPS_M[i] as f64 * p.get([dir.x * f, dir.y * f, dir.z * f]);
+            }
+        }
+        sum as f32
+    }
+}
+
+/// Elevation normalized 0..1 with the streamed-tile override: at depth >=
+/// TILE_MIN_DEPTH, when the tile tier covers this point (every bicubic tap
+/// resident), sample the 460 m tile data; otherwise the base grid. Returns
+/// (normalized elevation, sampled_from_tile) so callers pick the matching
+/// detail-noise gate. THE one elevation entry point for tile-aware callers
+/// (mesh builder + the ground clamp) - drawn == sampled stays inviolate.
+pub fn tile_or_base(
+    hm: &PlanetHeightmap,
+    tiles: Option<&super::terrain_tiles::TerrainTiles>,
+    dir: DVec3,
+    depth: u8,
+) -> (f32, bool) {
+    if depth >= TILE_MIN_DEPTH {
+        if let Some(t) = tiles {
+            let (lat, lon) = super::planet_heightmap::dir_to_latlon_deg(dir.as_vec3());
+            if let Some(m) = t.sample_meters_smooth(lat, lon) {
+                let range = hm.max_meters() - hm.min_meters();
+                if range > 0.0 {
+                    return (((m - hm.min_meters()) / range).clamp(0.0, 1.0), true);
+                }
+            }
+        }
+    }
+    (hm.normalized_at(dir.as_vec3()), false)
 }
 
 /// The DRAWN normalized elevation (base heightmap + land-masked sub-grid
@@ -292,9 +348,10 @@ pub fn drawn_elevation_normalized(
     hm: &PlanetHeightmap,
     def: &PlanetDef,
     detail: &DetailNoise,
+    tiles: Option<&super::terrain_tiles::TerrainTiles>,
     dir: glam::Vec3,
 ) -> f32 {
-    let base = hm.normalized_at(dir);
+    let (base, from_tile) = tile_or_base(hm, tiles, dir.as_dvec3(), FINEST_DETAIL_DEPTH);
     let range_m = hm.max_meters() - hm.min_meters();
     if range_m <= 0.0 {
         return base.clamp(0.0, 1.0);
@@ -303,7 +360,12 @@ pub fn drawn_elevation_normalized(
     let above_sea_m = (base - sea) * range_m;
     let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
     let e = if mask > 0.0 {
-        base + (detail.sample_m(dir.as_dvec3(), FINEST_DETAIL_DEPTH) * mask) / range_m
+        let dm = if from_tile {
+            detail.sample_m_tile_gated(dir.as_dvec3(), FINEST_DETAIL_DEPTH)
+        } else {
+            detail.sample_m(dir.as_dvec3(), FINEST_DETAIL_DEPTH)
+        };
+        base + (dm * mask) / range_m
     } else {
         base
     };
@@ -903,6 +965,8 @@ pub enum ElevationSource<'a> {
     Heightmap {
         hm: &'a PlanetHeightmap,
         detail: &'a DetailNoise,
+        /// Streamed high-detail tile tier (Earth); None = base grid only.
+        tiles: Option<&'a super::terrain_tiles::TerrainTiles>,
     },
     /// Seeded fractal noise, same field the uniform sphere path uses.
     Noise(&'a SurfaceSampler),
@@ -993,20 +1057,27 @@ pub fn build_patch_mesh(
             let w2 = c as f64;
             let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
             let e = match source {
-                ElevationSource::Heightmap { hm, detail } => {
-                    // Base: bilinear real elevation, normalized 0..1 (the
-                    // same domain the color/sea machinery consumes).
-                    let base = hm.normalized_at(dir.as_vec3());
+                ElevationSource::Heightmap { hm, detail, tiles } => {
+                    // Base: real elevation normalized 0..1 - from the
+                    // streamed 460 m tile tier at deep LODs when resident,
+                    // the shipped base grid otherwise (tile_or_base).
+                    let (base, from_tile) = tile_or_base(hm, *tiles, dir, id.depth);
                     // Sub-grid detail (see the module-header rationale):
                     // land-masked so oceans + coastlines stay untouched,
                     // expressed in real meters then folded back into the
                     // normalized domain so it inherits the SAME vertical
-                    // exaggeration (surface_relief) as the data.
+                    // exaggeration (surface_relief) as the data. Tile-backed
+                    // samples gate the octaves that duplicate tile data.
                     let range_m = hm.max_meters() - hm.min_meters();
                     let above_sea_m = (base - sea) * range_m;
                     let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
                     let e = if mask > 0.0 {
-                        base + (detail.sample_m(dir, id.depth) * mask) / range_m
+                        let dm = if from_tile {
+                            detail.sample_m_tile_gated(dir, id.depth)
+                        } else {
+                            detail.sample_m(dir, id.depth)
+                        };
+                        base + (dm * mask) / range_m
                     } else {
                         base
                     };
@@ -1663,7 +1734,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         let id = PatchId::root(0).child(3).child(1);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
@@ -1698,7 +1769,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         let id = PatchId::root(2).child(0).child(0).child(0);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
@@ -1736,7 +1807,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         let mut id = PatchId::root(9);
         for i in 0..MAX_PATCH_DEPTH {
             id = id.child((i % 4) as u32);
@@ -1796,7 +1867,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         let id = PatchId::root(5).child(2).child(1).child(3);
         let a = build_patch_mesh(&def, &src, None, &id);
         let b = build_patch_mesh(&def, &src, None, &id);
@@ -1822,7 +1893,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         let parent = PatchId::root(11).child(3).child(2);
         // Child 0 keeps corner0 with edge (m01, m20); child 3 (center) has
         // corners (m01, m12, m20): they share the edge m01-m20.
@@ -1865,7 +1936,7 @@ mod tests {
         let detail = DetailNoise::new(def.terrain_seed);
         let mut def_ocean = def.clone();
         def_ocean.sea_level = 0.5;
-        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None };
         let pm = build_patch_mesh(&def_ocean, &src, None, &PatchId::root(0).child(3));
         let n = PATCH_TESS;
         for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
@@ -1966,7 +2037,7 @@ mod tests {
         def.sea_level = 0.5;
         let ocean = synth_heightmap(8, 4, -1000.0, 1000.0, |_, _| -500.0);
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None };
         let mut id = PatchId::root(0);
         for _ in 0..MAX_PATCH_DEPTH {
             id = id.child(3);
@@ -1993,7 +2064,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
         // Walk to a depth-9 parent so its children are depth 10.
         let mut parent = PatchId::root(11);
         for _ in 0..9 {

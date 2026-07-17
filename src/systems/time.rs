@@ -154,6 +154,17 @@ impl System for TimeSystem {
     }
 
     fn tick(&mut self, _world: &mut hecs::World, dt: f32, data: &DataStore) {
+        // Dev/screenshot clock control (v0.871): an external hour request
+        // jumps the clock. The TimeSystem's own accumulator is authoritative
+        // (it re-exports over the DataStore copy every tick), so outside
+        // writers go through this channel instead of poking the mutex.
+        if let Some(req) = data.get::<std::sync::Mutex<Option<f32>>>("time_set_hour_request") {
+            if let Ok(mut r) = req.lock() {
+                if let Some(h) = r.take() {
+                    self.set_hour(h);
+                }
+            }
+        }
         let scaled_dt = dt as f64 * self.game_time.time_scale as f64;
         self.game_time.elapsed_seconds += scaled_dt;
 
