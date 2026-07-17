@@ -1989,7 +1989,22 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Chunked surface detail", &mut state.settings.planet_chunked) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (~54 m triangles) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (down to ~7 m triangles with the tile tier) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
+        // Planet LOD knobs (v0.873, operator: "I want to see more real
+        // terrain further away from me... add settings for all these
+        // variables"). All three apply live next frame.
+        if widgets::labeled_slider(ui, theme, "Terrain sharpness (px per triangle)", &mut state.settings.terrain_split_px, 4.0..=24.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Patches split until triangles are about this many pixels on screen. LOWER = sharper terrain further away (more patches, more GPU).").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=768.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Most surface patches drawn at once. Higher holds detail across more of the horizon.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Terrain stream speed (builds per frame)", &mut state.settings.terrain_builds_per_frame, 6.0..=64.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.").color(theme.text_muted()).size(theme.font_size_small));
         // Analytic scattering atmosphere (v0.807): per-pixel single
         // scattering on the planet air shells. Off = the pre-v0.807 fresnel
         // tint, kept forever-dev style as the A/B reference + a safety hatch

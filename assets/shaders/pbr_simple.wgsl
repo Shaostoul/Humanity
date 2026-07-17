@@ -1175,22 +1175,40 @@ fn cloud_rot_x(v: vec3<f32>, a: f32) -> vec3<f32> {
 // to 1, so dir*dir are the blend weights for free. Each plane gets a
 // different seed offset so the three projections never mirror each other at
 // the +/- axis crossings.
+fn hash13(p: vec3<f32>) -> f32 {
+    var q = fract(p * 0.1031);
+    q += dot(q, q.zyx + 31.32);
+    return fract((q.x + q.y) * q.z);
+}
+
+/// TRUE 3D value noise with a quintic fade. Replaces the old triplanar
+/// 2D-projection blend (v0.873): three projections mixed on a sphere always
+/// crease along the diagonal great circles no matter how sharp the blend
+/// weights - the operator's "weird straight lines" through the cloud deck.
+/// A genuine 3D lattice has no projections, hence no seams, and 8 corner
+/// hashes cost less than the triplanar's 12. The quintic fade (vs the 2D
+/// helper's smoothstep) also removes the lattice's derivative creases that
+/// the coverage contrast-stretch used to amplify into visible cell edges.
 fn cloud_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
-    // Blend weights sharpened to the 4th power (2026-07-11 field report):
-    // with plain dir*dir weights, the wide 3-way blend zones near the
-    // diagonal great circles average two disagreeing projections into
-    // visible straight creases once the contrast stretch amplifies them
-    // ("hard lines" through the deck). Pow-4 narrows the blend band so one
-    // projection dominates almost everywhere.
-    var w = dir * dir;
-    w = w * w;
-    let wn = w / (w.x + w.y + w.z);
-    let p = dir * freq;
-    let o = vec2<f32>(seed, seed * 0.617);
-    let nx = value_noise(p.yz + o);
-    let ny = value_noise(p.zx + o * 1.3);
-    let nz = value_noise(p.xy + o * 1.7);
-    return nx * wn.x + ny * wn.y + nz * wn.z;
+    let p = dir * freq + vec3<f32>(seed, seed * 0.617, seed * 0.317);
+    let i = floor(p);
+    let f = fract(p);
+    let u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0); // quintic fade
+
+    let c000 = hash13(i);
+    let c100 = hash13(i + vec3<f32>(1.0, 0.0, 0.0));
+    let c010 = hash13(i + vec3<f32>(0.0, 1.0, 0.0));
+    let c110 = hash13(i + vec3<f32>(1.0, 1.0, 0.0));
+    let c001 = hash13(i + vec3<f32>(0.0, 0.0, 1.0));
+    let c101 = hash13(i + vec3<f32>(1.0, 0.0, 1.0));
+    let c011 = hash13(i + vec3<f32>(0.0, 1.0, 1.0));
+    let c111 = hash13(i + vec3<f32>(1.0, 1.0, 1.0));
+
+    let x00 = mix(c000, c100, u.x);
+    let x10 = mix(c010, c110, u.x);
+    let x01 = mix(c001, c101, u.x);
+    let x11 = mix(c011, c111, u.x);
+    return mix(mix(x00, x10, u.y), mix(x01, x11, u.y), u.z);
 }
 
 // The cloud density field: 4 octaves in two independently drifting sets.

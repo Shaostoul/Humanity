@@ -354,6 +354,21 @@ pub struct AppConfig {
     /// for one screen-dominating body at a time.
     #[serde(default = "default_planet_max_subdiv")]
     pub planet_max_subdiv: f32,
+    /// Chunked-LOD split threshold in screen pixels (v0.873 Planet LOD
+    /// settings): patches subdivide until their triangles subtend about this
+    /// many pixels. LOWER = sharper terrain further away, more patches.
+    #[serde(default = "default_terrain_split_px")]
+    pub terrain_split_px: f32,
+    /// Max surface patches drawn per planet per frame. Higher = more of the
+    /// horizon holds full detail; bounded well under the renderer's shared
+    /// object budget (MAX_OBJECTS 1024, shared with machines/walls/sky).
+    #[serde(default = "default_terrain_patch_budget")]
+    pub terrain_patch_budget: f32,
+    /// Patch mesh builds per frame: how fast terrain streams in during a
+    /// descent. Higher = faster refinement, a few ms more per frame while
+    /// streaming.
+    #[serde(default = "default_terrain_builds_per_frame")]
+    pub terrain_builds_per_frame: f32,
     /// Chunked planetary LOD (2026-07-11): stream camera-following surface
     /// patches when a heightmap planet fills the screen, instead of the
     /// heavy uniform level 8-9 spheres. See terrain::planet_chunks.
@@ -593,6 +608,9 @@ fn default_cloud_quality() -> String { "high".to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
+fn default_terrain_split_px() -> f32 { 12.0 }
+fn default_terrain_patch_budget() -> f32 { 640.0 }
+fn default_terrain_builds_per_frame() -> f32 { 24.0 }
 fn default_panel_width() -> f32 { 220.0 }
 // In-world chat panel message-list height (unified-chat increment 1c).
 // Matches the v0.772 hardcoded ScrollArea max_height so existing installs
@@ -894,6 +912,9 @@ impl AppConfig {
             sky_star_halos: state.settings.sky_star_halos,
             star_catalog_tier: state.settings.star_catalog_tier.clone(),
             planet_lod_px: state.settings.planet_lod_px,
+            terrain_split_px: state.settings.terrain_split_px,
+            terrain_patch_budget: state.settings.terrain_patch_budget,
+            terrain_builds_per_frame: state.settings.terrain_builds_per_frame,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,

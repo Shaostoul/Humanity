@@ -6500,6 +6500,12 @@ pub struct SettingsState {
     /// icosphere level each time its projected diameter doubles past this.
     /// See terrain::planet::lod_level_for_pixels.
     pub planet_lod_px: f32,
+    /// Chunk split threshold px (Planet LOD settings, v0.873).
+    pub terrain_split_px: f32,
+    /// Max surface patches per planet per frame.
+    pub terrain_patch_budget: f32,
+    /// Patch mesh builds per frame (stream speed).
+    pub terrain_builds_per_frame: f32,
     /// Max icosphere subdivision level for sky planets (0-9; level 6 is
     /// ~82k faces, levels 8-9 are the heavy close-approach tiers -- see
     /// terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
@@ -6610,6 +6616,9 @@ impl Default for SettingsState {
             star_catalog_tier: "auto".to_string(),
             sky_star_halos: true,
             planet_lod_px: 10.0,
+            terrain_split_px: 12.0,
+            terrain_patch_budget: 640.0,
+            terrain_builds_per_frame: 24.0,
             planet_max_subdiv: 6.0,
             planet_chunked: true,
             planet_atmo_scatter: true,

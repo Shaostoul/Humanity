@@ -14383,6 +14383,22 @@ mod native_app {
                                 let tiles_ref = (b.id == "earth"
                                     && state.terrain_tiles.tier_installed())
                                 .then_some(&state.terrain_tiles);
+                                // Planet LOD knobs from Settings (v0.873),
+                                // clamped defensively: the patch budget must
+                                // stay well under the renderer's shared
+                                // MAX_OBJECTS 1024 (machines/walls/sky use
+                                // the rest).
+                                let split_px = state
+                                    .gui_state
+                                    .settings
+                                    .terrain_split_px
+                                    .clamp(4.0, 24.0);
+                                let patch_budget = state
+                                    .gui_state
+                                    .settings
+                                    .terrain_patch_budget
+                                    .clamp(64.0, 768.0)
+                                    as usize;
                                 let params = chunks::ChunkParams {
                                     radius_m: d.radius,
                                     band,
@@ -14394,9 +14410,9 @@ mod native_app {
                                     } else {
                                         chunks::MAX_PATCH_DEPTH
                                     },
-                                    split_px: chunks::CHUNK_SPLIT_PX,
+                                    split_px,
                                     px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
-                                    max_leaves: chunks::MAX_CHUNK_LEAVES,
+                                    max_leaves: patch_budget,
                                     max_build_requests: chunks::MAX_BUILD_REQUESTS,
                                 };
                                 let seed = d.terrain_seed;
@@ -14428,7 +14444,10 @@ mod native_app {
                                 // selection (progressive refinement, no
                                 // frame hitch).
                                 for id in &selection.build_requests {
-                                    if patch_builds_this_frame >= chunks::PATCH_BUILDS_PER_FRAME {
+                                    if patch_builds_this_frame
+                                        >= state.gui_state.settings.terrain_builds_per_frame.clamp(1.0, 64.0)
+                                            as usize
+                                    {
                                         break;
                                     }
                                     if cs.cache.contains_key(id) {
