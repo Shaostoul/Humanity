@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.864.0"
+version = "0.865.0"
 edition = "2021"
 
 [[bin]]
@@ -212,3 +212,4 @@ winres = "0.1"
 # v0.495) lives in src/gui/ui_snapshots.rs. It uses the app's OWN egui + egui-wgpu
 # + wgpu offscreen, so it needs NO extra dependency. (egui_kittest was tried first
 # but its accesskit requirement does not compile against egui-winit 0.31.1.)
+

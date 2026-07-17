@@ -178,6 +178,22 @@ function archive() {
   killRunning();
   fs.copyFileSync(src, dest);
 
+  // DXC shader compiler DLLs (v0.865): the exe prefers DXC when
+  // dxcompiler.dll + dxil.dll sit beside it (boot drops from ~25 s to ~5 s;
+  // FXC fallback otherwise). Keep the repo-root copies fresh so the taskbar
+  // exe gets the fast path too. Sourced from target/release (put there from
+  // the Windows SDK bin dir or a DirectXShaderCompiler release).
+  for (const dll of ["dxcompiler.dll", "dxil.dll"]) {
+    const dsrc = path.join(BINDIR, "target", "release", dll);
+    if (fs.existsSync(dsrc)) {
+      try {
+        fs.copyFileSync(dsrc, path.join(BINDIR, dll));
+      } catch (e) {
+        console.warn(`(warn) could not refresh ${dll}: ${e.message}`);
+      }
+    }
+  }
+
   const mb = (fs.statSync(dest).size / 1048576).toFixed(1);
   console.log(`Archived: ${dest} (${mb} MB)`);
 

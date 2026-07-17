@@ -568,6 +568,12 @@ mod native_app {
         let tee = LogTee { file: shared.clone() };
         let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
             .format_timestamp_millis()
+            // Quiet the DX12/naga shader-source dumps: at info level wgpu_hal
+            // logs the ENTIRE generated HLSL for every pipeline (megabytes of
+            // formatting during boot, and it buries real log lines).
+            .filter_module("wgpu_hal::dx12::device", log::LevelFilter::Warn)
+            .filter_module("wgpu_hal::vulkan::instance", log::LevelFilter::Warn)
+            .filter_module("naga", log::LevelFilter::Warn)
             .target(env_logger::Target::Pipe(Box::new(tee)))
             .try_init();
         // PANIC HOOK: capture the full panic to disk before the process dies.

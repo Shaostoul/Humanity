@@ -169,8 +169,47 @@ impl Renderer {
         #[cfg(not(target_os = "windows"))]
         let backends = wgpu::Backends::VULKAN | wgpu::Backends::METAL;
 
+        // DXC instead of FXC for DX12 shader compilation (v0.865): FXC spent
+        // ~17-21 s of every boot compiling the PBR megashader (profiled from
+        // run.log gaps 2026-07-16). DXC compiles the same shaders in a
+        // fraction of the time. We load it DYNAMICALLY when dxcompiler.dll +
+        // dxil.dll sit beside the exe and fall back to FXC when they do not,
+        // so a bare exe still boots (just slower). The static-dxc cargo
+        // feature was tried first but its prebuilt lib needs MSVC ATL, which
+        // plain Build Tools installs lack. DLL source: the Windows SDK bin
+        // dir or a Microsoft DirectXShaderCompiler release (MIT licensed).
+        #[cfg(target_os = "windows")]
+        let backend_options = {
+            let dlls = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| (d.join("dxcompiler.dll"), d.join("dxil.dll"))));
+            match dlls {
+                Some((dxc, dxil)) if dxc.exists() && dxil.exists() => {
+                    log::info!("DX12 shader compiler: DXC ({})", dxc.display());
+                    wgpu::BackendOptions {
+                        dx12: wgpu::Dx12BackendOptions {
+                            shader_compiler: wgpu::Dx12Compiler::DynamicDxc {
+                                dxc_path: dxc.to_string_lossy().into_owned(),
+                                dxil_path: dxil.to_string_lossy().into_owned(),
+                            },
+                        },
+                        ..Default::default()
+                    }
+                }
+                _ => {
+                    log::info!(
+                        "DX12 shader compiler: FXC (no dxcompiler.dll beside the exe; boot is slower)"
+                    );
+                    wgpu::BackendOptions::default()
+                }
+            }
+        };
+        #[cfg(not(target_os = "windows"))]
+        let backend_options = wgpu::BackendOptions::default();
+
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends,
+            backend_options,
             ..Default::default()
         });
 

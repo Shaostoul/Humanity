@@ -74,6 +74,19 @@ jobs:
           # Also stage the raw binary at dist/ root for the in-app updater to grab
           # without needing tar.gz extraction (BUG-034 fix, v0.124.0).
           cp target/${{ matrix.target }}/release/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
+          # DXC shader compiler DLLs (v0.865, Windows only): the exe prefers DXC
+          # when dxcompiler.dll + dxil.dll sit beside it (boot ~25 s -> ~5 s;
+          # graceful FXC fallback without them). The hosted runner's Windows SDK
+          # ships both; bundle the newest. MIT-licensed, redistributable.
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            SDKBIN=$(ls -d "/c/Program Files (x86)/Windows Kits/10/bin/"10.*/x64 2>/dev/null | sort -V | tail -1)
+            if [[ -n "$SDKBIN" && -f "$SDKBIN/dxcompiler.dll" && -f "$SDKBIN/dxil.dll" ]]; then
+              cp "$SDKBIN/dxcompiler.dll" "$SDKBIN/dxil.dll" dist/HumanityOS/
+              echo "Bundled DXC from $SDKBIN"
+            else
+              echo "WARNING: Windows SDK DXC DLLs not found; bundle will fall back to FXC (slow boot)"
+            fi
+          fi
           # Copy game data and assets
           cp -r data/ dist/HumanityOS/data/
           cp -r assets/icons/ dist/HumanityOS/assets/icons/
