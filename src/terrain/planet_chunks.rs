@@ -164,8 +164,8 @@ pub const SKIRT_MAX_M: f64 = 80_000.0;
 pub const CHUNK_ACTIVATION_LADDER_LEVEL: u32 = 8;
 
 // ── Detail noise (design constraint 7; close-range extension v0.818) ──
-// Earth's heightmap cells are 0.1 deg (~11.1 km at the equator); below that
-// the bilinear sampler is geometrically flat, so sub-11 km triangles would
+// Earth's heightmap cells are 0.05 deg (~5.5 km at the equator); below that
+// the sampler is geometrically flat, so sub-5-km triangles would
 // buy nothing. Seeded Perlin octaves add believable relief below the data
 // floor. The noise is masked to LAND (fading in over the first 50 m above
 // sea level) so oceans and coastlines stay exactly where the data puts them

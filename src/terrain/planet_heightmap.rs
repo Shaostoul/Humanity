@@ -507,16 +507,18 @@ mod tests {
             .join("planets")
             .join("earth_heightmap.bin");
         let hm = PlanetHeightmap::load(&path).expect("shipped earth heightmap loads");
-        assert_eq!(hm.width(), 3600, "expected 0.1-degree grid");
-        assert_eq!(hm.height(), 1800, "expected 0.1-degree grid");
-        // The fixed -11000..+6500 m quantization window (see build script):
-        // sea level must land at 11000/17500 = ~0.62857 of the domain.
-        assert!((hm.sea_level_normalized() - 11000.0 / 17500.0).abs() < 1e-3);
+        // ETOPO 2022-derived grid (v0.870, examples/build_earth_grid.rs):
+        // 0.05-degree cells with the TRUE peak window -11000..8900 m
+        // restored, so sea level lands at 11000/19900 of the domain.
+        assert_eq!(hm.width(), 7200, "expected 0.05-degree grid");
+        assert_eq!(hm.height(), 3600, "expected 0.05-degree grid");
+        assert!((hm.sea_level_normalized() - 11000.0 / 19900.0).abs() < 1e-3);
 
-        // Everest region (28.0 N, 86.9 E): 0.1-degree cell averaging pulls
-        // the 8849 m summit down, but the Himalayan massif stays high.
+        // Everest region (28.0 N, 86.9 E): cell averaging still pulls the
+        // 8849 m summit down, but far less than the old 0.1-degree grid
+        // (which clamped the whole world at 6394.5 m).
         let everest = hm.sample_meters_latlon(28.0, 86.9);
-        assert!(everest > 5000.0, "Everest region too low: {everest} m");
+        assert!(everest > 6500.0, "Everest region too low: {everest} m");
 
         // Challenger Deep, Mariana Trench (11.37 N, 142.59 E).
         let mariana = hm.sample_meters_latlon(11.37, 142.59);
