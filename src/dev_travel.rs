@@ -66,19 +66,45 @@ pub fn look_angles(dir: DVec3) -> (f32, f32) {
     (yaw as f32, pitch as f32)
 }
 
-/// Planet visible spin rate (rad/s), matching the celestial pass's
-/// `Quat::from_rotation_y(elapsed * 0.01)`. A full turn every ~10.5 min reads
-/// as a lively day from orbit, but near the surface it is ~64 km/s of ground
-/// motion at Earth's radius - hopeless to track by hand. `frame_lock_*` below
-/// exists so the operator can sit in the body's rotating frame instead.
-pub const PLANET_SPIN_RATE: f64 = 0.01;
+/// Planet spin angle from GAME TIME (v0.878 sun-frame unification).
+///
+/// Before this, three clocks ran independently: app uptime drove the spin
+/// (`elapsed * 0.01`, a ~10.5 min day), the TimeSystem clock drove the HUD,
+/// and the solar-system frame drove the sun direction -- so the HUD could
+/// say noon while the player's longitude sat in darkness, and staging a lit
+/// screenshot meant chasing an uptime-drifting subsolar point (it burned a
+/// whole session's capture attempts on 2026-07-17).
+///
+/// Now ONE relation ties them: at game hour H, the subsolar longitude is
+/// `(12 - H) * 15 deg` (hour 12 = sun overhead at longitude 0, moving WEST
+/// as the day advances -- the game clock is Earth's lon-0 "UTC"). With the
+/// longitude convention lon(v) = atan2(-v.z, v.x) (east = -z, +Y = north)
+/// and spin applied as Ry(spin), a rotation by Ry(theta) ADDS theta to a
+/// vector's longitude, so requiring lon(Ry(-spin) * sun_world) = (12-H)*15
+/// gives:
+///     spin = sun_azimuth + (H - 12) * TAU/24
+/// where sun_azimuth = atan2(-sun.z, sun.x) of the world-frame sun
+/// direction (slow orbital drift; degenerate only if the sun direction is
+/// zero, which the caller guards). `hour` is the f64 hour derived from
+/// GameTime::elapsed_seconds -- NOT the f32 GameTime::hour field, whose
+/// ~1e-6 quantization would put ~0.4 m stair-steps back into the surface
+/// lock (the v0.872 jitter lesson).
+///
+/// The spin rate becomes TAU per game day (1200 s = 20 real min at scale
+/// 1.0, systems::time::SECONDS_PER_DAY) -- still a lively visible day from
+/// orbit, and now the HUD clock, the lit hemisphere, and the "time" dev
+/// verb all agree by construction.
+pub fn planet_spin_from_time(hour: f64, sun_azimuth_rad: f64) -> f64 {
+    (sun_azimuth_rad + (hour - 12.0) * (std::f64::consts::TAU / 24.0))
+        .rem_euclid(std::f64::consts::TAU)
+}
 
 /// Frame-lock capture (v0.819): express the camera's current Earth-relative
 /// world position back in the body's UNROTATED local frame, so a later
 /// `frame_lock_ship_pos` can re-place it as the body spins/orbits. Inverse of
 /// `frame_lock_ship_pos`. `body_center_m` is the body's current Earth-relative
 /// centre (DVec3::ZERO for Earth, the frame origin); `spin` is the body's
-/// current rotation angle in radians (`elapsed * PLANET_SPIN_RATE`).
+/// current rotation angle in radians (`planet_spin_from_time`, v0.878).
 pub fn frame_lock_capture(body_center_m: DVec3, spin: f64, cam_world_m: DVec3) -> DVec3 {
     let rot = glam::DQuat::from_rotation_y(spin);
     rot.inverse() * (cam_world_m - body_center_m)
@@ -120,6 +146,45 @@ pub fn format_multiplier(mult: f32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The sun-frame relation (v0.878), locked against the REAL longitude
+    /// convention: at game hour H the subsolar longitude must be (12-H)*15
+    /// degrees. Composes planet_spin_from_time with the same Ry rotation the
+    /// render applies and the terrain's dir_to_latlon convention, so a
+    /// handedness change anywhere breaks HERE, not in a night-time surprise.
+    #[test]
+    fn spin_puts_the_subsolar_longitude_where_the_clock_says() {
+        // A sun direction with nonzero azimuth so phase errors can't hide.
+        let sun_world = DVec3::new(0.6, 0.2, 0.75).normalize();
+        let sun_az = (-sun_world.z).atan2(sun_world.x);
+        for (hour, want_lon_deg) in [
+            (12.0, 0.0),
+            (18.0, -90.0), // evening at lon 0: subsolar has moved west
+            (6.0, 90.0),   // morning at lon 0: subsolar still to the east
+            (15.0, -45.0),
+        ] {
+            let spin = planet_spin_from_time(hour, sun_az);
+            // Subsolar direction in the PLANET-LOCAL frame.
+            let local = glam::DQuat::from_rotation_y(-spin) * sun_world;
+            let (_, lon) = crate::terrain::planet_heightmap::dir_to_latlon_deg(
+                glam::Vec3::new(local.x as f32, local.y as f32, local.z as f32),
+            );
+            let diff = (lon as f64 - want_lon_deg).rem_euclid(360.0);
+            let diff = diff.min(360.0 - diff);
+            assert!(
+                diff < 0.01,
+                "hour {hour}: subsolar lon {lon} (want {want_lon_deg})"
+            );
+        }
+        // Continuity: one game second advances the spin by TAU/1200.
+        let a = planet_spin_from_time(10.0, sun_az);
+        let b = planet_spin_from_time(10.0 + 24.0 / 1200.0, sun_az);
+        let step = (b - a).rem_euclid(std::f64::consts::TAU);
+        assert!(
+            (step - std::f64::consts::TAU / 1200.0).abs() < 1e-12,
+            "spin rate must be one turn per game day"
+        );
+    }
 
     /// Rebuild Camera::forward() from (yaw, pitch) in f64 to verify look_angles.
     fn forward_of(yaw: f32, pitch: f32) -> DVec3 {

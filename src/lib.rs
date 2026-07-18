@@ -2923,6 +2923,33 @@ mod native_app {
         }
     }
 
+    /// The planet spin angle for THIS frame (v0.878 sun-frame unification):
+    /// pure function of the game clock (f64 hour derived from
+    /// GameTime::elapsed_seconds -- the f32 hour field would re-introduce
+    /// v0.872-style quantization jitter) and the world-frame sun azimuth.
+    /// Both inputs change once per frame, so every caller within a frame
+    /// sees the same value with no ordering hazard. See
+    /// dev_travel::planet_spin_from_time for the geometry + conventions.
+    fn current_planet_spin(state: &EngineState) -> f64 {
+        let hour = state
+            .data_store
+            .get::<std::sync::Mutex<crate::systems::time::GameTime>>("game_time")
+            .and_then(|m| m.lock().ok())
+            .map(|gt| {
+                gt.elapsed_seconds.rem_euclid(crate::systems::time::SECONDS_PER_DAY)
+                    / crate::systems::time::SECONDS_PER_DAY
+                    * 24.0
+            })
+            .unwrap_or(12.0);
+        let s = state.sun_world_pos;
+        let sun_az = if s.length_squared() > 1e-6 {
+            (-s.z).atan2(s.x)
+        } else {
+            0.0
+        };
+        crate::dev_travel::planet_spin_from_time(hour, sun_az)
+    }
+
     fn poll_camera_request(state: &mut EngineState) {
         const REQUEST_PATH: &str = "debug/camera_request.json";
         const DONE_PATH: &str = "debug/camera_done.json";
@@ -3022,8 +3049,7 @@ mod native_app {
         // the world frame by the planet's current spin so it lands on the real
         // ground feature. Otherwise the sunlit-heuristic Travel vantage.
         let dir_out = if let Some((lat, lon)) = latlon {
-            let spin =
-                state.start_time.elapsed().as_secs_f64() * crate::dev_travel::PLANET_SPIN_RATE;
+            let spin = current_planet_spin(state);
             let d = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
             let world = glam::DQuat::from_rotation_y(spin)
                 * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
@@ -3108,8 +3134,7 @@ mod native_app {
         // surface holds still instead of spinning past at tens of km/s. Capture
         // the anchor at the current spin from where the camera ends up.
         {
-            let spin = state.start_time.elapsed().as_secs_f64()
-                * crate::dev_travel::PLANET_SPIN_RATE;
+            let spin = current_planet_spin(state);
             let cam_local = glam::DVec3::new(
                 state.camera.position.x as f64,
                 state.camera.position.y as f64,
@@ -10043,8 +10068,7 @@ mod native_app {
                     // below repopulates it while a surface is actually locked.
                     state.gui_state.surface_altitude_m = None;
                     if let Some(lock_body) = state.frame_lock_body.clone() {
-                        let spin = (now - state.start_time).as_secs_f64()
-                            * crate::dev_travel::PLANET_SPIN_RATE;
+                        let spin = current_planet_spin(state);
                         // Body centre in the celestial frame (0 for Earth, the
                         // frame origin; real orbital position otherwise).
                         let body_center = if lock_body == "earth" {
@@ -11019,8 +11043,7 @@ mod native_app {
                             // Frame-lock onto the target so its surface holds
                             // still (see the field docs + dev_travel::frame_lock_*).
                             {
-                                let spin = state.start_time.elapsed().as_secs_f64()
-                                    * crate::dev_travel::PLANET_SPIN_RATE;
+                                let spin = current_planet_spin(state);
                                 let cam_local = glam::DVec3::new(
                                     state.camera.position.x as f64,
                                     state.camera.position.y as f64,
@@ -11083,8 +11106,7 @@ mod native_app {
                                 (0.0_f32, 0.0_f32)
                             };
                             let altitude_km = 1.5_f64;
-                            let spin = state.start_time.elapsed().as_secs_f64()
-                                * crate::dev_travel::PLANET_SPIN_RATE;
+                            let spin = current_planet_spin(state);
                             let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat, lon);
                             let world_dir = glam::DQuat::from_rotation_y(spin)
                                 * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);
@@ -14192,9 +14214,7 @@ mod native_app {
                     // with uptime (~1 m after 5 minutes). ONE f64 spin value now
                     // feeds both sides, and the angle is range-reduced before
                     // any f32 quaternion is built from it.
-                    let spin_f64 = ((now - state.start_time).as_secs_f64()
-                        * crate::dev_travel::PLANET_SPIN_RATE)
-                        .rem_euclid(std::f64::consts::TAU);
+                    let spin_f64 = current_planet_spin(state);
                     {
                         let sim_t = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)

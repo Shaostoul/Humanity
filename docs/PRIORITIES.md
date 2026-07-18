@@ -79,7 +79,7 @@
 >    depth pressure + hull ratings (submarines), analytic impact displacement
 >    (spaceship crashes, asteroid drops). (c) HOMESTEAD DECOUPLING remains the
 >    known surface bug (home wheels around the player frame on the ground; it
->    photobombs every orbit screenshot too). (d) sun-frame lighting fix (game
+>    photobombs every orbit screenshot too). (d) DONE v0.878: sun-frame lighting unified (game
 >    clock vs subsolar longitude drifts with spin - hard to stage lit captures).
 >
 > The production-readiness + go-live focus below is DONE for this pass (streaming
