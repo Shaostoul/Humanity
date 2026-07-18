@@ -531,49 +531,16 @@ pub fn draw(
                 }
             }
 
-            // ── Hotbar (bottom-center) ──
-            // Show first 9 inventory slots as the hotbar
+            // ── The ONE hotbar (v0.880) ── the first nine castable
+            // abilities, bottom-center; 1-9 casts the matching slot (the
+            // same order the abilities bridge sorts: castable first, by
+            // name). The old second row (a display-only inventory-letter
+            // strip below this) read as a duplicate set of number keys
+            // (operator 2026-07-18: "we have two hotbars... only one set of
+            // the 10 number keys") and is gone - carried items live on the
+            // Inventory page; the HUD shows only the bar the keys drive.
             let slot_size = 44.0;
-            let slot_gap = 4.0;
-            let slot_count = 9;
-            let total_width = slot_count as f32 * slot_size + (slot_count - 1) as f32 * slot_gap;
-            let start_x = center.x - total_width / 2.0;
             let start_y = screen.bottom() - slot_size - 16.0;
-
-            for i in 0..slot_count {
-                let x = start_x + i as f32 * (slot_size + slot_gap);
-                let rect = Rect::from_min_size(Pos2::new(x, start_y), Vec2::splat(slot_size));
-                painter.rect_filled(rect, Rounding::same(4), Color32::from_black_alpha(140));
-                painter.rect_stroke(rect, Rounding::same(4), egui::Stroke::new(1.0, theme.border()), egui::StrokeKind::Outside);
-
-                // Show item from inventory if available
-                if let Some(Some(item)) = state.inventory_items.get(i) {
-                    // First letter of item name as icon
-                    let icon = item.name.chars().next().unwrap_or('?').to_string();
-                    painter.text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        &icon,
-                        FontId::proportional(18.0),
-                        theme.text_primary(),
-                    );
-                    // Quantity in bottom-right
-                    painter.text(
-                        rect.right_bottom() + Vec2::new(-4.0, -2.0),
-                        Align2::RIGHT_BOTTOM,
-                        item.quantity.to_string(),
-                        FontId::proportional(10.0),
-                        theme.text_muted(),
-                    );
-                }
-
-                // No slot numbers here: the 1-9 keys belong to the ability
-                // bar above (numbers on a display-only row would lie).
-            }
-
-            // ── Ability bar (v0.754) ── the first nine castable abilities,
-            // above the inventory hotbar; 1-9 casts the matching slot (the
-            // same order the abilities bridge sorts: castable first, by name).
             {
                 let castable: Vec<_> = state
                     .abilities
@@ -582,12 +549,14 @@ pub fn draw(
                     .take(9)
                     .collect();
                 if !castable.is_empty() {
-                    let a_size = 32.0;
+                    // Full hotbar size at the bottom slot row (it IS the
+                    // hotbar now, not a mini strip above one).
+                    let a_size = slot_size;
                     let a_gap = 4.0;
                     let a_total = castable.len() as f32 * a_size
                         + (castable.len() - 1) as f32 * a_gap;
                     let ax0 = center.x - a_total / 2.0;
-                    let ay = start_y - a_size - 8.0;
+                    let ay = start_y;
                     for (i, ab) in castable.iter().enumerate() {
                         let rect = Rect::from_min_size(
                             Pos2::new(ax0 + i as f32 * (a_size + a_gap), ay),

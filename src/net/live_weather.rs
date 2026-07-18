@@ -266,6 +266,47 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
             col = end;
         }
     }
+    // Swath-boundary softening (v0.880, operator: "I still keep catching
+    // hard seams in the clouds"): adjacent MODIS swaths are captured HOURS
+    // apart, so the composite has razor-straight discontinuities where the
+    // cloud field genuinely jumped between passes. A small separable [1,2,1]
+    // blur over the fraction channel (valid samples only) turns those steps
+    // into ~100 km gradients - soft fronts instead of knife lines - while
+    // real weather structure (>100 km) keeps its shape.
+    {
+        let w = WEATHER_W as usize;
+        let h = WEATHER_H as usize;
+        let mut pass = |horizontal: bool, buf: &mut Vec<u8>| {
+            let src: Vec<u8> = buf.clone();
+            for y in 0..h {
+                for x in 0..w {
+                    let i = y * w + x;
+                    if src[i * 2 + 1] == 0 {
+                        continue;
+                    }
+                    let (pa, pb) = if horizontal {
+                        (y * w + (x + w - 1) % w, y * w + (x + 1) % w)
+                    } else {
+                        (
+                            y.saturating_sub(1) * w + x,
+                            (y + 1).min(h - 1) * w + x,
+                        )
+                    };
+                    let mut sum = src[i * 2] as u32 * 2;
+                    let mut wt = 2u32;
+                    for n in [pa, pb] {
+                        if src[n * 2 + 1] != 0 {
+                            sum += src[n * 2] as u32;
+                            wt += 1;
+                        }
+                    }
+                    buf[i * 2] = (sum / wt) as u8;
+                }
+            }
+        };
+        pass(true, &mut out);
+        pass(false, &mut out);
+    }
     // A mostly-empty map (endpoint hiccup, wrong layer state) is worse than
     // keeping the cache: require at least 20% real coverage to accept.
     if valid_px * 5 < (WEATHER_W * WEATHER_H) as usize {

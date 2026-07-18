@@ -1819,7 +1819,15 @@ fn cloud_stretch_domain(p: vec3<f32>, dir: vec3<f32>, stretch: f32) -> vec3<f32>
 fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> CloudSample {
     let r = length(p);
     let h = clamp((r - CLOUD_RB) / (CLOUD_RT - CLOUD_RB), 0.0, 1.0);
-    let env = cloud_height_band(h, reg.h_lo, reg.h_hi);
+    // Towering (v0.880, operator: "real clouds have a variety of heights").
+    // Dense columns BUILD VERTICALLY: the effective band top rises with the
+    // local coverage, scaled by the regime's own band thickness - so solid
+    // cumulus masses tower toward the slab top while thin stratus decks and
+    // sparse fields stay flat. The light march shares this function, so
+    // tower shadows stay consistent.
+    let tower = smoothstep(0.55, 1.0, wa);
+    let h_hi_eff = min(reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo), 1.0);
+    let env = cloud_height_band(h, reg.h_lo, h_hi_eff);
     if (env <= 0.002 || wa <= 0.003) {
         return CloudSample(0.0, p, h);
     }

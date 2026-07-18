@@ -478,6 +478,11 @@ pub fn cloud_type_coord(dir: [f32; 3], t: f32, seed: f32) -> f32 {
     (0.62 * a + 0.38 * b).clamp(0.0, 1.0)
 }
 
+/// NOTE (v0.880): the shader's `cloud_carve` now raises the band top per
+/// column by the tower boost `min(h_hi + smoothstep(0.55,1,wa) * 0.8 *
+/// (h_hi - h_lo), 1)` BEFORE calling the band function - dense columns
+/// tower, thin decks stay flat. The band function itself is unchanged and
+/// this mirror stays exact for it.
 /// Mirrors `cloud_height_band`: smooth rise / plateau / fall over the slab
 /// fraction h for a regime's [h_lo, h_hi] altitude band.
 pub fn cloud_height_band(h: f32, h_lo: f32, h_hi: f32) -> f32 {

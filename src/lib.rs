@@ -10260,20 +10260,37 @@ mod native_app {
                             let dir0 = anchor.normalize_or_zero();
                             let radial_wish = wish_unrot.dot(dir0);
                             let tangential = wish_unrot - dir0 * radial_wish;
-                            // Surface move speed scales SMOOTHLY with the mouse-
-                            // wheel fly multiplier (bounded), so you can cross the
-                            // ground fast WITHOUT the FTL ship-launch (2026-07-12):
-                            // the world-scale fly integration is gated off in
-                            // surface mode above, so THIS is the only speed control
-                            // here. speed_multiplier stays the status/gear modifier;
-                            // surface_mult is the wheel, capped so a full sprint
-                            // tops out ~10 km/s instead of flinging you to orbit.
-                            let surface_mult = (state.controller.fly_speed_mult as f64)
-                                .clamp(1.0, SURFACE_SPEED_MULT_MAX);
+                            // ── Unified flight speed (v0.880, operator stuck
+                            // at the 100 km boundary + "speed resets") ──
+                            // WALK band: the wheel stays bounded (~10 km/s) so
+                            // a tap never flings you off the planet.
+                            // FLIGHT band (10-100 km): the FULL wheel gear
+                            // works - same mental model as FTL above 100 km -
+                            // and safety comes from the same approach governor
+                            // instead of a hard cap: per-frame movement never
+                            // exceeds half the height above the ground, so ANY
+                            // gear glides in smoothly and hands over to the
+                            // walk band, which auto-settles. The old 2000x
+                            // clamp made the band a crawl (400 m/frame from
+                            // 100 km) while one wheel notch past the boundary
+                            // resumed FTL at a billion-x - the fast/slow
+                            // oscillation that kept the surface unreachable.
+                            let surface_mult = if in_walk_band {
+                                (state.controller.fly_speed_mult as f64)
+                                    .clamp(1.0, SURFACE_SPEED_MULT_MAX)
+                            } else {
+                                (state.controller.fly_speed_mult as f64).max(1.0)
+                            };
                             let walk_speed = (state.controller.speed
                                 * state.controller.speed_multiplier)
                                 .max(0.0) as f64
                                 * surface_mult;
+                            let step_cap = if in_walk_band {
+                                f64::MAX
+                            } else {
+                                (alt * 0.5).max(200.0)
+                            };
+                            let step = (walk_speed * dt as f64).min(step_cap);
                             // Detail-inclusive ground sampler (see-through-ground
                             // fix): the planet's sub-grid detail noise so the clamp
                             // stands the eye on the DRAWN mesh, not the base
@@ -10282,7 +10299,7 @@ mod native_app {
                             let detail = def
                                 .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
                             if tangential.length() > 1e-9 {
-                                anchor += tangential.normalize() * walk_speed * dt as f64;
+                                anchor += tangential.normalize() * step;
                             }
                             // Ground radius at the (possibly moved) surface point,
                             // INCLUDING the drawn detail relief.
@@ -10316,9 +10333,18 @@ mod native_app {
                                 crate::surface_walk::EYE_HEIGHT_M,
                             );
                             let mut r = anchor.length();
-                            if radial_wish > 0.0 {
+                            // Dead zone (v0.880, operator: "pressing W I start
+                            // floating up into the air"): surface_wish_dir
+                            // strips WASD to the tangent plane, but the
+                            // projection leaves ~1e-7 of float noise on the
+                            // radial axis - and ANY positive residue used to
+                            // take the lift branch at full walk speed. A real
+                            // ascend/descend key contributes ~1.0; require a
+                            // deliberate input.
+                            const RADIAL_WISH_EPS: f64 = 0.05;
+                            if radial_wish > RADIAL_WISH_EPS {
                                 // Thrust up (Space): the fly control lifts you off.
-                                r += walk_speed.max(1.0) * dt as f64;
+                                r += (step * radial_wish).max(1.0 * dt as f64);
                             } else if in_walk_band {
                                 // Gravity only in the walk band: on/near the
                                 // ground you settle to standing height.
@@ -10328,12 +10354,12 @@ mod native_app {
                                     dt as f64,
                                     SURFACE_SETTLE_RATE,
                                 );
-                            } else if radial_wish < 0.0 {
-                                // Atmospheric flight band (10-100 km): Shift
-                                // descends deliberately; altitude otherwise
-                                // holds (no gravity drag - this also stops
-                                // parked aerial cameras sinking).
-                                r += radial_wish * walk_speed * dt as f64;
+                            } else if radial_wish < -RADIAL_WISH_EPS {
+                                // Atmospheric flight band (10-100 km): descend
+                                // deliberately at the governed step; altitude
+                                // otherwise holds (no gravity drag - this also
+                                // stops parked aerial cameras sinking).
+                                r += radial_wish * step;
                             }
                             r = crate::surface_walk::clamp_above_ground(
                                 r,
