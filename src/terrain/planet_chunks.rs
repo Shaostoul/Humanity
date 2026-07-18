@@ -862,7 +862,7 @@ pub fn select_patches(
             // the planet and everything off-screen costs zero geometry.
             let kids_c = child_corners(&node.corners);
             let mut vis: Vec<HeapNode> = Vec::with_capacity(4);
-            let mut missing = 0usize;
+            let mut missing: Vec<(PatchId, f32)> = Vec::new();
             for (i, kc) in kids_c.iter().enumerate() {
                 stats.visited += 1;
                 let kid = node.id.child(i as u32);
@@ -870,8 +870,7 @@ pub fn select_patches(
                 let band = built.unwrap_or(params.band);
                 if let Some(kb) = visible(kc, &band, &mut stats) {
                     if built.is_none() {
-                        missing += 1;
-                        requests.push((kid, node.err_px));
+                        missing.push((kid, node.err_px));
                     }
                     let err_px = screen_error_px(kid.depth, &kb, cam_local_m, params);
                     vis.push(HeapNode { err_px, id: kid, corners: *kc, bounds: kb });
@@ -885,18 +884,31 @@ pub fn select_patches(
                 // from the planet" cost zero patches).
                 continue;
             }
-            if missing > 0 {
-                // RESTRICTED DESCENT: cannot split until every visible
-                // child mesh exists. Draw self this frame; the requests
-                // above stream the children in over the next frames.
-                leaves.push((node.id, node.err_px));
-                continue;
-            }
-            // Leaf budget: splitting nets (vis - 1) additional eventual
-            // leaves (self is replaced by vis children).
+            // Leaf budget BEFORE build requests (v0.883, operator: "I'm not
+            // even moving and the terrain is rapidly switching LODs"). The
+            // old order requested missing children first and applied the
+            // budget after, so a saturated tree kept COMMISSIONING builds it
+            // could never draw: the cache grew to the eviction cap, evicted
+            // idle children, which flipped split-hysteresis thresholds and
+            // re-shuffled the budget tail every frame - a perpetual
+            // build->evict->rebuild wave rolling around the visible set even
+            // with the camera parked. Refusing the split BEFORE requesting
+            // makes a stationary view converge to a fixed point: the tree
+            // refines to the budget, requests stop, evictions stop, and the
+            // drawn set becomes frame-to-frame identical.
             let projected_total = leaves.len() + heap.len() + vis.len();
             if projected_total > params.max_leaves {
                 stats.budget_saturated = true;
+                leaves.push((node.id, node.err_px));
+                continue;
+            }
+            if !missing.is_empty() {
+                // RESTRICTED DESCENT: cannot split until every visible
+                // child mesh exists. Draw self this frame; the requests
+                // stream the children in over the next frames.
+                for r in missing {
+                    requests.push(r);
+                }
                 leaves.push((node.id, node.err_px));
                 continue;
             }
