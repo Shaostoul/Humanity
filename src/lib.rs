@@ -6971,6 +6971,9 @@ mod native_app {
         }
 
         state.world_loaded = true;
+        // Orbital home (v0.881): the spawn room is aboard the station by
+        // definition - snap the player frame onto the orbit next frame.
+        state.station_spawn_snap = true;
         log::info!("3D world loaded in {:.0}ms", load_start.elapsed().as_millis());
         // Boot-timing summary (dev tooling): fires exactly once (load_world is
         // only entered when !world_loaded). Records the whole world-load span,
@@ -7317,6 +7320,24 @@ mod native_app {
         /// every 30 min). None when the setting is off. Polled per frame;
         /// each grid is one queue.write_texture into the weather map.
         weather_rx: Option<std::sync::mpsc::Receiver<Vec<u8>>>,
+        /// Orbital home station (v0.881): the homestead's Earth-centered
+        /// position on its 400 km LEO orbit, recomputed each frame (phase =
+        /// wall-clock UTC x the real orbital rate, so the orbit persists
+        /// across sessions). DVec3::ZERO until the first frame propagates it.
+        station_world_pos: glam::DVec3,
+        /// True while the player frame RIDES the station (within the aboard
+        /// radius): ship_world_pos advances by the station's orbital delta
+        /// each frame so every home-local system works unchanged.
+        station_ride: bool,
+        /// One-shot: set at world load; the next frame snaps the player
+        /// frame onto the station (the spawn room is aboard by definition).
+        station_spawn_snap: bool,
+        /// (station - ship frame) this frame, f32: the scene pass renders
+        /// the whole home at this offset; ~zero while riding aboard.
+        station_off: Vec3,
+        /// Aboard flag for gating home-local physics (walls, floors,
+        /// elevators) - false when the home is far away in orbit.
+        aboard_station: bool,
         /// THIS frame's planet spin angle (v0.878.2): computed ONCE per
         /// frame at the top of RedrawRequested and read by every consumer
         /// (surface lock, frame-lock captures, render, camera requests).
@@ -8603,6 +8624,11 @@ mod native_app {
                     None
                 },
                 current_spin: 0.0,
+                station_world_pos: glam::DVec3::ZERO,
+                station_ride: false,
+                station_spawn_snap: false,
+                station_off: Vec3::ZERO,
+                aboard_station: false,
                 surface_walk_band: false,
                 surface_owns_translation: false,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
@@ -9691,6 +9717,77 @@ mod native_app {
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
+                    // -- Orbital home station (v0.881, operator: "get the
+                    // player home disconnected from the player and placed in
+                    // a stable orbit... like the ISS") --
+                    // Real 400 km circular equatorial LEO in the
+                    // Earth-centered inertial frame (the ship_world_pos
+                    // frame): period ~92.6 real minutes, phase tied to
+                    // wall-clock UTC so the orbit persists across sessions.
+                    {
+                        const MU_EARTH: f64 = 3.986_004_418e14;
+                        const STATION_ORBIT_R: f64 = 6.371e6 + 400_000.0;
+                        let omega = (MU_EARTH
+                            / (STATION_ORBIT_R * STATION_ORBIT_R * STATION_ORBIT_R))
+                            .sqrt();
+                        let t_unix = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs_f64())
+                            .unwrap_or(0.0);
+                        let th = (t_unix * omega).rem_euclid(std::f64::consts::TAU);
+                        let new_pos =
+                            glam::DVec3::new(th.cos(), 0.0, th.sin()) * STATION_ORBIT_R;
+                        let delta = if state.station_world_pos == glam::DVec3::ZERO {
+                            glam::DVec3::ZERO
+                        } else {
+                            new_pos - state.station_world_pos
+                        };
+                        state.station_world_pos = new_pos;
+                        let cam_local = glam::DVec3::new(
+                            state.camera.position.x as f64,
+                            state.camera.position.y as f64,
+                            state.camera.position.z as f64,
+                        );
+                        let cam_world = state.ship_world_pos + cam_local;
+                        let aboard = (cam_world - new_pos).length() < 400.0;
+                        if state.station_spawn_snap {
+                            // World load: the spawn room IS aboard - put the
+                            // player frame on the station outright.
+                            state.ship_world_pos = new_pos;
+                            state.station_ride = true;
+                            state.station_spawn_snap = false;
+                        } else if state.station_ride {
+                            // RIDE the orbit: apply the orbital delta FIRST,
+                            // then test departure with the RIDDEN position.
+                            // Testing before riding broke the lock on any
+                            // hitchy frame (a 200 ms load stall let the
+                            // station advance 1.5 km before the check, past
+                            // the 400 m aboard radius - found live during
+                            // v0.881 bring-up). Now only the PLAYER actually
+                            // flying away disengages.
+                            state.ship_world_pos += delta;
+                            let ridden = state.ship_world_pos + cam_local;
+                            if (ridden - new_pos).length() >= 400.0 {
+                                state.station_ride = false;
+                            }
+                        } else if aboard {
+                            // BOARDING: adopt the station as the frame origin
+                            // while PRESERVING the camera's world position, so
+                            // local coords become exact home coords with no
+                            // visual pop (the background shifts <=400 m at a
+                            // 400 km distance - imperceptible; the station
+                            // itself does not move on screen).
+                            state.ship_world_pos = new_pos;
+                            let rel = cam_world - new_pos;
+                            state.camera.position =
+                                Vec3::new(rel.x as f32, rel.y as f32, rel.z as f32);
+                            state.station_ride = true;
+                        }
+                        state.aboard_station = state.station_ride;
+                        let off = new_pos - state.ship_world_pos;
+                        state.station_off =
+                            Vec3::new(off.x as f32, off.y as f32, off.z as f32);
+                    }
 
                     // Poll hot-reload for file changes
                     let changes = state.hot_reload.poll(&mut state.asset_manager);
@@ -9815,6 +9912,8 @@ mod native_app {
                     const ELEVATOR_RATE: f32 = 0.5; // anim units / s (0..1 over the full travel ~2 s)
                     if state.camera.mode == crate::renderer::camera::CameraMode::FirstPerson
                         && !state.gui_state.construction_active
+                        // v0.881: home elevators only exist where the home is.
+                        && state.aboard_station
                     {
                         let p = state.camera.position;
                         let feet = p.y - state.controller.eye_height();
@@ -9869,7 +9968,9 @@ mod native_app {
                     // Keep the player grounded on the floor of whatever room they are in
                     // (so gravity + jump land on the right deck). Falls back to the last
                     // floor when outside every room. Room floors are coplanar in the home.
-                    {
+                    // v0.881: only ABOARD - on a planet the surface branch owns
+                    // footing, and in free space there is no home floor below.
+                    if state.aboard_station {
                         let p = state.camera.position;
                         if let Some(mut floor) = state
                             .gui_state
@@ -10442,6 +10543,8 @@ mod native_app {
                         // the traveler inside the hull when they fly out.
                         && !state.controller.fly_mode
                         && !state.wall_colliders.is_empty()
+                        // v0.881: the walls are wherever the home is.
+                        && state.aboard_station
                     {
                         let door_locks = state.door_locks.clone();
                         // LIVE door segments, rebuilt per frame from the animated open fractions.
@@ -10625,7 +10728,12 @@ mod native_app {
                     // Floating origin is only used for rendering distant bodies
 
                     // Sync camera state into DataStore for game systems
-                    state.data_store.insert("camera_position", state.camera.position);
+                    // Home-LOCAL camera for proximity systems (v0.881):
+                    // aboard this equals the raw camera; away it is far from
+                    // every home machine, silencing interactions naturally.
+                    state
+                        .data_store
+                        .insert("camera_position", state.camera.position - state.station_off);
                     // v0.697 fix: this used to recompute forward as (-sin, -cos),
                     // X-MIRRORING the camera's real (sin, -cos) convention -- correct
                     // facing north/south, inverted east/west (the operator's "east/
@@ -19538,6 +19646,15 @@ mod native_app {
                                             state.gui_state.appearance_dirty = true;
                                             state.gui_state.outfit_dirty = true;
                                             log::info!("Launcher: loaded character '{name}'");
+                                            // Orbital home (v0.881): the
+                                            // character spawns aboard - snap
+                                            // the frame onto the station NEXT
+                                            // frame (after this path's own
+                                            // ship/camera writes, which used
+                                            // to overwrite the boot-time
+                                            // snap and strand the home in
+                                            // orbit without the player).
+                                            state.station_spawn_snap = true;
                                             break;
                                         }
                                     }
@@ -19641,6 +19758,10 @@ mod native_app {
                                         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                                     });
                                     lights.truncate(8);
+                                    // Home lights ride the station (v0.881).
+                                    for l in lights.iter_mut() {
+                                        l.pos += state.station_off;
+                                    }
                                     state.renderer.set_point_lights(&lights);
                                 }
 
@@ -19668,6 +19789,28 @@ mod native_app {
                                 // (v0.451; empty in the showroom — build is !showroom-gated.)
                                 state.renderer.draw_celestial_lines_onto(&state.camera, &orbit_lines, &view);
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
+                                // -- Orbital home offset (v0.881) --
+                                // The ENTIRE scene pass is the home frame's
+                                // contents (floors, machines, crops, NPCs,
+                                // vehicles, gizmos), so ONE translation puts
+                                // it all at the station's orbital position.
+                                // Riding aboard the offset is ~zero; from
+                                // Earth's surface the station is a moving
+                                // ~4 px glint 400 km up - the ISS look.
+                                let so = state.station_off;
+                                if so.length_squared() > 1.0e-6 {
+                                    for o in all_objects.iter_mut() {
+                                        o.position += so;
+                                    }
+                                    for o in transparent_objects.iter_mut() {
+                                        o.position += so;
+                                    }
+                                    for v in ring_lines.iter_mut() {
+                                        v.position[0] += so.x;
+                                        v.position[1] += so.y;
+                                        v.position[2] += so.z;
+                                    }
+                                }
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);
                                 // Pass 2.5: transparent surfaces (glass windows) blended over
                                 // the opaque scene so you can see through them. (v0.456)

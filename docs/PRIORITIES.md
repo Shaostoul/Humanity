@@ -77,7 +77,7 @@
 >    (flood fill; keeps Death-Valley-type below-sea-level basins dry), Gerstner
 >    wave surface drawn == sampled, swimming, Archimedes buoyancy (sail ships),
 >    depth pressure + hull ratings (submarines), analytic impact displacement
->    (spaceship crashes, asteroid drops). (c) HOMESTEAD DECOUPLING remains the
+>    (spaceship crashes, asteroid drops). (c) DONE v0.881: HOMESTEAD DECOUPLED into a real 400 km LEO orbit (ISS-like; player frame rides it aboard; scene renders at the orbital offset when away; no more orbit-screenshot photobomb). Follow-ups: Return-home targets the station, ground-visible glint, Map orbit display. Previously the
 >    known surface bug (home wheels around the player frame on the ground; it
 >    photobombs every orbit screenshot too). (d) DONE v0.878: sun-frame lighting unified (game
 >    clock vs subsolar longitude drifts with spin - hard to stage lit captures).
