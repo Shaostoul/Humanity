@@ -14419,8 +14419,9 @@ mod native_app {
                                     radius_m: d.radius,
                                     band,
                                     // The tile tier earns deeper patches
-                                    // (~6.7 m triangles); base-only stops
-                                    // where its data goes flat.
+                                    // (depth 20, ~0.4 m triangles, the 1 m
+                                    // ladder); base-only stops where its
+                                    // data goes flat.
                                     max_depth: if tiles_ref.is_some() {
                                         chunks::TILE_MAX_PATCH_DEPTH
                                     } else {

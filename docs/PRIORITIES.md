@@ -61,10 +61,13 @@
 >    (procedural octaves carve structure inside real masses; validity channel
 >    falls back to procedural; Settings toggle). Verified against the satellite
 >    reference: clear Sahara/Arabia, ITCZ band, Europe cloud all match in-game.
->    NEXT (in order): (a) 1 m terrain ladder - PatchId.path u32 -> u64 for depth
->    >16 (~0.8 m triangles at depth 19-20), extended fine-detail octaves below
->    125 m, per the operator's max-settings directive (RTX 4070 / 1 TB NVMe).
->    (b) REAL OCEANS - full staged design in docs/design/ocean.md: ocean mask
+>    v0.875 shipped the 1 m TERRAIN LADDER - PatchId.path u32 -> u64,
+>    tile-tier depth cap 16 -> 20 (~0.42 m triangles within ~30 m of the
+>    ground; depth 19 / 0.84 m at the default patch budget, the full tier at
+>    the Settings 768 ceiling), fine-octave ladder extended 125 m -> 1 m
+>    wavelengths (Nyquist gates 14..20, amplitudes tapering to rock-scale
+>    wrinkle), regression tests pin the descent and u64 path integrity.
+>    NEXT (in order): (a) REAL OCEANS - full staged design in docs/design/ocean.md: ocean mask
 >    (flood fill; keeps Death-Valley-type below-sea-level basins dry), Gerstner
 >    wave surface drawn == sampled, swimming, Archimedes buoyancy (sail ships),
 >    depth pressure + hull ratings (submarines), analytic impact displacement

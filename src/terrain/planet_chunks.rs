@@ -20,10 +20,13 @@
 //!   depth 11: patch 3,444 m -> triangles ~215 m
 //!   depth 12: patch 1,722 m -> triangles ~108 m
 //!   depth 13: patch   861 m -> triangles  ~54 m   <- MAX_PATCH_DEPTH
-//! Depth 13 lands triangle edges in this increment's 50-100 m target band.
-//! The documented follow-up to ~1 m is depth ~19 (7,054 km / 2^19 / 16 =
-//! 0.84 m) plus micro-detail synthesis below the detail-noise floor; the
-//! per-patch f64-anchor scheme below already carries the precision for it.
+//! Depth 13 lands triangle edges in the original 50-100 m target band.
+//! The ~1 m follow-up SHIPPED in v0.875: with the streamed tile tier
+//! installed the cap is TILE_MAX_PATCH_DEPTH = 20 (7,054 km / 2^20 / 16 =
+//! 0.42 m triangles) plus seven extra fine-noise octaves (62 m .. 1 m
+//! wavelengths) as the micro-detail synthesis; the per-patch f64-anchor
+//! scheme below carries the precision (offsets from the anchor are a few
+//! meters at depth 20, ulp sub-micrometer).
 //!
 //! ── Precision discipline (mirrors dev travel) ──
 //! An f32 vertex relative to the PLANET CENTER has an ulp of ~0.5 m at
@@ -103,12 +106,14 @@ pub const MAX_PATCH_DEPTH: u8 = 13;
 /// like the fine-octave depth gates below.
 pub const TILE_MIN_DEPTH: u8 = 9;
 
-/// Depth cap when the tile tier is installed: 20*4^16 potential leaves,
-/// ~54 m patches -> ~6.7 m triangles, enough mesh to express the 460 m data
-/// plus the sub-500 m noise octaves. Base-only stays at MAX_PATCH_DEPTH
-/// (deeper triangles over 5.5 km cells buy nothing). PatchId.path holds
-/// 2 bits per level, so depth 16 exactly fills its u32.
-pub const TILE_MAX_PATCH_DEPTH: u8 = 16;
+/// Depth cap when the tile tier is installed. Raised 16 -> 20 for the 1 m
+/// ladder (v0.875, operator's max-settings directive): depth 20 patches are
+/// ~6.7 m wide with ~0.42 m triangles, engaged only within ~30 m of the
+/// ground (screen-space split), expressing the full extended fine-octave
+/// ladder (gates 14..20 below). Base-only stays at MAX_PATCH_DEPTH (deeper
+/// triangles over 5.5 km cells buy nothing). PatchId.path is u64 (2 bits
+/// per level), so the tree could go to 32; the cap is a QUALITY choice.
+pub const TILE_MAX_PATCH_DEPTH: u8 = 20;
 
 /// Central angle of one root icosahedron edge: acos(1/sqrt(5)).
 /// Adjacent icosahedron vertices at circumradius 1 have dot = 1/sqrt(5)
@@ -200,19 +205,26 @@ pub const CHUNK_ACTIVATION_LADDER_LEVEL: u32 = 8;
 // amplitudes tapering 17/8.5/4.5 m. These fill the gap just below the ~11 km
 // data floor and are what a whole-continent or regional view shows.
 //
-// FINE (depth-GATED, v0.818): four more octaves continuing the geometric
-// ladder down to ~125 m wavelength, so at 300 m - 2 km altitude ridgelines,
-// hills and coastlines carry real sub-km form instead of smoothly
-// interpolated blur. wavelength_m ~= radius_m / freq:
-//   freq  6400 -> ~1.0 km   gate depth 10   (triangle edge ~430 m)
-//   freq 12800 -> ~500 m    gate depth 11   (triangle edge ~215 m)
-//   freq 25600 -> ~250 m    gate depth 12   (triangle edge ~108 m)
-//   freq 51200 -> ~125 m    gate depth 13   (triangle edge  ~54 m = the cap)
-// Going finer than ~125 m would alias on the finest (depth-13, ~54 m) mesh
-// triangles, so the ladder stops there (finer than the mesh can express is
-// wasted). Amplitudes continue the ~half-per-octave taper (4.5 -> 2.3 -> 1.1
-// -> 0.6 -> 0.3 m), so the fine tier adds at most ~4.3 m of REAL elevation
-// (~17 m after Earth's exaggeration) layered on top of the ~30 m base tier.
+// FINE (depth-GATED, v0.818; extended to ~1 m in v0.875): more octaves
+// continuing the geometric ladder, so at every altitude band the mesh
+// carries form at the scale it can express. wavelength_m ~= radius_m / freq:
+//   freq    6400 -> ~1.0 km  gate depth 10   (triangle edge ~430 m)
+//   freq   12800 -> ~500 m   gate depth 11   (triangle edge ~215 m)
+//   freq   25600 -> ~250 m   gate depth 12   (triangle edge ~108 m)
+//   freq   51200 -> ~125 m   gate depth 13   (triangle edge  ~54 m)
+//   freq  102400 -> ~62 m    gate depth 14   (triangle edge  ~27 m)
+//   freq  204800 -> ~31 m    gate depth 15   (triangle edge  ~13 m)
+//   freq  409600 -> ~16 m    gate depth 16   (triangle edge ~6.7 m)
+//   freq  819200 -> ~7.8 m   gate depth 17   (triangle edge ~3.4 m)
+//   freq 1638400 -> ~3.9 m   gate depth 18   (triangle edge ~1.7 m)
+//   freq 3276800 -> ~1.9 m   gate depth 19   (triangle edge ~0.8 m)
+//   freq 6553600 -> ~1.0 m   gate depth 20   (triangle edge ~0.4 m = cap)
+// Amplitudes taper ~x0.55 per octave (4.5 -> 2.3 -> ... -> 0.007 m): the
+// first four fine octaves add ~4.3 m of REAL elevation; the seven 1 m-ladder
+// octaves add only ~0.4 m more (rock-scale wrinkle, ~1.6 m after Earth's
+// exaggeration) -- micro-relief, never new landforms. The taper flattens
+// slightly at the tail (x0.55, not x0.5) because natural terrain roughness
+// does not vanish at rock scale; pure halving faded to invisibility.
 //
 // WHY the depth gate: a high-frequency octave sampled by triangles too coarse
 // to resolve it (fewer than ~2 samples per wavelength) turns into aliasing
@@ -231,15 +243,20 @@ pub const CHUNK_ACTIVATION_LADDER_LEVEL: u32 = 8;
 //      and only smaller wrinkles appear -- detail grows in, it does not swim.
 pub const DETAIL_FREQS: [f64; 3] = [800.0, 1600.0, 3200.0];
 pub const DETAIL_AMPS_M: [f32; 3] = [17.0, 8.5, 4.5];
-/// Fine (depth-gated) octave frequencies: continue the base ladder halving.
-pub const DETAIL_FINE_FREQS: [f64; 4] = [6400.0, 12800.0, 25600.0, 51200.0];
+/// Fine (depth-gated) octave frequencies: continue the base ladder halving
+/// down to ~1 m wavelength (the v0.875 1 m-ladder extension).
+pub const DETAIL_FINE_FREQS: [f64; 11] = [
+    6400.0, 12800.0, 25600.0, 51200.0, 102400.0, 204800.0, 409600.0, 819200.0, 1638400.0,
+    3276800.0, 6553600.0,
+];
 /// Fine octave amplitudes in REAL meters (before vertical exaggeration),
-/// continuing the base tier's ~half-per-octave taper.
-pub const DETAIL_FINE_AMPS_M: [f32; 4] = [2.3, 1.1, 0.6, 0.3];
+/// tapering ~x0.55 per octave (see the ladder comment above).
+pub const DETAIL_FINE_AMPS_M: [f32; 11] =
+    [2.3, 1.1, 0.6, 0.3, 0.17, 0.10, 0.06, 0.035, 0.02, 0.012, 0.007];
 /// Minimum patch depth at which each fine octave switches on: the first depth
 /// whose triangle edge is <= half the octave's wavelength (Nyquist). Derived
 /// once and radius-independent (see the module comment + the depth_gate test).
-pub const DETAIL_FINE_MIN_DEPTH: [u8; 4] = [10, 11, 12, 13];
+pub const DETAIL_FINE_MIN_DEPTH: [u8; 11] = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 /// Land-mask fade band: detail reaches full strength this many meters
 /// above sea level (0 at the waterline, so shorelines are unmodified).
 pub const DETAIL_LAND_FADE_M: f32 = 50.0;
@@ -248,7 +265,7 @@ pub const DETAIL_LAND_FADE_M: f32 = 50.0;
 /// forever (determinism tests + multiplayer re-derivation rely on it).
 pub struct DetailNoise {
     oct: [Perlin; 3],
-    fine: [Perlin; 4],
+    fine: [Perlin; 11],
 }
 
 impl DetailNoise {
@@ -263,12 +280,9 @@ impl DetailNoise {
                 Perlin::new(s.wrapping_add(102)),
                 Perlin::new(s.wrapping_add(103)),
             ],
-            fine: [
-                Perlin::new(s.wrapping_add(104)),
-                Perlin::new(s.wrapping_add(105)),
-                Perlin::new(s.wrapping_add(106)),
-                Perlin::new(s.wrapping_add(107)),
-            ],
+            // Offsets 104..114: one per fine octave, decorrelated from each
+            // other and from the base tier above.
+            fine: std::array::from_fn(|i| Perlin::new(s.wrapping_add(104 + i as u32))),
         }
     }
 
@@ -379,12 +393,14 @@ const FINEST_DETAIL_DEPTH: u8 = 24;
 // ── Patch identity + geometry derivation ──
 
 /// One node of the per-planet patch tree. `path` packs 2 bits per level
-/// (child index 0-3), level 0 in the lowest bits; depth <= 13 uses 26 bits.
+/// (child index 0-3), level 0 in the lowest bits. u64 since the 1 m ladder
+/// (v0.875): u32 capped the tree at depth 16 (~6.7 m triangles); 64 bits
+/// carry depth 32, far past the depth-20 (~0.4 m) cap actually used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PatchId {
     pub face: u8,
     pub depth: u8,
-    pub path: u32,
+    pub path: u64,
 }
 
 impl PatchId {
@@ -397,7 +413,7 @@ impl PatchId {
         Self {
             face: self.face,
             depth: self.depth + 1,
-            path: self.path | ((i & 3) << (2 * self.depth as u32)),
+            path: self.path | (((i & 3) as u64) << (2 * self.depth as u32)),
         }
     }
 
@@ -410,7 +426,7 @@ impl PatchId {
         Some(Self {
             face: self.face,
             depth: d,
-            path: self.path & ((1u32 << (2 * d as u32)) - 1).min(u32::MAX),
+            path: self.path & ((1u64 << (2 * d as u32)) - 1),
         })
     }
 
@@ -423,7 +439,7 @@ impl PatchId {
         let mask = if self.depth == 0 {
             0
         } else {
-            (1u32 << (2 * self.depth as u32)) - 1
+            (1u64 << (2 * self.depth as u32)) - 1
         };
         (other.path & mask) == self.path
     }
@@ -1608,6 +1624,88 @@ mod tests {
             &params,
         );
         assert!(far.draws.iter().all(|d| d.depth == 0), "distant camera stays at roots");
+    }
+
+    #[test]
+    fn tile_tier_descends_to_the_1m_cap() {
+        // The v0.875 1 m ladder: with the tile-tier depth cap (20), a camera
+        // ~15 m above the surface must refine all the way down to depth-20
+        // patches (~0.42 m triangles). This exercises PatchId.path as u64 --
+        // depth 17+ paths need more than 32 bits, so this test FAILS if the
+        // path field ever regresses to u32 (silent child-id collisions).
+        let def = earth_like();
+        let mut params = params_for(&def);
+        params.max_depth = TILE_MAX_PATCH_DEPTH;
+        let cam = DVec3::new(def.radius + 15.0, 0.0, 0.0);
+        // Steady-state MEASURED bands: built patches report the real radial
+        // extent of their own geometry, which for this flat synthetic world
+        // is a few meters -- NOT the coarse tight_band(+-200 m) other tests
+        // use. The distinction is load-bearing here: with a +-200 m band
+        // every patch within 200 m of the camera hits screen_error_px's 1 m
+        // distance floor, ties at max priority, and the leaf budget
+        // saturates before the deepest chain finishes (found the hard way).
+        let measured = RadialBand {
+            min_r_m: def.radius - 2.0,
+            max_r_m: def.radius + 2.0,
+        };
+        let sel = select_patches(cam, None, &|_| Some(measured), &params);
+        assert!(sel.fully_covered);
+        let max_d = sel.draws.iter().map(|d| d.depth).max().unwrap();
+        assert_eq!(
+            max_d, TILE_MAX_PATCH_DEPTH,
+            "walking-height camera must reach the 1 m cap; stats={:?} leaves={}",
+            sel.stats,
+            sel.draws.len()
+        );
+        // Deep leaves hug the sub-camera point; the limb stays coarse.
+        let cam_dir = cam.normalize();
+        for d in &sel.draws {
+            if d.depth >= 18 {
+                let c = patch_corners(d);
+                let dir = (c[0] + c[1] + c[2]).normalize();
+                assert!(
+                    dir.dot(cam_dir) > 0.999,
+                    "deep patch far from the sub-camera point: {d:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn patch_id_u64_path_integrity_past_depth_16() {
+        // Walk one id to depth 24 taking child 3 then 1 alternately, checking
+        // child/parent round-trips and that sibling ids stay DISTINCT at
+        // every level. With the old u32 path, levels past 16 shifted bits
+        // clean off the top: children collided with each other and with the
+        // parent, which this loop catches immediately.
+        let mut id = PatchId::root(7);
+        for level in 0..24u32 {
+            let pick = if level % 2 == 0 { 3 } else { 1 };
+            let siblings: Vec<PatchId> = (0..4).map(|i| id.child(i)).collect();
+            for a in 0..4 {
+                for b in (a + 1)..4 {
+                    assert_ne!(
+                        siblings[a], siblings[b],
+                        "sibling collision at depth {}",
+                        level + 1
+                    );
+                }
+            }
+            let next = id.child(pick);
+            assert_eq!(next.parent(), Some(id), "parent round-trip at depth {}", level + 1);
+            assert!(id.is_ancestor_of(&next));
+            id = next;
+        }
+        assert_eq!(id.depth, 24);
+        // Corners must remain finite, distinct unit vectors even at depth 24
+        // (patch_corners walks the full u64 path).
+        let c = patch_corners(&id);
+        for v in &c {
+            assert!(v.is_finite());
+            assert!((v.length() - 1.0).abs() < 1e-12);
+        }
+        assert_ne!(c[0], c[1]);
+        assert_ne!(c[1], c[2]);
     }
 
     #[test]
