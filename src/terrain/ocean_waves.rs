@@ -30,6 +30,14 @@ pub const TRAINS: [WaveTrain; 4] = [
     WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.22 },
 ];
 
+/// The water surface floats this far ABOVE the nominal sea sphere
+/// (v0.882): beach-line terrain sits within centimeters of sea level, and
+/// coincident surfaces z-shimmered as patch anchors requantized every
+/// frame ("water flickering various shades of blue... worst around land
+/// mass above water"). 1.2 m of freeboard separates them cleanly; the
+/// float clamp and the mesh builder share this constant (drawn == sampled).
+pub const SURFACE_LIFT_M: f32 = 1.2;
+
 /// Worst-case |wave height|: the sum of every train's amplitude. Useful for
 /// conservative bounds (patch radial bands, "am I possibly submerged").
 pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.22;

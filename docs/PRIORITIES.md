@@ -49,6 +49,13 @@
 >    (the deepest surface, untouched this pass); (c) consider the faint galaxy bake
 >    behind native egui pages so native mirrors the web treatment back.
 >
+> 6a. **TARGET MARKERS (operator design, 2026-07-18).** Construction mode gets a
+>    respawn/teleport-point marker (Stargate-style teleporters MUCH later).
+>    Maps page: click-select the station / planets / asteroids / spaceships /
+>    detected enemies -> in game a RING encapsulates the selected object and
+>    looking at it shows its label (generalize the machine Tab-label pattern).
+>    Everything selectable must appear on the Maps page too. Station glint +
+>    HUD marker is the v1 slice.
 > 6. **PLANET + OCEAN arc (operator, 2026-07-16 night; heavy progress 2026-07-17).**
 >    SHIPPED so far: v0.871 streamed 460 m ETOPO tiles (real mountain shapes, Fuji
 >    is a cone); v0.872 surface-lock jitter fix (f64 spin) + graduated altitude

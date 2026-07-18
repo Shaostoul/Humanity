@@ -839,7 +839,23 @@ pub fn select_patches(
     }
 
     while let Some(node) = heap.pop() {
-        let want_split = node.err_px > params.split_px && node.id.depth < params.max_depth;
+        // Split/merge HYSTERESIS (v0.882, operator: "the terrain just can't
+        // maintain its highest detail... flickering... worst around land
+        // mass above water"): a hard threshold made boundary patches flip
+        // parent<->child every frame as the planet's spin swept the error
+        // past 12 px - and every flip redraws the COASTLINE at a different
+        // sampling, flashing land/water. Once a node's children are all
+        // resident, it stays split until the error falls WELL below the
+        // threshold (x0.7), so the 8.4-12 px band is stable in either state.
+        // Stateless: residency itself is the memory.
+        let kids_resident = node.id.depth < params.max_depth
+            && (0..4u32).all(|i| is_built(&node.id.child(i)).is_some());
+        let split_thr = if kids_resident {
+            params.split_px * 0.7
+        } else {
+            params.split_px
+        };
+        let want_split = node.err_px > split_thr && node.id.depth < params.max_depth;
         if want_split {
             // Derive + visibility-check the 4 children. Culled children are
             // simply not needed (that region is invisible); the far side of
@@ -1316,7 +1332,7 @@ pub fn build_water_patch_mesh(
 ) -> Option<PatchMesh> {
     let n = PATCH_TESS;
     let corners = patch_corners(id);
-    let radius_m = def.radius;
+    let radius_m = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
     let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
 
     // Same bit-identical border walk as the terrain builder (commutative
@@ -1832,16 +1848,19 @@ mod tests {
         let pm = build_water_patch_mesh(&def, &synth_mask(true), &id)
             .expect("ocean patch builds");
         assert!(!pm.mesh.vertices.is_empty());
-        // Every grid vertex sits ON the sea sphere (skirt verts sit below).
+        // Every grid vertex sits ON the LIFTED sea sphere (v0.882: the
+        // surface floats SURFACE_LIFT_M above nominal sea level to stop
+        // beach-line z-shimmer; skirt verts sit below).
+        let sea_r = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
         let mut on_sphere = 0usize;
         for v in &pm.mesh.vertices {
             let p = pm.anchor + DVec3::new(v.position[0] as f64, v.position[1] as f64, v.position[2] as f64);
             let r = p.length();
             assert!(
-                r <= def.radius + 1.0,
-                "water vertex above the sea sphere: {r}"
+                r <= sea_r + 1.0,
+                "water vertex above the lifted sea sphere: {r}"
             );
-            if (r - def.radius).abs() < 0.5 {
+            if (r - sea_r).abs() < 0.5 {
                 on_sphere += 1;
             }
             assert!(v.water, "every water-shell vertex carries the water flag");

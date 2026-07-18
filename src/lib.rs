@@ -10355,7 +10355,19 @@ mod native_app {
                             } else {
                                 state.frame_lock_anchor
                             };
-                            let wish = state.controller.surface_wish_dir(&state.camera);
+                            // Wish semantics per band (v0.882, operator: "I
+                            // have to press shift to descend even though I'm
+                            // looking down"): WALKING keeps the tangent-plane
+                            // WASD (surface_wish_dir - looking at your feet
+                            // must not drive you into the ground), but the
+                            // FLIGHT band (10-100 km) flies WHERE YOU LOOK,
+                            // exactly like FTL above it: W with the nose down
+                            // descends, no separate descend key needed.
+                            let wish = if in_walk_band {
+                                state.controller.surface_wish_dir(&state.camera)
+                            } else {
+                                state.controller.fly_wish_dir(&state.camera)
+                            };
                             let wish_unrot = glam::DQuat::from_rotation_y(-spin)
                                 * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
                             let dir0 = anchor.normalize_or_zero();
@@ -10425,7 +10437,11 @@ mod native_app {
                                             (dir1 * d.radius).as_vec3();
                                         let wave = crate::terrain::ocean_waves::wave_height_m(p, t)
                                             as f64;
-                                        g = g.max(d.radius + wave);
+                                        g = g.max(
+                                            d.radius
+                                                + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64
+                                                + wave,
+                                        );
                                     }
                                 }
                             }
