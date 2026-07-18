@@ -1386,36 +1386,16 @@ pub fn build_water_patch_mesh(
         }
     }
 
-    // Skirt: seals LOD cracks exactly like terrain patches. The vertex
-    // displacement is a pure function of planet-local position, so a skirt
-    // vertex displaces identically to the border vertex directly above it
-    // (same dir, nearly same radius) and the apron follows the waves.
-    let edge_m = patch_edge_arc_m(id.depth, radius_m);
-    let skirt_depth = (edge_m * SKIRT_EDGE_FRACTION).clamp(SKIRT_MIN_M, SKIRT_MAX_M)
-        + crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M as f64;
-    let border = boundary_indices(n);
-    let m = border.len();
-    for s in 0..m {
-        let ia = border[s];
-        let ib = border[(s + 1) % m];
-        let b0 = offsets[ia];
-        let b1 = offsets[ib];
-        let s0 = b0 - dirs[ia].as_vec3() * skirt_depth as f32;
-        let s1 = b1 - dirs[ib].as_vec3() * skirt_depth as f32;
-        let mid_dir = midpoint(dirs[ia], dirs[ib]);
-        let nrm = mid_dir.as_vec3().to_array();
-        for tri in [[s0, s1, b1], [s0, b1, b0]] {
-            for p in tri {
-                indices.push(vertices.len() as u32);
-                vertices.push(SurfaceVertexData {
-                    position: p.to_array(),
-                    normal: nrm,
-                    color,
-                    water: true,
-                });
-            }
-        }
-    }
+    // NO skirts on water (v0.878.2, operator: visible triangle seams across
+    // the whole ocean). The shell draws in the TRANSPARENT pass (no depth
+    // write), so a skirt wall behind the surface blend-stacks along every
+    // patch border - each border became a darker seam line. Cracks are
+    // covered differently here: the shader's vertex wave displacement fades
+    // to ZERO with distance (see ocean_wave_height's fade), so far patches
+    // of any two LODs lie on the exact same sphere (bit-matching borders),
+    // and near-field neighbor depths sample the same smooth analytic field
+    // densely enough that any residual T-junction gap is sub-wave-height
+    // over moving water - invisible where a skirt line was glaring.
 
     Some(PatchMesh {
         mesh: SurfaceMeshData { vertices, indices },

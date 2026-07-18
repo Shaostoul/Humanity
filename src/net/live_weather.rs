@@ -224,6 +224,48 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
             valid_px += 1;
         }
     }
+    // Swath-slit inpainting (v0.878.2, operator: "the cloud layer is tiling
+    // a bunch"): MODIS orbits leave regular NARROW no-data slits between
+    // swaths. Rendering them via the validity fallback put a drifting
+    // PROCEDURAL stripe between two pinned REAL swaths - hard vertical
+    // seams marching across the disc. Real cloud fields are continuous, so
+    // fill any gap up to ~24 px (~6 deg longitude) by linear interpolation
+    // between its row's bracketing REAL samples (with horizontal wrap);
+    // wider gaps (night side of a partial composite) stay procedural.
+    const MAX_GAP: usize = 24;
+    let w = WEATHER_W as usize;
+    for row in 0..WEATHER_H as usize {
+        let base = row * w;
+        let mut col = 0usize;
+        while col < w {
+            if out[(base + col) * 2 + 1] != 0 {
+                col += 1;
+                continue;
+            }
+            // A run of invalid columns [col, end).
+            let mut end = col;
+            while end < w && out[(base + end) * 2 + 1] == 0 {
+                end += 1;
+            }
+            let run = end - col;
+            // Wrapped neighbors: the column before the run and after it.
+            let left = (col + w - 1) % w;
+            let right = end % w;
+            let lv = out[(base + left) * 2 + 1] != 0;
+            let rv = out[(base + right) * 2 + 1] != 0;
+            if run <= MAX_GAP && lv && rv {
+                let a = out[(base + left) * 2] as f32;
+                let b = out[(base + right) * 2] as f32;
+                for (i, c) in (col..end).enumerate() {
+                    let t = (i + 1) as f32 / (run + 1) as f32;
+                    out[(base + c) * 2] = (a + (b - a) * t) as u8;
+                    out[(base + c) * 2 + 1] = 255;
+                    valid_px += 1;
+                }
+            }
+            col = end;
+        }
+    }
     // A mostly-empty map (endpoint hiccup, wrong layer state) is worse than
     // keeping the cache: require at least 20% real coverage to accept.
     if valid_px * 5 < (WEATHER_W * WEATHER_H) as usize {

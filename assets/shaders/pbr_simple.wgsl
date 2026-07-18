@@ -190,8 +190,17 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         if (r > 1.0) {
             let radial = dir_world / r;
             let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
-            let h = ocean_wave_height(dir * r, camera.sun_color.w);
-            world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
+            // Distance fade (v0.878.2): waves are invisible beyond a few km
+            // anyway, and fading the displacement to ZERO makes every far
+            // patch an EXACT sphere - so patches of different LODs share
+            // bit-matching borders with no skirts (see the water builder
+            // comment). 2..8 km band; inside 2 km, full height.
+            let cam_dist = length(camera.view_pos.xyz - world_pos.xyz);
+            let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);
+            if (fade > 0.001) {
+                let h = ocean_wave_height(dir * r, camera.sun_color.w) * fade;
+                world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
+            }
         }
     }
     out.world_position = world_pos.xyz;

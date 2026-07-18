@@ -3049,7 +3049,7 @@ mod native_app {
         // the world frame by the planet's current spin so it lands on the real
         // ground feature. Otherwise the sunlit-heuristic Travel vantage.
         let dir_out = if let Some((lat, lon)) = latlon {
-            let spin = current_planet_spin(state);
+            let spin = state.current_spin;
             let d = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
             let world = glam::DQuat::from_rotation_y(spin)
                 * glam::DVec3::new(d.x as f64, d.y as f64, d.z as f64);
@@ -3134,7 +3134,7 @@ mod native_app {
         // surface holds still instead of spinning past at tens of km/s. Capture
         // the anchor at the current spin from where the camera ends up.
         {
-            let spin = current_planet_spin(state);
+            let spin = state.current_spin;
             let cam_local = glam::DVec3::new(
                 state.camera.position.x as f64,
                 state.camera.position.y as f64,
@@ -7317,6 +7317,15 @@ mod native_app {
         /// every 30 min). None when the setting is off. Polled per frame;
         /// each grid is one queue.write_texture into the weather map.
         weather_rx: Option<std::sync::mpsc::Receiver<Vec<u8>>>,
+        /// THIS frame's planet spin angle (v0.878.2): computed ONCE per
+        /// frame at the top of RedrawRequested and read by every consumer
+        /// (surface lock, frame-lock captures, render, camera requests).
+        /// v0.878.0 computed it at each site; sites straddle the TimeSystem
+        /// tick, so physics used the pre-tick hour and the render the
+        /// post-tick hour - a one-tick ground offset (~0.7 m per frame,
+        /// dt-jittered) that read as constant world flicker + swimming
+        /// shorelines (operator report). One cached value, zero straddle.
+        current_spin: f64,
         /// True while the player is in the surface WALK band (< 10 km): edge-
         /// detects touchdown for the gear reset (v0.872 band split).
         surface_walk_band: bool,
@@ -8593,6 +8602,7 @@ mod native_app {
                 } else {
                     None
                 },
+                current_spin: 0.0,
                 surface_walk_band: false,
                 surface_owns_translation: false,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
@@ -9679,6 +9689,8 @@ mod native_app {
                     let now = Instant::now();
                     let dt = (now - state.last_frame).as_secs_f32().min(0.1);
                     state.last_frame = now;
+                    // ONE spin for the whole frame (see the field docs).
+                    state.current_spin = current_planet_spin(state);
 
                     // Poll hot-reload for file changes
                     let changes = state.hot_reload.poll(&mut state.asset_manager);
@@ -10048,9 +10060,70 @@ mod native_app {
                             let step = (state.controller.speed as f64)
                                 * (state.controller.fly_speed_mult as f64)
                                 * (dt as f64);
+                            // ── Approach governor (v0.879, operator: "I can no
+                            // longer make it to the surface... fast, slow,
+                            // fast, slow") ──
+                            // At high FTL gear one frame can cover hundreds of
+                            // km, so the 100 km co-rotate band is impossible to
+                            // ENTER by hand: you overshoot it whole
+                            // planet-diameters per frame, and each band exit
+                            // resumes FTL at the stale gear (the catapult half
+                            // of the oscillation). Cap the per-frame world step
+                            // to HALF the distance to the nearest landable
+                            // surface: closing on a planet becomes a smooth
+                            // exponential approach that lands you in the band
+                            // in a couple of frames no matter the gear, while
+                            // deep space (huge alt) never notices the cap.
+                            let cam_world = state.ship_world_pos
+                                + glam::DVec3::new(
+                                    state.camera.position.x as f64,
+                                    state.camera.position.y as f64,
+                                    state.camera.position.z as f64,
+                                );
+                            let mut min_alt = f64::MAX;
+                            // Earth is the frame origin and the primary
+                            // landable body; the locked body (if any, e.g.
+                            // after a travel jump) governs equally.
+                            let earth_r = state
+                                .planet_defs
+                                .get("earth")
+                                .map(|d| d.radius)
+                                .unwrap_or(6.371e6);
+                            min_alt = min_alt.min(cam_world.length() - earth_r);
+                            if let Some(lock) = &state.frame_lock_body {
+                                if lock != "earth" {
+                                    if let Some(d) = state.planet_defs.get(lock) {
+                                        // Locked-body centre: same lookup the
+                                        // frame-lock section performs below.
+                                        let sim_t = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|t| t.as_secs_f64())
+                                            .unwrap_or(0.0)
+                                            - 946_728_000.0;
+                                        let earth_helio = crate::cosmos::find_body("earth")
+                                            .map(|e| {
+                                                crate::cosmos::body_world_position_3d_au(e, sim_t)
+                                            })
+                                            .unwrap_or(glam::DVec3::ZERO);
+                                        if let Some(b) = crate::cosmos::find_body(lock) {
+                                            let c = (crate::cosmos::body_world_position_3d_au(
+                                                b, sim_t,
+                                            ) - earth_helio)
+                                                * crate::cosmos::M_PER_AU;
+                                            min_alt =
+                                                min_alt.min((cam_world - c).length() - d.radius);
+                                        }
+                                    }
+                                }
+                            }
+                            let governed = if min_alt.is_finite() && min_alt > 0.0 {
+                                step.min((min_alt * 0.5).max(1_000.0))
+                            } else {
+                                step
+                            };
                             state.ship_world_pos +=
                                 glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64)
-                                    * step;
+                                    * governed;
                         }
                     }
 
@@ -10068,7 +10141,7 @@ mod native_app {
                     // below repopulates it while a surface is actually locked.
                     state.gui_state.surface_altitude_m = None;
                     if let Some(lock_body) = state.frame_lock_body.clone() {
-                        let spin = current_planet_spin(state);
+                        let spin = state.current_spin;
                         // Body centre in the celestial frame (0 for Earth, the
                         // frame origin; real orbital position otherwise).
                         let body_center = if lock_body == "earth" {
@@ -11043,7 +11116,7 @@ mod native_app {
                             // Frame-lock onto the target so its surface holds
                             // still (see the field docs + dev_travel::frame_lock_*).
                             {
-                                let spin = current_planet_spin(state);
+                                let spin = state.current_spin;
                                 let cam_local = glam::DVec3::new(
                                     state.camera.position.x as f64,
                                     state.camera.position.y as f64,
@@ -11106,7 +11179,7 @@ mod native_app {
                                 (0.0_f32, 0.0_f32)
                             };
                             let altitude_km = 1.5_f64;
-                            let spin = current_planet_spin(state);
+                            let spin = state.current_spin;
                             let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat, lon);
                             let world_dir = glam::DQuat::from_rotation_y(spin)
                                 * glam::DVec3::new(unit.x as f64, unit.y as f64, unit.z as f64);
@@ -14214,7 +14287,7 @@ mod native_app {
                     // with uptime (~1 m after 5 minutes). ONE f64 spin value now
                     // feeds both sides, and the angle is range-reduced before
                     // any f32 quaternion is built from it.
-                    let spin_f64 = current_planet_spin(state);
+                    let spin_f64 = state.current_spin;
                     {
                         let sim_t = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
