@@ -14760,7 +14760,17 @@ mod native_app {
                                             if let Some(e) = ws.cache.get(id) {
                                                 let anchor_render =
                                                     render_off + rot_d * e.anchor;
-                                                celestial_objects.push(RenderObject {
+                                                // TRANSPARENT list (alpha
+                                                // blend, depth-test but no
+                                                // depth-write): the shell's
+                                                // Fresnel alpha needs real
+                                                // blending over the seafloor;
+                                                // the opaque pass would stamp
+                                                // it solid. Pushed before the
+                                                // atmo/cloud shells, so the
+                                                // blend order stays
+                                                // back-to-front from space.
+                                                celestial_transparent.push(RenderObject {
                                                     position: Vec3::new(
                                                         anchor_render.x as f32,
                                                         anchor_render.y as f32,
