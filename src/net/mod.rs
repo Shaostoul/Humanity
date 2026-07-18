@@ -26,6 +26,11 @@ pub mod dm_pq;
 /// (P2P groups). HTTP via the same blocking-ureq pattern as image upload.
 #[cfg(feature = "native")]
 pub mod api_v2;
+// Live Earth weather fetcher (NASA GIBS): needs ureq + the renderer, both
+// native-only. Ungated it would break the relay CI build (see CLAUDE.md
+// gotcha: the v0.381-v0.414 red-deploy incident).
+#[cfg(feature = "native")]
+pub mod live_weather;
 
 /// P2P group end-to-end encrypted messaging (Phase 2). Epoch-key sealing via
 /// the same ML-KEM-768 → BLAKE3-KDF → AES-256-GCM scheme as `dm_pq`, and

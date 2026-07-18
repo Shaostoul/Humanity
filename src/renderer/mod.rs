@@ -79,6 +79,12 @@ pub struct InstanceBatch {
 }
 
 /// Core renderer state wrapping wgpu device, queue, and surface.
+/// Live weather map dimensions (v0.874). Defined HERE (not in
+/// net::live_weather) because the renderer compiles in every feature set
+/// while the fetcher is native-only; the fetcher aliases these.
+pub const WEATHER_MAP_W: u32 = 1440;
+pub const WEATHER_MAP_H: u32 = 720;
+
 pub struct Renderer {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
@@ -146,6 +152,10 @@ pub struct Renderer {
     cloud_shape_view: wgpu::TextureView,
     cloud_detail_view: wgpu::TextureView,
     cloud_tile_sampler: wgpu::Sampler,
+    /// Live weather map (v0.874): RG8 equirect, R = NASA cloud fraction,
+    /// G = validity. Zero = procedural sky; update_weather_map overwrites.
+    weather_map_tex: wgpu::Texture,
+    weather_map_view: wgpu::TextureView,
 }
 
 impl Renderer {
@@ -546,6 +556,22 @@ impl Renderer {
             ..Default::default()
         });
 
+        let weather_map_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Live Weather Map"),
+            size: wgpu::Extent3d {
+                width: WEATHER_MAP_W,
+                height: WEATHER_MAP_H,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rg8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let weather_map_view = weather_map_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
         let default_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Albedo Fallback Bind Group"),
             layout: &pipeline.texture_bind_group_layout,
@@ -569,6 +595,10 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&cloud_tile_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&weather_map_view),
                 },
             ],
         });
@@ -606,6 +636,8 @@ impl Renderer {
             cloud_shape_view,
             cloud_detail_view,
             cloud_tile_sampler,
+            weather_map_tex,
+            weather_map_view,
         }
     }
 
@@ -780,8 +812,45 @@ impl Renderer {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.cloud_tile_sampler),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&self.weather_map_view),
+                },
             ],
         })
+    }
+
+    /// Upload a fresh live-weather grid (RG8, WEATHER_W x WEATHER_H) into the
+    /// persistent weather texture. No bind-group rebuild needed - every group
+    /// already references this texture's view.
+    pub fn update_weather_map(&self, queue: &wgpu::Queue, rg: &[u8]) {
+        let (w, h) = (
+            WEATHER_MAP_W,
+            WEATHER_MAP_H,
+        );
+        if rg.len() != (w * h * 2) as usize {
+            log::warn!("[Weather] bad grid size {} - ignored", rg.len());
+            return;
+        }
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.weather_map_tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            rg,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(w * 2),
+                rows_per_image: Some(h),
+            },
+            wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     /// Register a material that carries a real albedo texture at group 3

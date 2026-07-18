@@ -7282,6 +7282,11 @@ mod native_app {
         /// deep patches + the ground clamp sample it via tile_or_base. An
         /// empty/absent tile dir simply leaves the base grid in charge.
         terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles,
+        /// Live Earth weather (v0.874): the background NASA GIBS fetcher
+        /// delivers RG8 cloud-fraction grids here (cache first, then fresh
+        /// every 30 min). None when the setting is off. Polled per frame;
+        /// each grid is one queue.write_texture into the weather map.
+        weather_rx: Option<std::sync::mpsc::Receiver<Vec<u8>>>,
         /// True while the player is in the surface WALK band (< 10 km): edge-
         /// detects touchdown for the gear reset (v0.872 band split).
         surface_walk_band: bool,
@@ -8531,6 +8536,17 @@ mod native_app {
                 terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
+                // Live weather (v0.874): spawn the NASA GIBS fetcher only
+                // when the setting allows network use. The renderer's
+                // weather texture stays zero (= procedural sky) until the
+                // first grid arrives.
+                weather_rx: if gui_state.settings.live_weather {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    crate::net::live_weather::spawn(tx);
+                    Some(rx)
+                } else {
+                    None
+                },
                 surface_walk_band: false,
                 surface_owns_translation: false,
                 floating_origin: crate::renderer::floating_origin::FloatingOrigin::new(),
@@ -19804,6 +19820,26 @@ mod native_app {
                             }
                             poll_screenshot_request(state, &surface_texture.texture, &scene_lists);
                             poll_showcase_request(state);
+
+                            // Live weather (v0.874): upload any freshly
+                            // fetched NASA cloud grid. Rare event (cache at
+                            // boot + one fetch per 30 min); latest wins if
+                            // several queued. Toggle off = stop uploading
+                            // (the last real map stays until restart).
+                            if state.gui_state.settings.live_weather {
+                                let mut latest: Option<Vec<u8>> = None;
+                                if let Some(rx) = &state.weather_rx {
+                                    while let Ok(grid) = rx.try_recv() {
+                                        latest = Some(grid);
+                                    }
+                                }
+                                if let Some(grid) = latest {
+                                    state
+                                        .renderer
+                                        .update_weather_map(&state.renderer.queue, &grid);
+                                    log::info!("[Weather] live cloud map applied to sky");
+                                }
+                            }
 
                             // Live broadcast (v0.853). Deliberately here, AFTER egui has
                             // painted into the swapchain and BEFORE present: what goes out

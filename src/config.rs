@@ -383,6 +383,11 @@ pub struct AppConfig {
     /// cloud_coverage (clouds increment 1). Off = no cloud deck at all.
     #[serde(default = "default_true")]
     pub planet_clouds: bool,
+    /// Live Earth weather (v0.874): fetch NASA's real global cloud-cover
+    /// map in the background and place the in-game cloud masses where real
+    /// clouds are right now. Off = purely procedural coverage, no network.
+    #[serde(default = "default_true")]
+    pub live_weather: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves +
     /// land micro-texture on imagery planets (Earth). Orbit view identical
     /// either way (anti-alias faded); applies live via the per-frame
@@ -919,6 +924,7 @@ impl AppConfig {
             planet_chunked: state.settings.planet_chunked,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
+            live_weather: state.settings.live_weather,
             planet_surface_detail: state.settings.planet_surface_detail,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
@@ -1039,6 +1045,7 @@ impl AppConfig {
         state.settings.planet_chunked = self.planet_chunked;
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
+        state.settings.live_weather = self.live_weather;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.

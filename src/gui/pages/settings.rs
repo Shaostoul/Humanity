@@ -2022,6 +2022,16 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Drifting sun-lit clouds on worlds that have them (Earth). Turn off for bare surfaces or on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        // Live weather (v0.874): NASA GIBS MODIS cloud fraction placed on
+        // the game sky. Fetcher spawns once per session; the toggle gates
+        // both the spawn and per-frame uploads (turning it off mid-session
+        // freezes the last map until restart -- fine, it is real data).
+        if state.settings.planet_clouds {
+            if widgets::toggle(ui, theme, "Live weather (Earth)", &mut state.settings.live_weather) {
+                state.settings_dirty = true;
+            }
+            ui.label(RichText::new("Places the game's clouds where real clouds are right now, from NASA's daily satellite cloud map. Needs internet once; the last map is kept for offline play. Off = purely procedural skies.").color(theme.text_muted()).size(theme.font_size_small));
+        }
         // Close-range surface detail (v0.816): animated ocean waves + land
         // micro-texture on planets with real imagery. Applies live: the sky
         // loop rewrites the material flag every frame.

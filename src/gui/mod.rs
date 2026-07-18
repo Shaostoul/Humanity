@@ -6528,6 +6528,10 @@ pub struct SettingsState {
     /// RON (Earth). Off skips the shell entirely (no material, no draw).
     /// See pbr_simple.wgsl type 15 + renderer::clouds.
     pub planet_clouds: bool,
+    /// Live Earth weather (v0.874): real NASA cloud cover placed on the
+    /// in-game sky; background fetch + disk cache; procedural fallback
+    /// wherever the satellite map has no data.
+    pub live_weather: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves
     /// (moving sun sparkle, Fresnel sky mirror) + land micro-texture under
     /// the photo albedo, on planets with baked per-pixel imagery (Earth).
@@ -6623,6 +6627,7 @@ impl Default for SettingsState {
             planet_chunked: true,
             planet_atmo_scatter: true,
             planet_clouds: true,
+            live_weather: true,
             planet_surface_detail: true,
             cloud_quality: "high".to_string(),
             master_volume: 0.8,

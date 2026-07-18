@@ -107,6 +107,11 @@ struct GpuLight {
 @group(3) @binding(2) var cloud_shape_tex: texture_3d<f32>;
 @group(3) @binding(3) var cloud_detail_tex: texture_3d<f32>;
 @group(3) @binding(4) var cloud_tile_sampler: sampler;
+// Live weather map (v0.874): equirect RG8 from NASA GIBS MODIS cloud
+// fraction. R = real cloud fraction 0..1, G = validity (0 = no data ->
+// pure procedural coverage). Zero-filled until the fetcher delivers, so
+// the procedural sky is always the fallback with no mode flag needed.
+@group(3) @binding(5) var weather_map: texture_2d<f32>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -1613,12 +1618,32 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // read as single continuous splotches spanning hemispheres (operator
     // 2026-07-17). The added meso/regional octaves carve every large mass
     // into fronts, bands, and broken decks like real satellite imagery.
-    var f = 0.40 * cloud_noise(da, 5.0, seed);
-    f = f + 0.24 * cloud_noise(da, 13.0, seed + 19.0);
-    f = f + 0.20 * cloud_noise(db, 7.0, seed + 101.0);
-    f = f + 0.12 * cloud_noise(da, 31.0, seed + 233.0);
-    f = f + 0.08 * cloud_noise(db, 67.0, seed + 409.0);
-    return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.04);
+    // Split macro (placement, 0.64 amplitude) from meso/fine (texture, 0.40)
+    // so the live weather map can OWN placement where it has real data.
+    let macro_f = 0.40 * cloud_noise(da, 5.0, seed)
+        + 0.24 * cloud_noise(da, 13.0, seed + 19.0);
+    let meso_f = 0.20 * cloud_noise(db, 7.0, seed + 101.0)
+        + 0.12 * cloud_noise(da, 31.0, seed + 233.0)
+        + 0.08 * cloud_noise(db, 67.0, seed + 409.0);
+    // Live weather (v0.874): sample the real MODIS cloud fraction with the
+    // UNDRIFTED planet-local direction (real weather pins to geography; only
+    // the procedural texture octaves drift). Equirect UV matches the planet
+    // albedo mapping above: east = -z, +Y = north. albedo_sampler wraps u
+    // (antimeridian) and clamps v (poles). textureSampleLevel because this
+    // runs inside the raymarch loop (non-uniform control flow).
+    let w_lon = atan2(-dir.z, dir.x);
+    let w_lat = asin(clamp(dir.y, -1.0, 1.0));
+    let w_uv = vec2<f32>(w_lon * 0.15915494 + 0.5, 0.5 - w_lat * 0.31830987);
+    let w = textureSampleLevel(weather_map, albedo_sampler, w_uv, 0.0).rg;
+    let proc = smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, (macro_f + meso_f) / 1.04);
+    // The MODIS DAILY fraction is nearly binary ("was cloudy at any point
+    // today" saturates most of the globe to 100% -- rendering it 1:1 gave a
+    // full whiteout). So the map is a placement MASK, not an opacity: inside
+    // real cloudy zones the procedural meso/fine octaves carve the actual
+    // broken deck (~instantaneous look); real clear zones (deserts) go clear.
+    let envelope = smoothstep(0.35, 0.9, w.r);
+    let live = envelope * smoothstep(0.15, 0.7, meso_f * 2.5);
+    return mix(proc, live, w.g);
 }
 
 // ── Cloud-TYPE regimes (v0.828: the four real-Earth cloud families) ──

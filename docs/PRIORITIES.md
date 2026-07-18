@@ -49,17 +49,29 @@
 >    (the deepest surface, untouched this pass); (c) consider the faint galaxy bake
 >    behind native egui pages so native mirrors the web treatment back.
 >
-> 6. **PLANET + OCEAN arc (operator, 2026-07-16 night).** Direction set while
->    flying Earth: (a) higher-detail terrain via the star-catalog pattern - ship a
->    0.05 deg base grid, downloadable ETOPO 2022 15-arc-sec region tiles for real
->    mountain shapes (Fuji is a pyramid because data cells are 11 km; the mesh is
->    fine); bicubic sampling shipped v0.868 smooths the voxel creases meanwhile.
+> 6. **PLANET + OCEAN arc (operator, 2026-07-16 night; heavy progress 2026-07-17).**
+>    SHIPPED so far: v0.871 streamed 460 m ETOPO tiles (real mountain shapes, Fuji
+>    is a cone); v0.872 surface-lock jitter fix (f64 spin) + graduated altitude
+>    bands (walk/co-rotate/blend/inertial, fixes the 10-mile desync + dead FTL
+>    wheel); v0.873 true-3D cloud noise (seam fix) + async 192^3/128^3 volumes +
+>    Planet LOD settings (Settings > Planets: split px / patch budget / stream
+>    speed); v0.874 LIVE WEATHER - NASA GIBS MODIS cloud fraction fetched in the
+>    background (30 min refresh, APPDATA cache, offline fallback), decoded via the
+>    official palette to an RG8 mask the megashader blends as cloud PLACEMENT
+>    (procedural octaves carve structure inside real masses; validity channel
+>    falls back to procedural; Settings toggle). Verified against the satellite
+>    reference: clear Sahara/Arabia, ITCZ band, Europe cloud all match in-game.
+>    NEXT (in order): (a) 1 m terrain ladder - PatchId.path u32 -> u64 for depth
+>    >16 (~0.8 m triangles at depth 19-20), extended fine-detail octaves below
+>    125 m, per the operator's max-settings directive (RTX 4070 / 1 TB NVMe).
 >    (b) REAL OCEANS - full staged design in docs/design/ocean.md: ocean mask
 >    (flood fill; keeps Death-Valley-type below-sea-level basins dry), Gerstner
 >    wave surface drawn == sampled, swimming, Archimedes buoyancy (sail ships),
 >    depth pressure + hull ratings (submarines), analytic impact displacement
 >    (spaceship crashes, asteroid drops). (c) HOMESTEAD DECOUPLING remains the
->    known surface bug (home wheels around the player frame on the ground).
+>    known surface bug (home wheels around the player frame on the ground; it
+>    photobombs every orbit screenshot too). (d) sun-frame lighting fix (game
+>    clock vs subsolar longitude drifts with spin - hard to stage lit captures).
 >
 > The production-readiness + go-live focus below is DONE for this pass (streaming
 > shipped v0.853-857, UI-audit closed v0.855-856, TURN + watch v0.857). This
