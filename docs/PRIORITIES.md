@@ -67,7 +67,13 @@
 >    the Settings 768 ceiling), fine-octave ladder extended 125 m -> 1 m
 >    wavelengths (Nyquist gates 14..20, amplitudes tapering to rock-scale
 >    wrinkle), regression tests pin the descent and u64 path integrity.
->    NEXT (in order): (a) REAL OCEANS - full staged design in docs/design/ocean.md: ocean mask
+>    v0.876 shipped OCEAN Stage 1 (the split): terrain = true bathymetry
+>    under a translucent water shell (material type 16, vertex wave
+>    displacement + Fresnel/glitter shading), CPU wave twin locked to the
+>    shader by a constants guard test, player floats on sea + wave height.
+>    Tuning debt: shallow-shelf banding through the alpha, patch-edge
+>    shading steps, underwater tint (Stage 3 diving).
+>    NEXT (in order): (a) REAL OCEANS remaining stages - design in docs/design/ocean.md: ocean mask
 >    (flood fill; keeps Death-Valley-type below-sea-level basins dry), Gerstner
 >    wave surface drawn == sampled, swimming, Archimedes buoyancy (sail ships),
 >    depth pressure + hull ratings (submarines), analytic impact displacement

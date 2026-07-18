@@ -81,8 +81,8 @@ use super::planet::PlanetDef;
 use super::planet_albedo::PlanetAlbedo;
 use super::planet_heightmap::PlanetHeightmap;
 use super::planet_surface::{
-    displaced_radius_f64, slope_shade, surface_color, SurfaceMeshData, SurfaceSampler,
-    SurfaceVertexData,
+    displaced_radius_f64, displaced_radius_f64_true, slope_shade, surface_color, SurfaceMeshData,
+    SurfaceSampler, SurfaceVertexData,
 };
 
 /// Tessellation of one patch edge: 16 segments -> a triangular grid of
@@ -983,6 +983,12 @@ pub enum ElevationSource<'a> {
         detail: &'a DetailNoise,
         /// Streamed high-detail tile tier (Earth); None = base grid only.
         tiles: Option<&'a super::terrain_tiles::TerrainTiles>,
+        /// Connected-ocean mask (Earth, v0.876 real-water Stage 1). When
+        /// present the patch renders TRUE BATHYMETRY: below-sea cells are
+        /// real depressions (seafloor, dry basins) instead of being clamped
+        /// to a smooth sea sphere, and no face carries the water flag --
+        /// the translucent ocean shell (material type 16) draws the water.
+        ocean: Option<&'a super::ocean_mask::OceanMask>,
     },
     /// Seeded fractal noise, same field the uniform sphere path uses.
     Noise(&'a SurfaceSampler),
@@ -1073,7 +1079,7 @@ pub fn build_patch_mesh(
             let w2 = c as f64;
             let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
             let e = match source {
-                ElevationSource::Heightmap { hm, detail, tiles } => {
+                ElevationSource::Heightmap { hm, detail, tiles, ocean: _ } => {
                     // Base: real elevation normalized 0..1 - from the
                     // streamed 460 m tile tier at deep LODs when resident,
                     // the shipped base grid otherwise (tile_or_base).
@@ -1110,11 +1116,21 @@ pub fn build_patch_mesh(
     // The min/max radii actually seen become the patch's measured band.
     let mut min_r = f64::MAX;
     let mut max_r = f64::MIN;
+    // Bathymetric mode (v0.876): with a connected-ocean mask present the
+    // sea-sphere clamp is dropped -- below-sea terrain is REAL geometry
+    // (ocean floor, dry basins). Above-sea land is bit-identical either
+    // way (the clamp only ever affected below-sea cells).
+    let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
     let offsets: Vec<glam::Vec3> = dirs
         .iter()
         .zip(&elevs)
         .map(|(d, e)| {
-            let r = radius_m * displaced_radius_f64(def, *e as f64);
+            let r = radius_m
+                * if bathymetric {
+                    displaced_radius_f64_true(def, *e as f64)
+                } else {
+                    displaced_radius_f64(def, *e as f64)
+                };
             min_r = min_r.min(r);
             max_r = max_r.max(r);
             ((*d * r) - anchor).as_vec3()
@@ -1230,7 +1246,7 @@ pub fn build_patch_mesh(
         let mean_e = (elevs[ia] + elevs[ib]) / 2.0;
         let mid_dir = midpoint(dirs[ia], dirs[ib]);
         let color = surface_color(def, albedo, mid_dir.as_vec3(), mean_e);
-        let skirt_water = def.has_water && mean_e < sea;
+        let skirt_water = !bathymetric && def.has_water && mean_e < sea;
         let nrm = mid_dir.as_vec3().to_array();
         // Winding: walking the border CCW (seen from outside), the wall
         // must face AWAY from the patch interior; (s0, s1, b1) + (s0, b1,
@@ -1261,6 +1277,151 @@ pub fn build_patch_mesh(
             max_r_m: max_r + 1.0,
         },
     }
+}
+
+/// Water-shell patch cap: waves need mesh only down to the finest geometric
+/// train (50 m wavelength -> Nyquist at ~25 m triangles = depth 14); the
+/// vertex shader adds the height, so deeper mesh buys nothing.
+pub const WATER_MAX_PATCH_DEPTH: u8 = 14;
+
+/// Water-shell leaf budget: the shell shares MAX_OBJECTS with terrain
+/// patches (640-768) + sky bodies, so it gets a deliberately small slice --
+/// a smooth constant-radius sphere needs far fewer leaves than terrain.
+pub const WATER_MAX_LEAVES: usize = 144;
+
+/// Conservative radial band for water-shell selection/culling: the sea
+/// sphere plus the worst-case analytic wave height either way (the vertex
+/// shader displaces within this envelope), plus skirt + slop.
+pub fn water_band(radius_m: f64) -> RadialBand {
+    let wave = crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M as f64;
+    RadialBand {
+        min_r_m: radius_m - wave - SKIRT_MAX_M - 1.0,
+        max_r_m: radius_m + wave + 1.0,
+    }
+}
+
+/// Build one WATER-SHELL patch (v0.876 real-water Stage 1): the flat sea
+/// sphere at exactly `def.radius`, only where the connected-ocean mask says
+/// water. Returns None for all-land patches (the shell simply has no
+/// geometry there -- the driver caches the miss so selection stops asking).
+/// Faces are water-style (spherical normals); the type-16 material's vertex
+/// stage displaces by the analytic wave height and its fragment stage draws
+/// the Fresnel sky mirror + sun glitter, so the MESH stays the undisplaced
+/// sphere -- the CPU physics twin (terrain::ocean_waves) adds the same
+/// height analytically and drawn == sampled holds.
+pub fn build_water_patch_mesh(
+    def: &PlanetDef,
+    ocean: &super::ocean_mask::OceanMask,
+    id: &PatchId,
+) -> Option<PatchMesh> {
+    let n = PATCH_TESS;
+    let corners = patch_corners(id);
+    let radius_m = def.radius;
+    let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
+
+    // Same bit-identical border walk as the terrain builder (commutative
+    // f64 midpoint math), so same-depth water neighbors share borders.
+    let vert_count = ((n + 1) * (n + 2) / 2) as usize;
+    let mut dirs: Vec<DVec3> = Vec::with_capacity(vert_count);
+    let mut any_ocean = false;
+    for r in 0..=n {
+        for c in 0..=r {
+            let w0 = (n - r) as f64;
+            let w1 = (r - c) as f64;
+            let w2 = c as f64;
+            let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
+            if ocean.is_ocean(dir.as_vec3()) {
+                any_ocean = true;
+            }
+            dirs.push(dir);
+        }
+    }
+    if !any_ocean {
+        return None;
+    }
+    let offsets: Vec<glam::Vec3> = dirs
+        .iter()
+        .map(|d| ((*d * radius_m) - anchor).as_vec3())
+        .collect();
+
+    let grid_tris = (n * n) as usize;
+    let skirt_tris = (3 * n * 2) as usize;
+    let mut vertices: Vec<SurfaceVertexData> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
+    let mut indices: Vec<u32> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
+    // Color is unused by the type-16 shader (it derives everything from the
+    // planet-local frame), but keep the def's water color so any debug view
+    // of the raw mesh reads sensibly.
+    let color = [def.water_color[0], def.water_color[1], def.water_color[2]];
+    let mut emit_face = |ia: usize, ib: usize, ic: usize,
+                         vertices: &mut Vec<SurfaceVertexData>,
+                         indices: &mut Vec<u32>| {
+        for &i in &[ia, ib, ic] {
+            indices.push(vertices.len() as u32);
+            vertices.push(SurfaceVertexData {
+                position: offsets[i].to_array(),
+                normal: dirs[i].as_vec3().to_array(),
+                color,
+                water: true,
+            });
+        }
+    };
+    for r in 0..n {
+        for c in 0..=r {
+            emit_face(
+                grid_idx(r, c),
+                grid_idx(r + 1, c),
+                grid_idx(r + 1, c + 1),
+                &mut vertices,
+                &mut indices,
+            );
+        }
+        for c in 0..r {
+            emit_face(
+                grid_idx(r, c),
+                grid_idx(r + 1, c + 1),
+                grid_idx(r, c + 1),
+                &mut vertices,
+                &mut indices,
+            );
+        }
+    }
+
+    // Skirt: seals LOD cracks exactly like terrain patches. The vertex
+    // displacement is a pure function of planet-local position, so a skirt
+    // vertex displaces identically to the border vertex directly above it
+    // (same dir, nearly same radius) and the apron follows the waves.
+    let edge_m = patch_edge_arc_m(id.depth, radius_m);
+    let skirt_depth = (edge_m * SKIRT_EDGE_FRACTION).clamp(SKIRT_MIN_M, SKIRT_MAX_M)
+        + crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M as f64;
+    let border = boundary_indices(n);
+    let m = border.len();
+    for s in 0..m {
+        let ia = border[s];
+        let ib = border[(s + 1) % m];
+        let b0 = offsets[ia];
+        let b1 = offsets[ib];
+        let s0 = b0 - dirs[ia].as_vec3() * skirt_depth as f32;
+        let s1 = b1 - dirs[ib].as_vec3() * skirt_depth as f32;
+        let mid_dir = midpoint(dirs[ia], dirs[ib]);
+        let nrm = mid_dir.as_vec3().to_array();
+        for tri in [[s0, s1, b1], [s0, b1, b0]] {
+            for p in tri {
+                indices.push(vertices.len() as u32);
+                vertices.push(SurfaceVertexData {
+                    position: p.to_array(),
+                    normal: nrm,
+                    color,
+                    water: true,
+                });
+            }
+        }
+    }
+
+    Some(PatchMesh {
+        mesh: SurfaceMeshData { vertices, indices },
+        anchor,
+        band: water_band(radius_m),
+    })
 }
 
 // ── Per-planet runtime cache (engine side; holds renderer mesh handles as
@@ -1671,6 +1832,52 @@ mod tests {
         }
     }
 
+    fn synth_mask(all_ocean: bool) -> crate::terrain::ocean_mask::OceanMask {
+        // 8x4 grid through the public byte format (HOSOCM1 + dims + bits).
+        let (w, h) = (8u32, 4u32);
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(crate::terrain::ocean_mask::OCEAN_MASK_MAGIC);
+        bytes.extend_from_slice(&w.to_le_bytes());
+        bytes.extend_from_slice(&h.to_le_bytes());
+        let fill = if all_ocean { 0xFFu8 } else { 0x00u8 };
+        bytes.extend(std::iter::repeat(fill).take(((w * h + 7) / 8) as usize));
+        crate::terrain::ocean_mask::OceanMask::from_bytes(&bytes).expect("synthetic mask")
+    }
+
+    #[test]
+    fn water_patch_covers_ocean_and_skips_land() {
+        let def = earth_like();
+        let id = PatchId::root(3).child(2).child(1);
+        // All-ocean mask: a real mesh at the exact sea radius.
+        let pm = build_water_patch_mesh(&def, &synth_mask(true), &id)
+            .expect("ocean patch builds");
+        assert!(!pm.mesh.vertices.is_empty());
+        // Every grid vertex sits ON the sea sphere (skirt verts sit below).
+        let mut on_sphere = 0usize;
+        for v in &pm.mesh.vertices {
+            let p = pm.anchor + DVec3::new(v.position[0] as f64, v.position[1] as f64, v.position[2] as f64);
+            let r = p.length();
+            assert!(
+                r <= def.radius + 1.0,
+                "water vertex above the sea sphere: {r}"
+            );
+            if (r - def.radius).abs() < 0.5 {
+                on_sphere += 1;
+            }
+            assert!(v.water, "every water-shell vertex carries the water flag");
+        }
+        assert!(on_sphere > 0, "no vertex on the sea sphere");
+        // The declared band contains the analytic wave envelope.
+        let wave = crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M as f64;
+        assert!(pm.band.max_r_m >= def.radius + wave);
+        assert!(pm.band.min_r_m <= def.radius - wave);
+        // All-land mask: no geometry at all.
+        assert!(
+            build_water_patch_mesh(&def, &synth_mask(false), &id).is_none(),
+            "all-land patch must not build water"
+        );
+    }
+
     #[test]
     fn patch_id_u64_path_integrity_past_depth_16() {
         // Walk one id to depth 24 taking child 3 then 1 alternately, checking
@@ -1832,7 +2039,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         let id = PatchId::root(0).child(3).child(1);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
@@ -1867,7 +2074,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         let id = PatchId::root(2).child(0).child(0).child(0);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
@@ -1905,7 +2112,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         let mut id = PatchId::root(9);
         for i in 0..MAX_PATCH_DEPTH {
             id = id.child((i % 4) as u32);
@@ -1965,7 +2172,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         let id = PatchId::root(5).child(2).child(1).child(3);
         let a = build_patch_mesh(&def, &src, None, &id);
         let b = build_patch_mesh(&def, &src, None, &id);
@@ -1991,7 +2198,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         let parent = PatchId::root(11).child(3).child(2);
         // Child 0 keeps corner0 with edge (m01, m20); child 3 (center) has
         // corners (m01, m12, m20): they share the edge m01-m20.
@@ -2034,7 +2241,7 @@ mod tests {
         let detail = DetailNoise::new(def.terrain_seed);
         let mut def_ocean = def.clone();
         def_ocean.sea_level = 0.5;
-        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None, ocean: None };
         let pm = build_patch_mesh(&def_ocean, &src, None, &PatchId::root(0).child(3));
         let n = PATCH_TESS;
         for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
@@ -2135,7 +2342,7 @@ mod tests {
         def.sea_level = 0.5;
         let ocean = synth_heightmap(8, 4, -1000.0, 1000.0, |_, _| -500.0);
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None, ocean: None };
         let mut id = PatchId::root(0);
         for _ in 0..MAX_PATCH_DEPTH {
             id = id.child(3);
@@ -2162,7 +2369,7 @@ mod tests {
         let def = earth_like();
         let hm = bumpy_earth();
         let detail = DetailNoise::new(def.terrain_seed);
-        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None };
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
         // Walk to a depth-9 parent so its children are depth 10.
         let mut parent = PatchId::root(11);
         for _ in 0..9 {

@@ -126,10 +126,74 @@ struct VertexOutput {
     @location(2) uv: vec2<f32>,
 };
 
+// ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
+//
+// GEOMETRIC wave height for the water-shell mesh: four directional trains
+// (a subset of the shading octaves' wavelengths) summed as plain vertical
+// sinusoids. Heights are REAL-WORLD swell amplitudes, deliberately separate
+// from the WAVE*_SLOPE shading table above (those are slope-only tunings for
+// normal perturbation; converting them to heights via A = slope*lambda/tau
+// would give 16 m swells). No domain warp here: the CPU physics twin
+// (terrain::ocean_waves) must reproduce this height EXACTLY (the drawn ==
+// sampled golden rule from docs/design/ocean.md), and keeping the sum to
+// pure cosines makes the twin trivial + testable. Crest snaking still comes
+// from the fragment normal warp, which is shading-only.
+// KEEP IN LOCKSTEP with terrain/ocean_waves.rs (guard test parses this
+// file for the OCEAN_W* constants).
+const OCEAN_W1_LAMBDA: f32 = 2000.0;
+const OCEAN_W1_CPS: f32 = 0.028;
+const OCEAN_W1_HEIGHT: f32 = 1.1;
+const OCEAN_W2_LAMBDA: f32 = 360.0;
+const OCEAN_W2_CPS: f32 = 0.07;
+const OCEAN_W2_HEIGHT: f32 = 0.7;
+const OCEAN_W3_LAMBDA: f32 = 150.0;
+const OCEAN_W3_CPS: f32 = 0.105;
+const OCEAN_W3_HEIGHT: f32 = 0.45;
+const OCEAN_W4_LAMBDA: f32 = 50.0;
+const OCEAN_W4_CPS: f32 = 0.18;
+const OCEAN_W4_HEIGHT: f32 = 0.22;
+
+// One train's vertical height contribution at planet-local point p_m.
+// Phase = distance along the fixed 3D direction in wavelengths, wrapped
+// through fract() BEFORE the cos exactly like wave_octave above (at
+// planet-radius coordinates a raw phase argument kills GPU sin precision).
+fn ocean_height_train(p_m: vec3<f32>, d: vec3<f32>, lambda_m: f32, cps: f32, h: f32, t: f32) -> f32 {
+    let phase = fract(dot(p_m, d) / lambda_m - t * cps);
+    return h * cos(phase * TAU);
+}
+
+// Total wave height (metres, signed) at planet-local position p_m. Wave
+// directions reuse the shading octaves' fixed unit vectors so crests align
+// with what the fragment normals show.
+fn ocean_wave_height(p_m: vec3<f32>, t: f32) -> f32 {
+    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
+    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
+    h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t);
+    h = h + ocean_height_train(p_m, WAVE6_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t);
+    return h;
+}
+
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    let world_pos = object.model * vec4<f32>(vertex.position, 1.0);
+    var world_pos = object.model * vec4<f32>(vertex.position, 1.0);
+    // Water shell (type 16): displace the vertex radially by the analytic
+    // wave height, computed in the planet-local frame via the same
+    // center + inverse-rotation trick the planet fragment branch uses
+    // (material.base_color.xyz = planet center in render space;
+    // transpose(normal_matrix) = model^-1). Skirt vertices displace with
+    // their parent edge (same dir), so LOD seams stay sealed.
+    if (material.params.z >= 15.5 && material.params.z < 16.5) {
+        let inv_model = transpose(object.normal_matrix);
+        let dir_world = world_pos.xyz - material.base_color.xyz;
+        let r = length(dir_world);
+        if (r > 1.0) {
+            let radial = dir_world / r;
+            let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
+            let h = ocean_wave_height(dir * r, camera.sun_color.w);
+            world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
+        }
+    }
     out.world_position = world_pos.xyz;
     out.clip_position = camera.view_proj * world_pos;
     out.world_normal = normalize((object.normal_matrix * vec4<f32>(vertex.normal, 0.0)).xyz);
@@ -2101,6 +2165,63 @@ fn evaluate_light(
 
 // ── Fragment Shader ──
 
+// ── Planetary ocean shell (material type 16, v0.876 real-water Stage 1) ──
+//
+// The translucent water-surface sphere drawn over connected-ocean regions;
+// the terrain beneath it now renders TRUE bathymetry (the ocean split).
+// Geometry arrives vertex-displaced by ocean_wave_height (see vs_main);
+// shading reuses the v0.816 close-range machinery verbatim: wave-perturbed
+// normals from water_wave_gradient, Fresnel sky mirror + moving sun glitter
+// from water_shade. Every wave term anti-alias fades with distance, so from
+// orbit the shell is a smooth deep-blue sphere -- visually the same sea the
+// clamped terrain used to draw, which is the regression bar.
+fn ocean_shell(in: VertexOutput) -> vec4<f32> {
+    // Planet-local frame via the same center + inverse-rotation trick as
+    // the planet imagery branch (material.base_color.xyz = planet center in
+    // render space; transpose(normal_matrix) = model^-1).
+    let inv_model = transpose(object.normal_matrix);
+    let dir_world = in.world_position - material.base_color.xyz;
+    let r_render = max(length(dir_world), 1.0);
+    let n_geo = dir_world / r_render;
+    let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
+    let p_local = dir * r_render;
+    let view_dir = normalize(camera.view_pos.xyz - in.world_position);
+    let t = camera.sun_color.w;
+    let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);
+    let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);
+    // Deep open-ocean body color (linear). The seabed under the shell keeps
+    // the graded bathymetry albedo; this is only the water column's own hue.
+    let deep = vec3<f32>(0.013, 0.055, 0.11);
+    let presence = wave_presence(footprint);
+    var n_pert = n_geo;
+    if (presence > 0.001) {
+        let grad = water_wave_gradient(p_local, dir, t, footprint);
+        let n_pert_local = normalize(dir - grad * presence);
+        n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
+    }
+    let rgb = water_shade(deep, n_geo, n_pert, view_dir);
+    // Alpha: deep water is near-opaque looking straight down and fully
+    // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
+    // hint of shallow seabed visible along coasts.
+    let cos_v = clamp(dot(n_pert, view_dir), 0.0, 1.0);
+    let tt = 1.0 - cos_v;
+    let fres = tt * tt * tt;
+    let alpha = clamp(0.88 + 0.12 * fres, 0.0, 1.0);
+    // Same ACES curve as the main pipeline tail (this branch early-returns,
+    // mirroring the cloud shell's convention).
+    let a = 2.51;
+    let b = 0.03;
+    let c = 2.43;
+    let d = 0.59;
+    let e = 0.14;
+    let mapped = clamp(
+        (rgb * (a * rgb + vec3<f32>(b))) / (rgb * (c * rgb + vec3<f32>(d)) + vec3<f32>(e)),
+        vec3<f32>(0.0),
+        vec3<f32>(1.0),
+    );
+    return vec4<f32>(mapped, alpha);
+}
+
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
     let normal = normalize(in.world_normal);
@@ -2126,6 +2247,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     }
     if (material_type >= 14.5 && material_type < 15.5) {
         return cloud_layer(in.world_position, front_facing);
+    }
+    if (material_type >= 15.5 && material_type < 16.5) {
+        return ocean_shell(in);
     }
 
     // Apply procedural material based on type:

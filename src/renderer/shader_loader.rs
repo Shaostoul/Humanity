@@ -140,5 +140,14 @@ mod tests {
         validator
             .validate(&module)
             .expect("pbr_simple.wgsl failed naga validation");
+        // Entry points must EXIST by name (v0.876 lesson): naga silently
+        // accepts an @vertex/@fragment attribute orphaned onto a const by an
+        // insertion between the attribute and its fn -- the module then
+        // validates fine but has no entry point, and every pipeline dies at
+        // FIRST BOOT with "Unable to find entry point". Pin both names.
+        let entries: Vec<&str> =
+            module.entry_points.iter().map(|e| e.name.as_str()).collect();
+        assert!(entries.contains(&"vs_main"), "vs_main entry point missing: {entries:?}");
+        assert!(entries.contains(&"fs_main"), "fs_main entry point missing: {entries:?}");
     }
 }

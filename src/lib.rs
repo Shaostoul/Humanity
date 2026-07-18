@@ -5943,6 +5943,7 @@ mod native_app {
         state.planet_mesh_cache.clear();
         state.planet_atmo_materials.clear();
         state.planet_cloud_materials.clear();
+        state.planet_water_materials.clear();
         // Chunked-LOD patches: unlike the whole-sphere cache above (whose
         // superseded meshes stay resident until session end), patch slots
         // are actively recycled: replace each GPU mesh with a degenerate
@@ -7282,6 +7283,10 @@ mod native_app {
         /// deep patches + the ground clamp sample it via tile_or_base. An
         /// empty/absent tile dir simply leaves the base grid in charge.
         terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles,
+        /// Connected-ocean mask for EARTH (v0.876 real-water Stage 1):
+        /// flips the chunked terrain to true bathymetry and gates the
+        /// water-shell patches. None = the pre-v0.876 clamped sea sphere.
+        ocean_mask: Option<crate::terrain::ocean_mask::OceanMask>,
         /// Live Earth weather (v0.874): the background NASA GIBS fetcher
         /// delivers RG8 cloud-fraction grids here (cache first, then fresh
         /// every 30 min). None when the setting is off. Polled per frame;
@@ -7359,6 +7364,10 @@ mod native_app {
         /// above); reload_planet_defs clears this map so RON tuning
         /// hot-reloads.
         planet_cloud_materials: std::collections::HashMap<(String, u8), usize>,
+        /// Water-shell material per planet (v0.876, material type 16): its
+        /// base_color.xyz is the planet center in render space, rewritten
+        /// every frame like the textured-planet material above.
+        planet_water_materials: std::collections::HashMap<String, usize>,
         /// World-space position of the Sun (Earth-centred coordinates).
         sun_world_pos: glam::DVec3,
         /// Emissive material index for the Sun core.
@@ -8536,6 +8545,18 @@ mod native_app {
                 terrain_tiles: crate::terrain::terrain_tiles::TerrainTiles::new(
                     data_dir.join("planets/earth_tiles"),
                 ),
+                // Connected-ocean mask (v0.876): bathymetric terrain + the
+                // water shell need it; absent/corrupt file = the pre-v0.876
+                // clamped sea sphere, never a crash.
+                ocean_mask: match crate::terrain::ocean_mask::OceanMask::load(
+                    &data_dir.join("planets/earth_ocean_mask.bin"),
+                ) {
+                    Ok(m) => Some(m),
+                    Err(e) => {
+                        log::warn!("[Ocean] mask unavailable ({e}) - clamped sea sphere");
+                        None
+                    }
+                },
                 // Live weather (v0.874): spawn the NASA GIBS fetcher only
                 // when the setting allows network use. The renderer's
                 // weather texture stays zero (= procedural sky) until the
@@ -8560,6 +8581,7 @@ mod native_app {
                 planet_textured_materials: std::collections::HashMap::new(),
                 planet_atmo_materials: std::collections::HashMap::new(),
                 planet_cloud_materials: std::collections::HashMap::new(),
+                planet_water_materials: std::collections::HashMap::new(),
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
                 sun_halo_material: 0,
@@ -10170,7 +10192,28 @@ mod native_app {
                             let dir1 = anchor.normalize_or_zero();
                             let tiles_for_clamp =
                                 (lock_body == "earth").then_some(&state.terrain_tiles);
-                            let g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1.as_vec3());
+                            let mut g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1.as_vec3());
+                            // Real water (v0.876 Stage 1): over connected
+                            // ocean the terrain mesh is the SEAFLOOR, but the
+                            // player floats on the drawn water shell -- sea
+                            // radius + the analytic wave height (the CPU twin
+                            // of the shader's vertex displacement; drawn ==
+                            // sampled). Diving is the Stage 3 follow-up.
+                            if lock_body == "earth" {
+                                if let (Some(om), Some(d)) = (state.ocean_mask.as_ref(), def) {
+                                    if om.is_ocean(dir1.as_vec3()) {
+                                        // Same clock the shader's vertex
+                                        // displacement runs on (sun_color.w
+                                        // = start-relative seconds).
+                                        let t = state.start_time.elapsed().as_secs_f32();
+                                        let p =
+                                            (dir1 * d.radius).as_vec3();
+                                        let wave = crate::terrain::ocean_waves::wave_height_m(p, t)
+                                            as f64;
+                                        g = g.max(d.radius + wave);
+                                    }
+                                }
+                            }
                             let rest = crate::surface_walk::rest_radius(
                                 g,
                                 crate::surface_walk::EYE_HEIGHT_M,
@@ -14399,6 +14442,12 @@ mod native_app {
                                 let tiles_ref = (b.id == "earth"
                                     && state.terrain_tiles.tier_installed())
                                 .then_some(&state.terrain_tiles);
+                                // Connected-ocean mask (v0.876): flips the
+                                // patch builder to true bathymetry; the
+                                // water shell draws the sea itself.
+                                let ocean_ref = (b.id == "earth")
+                                    .then_some(state.ocean_mask.as_ref())
+                                    .flatten();
                                 // Planet LOD knobs from Settings (v0.873),
                                 // clamped defensively: the patch budget must
                                 // stay well under the renderer's shared
@@ -14474,6 +14523,7 @@ mod native_app {
                                         hm,
                                         detail: &cs.detail,
                                         tiles: tiles_ref,
+                                        ocean: ocean_ref,
                                     };
                                     // Real imagery colors when Earth ships an
                                     // albedo grid; classifier otherwise (same
@@ -14581,6 +14631,149 @@ mod native_app {
                                         cs.cache.len(),
                                         cs.total_bytes as f64 / (1024.0 * 1024.0),
                                     );
+                                }
+
+                                // ── Water shell (v0.876 real-water Stage 1) ──
+                                // The translucent sea surface over connected
+                                // ocean. Only while terrain patches draw
+                                // (below the handoff the uniform sphere's
+                                // clamped sea IS the water); its own small
+                                // quadtree at the sea radius, capped shallow
+                                // (waves only need ~27 m mesh; the vertex
+                                // shader adds the height).
+                                if chunked_drawn && ocean_ref.is_some() {
+                                    let om = ocean_ref.unwrap();
+                                    let wmat = match state.planet_water_materials.get(&b.id) {
+                                        Some(&m) => m,
+                                        None => {
+                                            let m = state.renderer.add_material_full(
+                                                [0.0, 0.0, 0.0, 1.0],
+                                                0.0,
+                                                0.05,
+                                                16.0,
+                                                0.0,
+                                            );
+                                            state.planet_water_materials.insert(b.id.clone(), m);
+                                            m
+                                        }
+                                    };
+                                    // base_color.xyz = planet center in render
+                                    // space, every frame (floating origin).
+                                    state.renderer.update_material_full(
+                                        wmat,
+                                        [
+                                            render_off.x as f32,
+                                            render_off.y as f32,
+                                            render_off.z as f32,
+                                            1.0,
+                                        ],
+                                        0.0,
+                                        0.05,
+                                        16.0,
+                                        0.0,
+                                    );
+                                    let wkey = format!("{}::water", b.id);
+                                    let wparams = chunks::ChunkParams {
+                                        radius_m: d.radius,
+                                        band: chunks::water_band(d.radius),
+                                        max_depth: chunks::WATER_MAX_PATCH_DEPTH,
+                                        split_px,
+                                        px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
+                                        max_leaves: chunks::WATER_MAX_LEAVES,
+                                        max_build_requests: 24,
+                                    };
+                                    let seed = d.terrain_seed;
+                                    let ws = state
+                                        .planet_chunk_states
+                                        .entry(wkey)
+                                        .or_insert_with(|| chunks::ChunkState::new(seed));
+                                    ws.frame += 1;
+                                    let wsel = chunks::select_patches(
+                                        cam_local,
+                                        Some(&frustum),
+                                        &|id| ws.cache.get(id).map(|e| e.band),
+                                        &wparams,
+                                    );
+                                    let frame = ws.frame;
+                                    for id in &wsel.draws {
+                                        if let Some(e) = ws.cache.get_mut(id) {
+                                            e.last_used = frame;
+                                        }
+                                    }
+                                    let mut wbuilds = 0usize;
+                                    for id in &wsel.build_requests {
+                                        if wbuilds >= 8 {
+                                            break;
+                                        }
+                                        if ws.cache.contains_key(id) {
+                                            continue;
+                                        }
+                                        // All-land patches cache a degenerate
+                                        // placeholder so selection stops
+                                        // requesting them (drawing it is a
+                                        // no-op triangle at the anchor).
+                                        let (mesh, anchor, band, bytes) =
+                                            match chunks::build_water_patch_mesh(d, om, id) {
+                                                Some(pm) => (
+                                                    Mesh::from_planet_surface(
+                                                        &state.renderer.device,
+                                                        &pm.mesh,
+                                                    ),
+                                                    pm.anchor,
+                                                    pm.band,
+                                                    chunks::PATCH_MESH_BYTES,
+                                                ),
+                                                None => {
+                                                    let c = chunks::patch_corners(id);
+                                                    let a = (c[0] + c[1] + c[2]).normalize()
+                                                        * d.radius;
+                                                    (
+                                                        Mesh::placeholder(&state.renderer.device),
+                                                        a,
+                                                        chunks::water_band(d.radius),
+                                                        256,
+                                                    )
+                                                }
+                                            };
+                                        let slot = if let Some(idx) =
+                                            state.planet_patch_free_slots.pop()
+                                        {
+                                            state.renderer.replace_mesh(idx, mesh);
+                                            idx
+                                        } else {
+                                            state.renderer.add_mesh(mesh)
+                                        };
+                                        ws.insert(*id, slot, bytes, anchor, band);
+                                        wbuilds += 1;
+                                    }
+                                    for (_, mesh_idx) in
+                                        ws.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES / 8)
+                                    {
+                                        state.renderer.replace_mesh(
+                                            mesh_idx,
+                                            Mesh::placeholder(&state.renderer.device),
+                                        );
+                                        state.planet_patch_free_slots.push(mesh_idx);
+                                    }
+                                    if wsel.fully_covered && !wsel.draws.is_empty() {
+                                        for id in &wsel.draws {
+                                            if let Some(e) = ws.cache.get(id) {
+                                                let anchor_render =
+                                                    render_off + rot_d * e.anchor;
+                                                celestial_objects.push(RenderObject {
+                                                    position: Vec3::new(
+                                                        anchor_render.x as f32,
+                                                        anchor_render.y as f32,
+                                                        anchor_render.z as f32,
+                                                    ),
+                                                    rotation,
+                                                    scale: Vec3::ONE,
+                                                    mesh: e.mesh,
+                                                    material: wmat,
+                                                });
+                                            }
+                                        }
+                                    }
                                 }
                             } else if let Some(cs) =
                                 state.planet_chunk_states.get_mut(&b.id)

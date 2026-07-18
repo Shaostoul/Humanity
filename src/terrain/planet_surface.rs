@@ -158,6 +158,17 @@ pub fn displaced_radius_f64(def: &PlanetDef, elevation: f64) -> f64 {
     1.0 + e * relief
 }
 
+/// TRUE (bathymetric) displacement: the waterless formula applied even on
+/// water worlds, used by the chunked path when a connected-ocean mask is
+/// present (v0.876 real-water Stage 1) -- the seafloor and dry basins are
+/// real depressions and the separate ocean shell draws the water. Above
+/// sea level this agrees with displaced_radius_f64 exactly.
+pub fn displaced_radius_f64_true(def: &PlanetDef, elevation: f64) -> f64 {
+    let sea = def.sea_level.clamp(0.0, 1.0) as f64;
+    let relief = def.surface_relief.max(0.0) as f64;
+    1.0 + (elevation - sea) * relief
+}
+
 /// Classify a surface color from elevation and |sin(latitude)|.
 ///
 /// Bands, in priority order: polar cap (threshold slightly relaxed at high

@@ -117,13 +117,19 @@ impl Pipeline {
                 }],
             });
 
-        // Group 2: Material uniforms
+        // Group 2: Material uniforms. VERTEX visibility added for the water
+        // shell (v0.876): the type-16 vertex branch reads material.params.z
+        // (type gate) + base_color.xyz (planet center) to Gerstner-displace
+        // water vertices in planet-local space. Same v0.807 lesson as the
+        // object layout below: widen the layout IN THE SAME COMMIT as the
+        // shader-stage use, and boot-verify (naga/tests cannot see
+        // pipeline-layout mismatches, only booting can).
         let material_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Material Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
