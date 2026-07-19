@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "FABLE SPRINT COMPLETE through v0.901.0 (SSAO). Awaiting the v0.901.1 build-game stamp, then the tree is pristine for the operator + successor. Day totals: 13 feature releases v0.889-v0.901 (bedtime list, 4x perf, cloud catalog, vegetation arc, god rays, flicker root-cause kill, sun shadow map, cloud ground shadows, SSAO). Operator relaunch target: v0.901.1. Remaining graphics wants ranked in PRIORITIES.md final-sprint block.",
+  "current_focus": "Texture arc shipped (v0.902). Operator target build: v0.902.1. Fable clock still ticking - keep answering field reports until shutoff; tree stays pristine between increments.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -399,12 +399,16 @@
     {
       "date": "2026-07-19",
       "decision": "v0.900-v0.901 CLOSE-OUT: shadow-caster distance cull (65 km anchor bound - the ortho box is 1.5 km); SSAO shipped (10-tap golden-angle, depth-only, celestial slot, multiply blend, reverse-Z linearized from the real projection m22/m32; sky/clouds untouched, probe-verified no halos). Handoff docs: PRIORITIES final-sprint block with ranked remaining wants (SSAO-successor items: tangent-space ground texture <8m, geomorph fades, cloud-shadowed god rays, Settings toggles for sun_shadows/godray_intensity/ssao_strength renderer fields), history 2026-07-19 day-sprint section, MEMORY.md arc updated."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.902.0 TEXTURE ARC: living ocean (25km+2.5km planet-pinned hue/wave-strength variation kills tiling; 3.2m/0.8m camera-relative micro ripples give close motion; nadir alpha 0.93) + sub-metre GROUND texture. KEY TECHNIQUE unlocked: the CAMERA-RELATIVE PRECISION DOMAIN - fragment offsets taken relative to the camera (small = full f32 precision) + the camera planet-frame position mod 64m poked into light0_cone_inner.yzw as the anchor; periodic lattice noise with periods dividing 64m makes anchor jumps seamless. This BREAKS THE 8m PRECISION FLOOR for any future surface detail (normal maps, tangent textures, decals) - reuse the pattern. Residual wants: faint patch-seam blockiness in the sea variation, coast foam, tangent-space normal-mapped ground material."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.901.0 released; v0.901.1 build-game in flight (final stamp of the Fable era).",
+  "version_state": "v0.902.0 released; v0.902.1 build-game in flight.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
