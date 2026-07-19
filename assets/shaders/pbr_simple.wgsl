@@ -518,6 +518,20 @@ const LAND2_SEED: f32 = 17.3;
 const LAND3_LAMBDA: f32 = 150.0;
 const LAND3_AMP: f32 = 0.06;
 const LAND3_SEED: f32 = 31.9;
+// v0.898 (operator: "hard to make anything out... everything uniformly
+// lit" at walking height): the ladder used to STOP at 150 m, so the ground
+// underfoot was one flat bilinear color. Two finer octaves carry visible
+// structure down to ~8 m. Sub-8 m octaves are NOT safe here: the noise
+// domain is the f32 unit direction, whose per-fragment quantization step
+// at ground level is ~6e-8 rad (~0.4 m of arc) - finer wavelengths would
+// band. True sub-meter ground texture needs a tangent-space detail map
+// (journaled follow-up).
+const LAND4_LAMBDA: f32 = 25.0;
+const LAND4_AMP: f32 = 0.07;
+const LAND4_SEED: f32 = 47.1;
+const LAND5_LAMBDA: f32 = 8.0;
+const LAND5_AMP: f32 = 0.07;
+const LAND5_SEED: f32 = 63.7;
 
 // Per-octave anti-alias fade: how many projected pixels one wavelength
 // spans, smoothstepped through the visibility band. Exactly 0 when the
@@ -627,7 +641,11 @@ fn land_detail_factor(dir: vec3<f32>, r_m: f32, footprint_m: f32) -> f32 {
         * (2.0 * surface_detail_noise(dir, r_m / LAND2_LAMBDA, LAND2_SEED) - 1.0);
     f = f + LAND3_AMP * detail_octave_fade(LAND3_LAMBDA, footprint_m)
         * (2.0 * surface_detail_noise(dir, r_m / LAND3_LAMBDA, LAND3_SEED) - 1.0);
-    return clamp(1.0 + f, 0.7, 1.3);
+    f = f + LAND4_AMP * detail_octave_fade(LAND4_LAMBDA, footprint_m)
+        * (2.0 * surface_detail_noise(dir, r_m / LAND4_LAMBDA, LAND4_SEED) - 1.0);
+    f = f + LAND5_AMP * detail_octave_fade(LAND5_LAMBDA, footprint_m)
+        * (2.0 * surface_detail_noise(dir, r_m / LAND5_LAMBDA, LAND5_SEED) - 1.0);
+    return clamp(1.0 + f, 0.62, 1.38);
 }
 
 // Full close-range water shading with the wave-perturbed normal:
@@ -2533,6 +2551,19 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // no planet-local frame to sample in.
         if (has_tex && detail_on && !is_water) {
             albedo = albedo * land_detail_factor(dir, r_render, footprint);
+        }
+        // Cloud GROUND shadows (v0.898 - the deferred item noted in
+        // renderer/clouds.rs): sample the SAME blended live+procedural
+        // coverage field the sky draws, straight down at this fragment's
+        // planet direction, and darken the surface under it. The planet's
+        // cloud seed rides camera.light_count.y, the deck coverage .z, and
+        // the enable flag .w (poked by render_celestial_onto right after
+        // its full uniform write). Applied to albedo so fill/ambient dim
+        // with the sun - overcast ground reads flat and grey, like life.
+        if (has_tex && camera.light_count.w > 0.5) {
+            let cw = cloud_weather(dir, camera.sun_color.w, camera.light_count.y);
+            let ca = cloud_alpha_from_field(cw, camera.light_count.z);
+            albedo = albedo * (1.0 - 0.5 * ca);
         }
         // Ocean sun glint (v0.810): every orbital photo has a bright specular
         // spot where the sun mirrors off the sea; without it the ocean reads

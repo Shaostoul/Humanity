@@ -2815,6 +2815,7 @@ mod native_app {
             // Same clock as the live path: cloud decks drift with time, and a
             // capture should freeze the exact frame the player is looking at.
             state.start_time.elapsed().as_secs_f32(),
+            cloud_ground_params(state),
             &capture_view,
         );
         state
@@ -2953,6 +2954,24 @@ mod native_app {
             0.0
         };
         crate::dev_travel::planet_spin_from_time(hour, sun_az)
+    }
+
+    /// Cloud-ground-shadow params for the celestial pass (v0.898): the
+    /// frame-locked planet's cloud seed + deck coverage + on/off. Zeroes
+    /// (shadows off) away from any cloudy body or with clouds disabled.
+    fn cloud_ground_params(state: &EngineState) -> (f32, f32, bool) {
+        if !state.gui_state.settings.planet_clouds {
+            return (0.0, 0.0, false);
+        }
+        let body = state.frame_lock_body.as_deref().unwrap_or("earth");
+        match state.planet_defs.get(body).and_then(|d| {
+            d.cloud_coverage
+                .filter(|c| *c > 0.0)
+                .map(|c| (crate::renderer::clouds::cloud_seed(d.terrain_seed), c.min(1.0)))
+        }) {
+            Some((seed, cov)) => (seed, cov, true),
+            None => (0.0, 0.0, false),
+        }
     }
 
     /// Overhead-cloud dimming for the god-ray pass (v0.897): sample the live
@@ -15159,12 +15178,14 @@ mod native_app {
                                     .entry(b.id.clone())
                                     .or_insert_with(|| chunks::ChunkState::new(seed));
                                 cs.frame += 1;
-                                let selection = chunks::select_patches(
+                                let selection = chunks::select_patches_sticky(
                                     cam_local,
                                     Some(&frustum),
                                     &|id| cs.cache.get(id).map(|e| e.band),
                                     &params,
+                                    Some(&cs.last_drawn),
                                 );
+                                cs.last_drawn = selection.draws.iter().cloned().collect();
                                 // Stamp every selected patch as used THIS
                                 // frame BEFORE eviction runs below: a patch
                                 // that just re-entered view after a long
@@ -15367,12 +15388,14 @@ mod native_app {
                                         .entry(wkey)
                                         .or_insert_with(|| chunks::ChunkState::new(seed));
                                     ws.frame += 1;
-                                    let wsel = chunks::select_patches(
+                                    let wsel = chunks::select_patches_sticky(
                                         cam_local,
                                         Some(&frustum),
                                         &|id| ws.cache.get(id).map(|e| e.band),
                                         &wparams,
+                                        Some(&ws.last_drawn),
                                     );
+                                    ws.last_drawn = wsel.draws.iter().cloned().collect();
                                     let frame = ws.frame;
                                     for id in &wsel.draws {
                                         if let Some(e) = ws.cache.get_mut(id) {
@@ -20271,7 +20294,7 @@ mod native_app {
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), &view);
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

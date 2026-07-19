@@ -1714,6 +1714,7 @@ impl Renderer {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render_celestial_onto(
         &self,
         camera: &Camera,
@@ -1721,6 +1722,10 @@ impl Renderer {
         transparent: &[RenderObject],
         sun_dir: Vec3,
         time_s: f32,
+        // Cloud ground shadows (v0.898): (cloud seed, deck coverage, enable).
+        // Poked into the light_count.yzw pads after the full uniform write,
+        // so the type-12 terrain branch can sample the sky's coverage field.
+        cloud_shadow: (f32, f32, bool),
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -1738,6 +1743,14 @@ impl Renderer {
         // sun_color (624) + 12 bytes to its w component. Written before the
         // sun poke below so both land in this pass's uniform snapshot.
         self.queue.write_buffer(&self.camera_buffer, 636, bytemuck::bytes_of(&time_s));
+        // Cloud-ground-shadow params in the light_count yzw pads (offsets
+        // 592 + 4/8/12; documented unused in CameraUniforms).
+        let cs = [
+            cloud_shadow.0,
+            cloud_shadow.1,
+            if cloud_shadow.2 { 1.0_f32 } else { 0.0 },
+        ];
+        self.queue.write_buffer(&self.camera_buffer, 596, bytemuck::cast_slice(&cs));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

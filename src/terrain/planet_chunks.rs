@@ -150,11 +150,17 @@ pub const PATCH_BUILDS_PER_FRAME: usize = 24;
 /// every frame, so there is no persistent queue to grow stale).
 pub const MAX_BUILD_REQUESTS: usize = 96;
 
-/// LRU cache byte cap for resident patch meshes (GPU estimate). One patch
-/// is 1056 verts * 32 B + 1056 idx * 4 B = 38,016 B, so 256 MB holds
-/// ~7,000 patches (~10x a full 640-leaf working set), enough that orbiting
-/// a planet does not thrash rebuilds.
-pub const PATCH_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
+/// LRU cache byte cap for resident patch meshes (GPU estimate). 256 MB was
+/// sized in the 640-leaf era (~7,000 bare 38 KB patches). By v0.898 the
+/// budget reaches 6144 leaves, prefetch banks children ahead of need, and
+/// VEGETATION multiplies per-patch bytes - the needed set alone outgrew the
+/// cap, so every build evicted a still-needed patch: the parked-camera
+/// build->evict->rebuild churn the operator reported as terrain flicker
+/// that got WORSE at higher settings (probe: draws swinging 3572->1561->
+/// 4577 per second, requests pinned at the cap, cache pinned at 7,061).
+/// 1.5 GB holds the max working set with real headroom; the LRU only
+/// grows to what the camera actually needs, so low settings stay small.
+pub const PATCH_CACHE_MAX_BYTES: usize = 1536 * 1024 * 1024;
 
 /// Cache floor applied ONCE when a planet leaves chunked mode (the camera
 /// flew away): shrink to this so a departed planet parks ~64 MB of warm
@@ -862,6 +868,26 @@ pub fn select_patches(
     is_built: &dyn Fn(&PatchId) -> Option<RadialBand>,
     params: &ChunkParams,
 ) -> Selection {
+    select_patches_sticky(cam_local_m, frustum, is_built, params, None)
+}
+
+/// select_patches with SELECTION STICKINESS (v0.898): `last_drawn` is the
+/// leaf set that was actually drawn last frame. Two stabilizers hang off it,
+/// killing the two oscillators behind the operator's "rapidly builds and
+/// resets planet chunks of varying size, worse at higher settings":
+/// 1. Split/merge hysteresis keys on WAS-DRAWN-SPLIT instead of
+///    children-resident (residency stopped meaning "we chose to split"
+///    the moment prefetch started building children everywhere).
+/// 2. A committed-split budget tier: splits that were drawn last frame may
+///    finish 5% past the leaf budget, so the budget wall cannot sweep
+///    across the planet re-deciding a different refusal set every frame.
+pub fn select_patches_sticky(
+    cam_local_m: DVec3,
+    frustum: Option<&FrustumPlanes>,
+    is_built: &dyn Fn(&PatchId) -> Option<RadialBand>,
+    params: &ChunkParams,
+    last_drawn: Option<&std::collections::HashSet<PatchId>>,
+) -> Selection {
     let mut stats = SelectStats::default();
     let mut heap: BinaryHeap<HeapNode> = BinaryHeap::new();
     // (id, err) of leaves emitted this frame, before fallback substitution.
@@ -901,18 +927,18 @@ pub fn select_patches(
     }
 
     while let Some(node) = heap.pop() {
-        // Split/merge HYSTERESIS (v0.882, operator: "the terrain just can't
-        // maintain its highest detail... flickering... worst around land
-        // mass above water"): a hard threshold made boundary patches flip
-        // parent<->child every frame as the planet's spin swept the error
-        // past 12 px - and every flip redraws the COASTLINE at a different
-        // sampling, flashing land/water. Once a node's children are all
-        // resident, it stays split until the error falls WELL below the
-        // threshold (x0.7), so the 8.4-12 px band is stable in either state.
-        // Stateless: residency itself is the memory.
-        let kids_resident = node.id.depth < params.max_depth
-            && (0..4u32).all(|i| is_built(&node.id.child(i)).is_some());
-        let split_thr = if kids_resident {
+        // Split/merge HYSTERESIS (v0.882; re-keyed v0.898): a hard threshold
+        // made boundary patches flip parent<->child every frame. The memory
+        // used to be children-residency, but the v0.889 prefetch builds
+        // children for EVERY near-threshold node, which dropped those nodes'
+        // thresholds to 0.7x and turned the whole prefetch band into a
+        // dense flip zone (higher budget = more prefetch = more flicker).
+        // Now the memory is WAS-DRAWN-SPLIT: only a node whose children were
+        // actually on screen last frame keeps the low keep-split threshold.
+        let was_split = last_drawn
+            .map(|s| (0..4u32).any(|i| s.contains(&node.id.child(i))))
+            .unwrap_or(false);
+        let split_thr = if was_split {
             params.split_px * 0.7
         } else {
             params.split_px
@@ -969,7 +995,18 @@ pub fn select_patches(
             // refines to the budget, requests stop, evictions stop, and the
             // drawn set becomes frame-to-frame identical.
             let projected_total = leaves.len() + heap.len() + vis.len();
-            if projected_total > params.max_leaves {
+            // Committed-split tier (v0.898): a split that was DRAWN last
+            // frame may finish up to 5% past the budget. Without it, the
+            // heap-order budget wall lands on a slightly different node set
+            // every frame (errors drift with spin/camera), and every node
+            // the wall crosses swaps parent<->children - the "chunks of
+            // varying size rapidly resetting" the operator reported.
+            let budget_cap = if was_split {
+                params.max_leaves + params.max_leaves / 20
+            } else {
+                params.max_leaves
+            };
+            if projected_total > budget_cap {
                 stats.budget_saturated = true;
                 if hot { stats.hot_budget += 1; }
                 if node.err_px > stats.max_refused_err {
@@ -1804,6 +1841,13 @@ pub struct ChunkState {
     pub frame: u64,
     /// Whether patches actually drew last frame (for transition logging).
     pub active_last_frame: bool,
+    /// The leaf set DRAWN last frame (v0.898): the memory behind the
+    /// split/merge hysteresis and the committed-split budget tier in
+    /// select_patches_sticky. Keyed on what was actually on screen, not on
+    /// residency - the v0.889 prefetch builds children everywhere, which
+    /// silently turned the old residency-keyed hysteresis into a dense
+    /// oscillation zone (the operator's "higher settings = worse flicker").
+    pub last_drawn: std::collections::HashSet<PatchId>,
     /// Frame stamp of the last budget-saturation log (throttle).
     pub last_saturation_log: u64,
 }
@@ -1816,6 +1860,7 @@ impl ChunkState {
             detail: DetailNoise::new(terrain_seed),
             frame: 0,
             active_last_frame: false,
+            last_drawn: std::collections::HashSet::new(),
             last_saturation_log: 0,
         }
     }
@@ -1838,11 +1883,16 @@ impl ChunkState {
     /// or anything used this frame.
     pub fn collect_evictions(&mut self, byte_cap: usize) -> Vec<(PatchId, usize)> {
         let mut evicted = Vec::new();
+        // Recency guard (v0.898): never evict anything used in the last ~2
+        // seconds. When the working set genuinely exceeds the cap, evicting
+        // the just-culled ring made every camera micro-turn a rebuild storm;
+        // running temporarily over cap is strictly cheaper than thrash.
+        let recent = self.frame.saturating_sub(120);
         while self.total_bytes > byte_cap {
             let victim = self
                 .cache
                 .iter()
-                .filter(|(id, e)| id.depth > 0 && e.last_used < self.frame)
+                .filter(|(id, e)| id.depth > 0 && e.last_used < recent)
                 .min_by_key(|(id, e)| (e.last_used, **id))
                 .map(|(id, _)| *id);
             let Some(id) = victim else { break };
@@ -2867,7 +2917,9 @@ mod tests {
             };
             cs.insert(id, 100 + i, bytes, DVec3::X, band);
         }
-        cs.frame = 10;
+        // Far past the ~2 s recency guard (v0.898), so frames 1..6 are
+        // genuinely stale and evictable.
+        cs.frame = 300;
         // Cap that forces evicting all but ~4 entries.
         let evicted = cs.collect_evictions(bytes * 4);
         assert!(!evicted.is_empty());
