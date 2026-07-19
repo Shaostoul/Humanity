@@ -169,6 +169,24 @@ pub const PATCH_MESH_BYTES: usize = 1056 * 32 + 1056 * 4;
 /// below. 15% of the edge comfortably covers the elevation disagreement a
 /// coarser neighbor can show across one of its triangles (real terrain
 /// slopes, even 4x-exaggerated, stay well under this).
+// ── Procedural vegetation (v0.888, operator: "take a shot at spawning
+// grass and trees... simple placeholders (possibly procedural) are okay") ──
+// Baked INTO the patch mesh at build time: deterministic per-patch scatter
+// (seeded from the PatchId, so the same patch always grows the same trees),
+// land-only, gated by elevation band and slope. LOD is free: vegetation
+// appears exactly when its patch's depth builds and vanishes with it.
+/// Patch depth at which TREES appear (215 m patches - ~8 px trees at the
+/// distance that depth becomes resident).
+pub const TREE_MIN_DEPTH: u8 = 15;
+/// Patch depth at which GRASS tufts appear (27 m patches, walking range).
+pub const GRASS_MIN_DEPTH: u8 = 18;
+/// Trees per tree-depth patch (candidates; slope/elevation gates thin them).
+pub const TREES_PER_PATCH: u32 = 10;
+/// Grass tufts per grass-depth patch.
+pub const GRASS_PER_PATCH: u32 = 24;
+/// Real-meter elevation ceiling for trees (a global treeline placeholder).
+pub const TREELINE_M: f32 = 1700.0;
+
 pub const SKIRT_EDGE_FRACTION: f64 = 0.15;
 /// Never shallower than 20 m (hides f32 rounding + same-depth seams).
 pub const SKIRT_MIN_M: f64 = 20.0;
@@ -1339,6 +1357,118 @@ pub fn build_patch_mesh(
         }
     }
 
+    // ── Procedural vegetation (v0.888) ── crossed-quad trunks + diamond
+    // canopies, grass as crossed cards. Deterministic xorshift from the
+    // PatchId; positions from random barycentric samples of the elevation
+    // grid, so trees stand ON the drawn ground by construction.
+    {
+        let mut rng: u64 = (id.face as u64)
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ (id.path as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
+            ^ ((id.depth as u64) << 56)
+            ^ 0x94D0_49BB_1331_11EB;
+        let mut next = move || {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            rng
+        };
+        let range_m = match source {
+            ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
+            ElevationSource::Noise(_) => 8000.0,
+        };
+        let mut emit_card = |base: glam::Vec3,
+                             up: glam::Vec3,
+                             side: glam::Vec3,
+                             w: f32,
+                             h0: f32,
+                             h1: f32,
+                             color: [f32; 3],
+                             vertices: &mut Vec<SurfaceVertexData>,
+                             indices: &mut Vec<u32>| {
+            // One two-sided quad from h0 to h1 along up, w wide along side.
+            let p00 = base + up * h0 - side * (w * 0.5);
+            let p01 = base + up * h0 + side * (w * 0.5);
+            let p10 = base + up * h1 - side * (w * 0.5);
+            let p11 = base + up * h1 + side * (w * 0.5);
+            let nrm = up.cross(side).normalize_or_zero();
+            for tri in [[p00, p01, p11], [p00, p11, p10], [p00, p11, p01], [p00, p10, p11]] {
+                for p in tri {
+                    indices.push(vertices.len() as u32);
+                    vertices.push(SurfaceVertexData {
+                        position: p.to_array(),
+                        normal: nrm.to_array(),
+                        color,
+                        water: false,
+                    });
+                }
+            }
+        };
+        let want_trees = id.depth >= TREE_MIN_DEPTH && id.depth < GRASS_MIN_DEPTH;
+        let want_grass = id.depth >= GRASS_MIN_DEPTH;
+        let count = if want_grass { GRASS_PER_PATCH } else if want_trees { TREES_PER_PATCH } else { 0 };
+        for _ in 0..count {
+            // Random barycentric point on the patch's elevation grid.
+            let mut a = (next() % 1000) as f64 / 1000.0;
+            let mut b = (next() % 1000) as f64 / 1000.0;
+            if a + b > 1.0 {
+                a = 1.0 - a;
+                b = 1.0 - b;
+            }
+            let dir = (corners[0] * (1.0 - a - b) + corners[1] * a + corners[2] * b).normalize();
+            // Elevation at the point through the SAME sampler as the grid.
+            let (e, _tile) = match source {
+                ElevationSource::Heightmap { hm, tiles, .. } => {
+                    tile_or_base(hm, *tiles, dir, id.depth)
+                }
+                ElevationSource::Noise(sm) => (sm.elevation_at(dir.as_vec3()), false),
+            };
+            let elev_m = (e - sea) * range_m;
+            // Land only, below the treeline, above the beach.
+            if elev_m < 3.0 || elev_m > TREELINE_M {
+                continue;
+            }
+            let r = radius_m
+                * if bathymetric {
+                    displaced_radius_f64_true(def, e as f64)
+                } else {
+                    displaced_radius_f64(def, e as f64)
+                };
+            let base = ((dir * r) - anchor).as_vec3();
+            let up = dir.as_vec3();
+            // Random azimuth for the crossed cards.
+            let az = (next() % 6283) as f32 / 1000.0;
+            let east = glam::Vec3::Y.cross(up).normalize_or_zero();
+            let north = up.cross(east).normalize_or_zero();
+            let side_a = (east * az.cos() + north * az.sin()).normalize_or_zero();
+            let side_b = up.cross(side_a).normalize_or_zero();
+            if side_a.length_squared() < 0.5 {
+                continue; // polar degenerate
+            }
+            if want_grass {
+                // Grass tuft: two crossed cards, 0.5 m tall, straw-green.
+                let g = 0.25 + (next() % 100) as f32 / 400.0;
+                let col = [0.24, 0.34 + (next() % 100) as f32 / 1000.0, 0.10];
+                emit_card(base, up, side_a, 0.5, 0.0, g, col, &mut vertices, &mut indices);
+                emit_card(base, up, side_b, 0.5, 0.0, g, col, &mut vertices, &mut indices);
+            } else {
+                // Tree: trunk cards (brown) + canopy cards (dark green),
+                // 7-13 m tall - a believable conifer silhouette at range.
+                let h = 7.0 + (next() % 100) as f32 / 100.0 * 6.0;
+                let trunk = [0.30, 0.22, 0.13];
+                let canopy = [
+                    0.08 + (next() % 60) as f32 / 1000.0,
+                    0.26 + (next() % 80) as f32 / 1000.0,
+                    0.10,
+                ];
+                emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                emit_card(base, up, side_b, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+            }
+        }
+    }
+
     // ── Skirt (design constraint 3) ──
     // A vertical apron hanging from the border toward the planet center,
     // sealing cracks against ANY coarser/finer neighbor. Depth scales with
@@ -1977,6 +2107,50 @@ mod tests {
             build_water_patch_mesh(&def, &synth_mask(false), &id).is_none(),
             "all-land patch must not build water"
         );
+    }
+
+    #[test]
+    fn vegetation_bakes_into_deep_land_patches_deterministically() {
+        // v0.888: a tree-depth land patch gains extra card triangles beyond
+        // the 352-tri grid+skirt baseline, twice-built output is identical
+        // (deterministic scatter), and vegetation never sprouts below depth
+        // TREE_MIN_DEPTH or underwater.
+        let def = earth_like();
+        let hm = bumpy_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
+        // Walk to a LAND spot at tree depth: probe candidate ids until one
+        // has mid-band elevation in the tree window.
+        let mut found = None;
+        'outer: for f in 0..20u8 {
+            let mut id = PatchId::root(f);
+            for _ in 0..TREE_MIN_DEPTH {
+                id = id.child(3);
+            }
+            let c = patch_corners(&id);
+            let dir = ((c[0] + c[1] + c[2]) / 3.0).normalize();
+            let e = hm.normalized_at(dir.as_vec3());
+            let elev = (e - def.sea_level) * (hm.max_meters() - hm.min_meters());
+            if elev > 50.0 && elev < 1500.0 {
+                found = Some(id);
+                break 'outer;
+            }
+        }
+        let id = found.expect("some root chain lands on tree-band terrain");
+        let a1 = build_patch_mesh(&def, &src, None, &id);
+        let a2 = build_patch_mesh(&def, &src, None, &id);
+        assert_eq!(a1.mesh.vertices.len(), a2.mesh.vertices.len(), "non-deterministic");
+        let baseline = (PATCH_TESS * PATCH_TESS + 3 * PATCH_TESS * 2) as usize * 3;
+        assert!(
+            a1.mesh.vertices.len() > baseline,
+            "no vegetation baked: {} <= {}",
+            a1.mesh.vertices.len(),
+            baseline
+        );
+        // Shallow patch: no vegetation.
+        let shallow = PatchId::root(id.face).child(3).child(3);
+        let s1 = build_patch_mesh(&def, &src, None, &shallow);
+        assert!(s1.mesh.vertices.len() <= baseline, "vegetation sprouted at depth 2");
     }
 
     #[test]
