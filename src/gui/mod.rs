@@ -2522,8 +2522,7 @@ pub struct GuiState {
     /// station; planets/ships/enemies join as they become selectable.
     /// (name, render-space position, distance in meters).
     pub target_markers: Vec<(String, glam::Vec3, f64)>,
-    /// Maps/Cosmos toggle: show the home-station marker in-world.
-    pub track_station: bool,
+
     // ── NPC walk-up talk (v0.797, operator: "I can't interact with NPCs at all") ──
     /// Relay entity_id of the crew NPC the player faces within talk range
     /// (~2.5 m look cone). Recomputed each frame in lib.rs like
@@ -4408,7 +4407,6 @@ impl Default for GuiState {
             machine_label_card_dist: 8.0,
             crew_labels: Vec::new(),
             target_markers: Vec::new(),
-            track_station: true,
             targeted_npc: None,
             npc_prompt: String::new(),
             npc_talk_target: None,
@@ -6541,6 +6539,8 @@ pub struct SettingsState {
     /// in-game sky; background fetch + disk cache; procedural fallback
     /// wherever the satellite map has no data.
     pub live_weather: bool,
+    /// Track the orbital home station (in-world ring + label; Cosmos toggle).
+    pub track_station: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves
     /// (moving sun sparkle, Fresnel sky mirror) + land micro-texture under
     /// the photo albedo, on planets with baked per-pixel imagery (Earth).
@@ -6637,6 +6637,7 @@ impl Default for SettingsState {
             planet_atmo_scatter: true,
             planet_clouds: true,
             live_weather: true,
+            track_station: true,
             planet_surface_detail: true,
             cloud_quality: "high".to_string(),
             master_volume: 0.8,

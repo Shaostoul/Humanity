@@ -6834,12 +6834,15 @@ mod native_app {
         // larger scale in the scene to suggest a corona around the core.
         // A true bloom post-process would do this properly, but the
         // halo mesh is a cheap approximation that works without one.
+        // Radial-glow corona (shader type 17, v0.886): center-bright halo
+        // that melts into space around the emissive core - drawn on a 3x
+        // sphere in the transparent celestial list at the sun draw site.
         state.sun_halo_material = state.renderer.add_material_full(
-            [1.0, 0.75, 0.4, 1.0],
+            [1.0, 0.82, 0.55, 0.85],
             0.0,
             1.0,
-            0.0,
-            1.5,
+            17.0,
+            2.2,
         );
 
         // ── Real solar-system body materials (map sync, increment B) ──
@@ -9809,7 +9812,7 @@ mod native_app {
                         // frame). Shown when tracked and not aboard.
                         state.gui_state.target_markers.clear();
                         let station_dist = off.length();
-                        if state.gui_state.track_station && station_dist > 1_000.0 {
+                        if state.gui_state.settings.track_station && station_dist > 1_000.0 {
                             state.gui_state.target_markers.push((
                                 "Home Station".to_string(),
                                 state.station_off,
@@ -15159,13 +15162,30 @@ mod native_app {
                                     mesh: body_mesh,
                                     material,
                                 });
+                                // Sun corona halo (v0.886): radial-glow shell
+                                // (type 17) on a 3x sphere over the emissive
+                                // core - the halo material existed since the
+                                // beginning but was never drawn, leaving the
+                                // sun a hard-edged white blob.
+                                if is_sun {
+                                    celestial_transparent.push(RenderObject {
+                                        position: Vec3::new(
+                                            render_off.x as f32,
+                                            render_off.y as f32,
+                                            render_off.z as f32,
+                                        ),
+                                        rotation: Quat::IDENTITY,
+                                        scale: Vec3::splat(visual_scale * 3.0),
+                                        mesh: body_mesh,
+                                        material: state.sun_halo_material,
+                                    });
+                                }
                             }
                             let position = Vec3::new(
                                 render_off.x as f32,
                                 render_off.y as f32,
                                 render_off.z as f32,
                             );
-
                             // Atmosphere shell (v0.763 fresnel; v0.807
                             // analytic scattering): a slightly larger
                             // translucent shell whose fragments evaluate a

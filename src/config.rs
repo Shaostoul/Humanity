@@ -388,6 +388,10 @@ pub struct AppConfig {
     /// clouds are right now. Off = purely procedural coverage, no network.
     #[serde(default = "default_true")]
     pub live_weather: bool,
+    /// Track the orbital home station (in-world ring + label; Cosmos page
+    /// toggle, v0.885/persisted v0.886).
+    #[serde(default = "default_true")]
+    pub track_station: bool,
     /// Planet close-range surface detail (v0.816): animated ocean waves +
     /// land micro-texture on imagery planets (Earth). Orbit view identical
     /// either way (anti-alias faded); applies live via the per-frame
@@ -925,6 +929,7 @@ impl AppConfig {
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
+            track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
@@ -1046,6 +1051,7 @@ impl AppConfig {
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
+        state.settings.track_station = self.track_station;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.

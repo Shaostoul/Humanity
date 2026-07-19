@@ -2268,6 +2268,28 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     if (material_type >= 15.5 && material_type < 16.5) {
         return ocean_shell(in);
     }
+    if (material_type >= 16.5 && material_type < 17.5) {
+        // Type 17: RADIAL GLOW (v0.886, the sun's corona halo). Drawn on an
+        // oversized sphere; brightness falls off with the view ray's impact
+        // parameter b (distance of the ray from the sphere center, 0 at the
+        // disc center, 1 at the silhouette), so the glow is center-bright
+        // and melts softly into space - no more hard-edged white blob.
+        // base_color.rgb = glow tint, .a = peak alpha, params.w = intensity.
+        let center = object.model[3].xyz;
+        let radius = length(object.model[0].xyz);
+        let cam = camera.view_pos.xyz;
+        let vdir = normalize(in.world_position - cam);
+        let to_c = center - cam;
+        let b = length(cross(to_c, vdir)) / max(radius, 1.0e-3);
+        let g = pow(clamp(1.0 - b * b, 0.0, 1.0), 1.5);
+        let col = material.base_color.rgb * (g * material.params.w);
+        // Same ACES tail as the other early-return shells.
+        let ta = 2.51; let tb = 0.03; let tc = 2.43; let td = 0.59; let te = 0.14;
+        let mapped = clamp(
+            (col * (ta * col + vec3<f32>(tb))) / (col * (tc * col + vec3<f32>(td)) + vec3<f32>(te)),
+            vec3<f32>(0.0), vec3<f32>(1.0));
+        return vec4<f32>(mapped, g * material.base_color.a);
+    }
 
     // Apply procedural material based on type:
     //   0 = Panel grid (walls, floors)    4 = Glass            8 = Crystal

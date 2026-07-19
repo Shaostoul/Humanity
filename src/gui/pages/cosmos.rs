@@ -492,7 +492,7 @@ fn draw_body_browser(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 .size(theme.font_size_body)
                 .color(theme.text_primary()),
         );
-        if crate::gui::widgets::toggle(ui, theme, "Track", &mut state.track_station) {
+        if crate::gui::widgets::toggle(ui, theme, "Track", &mut state.settings.track_station) {
             state.settings_dirty = true;
         }
     });

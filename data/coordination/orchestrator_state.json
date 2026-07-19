@@ -334,6 +334,11 @@
       "date": "2026-07-19",
       "decision": "v0.885.0 (loop iteration 1): (a) TARGET MARKERS v1 - gui_state.target_markers (name, render pos, dist) filled per frame with the home station when tracked and >1km away; HUD draws an encapsulating ring + name + distance (accent when looked at) via the machine-marker pattern; Cosmos page gains a Stations section with a Track toggle (session-scoped, default on - config persistence is a follow-up). (b) TILE-AWARE ALTITUDE PARKING - camera_request lat/lon parking now ensures the tile region + samples the DRAWN elevation (detail + tiles) so low parks over tile peaks start above the cone.",
       "why": "Operator design (PRIORITIES 6a) v1 slice + the Fuji spawn-inside-mountain fix. Verified: boot clean, 25km Fuji park lands correctly above terrain, true-scale + smooth normals confirmed gorgeous. Loop continues: terrain follow-ups then ocean Stage 2."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.886.0 (loop iteration 2): (a) SUN CORONA - new shader type 17 radial glow (brightness falls with the view rays impact parameter, center-bright melting into space) drawn on a 3x transparent shell over the emissive core; the halo material had existed since the beginning but was NEVER drawn - the white-blob sun was just the bare core. (b) track_station moved into SettingsState + persisted in AppConfig (serde default true). Boot-verified per the pipeline rule.",
+      "why": "Loop-mode pick: the white-blob sun was a long-known operator complaint, well-scoped, high visual payoff. NEXT-ITERATION CALL: ocean Stage 2 (things float) requires Earth-frame ECS entities - vehicles/crates currently live in the station frame only; that architecture (world-anchored entities, persistence model) deserves operator taste input, so the loop defers it and picks web-parity for the Stations section + smaller polish next; journaled per the no-AskUserQuestion instruction."
     }
   ],
   "active_scopes_to_avoid": [
