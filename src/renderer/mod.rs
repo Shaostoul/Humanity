@@ -1984,9 +1984,19 @@ impl Renderer {
                 pass.set_bind_group(3, &self.shadow_pass_texture_bind_group, &[]);
                 let uniform_align = 256_u64;
                 let mut bound_material = usize::MAX;
+                // Near-field caster cull (v0.899): the ortho box only covers
+                // ~1.5 km, so patches anchored beyond ~65 km (a bound big
+                // enough that even coarse horizon patches whose geometry
+                // could reach the box are kept) contribute nothing - skip
+                // them instead of rasterizing the whole 6144-draw planet
+                // into the map every frame.
+                let cast_center = camera.effective_position();
                 for (i, obj) in objects.iter().enumerate() {
                     if i >= MAX_OBJECTS {
                         break;
+                    }
+                    if (obj.position - cast_center).length_squared() > 65_000.0_f32 * 65_000.0 {
+                        continue;
                     }
                     let mesh = match self.meshes.get(obj.mesh) {
                         Some(m) => m,

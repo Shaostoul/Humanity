@@ -11,6 +11,27 @@
 
 ## Active focus
 
+> **>>> FABLE FINAL SPRINT (2026-07-19 day; v0.897-v0.900).** Morning field
+> reports answered: FLICKER ROOT-CAUSED AND KILLED in v0.898 (the 256 MB
+> patch cache was sized for 640-leaf budgets - at 6144 the needed set
+> outgrew it and every build evicted a still-needed patch; now 1.5 GB + a
+> recency guard + drawn-keyed split hysteresis + a committed-split budget
+> tier; probe-proof: five seconds of byte-identical selections parked at
+> 6144). v0.899 shipped the first REAL SUN SHADOW MAP (4096 near-field
+> ortho, texel-snapped, PCF; terrain/trees/ocean-waves/home all cast and
+> receive; probe-verified tree shadows at Oahu). v0.897 made vegetation
+> PLANET-FIXED (same plants at every LOD - splits no longer reshuffle the
+> forest) and screen-blended the god rays (no more cloud blowout) with
+> live-overcast dimming. v0.898 also: cloud ground shadows (terrain darkens
+> under the sky-drawn coverage field) + land detail octaves to 8 m.
+> REMAINING environmental-graphics wants, in rough order: SSAO
+> (celestial-slot depth-only AO pass, follow the godrays.rs pattern);
+> tangent-space ground detail TEXTURE below 8 m (unit-dir noise quantizes
+> below that); geomorph/fade at LOD swaps if any residual pop bothers;
+> cloud-shadowed god rays; Settings toggles for sun shadows +
+> godray_intensity (renderer fields sun_shadows / godray_intensity exist,
+> default on).
+>
 > **>>> OVERNIGHT LOOP RESULT (2026-07-19, operator asleep; v0.889-v0.896, 8 feature releases).**
 > The whole bedtime list shipped, then self-directed polish. SHIPPED: terrain
 > prefetch (move-flicker fix) + surface-clamp LOD slop (see-through-Earth fix)
