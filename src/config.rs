@@ -618,7 +618,7 @@ fn default_vitals_drain() -> f32 { 1.0 }
 fn default_planet_lod_px() -> f32 { 10.0 }
 fn default_planet_max_subdiv() -> f32 { 6.0 }
 fn default_terrain_split_px() -> f32 { 4.0 }
-fn default_terrain_patch_budget() -> f32 { 2048.0 }
+fn default_terrain_patch_budget() -> f32 { 3072.0 }
 fn default_terrain_builds_per_frame() -> f32 { 64.0 }
 fn default_panel_width() -> f32 { 220.0 }
 // In-world chat panel message-list height (unified-chat increment 1c).
@@ -1052,7 +1052,7 @@ impl AppConfig {
         // since v0.873 but were never applied at load, so every boot reset
         // them to defaults. Clamps mirror the Settings sliders.
         state.settings.terrain_split_px = self.terrain_split_px.clamp(4.0, 24.0);
-        state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 3072.0);
+        state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 6144.0);
         state.settings.terrain_builds_per_frame =
             self.terrain_builds_per_frame.clamp(6.0, 64.0);
         state.settings.planet_chunked = self.planet_chunked;

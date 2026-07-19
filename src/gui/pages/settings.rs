@@ -1997,7 +1997,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Patches split until triangles are about this many pixels on screen. LOWER = sharper terrain further away (more patches, more GPU).").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=3072.0) {
+        if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=6144.0) {
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Most surface patches drawn at once. Higher holds detail across more of the horizon.").color(theme.text_muted()).size(theme.font_size_small));

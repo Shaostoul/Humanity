@@ -42,8 +42,10 @@ use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
 /// per-frame cost stays proportional to the actual object count.
 // 4096 since v0.887 (was 1024): max-graphics terrain wants 2000-3000
 // patches at the 4 px split tier, and the whole scene shares this pool.
-// Cost is one 1 MB dynamic uniform buffer - nothing for any modern GPU.
-const MAX_OBJECTS: usize = 4096;
+// 8192 since v0.892: the v0.891 submission batching made draw count ~4x
+// cheaper on the CPU, so the patch-budget ceiling rose to 6144 for
+// tomorrow's GPUs. Cost is one 2 MB dynamic uniform buffer - nothing.
+const MAX_OBJECTS: usize = 8192;
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.

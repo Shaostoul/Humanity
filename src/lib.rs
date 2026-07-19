@@ -15010,7 +15010,7 @@ mod native_app {
                                     .gui_state
                                     .settings
                                     .terrain_patch_budget
-                                    .clamp(64.0, 3072.0)
+                                    .clamp(64.0, 6144.0)
                                     as usize;
                                 let params = chunks::ChunkParams {
                                     radius_m: d.radius,
