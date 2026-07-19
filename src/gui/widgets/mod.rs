@@ -49,6 +49,11 @@ pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiSta
     const FADE: f64 = 0.5; // fade-out window at the end
 
     let now = ctx.input(|i| i.time);
+    // Adopt engine-queued toasts (v0.890): stamp them with the egui clock here,
+    // the first place both the queue and the clock are in scope.
+    for (text, kind) in state.pending_toasts.drain(..).collect::<Vec<_>>() {
+        state.toast(text, kind, now);
+    }
     state.toasts.retain(|t| now - t.created < LIFE);
     if state.toasts.is_empty() {
         return;

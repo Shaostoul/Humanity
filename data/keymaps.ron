@@ -28,6 +28,7 @@
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
         (action: "Debug console", keys: "F12"),
     ]),
     (context: "Construction editor", binds: [
@@ -43,6 +44,7 @@
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
         (action: "Debug console", keys: "F12"),
     ]),
     (context: "Showroom", binds: [
@@ -52,6 +54,7 @@
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
         (action: "Debug console", keys: "F12"),
     ]),
     (context: "Menu", binds: [
@@ -61,6 +64,7 @@
         (action: "Performance overlay (FPS, frame graph)", keys: "F2"),
         (action: "Network overlay", keys: "F3"),
         (action: "System overlay (RAM, uptime)", keys: "F4"),
+        (action: "Save location bookmark (debug/bookmarks.json)", keys: "F6"),
         (action: "Debug console", keys: "F12"),
     ]),
 ]

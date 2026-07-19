@@ -2950,6 +2950,224 @@ mod native_app {
         crate::dev_travel::planet_spin_from_time(hour, sun_az)
     }
 
+    /// F6 location bookmark save (v0.890). Captures the camera's EXACT world
+    /// placement + aim. When frame-locked to a body the pose is stored in that
+    /// body's UNROTATED local frame (same math as the frame-lock itself), so a
+    /// later restore lands on the same ground even after the planet has spun
+    /// on; away from any body it stores the absolute Earth-relative pose.
+    /// Appended to debug/bookmarks.json; restore via camera_request
+    /// {"bookmark":"bm-N"} (or "last"). Permanent dev tooling.
+    fn save_location_bookmark(state: &mut EngineState) {
+        if !state.bookmark_save_requested {
+            return;
+        }
+        state.bookmark_save_requested = false;
+        if !state.world_loaded {
+            return;
+        }
+        let cam_local = glam::DVec3::new(
+            state.camera.position.x as f64,
+            state.camera.position.y as f64,
+            state.camera.position.z as f64,
+        );
+        let vantage = state.ship_world_pos + cam_local;
+        let f = state.camera.forward();
+        let fwd_world = glam::DVec3::new(f.x as f64, f.y as f64, f.z as f64);
+        let spin = state.current_spin;
+        let sim_t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+            - 946_728_000.0;
+        let earth_helio_au = crate::cosmos::find_body("earth")
+            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+            .unwrap_or(glam::DVec3::ZERO);
+        // Frame-locked: store body-local pose (spin-independent). Free space:
+        // store the absolute pose with body = null.
+        let locked_body = state
+            .frame_lock_body
+            .as_deref()
+            .and_then(crate::cosmos::find_body);
+        let (body_json, anchor, fwd_store) = if let Some(body) = locked_body {
+            let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+                - earth_helio_au)
+                * crate::cosmos::M_PER_AU;
+            let anchor = crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage);
+            let fwd_local = glam::DQuat::from_rotation_y(spin).inverse() * fwd_world;
+            (serde_json::json!(body.id.clone()), anchor, fwd_local)
+        } else {
+            (serde_json::Value::Null, vantage, fwd_world)
+        };
+        const PATH: &str = "debug/bookmarks.json";
+        let mut root = std::fs::read_to_string(PATH)
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .unwrap_or_else(|| serde_json::json!({ "bookmarks": [] }));
+        if !root.get("bookmarks").map(|b| b.is_array()).unwrap_or(false) {
+            root = serde_json::json!({ "bookmarks": [] });
+        }
+        let count = root["bookmarks"].as_array().map(|a| a.len()).unwrap_or(0);
+        let name = format!("bm-{}", count + 1);
+        let entry = serde_json::json!({
+            "name": name,
+            "body": body_json,
+            "anchor": [anchor.x, anchor.y, anchor.z],
+            "fwd": [fwd_store.x, fwd_store.y, fwd_store.z],
+            "saved_unix": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+        });
+        if let Some(arr) = root["bookmarks"].as_array_mut() {
+            arr.push(entry);
+        }
+        let _ = std::fs::create_dir_all("debug");
+        let _ = std::fs::write(
+            PATH,
+            serde_json::to_string_pretty(&root).unwrap_or_default(),
+        );
+        state.gui_state.pending_toasts.push((
+            format!("Location bookmark {name} saved"),
+            crate::gui::ToastKind::Success,
+        ));
+        log::info!(
+            "Bookmark {name} saved (body {:?}, anchor {:.0} {:.0} {:.0})",
+            state.frame_lock_body,
+            anchor.x,
+            anchor.y,
+            anchor.z
+        );
+    }
+
+    /// Bookmark restore branch of the camera request (v0.890): places the
+    /// camera EXACTLY at a saved F6 pose (position AND aim), re-locking to the
+    /// saved body's rotating frame. Returns true if the request was a
+    /// bookmark (handled here, done-file written).
+    fn restore_location_bookmark(state: &mut EngineState, v: &serde_json::Value) -> bool {
+        const DONE_PATH: &str = "debug/camera_done.json";
+        let Some(want) = v.get("bookmark").and_then(|b| b.as_str()).map(|s| s.to_string())
+        else {
+            return false;
+        };
+        let fail = |msg: String| {
+            log::warn!("Bookmark restore: {msg}");
+            let _ = std::fs::create_dir_all("debug");
+            let _ = std::fs::write(
+                DONE_PATH,
+                serde_json::json!({"ok": false, "error": msg}).to_string(),
+            );
+        };
+        let root = std::fs::read_to_string("debug/bookmarks.json")
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+        let Some(root) = root else {
+            fail("debug/bookmarks.json missing or unreadable".to_string());
+            return true;
+        };
+        let empty = Vec::new();
+        let list = root["bookmarks"].as_array().unwrap_or(&empty);
+        let found = if want == "last" {
+            list.last()
+        } else {
+            list.iter().find(|b| b["name"].as_str() == Some(want.as_str()))
+        };
+        let Some(bm) = found else {
+            fail(format!("no bookmark named {want} ({} saved)", list.len()));
+            return true;
+        };
+        let vec3 = |key: &str| -> Option<glam::DVec3> {
+            let a = bm.get(key)?.as_array()?;
+            Some(glam::DVec3::new(
+                a.first()?.as_f64()?,
+                a.get(1)?.as_f64()?,
+                a.get(2)?.as_f64()?,
+            ))
+        };
+        let (Some(anchor), Some(fwd_store)) = (vec3("anchor"), vec3("fwd")) else {
+            fail(format!("bookmark {want} has malformed anchor/fwd"));
+            return true;
+        };
+        let spin = state.current_spin;
+        let sim_t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+            - 946_728_000.0;
+        let earth_helio_au = crate::cosmos::find_body("earth")
+            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+            .unwrap_or(glam::DVec3::ZERO);
+        let body_id = bm.get("body").and_then(|b| b.as_str()).map(|s| s.to_string());
+        // Re-spin the stored local pose into the CURRENT world frame.
+        let (vantage, fwd_world, lock) = if let Some(bid) = body_id.as_deref() {
+            let Some(body) = crate::cosmos::find_body(bid) else {
+                fail(format!("bookmark {want} references unknown body {bid}"));
+                return true;
+            };
+            let body_rel_earth = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+                - earth_helio_au)
+                * crate::cosmos::M_PER_AU;
+            let rot = glam::DQuat::from_rotation_y(spin);
+            (
+                body_rel_earth + rot * anchor,
+                rot * fwd_store,
+                Some((bid.to_string(), body_rel_earth)),
+            )
+        } else {
+            (anchor, fwd_store, None)
+        };
+        // Same teleport bookkeeping as the main camera request path.
+        if state.dev_travel_home.is_none() {
+            state.dev_travel_home = Some((
+                state.ship_world_pos,
+                state.camera.position,
+                state.camera.yaw,
+                state.camera.pitch,
+            ));
+        }
+        if state.gui_state.copresence_active && !state.gui_state.copresence_solo {
+            state.gui_state.copresence_solo = true;
+            state.dev_travel_stepped_out = true;
+        }
+        if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
+            state
+                .camera
+                .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+        }
+        let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
+        let cam_local = Vec3::new(0.0, hull_top + 30.0, 0.0);
+        state.camera.position = cam_local;
+        state.ship_world_pos = vantage
+            - glam::DVec3::new(cam_local.x as f64, cam_local.y as f64, cam_local.z as f64);
+        state.camera.clear_surface();
+        state.camera.roll = 0.0;
+        let (yaw, pitch) = crate::dev_travel::look_angles(fwd_world);
+        state.camera.yaw = yaw;
+        state.camera.pitch = pitch;
+        state.gui_state.dev_fly_mode = true;
+        state.controller.fly_mode = true;
+        state.gui_state.dev_travel_away = true;
+        if let Some((bid, body_rel_earth)) = lock {
+            state.frame_lock_anchor =
+                crate::dev_travel::frame_lock_capture(body_rel_earth, spin, vantage);
+            state.frame_lock_last_spin = spin;
+            state.frame_lock_body = Some(bid);
+        } else {
+            state.frame_lock_body = None;
+        }
+        let _ = std::fs::create_dir_all("debug");
+        let _ = std::fs::write(
+            DONE_PATH,
+            serde_json::json!({
+                "ok": true,
+                "bookmark": want,
+                "body": body_id,
+            })
+            .to_string(),
+        );
+        log::info!("Bookmark restore: {want} (body {body_id:?})");
+        true
+    }
+
     fn poll_camera_request(state: &mut EngineState) {
         const REQUEST_PATH: &str = "debug/camera_request.json";
         const DONE_PATH: &str = "debug/camera_done.json";
@@ -2975,6 +3193,11 @@ mod native_app {
         };
         if !state.world_loaded {
             fail("3D world not loaded".to_string());
+            return;
+        }
+        // Bookmark restore (v0.890): {"bookmark":"bm-N"} places the camera at
+        // an F6-saved exact pose and skips the scenic/altitude path entirely.
+        if restore_location_bookmark(state, &v) {
             return;
         }
         // Named scenic view (v0.825): {"view":"Oahu Coast"} loads the curated
@@ -7824,6 +8047,9 @@ mod native_app {
         /// local frame; `frame_lock_last_spin` tracks the spin for the view
         /// co-rotation. See `dev_travel::frame_lock_*`.
         frame_lock_body: Option<String>,
+        /// F6 pressed (v0.890): save a location bookmark next frame, where
+        /// current_spin and the frame-lock state are fresh.
+        bookmark_save_requested: bool,
         frame_lock_anchor: glam::DVec3,
         frame_lock_last_spin: f64,
         start_time: Instant,
@@ -8798,6 +9024,7 @@ mod native_app {
                 dev_travel_home: None,
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
+                bookmark_save_requested: false,
                 frame_lock_anchor: glam::DVec3::ZERO,
                 frame_lock_last_spin: 0.0,
                 start_time: Instant::now(),
@@ -8972,6 +9199,16 @@ mod native_app {
                         }
                         if key == KeyCode::F4 && pressed {
                             state.gui_state.show_system_overlay = !state.gui_state.show_system_overlay;
+                            return;
+                        }
+                        // F6 (v0.890): save a LOCATION BOOKMARK - the exact
+                        // camera placement + aim, appended to
+                        // debug/bookmarks.json. Restored by name via
+                        // debug/camera_request.json {"bookmark":"bm-N"}, so a
+                        // screenshot teleport lands exactly where the operator
+                        // stood and looked, instead of staring into the dirt.
+                        if key == KeyCode::F6 && pressed {
+                            state.bookmark_save_requested = true;
                             return;
                         }
 
@@ -10560,8 +10797,38 @@ mod native_app {
                             // fly + FTL wheel integration handles movement (the
                             // ownership flag below releases the FTL gate).
                             state.surface_owns_translation = false;
-                            state.frame_lock_anchor =
-                                crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
+                            // ── Partial co-rotation (v0.890, operator: smooth
+                            // the space -> orbit -> surface transitions) ──
+                            // Below this band the camera rides the planet's
+                            // spin FULLY; above it, not at all. Crossing
+                            // 100 km used to change the camera's tangential
+                            // velocity by the local surface speed (~465 m/s at
+                            // the equator) in a single frame - a visible
+                            // sideways yank right as the ground got close.
+                            // Ride (1-s) of each frame's spin delta instead:
+                            // descent picks up the ground frame gradually and
+                            // reaches the boundary already velocity-matched;
+                            // ascent sheds it just as smoothly. The 0.01 rad
+                            // guard skips stale anchors (e.g. the first frame
+                            // after a teleport wrote a fresh last_spin far in
+                            // the past).
+                            let d_spin = spin - state.frame_lock_last_spin;
+                            let mut cam_world_now = cam_world;
+                            if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
+                                let rot_new = glam::DQuat::from_rotation_y(spin);
+                                let rot_old =
+                                    glam::DQuat::from_rotation_y(state.frame_lock_last_spin);
+                                let ride = (rot_new * state.frame_lock_anchor
+                                    - rot_old * state.frame_lock_anchor)
+                                    * (1.0 - s as f64);
+                                state.ship_world_pos += ride;
+                                cam_world_now += ride;
+                            }
+                            state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                                body_center,
+                                spin,
+                                cam_world_now,
+                            );
                             state.frame_lock_last_spin = spin;
                         } else {
                             // ── Inertial orbit (the ISS view) ── Beyond the
@@ -17612,6 +17879,10 @@ mod native_app {
                     // autopilot poll) and not in the GUI-action section, which
                     // stops running once a world is loaded. Permanent dev tooling.
                     poll_camera_request(state);
+
+                    // F6 location bookmark save (v0.890): runs here so
+                    // current_spin + frame-lock state are fresh this frame.
+                    save_location_bookmark(state);
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must

@@ -2746,6 +2746,10 @@ pub struct GuiState {
     pub surface_speed_mult: f32,
 
     pub toasts: Vec<Toast>,
+    /// Toasts queued from engine code that has no egui clock (v0.890, e.g.
+    /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
+    /// which stamps them with the real egui time.
+    pub pending_toasts: Vec<(String, ToastKind)>,
 
     // ── Wallet state ──
     pub wallet_balance: f64,
@@ -4510,6 +4514,7 @@ impl Default for GuiState {
             watch_input: String::new(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
+            pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,
             civ_stats: None,

@@ -17,6 +17,11 @@ use super::light::RoomLight;
 /// with jump_speed 5.0 it gives a peak height of ~1.0 m.
 const GRAVITY: f32 = 12.0;
 
+/// Flight roll rate (rad/s) for the Q/E bank keys in dev fly mode (v0.890).
+/// ~80 deg/s: a full barrel roll in ~4.5 s, fast enough to frame a shot,
+/// slow enough to stop level by eye.
+const FLY_ROLL_RATE: f32 = 1.4;
+
 /// Dev fly mode (v0.791.x): the largest FTL speed multiplier the controller
 /// applies to the LOCAL f32 camera position. Above this, one frame of travel
 /// reaches km-to-planetary scale, far past what f32 local coordinates can hold
@@ -125,6 +130,11 @@ pub struct Camera {
     /// The local radial `up` used while `surface_mode` is on (kept alongside
     /// `up` so the tangent-basis math has an unambiguous source).
     pub surface_up: Vec3,
+    /// Flight roll (v0.890): bank angle in radians around the look axis,
+    /// driven by Q/E in dev fly mode. Purely a VIEW rotation (the up vector
+    /// fed to look_at is rotated); yaw/pitch and the movement basis are
+    /// untouched, and the controller eases it back to 0 on foot.
+    pub roll: f32,
     pub fov_degrees: f32,
     pub aspect: f32,
     pub near: f32,
@@ -175,6 +185,7 @@ impl Camera {
             up: Vec3::Y,
             surface_mode: false,
             surface_up: Vec3::Y,
+            roll: 0.0,
             fov_degrees: 90.0,
             aspect: 16.0 / 9.0,
             near: 0.1,
@@ -321,12 +332,22 @@ impl Camera {
             let to_target = self.effective_target();
             let target = from_target.lerp(to_target, alpha);
 
-            return Mat4::look_at_rh(pos, target, self.up);
+            return Mat4::look_at_rh(pos, target, self.rolled_up(target - pos));
         }
 
         let pos = self.effective_position();
         let target = self.effective_target();
-        Mat4::look_at_rh(pos, target, self.up)
+        Mat4::look_at_rh(pos, target, self.rolled_up(target - pos))
+    }
+
+    /// The up vector with flight roll applied (v0.890): rotated around the
+    /// look axis so the horizon banks. Identity when roll is 0 (the usual
+    /// case) or the look axis is degenerate.
+    fn rolled_up(&self, fwd: Vec3) -> Vec3 {
+        if self.roll.abs() < 1e-4 || fwd.length_squared() < 1e-8 {
+            return self.up;
+        }
+        Quat::from_axis_angle(fwd.normalize(), self.roll) * self.up
     }
 
     /// Projection matrix.
@@ -569,6 +590,12 @@ pub struct CameraController {
     /// `LOCAL_FLY_MULT_MAX` the controller moves the local camera; above that,
     /// lib.rs moves `ship_world_pos` instead (see LOCAL_FLY_MULT_MAX).
     pub fly_speed_mult: f32,
+    /// Q held (v0.890): bank left while flying. On foot Q keeps its old
+    /// third-person shoulder-swap role.
+    roll_left: bool,
+    /// E held (v0.890): bank right while flying. On foot E stays the game's
+    /// interact key (handled in lib.rs, not here).
+    roll_right: bool,
 }
 
 impl CameraController {
@@ -602,6 +629,8 @@ impl CameraController {
             showroom_lock: false,
             fly_mode: false,
             fly_speed_mult: 1.0,
+            roll_left: false,
+            roll_right: false,
         }
     }
 
@@ -628,7 +657,17 @@ impl CameraController {
             KeyCode::KeyF | KeyCode::KeyV if pressed => self.switch_fp_tp = true,
             KeyCode::KeyM if pressed => self.switch_orbit = true,
             KeyCode::KeyO if pressed => self.toggle_ortho = true,
-            KeyCode::KeyQ if pressed => self.toggle_shoulder = true,
+            // Q/E (v0.890): flight roll while flying; Q keeps its shoulder-swap
+            // role on foot (press only). E on foot is the interact key, which
+            // lives in lib.rs's game-input path, so no arm is needed here.
+            KeyCode::KeyQ => {
+                if self.fly_mode {
+                    self.roll_left = pressed;
+                } else if pressed {
+                    self.toggle_shoulder = true;
+                }
+            }
+            KeyCode::KeyE if self.fly_mode => self.roll_right = pressed,
             _ => {}
         }
     }
@@ -644,6 +683,8 @@ impl CameraController {
         self.right = false;
         self.ascend = false;
         self.descend = false;
+        self.roll_left = false;
+        self.roll_right = false;
     }
 
     /// Process a mouse button event from winit.
@@ -675,7 +716,14 @@ impl CameraController {
             "KeyF" | "KeyV" if pressed => self.switch_fp_tp = true,
             "KeyM" if pressed => self.switch_orbit = true,
             "KeyO" if pressed => self.toggle_ortho = true,
-            "KeyQ" if pressed => self.toggle_shoulder = true,
+            "KeyQ" => {
+                if self.fly_mode {
+                    self.roll_left = pressed;
+                } else if pressed {
+                    self.toggle_shoulder = true;
+                }
+            }
+            "KeyE" if self.fly_mode => self.roll_right = pressed,
             _ => {}
         }
     }
@@ -864,6 +912,26 @@ impl CameraController {
         camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
         let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
         camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
+
+        // ── Flight roll (v0.890, operator: "add roll left/right to space
+        // using the Q and E keys") ── Q banks left, E banks right, only while
+        // flying. On foot (or when fly mode ends) the horizon eases back
+        // level, so a rolled space approach never leaves a tilted walk view.
+        if self.fly_mode && !camera.surface_mode {
+            let dir = (self.roll_right as i32 - self.roll_left as i32) as f32;
+            if dir != 0.0 {
+                camera.roll = (camera.roll + dir * FLY_ROLL_RATE * dt)
+                    .rem_euclid(std::f32::consts::TAU);
+            }
+        } else if camera.roll != 0.0 {
+            // Ease level through the nearest way around the circle.
+            let mut r = camera.roll;
+            if r > std::f32::consts::PI {
+                r -= std::f32::consts::TAU;
+            }
+            r *= (-(6.0 * dt)).exp();
+            camera.roll = if r.abs() < 0.002 { 0.0 } else { r.rem_euclid(std::f32::consts::TAU) };
+        }
 
         // ── Planetary surface FPS (task #76 increment 1) ── When the main
         // loop has engaged surface mode (camera near a body's ground while
