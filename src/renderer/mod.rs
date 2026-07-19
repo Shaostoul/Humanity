@@ -6,6 +6,7 @@
 pub mod atmosphere;
 pub mod bloom;
 pub mod godrays;
+pub mod ssao;
 pub mod camera;
 /// Non-blocking swapchain readback for live streaming (v0.853). The screenshot path
 /// stalls the GPU on purpose; a stream must never do that. See stream_capture.rs.
@@ -183,6 +184,10 @@ pub struct Renderer {
     /// Sun shadows on/off (max-graphics default on; zero cost when the sun
     /// is absent - the pass and the shader lookup both self-gate).
     pub sun_shadows: bool,
+    /// Screen-space ambient occlusion (v0.901): contact shading in the
+    /// celestial slot. Strength 0 disables the pass entirely.
+    ssao: ssao::SsaoPass,
+    pub ssao_strength: f32,
 }
 
 impl Renderer {
@@ -387,6 +392,7 @@ impl Renderer {
         let (scene_tex, scene_tex_view) = Self::create_scene_texture(&device, width, height, surface_format);
         let bloom_pass = bloom::BloomPass::new(&device, width, height, surface_format);
         let godray_pass = godrays::GodrayPass::new(&device, surface_format);
+        let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
 
         // Shader + pipeline
         let shader_loader = shader_loader::ShaderLoader::new();
@@ -774,6 +780,8 @@ impl Renderer {
             bloom: Some(bloom_pass),
             godrays: godray_pass,
             godray_intensity: 0.55,
+            ssao: ssao_pass,
+            ssao_strength: 0.55,
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -1867,6 +1875,34 @@ impl Renderer {
             sun_dir,
             camera.aspect,
             self.godray_intensity * weather_scale.clamp(0.0, 1.0),
+        );
+    }
+
+    /// Screen-space ambient occlusion (v0.901): call right after
+    /// render_godrays_onto, same celestial slot (depth still holds terrain +
+    /// vegetation). Multiplies contact shade into the color target.
+    pub fn render_ssao_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
+        // The SAME projection the celestial depth was rendered with; its
+        // [2][2] / [3][2] elements linearize reverse-Z depth in the shader.
+        let proj = Mat4::perspective_rh(
+            camera.fov_degrees.to_radians(),
+            camera.aspect,
+            1.0e13,
+            1.0,
+        );
+        let m = proj.to_cols_array_2d();
+        let px_per_rad =
+            self.config.height as f32 / camera.fov_degrees.to_radians().max(0.01);
+        self.ssao.render(
+            &self.device,
+            &self.queue,
+            &self.depth_view,
+            view,
+            m[2][2],
+            m[3][2],
+            px_per_rad,
+            1.6,
+            self.ssao_strength,
         );
     }
 

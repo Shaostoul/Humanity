@@ -2826,6 +2826,7 @@ mod native_app {
         state
             .renderer
             .render_godrays_onto(&state.camera, sun_dir_f, &capture_view, godray_weather_scale(state));
+        state.renderer.render_ssao_onto(&state.camera, &capture_view);
         state
             .renderer
             .render_scene_onto(&state.camera, lists.opaque, &capture_view);
@@ -20307,6 +20308,11 @@ mod native_app {
                                 // the scene pass clears depth. Additive;
                                 // self-gates when the sun is off-camera.
                                 state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray_weather_scale(state));
+                                // Pass 1.8: SSAO contact shade (v0.901) -
+                                // same slot, same depth, multiplies creases
+                                // and tree bases darker before the interior
+                                // pass draws over its own regions.
+                                state.renderer.render_ssao_onto(&state.camera, &view);
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 // -- Orbital home offset (v0.881) --
                                 // The ENTIRE scene pass is the home frame's
