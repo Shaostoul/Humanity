@@ -70,7 +70,13 @@
     // = 0.00102). At sky distances that reads as billiard-ball flat, so
     // mountains get 4x: 0.00275 * 4 = 0.011. Was 0.02 (~6.4x) for the old
     // noise surface, whose fictional peaks needed more help.
-    surface_relief: 0.011,
+    // TRUE-SCALE relief (v0.883.2, operator: "Mt Fuji seems really
+    // tall/skinny"): the heightmap window spans 19,900 m (-11,000..8,900)
+    // over radius 6,371,000 m, so 19900/6371000 = 0.003123 draws elevation
+    // at REAL scale. The old 0.011 was ~3.5x vertical exaggeration, chosen
+    // when cells were 11 km blur; with real 460 m tile data it turned Fuji
+    // into a spike and every slope into blocky cliff terraces.
+    surface_relief: 0.003123,
     noise_frequency: 2.2,
     noise_octaves: 5,
     shore_color: (0.78, 0.72, 0.52, 1.0),
