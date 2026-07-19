@@ -2820,6 +2820,11 @@ mod native_app {
         state
             .renderer
             .draw_celestial_lines_onto(&state.camera, lists.orbit_lines, &capture_view);
+        // God rays in captures too (v0.895) — same slot as the live path, so
+        // screenshots show exactly what the player sees.
+        state
+            .renderer
+            .render_godrays_onto(&state.camera, sun_dir_f, &capture_view);
         state
             .renderer
             .render_scene_onto(&state.camera, lists.opaque, &capture_view);
@@ -3361,6 +3366,50 @@ mod native_app {
         state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
         // Aim at the body center, optionally rotated toward the horizon around
         // the camera-right axis (Rodrigues; right axis picked degenerate-safe).
+        // {"aim":"sun"} (v0.895) overrides everything and faces the SUN from
+        // the vantage - the staged-capture rig for sunsets, god rays, and any
+        // shot that needs the disc in frame (the default nadir-relative aim
+        // plus the fast staged clock made sun-in-frame shots pure luck).
+        if v.get("aim").and_then(|a| a.as_str()) == Some("sun") {
+            let aim = (state.sun_world_pos - vantage).normalize_or_zero();
+            state.ship_world_pos = vantage;
+            if state.camera.mode != crate::renderer::camera::CameraMode::FirstPerson {
+                state
+                    .camera
+                    .switch_mode(crate::renderer::camera::CameraMode::FirstPerson);
+            }
+            let hull_top = state.homestead_bounds.map(|(_, mx)| mx.y).unwrap_or(20.0);
+            state.camera.position = Vec3::new(0.0, hull_top + 30.0, 0.0);
+            state.camera.clear_surface();
+            let (yaw, pitch) = crate::dev_travel::look_angles(aim);
+            state.camera.yaw = yaw;
+            state.camera.pitch = pitch;
+            state.gui_state.dev_fly_mode = true;
+            state.controller.fly_mode = true;
+            state.gui_state.dev_travel_away = true;
+            {
+                let spin = state.current_spin;
+                let cam_local = glam::DVec3::new(
+                    state.camera.position.x as f64,
+                    state.camera.position.y as f64,
+                    state.camera.position.z as f64,
+                );
+                state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                    body_rel_earth,
+                    spin,
+                    vantage + cam_local,
+                );
+                state.frame_lock_last_spin = spin;
+                state.frame_lock_body = Some(body_id.clone());
+            }
+            let _ = std::fs::create_dir_all("debug");
+            let _ = std::fs::write(
+                DONE_PATH,
+                serde_json::json!({"ok": true, "body": body_id, "aim": "sun"}).to_string(),
+            );
+            log::info!("Camera request: parked at {altitude_km:.1} km, aimed at the sun");
+            return;
+        }
         let fwd = (body_rel_earth - vantage).normalize_or_zero();
         let aim = if look_offset_deg.abs() > 0.01 {
             let mut right = fwd.cross(glam::DVec3::Y);
@@ -20170,6 +20219,12 @@ mod native_app {
                                 // rings. AU-scale, so the gameplay far would clip them.
                                 // (v0.451; empty in the showroom — build is !showroom-gated.)
                                 state.renderer.draw_celestial_lines_onto(&state.camera, &orbit_lines, &view);
+                                // Pass 1.7: crepuscular god rays (v0.895) —
+                                // marches the celestial depth (terrain +
+                                // bodies silhouettes) toward the sun BEFORE
+                                // the scene pass clears depth. Additive;
+                                // self-gates when the sun is off-camera.
+                                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view);
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 // -- Orbital home offset (v0.881) --
                                 // The ENTIRE scene pass is the home frame's

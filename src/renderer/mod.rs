@@ -5,6 +5,7 @@
 
 pub mod atmosphere;
 pub mod bloom;
+pub mod godrays;
 pub mod camera;
 /// Non-blocking swapchain readback for live streaming (v0.853). The screenshot path
 /// stalls the GPU on purpose; a stream must never do that. See stream_capture.rs.
@@ -120,6 +121,11 @@ pub struct Renderer {
     scene_view: wgpu::TextureView,
     /// Bloom post-processing (reads scene_texture, composites result).
     pub bloom: Option<bloom::BloomPass>,
+    /// Crepuscular god rays (v0.895): depth-marched light shafts drawn
+    /// between the celestial and interior passes.
+    godrays: godrays::GodrayPass,
+    /// God-ray strength (0.0 disables the pass entirely).
+    pub godray_intensity: f32,
     /// Bloom intensity (0.0 = off). Set > 0 to enable bloom post-process.
     pub bloom_intensity: f32,
     /// Brightness threshold for bloom extraction.
@@ -364,6 +370,7 @@ impl Renderer {
         // Off-screen scene texture (for post-processing: bloom, etc.)
         let (scene_tex, scene_tex_view) = Self::create_scene_texture(&device, width, height, surface_format);
         let bloom_pass = bloom::BloomPass::new(&device, width, height, surface_format);
+        let godray_pass = godrays::GodrayPass::new(&device, surface_format);
 
         // Shader + pipeline
         let shader_loader = shader_loader::ShaderLoader::new();
@@ -628,6 +635,8 @@ impl Renderer {
             scene_texture: scene_tex,
             scene_view: scene_tex_view,
             bloom: Some(bloom_pass),
+            godrays: godray_pass,
+            godray_intensity: 0.55,
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -1670,6 +1679,40 @@ impl Renderer {
     /// star pass and `render_scene_onto`: it preserves the stars (LoadOp::Load color) and
     /// clears its own depth so the bodies depth-sort among themselves; the interior scene then
     /// clears depth again and draws OVER the bodies' color where home geometry exists. (v0.450)
+    /// Crepuscular god rays (v0.895): call BETWEEN the celestial pass and
+    /// the scene pass, while the shared depth buffer still holds the
+    /// terrain + bodies silhouettes (the scene pass clears it right after).
+    /// `sun_dir` = world direction TOWARD the sun; the pass skips itself
+    /// when the sun projects behind the camera or intensity is 0.
+    pub fn render_godrays_onto(
+        &self,
+        camera: &Camera,
+        sun_dir: Vec3,
+        view: &wgpu::TextureView,
+    ) {
+        // The SAME projection the celestial pass rendered depth with
+        // (reverse-Z, far plane at 1e13) — a mismatched matrix would park
+        // the sun uv in the wrong place and bend every shaft.
+        let proj = Mat4::perspective_rh(
+            camera.fov_degrees.to_radians(),
+            camera.aspect,
+            1.0e13,
+            1.0,
+        );
+        let view_proj = proj * camera.view_matrix();
+        self.godrays.render(
+            &self.device,
+            &self.queue,
+            &self.depth_view,
+            view,
+            view_proj,
+            camera.effective_position(),
+            sun_dir,
+            camera.aspect,
+            self.godray_intensity,
+        );
+    }
+
     pub fn render_celestial_onto(
         &self,
         camera: &Camera,

@@ -285,7 +285,7 @@ impl Camera {
     }
 
     /// Compute the effective camera position based on current mode.
-    fn effective_position(&self) -> Vec3 {
+    pub(crate) fn effective_position(&self) -> Vec3 {
         match self.mode {
             CameraMode::FirstPerson => self.position,
             CameraMode::ThirdPerson => {
