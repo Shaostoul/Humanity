@@ -367,12 +367,16 @@
     {
       "date": "2026-07-19",
       "decision": "v0.890.0 OVERNIGHT 3-5: (a) F6 saves exact camera pose to debug/bookmarks.json in the planet UNROTATED frame (spin-independent; frame_lock_capture math), restore via camera_request {bookmark:bm-N|last} - exact placement+aim teleports for screenshots. (b) Q/E flight roll: Camera.roll (view-only, rolled_up rotates the look_at up vector; movement basis untouched), 80deg/s, auto-eases level on foot; Q keeps shoulder-swap on foot, E stays interact. (c) Blend band 100-1000km now rides (1-s) smoothstep of the spin delta each frame - kills the ~465 m/s one-frame velocity yank at the 100km co-rotate boundary, both directions. Plus GuiState.pending_toasts for engine paths without an egui clock."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.891.0 PERF ARC (4x): the 15-FPS-at-3072-patches bottleneck was NOT GPU draw count but CPU submission - one queue.write_buffer PER OBJECT per pass (3000+/frame) + full material bind-group rebinds per object. Fix: upload_object_uniforms (one staging vec, ONE write_buffer per pass) + bound_material elision (patches share one material). Measured identical Everest 3km scene, 2048 draws saturated: 19.8->78.6 FPS (50.4->12.0ms). NEW MEASUREMENT HARNESS: portable perf probe - copy exe to scratch dir + portable.txt + junctions to repo data/assets, autopilot with server_url EMPTY (offline world, no relay noise, identity guard satisfied), camera_request scenic view, screenshot_done.json carries fps+frame_ms_avg. Reusable for any future perf comparison."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.890.0 pushed+tagged+released; v0.890.1 build-game in flight (stamp pending).",
+  "version_state": "v0.891.0 pushed+tagged+released; v0.891.1 build-game in flight.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
