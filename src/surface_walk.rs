@@ -22,6 +22,14 @@ use glam::Vec3;
 /// stand/walk clamp rests the camera at above the sampled ground radius.
 pub const EYE_HEIGHT_M: f64 = 1.7;
 
+/// Extra clearance between the eye and the MODELED ground (v0.889): the
+/// clamp samples the full-detail elevation, but the patch actually DRAWN
+/// under the player may be several LOD levels coarser, and its linear
+/// interpolation can bulge above the fine model on ridges - the "seeing
+/// through the Earth while standing on it" clip. This slop covers the
+/// worst-case coarse-over-fine bulge at walking depths.
+pub const LOD_CLEARANCE_M: f64 = 2.5;
+
 /// Build the orthonormal tangent basis `(east, north)` for a given radial
 /// `up`. Pole-safe: near the poles `up` is nearly parallel to world-Y, so the
 /// world reference axis switches to world-X to keep the cross product well
@@ -90,14 +98,16 @@ pub fn world_look_angles(dir: Vec3) -> (f32, f32) {
 
 /// Radial distance the camera rests at when standing: the sampled ground
 /// radius plus one eye height.
+/// NOTE v0.889: rest_radius also carries LOD_CLEARANCE_M via the shared
+/// floor in clamp_above_ground; keep the two consistent.
 pub fn rest_radius(ground_r: f64, eye_height: f64) -> f64 {
-    ground_r + eye_height
+    ground_r + eye_height + LOD_CLEARANCE_M
 }
 
 /// Never sink below standing height: clamp a radial distance so the eye stays
 /// at least `eye_height` above the ground radius.
 pub fn clamp_above_ground(r: f64, ground_r: f64, eye_height: f64) -> f64 {
-    r.max(ground_r + eye_height)
+    r.max(ground_r + eye_height + LOD_CLEARANCE_M)
 }
 
 /// Ease a radial distance toward its rest height (gravity): exponential decay
@@ -216,11 +226,13 @@ mod tests {
     fn ground_clamp_never_sinks_below_standing_height() {
         let ground = 6.371e6;
         let eye = EYE_HEIGHT_M;
-        // Below ground snaps up to standing height.
-        assert_eq!(clamp_above_ground(ground - 100.0, ground, eye), ground + eye);
-        // Above ground is left alone.
+        let floor = ground + eye + LOD_CLEARANCE_M;
+        // Below ground snaps up to standing height (+ LOD slop, v0.889).
+        assert_eq!(clamp_above_ground(ground - 100.0, ground, eye), floor);
+        // Above the floor is left alone.
         assert_eq!(clamp_above_ground(ground + 50.0, ground, eye), ground + 50.0);
-        assert_eq!(rest_radius(ground, eye), ground + eye);
+        // Rest and clamp share the same floor so settle never fights the clamp.
+        assert_eq!(rest_radius(ground, eye), floor);
     }
 
     #[test]

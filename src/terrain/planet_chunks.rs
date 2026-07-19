@@ -857,6 +857,7 @@ pub fn select_patches(
     // (id, err) of leaves emitted this frame, before fallback substitution.
     let mut leaves: Vec<(PatchId, f32)> = Vec::new();
     let mut requests: Vec<(PatchId, f32)> = Vec::new();
+    let mut prefetches: usize = 0;
 
     // Visibility check shared by roots and children. Returns None when
     // culled (and counts why).
@@ -984,6 +985,22 @@ pub fn select_patches(
                 heap.push(k);
             }
         } else {
+            // PREFETCH (v0.889): nodes approaching the split threshold get
+            // their children built EARLY, so camera motion crosses the
+            // threshold into already-resident meshes (no parent-hold pop).
+            if node.err_px > params.split_px * 0.55
+                && node.id.depth < params.max_depth
+                && !stats.budget_saturated
+                && prefetches < MAX_PREFETCH_REQUESTS
+            {
+                for i in 0..4u32 {
+                    let kid = node.id.child(i);
+                    if is_built(&kid).is_none() {
+                        requests.push((kid, node.err_px * 0.5));
+                        prefetches += 1;
+                    }
+                }
+            }
             leaves.push((node.id, node.err_px));
         }
     }
@@ -1526,6 +1543,12 @@ pub fn build_patch_mesh(
         },
     }
 }
+
+/// Prefetch cap per selection (v0.889): how many near-threshold children
+/// may be requested ahead of need each frame. Small enough that the cache
+/// cannot balloon to its eviction cap (the v0.883 churn), large enough
+/// that steady motion always has the next ring of detail ready.
+pub const MAX_PREFETCH_REQUESTS: usize = 12;
 
 /// Water-shell patch cap: waves need mesh only down to the finest geometric
 /// train (50 m wavelength -> Nyquist at ~25 m triangles = depth 14); the
