@@ -1238,6 +1238,34 @@ impl Renderer {
     }
 
     /// Render a frame with the given camera and objects.
+    /// Batched object-uniform upload (v0.891): build every per-object uniform
+    /// block in ONE staging vec and issue ONE queue.write_buffer, instead of a
+    /// queue call per object. At 3000+ terrain patches the per-call overhead
+    /// (per-call validation + copy scheduling) dominated CPU frame time.
+    fn upload_object_uniforms<'a>(&self, objects: impl Iterator<Item = &'a RenderObject>) {
+        const ALIGN: usize = 256;
+        let mut staging: Vec<u8> = Vec::with_capacity(ALIGN * 1024);
+        for (i, obj) in objects.enumerate() {
+            if i >= MAX_OBJECTS {
+                break;
+            }
+            let model =
+                Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
+            let normal_matrix = model.inverse().transpose();
+            let uniforms = ObjectUniforms {
+                model: model.to_cols_array_2d(),
+                normal_matrix: normal_matrix.to_cols_array_2d(),
+            };
+            // Pad the previous slot out to the 256-byte dynamic-offset
+            // alignment, then append this 128-byte block.
+            staging.resize(i * ALIGN, 0);
+            staging.extend_from_slice(bytemuck::bytes_of(&uniforms));
+        }
+        if !staging.is_empty() {
+            self.queue.write_buffer(&self.object_buffer, 0, &staging);
+        }
+    }
+
     pub fn render(&self, camera: &Camera, objects: &[RenderObject]) -> Result<(), wgpu::SurfaceError> {
         let (output, _view) = self.render_scene(camera, objects)?;
         output.present();
@@ -1338,27 +1366,11 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
-            // Upload all object uniforms to the dynamic buffer BEFORE the render pass
+            // One batched object-uniform upload (v0.891).
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().enumerate() {
-                if i >= MAX_OBJECTS { break; } // MAX_OBJECTS
-                let model = Mat4::from_scale_rotation_translation(
-                    obj.scale,
-                    obj.rotation,
-                    obj.position,
-                );
-                let normal_matrix = model.inverse().transpose();
-                let uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(
-                    &self.object_buffer,
-                    uniform_align * i as u64,
-                    bytemuck::bytes_of(&uniforms),
-                );
-            }
+            self.upload_object_uniforms(objects.iter());
 
+            let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
@@ -1372,15 +1384,25 @@ impl Renderer {
 
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): terrain patches share one material, so 3000+
+                // redundant rebinds per frame collapse to one.
+                if bound_material != obj.material {
+                    bound_material = obj.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1436,27 +1458,11 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
-            // Upload all object uniforms to the dynamic buffer BEFORE the render pass
+            // One batched object-uniform upload (v0.891).
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().enumerate() {
-                if i >= MAX_OBJECTS { break; }
-                let model = Mat4::from_scale_rotation_translation(
-                    obj.scale,
-                    obj.rotation,
-                    obj.position,
-                );
-                let normal_matrix = model.inverse().transpose();
-                let uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(
-                    &self.object_buffer,
-                    uniform_align * i as u64,
-                    bytemuck::bytes_of(&uniforms),
-                );
-            }
+            self.upload_object_uniforms(objects.iter());
 
+            let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) {
@@ -1470,15 +1476,25 @@ impl Renderer {
 
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): terrain patches share one material, so 3000+
+                // redundant rebinds per frame collapse to one.
+                if bound_material != obj.material {
+                    bound_material = obj.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1538,33 +1554,37 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
+            // One batched object-uniform upload (v0.891).
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().enumerate() {
-                if i >= MAX_OBJECTS { break; }
-                let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
-                let normal_matrix = model.inverse().transpose();
-                let uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(&self.object_buffer, uniform_align * i as u64, bytemuck::bytes_of(&uniforms));
-            }
+            self.upload_object_uniforms(objects.iter());
 
+            let mut bound_material = usize::MAX;
+            let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): terrain patches share one material, so 3000+
+                // redundant rebinds per frame collapse to one.
+                if bound_material != obj.material {
+                    bound_material = obj.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1605,32 +1625,36 @@ impl Renderer {
             });
             render_pass.set_pipeline(&self.pipeline.overlay_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+            // One batched object-uniform upload (v0.891).
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().enumerate() {
-                if i >= MAX_OBJECTS { break; }
-                let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
-                let normal_matrix = model.inverse().transpose();
-                let uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(&self.object_buffer, uniform_align * i as u64, bytemuck::bytes_of(&uniforms));
-            }
+            self.upload_object_uniforms(objects.iter());
+            let mut bound_material = usize::MAX;
+            let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): terrain patches share one material, so 3000+
+                // redundant rebinds per frame collapse to one.
+                if bound_material != obj.material {
+                    bound_material = obj.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1718,33 +1742,38 @@ impl Renderer {
             // object-uniform buffer: shells continue the index range after the
             // opaque list. Both lists together must stay under MAX_OBJECTS
             // (a couple dozen sky bodies in practice).
+            // One batched object-uniform upload (v0.891): opaque bodies +
+            // transparent shells share the buffer, shells continue the range.
             let uniform_align = 256_u64;
-            for (i, obj) in objects.iter().chain(transparent.iter()).enumerate() {
-                if i >= MAX_OBJECTS { break; }
-                let model = Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
-                let normal_matrix = model.inverse().transpose();
-                let uniforms = ObjectUniforms {
-                    model: model.to_cols_array_2d(),
-                    normal_matrix: normal_matrix.to_cols_array_2d(),
-                };
-                self.queue.write_buffer(&self.object_buffer, uniform_align * i as u64, bytemuck::bytes_of(&uniforms));
-            }
+            self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
 
+            let mut bound_material = usize::MAX;
+            let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }
                 let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                 let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                 let dynamic_offset = (uniform_align as u32) * (i as u32);
                 render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): terrain patches share one material, so 3000+
+                // redundant rebinds per frame collapse to one.
+                if bound_material != obj.material {
+                    bound_material = obj.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1756,6 +1785,7 @@ impl Renderer {
             // apart, so no depth sorting needed. (v0.763)
             if !transparent.is_empty() {
                 render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
+                let mut bound_material = usize::MAX;
                 for (i, obj) in transparent.iter().enumerate() {
                     let slot = objects.len() + i;
                     if slot >= MAX_OBJECTS { break; }
@@ -1763,21 +1793,23 @@ impl Renderer {
                     let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                     let dynamic_offset = (uniform_align as u32) * (slot as u32);
                     render_pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
-                    render_pass.set_bind_group(2, &material.bind_group, &[]);
-                    // Group 3 fallback/texture -- same rule as the opaque loop.
-                    render_pass.set_bind_group(
-                        3,
-                        material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                        &[],
-                    );
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                    // Material bind groups (2 + 3) skipped when unchanged
+                    // (v0.891); also drops a duplicate group-3 rebind that a
+                    // copy-paste had left here.
+                    if bound_material != obj.material {
+                        bound_material = obj.material;
+                        render_pass.set_bind_group(2, &material.bind_group, &[]);
+                        // Group 3 fallback/texture -- same rule as the opaque
+                        // loop.
+                        render_pass.set_bind_group(
+                            3,
+                            material
+                                .albedo_bind_group
+                                .as_ref()
+                                .unwrap_or(&self.default_texture_bind_group),
+                            &[],
+                        );
+                    }
                     render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
@@ -1971,6 +2003,7 @@ impl Renderer {
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
+            let mut bound_material = usize::MAX;
             for batch in batches {
                 let mesh = match self.meshes.get(batch.mesh) {
                     Some(m) => m,
@@ -1981,15 +2014,24 @@ impl Renderer {
                     None => continue,
                 };
 
-                render_pass.set_bind_group(2, &material.bind_group, &[]);
-                // Group 3 (v0.811): the material's albedo texture when it has
-                // one (textured planets), the 1x1 white fallback otherwise --
-                // the shared pipeline layout requires SOMETHING bound here.
-                render_pass.set_bind_group(
-                    3,
-                    material.albedo_bind_group.as_ref().unwrap_or(&self.default_texture_bind_group),
-                    &[],
-                );
+                // Material bind groups (2 + 3) skipped when unchanged
+                // (v0.891): consecutive batches can share a material.
+                if bound_material != batch.material {
+                    bound_material = batch.material;
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    // Group 3 (v0.811): the material's albedo texture when it
+                    // has one (textured planets), the 1x1 white fallback
+                    // otherwise -- the shared pipeline layout requires
+                    // SOMETHING bound here.
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(
                     mesh.index_buffer.slice(..),
