@@ -112,6 +112,47 @@ struct GpuLight {
 // pure procedural coverage). Zero-filled until the fetcher delivers, so
 // the procedural sky is always the fallback with no mode flag needed.
 @group(3) @binding(5) var weather_map: texture_2d<f32>;
+// Sun shadow map (v0.899): a 4096^2 near-field ortho depth map rendered
+// from the sun each frame (renderer::render_celestial_onto), covering
+// ~1.5 km around the camera. Terrain, vegetation cards, and celestial
+// geometry all cast; every lit fragment (terrain AND interior) receives.
+@group(3) @binding(6) var shadow_map: texture_depth_2d;
+@group(3) @binding(7) var shadow_samp: sampler_comparison;
+struct ShadowUniforms {
+    light_vp: mat4x4<f32>,
+    // x = enable, y = shadow strength (0..1), z = 1/map size, w = unused.
+    params: vec4<f32>,
+};
+@group(3) @binding(8) var<uniform> shadow_u: ShadowUniforms;
+
+// 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
+// Fragments outside the ortho box (or with shadows off) return fully lit,
+// so the effect fades to the status quo beyond the near field.
+fn sun_shadow(world_pos: vec3<f32>, n_dot_l: f32) -> f32 {
+    if (shadow_u.params.x < 0.5) {
+        return 1.0;
+    }
+    let lc = shadow_u.light_vp * vec4<f32>(world_pos, 1.0);
+    let ndc = lc.xyz / lc.w;
+    if (abs(ndc.x) > 0.99 || abs(ndc.y) > 0.99 || ndc.z <= 0.001 || ndc.z >= 0.999) {
+        return 1.0;
+    }
+    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+    // Slope-scaled bias: grazing sun needs more to dodge acne on the
+    // 1056-vert terrain triangles; vegetation cards (normal = radial up)
+    // land near the flat-bias end.
+    let bias = max(0.0025 * (1.0 - n_dot_l), 0.0006);
+    let texel = shadow_u.params.z;
+    var lit = 0.0;
+    for (var dy = -1; dy <= 1; dy = dy + 1) {
+        for (var dx = -1; dx <= 1; dx = dx + 1) {
+            let o = vec2<f32>(f32(dx), f32(dy)) * texel;
+            lit = lit + textureSampleCompareLevel(shadow_map, shadow_samp, uv + o, ndc.z - bias);
+        }
+    }
+    lit = lit / 9.0;
+    return mix(1.0 - shadow_u.params.y, 1.0, lit);
+}
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -2645,10 +2686,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // Dielectrics: 0.04, metals: tinted by albedo
     let f0 = mix(vec3<f32>(0.04), albedo, metallic);
 
-    // Evaluate main directional light (from camera uniforms)
+    // Evaluate main directional light (from camera uniforms), attenuated
+    // by the sun shadow map (v0.899). Only the SUN term is shadowed; fill
+    // and ambient stay, so shadows read as shade, not holes.
+    let sun_ndl = dot(normal, normalize(camera.sun_direction.xyz));
     var lo = evaluate_light(
         camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
-        normal, view_dir, albedo, metallic, roughness, f0);
+        normal, view_dir, albedo, metallic, roughness, f0)
+        * sun_shadow(in.world_position, sun_ndl);
 
     // Evaluate fill light (from camera uniforms)
     lo = lo + evaluate_light(

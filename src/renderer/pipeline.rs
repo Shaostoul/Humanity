@@ -24,6 +24,9 @@ pub struct MaterialUniforms {
 /// PBR-lite render pipeline with three bind group layouts.
 pub struct Pipeline {
     pub render_pipeline: wgpu::RenderPipeline,
+    /// Depth-only sun-shadow variant (v0.899): vs_main with no fragment,
+    /// standard-z ortho depth into the 4096^2 shadow map.
+    pub shadow_pipeline: wgpu::RenderPipeline,
     /// Alpha-blended variant for transparent surfaces (glass windows, the portal). Same
     /// shader + layout, but blends over the scene and does NOT write depth, so you see
     /// THROUGH it. (v0.456)
@@ -217,6 +220,34 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Sun shadow map (v0.899): near-field ortho depth from
+                    // the sun + comparison sampler + light matrix uniform.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 6,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 7,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 8,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -333,8 +364,38 @@ impl Pipeline {
                 )
             });
 
+        // Depth-only sun-shadow pipeline (v0.899): same vertex path (ocean
+        // vertex displacement casts correctly), no fragment stage. STANDARD
+        // z (the light ortho maps near->0), unlike the reverse-Z main passes.
+        let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Sun Shadow Pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None, // vegetation cards are two-sided
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+
         Self {
             render_pipeline,
+            shadow_pipeline,
             transparent_pipeline,
             overlay_pipeline,
             camera_bind_group_layout,

@@ -167,6 +167,22 @@ pub struct Renderer {
     /// G = validity. Zero = procedural sky; update_weather_map overwrites.
     weather_map_tex: wgpu::Texture,
     weather_map_view: wgpu::TextureView,
+    /// Sun shadow map (v0.899): near-field ortho depth from the sun.
+    shadow_map_view: wgpu::TextureView,
+    shadow_uniform_buffer: wgpu::Buffer,
+    /// Camera-layout uniform holding the LIGHT's view-proj for the shadow
+    /// pass (vs_main renders with whatever camera is bound at group 0).
+    light_camera_buffer: wgpu::Buffer,
+    /// Group-3 bind for the SHADOW pass itself: identical to the fallback
+    /// except binding 6 is a 1x1 dummy depth - the pass writes the real
+    /// shadow map as its depth attachment, and wgpu forbids sampling a
+    /// texture in the same pass that writes it (exclusive usage).
+    shadow_pass_texture_bind_group: wgpu::BindGroup,
+    light_camera_bind_group: wgpu::BindGroup,
+    shadow_comparison_sampler: wgpu::Sampler,
+    /// Sun shadows on/off (max-graphics default on; zero cost when the sun
+    /// is absent - the pass and the shader lookup both self-gate).
+    pub sun_shadows: bool,
 }
 
 impl Renderer {
@@ -584,6 +600,73 @@ impl Renderer {
         });
         let weather_map_view = weather_map_tex.create_view(&wgpu::TextureViewDescriptor::default());
 
+        // ── Sun shadow map resources (v0.899) ──
+        const SHADOW_MAP_SIZE: u32 = 4096;
+        let shadow_map_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Sun Shadow Map"),
+            size: wgpu::Extent3d {
+                width: SHADOW_MAP_SIZE,
+                height: SHADOW_MAP_SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let shadow_map_view = shadow_map_tex.create_view(&wgpu::TextureViewDescriptor::default());
+        let shadow_comparison_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Shadow Comparison Sampler"),
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+        let shadow_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Shadow Uniforms"),
+            size: 80, // mat4 (64) + vec4 (16)
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let light_camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Light Camera Buffer"),
+            size: std::mem::size_of::<camera::CameraUniforms>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let light_camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Light Camera BG"),
+            layout: &pipeline.camera_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: light_camera_buffer.as_entire_binding(),
+                },
+                // The camera layout also carries the v0.782 lights storage
+                // buffer; the shadow pass never reads it, but the layout
+                // requires SOMETHING bound - share the main buffer.
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: lights_buffer.as_entire_binding(),
+                },
+            ],
+        });
+
+        // 1x1 dummy depth for the shadow pass's own group 3 (see field doc).
+        let dummy_depth_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Dummy Shadow Depth"),
+            size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        let dummy_depth_view = dummy_depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
+
         let default_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Albedo Fallback Bind Group"),
             layout: &pipeline.texture_bind_group_layout,
@@ -611,6 +694,60 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::TextureView(&weather_map_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(&shadow_map_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Sampler(&shadow_comparison_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: shadow_uniform_buffer.as_entire_binding(),
+                },
+            ],
+        });
+        let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Shadow Pass Texture BG"),
+            layout: &pipeline.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&white_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&albedo_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::TextureView(&cloud_shape_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&cloud_detail_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&cloud_tile_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(&weather_map_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(&dummy_depth_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Sampler(&shadow_comparison_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: shadow_uniform_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -652,6 +789,13 @@ impl Renderer {
             cloud_tile_sampler,
             weather_map_tex,
             weather_map_view,
+            shadow_map_view,
+            shadow_uniform_buffer,
+            light_camera_buffer,
+            light_camera_bind_group,
+            shadow_pass_texture_bind_group,
+            shadow_comparison_sampler,
+            sun_shadows: true,
         }
     }
 
@@ -829,6 +973,18 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 5,
                     resource: wgpu::BindingResource::TextureView(&self.weather_map_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 6,
+                    resource: wgpu::BindingResource::TextureView(&self.shadow_map_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 7,
+                    resource: wgpu::BindingResource::Sampler(&self.shadow_comparison_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 8,
+                    resource: self.shadow_uniform_buffer.as_entire_binding(),
                 },
             ],
         })
@@ -1764,6 +1920,94 @@ impl Renderer {
             let sc = [1.0_f32, 0.97, 0.92, time_s];
             self.queue.write_buffer(&self.camera_buffer, 608, bytemuck::cast_slice(&sd));
             self.queue.write_buffer(&self.camera_buffer, 624, bytemuck::cast_slice(&sc));
+        }
+
+        // ── Sun shadow pass (v0.899) ── near-field ortho depth from the sun,
+        // rendered before the main pass so every lit fragment this frame can
+        // sample it. Texel-snapped so a drifting camera never swims the map.
+        let shadow_on = self.sun_shadows && sun_dir != Vec3::ZERO;
+        {
+            const SHADOW_MAP_SIZE: f32 = 4096.0;
+            let extent = 1500.0_f32;
+            let sun = sun_dir.normalize();
+            let center = camera.effective_position();
+            let up = if sun.y.abs() > 0.95 { Vec3::Z } else { Vec3::Y };
+            let view_m = Mat4::look_at_rh(center + sun * 4000.0, center, up);
+            let proj = Mat4::orthographic_rh(-extent, extent, -extent, extent, 0.1, 8000.0);
+            let mut vp = proj * view_m;
+            // Texel snap: shift so the world origin lands on a texel grid.
+            let ndc_texel = 2.0 / SHADOW_MAP_SIZE;
+            let origin = vp * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
+            let snap = |v: f32| (v / ndc_texel).round() * ndc_texel - v;
+            vp = Mat4::from_translation(Vec3::new(snap(origin.x), snap(origin.y), 0.0)) * vp;
+            let mut light_u = <camera::CameraUniforms as bytemuck::Zeroable>::zeroed();
+            light_u.view_proj = vp.to_cols_array_2d();
+            self.queue
+                .write_buffer(&self.light_camera_buffer, 0, bytemuck::bytes_of(&light_u));
+            let mut su = [0.0_f32; 20];
+            su[..16].copy_from_slice(&vp.to_cols_array());
+            su[16] = if shadow_on { 1.0 } else { 0.0 };
+            su[17] = 0.6; // shadow strength
+            su[18] = 1.0 / SHADOW_MAP_SIZE;
+            self.queue
+                .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
+        }
+        if shadow_on {
+            // Object uniforms uploaded HERE cover both the shadow pass and
+            // the main pass below (same list, same offsets).
+            self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
+            let mut senc = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Shadow Encoder"),
+                });
+            {
+                let mut pass = senc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Sun Shadow Pass"),
+                    color_attachments: &[],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &self.shadow_map_view,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(1.0),
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    ..Default::default()
+                });
+                pass.set_pipeline(&self.pipeline.shadow_pipeline);
+                pass.set_bind_group(0, &self.light_camera_bind_group, &[]);
+                // ONE group-3 for the whole pass: the dummy-depth variant
+                // (the real shadow map is this pass's write target and must
+                // not also be bound for sampling). vs_main samples nothing
+                // from group 3, so the contents are irrelevant.
+                pass.set_bind_group(3, &self.shadow_pass_texture_bind_group, &[]);
+                let uniform_align = 256_u64;
+                let mut bound_material = usize::MAX;
+                for (i, obj) in objects.iter().enumerate() {
+                    if i >= MAX_OBJECTS {
+                        break;
+                    }
+                    let mesh = match self.meshes.get(obj.mesh) {
+                        Some(m) => m,
+                        None => continue,
+                    };
+                    let material = match self.materials.get(obj.material) {
+                        Some(m) => m,
+                        None => continue,
+                    };
+                    let dynamic_offset = (uniform_align as u32) * (i as u32);
+                    pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
+                    if bound_material != obj.material {
+                        bound_material = obj.material;
+                        pass.set_bind_group(2, &material.bind_group, &[]);
+                    }
+                    pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+            }
+            self.queue.submit(std::iter::once(senc.finish()));
         }
 
         let mut encoder = self
