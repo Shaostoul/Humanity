@@ -181,7 +181,7 @@ pub const TREE_MIN_DEPTH: u8 = 15;
 /// Patch depth at which GRASS tufts appear (27 m patches, walking range).
 pub const GRASS_MIN_DEPTH: u8 = 18;
 /// Trees per tree-depth patch (candidates; slope/elevation gates thin them).
-pub const TREES_PER_PATCH: u32 = 10;
+pub const TREES_PER_PATCH: u32 = 40;
 /// Grass tufts per grass-depth patch.
 pub const GRASS_PER_PATCH: u32 = 24;
 /// Real-meter elevation ceiling for trees (a global treeline placeholder).
@@ -1421,10 +1421,24 @@ pub fn build_patch_mesh(
                 }
             }
         };
-        let want_trees = id.depth >= TREE_MIN_DEPTH && id.depth < GRASS_MIN_DEPTH;
+        let want_trees = id.depth >= TREE_MIN_DEPTH;
         let want_grass = id.depth >= GRASS_MIN_DEPTH;
-        let count = if want_grass { GRASS_PER_PATCH } else if want_trees { TREES_PER_PATCH } else { 0 };
-        for _ in 0..count {
+        // v0.894: trees at EVERY depth past their min. They used to stop at
+        // depth 17, so when a patch refined near the camera its trees
+        // VANISHED and only grass remained - forests existed only at ridge
+        // distance (probe capture 2026-07-19, Oahu at 3 m). Each split
+        // quarters the patch area, so a fixed-point accept test on the
+        // deterministic rng keeps the per-area tree density CONSTANT across
+        // depths instead of quadrupling per level (the old 15..18 window
+        // also had that flaw) - refining a patch now keeps its woodland.
+        let tree_keep_shift = (2 * id.depth.saturating_sub(TREE_MIN_DEPTH) as u32).min(31);
+        let tree_candidates = if want_trees { TREES_PER_PATCH } else { 0 };
+        let grass_candidates = if want_grass { GRASS_PER_PATCH } else { 0 };
+        for ci in 0..(tree_candidates + grass_candidates) {
+            let is_tree = ci < tree_candidates;
+            if is_tree && tree_keep_shift > 0 && (next() & ((1u64 << tree_keep_shift) - 1)) != 0 {
+                continue;
+            }
             // Random barycentric point on the patch's elevation grid.
             let mut a = (next() % 1000) as f64 / 1000.0;
             let mut b = (next() % 1000) as f64 / 1000.0;
@@ -1462,7 +1476,7 @@ pub fn build_patch_mesh(
             if side_a.length_squared() < 0.5 {
                 continue; // polar degenerate
             }
-            if want_grass {
+            if !is_tree {
                 // Grass tuft: two crossed cards, 0.5 m tall, straw-green.
                 let g = 0.25 + (next() % 100) as f32 / 400.0;
                 let col = [0.24, 0.34 + (next() % 100) as f32 / 1000.0, 0.10];

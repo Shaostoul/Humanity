@@ -3293,7 +3293,7 @@ mod native_app {
         // UNDER a mountain (Everest's exaggerated relief is ~22 km). Orbit
         // (no lat/lon) targets keep the sphere radius; there is no terrain up
         // there to clear.
-        let surface_radius = if let Some((lat, lon)) = latlon {
+        let mut surface_radius = if let Some((lat, lon)) = latlon {
             let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
             // Tile-aware parking (v0.885): sample the DRAWN elevation (base +
             // detail noise + streamed tiles when resident) so a low park over
@@ -3322,6 +3322,22 @@ mod native_app {
         } else {
             radius_m
         };
+        // Ocean parking (v0.894): over connected ocean the sampled terrain
+        // radius is the SEAFLOOR (bathymetric relief sits below sea level), so
+        // a low park submerged the camera beneath the drawn water shell
+        // (probe capture 2026-07-19: "Iceland at 120 m" landed 27 m over the
+        // seafloor, underwater, staring at the shell from below). Park
+        // relative to the water surface instead; diving stays a deliberate
+        // act, not a teleport accident.
+        if body_id == "earth" {
+            if let (Some((lat, lon)), Some(om)) = (latlon, state.ocean_mask.as_ref()) {
+                let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+                if om.is_ocean(unit) {
+                    surface_radius = surface_radius
+                        .max(radius_m + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64);
+                }
+            }
+        }
         let vantage = body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);
         if state.dev_travel_home.is_none() {
             state.dev_travel_home = Some((
