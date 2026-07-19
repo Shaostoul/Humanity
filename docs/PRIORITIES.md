@@ -49,7 +49,12 @@
 >    (the deepest surface, untouched this pass); (c) consider the faint galaxy bake
 >    behind native egui pages so native mirrors the web treatment back.
 >
-> 6a. **TARGET MARKERS (operator design, 2026-07-18).** Construction mode gets a
+> 6a. **TARGET MARKERS (operator design, 2026-07-18; v1 SHIPPED v0.885).**
+>    DONE: home-station ring + look-label + distance in-world, Cosmos
+>    "Stations" section with a persisted Track toggle, tile-aware altitude
+>    parking. REMAINING: planets/asteroids/ships/enemies selection, the
+>    construction-mode respawn/teleport-point marker, web-maps parity.
+>    ORIGINAL DESIGN: Construction mode gets a
 >    respawn/teleport-point marker (Stargate-style teleporters MUCH later).
 >    Maps page: click-select the station / planets / asteroids / spaceships /
 >    detected enemies -> in game a RING encapsulates the selected object and

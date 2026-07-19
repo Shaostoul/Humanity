@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "LOOP MODE (operator AFK, explicit instruction): ship v0.884 smooth normals, then work the backlog solo: (1) target markers v1 (station ring + look-label + Maps), (2) altitude-parking tile-awareness, (3) ocean Stage 2 Archimedes. Verify each increment, keep tree shippable, journal every decision.",
+  "current_focus": "Loop in slow-heartbeat mode (operator AFK): v0.874-v0.886 planet marathon complete + journaled + history doc written. Awaiting operator for: ocean Stage 2 entity architecture, marker extensions, flight feel verdict. Heartbeat checks CI + relay health only.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -339,6 +339,11 @@
       "date": "2026-07-19",
       "decision": "v0.886.0 (loop iteration 2): (a) SUN CORONA - new shader type 17 radial glow (brightness falls with the view rays impact parameter, center-bright melting into space) drawn on a 3x transparent shell over the emissive core; the halo material had existed since the beginning but was NEVER drawn - the white-blob sun was just the bare core. (b) track_station moved into SettingsState + persisted in AppConfig (serde default true). Boot-verified per the pipeline rule.",
       "why": "Loop-mode pick: the white-blob sun was a long-known operator complaint, well-scoped, high visual payoff. NEXT-ITERATION CALL: ocean Stage 2 (things float) requires Earth-frame ECS entities - vehicles/crates currently live in the station frame only; that architecture (world-anchored entities, persistence model) deserves operator taste input, so the loop defers it and picks web-parity for the Stations section + smaller polish next; journaled per the no-AskUserQuestion instruction."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.886.2 (loop iteration 3, housekeeping): session history docs/history/2026-07-18.md written (the v0.874-v0.886 planet-quality marathon + lessons + open threads), PRIORITIES 6a marked v1-shipped with remaining slices, CI green (deploys + verify), relay healthy (2 peers), version synced.",
+      "why": "Session-end convention while the operator is AFK: everything durable is on disk. Loop winds down to a slow health heartbeat - remaining backlog items (ocean Stage 2 architecture, marker extensions) genuinely want operator taste; solo shipping them risks rework. The loop keeps a slow cadence to catch CI/relay regressions until the operator returns."
     }
   ],
   "active_scopes_to_avoid": [
