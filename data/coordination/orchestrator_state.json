@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "Loop in slow-heartbeat mode (operator AFK): v0.874-v0.886 planet marathon complete + journaled + history doc written. Awaiting operator for: ocean Stage 2 entity architecture, marker extensions, flight feel verdict. Heartbeat checks CI + relay health only.",
+  "current_focus": "OVERNIGHT LOOP (operator asleep, 2026-07-19, explicit directive: work maximally, no nitpick approvals, use the whole Fable budget before cutoff later today). Bedtime list SHIPPED: v0.889.0 terrain prefetch + surface clamp LOD slop; v0.890.0 F6 location bookmarks + Q/E flight roll + blend-band partial co-rotation. Next in queue: parked lateral drift fix, silver-lining rim term, cloud catalog expansion, then the draw-call batching perf arc (15 FPS at 3072 patches is draw-call bound).",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -359,12 +359,20 @@
       "date": "2026-07-19",
       "decision": "v0.888.0 PROCEDURAL VEGETATION v1: trees (crossed-card trunk+canopy conifers, 7-13m) at patch depth >=15 and grass tufts at >=18, baked INTO patch meshes at build time - deterministic per-PatchId xorshift scatter, elevation-gated (3m..treeline 1700m), positions through the same elevation sampler as the grid so everything stands ON the drawn ground; LOD free (vegetation lives and dies with its patch). Verified: Washington lowland hillsides read as forest. ALSO: TRUE-SCALE AUDIT COMPLETE - all body radii (sun 695,700km IAU nominal), masses, and semi-major axes in data/star_systems/sol.json match real values; nothing to fix.",
       "why": "Operator asks: vegetation placeholders + verify true scale in sizes/distances/mass. REMAINING from their report, journaled for next iterations: god rays (needs post-process infra), cloud catalog expansion (100+ types - regime table growth), settle lateral drift (~150m/s residual while parked), and the PERF ARC: 3072 patches = 15 FPS draw-call-bound -> batching/instancing."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.889.0 OVERNIGHT 1+2: (a) LOD PREFETCH - select_patches leaves past 0.55x split_px request unbuilt children early (cap 12/selection, skipped at budget saturation) so motion crosses thresholds into resident meshes; direct answer to operator cache/preload ask against move-flicker. (b) LOD_CLEARANCE_M 2.5 added to BOTH clamp_above_ground and rest_radius (shared floor - settle never fights clamp) fixing see-through-Earth while standing: drawn coarse patches can bulge above the full-detail clamp model."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.890.0 OVERNIGHT 3-5: (a) F6 saves exact camera pose to debug/bookmarks.json in the planet UNROTATED frame (spin-independent; frame_lock_capture math), restore via camera_request {bookmark:bm-N|last} - exact placement+aim teleports for screenshots. (b) Q/E flight roll: Camera.roll (view-only, rolled_up rotates the look_at up vector; movement basis untouched), 80deg/s, auto-eases level on foot; Q keeps shoulder-swap on foot, E stays interact. (c) Blend band 100-1000km now rides (1-s) smoothstep of the spin delta each frame - kills the ~465 m/s one-frame velocity yank at the 100km co-rotate boundary, both directions. Plus GuiState.pending_toasts for engine paths without an egui clock."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "main==origin: v0.872.0 (Latest). Local exe archived v0.872.0 + DXC DLLs. Releases v0.837+ UNSIGNED.",
+  "version_state": "v0.890.0 pushed+tagged+released; v0.890.1 build-game in flight (stamp pending).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
