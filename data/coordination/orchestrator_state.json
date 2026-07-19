@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "v0.883.2 true-scale terrain shipped for operator flight. Next: target markers arc (PRIORITIES 6a), altitude-parking tile-awareness, smooth vertex normals for terrain (if blockiness persists at true scale), ocean Stage 2.",
+  "current_focus": "LOOP MODE (operator AFK, explicit instruction): ship v0.884 smooth normals, then work the backlog solo: (1) target markers v1 (station ring + look-label + Maps), (2) altitude-parking tile-awareness, (3) ocean Stage 2 Archimedes. Verify each increment, keep tree shippable, journal every decision.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -324,6 +324,11 @@
       "date": "2026-07-19",
       "decision": "v0.883.2 TRUE-SCALE terrain: earth.ron surface_relief 0.011 -> 0.003123 (= heightmap window 19,900m / radius 6,371,000m, exactly 1:1 vertical scale). The old value was ~3.5x exaggeration from the 11km-blur era.",
       "why": "Operator on Fuji: Minecraft-blocky terraced slopes + Fuji really tall/skinny vs their reference photo. At 3.5x, adjacent 460m tile cells on the volcano differ 800m drawn (>60deg cliff faces with black sides); at true scale ~23deg natural slopes. One data change fixes proportions AND most of the blockiness AND shrinks skirt/crack exposure. Detail-noise amps are real meters x relief so they scale consistently. Hot-reloadable RON. Residual mild flicker journaled as acceptable-for-now (fixed point converges; margins churn only during spin sweep)."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.884.0 smooth per-vertex terrain normals: adjacent face normals averaged per grid vertex (outward fallback), lighting interpolates across faces; per-face color/slope-shade unchanged (packed transport). Kills the Minecraft stepping - flat shading had rendered every 0.3m heightmap quantization quantum as a shaded ledge on near-flat plains.",
+      "why": "Operator final ask before AFK: remove the stepping, make it smoother. Loop mode engaged per operator instruction to work the backlog: marker arc (PRIORITIES 6a), altitude-parking tile-awareness, ocean Stage 2."
     }
   ],
   "active_scopes_to_avoid": [

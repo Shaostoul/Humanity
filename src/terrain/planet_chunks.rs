@@ -1175,6 +1175,39 @@ pub fn build_patch_mesh(
     let mut vertices: Vec<SurfaceVertexData> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
     let mut indices: Vec<u32> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
 
+    // SMOOTH per-vertex normals (v0.884, operator: "this stepping effect...
+    // make it smoother"): flat shading gave every face one normal, so each
+    // 0.3 m heightmap-quantization quantum on near-flat plains rendered as
+    // a visibly shaded ledge (the Minecraft-step look). Average adjacent
+    // face normals per grid vertex; faces then interpolate normals across
+    // their corners and the ledges melt into continuous slopes. Per-face
+    // COLOR is unchanged (the packed-color transport needs identical
+    // corners); only lighting smooths.
+    let mut vnorm: Vec<glam::Vec3> = vec![glam::Vec3::ZERO; vert_count];
+    {
+        let mut acc = |ia: usize, ib: usize, ic: usize| {
+            let (p0, p1, p2) = (offsets[ia], offsets[ib], offsets[ic]);
+            let n = (p1 - p0).cross(p2 - p0);
+            vnorm[ia] += n;
+            vnorm[ib] += n;
+            vnorm[ic] += n;
+        };
+        for r in 0..n {
+            for c in 0..=r {
+                acc(grid_idx(r, c), grid_idx(r + 1, c), grid_idx(r + 1, c + 1));
+            }
+            for c in 0..r {
+                acc(grid_idx(r, c), grid_idx(r + 1, c + 1), grid_idx(r, c + 1));
+            }
+        }
+        for (i, v) in vnorm.iter_mut().enumerate() {
+            let out = dirs[i].as_vec3();
+            let nn = v.normalize_or_zero();
+            // Outward spherical fallback for degenerate or inward sums.
+            *v = if nn.length_squared() < 1e-9 || nn.dot(out) < 0.0 { out } else { nn };
+        }
+    }
+
     let mut emit_face = |ia: usize, ib: usize, ic: usize,
                          vertices: &mut Vec<SurfaceVertexData>,
                          indices: &mut Vec<u32>| {
@@ -1208,15 +1241,16 @@ pub fn build_patch_mesh(
                 // never an inside-out face.
                 nrm = out;
             }
-            // Slope shading (mirrors the uniform sphere path): steep faces
-            // darken slightly so relief reads even at noon lighting.
+            // Slope shading stays per-FACE (color corners must match for
+            // the packed transport); LIGHTING normals are the smooth
+            // per-vertex averages (v0.884) so quantization ledges melt.
             let shade = slope_shade(nrm, out);
             let color = [color[0] * shade, color[1] * shade, color[2] * shade];
-            for &p in &[p0, p1, p2] {
+            for &i in &[ia, ib, ic] {
                 indices.push(vertices.len() as u32);
                 vertices.push(SurfaceVertexData {
-                    position: p.to_array(),
-                    normal: nrm.to_array(),
+                    position: offsets[i].to_array(),
+                    normal: vnorm[i].to_array(),
                     color,
                     water: false,
                 });
