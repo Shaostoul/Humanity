@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "OVERNIGHT LOOP (operator asleep, 2026-07-19, explicit directive: work maximally, no nitpick approvals, use the whole Fable budget before cutoff later today). Bedtime list SHIPPED: v0.889.0 terrain prefetch + surface clamp LOD slop; v0.890.0 F6 location bookmarks + Q/E flight roll + blend-band partial co-rotation. Next in queue: parked lateral drift fix, silver-lining rim term, cloud catalog expansion, then the draw-call batching perf arc (15 FPS at 3072 patches is draw-call bound).",
+  "current_focus": "OVERNIGHT LOOP complete through v0.896.0 (8 feature releases: prefetch/clamp, bookmarks/roll/blend-ride, 4x perf batching, 6144 ceiling, 7 cloud families, persistent trees, god rays + aim-sun rig, biome gate + ocean-park backstops). v0.896.1 build-game in flight; after its stamp the loop continues with smaller polish or idles on heartbeat until the operator wakes. Morning taste items listed in PRIORITIES.md overnight block + docs/history/2026-07-19.md.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -379,12 +379,16 @@
     {
       "date": "2026-07-19",
       "decision": "v0.894-v0.895 OVERNIGHT (cont): v0.894.0 trees now spawn at EVERY depth >=15 with fixed-point accept keeping per-AREA density constant (they used to VANISH when patches refined near the camera - forests only existed at ridge distance); TREES_PER_PATCH 10->40; camera_request ocean parking clamps to the water surface (Iceland-at-120m had parked UNDERWATER over the seafloor). v0.895.0 GOD RAYS: one additive depth-march pass (godrays.rs/wgsl) between celestial and scene passes - ridge silhouettes carve shafts; verified via the new camera_request {aim:sun} staging rig after an hour of blind time-staging proved sun-in-frame shots are luck without it (probe world runs ~77x clock, sun races). Projection cross-checked exact (sun ndc 0.01,0.03 dead-center on aim). PROBE GOTCHAS learned: local noon = 12 - east_lon/15; staged times expire in real seconds at 77x; scenic-view aim is nadir-relative so the sun is almost never in frame naturally."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.896.0: imagery-green biome gate for vegetation (surface_color sampled at scatter points - real Earth imagery IS the biome map; kills Sahara/glacier trees), vegetation cards take the radial up as normal (horizontal card normals rendered black at noon), ocean parking radius-gated in BOTH camera_request and the walk clamp (ocean mask misses fjords + may still be loading when scripted requests fire; ground >60m below sea = float at sea level, keeps Death Valley walkable). KNOWN QUIRK journaled: scene brightness follows global game hour while sun position is longitude-aware - staged captures far from lon 0 look dark at their local noon; unify when it matters."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.895.0 released (7 feature releases tonight: v0.889-v0.895); v0.895.1 build-game in flight.",
+  "version_state": "v0.896.0 released; v0.896.1 build-game in flight (stamp pending).",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

@@ -11,6 +11,29 @@
 
 ## Active focus
 
+> **>>> OVERNIGHT LOOP RESULT (2026-07-19, operator asleep; v0.889-v0.896, 8 feature releases).**
+> The whole bedtime list shipped, then self-directed polish. SHIPPED: terrain
+> prefetch (move-flicker fix) + surface-clamp LOD slop (see-through-Earth fix)
+> (v0.889); F6 location bookmarks (exact pose to debug/bookmarks.json, restore
+> via camera_request {"bookmark":"bm-N"}) + Q/E flight roll + 100-1000 km
+> partial co-rotation velocity blend (v0.890); 4x FRAME RATE from draw
+> submission batching, 19.8 -> 78.6 FPS measured same-scene (v0.891); patch
+> budget ceiling 6144, default 3072 (v0.892); 7 cloud families adding
+> altocumulus/cumulonimbus/nimbostratus (v0.893); trees at every LOD depth
+> (they used to vanish up close) at constant area density, 4x tree density,
+> ocean camera parking (v0.894); GOD RAYS (depth-marched shafts) + camera
+> {"aim":"sun"} staging rig (v0.895); imagery-green biome gate (no more
+> Sahara trees), vegetation lit like the ground, radius-based ocean-park
+> backstops (v0.896). NEW DEV RIGS: portable perf probe (scratchpad copy of
+> the exe + junctions, offline autopilot world - measures FPS via
+> screenshot_done.json), aim-at-sun captures. FOR THE OPERATOR TO JUDGE
+> (morning taste pass): tree/grass density + card look up close, god-ray
+> strength (godray_intensity 0.55), 7-family cloud variety, silver-lining
+> strength. KNOWN QUIRK JOURNALED: scene brightness follows the global game
+> hour while the sun position is longitude-aware, so staged captures far
+> from lon ~0 look dark at their local noon; fine live, wrong for staging -
+> unify when it starts to matter.
+>
 > **>>> TIER 0 NEWEST (operator, 2026-07-14 eve): ALL-IN-ONE + INLINE-FIRST + WEB PARITY.**
 > A direction statement while asking how to SSH (he'd let the AI do all VPS ops for
 > months). Full context in memory `feedback_all_in_one_inline_first.md`. The stance:
