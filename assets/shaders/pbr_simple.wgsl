@@ -461,7 +461,7 @@ const TAU: f32 = 6.28318530718;
 // gentled hardest (it drove the shimmer). Sum ~0.27.
 const WAVE1_LAMBDA: f32 = 2000.0;
 const WAVE1_CPS: f32 = 0.028;
-const WAVE1_SLOPE: f32 = 0.05;
+const WAVE1_SLOPE: f32 = 0.035;
 const WAVE1_DIR: vec3<f32> = vec3<f32>(0.7071068, 0.0, 0.7071068);
 const WAVE2_LAMBDA: f32 = 850.0;
 const WAVE2_CPS: f32 = 0.045;
@@ -501,7 +501,7 @@ const WAVE6_DIR: vec3<f32> = vec3<f32>(-0.6666667, 0.3333333, -0.6666667);
 //   WAVE_WARP_AMP2 / _MULT2  fine warp: the local snaking detail.
 //   WAVE_WARP_SEED  base noise seed; per-octave seed = this + lambda * 0.01 so
 //                   the six trains snake on decorrelated noise fields.
-const WAVE_WARP_AMP: f32 = 0.75;
+const WAVE_WARP_AMP: f32 = 1.35;
 const WAVE_WARP_MULT: f32 = 3.5;
 const WAVE_WARP_AMP2: f32 = 0.32;
 const WAVE_WARP_MULT2: f32 = 1.4;
@@ -1320,7 +1320,13 @@ fn cloud_field(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
 // renderer::clouds).
 fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     let thr = mix(1.0, -CLOUD_EDGE, clamp(coverage, 0.0, 1.0));
-    return smoothstep(thr, thr + CLOUD_EDGE, field);
+    // Dense-cloud edge sharpening (v0.887, operator's silver-lining photo:
+    // "the thicker/heavier the cloud... more defined edges"): the alpha
+    // ramp narrows as the field strengthens past the threshold, so heavy
+    // masses get crisp borders while thin haze keeps the soft ramp.
+    let base = smoothstep(thr, thr + CLOUD_EDGE, field);
+    let dense = smoothstep(thr, thr + CLOUD_EDGE * 0.35, field);
+    return mix(base, dense, base * base);
 }
 
 // Altitude envelope (increment 2): shapes density across the slab. r is in
@@ -2223,7 +2229,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let cos_v = clamp(dot(n_pert, view_dir), 0.0, 1.0);
     let tt = 1.0 - cos_v;
     let fres = tt * tt * tt;
-    let alpha = clamp(0.88 + 0.12 * fres, 0.0, 1.0);
+    // v0.887 (operator: "all the coasts kind of seem to be glowing"): the
+    // 0.88 body alpha let the albedo bake's bright shallow-shelf pixels
+    // bleed through as a luminous rim hugging every coastline. Near-opaque
+    // body; Fresnel still brightens grazing angles.
+    let alpha = clamp(0.96 + 0.04 * fres, 0.0, 1.0);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;

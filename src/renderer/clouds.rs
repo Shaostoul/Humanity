@@ -327,7 +327,12 @@ pub fn cloud_field(dir: [f32; 3], t: f32, seed: f32) -> f32 {
 /// (thr + edge <= 0). Monotonic in both arguments.
 pub fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
     let thr = mix(1.0, -CLOUD_EDGE, coverage.clamp(0.0, 1.0));
-    smoothstep(thr, thr + CLOUD_EDGE, field)
+    // v0.887 dense-cloud edge sharpening (keep in lockstep with the WGSL):
+    // the alpha ramp narrows as the field strengthens, so heavy masses get
+    // crisp borders while thin haze keeps the soft ramp.
+    let base = smoothstep(thr, thr + CLOUD_EDGE, field);
+    let dense = smoothstep(thr, thr + CLOUD_EDGE * 0.35, field);
+    base + (dense - base) * (base * base)
 }
 
 /// Mirrors `cloud_altitude_envelope` (increment 2): density shaping across

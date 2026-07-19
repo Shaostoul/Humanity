@@ -6823,12 +6823,18 @@ mod native_app {
         state.sun_world_pos = sun_dir * ONE_AU_M;
         // Emissive yellow-white core. params.w (emissive) cranked high so
         // tone mapping still leaves the Sun near-white on screen.
+        // Core = the SAME radial-glow type as the corona (v0.887, operator:
+        // "can you see hard seam of the sun's edge inside the corona?").
+        // An emissive sphere has a hard geometric silhouette; the type-17
+        // profile reaches zero exactly at the mesh edge, so a tight,
+        // high-intensity glow saturates white-hot at the center and hands
+        // over seamlessly to the wider corona shell - no edge anywhere.
         state.sun_material = state.renderer.add_material_full(
-            [1.0, 0.98, 0.85, 1.0],
+            [1.0, 0.96, 0.88, 1.0],
             0.0,
             1.0,
-            0.0,
-            10.0,
+            17.0,
+            30.0,
         );
         // Halo material — warmer orange, lower emissive. Rendered at a
         // larger scale in the scene to suggest a corona around the core.
@@ -14737,7 +14743,7 @@ mod native_app {
                                     .gui_state
                                     .settings
                                     .terrain_patch_budget
-                                    .clamp(64.0, 768.0)
+                                    .clamp(64.0, 3072.0)
                                     as usize;
                                 let params = chunks::ChunkParams {
                                     radius_m: d.radius,
@@ -14779,6 +14785,13 @@ mod native_app {
                                     if let Some(e) = cs.cache.get_mut(id) {
                                         e.last_used = frame;
                                     }
+                                }
+                                // TEMP diag (v0.887 bring-up): 1 Hz selection stats.
+                                if cs.frame % 60 == 0 {
+                                    
+                                    let dmax = selection.draws.iter().map(|d| d.depth).max().unwrap_or(0);
+                                    let hist: Vec<usize> = (0..=20).map(|dd| selection.draws.iter().filter(|x| x.depth == dd).count()).collect();
+                                    log::info!("[ChunkDiag] draws={} dmax={} sat={} req={} cache={} tiles={} resident={} budget={} alt={:.0}m refused=({:.0}px@d{}) hot(ve/bu/mi/sp)=({},{},{},{}) maxleaf=({:.0}px@d{}) hist={:?}", selection.draws.len(), dmax, selection.stats.budget_saturated, selection.build_requests.len(), cs.cache.len(), tiles_ref.is_some(), state.terrain_tiles.resident_count(), patch_budget, cam_local.length() - d.radius, selection.stats.max_refused_err, selection.stats.max_refused_depth, selection.stats.hot_vis_empty, selection.stats.hot_budget, selection.stats.hot_missing, selection.stats.hot_split, selection.stats.max_leaf_err, selection.stats.max_leaf_depth, hist);
                                 }
                                 // Budgeted patch builds, worst screen error
                                 // first; new meshes enter NEXT frame's
@@ -15151,17 +15164,34 @@ mod native_app {
                                         _ => state.solar_body_materials[3],
                                     }
                                 };
-                                celestial_objects.push(RenderObject {
-                                    position: Vec3::new(
-                                        render_off.x as f32,
-                                        render_off.y as f32,
-                                        render_off.z as f32,
-                                    ),
-                                    rotation,
-                                    scale: Vec3::splat(visual_scale),
-                                    mesh: body_mesh,
-                                    material,
-                                });
+                                if is_sun {
+                                    // Type-17 core (v0.887) blends: it must
+                                    // ride the transparent list or the alpha
+                                    // is stamped opaque.
+                                    celestial_transparent.push(RenderObject {
+                                        position: Vec3::new(
+                                            render_off.x as f32,
+                                            render_off.y as f32,
+                                            render_off.z as f32,
+                                        ),
+                                        rotation,
+                                        scale: Vec3::splat(visual_scale),
+                                        mesh: body_mesh,
+                                        material,
+                                    });
+                                } else {
+                                    celestial_objects.push(RenderObject {
+                                        position: Vec3::new(
+                                            render_off.x as f32,
+                                            render_off.y as f32,
+                                            render_off.z as f32,
+                                        ),
+                                        rotation,
+                                        scale: Vec3::splat(visual_scale),
+                                        mesh: body_mesh,
+                                        material,
+                                    });
+                                }
                                 // Sun corona halo (v0.886): radial-glow shell
                                 // (type 17) on a 3x sphere over the emissive
                                 // core - the halo material existed since the

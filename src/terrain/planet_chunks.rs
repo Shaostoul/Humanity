@@ -743,6 +743,18 @@ pub struct SelectStats {
     pub frustum_culled: usize,
     pub leaves: usize,
     pub budget_saturated: bool,
+    /// Diagnostics: the LARGEST screen error refused by the leaf budget
+    /// this selection, and the depth it happened at (0 = none refused).
+    pub max_refused_err: f32,
+    pub max_refused_depth: u8,
+    /// Diagnostics: branch taken by HOT (>1000 px) want-split nodes.
+    pub hot_vis_empty: usize,
+    pub hot_budget: usize,
+    pub hot_missing: usize,
+    pub hot_split: usize,
+    /// The largest screen error among FINAL LEAVES and its depth.
+    pub max_leaf_err: f32,
+    pub max_leaf_depth: u8,
 }
 
 /// Max-heap node ordered by screen-space error, so the worst error always
@@ -753,6 +765,14 @@ struct HeapNode {
     id: PatchId,
     corners: [DVec3; 3],
     bounds: PatchBounds,
+    /// The radial band this node was evaluated with (measured when built,
+    /// inherited-from-parent otherwise). Children of an UNBUILT node
+    /// inherit it, padded, so their assumed elevation tracks the LOCAL
+    /// terrain instead of the planet-wide conservative band (v0.887: on
+    /// Rainier the conservative mid-radius sits ~5 km below the summit
+    /// camera, so every unbuilt child read as kilometers away and the
+    /// descent stalled at depth 14 - coasts split fine, mountains never).
+    band: RadialBand,
 }
 
 impl PartialEq for HeapNode {
@@ -783,7 +803,20 @@ fn screen_error_px(
     params: &ChunkParams,
 ) -> f32 {
     let spacing = vertex_spacing_m(depth, params.radius_m);
-    let dist = ((cam_local_m - bounds.bound_center).length() - bounds.bound_radius).max(1.0);
+    // Tangentially-honest distance (v0.887, the smooth-foreground lock-in
+    // found parked on Rainier): UNBUILT patches carry the conservative
+    // planet-wide radial band, so their bounding spheres reached the camera
+    // from up to +-full-relief away - every patch within ~20 km claimed
+    // dist = 1 m through the floor, tied at maximum error, and starved the
+    // patches actually underfoot. Worse, the v0.883 budget-first rule then
+    // refused the build requests that would have replaced those fat bands
+    // with tight measured ones: permanent low-detail lock-in. Clamping the
+    // effective radius to the patch's own edge length keeps near patches
+    // near (their edge dwarfs their band) while distant unbuilt patches
+    // read at their true range and stop stealing the budget.
+    let edge = patch_edge_arc_m(depth, params.radius_m);
+    let eff_r = bounds.bound_radius.min(edge);
+    let dist = ((cam_local_m - bounds.bound_center).length() - eff_r).max(1.0);
     ((spacing / dist) * params.px_per_rad as f64) as f32
 }
 
@@ -834,7 +867,7 @@ pub fn select_patches(
         let band = is_built(&id).unwrap_or(params.band);
         if let Some(bounds) = visible(&corners, &band, &mut stats) {
             let err_px = screen_error_px(0, &bounds, cam_local_m, params);
-            heap.push(HeapNode { err_px, id, corners, bounds });
+            heap.push(HeapNode { err_px, id, corners, bounds, band });
         }
     }
 
@@ -867,16 +900,26 @@ pub fn select_patches(
                 stats.visited += 1;
                 let kid = node.id.child(i as u32);
                 let built = is_built(&kid);
-                let band = built.unwrap_or(params.band);
+                // Unbuilt children inherit the PARENT's band (padded ~60 m
+                // for deeper detail octaves + skirts): the parent's geometry
+                // already brackets the local elevation, so the child's
+                // assumed center sits AT the terrain instead of at the
+                // planet-wide band's mid-radius kilometers below a summit.
+                let band = built.unwrap_or(RadialBand {
+                    min_r_m: node.band.min_r_m - 60.0,
+                    max_r_m: node.band.max_r_m + 60.0,
+                });
                 if let Some(kb) = visible(kc, &band, &mut stats) {
                     if built.is_none() {
                         missing.push((kid, node.err_px));
                     }
                     let err_px = screen_error_px(kid.depth, &kb, cam_local_m, params);
-                    vis.push(HeapNode { err_px, id: kid, corners: *kc, bounds: kb });
+                    vis.push(HeapNode { err_px, id: kid, corners: *kc, bounds: kb, band });
                 }
             }
+            let hot = node.err_px > 1000.0;
             if vis.is_empty() {
+                if hot { stats.hot_vis_empty += 1; }
                 // The 4 children exactly cover the parent and their bounds
                 // are conservative SUPERSETS of their regions, so if every
                 // child is culled the parent region is provably invisible:
@@ -899,10 +942,16 @@ pub fn select_patches(
             let projected_total = leaves.len() + heap.len() + vis.len();
             if projected_total > params.max_leaves {
                 stats.budget_saturated = true;
+                if hot { stats.hot_budget += 1; }
+                if node.err_px > stats.max_refused_err {
+                    stats.max_refused_err = node.err_px;
+                    stats.max_refused_depth = node.id.depth;
+                }
                 leaves.push((node.id, node.err_px));
                 continue;
             }
             if !missing.is_empty() {
+                if hot { stats.hot_missing += 1; }
                 // RESTRICTED DESCENT: cannot split until every visible
                 // child mesh exists. Draw self this frame; the requests
                 // stream the children in over the next frames.
@@ -912,11 +961,18 @@ pub fn select_patches(
                 leaves.push((node.id, node.err_px));
                 continue;
             }
+            if hot { stats.hot_split += 1; }
             for k in vis {
                 heap.push(k);
             }
         } else {
             leaves.push((node.id, node.err_px));
+        }
+    }
+    for (lid, lerr) in &leaves {
+        if *lerr > stats.max_leaf_err {
+            stats.max_leaf_err = *lerr;
+            stats.max_leaf_depth = lid.depth;
         }
     }
     stats.leaves = leaves.len();

@@ -349,6 +349,11 @@
       "date": "2026-07-19",
       "decision": "v0.886.3 (loop heartbeat): VPS deploy for v0.886.2 failed on the recurring transient github.com:22 timeout; just sync recovered it (VPS at v0.886.2, relay healthy) but exposed a stale Justfile line - the sync recipe still hard-required web/activities (deleted in the 2026-07-05 trim). Guarded it like the deploy recipe already was.",
       "why": "Heartbeat found red CI; playbook remedy worked; the stale recipe would have failed every future manual just sync at its last step."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.887.0 max-graphics + LOD equilibrium: (1) LOD error metric fixed twice - eff_r clamps bound radius to patch edge (fat conservative bands made everything within 20km claim dist=1m and starve the underfoot) AND unbuilt children inherit the PARENTS measured band padded 60m (the planet-wide bands mid-radius sits km below summits, so unbuilt children on mountains read km-away and the descent stalled - coasts split, Rainier never). (2) MAX_OBJECTS 1024->4096; patch budget ceiling 3072 (default 2048, operator at 3072); diag confirms equilibrium maxleaf ~5px at the 4px target. (3) Settings LOAD fix - the three Planet LOD sliders saved since v0.873 but were never applied at boot (the operators graphics dont save bug). Defaults maxed (split 4px, budget 2048, builds 64). (4) Sun core -> type-17 radial glow in the transparent list (no silhouette seam inside the corona). (5) Water: alpha 0.96 (coast glow), coarse warp 1.35 + WAVE1 slope 0.035 (offshore corduroy). (6) Dense-cloud edge sharpening (silver-lining reference) + Rust mirrors synced. [ChunkDiag] 1Hz telemetry kept as permanent dev tooling.",
+      "why": "Operator max-graphics directive + field report. KNOWN COST: 3072 patches ~15 FPS on the 4070 (draw-call bound) - the budget is a slider; batching/instancing journaled as the perf arc. Remaining from the report: vegetation placeholders, true-scale body audit, god rays, cloud catalog, settle drift (~150m/s residual)."
     }
   ],
   "active_scopes_to_avoid": [

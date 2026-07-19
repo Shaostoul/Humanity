@@ -204,6 +204,11 @@ impl TerrainTiles {
 
     /// Any tiles on disk at all? (Cheap gate so integration points can skip
     /// per-sample work when the tier is not installed.)
+    /// Resident tile count (diagnostics).
+    pub fn resident_count(&self) -> usize {
+        self.resident.len()
+    }
+
     pub fn tier_installed(&self) -> bool {
         !self.resident.is_empty() || !self.pending.is_empty() || self.dir.is_dir()
     }

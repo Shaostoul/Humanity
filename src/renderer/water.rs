@@ -79,7 +79,7 @@ pub const WATER_ICE_LUM_HI: f32 = 0.6;
 /// `SEED + lambda * 0.01`. The warp only shifts phase (never amplitude), so the
 /// anti-alias fade still kills every octave from orbit (far field bit-identical)
 /// and it is decoupled from wave HEIGHT (slope), which stays gentle.
-pub const WAVE_WARP_AMP: f32 = 0.75;
+pub const WAVE_WARP_AMP: f32 = 1.35;
 pub const WAVE_WARP_MULT: f32 = 3.5;
 pub const WAVE_WARP_AMP2: f32 = 0.32;
 pub const WAVE_WARP_MULT2: f32 = 1.4;
@@ -106,7 +106,7 @@ pub struct WaveOctave {
 /// each with its own direction and speed so the sum genuinely moves and
 /// sparkles instead of sliding as one frozen pattern.
 pub const WAVE_OCTAVES: [WaveOctave; 6] = [
-    WaveOctave { lambda_m: 2000.0, cps: 0.028, slope: 0.05, dir: [0.707_106_8, 0.0, 0.707_106_8] },
+    WaveOctave { lambda_m: 2000.0, cps: 0.028, slope: 0.035, dir: [0.707_106_8, 0.0, 0.707_106_8] },
     WaveOctave { lambda_m: 850.0, cps: 0.045, slope: 0.05, dir: [0.962_250_4, 0.192_450_1, 0.192_450_1] },
     WaveOctave { lambda_m: 360.0, cps: 0.07, slope: 0.05, dir: [0.267_261_2, 0.534_522_5, 0.801_783_7] },
     WaveOctave { lambda_m: 150.0, cps: 0.105, slope: 0.045, dir: [-0.577_350_3, 0.577_350_3, 0.577_350_3] },

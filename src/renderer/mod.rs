@@ -40,7 +40,10 @@ use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
 /// silently truncated -- which made the home's machines vanish once they moved to their own render
 /// list. 1024 entries x 256-byte alignment = 256 KB, allocated once. The cap is a ceiling, so the
 /// per-frame cost stays proportional to the actual object count.
-const MAX_OBJECTS: usize = 1024;
+// 4096 since v0.887 (was 1024): max-graphics terrain wants 2000-3000
+// patches at the 4 px split tier, and the whole scene shares this pool.
+// Cost is one 1 MB dynamic uniform buffer - nothing for any modern GPU.
+const MAX_OBJECTS: usize = 4096;
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.
