@@ -29,10 +29,14 @@
 > screenshot_done.json), aim-at-sun captures. FOR THE OPERATOR TO JUDGE
 > (morning taste pass): tree/grass density + card look up close, god-ray
 > strength (godray_intensity 0.55), 7-family cloud variety, silver-lining
-> strength. KNOWN QUIRK JOURNALED: scene brightness follows the global game
-> hour while the sun position is longitude-aware, so staged captures far
-> from lon ~0 look dark at their local noon; fine live, wrong for staging -
-> unify when it starts to matter.
+> strength. STAGING NOTE (corrected): the sun light is constant-intensity
+> with the REAL astronomical direction (no hour-based dimming - an earlier
+> overnight diagnosis was wrong). Staged local noon = game hour 12 -
+> east_lon/15 (UTC-independent; sun_az cancels in planet_spin_from_time).
+> Verified bright at Sahara/Iceland; Oahu/Rainier staged shots still read
+> dusk-dim for unpinned reasons (suspect high-latitude sun elevation +
+> tone curve, or a spin-model detail + the probe 77x clock racing). The
+> {aim:sun} rig is verified exact (Everest god-ray capture).
 >
 > **>>> TIER 0 NEWEST (operator, 2026-07-14 eve): ALL-IN-ONE + INLINE-FIRST + WEB PARITY.**
 > A direction statement while asking how to SSH (he'd let the AI do all VPS ops for

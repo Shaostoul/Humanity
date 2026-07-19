@@ -383,6 +383,10 @@
     {
       "date": "2026-07-19",
       "decision": "v0.896.0: imagery-green biome gate for vegetation (surface_color sampled at scatter points - real Earth imagery IS the biome map; kills Sahara/glacier trees), vegetation cards take the radial up as normal (horizontal card normals rendered black at noon), ocean parking radius-gated in BOTH camera_request and the walk clamp (ocean mask misses fjords + may still be loading when scripted requests fire; ground >60m below sea = float at sea level, keeps Death Valley walkable). KNOWN QUIRK journaled: scene brightness follows global game hour while sun position is longitude-aware - staged captures far from lon 0 look dark at their local noon; unify when it matters."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "CORRECTION to the lighting-quirk note: the scene sun is CONSTANT intensity 2.5 with the real astronomical direction (only set_sun_light site, lib.rs ~15938) - there is NO hour-based dimming; the earlier diagnosis was wrong. Staged noon formula H = 12 - east_lon/15 is UTC-independent (sun_az cancels: spin = sun_az + (H-12)*TAU/24 and subsolar-at-L needs spin = sun_az - lon_rad). Sahara + Iceland staged noons verified bright; Oahu/Rainier staged shots still read dusk-dim - unpinned (suspects: high-latitude sun elevation + ACES curve, probe 77x clock racing the staged hour, or a spin-model subtlety). aim:sun rig verified exact at Everest. Do NOT re-flag the hour-dimming claim."
     }
   ],
   "active_scopes_to_avoid": [
