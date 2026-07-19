@@ -1768,31 +1768,69 @@ fn cloud_type_coord(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
 // Regime weights: overlapping smootherstep tents around four centers spread
 // across [0,1], normalized so they sum to 1 -- a smooth partition of unity, so
 // the blend is seamless everywhere. Mirrored + unit-tested in renderer::clouds.
-fn cloud_regime_weights(tc: f32) -> vec4<f32> {
-    let centers = vec4<f32>(0.0, 0.34, 0.67, 1.0);
-    let hw = 0.42;
-    var w = clamp(1.0 - abs(vec4<f32>(tc) - centers) / hw, vec4<f32>(0.0), vec4<f32>(1.0));
-    w = w * w * (vec4<f32>(3.0) - 2.0 * w); // smoothstep each tent
-    let s = w.x + w.y + w.z + w.w;
-    return w / max(s, 1.0e-4);
-}
-
-// Blend the per-regime parameter tables by the weights. The tables ARE the
-// design of each cloud family -- keep them byte-identical with the Rust mirror
-// (renderer::clouds::cloud_regime); the regime tests lock the blended output.
+// v0.893: 7 families (was 4). Interleaved so the original four keep their
+// type-coordinate anchors; the newcomers fill the gaps: altocumulus (patchy
+// mid-deck), cumulonimbus (storm towers to the slab top), nimbostratus
+// (dark rain overcast). Evaluated ONCE per ray, so 7-wide costs nothing.
+//
+// Blend the per-regime parameter tables by overlapping smoothstep tents
+// around 7 centers, normalized to a partition of unity. The tables ARE the
+// design of each cloud family -- keep them numerically identical with the
+// Rust mirror (renderer::clouds::cloud_regime); the regime tests lock the
+// blended output. IMPLEMENTATION NOTE: everything is accumulated in ONE
+// loop with scalar accumulators because naga's HLSL backend cannot pass
+// array<f32, N> values across function boundaries (FXC X3017 "cannot
+// convert from 'float[7]' to 'float'" -- crashed the v0.893 first cut at
+// pipeline creation). Local arrays indexed in-function are fine.
 fn cloud_regime(tc: f32) -> CloudRegime {
-    let w = cloud_regime_weights(tc);
-    //                          cirrus  cumulus  stratus  stratocu
-    let h_lo    = dot(w, vec4<f32>(0.68,  0.05,   0.00,    0.05));
-    let h_hi    = dot(w, vec4<f32>(1.00,  0.72,   0.20,    0.40));
-    let opacity = dot(w, vec4<f32>(0.34,  1.00,   0.80,    0.62));
-    let cover   = dot(w, vec4<f32>(0.06, -0.03,   0.34,    0.03));
-    let fray    = dot(w, vec4<f32>(1.00,  0.55,   0.18,    0.80));
-    let fine    = dot(w, vec4<f32>(0.35,  0.95,   0.30,    0.80));
-    let stretch = dot(w, vec4<f32>(3.40,  1.15,   1.50,    1.70));
-    let fil     = dot(w, vec4<f32>(0.90,  0.10,   0.04,    0.30));
-    let tint    = dot(w, vec4<f32>(1.00,  1.00,   0.80,    0.90));
-    return CloudRegime(h_lo, h_hi, opacity, cover, fray, fine, stretch, fil, tint);
+    var centers = array<f32, 7>(0.0, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0);
+    //                 cirrus altocu cumulus cumulonimb stratus nimbostr stratocu
+    var t_h_lo    = array<f32, 7>(0.68, 0.42, 0.05, 0.02, 0.00, 0.00, 0.05);
+    var t_h_hi    = array<f32, 7>(1.00, 0.62, 0.72, 1.00, 0.20, 0.45, 0.40);
+    var t_opacity = array<f32, 7>(0.34, 0.55, 1.00, 1.00, 0.80, 0.95, 0.62);
+    var t_cover   = array<f32, 7>(0.06, 0.02, -0.03, 0.00, 0.34, 0.42, 0.03);
+    var t_fray    = array<f32, 7>(1.00, 0.85, 0.55, 0.35, 0.18, 0.10, 0.80);
+    var t_fine    = array<f32, 7>(0.35, 0.90, 0.95, 0.90, 0.30, 0.25, 0.80);
+    var t_stretch = array<f32, 7>(3.40, 1.60, 1.15, 1.05, 1.50, 1.40, 1.70);
+    var t_fil     = array<f32, 7>(0.90, 0.25, 0.10, 0.05, 0.04, 0.02, 0.30);
+    var t_tint    = array<f32, 7>(1.00, 0.97, 1.00, 0.92, 0.80, 0.68, 0.90);
+    let hw = 0.22;
+    var s = 0.0;
+    var h_lo = 0.0;
+    var h_hi = 0.0;
+    var opacity = 0.0;
+    var cover = 0.0;
+    var fray = 0.0;
+    var fine = 0.0;
+    var stretch = 0.0;
+    var fil = 0.0;
+    var tint = 0.0;
+    for (var i = 0u; i < 7u; i = i + 1u) {
+        var wi = clamp(1.0 - abs(tc - centers[i]) / hw, 0.0, 1.0);
+        wi = wi * wi * (3.0 - 2.0 * wi); // smoothstep each tent
+        s = s + wi;
+        h_lo = h_lo + wi * t_h_lo[i];
+        h_hi = h_hi + wi * t_h_hi[i];
+        opacity = opacity + wi * t_opacity[i];
+        cover = cover + wi * t_cover[i];
+        fray = fray + wi * t_fray[i];
+        fine = fine + wi * t_fine[i];
+        stretch = stretch + wi * t_stretch[i];
+        fil = fil + wi * t_fil[i];
+        tint = tint + wi * t_tint[i];
+    }
+    let inv = 1.0 / max(s, 1.0e-4);
+    return CloudRegime(
+        h_lo * inv,
+        h_hi * inv,
+        opacity * inv,
+        cover * inv,
+        fray * inv,
+        fine * inv,
+        stretch * inv,
+        fil * inv,
+        tint * inv,
+    );
 }
 
 // Height envelope over the slab fraction h for a regime's [h_lo, h_hi] band:

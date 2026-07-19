@@ -433,44 +433,54 @@ pub struct CloudRegime {
     pub tint: f32,
 }
 
-/// Dot of a 4-weight vector with a per-regime parameter table.
-fn dot4(w: [f32; 4], v: [f32; 4]) -> f32 {
-    w[0] * v[0] + w[1] * v[1] + w[2] * v[2] + w[3] * v[3]
+/// Dot of a 7-weight vector with a per-regime parameter table (v0.893).
+fn dot7(w: [f32; 7], v: [f32; 7]) -> f32 {
+    let mut s = 0.0;
+    for i in 0..7 {
+        s += w[i] * v[i];
+    }
+    s
 }
 
-/// Mirrors `cloud_regime_weights`: overlapping smoothstep tents around four
-/// centers spread across [0, 1], normalized to a partition of unity. Smooth
-/// everywhere, so the four cloud families cross-fade with no hard boundary.
-pub fn cloud_regime_weights(tc: f32) -> [f32; 4] {
-    let centers = [0.0f32, 0.34, 0.67, 1.0];
-    let hw = 0.42f32;
-    let mut w = [0.0f32; 4];
+/// Mirrors `cloud_regime_weights`: overlapping smoothstep tents around SEVEN
+/// centers spread across [0, 1] (v0.893, was four), normalized to a partition
+/// of unity. Smooth everywhere, so the cloud families cross-fade with no hard
+/// boundary. The original four keep their anchors (0, 0.33, 0.67, 1);
+/// altocumulus, cumulonimbus and nimbostratus fill the gaps.
+pub fn cloud_regime_weights(tc: f32) -> [f32; 7] {
+    let centers = [0.0f32, 0.17, 0.33, 0.5, 0.67, 0.83, 1.0];
+    let hw = 0.22f32;
+    let mut w = [0.0f32; 7];
     let mut s = 0.0f32;
-    for i in 0..4 {
+    for i in 0..7 {
         let mut wi = (1.0 - (tc - centers[i]).abs() / hw).clamp(0.0, 1.0);
         wi = wi * wi * (3.0 - 2.0 * wi);
         w[i] = wi;
         s += wi;
     }
     let inv = 1.0 / s.max(1.0e-4);
-    [w[0] * inv, w[1] * inv, w[2] * inv, w[3] * inv]
+    let mut out = [0.0f32; 7];
+    for i in 0..7 {
+        out[i] = w[i] * inv;
+    }
+    out
 }
 
 /// Mirrors `cloud_regime`: blend the per-regime parameter tables by the
 /// weights. Keep these tables byte-identical with the WGSL `cloud_regime`.
 pub fn cloud_regime(tc: f32) -> CloudRegime {
     let w = cloud_regime_weights(tc);
-    //                         cirrus cumulus stratus stratocu
+    //           cirrus altocu cumulus cumulonimb stratus nimbostr stratocu
     CloudRegime {
-        h_lo: dot4(w, [0.68, 0.05, 0.00, 0.05]),
-        h_hi: dot4(w, [1.00, 0.72, 0.20, 0.40]),
-        opacity: dot4(w, [0.34, 1.00, 0.80, 0.62]),
-        cover_bias: dot4(w, [0.06, -0.03, 0.34, 0.03]),
-        fray: dot4(w, [1.00, 0.55, 0.18, 0.80]),
-        fine: dot4(w, [0.35, 0.95, 0.30, 0.80]),
-        stretch: dot4(w, [3.40, 1.15, 1.50, 1.70]),
-        filament: dot4(w, [0.90, 0.10, 0.04, 0.30]),
-        tint: dot4(w, [1.00, 1.00, 0.80, 0.90]),
+        h_lo: dot7(w, [0.68, 0.42, 0.05, 0.02, 0.00, 0.00, 0.05]),
+        h_hi: dot7(w, [1.00, 0.62, 0.72, 1.00, 0.20, 0.45, 0.40]),
+        opacity: dot7(w, [0.34, 0.55, 1.00, 1.00, 0.80, 0.95, 0.62]),
+        cover_bias: dot7(w, [0.06, 0.02, -0.03, 0.00, 0.34, 0.42, 0.03]),
+        fray: dot7(w, [1.00, 0.85, 0.55, 0.35, 0.18, 0.10, 0.80]),
+        fine: dot7(w, [0.35, 0.90, 0.95, 0.90, 0.30, 0.25, 0.80]),
+        stretch: dot7(w, [3.40, 1.60, 1.15, 1.05, 1.50, 1.40, 1.70]),
+        filament: dot7(w, [0.90, 0.25, 0.10, 0.05, 0.04, 0.02, 0.30]),
+        tint: dot7(w, [1.00, 0.97, 1.00, 0.92, 0.80, 0.68, 0.90]),
     }
 }
 
@@ -860,24 +870,31 @@ mod tests {
                 assert!((0.0..=1.0001).contains(&wi), "weight out of range: {wi}");
             }
         }
-        // Each family dominates near its own center (cirrus low tc, cumulus
-        // ~0.34, stratus ~0.67, stratocumulus high tc).
-        let argmax = |w: [f32; 4]| {
-            (0..4).max_by(|&a, &b| w[a].partial_cmp(&w[b]).unwrap()).unwrap()
+        // Each family dominates at its own center (v0.893 ladder: cirrus,
+        // altocumulus, cumulus, cumulonimbus, stratus, nimbostratus,
+        // stratocumulus).
+        let argmax = |w: [f32; 7]| {
+            (0..7).max_by(|&a, &b| w[a].partial_cmp(&w[b]).unwrap()).unwrap()
         };
         assert_eq!(argmax(cloud_regime_weights(0.0)), 0, "cirrus should peak at tc 0");
-        assert_eq!(argmax(cloud_regime_weights(0.34)), 1, "cumulus should peak mid-low");
-        assert_eq!(argmax(cloud_regime_weights(0.67)), 2, "stratus should peak mid-high");
-        assert_eq!(argmax(cloud_regime_weights(1.0)), 3, "stratocumulus should peak at tc 1");
+        assert_eq!(argmax(cloud_regime_weights(0.17)), 1, "altocumulus should peak at 0.17");
+        assert_eq!(argmax(cloud_regime_weights(0.34)), 2, "cumulus should peak at ~0.33");
+        assert_eq!(argmax(cloud_regime_weights(0.5)), 3, "cumulonimbus should peak mid");
+        assert_eq!(argmax(cloud_regime_weights(0.67)), 4, "stratus should peak at 0.67");
+        assert_eq!(argmax(cloud_regime_weights(0.83)), 5, "nimbostratus should peak at 0.83");
+        assert_eq!(argmax(cloud_regime_weights(1.0)), 6, "stratocumulus should peak at tc 1");
     }
 
     #[test]
-    fn regime_params_match_the_four_families() {
+    fn regime_params_match_the_seven_families() {
         // The blended params at each family's center must express its physical
-        // character: this is the "all cloud types" contract.
+        // character: this is the "all cloud types" contract (7 since v0.893).
         let cirrus = cloud_regime(0.0);
+        let altocu = cloud_regime(0.17);
         let cumulus = cloud_regime(0.34);
+        let cb = cloud_regime(0.5);
         let stratus = cloud_regime(0.67);
+        let nimbo = cloud_regime(0.83);
         let stratocu = cloud_regime(1.0);
         // Cirrus: HIGH in the slab, thin/faint, very streaky (stretch + fila).
         assert!(cirrus.h_lo > 0.5, "cirrus not high: h_lo {}", cirrus.h_lo);
@@ -895,6 +912,20 @@ mod tests {
         // Stratocumulus: low-mid, broken (high fray), moderate everything.
         assert!(stratocu.fray > 0.6, "stratocumulus not broken: {}", stratocu.fray);
         assert!(stratocu.h_hi > 0.3 && stratocu.h_hi < 0.55, "stratocu band off");
+        // Altocumulus (v0.893): patchy MID deck - band floats off the ground,
+        // broken, translucent-ish.
+        assert!(altocu.h_lo > 0.3, "altocumulus not mid-level: h_lo {}", altocu.h_lo);
+        assert!(altocu.fray > 0.6, "altocumulus not patchy: {}", altocu.fray);
+        assert!(altocu.opacity < 0.75, "altocumulus too solid: {}", altocu.opacity);
+        // Cumulonimbus (v0.893): reaches the slab top (storm tower), densest.
+        assert!(cb.h_hi > 0.8, "cumulonimbus not towering: h_hi {}", cb.h_hi);
+        assert!(cb.opacity > 0.9, "cumulonimbus not dense: {}", cb.opacity);
+        assert!(cb.h_lo < 0.15, "cumulonimbus base not low: {}", cb.h_lo);
+        // Nimbostratus (v0.893): dark low rain overcast - strongest coverage
+        // bias of all, darkest tint.
+        assert!(nimbo.cover_bias > 0.3, "nimbostratus not overcast: {}", nimbo.cover_bias);
+        assert!(nimbo.tint < 0.8, "nimbostratus not dark: {}", nimbo.tint);
+        assert!(nimbo.h_hi < 0.55, "nimbostratus band too tall: {}", nimbo.h_hi);
         // Determinism.
         assert_eq!(cloud_regime(0.5), cloud_regime(0.5));
     }
