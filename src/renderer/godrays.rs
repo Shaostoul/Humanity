@@ -85,10 +85,15 @@ impl GodrayPass {
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
-                    // Additive: the shader's rgb IS the added sunlight.
+                    // SCREEN blend (v0.897, was plain additive): out = src *
+                    // (1 - dst) + dst. Dark sky receives the full shafts;
+                    // already-bright pixels (sunlit cloud decks) receive
+                    // almost nothing, so the rays can never blow a white
+                    // cloud out further (operator: "god rays are blowing out
+                    // the clouds with super white").
                     blend: Some(wgpu::BlendState {
                         color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
+                            src_factor: wgpu::BlendFactor::OneMinusDst,
                             dst_factor: wgpu::BlendFactor::One,
                             operation: wgpu::BlendOperation::Add,
                         },
@@ -130,7 +135,7 @@ impl GodrayPass {
         aspect: f32,
         intensity: f32,
     ) {
-        if intensity <= 0.0 || sun_dir.length_squared() < 0.5 {
+        if intensity <= 0.001 || sun_dir.length_squared() < 0.5 {
             return;
         }
         // Project a point far along the sun direction into clip space.

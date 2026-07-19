@@ -1689,6 +1689,7 @@ impl Renderer {
         camera: &Camera,
         sun_dir: Vec3,
         view: &wgpu::TextureView,
+        weather_scale: f32,
     ) {
         // The SAME projection the celestial pass rendered depth with
         // (reverse-Z, far plane at 1e13) — a mismatched matrix would park
@@ -1709,7 +1710,7 @@ impl Renderer {
             camera.effective_position(),
             sun_dir,
             camera.aspect,
-            self.godray_intensity,
+            self.godray_intensity * weather_scale.clamp(0.0, 1.0),
         );
     }
 

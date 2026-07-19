@@ -1051,7 +1051,7 @@ impl AppConfig {
         // some of the graphics aren't actually saving"): these three SAVED
         // since v0.873 but were never applied at load, so every boot reset
         // them to defaults. Clamps mirror the Settings sliders.
-        state.settings.terrain_split_px = self.terrain_split_px.clamp(4.0, 24.0);
+        state.settings.terrain_split_px = self.terrain_split_px.clamp(2.0, 24.0);
         state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 6144.0);
         state.settings.terrain_builds_per_frame =
             self.terrain_builds_per_frame.clamp(6.0, 64.0);

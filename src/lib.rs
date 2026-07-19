@@ -2824,7 +2824,7 @@ mod native_app {
         // screenshots show exactly what the player sees.
         state
             .renderer
-            .render_godrays_onto(&state.camera, sun_dir_f, &capture_view);
+            .render_godrays_onto(&state.camera, sun_dir_f, &capture_view, godray_weather_scale(state));
         state
             .renderer
             .render_scene_onto(&state.camera, lists.opaque, &capture_view);
@@ -2953,6 +2953,42 @@ mod native_app {
             0.0
         };
         crate::dev_travel::planet_spin_from_time(hour, sun_az)
+    }
+
+    /// Overhead-cloud dimming for the god-ray pass (v0.897): sample the live
+    /// weather grid at the camera's planet-frame position. Under a real
+    /// overcast (MODIS says clouds here) the shafts fade to ~15% instead of
+    /// punching through the deck at full strength - thick water blocks sun.
+    /// Same envelope curve the sky shader uses (smoothstep 0.35..0.9).
+    fn godray_weather_scale(state: &EngineState) -> f32 {
+        let Some(grid) = state.weather_grid.as_ref() else {
+            return 1.0;
+        };
+        if state.frame_lock_body.as_deref() != Some("earth") {
+            return 1.0;
+        }
+        let dir = state.frame_lock_anchor.normalize_or_zero();
+        if dir.length_squared() < 0.5 {
+            return 1.0;
+        }
+        let w = crate::renderer::WEATHER_MAP_W as usize;
+        let h = crate::renderer::WEATHER_MAP_H as usize;
+        // Same equirect mapping as the sky shader's cloud_weather.
+        let lon = (-dir.z).atan2(dir.x);
+        let lat = dir.y.clamp(-1.0, 1.0).asin();
+        let u = (lon * std::f64::consts::FRAC_1_PI * 0.5 + 0.5).rem_euclid(1.0);
+        let v = (0.5 - lat * std::f64::consts::FRAC_1_PI).clamp(0.0, 1.0);
+        let x = ((u * w as f64) as usize).min(w - 1);
+        let y = ((v * h as f64) as usize).min(h - 1);
+        let idx = (y * w + x) * 2;
+        let (Some(&r), Some(&g)) = (grid.get(idx), grid.get(idx + 1)) else {
+            return 1.0;
+        };
+        let frac = r as f32 / 255.0;
+        let valid = g as f32 / 255.0;
+        let t = ((frac - 0.35) / 0.55).clamp(0.0, 1.0);
+        let env = t * t * (3.0 - 2.0 * t);
+        1.0 - 0.85 * env * valid
     }
 
     /// F6 location bookmark save (v0.890). Captures the camera's EXACT world
@@ -7635,6 +7671,11 @@ mod native_app {
         /// every 30 min). None when the setting is off. Polled per frame;
         /// each grid is one queue.write_texture into the weather map.
         weather_rx: Option<std::sync::mpsc::Receiver<Vec<u8>>>,
+        /// Latest uploaded live-weather grid (RG8, WEATHER_MAP_W x H), kept
+        /// CPU-side so the god-ray pass can sample the overhead cloud cover
+        /// (v0.897): thick real cloud masses BLOCK the sun, so the shafts
+        /// fade out under an overcast instead of blasting through the deck.
+        weather_grid: Option<Vec<u8>>,
         /// Orbital home station (v0.881): the homestead's Earth-centered
         /// position on its 400 km LEO orbit, recomputed each frame (phase =
         /// wall-clock UTC x the real orbital rate, so the orbit persists
@@ -8934,6 +8975,7 @@ mod native_app {
                 // when the setting allows network use. The renderer's
                 // weather texture stays zero (= procedural sky) until the
                 // first grid arrives.
+                weather_grid: None,
                 weather_rx: if gui_state.settings.live_weather {
                     let (tx, rx) = std::sync::mpsc::channel();
                     crate::net::live_weather::spawn(tx);
@@ -15087,7 +15129,7 @@ mod native_app {
                                     .gui_state
                                     .settings
                                     .terrain_split_px
-                                    .clamp(4.0, 24.0);
+                                    .clamp(2.0, 24.0);
                                 let patch_budget = state
                                     .gui_state
                                     .settings
@@ -20241,7 +20283,7 @@ mod native_app {
                                 // bodies silhouettes) toward the sun BEFORE
                                 // the scene pass clears depth. Additive;
                                 // self-gates when the sun is off-camera.
-                                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view);
+                                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray_weather_scale(state));
                                 // Pass 2: Scene objects (LoadOp::Load preserves stars + bodies)
                                 // -- Orbital home offset (v0.881) --
                                 // The ENTIRE scene pass is the home frame's
@@ -20757,6 +20799,7 @@ mod native_app {
                                     state
                                         .renderer
                                         .update_weather_map(&state.renderer.queue, &grid);
+                                    state.weather_grid = Some(grid);
                                     log::info!("[Weather] live cloud map applied to sky");
                                 }
                             }

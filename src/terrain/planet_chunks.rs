@@ -180,10 +180,20 @@ pub const PATCH_MESH_BYTES: usize = 1056 * 32 + 1056 * 4;
 pub const TREE_MIN_DEPTH: u8 = 15;
 /// Patch depth at which GRASS tufts appear (27 m patches, walking range).
 pub const GRASS_MIN_DEPTH: u8 = 18;
-/// Trees per tree-depth patch (candidates; slope/elevation gates thin them).
-pub const TREES_PER_PATCH: u32 = 40;
-/// Grass tufts per grass-depth patch.
-pub const GRASS_PER_PATCH: u32 = 24;
+/// Vegetation cell grid (v0.897): plant positions come from a PLANET-FIXED
+/// lat/lon hash grid, not from each patch's own rng - so the same plants
+/// stand in the same spots at every LOD depth. (They used to reshuffle on
+/// every split: with 40 trees per patch the whole forest visibly rolled on
+/// each LOD swap - a big share of the residual "terrain flicker" the
+/// operator reported, and why grass seemed to vanish near the player.)
+/// Cell size is radians of arc on the unit sphere.
+pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
+/// Expected trees per tree cell at the equator (~864 trees per km^2);
+/// scaled by cos(lat) so density stays constant per square km.
+pub const TREES_PER_CELL: u32 = 42;
+/// Grass cell size (~33 m) and tufts per cell (~0.033 per m^2).
+pub const GRASS_CELL_RAD: f64 = 5.2e-6;
+pub const GRASS_PER_CELL: u32 = 36;
 /// Real-meter elevation ceiling for trees (a global treeline placeholder).
 pub const TREELINE_M: f32 = 1700.0;
 
@@ -1374,22 +1384,12 @@ pub fn build_patch_mesh(
         }
     }
 
-    // ── Procedural vegetation (v0.888) ── crossed-quad trunks + diamond
-    // canopies, grass as crossed cards. Deterministic xorshift from the
-    // PatchId; positions from random barycentric samples of the elevation
-    // grid, so trees stand ON the drawn ground by construction.
+    // ── Procedural vegetation (v0.888; planet-fixed cells v0.897) ──
+    // Crossed-quad trunks + diamond canopies, grass as crossed cards. Plant
+    // positions and looks come from a PLANET-FIXED lat/lon cell grid hashed
+    // per cell, so every patch depth regenerates the identical plants and
+    // LOD swaps never reshuffle the forest.
     {
-        let mut rng: u64 = (id.face as u64)
-            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
-            ^ (id.path as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
-            ^ ((id.depth as u64) << 56)
-            ^ 0x94D0_49BB_1331_11EB;
-        let mut next = move || {
-            rng ^= rng << 13;
-            rng ^= rng >> 7;
-            rng ^= rng << 17;
-            rng
-        };
         let range_m = match source {
             ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
             ElevationSource::Noise(_) => 8000.0,
@@ -1427,90 +1427,162 @@ pub fn build_patch_mesh(
         };
         let want_trees = id.depth >= TREE_MIN_DEPTH;
         let want_grass = id.depth >= GRASS_MIN_DEPTH;
-        // v0.894: trees at EVERY depth past their min. They used to stop at
-        // depth 17, so when a patch refined near the camera its trees
-        // VANISHED and only grass remained - forests existed only at ridge
-        // distance (probe capture 2026-07-19, Oahu at 3 m). Each split
-        // quarters the patch area, so a fixed-point accept test on the
-        // deterministic rng keeps the per-area tree density CONSTANT across
-        // depths instead of quadrupling per level (the old 15..18 window
-        // also had that flaw) - refining a patch now keeps its woodland.
-        let tree_keep_shift = (2 * id.depth.saturating_sub(TREE_MIN_DEPTH) as u32).min(31);
-        let tree_candidates = if want_trees { TREES_PER_PATCH } else { 0 };
-        let grass_candidates = if want_grass { GRASS_PER_PATCH } else { 0 };
-        for ci in 0..(tree_candidates + grass_candidates) {
-            let is_tree = ci < tree_candidates;
-            if is_tree && tree_keep_shift > 0 && (next() & ((1u64 << tree_keep_shift) - 1)) != 0 {
-                continue;
-            }
-            // Random barycentric point on the patch's elevation grid.
-            let mut a = (next() % 1000) as f64 / 1000.0;
-            let mut b = (next() % 1000) as f64 / 1000.0;
-            if a + b > 1.0 {
-                a = 1.0 - a;
-                b = 1.0 - b;
-            }
-            let dir = (corners[0] * (1.0 - a - b) + corners[1] * a + corners[2] * b).normalize();
-            // Elevation at the point through the SAME sampler as the grid.
-            let (e, _tile) = match source {
-                ElevationSource::Heightmap { hm, tiles, .. } => {
-                    tile_or_base(hm, *tiles, dir, id.depth)
+        // Spherical point-in-triangle: a direction is inside the patch when
+        // it sits on the same side of each edge's great-circle plane as the
+        // opposite corner.
+        let cn = [
+            corners[0].normalize(),
+            corners[1].normalize(),
+            corners[2].normalize(),
+        ];
+        let edge_n = [
+            cn[0].cross(cn[1]),
+            cn[1].cross(cn[2]),
+            cn[2].cross(cn[0]),
+        ];
+        let edge_s = [
+            edge_n[0].dot(cn[2]),
+            edge_n[1].dot(cn[0]),
+            edge_n[2].dot(cn[1]),
+        ];
+        let inside =
+            |d: glam::DVec3| -> bool { (0..3).all(|i| edge_n[i].dot(d) * edge_s[i] >= 0.0) };
+        // Patch bbox in lat/lon; unwrap longitudes into a continuous window
+        // across the antimeridian.
+        let mut lats = [0.0f64; 3];
+        let mut lons = [0.0f64; 3];
+        for i in 0..3 {
+            lats[i] = cn[i].y.clamp(-1.0, 1.0).asin();
+            lons[i] = (-cn[i].z).atan2(cn[i].x);
+        }
+        let lat_min = lats.iter().cloned().fold(f64::MAX, f64::min);
+        let lat_max = lats.iter().cloned().fold(f64::MIN, f64::max);
+        let raw_span = lons.iter().cloned().fold(f64::MIN, f64::max)
+            - lons.iter().cloned().fold(f64::MAX, f64::min);
+        if raw_span > std::f64::consts::PI {
+            for l in lons.iter_mut() {
+                if *l < 0.0 {
+                    *l += std::f64::consts::TAU;
                 }
-                ElevationSource::Noise(sm) => (sm.elevation_at(dir.as_vec3()), false),
-            };
-            let elev_m = (e - sea) * range_m;
-            // Land only, below the treeline, above the beach.
-            if elev_m < 3.0 || elev_m > TREELINE_M {
+            }
+        }
+        let lon_min = lons.iter().cloned().fold(f64::MAX, f64::min);
+        let lon_max = lons.iter().cloned().fold(f64::MIN, f64::max);
+        // No vegetation on the polar caps (lon cells degenerate there and
+        // the biome gate would reject the ice anyway).
+        let polar = lat_max.abs().max(lat_min.abs()) > 1.53;
+        for pass in 0..2 {
+            let is_tree = pass == 0;
+            if polar || (is_tree && !want_trees) || (!is_tree && !want_grass) {
                 continue;
             }
-            // Biome gate (v0.896): vegetation only where the surface COLOR is
-            // actually green-dominant - the same imagery/ramp the ground
-            // renders with, sampled at the scatter point. Kills the trees
-            // that grew on Sahara sand, glaciers, and bare rock (the old
-            // gates were elevation-only); real Earth imagery becomes the
-            // planet-wide biome map for free, and procedural planets keep
-            // vegetation on their green-ramp lowlands.
-            let sc = surface_color(def, albedo, dir.as_vec3(), e);
-            if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
-                continue;
-            }
-            let r = radius_m
-                * if bathymetric {
-                    displaced_radius_f64_true(def, e as f64)
-                } else {
-                    displaced_radius_f64(def, e as f64)
-                };
-            let base = ((dir * r) - anchor).as_vec3();
-            let up = dir.as_vec3();
-            // Random azimuth for the crossed cards.
-            let az = (next() % 6283) as f32 / 1000.0;
-            let east = glam::Vec3::Y.cross(up).normalize_or_zero();
-            let north = up.cross(east).normalize_or_zero();
-            let side_a = (east * az.cos() + north * az.sin()).normalize_or_zero();
-            let side_b = up.cross(side_a).normalize_or_zero();
-            if side_a.length_squared() < 0.5 {
-                continue; // polar degenerate
-            }
-            if !is_tree {
-                // Grass tuft: two crossed cards, 0.5 m tall, straw-green.
-                let g = 0.25 + (next() % 100) as f32 / 400.0;
-                let col = [0.24, 0.34 + (next() % 100) as f32 / 1000.0, 0.10];
-                emit_card(base, up, side_a, 0.5, 0.0, g, col, &mut vertices, &mut indices);
-                emit_card(base, up, side_b, 0.5, 0.0, g, col, &mut vertices, &mut indices);
-            } else {
-                // Tree: trunk cards (brown) + canopy cards (dark green),
-                // 7-13 m tall - a believable conifer silhouette at range.
-                let h = 7.0 + (next() % 100) as f32 / 100.0 * 6.0;
-                let trunk = [0.30, 0.22, 0.13];
-                let canopy = [
-                    0.08 + (next() % 60) as f32 / 1000.0,
-                    0.26 + (next() % 80) as f32 / 1000.0,
-                    0.10,
-                ];
-                emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
-                emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
-                emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
-                emit_card(base, up, side_b, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+            let cell = if is_tree { TREE_CELL_RAD } else { GRASS_CELL_RAD };
+            let per_cell = if is_tree { TREES_PER_CELL } else { GRASS_PER_CELL };
+            let salt: u64 = if is_tree { 0x51F0_A11C } else { 0x9A55_77EE };
+            let ylo = ((lat_min / cell).floor() as i64) - 1;
+            let yhi = ((lat_max / cell).floor() as i64) + 1;
+            let xlo = ((lon_min / cell).floor() as i64) - 1;
+            let xhi = ((lon_max / cell).floor() as i64) + 1;
+            for iy in ylo..=yhi {
+                let cell_lat = (iy as f64 + 0.5) * cell;
+                // Constant per-AREA density: lon cells narrow toward the
+                // poles by cos(lat), so thin the per-cell count to match.
+                let count = ((per_cell as f64) * cell_lat.cos().max(0.0)).round() as u32;
+                for ix in xlo..=xhi {
+                    // Per-cell deterministic stream, independent of the
+                    // evaluating patch. Every item draws a FIXED number of
+                    // randoms (6) before any gate, so neighbouring patches
+                    // that share this cell stay stream-aligned and agree on
+                    // every plant's position and look.
+                    let mut s = (ix as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                        ^ (iy as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
+                        ^ salt;
+                    // A zero state would stick; xorshift needs a nonzero seed.
+                    if s == 0 {
+                        s = 0x94D0_49BB_1331_11EB;
+                    }
+                    let mut next = move || {
+                        s ^= s << 13;
+                        s ^= s >> 7;
+                        s ^= s << 17;
+                        s
+                    };
+                    for _ in 0..count {
+                        let r0 = next();
+                        let r1 = next();
+                        let r2 = next();
+                        let r3 = next();
+                        let r4 = next();
+                        let r5 = next();
+                        let lat = (iy as f64 + (r0 % 4096) as f64 / 4096.0) * cell;
+                        let lon = (ix as f64 + (r1 % 4096) as f64 / 4096.0) * cell;
+                        let cl = lat.cos();
+                        let dir =
+                            glam::DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
+                        if !inside(dir) {
+                            continue;
+                        }
+                        // Elevation through the SAME sampler as the grid.
+                        let (e, _tile) = match source {
+                            ElevationSource::Heightmap { hm, tiles, .. } => {
+                                tile_or_base(hm, *tiles, dir, id.depth)
+                            }
+                            ElevationSource::Noise(sm) => {
+                                (sm.elevation_at(dir.as_vec3()), false)
+                            }
+                        };
+                        let elev_m = (e - sea) * range_m;
+                        // Land only, below the treeline, above the beach.
+                        if elev_m < 3.0 || elev_m > TREELINE_M {
+                            continue;
+                        }
+                        // Biome gate (v0.896): vegetation only where the
+                        // surface COLOR is green-dominant - the same
+                        // imagery/ramp the ground renders with. Real Earth
+                        // imagery is the planet-wide biome map for free.
+                        let sc = surface_color(def, albedo, dir.as_vec3(), e);
+                        if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
+                            continue;
+                        }
+                        let r = radius_m
+                            * if bathymetric {
+                                displaced_radius_f64_true(def, e as f64)
+                            } else {
+                                displaced_radius_f64(def, e as f64)
+                            };
+                        let base = ((dir * r) - anchor).as_vec3();
+                        let up = dir.as_vec3();
+                        let az = (r2 % 6283) as f32 / 1000.0;
+                        let east = glam::Vec3::Y.cross(up).normalize_or_zero();
+                        let north = up.cross(east).normalize_or_zero();
+                        let side_a = (east * az.cos() + north * az.sin()).normalize_or_zero();
+                        let side_b = up.cross(side_a).normalize_or_zero();
+                        if side_a.length_squared() < 0.5 {
+                            continue; // polar degenerate
+                        }
+                        if !is_tree {
+                            // Grass tuft: two crossed cards, straw-green.
+                            let g = 0.25 + (r3 % 100) as f32 / 400.0;
+                            let col = [0.24, 0.34 + (r4 % 100) as f32 / 1000.0, 0.10];
+                            emit_card(base, up, side_a, 0.5, 0.0, g, col, &mut vertices, &mut indices);
+                            emit_card(base, up, side_b, 0.5, 0.0, g, col, &mut vertices, &mut indices);
+                        } else {
+                            // Tree: trunk cards (brown) + canopy cards (dark
+                            // green), 7-13 m - a conifer silhouette at range.
+                            let h = 7.0 + (r3 % 100) as f32 / 100.0 * 6.0;
+                            let trunk = [0.30, 0.22, 0.13];
+                            let canopy = [
+                                0.08 + (r4 % 60) as f32 / 1000.0,
+                                0.26 + (r5 % 80) as f32 / 1000.0,
+                                0.10,
+                            ];
+                            emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                            emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                            emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                            emit_card(base, up, side_b, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                        }
+                    }
+                }
             }
         }
     }
