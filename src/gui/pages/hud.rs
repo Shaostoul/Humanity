@@ -420,6 +420,39 @@ pub fn draw(
             // the HUD stays quiet at range. No room occlusion on purpose: crew WALK between
             // rooms (a room filter would blink the plate at every doorway), and the amber
             // figure itself is the far-range marker, so no dot LOD either.
+            // ── Tracked target markers (v0.885, operator design) ── an
+            // encapsulating ring + label for map-selected objects; v1 = the
+            // orbital home station. Always visible when tracked (that is the
+            // point of tracking), label + distance next to the ring, brighter
+            // when the camera looks near it - the machine-marker pattern
+            // scaled up for world-sized targets.
+            for (name, pos, dist_m) in &state.target_markers {
+                let Some(sp) = world_to_screen(*pos, view_proj, screen) else { continue };
+                let to_target = (*pos - cam_pos).normalize_or_zero();
+                let fwd = (view_proj.inverse() * glam::Vec4::new(0.0, 0.0, 1.0, 0.0))
+                    .truncate()
+                    .normalize_or_zero();
+                // Focus factor: 1 when looking straight at it. fwd from the
+                // inverse view-proj is approximate but monotonic - good
+                // enough to brighten the ring on approach.
+                let focus = to_target.dot(-fwd).clamp(0.0, 1.0).powi(8);
+                let ring_col = if focus > 0.5 { theme.accent() } else { Color32::from_white_alpha(140) };
+                painter.circle_stroke(sp, 14.0, egui::Stroke::new(1.6, ring_col));
+                painter.circle_stroke(sp, 2.0, egui::Stroke::new(1.2, ring_col));
+                let dist_txt = if *dist_m >= 1000.0 {
+                    format!("{name} · {:.0} km", dist_m / 1000.0)
+                } else {
+                    format!("{name} · {:.0} m", dist_m)
+                };
+                text_shadowed(
+                    painter,
+                    sp + Vec2::new(18.0, 0.0),
+                    Align2::LEFT_CENTER,
+                    &dist_txt,
+                    12.0,
+                    if focus > 0.5 { theme.accent() } else { Color32::WHITE },
+                );
+            }
             for label in &state.crew_labels {
                 let cam_dist = (label.pos - cam_pos).length();
                 let Some((name, activity)) = crew_label_lines(&label.name, &label.activity, cam_dist) else {

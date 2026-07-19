@@ -2517,6 +2517,13 @@ pub struct GuiState {
     /// relay-driven crew member. Rebuilt every frame from the RemoteNpc components
     /// (lib.rs, just before hud::draw), so it is always in sync with the amber figures.
     pub crew_labels: Vec<CrewLabel>,
+    /// Tracked target markers (v0.885, operator design: select things on the
+    /// map, see a ring + label in-world). v1 carries the orbital home
+    /// station; planets/ships/enemies join as they become selectable.
+    /// (name, render-space position, distance in meters).
+    pub target_markers: Vec<(String, glam::Vec3, f64)>,
+    /// Maps/Cosmos toggle: show the home-station marker in-world.
+    pub track_station: bool,
     // ── NPC walk-up talk (v0.797, operator: "I can't interact with NPCs at all") ──
     /// Relay entity_id of the crew NPC the player faces within talk range
     /// (~2.5 m look cone). Recomputed each frame in lib.rs like
@@ -4400,6 +4407,8 @@ impl Default for GuiState {
             machine_label_name_dist: 13.0,
             machine_label_card_dist: 8.0,
             crew_labels: Vec::new(),
+            target_markers: Vec::new(),
+            track_station: true,
             targeted_npc: None,
             npc_prompt: String::new(),
             npc_talk_target: None,

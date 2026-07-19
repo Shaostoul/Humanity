@@ -3072,11 +3072,28 @@ mod native_app {
         // there to clear.
         let surface_radius = if let Some((lat, lon)) = latlon {
             let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
+            // Tile-aware parking (v0.885): sample the DRAWN elevation (base +
+            // detail noise + streamed tiles when resident) so a low park over
+            // a tile-data peak (Fuji) starts ABOVE the drawn cone instead of
+            // inside it. ensure_region is a cheap no-op when already
+            // resident; if the tile is not loaded yet, the detail-inclusive
+            // base still beats the old bare-grid estimate, and the surface
+            // clamp heals the remainder once tiles stream in.
+            if body_id == "earth" {
+                state.terrain_tiles.ensure_region(lat as f32, lon as f32);
+                let _ = state.terrain_tiles.poll();
+            }
+            let detail = state
+                .planet_defs
+                .get(&body_id)
+                .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
+            let tiles = (body_id == "earth" && state.terrain_tiles.tier_installed())
+                .then_some(&state.terrain_tiles);
             ground_radius_m(
                 state.planet_defs.get(&body_id),
                 state.planet_heightmaps.get(&body_id),
-                None,
-                None,
+                detail.as_ref(),
+                tiles,
                 unit,
             )
         } else {
@@ -9787,6 +9804,18 @@ mod native_app {
                         let off = new_pos - state.ship_world_pos;
                         state.station_off =
                             Vec3::new(off.x as f32, off.y as f32, off.z as f32);
+                        // Target marker (v0.885): the station's render-space
+                        // position IS station_off (render origin = the ship
+                        // frame). Shown when tracked and not aboard.
+                        state.gui_state.target_markers.clear();
+                        let station_dist = off.length();
+                        if state.gui_state.track_station && station_dist > 1_000.0 {
+                            state.gui_state.target_markers.push((
+                                "Home Station".to_string(),
+                                state.station_off,
+                                station_dist,
+                            ));
+                        }
                     }
 
                     // Poll hot-reload for file changes
