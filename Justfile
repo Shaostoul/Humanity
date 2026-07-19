@@ -134,7 +134,7 @@ sync:
         for f in /opt/Humanity/web/pages/*.js; do \
             [ -f \"\$f\" ] && cp \"\$f\" \"/var/www/humanity/pages/\$(basename \"\$f\")\"; \
         done && \
-        rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ && \
+        ( ! [ -d /opt/Humanity/web/activities ] || rsync -a /opt/Humanity/web/activities/ /var/www/humanity/activities/ ) && \
         rsync -a -m --include='*/' --include='*.json' --exclude='*' /opt/Humanity/data/ /var/www/humanity/data/ && \
         systemctl restart humanity-relay && \
         sleep 2 && systemctl is-active humanity-relay \

@@ -344,6 +344,11 @@
       "date": "2026-07-19",
       "decision": "v0.886.2 (loop iteration 3, housekeeping): session history docs/history/2026-07-18.md written (the v0.874-v0.886 planet-quality marathon + lessons + open threads), PRIORITIES 6a marked v1-shipped with remaining slices, CI green (deploys + verify), relay healthy (2 peers), version synced.",
       "why": "Session-end convention while the operator is AFK: everything durable is on disk. Loop winds down to a slow health heartbeat - remaining backlog items (ocean Stage 2 architecture, marker extensions) genuinely want operator taste; solo shipping them risks rework. The loop keeps a slow cadence to catch CI/relay regressions until the operator returns."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.886.3 (loop heartbeat): VPS deploy for v0.886.2 failed on the recurring transient github.com:22 timeout; just sync recovered it (VPS at v0.886.2, relay healthy) but exposed a stale Justfile line - the sync recipe still hard-required web/activities (deleted in the 2026-07-05 trim). Guarded it like the deploy recipe already was.",
+      "why": "Heartbeat found red CI; playbook remedy worked; the stale recipe would have failed every future manual just sync at its last step."
     }
   ],
   "active_scopes_to_avoid": [
