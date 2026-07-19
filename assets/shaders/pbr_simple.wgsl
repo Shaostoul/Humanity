@@ -587,6 +587,40 @@ fn detail_octave_fade(lambda_m: f32, footprint_m: f32) -> f32 {
 // freq = planet radius / wavelength. Used by BOTH the wave crest domain-warp
 // (wave_octave, below) and the land detail octaves (land_detail_factor), so it
 // is declared here ahead of the first caller.
+// ── Camera-relative micro detail (v0.902) ──
+// Sub-8 m ground/water texture was impossible in the planet-frame f32
+// domain (unit-dir quantization ~0.4 m at ground level banded anything
+// finer). The fix: per-fragment offsets are taken CAMERA-RELATIVE (small
+// => full f32 precision) and anchored to the planet by the camera's
+// planet-frame position mod 64 m, poked from Rust into the
+// light0_cone_inner.yzw pads. Anchor jumps are exact 64 m steps, so any
+// pattern with a period dividing 64 m is seamless across them.
+fn micro_hash(c: vec3<f32>) -> f32 {
+    return fract(sin(dot(c, vec3<f32>(127.1, 311.7, 74.7))) * 43758.5453);
+}
+
+// Trilinear value noise on a PERIODIC integer lattice (period = 64 m /
+// wavelength, so the anchor's 64 m jumps land on exact periods).
+fn micro_noise(p: vec3<f32>, period: f32) -> f32 {
+    let i0 = floor(p);
+    let f = p - i0;
+    let u = f * f * (3.0 - 2.0 * f);
+    var s = 0.0;
+    for (var dz = 0; dz < 2; dz = dz + 1) {
+        for (var dy = 0; dy < 2; dy = dy + 1) {
+            for (var dx = 0; dx < 2; dx = dx + 1) {
+                let c = i0 + vec3<f32>(f32(dx), f32(dy), f32(dz));
+                let cc = c - floor(c / period) * period;
+                let w = mix(1.0 - u.x, u.x, f32(dx))
+                    * mix(1.0 - u.y, u.y, f32(dy))
+                    * mix(1.0 - u.z, u.z, f32(dz));
+                s = s + w * micro_hash(cc);
+            }
+        }
+    }
+    return s;
+}
+
 fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
     var w = dir * dir;
     w = w * w;
@@ -2311,11 +2345,40 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);
     // Deep open-ocean body color (linear). The seabed under the shell keeps
     // the graded bathymetry albedo; this is only the water column's own hue.
-    let deep = vec3<f32>(0.013, 0.055, 0.11);
+    var deep = vec3<f32>(0.013, 0.055, 0.11);
+    // Regional sea variation (v0.902, operator: "waves all uniform, almost
+    // looks like tiling... static"): two planet-pinned noise fields at
+    // ~25 km and ~2.5 km modulate hue (chlorophyll-green patches, current
+    // streaks) AND wave-texture strength, so no two screenfuls of ocean
+    // repeat and the tiling impression dies at altitude.
+    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.6
+        + surface_detail_noise(dir, r_render / 2600.0, 733.0) * 0.4;
+    let greener = vec3<f32>(0.016, 0.085, 0.105);
+    deep = mix(deep, greener, smoothstep(0.42, 0.75, sea_var));
+    deep = deep * (0.9 + 0.25 * sea_var);
+    let gscale = 0.55 + 0.95 * sea_var;
     let presence = wave_presence(footprint);
     var n_pert = n_geo;
     if (presence > 0.001) {
-        let grad = water_wave_gradient(p_local, dir, t, footprint);
+        var grad = water_wave_gradient(p_local, dir, t, footprint) * gscale;
+        // Close-range micro ripples (v0.902): two fast camera-relative
+        // octaves (3.2 m and 0.8 m - both divide the 64 m anchor modulus,
+        // so anchor jumps are seamless) give the surface visible MOTION at
+        // walking/boating range. Purely a normal perturbation; the swim
+        // height (CPU twin) is untouched.
+        if (footprint < 1.5) {
+            let inv_mw = transpose(object.normal_matrix);
+            let dvw =
+                (inv_mw * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
+            let anchw = vec3<f32>(
+                camera.light0_cone_inner.y,
+                camera.light0_cone_inner.z,
+                camera.light0_cone_inner.w,
+            );
+            let ptw = anchw + dvw;
+            grad = grad + wave_octave(ptw, dir, WAVE2_DIR, 3.2, 0.55, 0.05, t, footprint);
+            grad = grad + wave_octave(ptw, dir, WAVE4_DIR, 0.8, 1.1, 0.045, t, footprint);
+        }
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
@@ -2330,7 +2393,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // 0.88 body alpha let the albedo bake's bright shallow-shelf pixels
     // bleed through as a luminous rim hugging every coastline. Near-opaque
     // body; Fresnel still brightens grazing angles.
-    let alpha = clamp(0.96 + 0.04 * fres, 0.0, 1.0);
+    // v0.902: opened slightly (0.96 -> 0.93 nadir) so shallow coasts show
+    // a hint of the graded seabed - real water is not paint. Still well
+    // above the 0.88 that caused the v0.887 glowing-coast regression.
+    let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;
@@ -2592,6 +2658,30 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // no planet-local frame to sample in.
         if (has_tex && detail_on && !is_water) {
             albedo = albedo * land_detail_factor(dir, r_render, footprint);
+            // Sub-8 m micro texture (v0.902, operator: "textures for the
+            // land... as real as possible"): three camera-relative octaves
+            // (2 m / 0.8 m / 0.32 m, periods 32/80/200 cells inside the
+            // 64 m anchor modulus) carry ground variation all the way to
+            // the player's feet. Fade by footprint like every octave.
+            if (footprint < 4.0) {
+                let inv_m = transpose(object.normal_matrix);
+                let dv =
+                    (inv_m * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
+                let anchor = vec3<f32>(
+                    camera.light0_cone_inner.y,
+                    camera.light0_cone_inner.z,
+                    camera.light0_cone_inner.w,
+                );
+                let pt = anchor + dv;
+                var mf = 0.0;
+                mf = mf + 0.10 * detail_octave_fade(2.0, footprint)
+                    * (2.0 * micro_noise(pt / 2.0, 32.0) - 1.0);
+                mf = mf + 0.08 * detail_octave_fade(0.8, footprint)
+                    * (2.0 * micro_noise(pt / 0.8, 80.0) - 1.0);
+                mf = mf + 0.07 * detail_octave_fade(0.32, footprint)
+                    * (2.0 * micro_noise(pt / 0.32, 200.0) - 1.0);
+                albedo = albedo * clamp(1.0 + mf, 0.7, 1.3);
+            }
         }
         // Cloud GROUND shadows (v0.898 - the deferred item noted in
         // renderer/clouds.rs): sample the SAME blended live+procedural

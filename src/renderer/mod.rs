@@ -1918,6 +1918,9 @@ impl Renderer {
         // Poked into the light_count.yzw pads after the full uniform write,
         // so the type-12 terrain branch can sample the sky's coverage field.
         cloud_shadow: (f32, f32, bool),
+        // Camera planet-frame position mod 64 m (v0.902): the precision
+        // anchor for sub-8 m micro detail. Poked into light0_cone_inner.yzw.
+        ground_anchor: [f32; 3],
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -1943,6 +1946,9 @@ impl Renderer {
             if cloud_shadow.2 { 1.0_f32 } else { 0.0 },
         ];
         self.queue.write_buffer(&self.camera_buffer, 596, bytemuck::cast_slice(&cs));
+        // Micro-detail anchor in light0_cone_inner.yzw (offset 464 + 4).
+        self.queue
+            .write_buffer(&self.camera_buffer, 468, bytemuck::cast_slice(&ground_anchor));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

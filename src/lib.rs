@@ -2816,6 +2816,7 @@ mod native_app {
             // capture should freeze the exact frame the player is looking at.
             state.start_time.elapsed().as_secs_f32(),
             cloud_ground_params(state),
+            ground_anchor(state),
             &capture_view,
         );
         state
@@ -2955,6 +2956,24 @@ mod native_app {
             0.0
         };
         crate::dev_travel::planet_spin_from_time(hour, sun_az)
+    }
+
+    /// Micro-detail precision anchor (v0.902): the camera's planet-frame
+    /// position mod 64 m. Camera-relative fragment offsets plus this anchor
+    /// give sub-metre ground/water texture with full f32 precision; jumps
+    /// are exact 64 m steps, seamless for any pattern whose period divides
+    /// 64 m. Zeros when not frame-locked (micro octaves are footprint-faded
+    /// to nothing at those distances anyway).
+    fn ground_anchor(state: &EngineState) -> [f32; 3] {
+        if state.frame_lock_body.is_none() {
+            return [0.0; 3];
+        }
+        let a = state.frame_lock_anchor;
+        [
+            a.x.rem_euclid(64.0) as f32,
+            a.y.rem_euclid(64.0) as f32,
+            a.z.rem_euclid(64.0) as f32,
+        ]
     }
 
     /// Cloud-ground-shadow params for the celestial pass (v0.898): the
@@ -20295,7 +20314,7 @@ mod native_app {
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), &view);
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the
