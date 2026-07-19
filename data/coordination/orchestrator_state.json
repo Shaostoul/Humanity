@@ -375,12 +375,16 @@
     {
       "date": "2026-07-19",
       "decision": "v0.893.0 CLOUD CATALOG 7 FAMILIES (+altocumulus, cumulonimbus, nimbostratus; tent hw 0.42->0.22; tests extended). FXC GOTCHA (cost one panic): naga HLSL backend cannot pass array<f32,N> across fn boundaries (X3017) - regime blend is now one scalar-accumulator loop. PARKED DRIFT re-measured on the probe: alt rock-steady 50.1km over 60s parked at Everest co-rotate band, no lateral drift possible by construction (anchor only moves on input); the old ~150m/s note does not reproduce - CLOSED. Probe world runs accelerated game time (~77x, fresh-world default) - use showcase {time:H} for staged light, local noon = 12 - east_lon/15 (SUBTRACT for east; Everest ~6.2). Yellow-quad artifact at Oahu = distant-island no-imagery elevation-ramp fallback on a coarse patch, pre-existing, self-heals on approach - NOT a bug."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.894-v0.895 OVERNIGHT (cont): v0.894.0 trees now spawn at EVERY depth >=15 with fixed-point accept keeping per-AREA density constant (they used to VANISH when patches refined near the camera - forests only existed at ridge distance); TREES_PER_PATCH 10->40; camera_request ocean parking clamps to the water surface (Iceland-at-120m had parked UNDERWATER over the seafloor). v0.895.0 GOD RAYS: one additive depth-march pass (godrays.rs/wgsl) between celestial and scene passes - ridge silhouettes carve shafts; verified via the new camera_request {aim:sun} staging rig after an hour of blind time-staging proved sun-in-frame shots are luck without it (probe world runs ~77x clock, sun races). Projection cross-checked exact (sun ndc 0.01,0.03 dead-center on aim). PROBE GOTCHAS learned: local noon = 12 - east_lon/15; staged times expire in real seconds at 77x; scenic-view aim is nadir-relative so the sun is almost never in frame naturally."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.893.0 released; v0.893.1 exe archived, stamp in progress.",
+  "version_state": "v0.895.0 released (7 feature releases tonight: v0.889-v0.895); v0.895.1 build-game in flight.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
