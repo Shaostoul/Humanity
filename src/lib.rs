@@ -3334,14 +3334,15 @@ mod native_app {
         // seafloor, underwater, staring at the shell from below). Park
         // relative to the water surface instead; diving stays a deliberate
         // act, not a teleport accident.
-        if body_id == "earth" {
-            if let (Some((lat, lon)), Some(om)) = (latlon, state.ocean_mask.as_ref()) {
-                let unit = crate::terrain::planet_heightmap::latlon_to_dir(lat as f32, lon as f32);
-                if om.is_ocean(unit) {
-                    surface_radius = surface_radius
-                        .max(radius_m + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64);
-                }
-            }
+        // v0.896: gate on the RADIUS, not the ocean mask - the mask can still
+        // be loading seconds after world entry (exactly when scripted probe
+        // requests fire) and its coastal cells miss fjords, both of which
+        // re-submerged an Iceland park after the v0.894 fix. On Earth any
+        // sampled ground below the nominal sea radius IS under the drawn
+        // water shell, so park on the water. (Below-sea-level dry land like
+        // the Dead Sea parks ~400 m high - a fine trade against diving.)
+        if body_id == "earth" && latlon.is_some() && surface_radius < radius_m {
+            surface_radius = radius_m + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
         }
         let vantage = body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);
         if state.dev_travel_home.is_none() {
@@ -10782,6 +10783,22 @@ mod native_app {
                                                 + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64
                                                 + wave,
                                         );
+                                    }
+                                }
+                            }
+                            // v0.896 backstop: ground DEEP below sea level is
+                            // ocean floor even when the mask misses it (the
+                            // mask can still be loading right after world
+                            // entry, and its coastal cells miss fjords - an
+                            // Iceland park kept settling to the seafloor
+                            // under the water shell). Threshold 60 m keeps
+                            // genuine below-sea dry land (Death Valley)
+                            // walkable; deep basins float you at sea level.
+                            if lock_body == "earth" {
+                                if let Some(d) = def {
+                                    if g < d.radius - 60.0 {
+                                        g = d.radius
+                                            + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
                                     }
                                 }
                             }

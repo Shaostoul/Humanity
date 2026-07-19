@@ -1408,7 +1408,11 @@ pub fn build_patch_mesh(
             let p01 = base + up * h0 + side * (w * 0.5);
             let p10 = base + up * h1 - side * (w * 0.5);
             let p11 = base + up * h1 + side * (w * 0.5);
-            let nrm = up.cross(side).normalize_or_zero();
+            // Light vegetation like the GROUND under it (v0.896): the card
+            // plane normal is horizontal, so an overhead sun gave N.L ~ 0 and
+            // every tree rendered as a black slab at noon (probe capture).
+            // The radial up matches the terrain shading exactly.
+            let nrm = up;
             for tri in [[p00, p01, p11], [p00, p11, p10], [p00, p11, p01], [p00, p10, p11]] {
                 for p in tri {
                     indices.push(vertices.len() as u32);
@@ -1457,6 +1461,17 @@ pub fn build_patch_mesh(
             let elev_m = (e - sea) * range_m;
             // Land only, below the treeline, above the beach.
             if elev_m < 3.0 || elev_m > TREELINE_M {
+                continue;
+            }
+            // Biome gate (v0.896): vegetation only where the surface COLOR is
+            // actually green-dominant - the same imagery/ramp the ground
+            // renders with, sampled at the scatter point. Kills the trees
+            // that grew on Sahara sand, glaciers, and bare rock (the old
+            // gates were elevation-only); real Earth imagery becomes the
+            // planet-wide biome map for free, and procedural planets keep
+            // vegetation on their green-ramp lowlands.
+            let sc = surface_color(def, albedo, dir.as_vec3(), e);
+            if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
                 continue;
             }
             let r = radius_m
