@@ -10921,7 +10921,21 @@ mod native_app {
                         // body radius - Earth keeps 10/100/1000 km, the Moon
                         // gets ~2.7/27/273 km, an asteroid gets metres, with
                         // floors so tiny rocks still have usable bands.
-                        let alt = dist - ground_r;
+                        // Altitude reference (v0.909.x): ground_radius_m
+                        // returns the TRUE seafloor on water worlds (the
+                        // diving change), so raw dist-ground_r over a 3 km
+                        // deep ocean read "Alt 3.1 km" while you hovered
+                        // 100 m over the waves - and the walk band engaged
+                        // 3 km early. Altitude is measured from whichever
+                        // surface you would actually stand on: the sea
+                        // surface over open ocean, the ground on land.
+                        // Divers still go negative (relative to sea), which
+                        // keeps every band test sane underwater.
+                        let sea_r = def
+                            .filter(|d| d.has_water)
+                            .map(|d| d.radius)
+                            .unwrap_or(0.0);
+                        let alt = dist - ground_r.max(sea_r);
                         let band_k = (def.map(|d| d.radius).unwrap_or(6_371_000.0)
                             / 6_371_000.0)
                             .clamp(0.001, 4.0);
@@ -10964,8 +10978,7 @@ mod native_app {
                             // Surface HUD readout (v0.867): altitude above the
                             // drawn ground + wheel gear, so height and speed are
                             // never a guess while landing/walking.
-                            state.gui_state.surface_altitude_m =
-                                Some((dist - ground_r).max(0.0) as f32);
+                            state.gui_state.surface_altitude_m = Some(alt.max(0.0) as f32);
                             state.gui_state.surface_speed_mult =
                                 state.controller.fly_speed_mult as f32;
                             // Radial "up" so "down" points at the body centre and
