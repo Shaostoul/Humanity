@@ -96,3 +96,6 @@ wallpapers/
 /dxil.dll
 /ext_data/
 /data/planets/earth_tiles/
+
+# Standalone lint compile outputs (just verify workaround dir)
+lintrun/
