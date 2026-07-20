@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "Operator greenlight wave shipped (v0.905): real Moon/Mars/Pluto, gas-giant bands, comets, credits, detail distance. REMAINING GREENLIT ARC: Poly Haven plant models + ambientCG ground PBR textures (downloads authorized, 1TB budget) - the asset-integration pipeline arc, notes in this entry + PRIORITIES.",
+  "current_focus": "Storm seas shipped; CC0 asset packs committed (84MB ground textures + 79MB plants). Remaining wiring arc for the next session: terrain PBR texture blending (bindings ready to add), plant model repack + texture-aware loading. All greenlit work either shipped or staged with implementation notes.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -411,12 +411,16 @@
     {
       "date": "2026-07-20",
       "decision": "v0.905.0 THE SOLAR SYSTEM GETS REAL (operator greenlight wave): maps subagent baked Moon+Mars (SSS 8K CC-BY) and Pluto (NASA New Horizons PD, south-pole no-data smoothly filled) via new generalized scripts/build-planet-albedo.js; pluto.ron created + embedded; grade_albedo dry-world passthrough (G1). Type-18 gas-giant band shader (Jupiter belts+GRS, Saturn gold, Uranus cyan, Neptune azure+storm) keyed by material params.w - probe-verified. 5 comets added (69 bodies; moons/asteroids ALREADY existed - the operator ask was largely satisfied by existing data). Detail-draw-distance slider (0.5-3x, default 1.5) scaling detail_octave_fade via the view_pos.w pad; budget ceiling 12288, MAX_OBJECTS 16384. CREDITS.md + in-app Library Credits category (build-library.js sources repo-root CREDITS.md). GREENLIT NEXT (operator): Poly Haven CC0 plant models to replace procedural plants (GLB pipeline into plant_mesh/garden rendering) + ambientCG CC0 PBR texture sets for terrain ground materials (bind via the camera-relative precision domain; needs a group-3 binding addition - follow the shadow-map bindings 6-8 pattern for both bind group creation sites)."
+    },
+    {
+      "date": "2026-07-20",
+      "decision": "v0.906.0 STORM SEAS + ASSET DELIVERIES: ocean de-squared (3 rotated noise octaves replace the single axis-aligned tap - value-noise lattice was the operator-reported rectangles), STORM STATE from the live MODIS weather (chop x2.4 + steepness-driven whitecap foam under real rain cells; probe-verified streaked wind-lanes fading to calm at the storm boundary; foam capped 0.72). TWO SUBAGENT DELIVERIES COMMITTED: assets/textures/ground/ (4 ambientCG CC0 PBR sets, 2K color+normal PNG + manifest + blend mapping: rock by slope, sand by beach band, grass by imagery green, dirt default) and assets/models/plants/ (6 Poly Haven CC0 photoscans + manifest; loader analysis: parse_gltf_mesh loads FIRST-mesh-FIRST-primitive only and discards textures - grass_medium_02 + fern_02 usable now, shrub/potted/saplings need a merge-repack, all need texture support for full beauty). NEXT WIRING: ground-texture group-3 bindings (follow shadow bindings 6-8 pattern) + gltf texture support / repack script."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.905.0 released; v0.905.1 build-game in flight.",
+  "version_state": "v0.906.0 released; v0.906.1 build-game in flight.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
