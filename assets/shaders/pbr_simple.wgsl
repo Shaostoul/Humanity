@@ -202,6 +202,18 @@ const OCEAN_W3_HEIGHT: f32 = 0.45;
 const OCEAN_W4_LAMBDA: f32 = 50.0;
 const OCEAN_W4_CPS: f32 = 0.18;
 const OCEAN_W4_HEIGHT: f32 = 0.22;
+// v0.912 (operator: "add fake geometry to the ocean to simulate the
+// smaller waves... right now the waves seem exclusively texture
+// related"): two SHORT geometric trains give near water real moving
+// chop. Speeds follow deep-water dispersion (c ~ 1.25 sqrt(lambda)).
+// Faded out by ~800 m in the vertex shader - beyond that they are
+// sub-vertex and shading owns the detail.
+const OCEAN_W5_LAMBDA: f32 = 18.0;
+const OCEAN_W5_CPS: f32 = 0.30;
+const OCEAN_W5_HEIGHT: f32 = 0.12;
+const OCEAN_W6_LAMBDA: f32 = 6.0;
+const OCEAN_W6_CPS: f32 = 0.52;
+const OCEAN_W6_HEIGHT: f32 = 0.05;
 
 // One train's vertical height contribution at planet-local point p_m.
 // Phase = distance along the fixed 3D direction in wavelengths, wrapped
@@ -215,11 +227,19 @@ fn ocean_height_train(p_m: vec3<f32>, d: vec3<f32>, lambda_m: f32, cps: f32, h: 
 // Total wave height (metres, signed) at planet-local position p_m. Wave
 // directions reuse the shading octaves' fixed unit vectors so crests align
 // with what the fragment normals show.
-fn ocean_wave_height(p_m: vec3<f32>, t: f32) -> f32 {
+fn ocean_wave_height(p_m: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
     var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE6_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t);
+    // Short chop only near the camera (sub-vertex beyond ~800 m; the CPU
+    // float twin runs at the player, where this fade is ~1).
+    let near = 1.0 - smoothstep(250.0, 800.0, cam_dist);
+    if (near > 0.001) {
+        var s = ocean_height_train(p_m, WAVE2_DIR, OCEAN_W5_LAMBDA, OCEAN_W5_CPS, OCEAN_W5_HEIGHT, t);
+        s = s + ocean_height_train(p_m, WAVE5_DIR, OCEAN_W6_LAMBDA, OCEAN_W6_CPS, OCEAN_W6_HEIGHT, t);
+        h = h + s * near;
+    }
     return h;
 }
 
@@ -248,7 +268,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
             let cam_dist = length(camera.view_pos.xyz - world_pos.xyz);
             let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);
             if (fade > 0.001) {
-                let h = ocean_wave_height(dir * r, camera.sun_color.w) * fade;
+                let h = ocean_wave_height(dir * r, camera.sun_color.w, cam_dist) * fade;
                 world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
             }
         }
@@ -742,7 +762,12 @@ fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -
 // regression at altitude), so animated water content fades on raw pixel
 // coverage only. Static land octaves keep the scaled fade.
 fn detail_octave_fade_aa(lambda_m: f32, footprint_m: f32) -> f32 {
-    return smoothstep(DETAIL_FADE_LO, DETAIL_FADE_HI, lambda_m / footprint_m);
+    // v0.912 (operator: dotted moire patterns on the mid-distance sea):
+    // waves at 4-12 px per wavelength sit right at the sampling limit and
+    // their few FIXED directions beat against the pixel grid as dot
+    // gratings. Water octaves now need 9 px to start fading in and 24 px
+    // to reach full strength - the shimmer band simply never renders.
+    return smoothstep(9.0, 24.0, lambda_m / footprint_m);
 }
 
 // Master water-shading blend: the fade of the LONGEST wave octave. 0 from
@@ -1110,15 +1135,26 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
         vec3<f32>(1.0),
     );
 
+    // Daylight star occlusion (v0.912, operator: "I'm able to see the
+    // galaxy in the background but in real life the sky is just blue"):
+    // the transmittance alpha is only ~0.1-0.3 looking straight up, so the
+    // star skybox bled through the daytime sky. Physically, stars vanish
+    // because the scattered radiance OUT-SHINES them, not because air
+    // absorbs them - in fixed-function blending that means the alpha must
+    // rise with the sky's own brightness. Night sky: mapped ~ 0, alpha
+    // unchanged, full starfield. Day: bright dome occludes. Twilight
+    // blends smoothly in between.
+    let sky_lum = dot(mapped, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let alpha_occ = max(alpha, clamp(sky_lum * 3.2, 0.0, 1.0));
     // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
     // the radiance back out of the alpha so exactly `mapped` lands on
     // screen. Both terms go to zero together for thin air, so the ratio
     // stays finite; the clamp guards the pathological alpha -> 0 corner.
-    let rgb = clamp(mapped / max(alpha, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
+    let rgb = clamp(mapped / max(alpha_occ, 1.0e-3), vec3<f32>(0.0), vec3<f32>(1.0));
     // rgb keeps the ORIGINAL alpha (its colour + brightness); scaling only the
     // returned alpha by haze_scale dims the additive in-scatter and clears the
     // surface together, and is a no-op wherever haze_scale == 1.
-    return vec4<f32>(rgb, alpha * haze_scale);
+    return vec4<f32>(rgb, alpha_occ * haze_scale);
 }
 
 // ── Procedural cloud layer (material type 15, clouds increments 2 + 3) ──
@@ -2497,8 +2533,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let steep = length(grad) * (1.0 + sea_state * 1.4);
         let cap_noise = surface_detail_noise(dir_r1, r_render / 90.0, 977.0);
         let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
-        foam = smoothstep(0.11, 0.24, steep)
-            * smoothstep(0.35, 0.9, sea_state)
+        // v0.912 (operator: "if that is whitecaps or foam it is way too
+        // strong and looks fake"): crest-only threshold raised, coverage
+        // roughly halved, and the storm gate starts later.
+        foam = smoothstep(0.16, 0.30, steep)
+            * smoothstep(0.5, 0.95, sea_state)
             * (0.45 + 0.55 * cap_noise)
             * foam_reach
             * presence;
@@ -2508,7 +2547,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     var rgb = water_shade(deep, n_geo, n_pert, view_dir);
     // Foam is scattered froth: it flattens the water shading toward broken
     // off-white and reads at any sun angle.
-    rgb = mix(rgb, vec3<f32>(0.75, 0.81, 0.86), clamp(foam, 0.0, 0.65));
+    rgb = mix(rgb, vec3<f32>(0.75, 0.81, 0.86), clamp(foam, 0.0, 0.4));
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.
@@ -2775,6 +2814,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         let packed = u32(round(max(in.uv.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
+        // Tree-card LOD swap (v0.912, operator: "when it switches to the
+        // high poly model it should hide the lower LOD panel tree"): bit 17
+        // marks tree silhouette cards; within the tree-model radius (poked
+        // into shadow_u.params.w, 0 when the feature is off) the real 3D
+        // conifer stands here, so the card yields entirely.
+        if ((packed & 131072u) != 0u) {
+            let card_dist = length(camera.view_pos.xyz - in.world_position);
+            if (card_dist < shadow_u.params.w) {
+                discard;
+            }
+        }
         let pw_bits = u32(round(max(material.params.w, 0.0)));
         let has_tex = (pw_bits & 1u) != 0u;
         let detail_on = (pw_bits & 2u) != 0u;

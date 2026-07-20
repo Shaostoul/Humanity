@@ -167,7 +167,11 @@ impl Mesh {
             .map(|v| Vertex {
                 position: v.position,
                 normal: v.normal,
-                uv: crate::terrain::planet_surface::pack_color_to_uv(v.color, v.water),
+                uv: crate::terrain::planet_surface::pack_color_to_uv_flags(
+                    v.color,
+                    v.water,
+                    v.tree_card,
+                ),
             })
             .collect();
         Self::from_vertices(device, &vertices, &data.indices)

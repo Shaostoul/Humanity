@@ -54,7 +54,13 @@ pub struct SurfaceVertexData {
     /// Rides to the GPU as bit 16 of the packed UV so the shader can put a
     /// sun glint on water and nowhere else. Per FACE (all three corners
     /// carry the same value; flat-shading transport requires it).
+    /// (Bit 17 of the same packed UV carries `tree_card` - see below.)
     pub water: bool,
+    /// True on TREE silhouette-card faces (v0.912): rides as bit 17 of the
+    /// packed UV so the shader can hide a card wherever the real 3D tree
+    /// model stands inside it (Settings tree-model distance). Grass cards
+    /// stay unmarked - they have no model replacement.
+    pub tree_card: bool,
 }
 
 /// CPU-side planet surface mesh: flat-shaded triangles, sequential indices.
@@ -469,6 +475,21 @@ pub fn pack_color_to_uv(c: [f32; 3], water: bool) -> [f32; 2] {
     [w + r * 256.0 + g, c[2].clamp(0.0, 1.0)]
 }
 
+/// Flag-carrying variant (v0.912): bit 16 = water, bit 17 = tree card.
+/// All values stay well under f32's 2^24 exact-integer ceiling.
+pub fn pack_color_to_uv_flags(c: [f32; 3], water: bool, tree_card: bool) -> [f32; 2] {
+    let mut uv = pack_color_to_uv(c, water);
+    if tree_card {
+        uv[0] += 131072.0;
+    }
+    uv
+}
+
+/// Mirror of the WGSL bit-17 decode; unit-tested round trip below.
+pub fn unpack_uv_tree_card(uv: [f32; 2]) -> bool {
+    (uv[0].round().max(0.0) as u32 & 0x2_0000) != 0
+}
+
 /// Rust mirror of the WGSL decode in pbr_simple.wgsl (material type 12).
 /// Exists so a unit test locks the round-trip; keep both in sync.
 pub fn unpack_uv_to_color(uv: [f32; 2]) -> ([f32; 3], bool) {
@@ -549,6 +570,7 @@ pub fn build_surface_mesh(
                     normal: n.to_array(),
                     color,
                     water: true,
+                tree_card: false,
                 });
             }
         } else {
@@ -570,6 +592,7 @@ pub fn build_surface_mesh(
                     normal: n.to_array(),
                     color,
                     water: false,
+                tree_card: false,
                 });
             }
         }

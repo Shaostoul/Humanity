@@ -197,6 +197,10 @@ pub struct Renderer {
     /// Sea state 0..1 (v0.909): glassy -> ripples -> storm. Poked into the
     /// fill_color.w uniform pad each celestial pass.
     pub sea_state: f32,
+    /// Tree-card hide radius in metres (v0.912): terrain silhouette cards
+    /// within this range of the camera discard (the real 3D tree models
+    /// stand there). Mirrors the Settings tree-model distance; 0 = off.
+    pub tree_card_hide_m: f32,
 }
 
 impl Renderer {
@@ -813,6 +817,7 @@ impl Renderer {
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
+            tree_card_hide_m: 0.0,
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -2063,6 +2068,9 @@ impl Renderer {
             su[16] = if shadow_on { 1.0 } else { 0.0 };
             su[17] = 0.6; // shadow strength
             su[18] = 1.0 / SHADOW_MAP_SIZE;
+            // params.w (v0.912): the tree-model radius - terrain tree CARDS
+            // hide inside it so the real 3D conifers replace them cleanly.
+            su[19] = self.tree_card_hide_m;
             self.queue
                 .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
         }

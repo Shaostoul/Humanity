@@ -21,13 +21,18 @@ pub struct WaveTrain {
     pub height_m: f32,
 }
 
-/// The four geometric wave trains, in shader order. Directions reuse the
-/// shading octaves' fixed vectors (WAVE1/3/4/6_DIR in the WGSL).
-pub const TRAINS: [WaveTrain; 4] = [
+/// The six geometric wave trains, in shader order. Directions reuse the
+/// shading octaves' fixed vectors (WAVE1/3/4/6/2/5_DIR in the WGSL).
+/// Trains 5-6 (v0.912) are the NEAR chop - the shader fades them out by
+/// ~800 m; this CPU twin runs at the player where that fade is ~1, so the
+/// float height includes them at full strength.
+pub const TRAINS: [WaveTrain; 6] = [
     WaveTrain { dir: [0.7071068, 0.0, 0.7071068], lambda_m: 2000.0, cps: 0.028, height_m: 1.1 },
     WaveTrain { dir: [0.2672612, 0.5345225, 0.8017837], lambda_m: 360.0, cps: 0.07, height_m: 0.7 },
     WaveTrain { dir: [-0.5773503, 0.5773503, 0.5773503], lambda_m: 150.0, cps: 0.105, height_m: 0.45 },
     WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.22 },
+    WaveTrain { dir: [0.9622504, 0.1924501, 0.1924501], lambda_m: 18.0, cps: 0.30, height_m: 0.12 },
+    WaveTrain { dir: [0.4082483, -0.8164966, 0.4082483], lambda_m: 6.0, cps: 0.52, height_m: 0.05 },
 ];
 
 /// The water surface floats this far ABOVE the nominal sea sphere
@@ -40,7 +45,7 @@ pub const SURFACE_LIFT_M: f32 = 1.2;
 
 /// Worst-case |wave height|: the sum of every train's amplitude. Useful for
 /// conservative bounds (patch radial bands, "am I possibly submerged").
-pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.22;
+pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.22 + 0.12 + 0.05;
 
 const TAU: f32 = std::f32::consts::TAU;
 
@@ -124,7 +129,8 @@ mod tests {
                 .collect();
             [parts[0], parts[1], parts[2]]
         };
-        let shader_dirs = ["WAVE1_DIR", "WAVE3_DIR", "WAVE4_DIR", "WAVE6_DIR"];
+        let shader_dirs =
+            ["WAVE1_DIR", "WAVE3_DIR", "WAVE4_DIR", "WAVE6_DIR", "WAVE2_DIR", "WAVE5_DIR"];
         for (i, tr) in TRAINS.iter().enumerate() {
             let n = i + 1;
             assert_eq!(grab(&format!("OCEAN_W{n}_LAMBDA")), tr.lambda_m, "W{n} lambda");
@@ -135,7 +141,7 @@ mod tests {
         // The shader's ocean_wave_height must pair train i with the same
         // direction constant this table does (order is load-bearing).
         let body_at = wgsl.find("fn ocean_wave_height").expect("fn present");
-        let body = &wgsl[body_at..body_at + 700];
+        let body = &wgsl[body_at..body_at + 1400];
         for (i, d) in shader_dirs.iter().enumerate() {
             assert!(
                 body.contains(&format!("{d}, OCEAN_W{}_LAMBDA", i + 1)),

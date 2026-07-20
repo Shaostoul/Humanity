@@ -20804,7 +20804,15 @@ mod native_app {
                                         let db = ((b.pos - cam_pos).length() - b.range).max(0.0);
                                         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                                     });
-                                    lights.truncate(64);
+                                    // 256 (v0.912, operator: "could we have
+                                    // 1,000 or more?"): the storage buffer
+                                    // grows unbounded and out-of-range lights
+                                    // early-out per pixel, so the ceiling is
+                                    // the per-pixel loop, ~10 ALU per light.
+                                    // 256 is safe on midrange GPUs; 1000+
+                                    // needs screen-tile light clustering -
+                                    // queued as its own arc in PRIORITIES.
+                                    lights.truncate(256);
                                     // Home lights ride the station (v0.881).
                                     for l in lights.iter_mut() {
                                         l.pos += state.station_off;
@@ -20838,6 +20846,8 @@ mod native_app {
                                     state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
                                 state.renderer.ssao_strength =
                                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
+                                state.renderer.tree_card_hide_m =
+                                    state.gui_state.settings.tree_model_distance.clamp(0.0, 400.0);
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
