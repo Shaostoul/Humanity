@@ -11,6 +11,22 @@
 
 ## Active focus
 
+> **>>> GREENLIT ASSET ARC (operator, 2026-07-19 night; downloads authorized,
+> 1TB storage budget): ultra-fidelity environment via real assets.**
+> 1. ambientCG CC0 PBR texture sets (grass/rock/dirt/sand) as TILING GROUND
+>    MATERIALS in the type-12 terrain branch, sampled through the v0.902
+>    camera-relative precision domain (sub-metre, planet-pinned, seamless).
+>    Needs a group-3 binding addition - copy the shadow-map bindings 6-8
+>    pattern (BOTH bind-group creation sites in renderer/mod.rs + the layout
+>    in pipeline.rs). Blend 3-4 sets by the existing biome/imagery color.
+> 2. Poly Haven CC0 plant models (operator: "beautiful... let's use them") -
+>    download GLB, decimate the heavy scans, feed the existing glTF loader;
+>    replace/augment procedural plants for hero crops + wild trees.
+>    Quaternius Ultimate Crops (CC0, 5 growth stages) fits the farming
+>    stage ticks directly - consider it for the 134-crop coverage.
+> 3. Credit every shipped asset in CREDITS.md (in-app Library > Credits).
+> Perf headroom: the operator is vsync-capped at 120 FPS - push quality.
+>
 > **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;
 > reports summarized in the journal). Ranked:**
 > 1. QUEST REWRITE: tutorial/construction/exploration/farming.ron are
@@ -74,13 +90,13 @@
 > screenshot_done.json), aim-at-sun captures. FOR THE OPERATOR TO JUDGE
 > (morning taste pass): tree/grass density + card look up close, god-ray
 > strength (godray_intensity 0.55), 7-family cloud variety, silver-lining
-> strength. STAGING NOTE (corrected): the sun light is constant-intensity
-> with the REAL astronomical direction (no hour-based dimming - an earlier
-> overnight diagnosis was wrong). Staged local noon = game hour 12 -
-> east_lon/15 (UTC-independent; sun_az cancels in planet_spin_from_time).
-> Verified bright at Sahara/Iceland; Oahu/Rainier staged shots still read
-> dusk-dim for unpinned reasons (suspect high-latitude sun elevation +
-> tone curve, or a spin-model detail + the probe 77x clock racing). The
+> strength. STAGING NOTE (corrected): the sun light is constant-intensity
+> with the REAL astronomical direction (no hour-based dimming - an earlier
+> overnight diagnosis was wrong). Staged local noon = game hour 12 -
+> east_lon/15 (UTC-independent; sun_az cancels in planet_spin_from_time).
+> Verified bright at Sahara/Iceland; Oahu/Rainier staged shots still read
+> dusk-dim for unpinned reasons (suspect high-latitude sun elevation +
+> tone curve, or a spin-model detail + the probe 77x clock racing). The
 > {aim:sun} rig is verified exact (Everest god-ray capture).
 >
 > **>>> TIER 0 NEWEST (operator, 2026-07-14 eve): ALL-IN-ONE + INLINE-FIRST + WEB PARITY.**
