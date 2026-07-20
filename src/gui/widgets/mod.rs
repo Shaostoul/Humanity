@@ -43,6 +43,23 @@ pub use tree::{tree_node, tree_leaf, tree_leaf_colored, TreeState, TreeNodeRespo
 /// fading out over its last half-second. Call once per frame from the main render
 /// loop, ABOVE the pages, so a "Theme saved" style confirmation floats over whatever
 /// is on screen. The universal answer to "the save button doesn't show it worked".
+/// Fullscreen underwater tint (v0.903 diving v1): a translucent blue-green
+/// wash whenever the camera is below the sea surface, so being in the water
+/// LOOKS like being in water. Painted on egui's background layer - over the
+/// 3D scene, under every panel and HUD element.
+pub fn draw_underwater_tint(ctx: &egui::Context, state: &super::GuiState) {
+    if !state.underwater {
+        return;
+    }
+    let painter = ctx.layer_painter(egui::LayerId::new(
+        egui::Order::Background,
+        egui::Id::new("underwater_tint"),
+    ));
+    let r = ctx.screen_rect();
+    // theme-exempt: environmental water tint, not a UI token.
+    painter.rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(8, 46, 64, 110)); // theme-exempt: underwater wash
+}
+
 pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiState) {
     use super::ToastKind;
     const LIFE: f64 = 2.6; // seconds fully visible + fade

@@ -2746,6 +2746,9 @@ pub struct GuiState {
     pub surface_speed_mult: f32,
 
     pub toasts: Vec<Toast>,
+    /// Camera is below the sea surface (v0.903 diving): the GUI paints the
+    /// underwater tint and the HUD can show depth.
+    pub underwater: bool,
     /// Toasts queued from engine code that has no egui clock (v0.890, e.g.
     /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
     /// which stamps them with the real egui time.
@@ -4514,6 +4517,7 @@ impl Default for GuiState {
             watch_input: String::new(),
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
+            underwater: false,
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,

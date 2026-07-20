@@ -1687,7 +1687,21 @@ mod native_app {
             let radius = helix_cfg.map(|c| c.diameter_m * 0.5).unwrap_or(0.0);
             let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
             for (def_id, stage, slot, health) in crops {
-                let Some(vis) = visuals.get(def_id) else { continue };
+                // v0.903 (operator: "the potato garden is just a plain slab
+                // of brown"): only 10 of ~134 crops had visual recipes, and
+                // every crop WITHOUT one silently skipped mesh generation -
+                // bare beds, empty tower net cups. Unrecipe'd crops now get
+                // a generic leafy plant (deterministically varied per
+                // species) so every garden visibly GROWS; hand-authored
+                // recipes in data/plants_visual.ron still win when present.
+                let generic;
+                let vis = match visuals.get(def_id) {
+                    Some(v) => v,
+                    None => {
+                        generic = crate::renderer::plant_mesh::generic_visual(def_id);
+                        &generic
+                    }
+                };
                 // Stage index -> growth t (same bucketing the GUI shows).
                 let stages: Vec<&str> = plant_reg
                     .and_then(|r| r.get(def_id))
@@ -2925,7 +2939,17 @@ mod native_app {
                     },
                     None => d.sea_level.clamp(0.0, 1.0),
                 };
-                d.radius * crate::terrain::planet_surface::displaced_radius_f64(d, elev as f64)
+                // v0.903 diving: water worlds report the TRUE bathymetric
+                // radius (the seafloor), not the sea-clamped one - the water
+                // SURFACE floor is applied separately by the walk-band ocean
+                // branch/backstop, and skipping those while descending is
+                // what makes the ocean enterable down to the Marianas trench.
+                if d.has_water {
+                    d.radius
+                        * crate::terrain::planet_surface::displaced_radius_f64_true(d, elev as f64)
+                } else {
+                    d.radius * crate::terrain::planet_surface::displaced_radius_f64(d, elev as f64)
+                }
             }
             None => 6.371e6,
         }
@@ -10726,6 +10750,7 @@ mod native_app {
                         let alt = dist - ground_r;
                         let in_walk_band = alt < SURFACE_ENGAGE_ALT;
                         let in_corotate_band = alt < CO_ROTATE_MAX_ALT;
+                        state.gui_state.underwater = false;
                         let in_blend_band = alt < INERTIAL_BLEND_MAX_ALT;
 
                         if in_corotate_band {
@@ -10777,6 +10802,16 @@ mod native_app {
                             } else {
                                 state.frame_lock_anchor
                             };
+                            // Diving (v0.903, operator: "I can't go into the
+                            // water... the water surface is still solid"):
+                            // below the nominal sea radius the camera is
+                            // UNDERWATER - movement flies where you look,
+                            // the true bathymetry is the floor (the Marianas
+                            // trench is reachable), and depth holds
+                            // neutrally until you swim up or down.
+                            let submerged = def
+                                .map(|d| anchor.length() < d.radius - 1.0)
+                                .unwrap_or(false);
                             // Wish semantics per band (v0.882, operator: "I
                             // have to press shift to descend even though I'm
                             // looking down"): WALKING keeps the tangent-plane
@@ -10785,9 +10820,11 @@ mod native_app {
                             // FLIGHT band (10-100 km) flies WHERE YOU LOOK,
                             // exactly like FTL above it: W with the nose down
                             // descends, no separate descend key needed.
-                            let wish = if in_walk_band {
+                            let wish = if in_walk_band && !submerged {
                                 state.controller.surface_wish_dir(&state.camera)
                             } else {
+                                // Flight band above, SWIMMING below (v0.903):
+                                // both move where you look.
                                 state.controller.fly_wish_dir(&state.camera)
                             };
                             let wish_unrot = glam::DQuat::from_rotation_y(-spin)
@@ -10848,7 +10885,13 @@ mod native_app {
                             // radius + the analytic wave height (the CPU twin
                             // of the shader's vertex displacement; drawn ==
                             // sampled). Diving is the Stage 3 follow-up.
-                            if lock_body == "earth" {
+                            // Diving gate (v0.903): the water surface is a
+                            // FLOOR only while at/above it and not holding
+                            // descend. Holding descend (Shift in fly wish)
+                            // pierces it; once submerged the floors are the
+                            // real seafloor from the bathymetry sampler.
+                            let pierce = submerged || radial_wish < -0.05;
+                            if lock_body == "earth" && !pierce {
                                 if let (Some(om), Some(d)) = (state.ocean_mask.as_ref(), def) {
                                     if om.is_ocean(dir1.as_vec3()) {
                                         // Same clock the shader's vertex
@@ -10875,7 +10918,7 @@ mod native_app {
                             // under the water shell). Threshold 60 m keeps
                             // genuine below-sea dry land (Death Valley)
                             // walkable; deep basins float you at sea level.
-                            if lock_body == "earth" {
+                            if lock_body == "earth" && !pierce {
                                 if let Some(d) = def {
                                     if g < d.radius - 60.0 {
                                         g = d.radius
@@ -10900,9 +10943,11 @@ mod native_app {
                             if radial_wish > RADIAL_WISH_EPS {
                                 // Thrust up (Space): the fly control lifts you off.
                                 r += (step * radial_wish).max(1.0 * dt as f64);
-                            } else if in_walk_band {
+                            } else if in_walk_band && !submerged {
                                 // Gravity only in the walk band: on/near the
                                 // ground you settle to standing height.
+                                // (Submerged = neutral buoyancy: depth holds
+                                // until you swim up or down. v0.903)
                                 r = crate::surface_walk::settle_radius(
                                     r,
                                     rest,
@@ -10924,6 +10969,30 @@ mod native_app {
                             anchor = dir1 * r;
                             state.frame_lock_anchor = anchor;
                             state.frame_lock_last_spin = spin;
+                            state.gui_state.underwater = submerged && lock_body == "earth";
+                            // 1 Hz dive diag (dev tooling).
+                            {
+                                use std::sync::atomic::{AtomicU64, Ordering};
+                                static LASTD: AtomicU64 = AtomicU64::new(0);
+                                let now = std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .map(|d| d.as_secs())
+                                    .unwrap_or(0);
+                                let below = def.map(|d| r < d.radius).unwrap_or(false);
+                                if LASTD.swap(now, Ordering::Relaxed) != now || below {
+                                    if let Some(d) = def {
+                                        log::info!(
+                                            "[Dive] sub={} eng={} r-R={:.1} g-R={:.1} rest-R={:.1} wish={:.3}",
+                                            submerged,
+                                            just_engaged,
+                                            r - d.radius,
+                                            g - d.radius,
+                                            rest - d.radius,
+                                            radial_wish
+                                        );
+                                    }
+                                }
+                            }
                             state.ship_world_pos = crate::dev_travel::frame_lock_ship_pos(
                                 body_center,
                                 spin,
@@ -20689,6 +20758,7 @@ mod native_app {
                                 // Confirmation toasts (v0.861): floats a "Saved" style
                                 // note over everything so actions are never silent.
                                 crate::gui::widgets::draw_toasts(ctx, &state.theme, &mut state.gui_state);
+                                crate::gui::widgets::draw_underwater_tint(ctx, &state.gui_state);
 
                                 // Draw debug console overlay (F12 toggle, on top of everything)
                                 crate::debug::draw_debug_console(

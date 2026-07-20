@@ -117,5 +117,105 @@
             fruit_color_unripe: (0.35, 0.5, 0.25), fruit_color_ripe: (0.85, 0.65, 0.15),
             show_roots: false,
         ),
+        // ── v0.903 staples (operator: the potato garden needed plants) ──
+        // Potato: low leafy mound; the crop is underground, so no fruit.
+        "potato": (
+            form: "rosette", height_m: 0.35, spread_m: 0.5, stem_radius: 0.01,
+            stem_color: (0.3, 0.42, 0.2),
+            leaf_count: 11, leaf_color: (0.16, 0.4, 0.15), leaf_droop_deg: 22.0,
+            petal_count: 5, flower_color: (0.9, 0.88, 0.95), flower_center_color: (0.9, 0.8, 0.3),
+            flower_at: 0.65, fruit_at: 0.98,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.6, 0.3), fruit_color_ripe: (0.6, 0.5, 0.3),
+            show_roots: false,
+        ),
+        // Wheat: tall thin golden-plumed grass (amaranth's build, gold).
+        "wheat": (
+            form: "herb", height_m: 0.95, spread_m: 0.22, stem_radius: 0.004,
+            stem_color: (0.62, 0.55, 0.3),
+            leaf_count: 6, leaf_color: (0.45, 0.5, 0.25), leaf_droop_deg: 30.0,
+            petal_count: 1, flower_color: (0.8, 0.7, 0.35), flower_center_color: (0.8, 0.7, 0.35),
+            flower_at: 0.55, fruit_at: 0.95,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.55, 0.55, 0.3), fruit_color_ripe: (0.75, 0.65, 0.3),
+            show_roots: false,
+        ),
+        // Rice: shorter greener grass, drooping seed heads.
+        "rice": (
+            form: "herb", height_m: 0.7, spread_m: 0.24, stem_radius: 0.004,
+            stem_color: (0.4, 0.5, 0.28),
+            leaf_count: 7, leaf_color: (0.3, 0.5, 0.25), leaf_droop_deg: 38.0,
+            petal_count: 1, flower_color: (0.75, 0.72, 0.5), flower_center_color: (0.75, 0.72, 0.5),
+            flower_at: 0.55, fruit_at: 0.95,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.55, 0.35), fruit_color_ripe: (0.7, 0.65, 0.4),
+            show_roots: false,
+        ),
+        // Corn: the tallest stalk in the garden, broad leaves.
+        "corn": (
+            form: "herb", height_m: 1.9, spread_m: 0.5, stem_radius: 0.016,
+            stem_color: (0.35, 0.48, 0.22),
+            leaf_count: 9, leaf_color: (0.2, 0.45, 0.18), leaf_droop_deg: 35.0,
+            petal_count: 1, flower_color: (0.85, 0.8, 0.45), flower_center_color: (0.85, 0.8, 0.45),
+            flower_at: 0.6, fruit_at: 0.75,
+            fruit_kind: "cone", fruit_size: 0.09, fruit_count: 2,
+            fruit_color_unripe: (0.4, 0.55, 0.25), fruit_color_ripe: (0.9, 0.78, 0.3),
+            show_roots: false,
+        ),
+        // Bean: climbing vine with hanging green pods.
+        "bean": (
+            form: "vine", height_m: 1.1, spread_m: 0.35, stem_radius: 0.006,
+            stem_color: (0.3, 0.45, 0.2),
+            leaf_count: 12, leaf_color: (0.18, 0.42, 0.16), leaf_droop_deg: 18.0,
+            petal_count: 5, flower_color: (0.95, 0.9, 0.95), flower_center_color: (0.9, 0.8, 0.4),
+            flower_at: 0.5, fruit_at: 0.7,
+            fruit_kind: "cone", fruit_size: 0.05, fruit_count: 8,
+            fruit_color_unripe: (0.35, 0.55, 0.25), fruit_color_ripe: (0.3, 0.5, 0.22),
+            show_roots: false,
+        ),
+        // Sunflower: tall stem, one huge golden head.
+        "sunflower": (
+            form: "herb", height_m: 1.7, spread_m: 0.4, stem_radius: 0.014,
+            stem_color: (0.35, 0.45, 0.2),
+            leaf_count: 8, leaf_color: (0.22, 0.42, 0.18), leaf_droop_deg: 15.0,
+            petal_count: 16, flower_color: (0.97, 0.8, 0.12), flower_center_color: (0.4, 0.28, 0.12),
+            flower_at: 0.55, fruit_at: 0.99,
+            fruit_kind: "none", fruit_size: 0.02, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.5, 0.3), fruit_color_ripe: (0.45, 0.35, 0.2),
+            show_roots: false,
+        ),
+        // Flax: slender blue-flowered stems.
+        "flax": (
+            form: "herb", height_m: 0.8, spread_m: 0.2, stem_radius: 0.003,
+            stem_color: (0.4, 0.5, 0.3),
+            leaf_count: 8, leaf_color: (0.3, 0.48, 0.28), leaf_droop_deg: 12.0,
+            petal_count: 5, flower_color: (0.45, 0.55, 0.9), flower_center_color: (0.9, 0.9, 0.6),
+            flower_at: 0.5, fruit_at: 0.95,
+            fruit_kind: "none", fruit_size: 0.015, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.55, 0.35), fruit_color_ripe: (0.6, 0.55, 0.35),
+            show_roots: false,
+        ),
+        // Lettuce: bright loose leafy head.
+        "lettuce": (
+            form: "rosette", height_m: 0.22, spread_m: 0.34, stem_radius: 0.008,
+            stem_color: (0.5, 0.65, 0.35),
+            leaf_count: 12, leaf_color: (0.35, 0.62, 0.22), leaf_droop_deg: 26.0,
+            petal_count: 0, flower_color: (0.9, 0.9, 0.7), flower_center_color: (0.9, 0.9, 0.7),
+            flower_at: 0.95, fruit_at: 0.99,
+            fruit_kind: "none", fruit_size: 0.01, fruit_count: 0,
+            fruit_color_unripe: (0.5, 0.6, 0.3), fruit_color_ripe: (0.5, 0.6, 0.3),
+            show_roots: true,
+        ),
+        // Oyster mushroom: pale clustered caps on a short base.
+        "oyster_mushroom": (
+            form: "bulb", height_m: 0.16, spread_m: 0.22, stem_radius: 0.02,
+            stem_color: (0.82, 0.8, 0.72),
+            leaf_count: 5, leaf_color: (0.78, 0.74, 0.66), leaf_droop_deg: 55.0,
+            petal_count: 0, flower_color: (0.85, 0.82, 0.75), flower_center_color: (0.85, 0.82, 0.75),
+            flower_at: 0.99, fruit_at: 0.4,
+            fruit_kind: "sphere", fruit_size: 0.05, fruit_count: 4,
+            fruit_color_unripe: (0.8, 0.77, 0.7), fruit_color_ripe: (0.86, 0.82, 0.74),
+            show_roots: false,
+        ),
     },
 )

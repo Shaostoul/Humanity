@@ -69,6 +69,41 @@ pub struct PlantVisualDef {
     pub show_roots: bool,
 }
 
+/// Generic visual for crops without a hand-authored recipe (v0.903): a
+/// medium leafy rosette/herb, deterministically varied by the crop id (FNV
+/// hash) so a mixed bed reads as different species, not clones. Guarantees
+/// every crop renders SOMETHING green at every growth stage; authored
+/// entries in data/plants_visual.ron always take precedence.
+pub fn generic_visual(def_id: &str) -> PlantVisualDef {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in def_id.bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x1_0000_0001_b3);
+    }
+    let f = |shift: u32, span: f32| ((h >> shift) & 0xff) as f32 / 255.0 * span;
+    PlantVisualDef {
+        form: if h & 1 == 0 { "rosette".into() } else { "herb".into() },
+        height_m: 0.22 + f(8, 0.4),
+        spread_m: 0.26 + f(16, 0.28),
+        stem_radius: 0.007,
+        stem_color: [0.32, 0.45, 0.22],
+        leaf_count: 7 + ((h >> 24) & 7) as u32,
+        leaf_color: [0.14 + f(32, 0.09), 0.38 + f(40, 0.14), 0.14 + f(48, 0.05)],
+        leaf_droop_deg: 14.0 + f(52, 14.0),
+        petal_count: 0,
+        flower_color: [0.92, 0.92, 0.86],
+        flower_center_color: [0.9, 0.8, 0.3],
+        flower_at: 0.6,
+        fruit_at: 0.85,
+        fruit_kind: "none".into(),
+        fruit_size: 0.02,
+        fruit_count: 0,
+        fruit_color_unripe: [0.5, 0.6, 0.3],
+        fruit_color_ripe: [0.7, 0.45, 0.2],
+        show_roots: false,
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct PlantVisualRegistry {
     pub plants: HashMap<String, PlantVisualDef>,
