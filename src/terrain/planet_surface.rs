@@ -255,6 +255,10 @@ pub const LAND_ALBEDO_GAIN: f32 = 1.6;
 /// this closes most of that gap without touching bright terrain.
 pub const LAND_SHADOW_KNEE: f32 = 0.15;
 pub const LAND_SHADOW_EXP: f32 = 0.5;
+/// Depth (normalized elevation units) over which the photo-blue ocean floor
+/// fades in below sea level (v0.909). Keeps beach sand and shallow shelf at
+/// their imagery color instead of snapping blue at 1 cm of depth.
+pub const OCEAN_FLOOR_DEPTH_BAND: f32 = 0.002;
 
 /// Width of the sea-ice blend band on |sin(latitude)|: the albedo path's
 /// cap layer fades in from `polar_cap_latitude` to `polar_cap_latitude +
@@ -344,10 +348,18 @@ pub fn grade_albedo(
     // under the clouds"): floor water to photo blue, gain land toward the
     // brightness the pipeline is calibrated for. See the two constants above.
     let base = if elevation < sea {
+        // Depth ramp (v0.909, operator: "the ground near the beach is blue
+        // instead of the color of the beach"): the ocean floor used to snap
+        // on at 1 cm of depth, painting beach sand and shallow shelf photo-
+        // blue. The floor now fades in over the first slice of depth (in
+        // normalized elevation units - roughly the first ~40 m on Earth's
+        // 20 km range), so beaches and shallows keep the imagery's sand
+        // and turquoise, and open ocean is unchanged.
+        let t = ((sea - elevation) / OCEAN_FLOOR_DEPTH_BAND).clamp(0.0, 1.0);
         [
-            raw[0].max(OCEAN_ORBITAL_FLOOR[0]),
-            raw[1].max(OCEAN_ORBITAL_FLOOR[1]),
-            raw[2].max(OCEAN_ORBITAL_FLOOR[2]),
+            raw[0] + (raw[0].max(OCEAN_ORBITAL_FLOOR[0]) - raw[0]) * t,
+            raw[1] + (raw[1].max(OCEAN_ORBITAL_FLOOR[1]) - raw[1]) * t,
+            raw[2] + (raw[2].max(OCEAN_ORBITAL_FLOOR[2]) - raw[2]) * t,
         ]
     } else {
         let k = land_gain(raw);

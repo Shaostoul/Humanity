@@ -290,6 +290,9 @@ pub struct AppConfig {
     pub fov: f32,
     #[serde(default = "default_mouse_sensitivity")]
     pub mouse_sensitivity: f32,
+    /// Invert vertical mouse look (v0.909 - persisted now that it's wired).
+    #[serde(default)]
+    pub invert_y: bool,
     #[serde(default = "default_master_volume")]
     pub master_volume: f32,
     #[serde(default = "default_music_volume")]
@@ -923,6 +926,7 @@ impl AppConfig {
             concept_tour_seen: state.concept_tour_seen,
             fov: state.settings.fov,
             mouse_sensitivity: state.settings.mouse_sensitivity,
+            invert_y: state.settings.invert_y,
             master_volume: state.settings.master_volume,
             music_volume: state.settings.music_volume,
             sfx_volume: state.settings.sfx_volume,
@@ -1028,6 +1032,7 @@ impl AppConfig {
         } else {
             default_mouse_sensitivity()
         };
+        state.settings.invert_y = self.invert_y;
         state.settings.master_volume = self.master_volume;
         state.settings.music_volume = self.music_volume;
         state.settings.sfx_volume = self.sfx_volume;

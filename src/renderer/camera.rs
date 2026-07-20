@@ -246,8 +246,22 @@ impl Camera {
             return;
         }
         if self.surface_mode {
+            // v0.909 (operator: "the transitions between the cameras keep
+            // making me lose track of where I was aiming"): an up-vector
+            // change used to keep yaw/pitch fixed, so the LOOK DIRECTION
+            // rotated with the basis - across the radial->world-Y blend
+            // band that swung the aim by up to 90 degrees. Preserve the
+            // world-space forward instead: capture it in the OLD basis and
+            // re-derive yaw/pitch in the new one. Skipped when looking
+            // nearly straight along the new up (yaw degenerates there).
+            let fwd = self.forward();
             self.surface_up = up;
             self.up = up;
+            if fwd.dot(up).abs() < 0.999 {
+                let (yaw, pitch) = crate::surface_walk::surface_look_angles(up, fwd);
+                self.yaw = yaw;
+                self.pitch = pitch;
+            }
         } else {
             let fwd = self.forward(); // world basis (surface_mode still false)
             self.surface_mode = true;
@@ -546,6 +560,8 @@ pub struct CameraController {
     /// StatusEffects + the status-effect registry. Look/rotation is unaffected.
     pub speed_multiplier: f32,
     pub mouse_sensitivity: f32,
+    /// Invert vertical mouse look (v0.909 - wired from Settings > Controls).
+    pub invert_y: bool,
     // Movement keys held
     forward: bool,
     backward: bool,
@@ -604,6 +620,7 @@ impl CameraController {
             speed,
             speed_multiplier: 1.0,
             mouse_sensitivity: sensitivity,
+            invert_y: false,
             forward: false,
             backward: false,
             left: false,
@@ -908,8 +925,9 @@ impl CameraController {
         mouse_dy: f64,
     ) {
         // Mouse look (always active in FP mode — cursor is grabbed)
+        let dy_sign = if self.invert_y { 1.0 } else { -1.0 };
         camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
-        camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
+        camera.pitch += dy_sign * mouse_dy as f32 * self.mouse_sensitivity * 0.01;
         let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
         camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
 
@@ -1042,8 +1060,9 @@ impl CameraController {
     ) {
         // Mouse look (orbit around character)
         if self.mouse_right || self.mouse_left {
+            let dy_sign = if self.invert_y { 1.0 } else { -1.0 };
             camera.yaw += mouse_dx as f32 * self.mouse_sensitivity * 0.01;
-            camera.pitch -= mouse_dy as f32 * self.mouse_sensitivity * 0.01;
+            camera.pitch += dy_sign * mouse_dy as f32 * self.mouse_sensitivity * 0.01;
             let max_pitch = std::f32::consts::FRAC_PI_2 - 0.01;
             camera.pitch = camera.pitch.clamp(-max_pitch, max_pitch);
         }

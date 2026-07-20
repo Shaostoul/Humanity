@@ -18,6 +18,16 @@ use serde::de::DeserializeOwned;
 
 use crate::embedded_data;
 
+/// CPU-side mesh data decoded from a glTF file — plain vertex/index arrays,
+/// no GPU resources, so it can be produced without a wgpu device (unit tests,
+/// worker threads) and uploaded later via
+/// `crate::renderer::mesh::Mesh::from_vertices(device, &vertices, &indices)`.
+#[cfg(feature = "native")]
+pub struct GltfCpuMesh {
+    pub vertices: Vec<crate::renderer::mesh::Vertex>,
+    pub indices: Vec<u32>,
+}
+
 /// Central asset manager: loads data files, caches parsed results, supports hot-reload.
 pub struct AssetManager {
     /// Root data directory (e.g., `HumanityOS/content/data/`).
@@ -124,18 +134,41 @@ impl AssetManager {
         device: &wgpu::Device,
         relative_path: &str,
     ) -> Result<crate::renderer::mesh::Mesh, String> {
-        let mut path = self.data_dir.join(relative_path);
+        let path = self.resolve_model_path(relative_path);
+        let (document, buffers, _images) = gltf::import(&path)
+            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
+        Ok(crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices))
+    }
+
+    /// Resolve a model path: `data_dir` first (the distributed/moddable tree,
+    /// e.g. data/models/x.glb), then the data dir's PARENT (the dev repo
+    /// root, so assets/models/x.gltf works in a checkout). Same rule
+    /// `parse_gltf_mesh` has always used.
+    #[cfg(feature = "native")]
+    fn resolve_model_path(&self, relative_path: &str) -> PathBuf {
+        let path = self.data_dir.join(relative_path);
         if !path.exists() {
             if let Some(parent) = self.data_dir.parent() {
                 let alt = parent.join(relative_path);
                 if alt.exists() {
-                    path = alt;
+                    return alt;
                 }
             }
         }
-        let (document, buffers, _images) = gltf::import(&path)
-            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        path
+    }
 
+    /// Decode the FIRST mesh's FIRST primitive of an imported glTF document
+    /// into CPU-side vertex/index arrays — the shared geometry path behind
+    /// `parse_gltf_mesh`, `load_gltf`, and `parse_gltf_mesh_with_texture`.
+    /// Missing normals get flat generated normals; missing UVs get planar UVs.
+    #[cfg(feature = "native")]
+    fn decode_first_primitive(
+        document: &gltf::Document,
+        buffers: &[gltf::buffer::Data],
+        relative_path: &str,
+    ) -> Result<GltfCpuMesh, String> {
         let gltf_mesh = document.meshes().next()
             .ok_or_else(|| format!("No meshes in {relative_path}"))?;
         let primitive = gltf_mesh.primitives().next()
@@ -166,7 +199,80 @@ impl AssetManager {
                 uv: uvs.get(i).copied().unwrap_or([0.0, 0.0]),
             }
         }).collect();
-        Ok(crate::renderer::mesh::Mesh::from_vertices(device, &vertices, &indices))
+        Ok(GltfCpuMesh { vertices, indices })
+    }
+
+    /// Like `parse_gltf_mesh` but CPU-only, and ALSO decodes the model's
+    /// base-color texture into RGBA8 bytes (v0.904: realistic textured
+    /// plants). Returns the geometry plus `Some((rgba, width, height))` when
+    /// the first primitive's material carries a
+    /// pbrMetallicRoughness.baseColorTexture, `None` when the model has no
+    /// material/texture (e.g. the older *_merged.gltf repacks).
+    ///
+    /// Texture handling:
+    /// - relative image URIs (e.g. "textures/grass_medium_02_diff_2k.jpg")
+    ///   are resolved from the .gltf's own folder and decoded by
+    ///   `gltf::import` (jpg/png via the `image` crate);
+    /// - anything larger than 1024x1024 is downscaled (Triangle filter,
+    ///   aspect preserved) to keep per-plant VRAM sane;
+    /// - the alpha channel is preserved as decoded (jpg sources decode with
+    ///   alpha = 255; leaf silhouettes on these photoscans are real geometry).
+    ///
+    /// The caller uploads the pair via
+    /// `Mesh::from_vertices(device, &mesh.vertices, &mesh.indices)` +
+    /// `Renderer::add_textured_material(.., &rgba, width, height)`, or uses
+    /// the `parse_gltf_mesh_textured` convenience below.
+    #[cfg(feature = "native")]
+    pub fn parse_gltf_mesh_with_texture(
+        &self,
+        relative_path: &str,
+    ) -> Result<(GltfCpuMesh, Option<(Vec<u8>, u32, u32)>), String> {
+        let path = self.resolve_model_path(relative_path);
+        let (document, buffers, images) = gltf::import(&path)
+            .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
+        let mesh = Self::decode_first_primitive(&document, &buffers, relative_path)?;
+        let texture = Self::decode_base_color_texture(&document, &images, relative_path);
+        Ok((mesh, texture))
+    }
+
+    /// GPU convenience over `parse_gltf_mesh_with_texture`: uploads the
+    /// geometry and hands back the ready `Mesh` plus the decoded base-color
+    /// texture for `Renderer::add_textured_material`.
+    #[cfg(feature = "native")]
+    pub fn parse_gltf_mesh_textured(
+        &self,
+        device: &wgpu::Device,
+        relative_path: &str,
+    ) -> Result<(crate::renderer::mesh::Mesh, Option<(Vec<u8>, u32, u32)>), String> {
+        let (cpu, texture) = self.parse_gltf_mesh_with_texture(relative_path)?;
+        let mesh = crate::renderer::mesh::Mesh::from_vertices(device, &cpu.vertices, &cpu.indices);
+        Ok((mesh, texture))
+    }
+
+    /// Find the first primitive's material -> pbrMetallicRoughness
+    /// .baseColorTexture -> source image, convert it to RGBA8, and downscale
+    /// if oversized. `images` is the decoded-image list `gltf::import`
+    /// produced (URI resolution from the gltf's folder already done there).
+    /// Returns None for: no material texture, unsupported pixel format, or a
+    /// decode inconsistency — all non-fatal (caller renders untextured).
+    #[cfg(feature = "native")]
+    fn decode_base_color_texture(
+        document: &gltf::Document,
+        images: &[gltf::image::Data],
+        relative_path: &str,
+    ) -> Option<(Vec<u8>, u32, u32)> {
+        let primitive = document.meshes().next()?.primitives().next()?;
+        let info = primitive.material().pbr_metallic_roughness().base_color_texture()?;
+        let image_index = info.texture().source().index();
+        let data = images.get(image_index)?;
+        let rgba = image_data_to_rgba8(data).or_else(|| {
+            log::warn!(
+                "{relative_path}: base-color texture has unsupported pixel format {:?}; skipping texture",
+                data.format
+            );
+            None
+        })?;
+        downscale_rgba_if_needed(rgba, data.width, data.height, relative_path)
     }
 
     /// Load a GLTF/GLB model, extract the first mesh primitive, and return
@@ -190,60 +296,21 @@ impl AssetManager {
         let (document, buffers, _images) = gltf::import(&path)
             .map_err(|e| format!("Failed to load GLTF {}: {e}", path.display()))?;
 
-        // Find the first mesh with at least one primitive
-        let gltf_mesh = document.meshes().next()
-            .ok_or_else(|| format!("No meshes in {relative_path}"))?;
-        let primitive = gltf_mesh.primitives().next()
-            .ok_or_else(|| format!("No primitives in mesh of {relative_path}"))?;
-
-        let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
-
-        // Positions (required)
-        let positions: Vec<[f32; 3]> = reader.read_positions()
-            .ok_or_else(|| format!("No positions in {relative_path}"))?
-            .collect();
-
-        // Indices (required for indexed draw)
-        let indices: Vec<u32> = reader.read_indices()
-            .ok_or_else(|| format!("No indices in {relative_path}"))?
-            .into_u32()
-            .collect();
-
-        // Normals — generate flat normals from face geometry if missing
-        let normals: Vec<[f32; 3]> = if let Some(norm_iter) = reader.read_normals() {
-            norm_iter.collect()
-        } else {
-            generate_flat_normals(&positions, &indices)
-        };
-
-        // UVs — generate simple planar UVs if missing
-        let uvs: Vec<[f32; 2]> = if let Some(tc_iter) = reader.read_tex_coords(0) {
-            tc_iter.into_f32().collect()
-        } else {
-            generate_planar_uvs(&positions)
-        };
-
-        // Build engine Vertex array
-        let vertices: Vec<crate::renderer::mesh::Vertex> = positions.iter().enumerate().map(|(i, pos)| {
-            crate::renderer::mesh::Vertex {
-                position: *pos,
-                normal: normals.get(i).copied().unwrap_or([0.0, 1.0, 0.0]),
-                uv: uvs.get(i).copied().unwrap_or([0.0, 0.0]),
-            }
-        }).collect();
+        // Decode the first mesh's first primitive (shared geometry path).
+        let cpu = Self::decode_first_primitive(&document, &buffers, relative_path)?;
 
         let mesh = crate::renderer::mesh::Mesh::from_vertices(
             &renderer.device,
-            &vertices,
-            &indices,
+            &cpu.vertices,
+            &cpu.indices,
         );
         let mesh_idx = renderer.add_mesh(mesh);
 
         log::info!(
             "Loaded GLTF: {} ({} verts, {} tris)",
             relative_path,
-            vertices.len(),
-            indices.len() / 3,
+            cpu.vertices.len(),
+            cpu.indices.len() / 3,
         );
 
         self.mesh_cache.insert(relative_path.to_string(), mesh_idx);
@@ -485,6 +552,74 @@ impl AssetManager {
     }
 }
 
+/// Convert a `gltf::import`-decoded image to tightly-packed RGBA8 bytes.
+/// jpg decodes as R8G8B8 (alpha filled with 255), png may carry real alpha
+/// (R8G8B8A8, kept as-is). 16-bit / float formats return None — no plant
+/// asset uses them and expanding them here would be dead code.
+#[cfg(feature = "native")]
+fn image_data_to_rgba8(data: &gltf::image::Data) -> Option<Vec<u8>> {
+    use gltf::image::Format;
+    let pixel_count = data.width as usize * data.height as usize;
+    let px = &data.pixels;
+    match data.format {
+        Format::R8G8B8A8 => Some(px.clone()),
+        Format::R8G8B8 => {
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for c in px.chunks_exact(3) {
+                out.extend_from_slice(&[c[0], c[1], c[2], 255]);
+            }
+            Some(out)
+        }
+        Format::R8 => {
+            // Grayscale: replicate luma, opaque alpha.
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for &l in px.iter() {
+                out.extend_from_slice(&[l, l, l, 255]);
+            }
+            Some(out)
+        }
+        Format::R8G8 => {
+            // Luma + alpha.
+            let mut out = Vec::with_capacity(pixel_count * 4);
+            for c in px.chunks_exact(2) {
+                out.extend_from_slice(&[c[0], c[0], c[0], c[1]]);
+            }
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
+/// Cap plant textures at 1024x1024: anything larger is resized (aspect
+/// preserved, Triangle filter) so a 2k Poly Haven diff map costs 4 MB of
+/// VRAM instead of 16.
+#[cfg(feature = "native")]
+fn downscale_rgba_if_needed(
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+    relative_path: &str,
+) -> Option<(Vec<u8>, u32, u32)> {
+    const MAX_DIM: u32 = 1024;
+    if width <= MAX_DIM && height <= MAX_DIM {
+        return Some((rgba, width, height));
+    }
+    let scale = MAX_DIM as f32 / width.max(height) as f32;
+    let new_w = ((width as f32 * scale).round() as u32).max(1);
+    let new_h = ((height as f32 * scale).round() as u32).max(1);
+    let img = match image::RgbaImage::from_raw(width, height, rgba) {
+        Some(i) => i,
+        None => {
+            // Only reachable on a byte-length mismatch — treat as no texture.
+            log::warn!("{relative_path}: rgba byte length does not match {width}x{height}; skipping texture");
+            return None;
+        }
+    };
+    let resized = image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
+    log::info!("{relative_path}: base-color texture downscaled {width}x{height} -> {new_w}x{new_h}");
+    Some((resized.into_raw(), new_w, new_h))
+}
+
 /// Generate flat normals when GLTF model has none.
 /// Each triangle face gets a uniform normal from the cross product of its edges.
 #[cfg(feature = "native")]
@@ -545,4 +680,49 @@ fn generate_planar_uvs(positions: &[[f32; 3]]) -> Vec<[f32; 2]> {
     positions.iter().map(|p| {
         [(p[0] - min_x) / range_x, (p[2] - min_z) / range_z]
     }).collect()
+}
+
+#[cfg(all(test, feature = "native"))]
+mod gltf_texture_tests {
+    use super::*;
+
+    /// Load the smallest split plant variant (grass clump v1, 714 tris,
+    /// produced by `node scripts/repack-plant-gltf.js --split --all`) plus
+    /// its base-color texture and sanity-check both. The 2k source jpg must
+    /// come back downscaled to <= 1024 with 4 bytes per pixel. Paths resolve
+    /// through the repo checkout: data_dir = <repo>/data, so the
+    /// parent-of-data fallback reaches <repo>/assets/... exactly like a dev
+    /// checkout at runtime.
+    #[test]
+    fn loads_grass_variant_mesh_and_texture() {
+        let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let manager = AssetManager::new(repo_root.join("data"));
+        let (mesh, texture) = manager
+            .parse_gltf_mesh_with_texture("assets/models/plants/grass_medium_02/grass_medium_02_v1.gltf")
+            .expect("grass variant v1 should load");
+
+        // Geometry sanity
+        assert!(!mesh.vertices.is_empty(), "no vertices decoded");
+        assert!(!mesh.indices.is_empty(), "no indices decoded");
+        assert_eq!(mesh.indices.len() % 3, 0, "index count not a multiple of 3");
+        let vert_count = mesh.vertices.len() as u32;
+        assert!(
+            mesh.indices.iter().all(|&i| i < vert_count),
+            "index out of range ({} vertices)",
+            vert_count
+        );
+
+        // Texture sanity: present, capped at 1024, tightly packed RGBA8
+        let (rgba, width, height) = texture.expect("variant should carry a base-color texture");
+        assert!(width > 0 && height > 0, "degenerate texture {width}x{height}");
+        assert!(
+            width <= 1024 && height <= 1024,
+            "texture not downscaled: {width}x{height}"
+        );
+        assert_eq!(
+            rgba.len(),
+            (width * height * 4) as usize,
+            "rgba byte length != w*h*4"
+        );
+    }
 }

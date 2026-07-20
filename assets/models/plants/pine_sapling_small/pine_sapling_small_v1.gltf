@@ -1,0 +1,138 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "pine_sapling_small_v1"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "pine_sapling_small_v1",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 145495,
+      "type": "VEC3",
+      "min": [
+        -0.3634847402572632,
+        -0.015484155155718327,
+        -0.3729070723056793
+      ],
+      "max": [
+        0.42418888211250305,
+        1.283473253250122,
+        0.3545142412185669
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 145495,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 145495,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5125,
+      "count": 427518,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 1745940,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1745940,
+      "byteLength": 1745940,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 3491880,
+      "byteLength": 1163960,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 4655840,
+      "byteLength": 1710072,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 6365912,
+      "uri": "pine_sapling_small_v1.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "pine_sapling_small_twig",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "alphaMode": "MASK",
+      "alphaCutoff": 0.5,
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/pine_sapling_small_twig_diff_2k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

@@ -906,12 +906,14 @@ pub(crate) fn draw_appearance_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::toggle(ui, theme, "Dark Mode", &mut state.settings.dark_mode) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Dark backgrounds with light text (easier on the eyes at night). Off = light theme.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_sm);
 
         if widgets::labeled_slider(ui, theme, "Font Size", &mut state.settings.font_size, 10.0..=24.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Base text size in points. Higher = larger, easier-to-read text that fits less on screen. Per-element sizes live under Widgets > Fonts.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_sm);
 
@@ -1281,6 +1283,8 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::labeled_slider(ui, theme, "Speed", &mut sep_speed, 0.0..=3.0) {
             changed = true;
         }
+        ui.label(RichText::new("1.0 = normal. Higher = faster color movement; 0 holds it still.")
+            .size(small_size).color(text_muted));
     });
     ui.add_space(md);
 
@@ -1315,6 +1319,8 @@ pub(crate) fn draw_animations_content(ui: &mut egui::Ui, theme: &mut Theme, stat
         if widgets::labeled_slider(ui, theme, "Speed", &mut atk_speed, 0.0..=3.0) {
             changed = true;
         }
+        ui.label(RichText::new("1.0 = normal. Higher = faster, more urgent pulsing; lower = a slow fade.")
+            .size(small_size).color(text_muted));
         if widgets::Button::secondary("Test attack pulse for 3s").show(ui, theme) {
             state.attack_pulse_active = true;
             state.attack_pulse_last_hit_at = ui.ctx().input(|i| i.time);
@@ -1444,6 +1450,10 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
         // ── LEFT COLUMN: sliders ──
         let ui = &mut cols[0];
         let mut any_changed = false;
+
+        ui.label(RichText::new("All values are in pixels (fonts in points). Drag a slider and watch the Live Preview on the right update; click Save Theme to keep the look.")
+            .size(ss.font_sm).color(label_color));
+        ui.add_space(spacing_sm);
 
         let make_card = |ui: &mut egui::Ui, title: &str, content: &mut dyn FnMut(&mut egui::Ui)| {
             egui::Frame::none()
@@ -1678,6 +1688,7 @@ pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state
         widgets::toggle(ui, theme, "Direct Messages", &mut state.settings.notify_dm);
         widgets::toggle(ui, theme, "Mentions", &mut state.settings.notify_mentions);
         widgets::toggle(ui, theme, "Task Updates", &mut state.settings.notify_tasks);
+        ui.label(RichText::new("Which events notify you: private messages, someone naming you in chat, and changes to tasks you are on.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Do Not Disturb").color(theme.text_secondary()).strong());
@@ -1693,6 +1704,7 @@ pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state
                 .desired_width(80.0)
                 .hint_text("08:00"));
         });
+        ui.label(RichText::new("Notifications stay silent between these times. 24-hour clock, e.g. 22:00 to 08:00 keeps nights quiet.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 
@@ -1742,6 +1754,7 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
             state.settings.wallet_network = net;
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Mainnet is the real Solana network where coins have value. Devnet and Testnet are free practice networks for trying things safely.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
 
@@ -1750,6 +1763,7 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
                 .desired_width(280.0)
                 .hint_text("https://..."));
         });
+        ui.label(RichText::new("Advanced, optional: route wallet requests through a specific Solana server. Leave empty to use the network's default.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 
@@ -1758,12 +1772,15 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         if widgets::labeled_slider(ui, theme, "Master Volume", &mut state.settings.master_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Overall loudness of everything the app plays. Far left = silent, far right = full volume.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Music Volume", &mut state.settings.music_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Background music only. Scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "SFX Volume", &mut state.settings.sfx_volume, 0.0..=1.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Sound effects only (clicks, footsteps, machines). Scales together with Master Volume.").color(theme.text_muted()).size(theme.font_size_small));
     });
     // Voice (v0.485). Device selectors + a mic loopback test (toggle) with a live
     // level meter, so you can confirm capture + playback and pick devices. The
@@ -1779,14 +1796,22 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
         }
         let in_devs = state.audio_input_devices.clone();
         let out_devs = state.audio_output_devices.clone();
+        // Mark settings dirty on a device pick so the choice persists to
+        // config.json (the combos alone never set the dirty flag, so a
+        // device selection silently failed to save; wiring-audit fix).
+        let mut dev_changed = false;
         ui.horizontal(|ui| {
             ui.label(RichText::new("Input (microphone)").size(theme.font_size_small).color(theme.text_secondary()));
             egui::ComboBox::from_id_salt("audio_in_dev")
                 .selected_text(if state.audio_input_device.is_empty() { "System default".to_string() } else { state.audio_input_device.clone() })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut state.audio_input_device, String::new(), "System default");
+                    if ui.selectable_value(&mut state.audio_input_device, String::new(), "System default").changed() {
+                        dev_changed = true;
+                    }
                     for d in &in_devs {
-                        ui.selectable_value(&mut state.audio_input_device, d.clone(), d);
+                        if ui.selectable_value(&mut state.audio_input_device, d.clone(), d).changed() {
+                            dev_changed = true;
+                        }
                     }
                 });
         });
@@ -1795,12 +1820,20 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             egui::ComboBox::from_id_salt("audio_out_dev")
                 .selected_text(if state.audio_output_device.is_empty() { "System default".to_string() } else { state.audio_output_device.clone() })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut state.audio_output_device, String::new(), "System default");
+                    if ui.selectable_value(&mut state.audio_output_device, String::new(), "System default").changed() {
+                        dev_changed = true;
+                    }
                     for d in &out_devs {
-                        ui.selectable_value(&mut state.audio_output_device, d.clone(), d);
+                        if ui.selectable_value(&mut state.audio_output_device, d.clone(), d).changed() {
+                            dev_changed = true;
+                        }
                     }
                 });
         });
+        if dev_changed {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Which microphone and speakers voice uses. A change takes effect the next time a call or mic test starts.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::Button::ghost("Refresh devices").show(ui, theme) {
             state.audio_devices_loaded = false;
         }
@@ -1813,6 +1846,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
             state.voice_gain = (gain_pct / 100.0).clamp(0.0, 2.0);
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("How loud your microphone sounds to others. 100% = unchanged; raise it if people say you are quiet, lower it if your voice crackles or distorts.").color(theme.text_muted()).size(theme.font_size_small));
 
         // Noise filter mode.
         ui.add_space(theme.spacing_xs);
@@ -1876,6 +1910,7 @@ pub(crate) fn draw_audio_content(ui: &mut egui::Ui, theme: &Theme, state: &mut G
                 state.voice_vad_threshold = (vad_pct / 100.0).clamp(0.0, 1.0);
                 state.settings_dirty = true;
             }
+            ui.label(RichText::new("How loud you must be before your mic opens. Lower = opens at a whisper but may pick up background noise; higher = needs a clearer, louder voice.").color(theme.text_muted()).size(theme.font_size_small));
         }
 
         ui.add_space(theme.spacing_sm);
@@ -1957,12 +1992,15 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "VSync", &mut state.settings.vsync) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Syncs frames to your monitor to stop image tearing. On = smoother, frame rate capped at your monitor's refresh rate; off = uncapped FPS but frames can visibly tear.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Field of view: how wide the camera sees, in degrees. Higher = see more around you with a mild fisheye stretch; lower = zoomed in. 90 suits most screens.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Render Distance", &mut state.settings.render_distance, 50.0..=2000.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("How far away objects still draw, in meters. Higher = see further but more GPU work / lower FPS.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Planets").color(theme.text_secondary()).strong());
@@ -1973,9 +2011,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Procedural surfaces", &mut state.settings.planet_detail) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Distant planets get oceans, continents, and polar caps instead of flat single-color spheres. Small GPU cost; off is fastest.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "LOD pixel threshold (distant planets)", &mut state.settings.planet_lod_px, 4.0..=64.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("How many pixels wide a planet must look on screen before it earns its next round of detail. LOWER = planets sharpen while still far away (more GPU); higher = they stay simple longer (faster).").color(theme.text_muted()).size(theme.font_size_small));
         // Ceiling raised 7 -> 9 (2026-07-11) for FTL close approaches; the
         // top levels only trigger when one planet fills the screen (see
         // terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
@@ -2001,11 +2041,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=12288.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("Most ground pieces the terrain may keep loaded at once. Higher = detail holds across more of the horizon (more memory + GPU); lower = distant ground goes soft sooner but runs lighter.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Detail draw distance", &mut state.settings.terrain_detail_distance, 0.5..=3.0) {
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How far fine surface detail (rock grain, waves, micro texture) stays visible. Higher = crisper distant terrain, more GPU.").color(theme.text_muted()).size(theme.font_size_small));
-        ui.label(RichText::new("Most surface patches drawn at once. Higher holds detail across more of the horizon.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Terrain stream speed (builds per frame)", &mut state.settings.terrain_builds_per_frame, 6.0..=64.0) {
             state.settings_dirty = true;
         }
@@ -2123,7 +2163,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             }
         }
         ui.label(
-            RichText::new("The galaxy band baked from the real star catalog's integrated light. Changes apply live.")
+            RichText::new("The soft glowing band of our galaxy behind the stars, baked from the real star catalog. Intensity: 0 = invisible, 1 = natural, 2 = doubled brightness. Changes apply live.")
                 .color(theme.text_muted())
                 .size(theme.font_size_small),
         );
@@ -2374,7 +2414,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Machine label distances (m)").color(theme.text_secondary()).strong());
-        ui.label(RichText::new("How close to show a machine's dot / name / info card. Hold Tab in-game to triple these and see through walls.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("How close (in meters) you must be before a machine shows its dot / name / info card. Higher = labels appear from further away, busier screen. Hold Tab in-game to triple these and see through walls. Session-only for now: they reset to defaults on restart.").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_xs);
         // These live on GuiState (session-tunable); the defaults (21 / 13 / 8) are the
         // saved-feel values. Not persisted to settings yet.
@@ -2523,9 +2563,11 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::labeled_slider(ui, theme, "Mouse Sensitivity", &mut state.settings.mouse_sensitivity, 0.02..=1.0) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("How fast the camera turns when you move the mouse. Lower = steadier, more precise aim; higher = faster turns.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::toggle(ui, theme, "Invert Y-Axis", &mut state.settings.invert_y) {
             state.settings_dirty = true;
         }
+        ui.label(RichText::new("On = pushing the mouse forward looks down, like an aircraft stick. Off = forward looks up.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Keybinds").color(theme.text_secondary()).strong());
@@ -2576,7 +2618,9 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
         widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible);
+        ui.label(RichText::new("Whether other players can open and view your profile page.").color(theme.text_muted()).size(theme.font_size_small));
         widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible);
+        ui.label(RichText::new("Whether others can see that you are online right now. Off = you appear offline.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 
@@ -2734,7 +2778,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Export & Backup").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Export your data for backup or migration.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Export your data for backup or migration. (These buttons are not wired up yet; use the Open buttons above to copy files by hand.)").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
 
         ui.horizontal(|ui| {
@@ -2746,7 +2790,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Cache").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Clear cached data to free disk space.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Clear cached data to free disk space. (Not wired up yet.)").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
         let _ = widgets::secondary_button(ui, theme, "Clear Cache");
 
@@ -2754,7 +2798,7 @@ pub(crate) fn draw_data_content(ui: &mut egui::Ui, theme: &Theme, state: &mut Gu
 
         ui.label(RichText::new("Danger Zone").color(theme.danger()).strong());
         ui.add_space(theme.spacing_xs);
-        ui.label(RichText::new("Permanently delete your account and all associated data.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("Permanently delete your account and all associated data. (Not wired up yet; deleting your identity means removing your seed and data folders, see the paths above.)").color(theme.text_muted()).size(theme.font_size_small));
         ui.add_space(theme.spacing_sm);
         let _ = widgets::danger_button(ui, theme, "Delete Account");
     });
@@ -2777,6 +2821,7 @@ pub(crate) fn draw_updates_content(ui: &mut egui::Ui, theme: &Theme, state: &mut
         if ui.radio_value(&mut is_disabled, true, "Disabled (never check)").changed() && is_disabled {
             state.updater.channel = UpdateChannel::Disabled;
         }
+        ui.label(RichText::new("Always Latest looks for new releases at launch and on Check Now. Disabled stops all checking. This choice lasts for the current session only; it returns to Always Latest on restart.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
 

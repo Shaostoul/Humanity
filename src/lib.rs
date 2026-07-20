@@ -2408,6 +2408,16 @@ mod native_app {
                 }
             }
         }
+        // Optional "sea":"0.8" pins the ocean sea state (0 = glassy calm,
+        // 0.5 = ripples, 1 = storm chop + breaking crests) for dev shots;
+        // "sea":"auto" returns control to the game weather's wind.
+        if let Some(sea) = grab("sea") {
+            state.sea_state_override = if sea == "auto" {
+                None
+            } else {
+                sea.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
+            };
+        }
         // Optional "enter":"default" mimics the Play button: load the default
         // character into the world (machines + garden come alive), falling
         // back to the character picker when no default is set.
@@ -6880,6 +6890,138 @@ mod native_app {
                         log::info!("Livestock: spawned {herd} animals near the fields");
                     }
                 }
+
+                // ── Decoration plants (v0.909, operator: "get the plants
+                // added and the environment decorated") ── photoscanned CC0
+                // Poly Haven models scattered around homestead anchors from
+                // data/entities/decorations.ron. Meshes/materials cache
+                // across world reloads; positions rebuild each load.
+                {
+                    #[derive(serde::Deserialize)]
+                    struct DecoEntry {
+                        model: String,
+                        near: String,
+                        #[serde(default)]
+                        offset: (f32, f32, f32),
+                        count: u32,
+                        spread: f32,
+                        #[serde(default = "one_f32")]
+                        scale: f32,
+                    }
+                    #[derive(serde::Deserialize)]
+                    struct DecoList {
+                        decorations: Vec<DecoEntry>,
+                    }
+                    fn one_f32() -> f32 {
+                        1.0
+                    }
+                    state.decoration_objects.clear();
+                    let path = state.asset_manager.data_dir().join("entities/decorations.ron");
+                    let parsed = std::fs::read_to_string(&path)
+                        .map_err(|e| e.to_string())
+                        .and_then(|t| ron::from_str::<DecoList>(&t).map_err(|e| e.to_string()));
+                    match parsed {
+                        Ok(list) => {
+                            let mut placed = 0u32;
+                            for (di, d) in list.decorations.iter().enumerate() {
+                                let Some(&anchor) = machine_world_pos.get(&d.near) else {
+                                    log::warn!("decorations.ron: anchor {} not placed", d.near);
+                                    continue;
+                                };
+                                let cached = state.decoration_mesh_cache.get(&d.model).copied();
+                                let (mesh_idx, mat_idx) = match cached {
+                                    Some(mm) => mm,
+                                    None => {
+                                        // Variant file lives in its base model's
+                                        // folder: grass_medium_02_v1 ->
+                                        // plants/grass_medium_02/grass_medium_02_v1.gltf.
+                                        let base = d
+                                            .model
+                                            .rfind("_v")
+                                            .map(|i| &d.model[..i])
+                                            .unwrap_or(d.model.as_str());
+                                        let rel = format!(
+                                            "assets/models/plants/{}/{}.gltf",
+                                            base, d.model
+                                        );
+                                        match state
+                                            .asset_manager
+                                            .parse_gltf_mesh_textured(&state.renderer.device, &rel)
+                                        {
+                                            Ok((mesh, tex)) => {
+                                                let mesh_idx = state.renderer.add_mesh(mesh);
+                                                let mat_idx = match tex {
+                                                    Some((rgba, w, h)) => {
+                                                        // Type 19: textured mesh
+                                                        // (albedo texture + alpha
+                                                        // cutout + standard sun-lit
+                                                        // shading).
+                                                        state.renderer.add_textured_material(
+                                                            [1.0, 1.0, 1.0, 1.0],
+                                                            0.0,
+                                                            0.9,
+                                                            19.0,
+                                                            0.0,
+                                                            &rgba,
+                                                            w,
+                                                            h,
+                                                        )
+                                                    }
+                                                    None => state.renderer.add_material_full(
+                                                        [0.35, 0.5, 0.3, 1.0],
+                                                        0.0,
+                                                        0.9,
+                                                        0.0,
+                                                        0.0,
+                                                    ),
+                                                };
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(d.model.clone(), (mesh_idx, mat_idx));
+                                                (mesh_idx, mat_idx)
+                                            }
+                                            Err(e) => {
+                                                log::warn!(
+                                                    "decorations.ron: {} failed to load: {e}",
+                                                    d.model
+                                                );
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                };
+                                for i in 0..d.count {
+                                    // Golden-angle scatter with deterministic
+                                    // yaw/scale jitter: natural-looking, stable
+                                    // across reloads.
+                                    let a = i as f32 * 2.399_963 + di as f32 * 1.3;
+                                    let r = d.spread
+                                        * (0.3 + 0.7 * ((i as f32 + 0.7) / d.count.max(1) as f32));
+                                    let pos = anchor
+                                        + Vec3::new(
+                                            d.offset.0 + a.cos() * r,
+                                            d.offset.1,
+                                            d.offset.2 + a.sin() * r,
+                                        );
+                                    let yaw = (i as f32 * 73.13 + di as f32 * 31.7) % 360.0;
+                                    let scl = d.scale
+                                        * (0.85
+                                            + 0.3
+                                                * (((i * 37 + di as u32 * 11) % 100) as f32
+                                                    / 100.0));
+                                    state
+                                        .decoration_objects
+                                        .push((mesh_idx, mat_idx, pos, yaw, scl));
+                                    placed += 1;
+                                }
+                            }
+                            log::info!(
+                                "Loaded {placed} decoration plants from entities/decorations.ron"
+                            );
+                        }
+                        Err(e) => log::warn!("decorations.ron not loaded: {e}"),
+                    }
+                }
             }
         }
         // ── Wild hostiles (v0.761, combat arc) ── absolute-position spawns
@@ -7884,6 +8026,13 @@ mod native_app {
         /// positions come from the tested `MachineHome::placements`. Drawn when not in the showroom.
         /// (v0.525, the live-edit preview that makes the build mode feel real.)
         machine_objects: Vec<(usize, usize, Vec3, f32)>,
+        /// Photoscanned decoration plants (v0.909): (mesh, material, world
+        /// pos, yaw deg, uniform scale) scattered from
+        /// data/entities/decorations.ron at home build.
+        decoration_objects: Vec<(usize, usize, Vec3, f32, f32)>,
+        /// Mesh/material cache for decoration models so world reloads reuse
+        /// GPU resources instead of re-appending them.
+        decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,
         /// Pick volumes for viewport machine SELECTION (v0.553): (id, world center, bounding radius)
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
@@ -8223,6 +8372,9 @@ mod native_app {
         /// local frame; `frame_lock_last_spin` tracks the spin for the view
         /// co-rotation. See `dev_travel::frame_lock_*`.
         frame_lock_body: Option<String>,
+        /// Dev/showcase pin for the ocean sea state (None = follow the game
+        /// weather's wind). Set via showcase_request {"sea":"0.8"|"auto"}.
+        sea_state_override: Option<f32>,
         /// F6 pressed (v0.890): save a location bookmark next frame, where
         /// current_spin and the frame-lock state are fresh.
         bookmark_save_requested: bool,
@@ -9089,6 +9241,8 @@ mod native_app {
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
+                decoration_objects: Vec::new(),
+                decoration_mesh_cache: std::collections::HashMap::new(),
                 grow_positions: Vec::new(),
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
@@ -9210,6 +9364,7 @@ mod native_app {
                 dev_travel_home: None,
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
+                sea_state_override: None,
                 bookmark_save_requested: false,
                 frame_lock_anchor: glam::DVec3::ZERO,
                 frame_lock_last_spin: 0.0,
@@ -10759,15 +10914,35 @@ mod native_app {
                         let hm = state.planet_heightmaps.get(&lock_body);
                         let ground_r =
                             ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero().as_vec3());
-                        // Altitude bands (v0.872): walk/gravity below 10 km,
-                        // co-rotating free flight to 100 km, an up-vector
-                        // blend to 1000 km, inertial beyond. No more cliff.
+                        // Altitude bands (v0.872; per-body scaled v0.909,
+                        // operator: "the distances for any planet are fixed
+                        // to Earth's settings"): walk/gravity, co-rotating
+                        // flight, and the up-vector blend all stretch with
+                        // body radius - Earth keeps 10/100/1000 km, the Moon
+                        // gets ~2.7/27/273 km, an asteroid gets metres, with
+                        // floors so tiny rocks still have usable bands.
                         let alt = dist - ground_r;
-                        let in_walk_band = alt < SURFACE_ENGAGE_ALT;
-                        let in_corotate_band = alt < CO_ROTATE_MAX_ALT;
+                        let band_k = (def.map(|d| d.radius).unwrap_or(6_371_000.0)
+                            / 6_371_000.0)
+                            .clamp(0.001, 4.0);
+                        let surface_engage_alt = (SURFACE_ENGAGE_ALT * band_k).max(200.0);
+                        let co_rotate_max_alt = (CO_ROTATE_MAX_ALT * band_k).max(2_000.0);
+                        let inertial_blend_max_alt =
+                            (INERTIAL_BLEND_MAX_ALT * band_k).max(20_000.0);
+                        // Edge hysteresis (v0.909, operator: "the transitions
+                        // ... keep breaking and locking me at fixed
+                        // distances"): hovering exactly AT a band edge used
+                        // to flip the mode every frame (translation
+                        // ownership toggled, gear reset re-armed), which
+                        // felt like an invisible wall. Once inside a band
+                        // you stay in it until ~6% past its ceiling.
+                        let walk_h = if state.surface_walk_band { 1.06 } else { 1.0 };
+                        let coro_h = if state.camera.surface_mode { 1.06 } else { 1.0 };
+                        let in_walk_band = alt < surface_engage_alt * walk_h;
+                        let in_corotate_band = alt < co_rotate_max_alt * coro_h;
                         state.gui_state.underwater = false;
                         state.gui_state.underwater_depth_m = 0.0;
-                        let in_blend_band = alt < INERTIAL_BLEND_MAX_ALT;
+                        let in_blend_band = alt < inertial_blend_max_alt;
 
                         if in_corotate_band {
                             // Was surface mode already engaged last frame? MUST be
@@ -11040,8 +11215,8 @@ mod native_app {
                             // direction each frame, so the handoff is seamless
                             // in both directions.
                             state.surface_walk_band = false;
-                            let t = ((alt - CO_ROTATE_MAX_ALT)
-                                / (INERTIAL_BLEND_MAX_ALT - CO_ROTATE_MAX_ALT))
+                            let t = ((alt - co_rotate_max_alt)
+                                / (inertial_blend_max_alt - co_rotate_max_alt))
                                 .clamp(0.0, 1.0);
                             let s = (t * t * (3.0 - 2.0 * t)) as f32; // smoothstep
                             let up = (radial * (1.0 - s) + glam::Vec3::Y * s).normalize();
@@ -13420,6 +13595,17 @@ mod native_app {
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        // Photoscanned decoration plants (v0.909): CC0 models
+                        // scattered from data/entities/decorations.ron.
+                        for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {
+                            all_objects.push(RenderObject {
+                                position: pos,
+                                rotation: Quat::from_rotation_y(yaw.to_radians()),
+                                scale: Vec3::splat(scl),
                                 mesh: mesh_idx,
                                 material: mat_idx,
                             });
@@ -17661,6 +17847,19 @@ mod native_app {
                             temperature: w.temperature,
                             wind_speed: w.wind_speed,
                         });
+                        // Sea state from wind (v0.909): 2 m/s or less reads
+                        // glassy, ~15 m/s is a full storm sea. The showcase
+                        // {"sea":x} override wins for dev shots. Smoothed
+                        // (~30 s time constant) so weather regime flips roll
+                        // the ocean over instead of snapping it.
+                        if let Some(pin) = state.sea_state_override {
+                            state.renderer.sea_state = pin;
+                        } else {
+                            let target = ((w.wind_speed - 2.0) / 13.0).clamp(0.0, 1.0);
+                            let k = (dt as f32 / 30.0).min(1.0);
+                            state.renderer.sea_state +=
+                                (target - state.renderer.sea_state) * k;
+                        }
                     }
 
                     // Bridge the live home power readout (ElectricalSystem writes it via
@@ -21306,8 +21505,13 @@ mod native_app {
                                 state.camera.fov_degrees =
                                     state.gui_state.settings.fov.clamp(60.0, 120.0);
 
-                                // Mouse sensitivity
+                                // Mouse sensitivity + invert Y (v0.909: the
+                                // invert toggle used to be decorative).
                                 state.controller.mouse_sensitivity = state.gui_state.settings.mouse_sensitivity;
+                                state.controller.invert_y = state.gui_state.settings.invert_y;
+
+                                // VSync (v0.909: used to be decorative).
+                                state.renderer.set_vsync(state.gui_state.settings.vsync);
 
                                 // Window presentation mode (v0.454).
                                 apply_window_mode(&state.window, state.gui_state.settings.window_mode);

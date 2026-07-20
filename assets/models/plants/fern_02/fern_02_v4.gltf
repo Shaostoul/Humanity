@@ -1,0 +1,138 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fern_02_v4"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "fern_02_v4",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 565,
+      "type": "VEC3",
+      "min": [
+        -0.27630582451820374,
+        -0.013578944839537144,
+        -0.34101176261901855
+      ],
+      "max": [
+        0.2964763343334198,
+        0.19950860738754272,
+        0.252266526222229
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 565,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 565,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 2448,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 6780,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 6780,
+      "byteLength": 6780,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 13560,
+      "byteLength": 4520,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 18080,
+      "byteLength": 4896,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 22976,
+      "uri": "fern_02_v4.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "fern_02",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "alphaMode": "MASK",
+      "alphaCutoff": 0.5,
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/fern_02_diff_2k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

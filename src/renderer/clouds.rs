@@ -480,7 +480,10 @@ pub fn cloud_regime(tc: f32) -> CloudRegime {
         fine: dot7(w, [0.35, 0.90, 0.95, 0.90, 0.30, 0.25, 0.80]),
         stretch: dot7(w, [3.40, 1.60, 1.15, 1.05, 1.50, 1.40, 1.70]),
         filament: dot7(w, [0.90, 0.25, 0.10, 0.05, 0.04, 0.02, 0.30]),
-        tint: dot7(w, [1.00, 0.97, 1.00, 0.92, 0.80, 0.68, 0.90]),
+        // v0.909: spread widened (storm/rain families properly dark, thin
+        // families brilliant white) - keep byte-identical with the WGSL
+        // t_tint table.
+        tint: dot7(w, [1.00, 0.96, 0.98, 0.55, 0.74, 0.42, 0.85]),
     }
 }
 

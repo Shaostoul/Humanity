@@ -1,0 +1,137 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "grass_medium_02_v3"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "grass_medium_02_v3",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 1072,
+      "type": "VEC3",
+      "min": [
+        -0.14453402161598206,
+        -0.005509789101779461,
+        -0.16673608124256134
+      ],
+      "max": [
+        0.11714312434196472,
+        0.226151704788208,
+        0.08277425169944763
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 1072,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 1072,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 3645,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 12864,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 12864,
+      "byteLength": 12864,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 25728,
+      "byteLength": 8576,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 34304,
+      "byteLength": 7290,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 41594,
+      "uri": "grass_medium_02_v3.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "grass_medium_02",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "alphaMode": "BLEND",
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/grass_medium_02_diff_2k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

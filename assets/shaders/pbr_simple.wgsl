@@ -688,7 +688,7 @@ fn wave_octave(
     t: f32,
     footprint_m: f32,
 ) -> vec3<f32> {
-    let fade = detail_octave_fade(lambda_m, footprint_m);
+    let fade = detail_octave_fade_aa(lambda_m, footprint_m);
     if (fade <= 0.001) {
         return vec3<f32>(0.0);
     }
@@ -735,11 +735,21 @@ fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -
     return g;
 }
 
+// Fixed screen-space anti-alias fade (v0.909): like detail_octave_fade but
+// WITHOUT the detail-distance multiplier. Waves and foam ANIMATE - pushing
+// them past their pixel-coverage bound with the Settings detail slider
+// turns them into shimmering speckle (the v0.906 "ocean is mostly white"
+// regression at altitude), so animated water content fades on raw pixel
+// coverage only. Static land octaves keep the scaled fade.
+fn detail_octave_fade_aa(lambda_m: f32, footprint_m: f32) -> f32 {
+    return smoothstep(DETAIL_FADE_LO, DETAIL_FADE_HI, lambda_m / footprint_m);
+}
+
 // Master water-shading blend: the fade of the LONGEST wave octave. 0 from
 // orbit (old path bit-identical), 1 once 2 km swells span DETAIL_FADE_HI
 // pixels (~200 km altitude at 1440p), smooth in between.
 fn wave_presence(footprint_m: f32) -> f32 {
-    return detail_octave_fade(WAVE1_LAMBDA, footprint_m);
+    return detail_octave_fade_aa(WAVE1_LAMBDA, footprint_m);
 }
 
 // Multiplicative land albedo factor: 2-3 octaves of luminance variation
@@ -1923,7 +1933,11 @@ fn cloud_regime(tc: f32) -> CloudRegime {
     var t_fine    = array<f32, 7>(0.35, 0.90, 0.95, 0.90, 0.30, 0.25, 0.80);
     var t_stretch = array<f32, 7>(3.40, 1.60, 1.15, 1.05, 1.50, 1.40, 1.70);
     var t_fil     = array<f32, 7>(0.90, 0.25, 0.10, 0.05, 0.04, 0.02, 0.30);
-    var t_tint    = array<f32, 7>(1.00, 0.97, 1.00, 0.92, 0.80, 0.68, 0.90);
+    // v0.909 (operator: "cumulonimbus is a lot darker due to the higher
+    // denser water content... thinner clouds bright white, the dark ones
+    // fairly dark grey"): tint spread widened hard - storm/rain families
+    // now read properly dark while cirrus/cumulus stay brilliant.
+    var t_tint    = array<f32, 7>(1.00, 0.96, 0.98, 0.55, 0.74, 0.42, 0.85);
     let hw = 0.22;
     var s = 0.0;
     var h_lo = 0.0;
@@ -2292,6 +2306,12 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // Regime tint: overcast stratus reads greyer (dimmer white); cirrus and
     // cumulus stay bright. A luminance factor, so it never shifts hue.
     radiance = radiance * reg.tint;
+    // Column-density darkening (v0.909): an optically THICK column holds
+    // far more water, and its interior light dies - so near-opaque masses
+    // dim toward heavy grey while translucent wisps keep full brightness.
+    // Rides body_total (the ray's own opacity), so one deck can show a
+    // bright thin skirt around a dark dense core.
+    radiance = radiance * (1.0 - 0.32 * smoothstep(0.72, 0.98, body_total));
 
     // Same ACES curve as the rest of the pipeline (linear in, sRGB target).
     let aces_a = 2.51;
@@ -2415,8 +2435,17 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let sw_lat = asin(clamp(dir.y, -1.0, 1.0));
     let sw_uv = vec2<f32>(sw_lon * 0.15915494 + 0.5, 0.5 - sw_lat * 0.31830987);
     let sw = textureSampleLevel(weather_map, albedo_sampler, sw_uv, 0.0).rg;
-    let storm = smoothstep(0.35, 0.85, sw.r * max(sw.g, 0.25));
-    let gscale = (0.55 + 0.95 * sea_var) * (1.0 + storm * 1.4);
+    // SEA STATE 0..1 (v0.909, operator: "freely switch between calm glassy
+    // ... slight ripples ... intense waves from storms"): the max of the
+    // LOCAL storm cell in the live weather field and the CPU game-weather
+    // wind at the player (fill_color.w pad; showcase {"sea":x} overrides).
+    // 0 = glassy mirror, ~0.35 = the classic ripple look, 1 = storm.
+    let modis_storm = smoothstep(0.5, 0.9, sw.r * (0.3 + 0.7 * sw.g));
+    let sea_state = clamp(max(modis_storm, camera.fill_color.w), 0.0, 1.0);
+    // Storm water body darkens toward slate (reference: storm seas read
+    // dark blue-grey under the cloud deck, not bright blue).
+    deep = mix(deep, vec3<f32>(0.012, 0.030, 0.048), sea_state * 0.6);
+    let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 2.3, sea_state);
     let presence = wave_presence(footprint);
     var n_pert = n_geo;
     var foam = 0.0;
@@ -2426,7 +2455,8 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // octaves (3.2 m and 0.8 m - both divide the 64 m anchor modulus,
         // so anchor jumps are seamless) give the surface visible MOTION at
         // walking/boating range. Purely a normal perturbation; the swim
-        // height (CPU twin) is untouched.
+        // height (CPU twin) is untouched. Scaled by sea state so a glassy
+        // calm stays near-mirror.
         if (footprint < 1.5) {
             let inv_mw = transpose(object.normal_matrix);
             let dvw =
@@ -2437,25 +2467,33 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
                 camera.light0_cone_inner.w,
             );
             let ptw = anchw + dvw;
-            grad = grad + wave_octave(ptw, dir, WAVE2_DIR, 3.2, 0.55, 0.05, t, footprint);
-            grad = grad + wave_octave(ptw, dir, WAVE4_DIR, 0.8, 1.1, 0.045, t, footprint);
+            let rip = 0.30 + 0.70 * sea_state;
+            grad = grad
+                + wave_octave(ptw, dir, WAVE2_DIR, 3.2, 0.55, 0.05, t, footprint) * rip;
+            grad = grad
+                + wave_octave(ptw, dir, WAVE4_DIR, 0.8, 1.1, 0.045, t, footprint) * rip;
         }
-        // Whitecaps: steep crests break. Steepness = the perturbed-normal
-        // gradient magnitude, storm-amplified; a noise flicker keeps the
-        // caps patchy instead of painting every crest uniformly.
-        let steep = length(grad) * (1.0 + storm * 1.6);
+        // Whitecaps (v0.909 rework after the "ocean is mostly white"
+        // regression): breaking crests are a ~10 m phenomenon, so foam gets
+        // a HARD fixed screen-space reach (gone past ~5 m/px regardless of
+        // the detail-distance slider), a crest-only steepness threshold,
+        // and a sea-state gate - reference storm photos show DARK water
+        // with white streaks only along breaking crests.
+        let steep = length(grad) * (1.0 + sea_state * 1.4);
         let cap_noise = surface_detail_noise(dir_r1, r_render / 90.0, 977.0);
-        foam = smoothstep(0.062, 0.16, steep)
-            * (0.18 + 0.82 * storm)
-            * (0.55 + 0.45 * cap_noise)
+        let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
+        foam = smoothstep(0.11, 0.24, steep)
+            * smoothstep(0.35, 0.9, sea_state)
+            * (0.45 + 0.55 * cap_noise)
+            * foam_reach
             * presence;
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
     var rgb = water_shade(deep, n_geo, n_pert, view_dir);
-    // Foam is bright scattered froth: it flattens the water shading toward
-    // broken white and reads at any sun angle.
-    rgb = mix(rgb, vec3<f32>(0.82, 0.87, 0.90), clamp(foam, 0.0, 0.72));
+    // Foam is scattered froth: it flattens the water shading toward broken
+    // off-white and reads at any sun angle.
+    rgb = mix(rgb, vec3<f32>(0.75, 0.81, 0.86), clamp(foam, 0.0, 0.65));
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.
@@ -2515,6 +2553,19 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     }
     if (material_type >= 15.5 && material_type < 16.5) {
         return ocean_shell(in);
+    }
+    if (material_type >= 18.5 && material_type < 19.5) {
+        // Type 19: TEXTURED MESH (v0.909, the photoscanned-plant path):
+        // the material's albedo texture times base_color, alpha-cutout for
+        // foliage (the photoscan leaf textures carry alpha), then the
+        // normal sun-lit PBR path below. textureSampleLevel 0 because
+        // these textures ship one mip level.
+        let mesh_tex = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+        if (mesh_tex.a < 0.35) {
+            discard;
+        }
+        albedo = albedo * mesh_tex.rgb;
+        emissive_strength = 0.0;
     }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped

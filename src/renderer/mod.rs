@@ -194,6 +194,9 @@ pub struct Renderer {
     /// octave's anti-alias fade so fine structure survives further out.
     /// Synced from Settings each frame; poked into the view_pos.w pad.
     pub detail_distance: f32,
+    /// Sea state 0..1 (v0.909): glassy -> ripples -> storm. Poked into the
+    /// fill_color.w uniform pad each celestial pass.
+    pub sea_state: f32,
 }
 
 impl Renderer {
@@ -809,6 +812,7 @@ impl Renderer {
             ssao: ssao_pass,
             ssao_strength: 0.55,
             detail_distance: 1.0,
+            sea_state: 0.35,
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -836,6 +840,21 @@ impl Renderer {
     }
 
     /// Handle window/canvas resize.
+    /// Apply the Settings VSync toggle (v0.909 - the toggle used to save a
+    /// value nothing read). AutoVsync caps at the monitor refresh;
+    /// AutoNoVsync uncaps (mailbox/immediate as the platform allows).
+    pub fn set_vsync(&mut self, on: bool) {
+        let mode = if on {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        };
+        if self.config.present_mode != mode {
+            self.config.present_mode = mode;
+            self.surface.configure(&self.device, &self.config);
+        }
+    }
+
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
@@ -1996,6 +2015,12 @@ impl Renderer {
         // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
         self.queue
             .write_buffer(&self.camera_buffer, 76, bytemuck::bytes_of(&self.detail_distance));
+        // Sea state 0..1 in the fill_color.w pad (offset 656 + 12; the fill
+        // light's alpha is never read). 0 = glassy calm, 0.5 = ripples,
+        // 1 = storm chop + breaking crests. Fed by the game weather's wind
+        // at the player (lib.rs) or the showcase {"sea":x} dev override.
+        self.queue
+            .write_buffer(&self.camera_buffer, 668, bytemuck::bytes_of(&self.sea_state));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

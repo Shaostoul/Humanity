@@ -1,5 +1,5 @@
 {
-  "_readme": "CC0 plant models from Poly Haven (https://polyhaven.com), fetched 2026-07-19. Format: .gltf + external .bin + jpg textures (diff = albedo, nor_gl = OpenGL normal, arm = AO/roughness/metallic packed). Units are meters, Y-up, indexed triangles — matches engine conventions in docs/game/model-pipeline.md. NOTE: the engine loader (src/assets/mod.rs parse_gltf_mesh/load_gltf) uses only the FIRST mesh's FIRST primitive, so multi-mesh assets need repacking (see repack field per asset) before they render fully. REPACKED 2026-07-20: each asset's 'merged' field points at <slug>_merged.gltf (+ matching _merged.bin) produced by scripts/repack-plant-gltf.js — all meshes/primitives merged into one mesh/one primitive with node world transforms baked into positions/normals. *_merged.gltf is the ENGINE-FACING file; keep the originals as the source of truth and re-run the script if they change. Caveat: multi-variant models (grass, fern, both saplings) keep their side-by-side variant layout from the source scene, so the merged mesh contains ALL variants in a row — fine for a bushy clump look, but per-variant splitting (the 'repack' note) is still the right long-term move for scatter use.",
+  "_readme": "CC0 plant models from Poly Haven (https://polyhaven.com), fetched 2026-07-19. Format: .gltf + external .bin + jpg textures (diff = albedo, nor_gl = OpenGL normal, arm = AO/roughness/metallic packed). Units are meters, Y-up, indexed triangles — matches engine conventions in docs/game/model-pipeline.md. NOTE: the engine loader (src/assets/mod.rs parse_gltf_mesh/load_gltf) uses only the FIRST mesh's FIRST primitive, so multi-mesh assets need repacking (see repack field per asset) before they render fully. REPACKED 2026-07-20: each asset's 'merged' field points at <slug>_merged.gltf (+ matching _merged.bin) produced by scripts/repack-plant-gltf.js — all meshes/primitives merged into one mesh/one primitive with node world transforms baked into positions/normals. *_merged.gltf is the ENGINE-FACING file; keep the originals as the source of truth and re-run the script if they change. SPLIT 2026-07-20: each asset also has a 'variants' list — <slug>_v1.gltf/.bin etc., one single-primitive file PER plant variant (clustered by world X/Z, base re-centered to x=0,z=0 with y untouched so y=0 stays ground), each carrying a minimal material that references the source textures/ folder base-color jpg by relative URI. Use variants for scatter/spawning (load via AssetManager::parse_gltf_mesh_with_texture, which also returns the RGBA8 base-color texture downscaled to <=1024); _merged keeps the whole side-by-side scene for reference. Single-primitive means ONE material per variant: multi-material variants carry the dominant-by-triangles material (saplings: twigs, so the ~500-tri trunk borrows the twig texture; potted plant: leaves, so pot/soil borrow the leaf texture — acceptable until a multi-primitive loader exists). Re-run: node scripts/repack-plant-gltf.js --split --all.",
   "license": "CC0 1.0 (public domain, no attribution required)",
   "assets": [
     {
@@ -25,7 +25,99 @@
       ],
       "suggested_use": "ground-cover grass clump (garden tiles, wild terrain scatter)",
       "repack": "split into one GLB per variant (each already game-budget); naive load renders only variant 1 (714 tris), which is usable as-is",
-      "merged": "grass_medium_02/grass_medium_02_merged.gltf"
+      "merged": "grass_medium_02/grass_medium_02_merged.gltf",
+      "variants": [
+        {
+          "file": "grass_medium_02/grass_medium_02_v1.gltf",
+          "verts": 645,
+          "tris": 714,
+          "bbox_min": [
+            -0.057,
+            -0.003,
+            -0.057
+          ],
+          "bbox_max": [
+            0.062,
+            0.154,
+            0.063
+          ],
+          "base_centered": true,
+          "material": "grass_medium_02",
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+        },
+        {
+          "file": "grass_medium_02/grass_medium_02_v2.gltf",
+          "verts": 1575,
+          "tris": 1760,
+          "bbox_min": [
+            -0.068,
+            -0.004,
+            -0.106
+          ],
+          "bbox_max": [
+            0.111,
+            0.176,
+            0.093
+          ],
+          "base_centered": true,
+          "material": "grass_medium_02",
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+        },
+        {
+          "file": "grass_medium_02/grass_medium_02_v3.gltf",
+          "verts": 1072,
+          "tris": 1215,
+          "bbox_min": [
+            -0.145,
+            -0.006,
+            -0.167
+          ],
+          "bbox_max": [
+            0.117,
+            0.226,
+            0.083
+          ],
+          "base_centered": true,
+          "material": "grass_medium_02",
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+        },
+        {
+          "file": "grass_medium_02/grass_medium_02_v4.gltf",
+          "verts": 2197,
+          "tris": 2489,
+          "bbox_min": [
+            -0.182,
+            -0.005,
+            -0.16
+          ],
+          "bbox_max": [
+            0.135,
+            0.255,
+            0.202
+          ],
+          "base_centered": true,
+          "material": "grass_medium_02",
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+        },
+        {
+          "file": "grass_medium_02/grass_medium_02_v5.gltf",
+          "verts": 1542,
+          "tris": 1664,
+          "bbox_min": [
+            -0.211,
+            -0.003,
+            -0.18
+          ],
+          "bbox_max": [
+            0.144,
+            0.4,
+            0.254
+          ],
+          "base_centered": true,
+          "material": "grass_medium_02",
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+        }
+      ]
     },
     {
       "slug": "fern_02",
@@ -50,7 +142,81 @@
       ],
       "suggested_use": "wild shrub / forest-floor fern (also fits shaded garden beds)",
       "repack": "split into one GLB per variant; naive load renders variant 1 (2384 tris), usable as-is",
-      "merged": "fern_02/fern_02_merged.gltf"
+      "merged": "fern_02/fern_02_merged.gltf",
+      "variants": [
+        {
+          "file": "fern_02/fern_02_v1.gltf",
+          "verts": 1660,
+          "tris": 2384,
+          "bbox_min": [
+            -0.401,
+            -0.031,
+            -0.435
+          ],
+          "bbox_max": [
+            0.589,
+            0.397,
+            0.459
+          ],
+          "base_centered": true,
+          "material": "fern_02",
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+        },
+        {
+          "file": "fern_02/fern_02_v2.gltf",
+          "verts": 544,
+          "tris": 784,
+          "bbox_min": [
+            -0.306,
+            -0.029,
+            -0.275
+          ],
+          "bbox_max": [
+            0.246,
+            0.258,
+            0.338
+          ],
+          "base_centered": true,
+          "material": "fern_02",
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+        },
+        {
+          "file": "fern_02/fern_02_v3.gltf",
+          "verts": 1568,
+          "tris": 2248,
+          "bbox_min": [
+            -0.435,
+            -0.029,
+            -0.408
+          ],
+          "bbox_max": [
+            0.439,
+            0.32,
+            0.357
+          ],
+          "base_centered": true,
+          "material": "fern_02",
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+        },
+        {
+          "file": "fern_02/fern_02_v4.gltf",
+          "verts": 565,
+          "tris": 816,
+          "bbox_min": [
+            -0.276,
+            -0.014,
+            -0.341
+          ],
+          "bbox_max": [
+            0.296,
+            0.2,
+            0.252
+          ],
+          "base_centered": true,
+          "material": "fern_02",
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+        }
+      ]
     },
     {
       "slug": "shrub_01",
@@ -75,7 +241,27 @@
       ],
       "suggested_use": "wild shrub / hedge strip (low wide ground shrub)",
       "repack": "none needed structurally (single primitive), but 156k tris is over game-prop budget — decimate to ~15-25k for scatter use, or reserve as a hero plant",
-      "merged": "shrub_01/shrub_01_merged.gltf"
+      "merged": "shrub_01/shrub_01_merged.gltf",
+      "variants": [
+        {
+          "file": "shrub_01/shrub_01_v1.gltf",
+          "verts": 105235,
+          "tris": 156012,
+          "bbox_min": [
+            -1.275,
+            -0.009,
+            -0.118
+          ],
+          "bbox_max": [
+            1.311,
+            0.387,
+            0.1
+          ],
+          "base_centered": true,
+          "material": "shrub_01",
+          "texture": "shrub_01/textures/shrub_01_diff_2k.jpg"
+        }
+      ]
     },
     {
       "slug": "potted_plant_01",
@@ -103,7 +289,27 @@
       ],
       "suggested_use": "interior potted plant (ship rooms, homestead interiors) — hero decoration",
       "repack": "REQUIRED — naive load shows only the pot base without leaves; join all 4 meshes into one primitive and export GLB; decimate leaves (106k tris) toward ~20k for a prop-budget version",
-      "merged": "potted_plant_01/potted_plant_01_merged.gltf"
+      "merged": "potted_plant_01/potted_plant_01_merged.gltf",
+      "variants": [
+        {
+          "file": "potted_plant_01/potted_plant_01_v1.gltf",
+          "verts": 113951,
+          "tris": 176226,
+          "bbox_min": [
+            -0.338,
+            -0.014,
+            -0.361
+          ],
+          "bbox_max": [
+            0.249,
+            1.336,
+            0.273
+          ],
+          "base_centered": true,
+          "material": "potted_plant_01_leaves",
+          "texture": "potted_plant_01/textures/potted_plant_01_leaves_diff_2k.jpg"
+        }
+      ]
     },
     {
       "slug": "fir_sapling",
@@ -131,7 +337,63 @@
       ],
       "suggested_use": "young tree / garden hero sapling (~1.3 m tall)",
       "repack": "REQUIRED — naive load shows only a bare 546-tri branch skeleton (twigs are the 2nd primitive); per variant, merge branches+twigs into one primitive and decimate twigs hard (target ~20-40k tris per tree) before scatter use",
-      "merged": "fir_sapling/fir_sapling_merged.gltf"
+      "merged": "fir_sapling/fir_sapling_merged.gltf",
+      "variants": [
+        {
+          "file": "fir_sapling/fir_sapling_v1.gltf",
+          "verts": 187306,
+          "tris": 157402,
+          "bbox_min": [
+            -0.431,
+            -0.008,
+            -0.427
+          ],
+          "bbox_max": [
+            0.43,
+            1.293,
+            0.395
+          ],
+          "base_centered": true,
+          "material": "fir_sapling_twigs",
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+        },
+        {
+          "file": "fir_sapling/fir_sapling_v2.gltf",
+          "verts": 179580,
+          "tris": 150876,
+          "bbox_min": [
+            -0.324,
+            0,
+            -0.431
+          ],
+          "bbox_max": [
+            0.316,
+            0.952,
+            0.386
+          ],
+          "base_centered": true,
+          "material": "fir_sapling_twigs",
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+        },
+        {
+          "file": "fir_sapling/fir_sapling_v3.gltf",
+          "verts": 148413,
+          "tris": 124743,
+          "bbox_min": [
+            -0.315,
+            0,
+            -0.321
+          ],
+          "bbox_max": [
+            0.307,
+            0.736,
+            0.313
+          ],
+          "base_centered": true,
+          "material": "fir_sapling_twigs",
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+        }
+      ]
     },
     {
       "slug": "pine_sapling_small",
@@ -159,7 +421,63 @@
       ],
       "suggested_use": "young pine tree (~1.3 m) — forest edges, homestead planting",
       "repack": "REQUIRED — naive load shows only a bare ~490-tri trunk (twigs are the 2nd primitive); per variant, merge bark+twigs into one primitive and decimate twigs (target ~20-40k tris) before scatter use",
-      "merged": "pine_sapling_small/pine_sapling_small_merged.gltf"
+      "merged": "pine_sapling_small/pine_sapling_small_merged.gltf",
+      "variants": [
+        {
+          "file": "pine_sapling_small/pine_sapling_small_v1.gltf",
+          "verts": 145495,
+          "tris": 142506,
+          "bbox_min": [
+            -0.363,
+            -0.015,
+            -0.373
+          ],
+          "bbox_max": [
+            0.424,
+            1.283,
+            0.355
+          ],
+          "base_centered": true,
+          "material": "pine_sapling_small_twig",
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+        },
+        {
+          "file": "pine_sapling_small/pine_sapling_small_v2.gltf",
+          "verts": 124796,
+          "tris": 122235,
+          "bbox_min": [
+            -0.264,
+            0.001,
+            -0.333
+          ],
+          "bbox_max": [
+            0.265,
+            1.047,
+            0.397
+          ],
+          "base_centered": true,
+          "material": "pine_sapling_small_twig",
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+        },
+        {
+          "file": "pine_sapling_small/pine_sapling_small_v3.gltf",
+          "verts": 136065,
+          "tris": 133403,
+          "bbox_min": [
+            -0.23,
+            0.001,
+            -0.322
+          ],
+          "bbox_max": [
+            0.283,
+            0.962,
+            0.258
+          ],
+          "base_centered": true,
+          "material": "pine_sapling_small_twig",
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+        }
+      ]
     }
   ]
 }
