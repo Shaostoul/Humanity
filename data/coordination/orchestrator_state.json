@@ -403,12 +403,16 @@
     {
       "date": "2026-07-19",
       "decision": "v0.902.0 TEXTURE ARC: living ocean (25km+2.5km planet-pinned hue/wave-strength variation kills tiling; 3.2m/0.8m camera-relative micro ripples give close motion; nadir alpha 0.93) + sub-metre GROUND texture. KEY TECHNIQUE unlocked: the CAMERA-RELATIVE PRECISION DOMAIN - fragment offsets taken relative to the camera (small = full f32 precision) + the camera planet-frame position mod 64m poked into light0_cone_inner.yzw as the anchor; periodic lattice noise with periods dividing 64m makes anchor jumps seamless. This BREAKS THE 8m PRECISION FLOOR for any future surface detail (normal maps, tangent textures, decals) - reuse the pattern. Residual wants: faint patch-seam blockiness in the sea variation, coast foam, tangent-space normal-mapped ground material."
+    },
+    {
+      "date": "2026-07-19",
+      "decision": "v0.903 DIVING + GARDENS + 4-AGENT AUDIT WAVE: (a) ocean enterable to the Marianas - ROOT CAUSE was ground_radius_m using the sea-CLAMPED displaced radius; now true bathymetry on water worlds, water-surface floor applied separately and pierced by descend input; neutral buoyancy underwater; egui underwater tint; probe-verified at -60m mid-Pacific. (b) Gardens: only 10/134 crops had visual recipes, rest SILENTLY skipped mesh gen (audit) - generic_visual fallback (FNV-varied) + 9 hand-authored staples (potato incl). (c) v0.904 data hygiene from the gameplay audit: creature loot ids namespaced to real items (leather->leather_hide_0 etc, 89 subs), rice/coffee recipes consume farm outputs, plant_fiber/brass/diamond dead inputs remapped, 4 fiber-bundle conversion recipes, gold/silver ores added to M-12 + bauxite/rutile to S-7 (were vendor-only chains). AUDIT REPORTS (4 subagents) captured in this journal + PRIORITIES: gameplay-loop gaps (quest files 80% dead ids - REWRITE NEEDED; no forage faucet for wood/stone/clay/salt), planet appearance integration map (albedo path is generic; pluto needs a def; gas giants = flat ochre, type-18 band shader designed; USGS PD map URLs journaled), plant asset pack links (Quaternius/Kenney/KayKit CC0 verified)."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.902.0 released; v0.902.1 build-game in flight.",
+  "version_state": "v0.903.1 stamped; v0.904.0 (data hygiene) in tree pending release.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

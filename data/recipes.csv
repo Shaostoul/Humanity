@@ -34,7 +34,7 @@ saw_planks,Saw Planks,refining,wood_log_0:1,wood_plank_0:4,5,sawmill_0,,0,Cut a 
 saw_planks_hand,Saw Planks by Hand,refining,wood_log_0:1,wood_plank_0:2,15,,woodworking,1,Hand-saw a log into planks
 cut_stone,Cut Stone,refining,stone_raw_0:1,stone_brick_0:2,10,workbench_0,woodworking,1,Shape raw stone into building blocks
 refine_fuel,Refine Fuel,refining,oil_crude_0:2,fuel_refined_0:3,30,fuel_refinery_0,engineering,3,Distill crude oil into usable fuel
-grind_flour,Grind Flour,refining,rice_0:2,flour_0:2,8,grain_mill_0,,0,Mill grain into baking flour
+grind_flour,Grind Flour,refining,grain_rice_0:2,flour_0:2,8,grain_mill_0,,0,Mill grain into baking flour
 purify_water,Purify Water,refining,water_bottle_0:2,water_purified_0:2,5,water_purifier_0,,0,Filter and sterilize drinking water
 make_charcoal,Make Charcoal,refining,wood_log_0:3,coal_0:4,20,kiln_0,,0,Carbonize wood into charcoal
 extract_fiber,Extract Fiber,refining,wood_log_0:1,fiber_bundle_0:3,8,,woodworking,1,Strip plant matter into raw fibers
@@ -47,7 +47,7 @@ make_concrete,Pour Concrete,refining,cement_0:2|gravel_0:2|water_purified_0:1,co
 make_plastic,Mold Plastic Sheet,refining,oil_crude_0:1,plastic_sheet_0:3,12,fuel_refinery_0,engineering,2,Polymerize crude oil into HDPE sheet
 weave_cloth,Weave Cloth,refining,fiber_bundle_0:4,cloth_bolt_0:1,15,loom_0,tailoring,1,Weave raw fiber into cotton fabric
 spin_thread,Spin Thread,refining,fiber_bundle_0:2,cloth_bolt_0:1,20,,tailoring,1,Hand-spin fiber into thread and fabric
-make_glue,Make Glue,refining,bone:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
+make_glue,Make Glue,refining,bone_0:3|water_purified_0:1,glue_0:2,10,stove_0,,0,Boil bones into adhesive glue
 make_paint,Make Paint,refining,oil_crude_0:1|clay_raw_0:1,paint_0:2,8,chemistry_set_0,,0,Mix pigment with binder for paint
 #
 # === TOOL CRAFTING ===
@@ -136,7 +136,7 @@ cook_butter,Churn Butter,cooking,milk_0:3,butter_0:2,15,,cooking,1,Agitate cream
 cook_dried_fruit,Dry Fruit,cooking,fruit_apple_0:3|fruit_banana_0:2,dried_fruit_0:4,20,oven_0,,0,Dehydrate fruit for preservation
 cook_dried_meat,Dry Meat,cooking,jerky_0:3|salt_food_0:1,dried_meat_0:4,20,stove_0,cooking,1,Salt and air-dry meat strips
 cook_juice,Press Juice,cooking,fruit_apple_0:4,juice_0:2,8,,cooking,1,Squeeze fresh fruit into juice
-cook_coffee,Brew Coffee,cooking,coffee_0:1|water_purified_0:1,energy_drink_0:2,5,stove_0,,0,Brew hot coffee from roasted beans
+cook_coffee,Brew Coffee,cooking,fruit_coffee_0:1|water_purified_0:1,energy_drink_0:2,5,stove_0,,0,Brew hot coffee from roasted beans
 cook_sugar,Refine Sugar,cooking,vegetable_corn_0:4,sugar_0:2,15,stove_0,cooking,2,Extract and crystallize plant sugar
 cook_oil,Press Oil,cooking,seed_corn_0:5,cooking_oil_0:2,15,,cooking,2,Cold-press seeds into cooking oil
 cook_honey,Harvest Honey,cooking,water_purified_0:1,honey_0:1,5,,farming,2,Collect and filter raw honey
@@ -325,7 +325,7 @@ craft_smoke_bomb,Craft Smoke Bomb,crafting,iron_ingot_0:1|coal_0:2|cloth_bolt_0:
 #
 # === ENCHANTING ===
 enchant_fire_imbue,Enchant Fire Imbue,crafting,coal_0:5|oil_crude_0:2|gold_ingot_0:1,coal_0:1,60,forge_0,metalworking,4,Imbue an item with searing flame essence
-enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|diamond:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,metalworking,4,Hone an edge to preternatural keenness
+enchant_sharpness,Enchant Sharpness,crafting,steel_ingot_0:3|platinum_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,45,forge_0,metalworking,4,Hone an edge to preternatural keenness
 enchant_fortification,Enchant Fortification,crafting,steel_ingot_0:4|titanium_ingot_0:1|gold_ingot_0:1,steel_ingot_0:1,50,forge_0,metalworking,4,Reinforce material beyond natural limits
 enchant_efficiency,Enchant Efficiency,crafting,copper_ingot_0:3|gold_ingot_0:1|wire_0:2,copper_ingot_0:1,40,electronics_bench_0,engineering,4,Tune a tool for reduced resource consumption
 enchant_indestructible,Enchant Indestructible,crafting,titanium_ingot_0:3|gold_ingot_0:2|carbon_fiber_sheet_0:1,titanium_ingot_0:1,90,forge_0,metalworking,5,Render material virtually immune to wear
@@ -382,14 +382,14 @@ craft_bracelet_silver,Forge Silver Bracelet,crafting,silver_ingot_0:1,bracelet_s
 craft_amulet,Carve Amulet,crafting,silver_ingot_0:1,amulet_protective_0:1,45,anvil_station_0,metalworking,3,Engrave a protective silver charm
 #
 # === BOOK / WRITING CRAFTING ===
-craft_book_blank,Bind Blank Book,crafting,plant_fiber_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
+craft_book_blank,Bind Blank Book,crafting,fiber_bundle_0:5|leather_hide_0:1|glue_0:1,book_blank_0:1,60,workbench_0,woodworking,2,Sew and bind paper into a blank book
 craft_pencil,Make Pencil,crafting,wood_plank_0:1|coal_0:1,pencil_0:5,15,workbench_0,woodworking,1,Glue graphite core into wooden sticks
 craft_ink,Brew Ink,chemistry,charcoal_lump_0:1|water_purified_0:1,ink_bottle_0:1,30,chemistry_set_0,alchemy,2,Combine carbon and binder into writing fluid
-craft_notebook,Bind Notebook,crafting,plant_fiber_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
+craft_notebook,Bind Notebook,crafting,fiber_bundle_0:3|wire_0:1,notebook_0:1,30,workbench_0,woodworking,1,Spiral-bind paper into a notebook
 #
 # === LIGHTING CRAFTING ===
 craft_candle,Pour Candle,crafting,beeswax_0:1|cloth_bolt_0:1,candle_0:5,20,workbench_0,woodworking,1,Pour wax around cotton wicks
-craft_lantern_oil,Assemble Oil Lantern,crafting,brass_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,woodworking,2,Build a glass-shielded oil lamp
+craft_lantern_oil,Assemble Oil Lantern,crafting,copper_ingot_0:1|glass_pane_0:1|cloth_bolt_0:1,lantern_oil_0:1,40,workbench_0,woodworking,2,Build a glass-shielded oil lamp
 craft_flashlight,Assemble Flashlight,electronics,aluminum_ingot_0:1|battery_small_0:2|wire_0:1|led_panel_0:1,flashlight_0:1,30,electronics_bench_0,engineering,2,Assemble a handheld battery torch
 craft_headlamp,Assemble Headlamp,electronics,plastic_sheet_0:1|battery_small_0:1|wire_0:1|led_panel_0:1|cloth_bolt_0:1,headlamp_0:1,35,electronics_bench_0,engineering,2,Build a strap-mounted hands-free light
 #
@@ -400,7 +400,7 @@ cook_sandwich,Make Sandwich,cooking,bread_0:1|cheese_0:1|vegetable_lettuce_0:1,s
 cook_pasta,Cook Pasta,cooking,flour_0:1|egg_0:1|salt_food_0:1|water_purified_0:1,pasta_cooked_0:1,15,stove_0,cooking,2,Boil noodles and toss with sauce
 cook_pizza,Bake Pizza,cooking,flour_0:1|cheese_0:1|vegetable_tomato_0:1,pizza_slice_0:4,25,oven_0,cooking,3,Bake topped flatbread into pizza
 cook_omelette,Cook Omelette,cooking,egg_0:3|cheese_0:1|butter_0:1,omelette_0:1,8,stove_0,cooking,1,Fold eggs and filling in a pan
-cook_porridge,Cook Porridge,cooking,rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer grain in milk
+cook_porridge,Cook Porridge,cooking,grain_rice_0:1|milk_0:1|sugar_0:1,porridge_0:1,15,stove_0,cooking,1,Simmer grain in milk
 bake_cake,Bake Cake,cooking,flour_0:2|sugar_0:1|egg_0:2|butter_0:1|milk_0:1,cake_0:1,45,oven_0,cooking,3,Bake a sweet layered dessert
 bake_pie,Bake Pie,cooking,flour_0:2|butter_0:1|fruit_apple_0:3|sugar_0:1,pie_0:1,40,oven_0,cooking,3,Bake a fruit-filled pastry
 bake_cookies,Bake Cookies,cooking,flour_0:1|sugar_0:1|butter_0:1|egg_0:1,cookies_batch_0:1,20,oven_0,cooking,2,Bake sweet dough discs
@@ -409,7 +409,7 @@ cook_salad,Make Salad,cooking,vegetable_lettuce_0:1|vegetable_tomato_0:1|vegetab
 # === HYGIENE / PLUMBING ===
 craft_soap_bar,Make Soap Bar,chemistry,animal_fat_0:1|salt_block_0:1,soap_bar_0:5,30,chemistry_set_0,alchemy,2,Saponify fat into cleaning bars
 craft_pipe_metal,Forge Metal Pipe,crafting,steel_ingot_0:2,pipe_metal_0:4,25,forge_0,metalworking,2,Form threaded steel pipe segments
-craft_faucet,Forge Faucet,crafting,brass_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
+craft_faucet,Forge Faucet,crafting,copper_ingot_0:1|rubber_sheet_0:1,faucet_0:1,40,workbench_0,metalworking,3,Assemble a threaded water tap
 craft_toilet,Cast Toilet,crafting,clay_raw_0:8|water_purified_0:1,toilet_0:1,90,kiln_0,woodworking,3,Fire a porcelain waste fixture
 craft_sink,Cast Sink,crafting,clay_raw_0:5,sink_0:1,60,kiln_0,woodworking,2,Fire a porcelain wash basin
 #
@@ -439,3 +439,7 @@ smelt_copper_graphite,Smelt Copper (graphite),smelting,copper_ore_0:2|graphite_0
 smelt_nickel_graphite,Smelt Nickel (graphite),smelting,nickel_ore_0:2|graphite_0:1,nickel_ingot_0:1,10,smelter_0,metalworking,2,Reduce nickel ore using asteroid graphite
 assemble_nova,Assemble 1975 Chevy Nova,crafting,steel_ingot_0:14|iron_ingot_0:6|rubber_sheet_0:4|glass_pane_0:4,car_nova_1975_0:1,240,vehicle_assembler_0,metalworking,3,Assemble a complete 1975 Chevy Nova on the factory pad
 refine_fuel,Refine Fuel,processing,oil_crude_0:2,fuel_refined_0:2,30,fuel_refinery_0,engineering,2,Distill crude oil into refined fuel
+bundle_cotton,Bundle Cotton Fiber,refining,fiber_cotton_0:3,fiber_bundle_0:2,10,workbench_0,,0,Card and bundle cotton into usable fiber
+bundle_flax,Bundle Flax Fiber,refining,fiber_flax_0:3,fiber_bundle_0:2,10,workbench_0,,0,Rett and bundle flax into usable fiber
+bundle_hemp,Bundle Hemp Fiber,refining,fiber_hemp_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle hemp into usable fiber
+bundle_jute,Bundle Jute Fiber,refining,fiber_jute_0:3,fiber_bundle_0:2,10,workbench_0,,0,Strip and bundle jute into usable fiber

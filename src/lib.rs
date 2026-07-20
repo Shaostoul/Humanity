@@ -8717,6 +8717,11 @@ mod native_app {
                     ("iron_ore_0".to_string(), 120.0),
                     ("nickel_ore_0".to_string(), 60.0),
                     ("platinum_ore_0".to_string(), 20.0),
+                    // v0.904 (loop audit): gold/silver had NO mining source,
+                    // gating their whole smelt chains on the vendor. M-types
+                    // are the precious-metal asteroids.
+                    ("gold_ore_0".to_string(), 15.0),
+                    ("silver_ore_0".to_string(), 25.0),
                 ],
                 position: [60.0, 12.0, -30.0],
             },));
@@ -8727,6 +8732,10 @@ mod native_app {
                 ores: vec![
                     ("iron_ore_0".to_string(), 40.0),
                     ("copper_ore_0".to_string(), 50.0),
+                    // v0.904: bauxite/rutile (aluminum + titanium roots) live
+                    // in the silicate rock - S-types are stony asteroids.
+                    ("bauxite_0".to_string(), 45.0),
+                    ("rutile_0".to_string(), 30.0),
                 ],
                 position: [-45.0, 8.0, 55.0],
             },));
