@@ -2352,19 +2352,43 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Deep open-ocean body color (linear). The seabed under the shell keeps
     // the graded bathymetry albedo; this is only the water column's own hue.
     var deep = vec3<f32>(0.013, 0.055, 0.11);
-    // Regional sea variation (v0.902, operator: "waves all uniform, almost
-    // looks like tiling... static"): two planet-pinned noise fields at
-    // ~25 km and ~2.5 km modulate hue (chlorophyll-green patches, current
-    // streaks) AND wave-texture strength, so no two screenfuls of ocean
-    // repeat and the tiling impression dies at altitude.
-    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.6
-        + surface_detail_noise(dir, r_render / 2600.0, 733.0) * 0.4;
+    // Regional sea variation (v0.902; de-squared v0.906 - the operator saw
+    // "very obvious squares"): single low-frequency value noise shows its
+    // axis-aligned lattice as rectangular blotches. Three octaves at
+    // incommensurate frequencies with ROTATED sampling directions break
+    // the grid into organic patches.
+    let dir_r1 = normalize(vec3<f32>(
+        dir.x * 0.7660 - dir.z * 0.6428,
+        dir.y,
+        dir.x * 0.6428 + dir.z * 0.7660,
+    ));
+    let dir_r2 = normalize(vec3<f32>(
+        dir.x * 0.1736 + dir.z * 0.9848,
+        dir.y,
+        -dir.x * 0.9848 + dir.z * 0.1736,
+    ));
+    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.40
+        + surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) * 0.30
+        + surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) * 0.30;
     let greener = vec3<f32>(0.016, 0.085, 0.105);
-    deep = mix(deep, greener, smoothstep(0.42, 0.75, sea_var));
+    // Wider blend band (0.35..0.85) so hue patches feather instead of
+    // stepping.
+    deep = mix(deep, greener, smoothstep(0.35, 0.85, sea_var));
     deep = deep * (0.9 + 0.25 * sea_var);
-    let gscale = 0.55 + 0.95 * sea_var;
+    // STORM SEAS (v0.906, operator: "let's see how very stormy seas would
+    // look, white caps if possible"): the same live MODIS weather field
+    // the sky draws doubles as sea state - under real storm cloud the
+    // water chops up hard and crests break into whitecaps. Calm-clear
+    // ocean keeps the v0.902 look.
+    let sw_lon = atan2(-dir.z, dir.x);
+    let sw_lat = asin(clamp(dir.y, -1.0, 1.0));
+    let sw_uv = vec2<f32>(sw_lon * 0.15915494 + 0.5, 0.5 - sw_lat * 0.31830987);
+    let sw = textureSampleLevel(weather_map, albedo_sampler, sw_uv, 0.0).rg;
+    let storm = smoothstep(0.35, 0.85, sw.r * max(sw.g, 0.25));
+    let gscale = (0.55 + 0.95 * sea_var) * (1.0 + storm * 1.4);
     let presence = wave_presence(footprint);
     var n_pert = n_geo;
+    var foam = 0.0;
     if (presence > 0.001) {
         var grad = water_wave_gradient(p_local, dir, t, footprint) * gscale;
         // Close-range micro ripples (v0.902): two fast camera-relative
@@ -2385,10 +2409,22 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             grad = grad + wave_octave(ptw, dir, WAVE2_DIR, 3.2, 0.55, 0.05, t, footprint);
             grad = grad + wave_octave(ptw, dir, WAVE4_DIR, 0.8, 1.1, 0.045, t, footprint);
         }
+        // Whitecaps: steep crests break. Steepness = the perturbed-normal
+        // gradient magnitude, storm-amplified; a noise flicker keeps the
+        // caps patchy instead of painting every crest uniformly.
+        let steep = length(grad) * (1.0 + storm * 1.6);
+        let cap_noise = surface_detail_noise(dir_r1, r_render / 90.0, 977.0);
+        foam = smoothstep(0.062, 0.16, steep)
+            * (0.18 + 0.82 * storm)
+            * (0.55 + 0.45 * cap_noise)
+            * presence;
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
-    let rgb = water_shade(deep, n_geo, n_pert, view_dir);
+    var rgb = water_shade(deep, n_geo, n_pert, view_dir);
+    // Foam is bright scattered froth: it flattens the water shading toward
+    // broken white and reads at any sun angle.
+    rgb = mix(rgb, vec3<f32>(0.82, 0.87, 0.90), clamp(foam, 0.0, 0.72));
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.

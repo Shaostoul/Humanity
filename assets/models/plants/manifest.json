@@ -1,0 +1,159 @@
+{
+  "_readme": "CC0 plant models from Poly Haven (https://polyhaven.com), fetched 2026-07-19. Format: .gltf + external .bin + jpg textures (diff = albedo, nor_gl = OpenGL normal, arm = AO/roughness/metallic packed). Units are meters, Y-up, indexed triangles — matches engine conventions in docs/game/model-pipeline.md. NOTE: the engine loader (src/assets/mod.rs parse_gltf_mesh/load_gltf) uses only the FIRST mesh's FIRST primitive, so multi-mesh assets need repacking (see repack field per asset) before they render fully.",
+  "license": "CC0 1.0 (public domain, no attribution required)",
+  "assets": [
+    {
+      "slug": "grass_medium_02",
+      "name": "Grass Medium 02",
+      "source": "https://polyhaven.com/a/grass_medium_02",
+      "texture_resolution": "2k",
+      "gltf": "grass_medium_02/grass_medium_02_2k.gltf",
+      "files": [
+        "grass_medium_02/grass_medium_02_2k.gltf",
+        "grass_medium_02/grass_medium_02.bin",
+        "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+        "grass_medium_02/textures/grass_medium_02_nor_gl_2k.jpg",
+        "grass_medium_02/textures/grass_medium_02_arm_2k.jpg"
+      ],
+      "total_bytes": 1789378,
+      "triangles_total": 7842,
+      "structure": "5 meshes = 5 standalone grass-clump variants (714 / 1760 / 1215 / 2489 / 1664 tris), one shared material",
+      "dims_m": [
+        0.36,
+        0.41,
+        0.43
+      ],
+      "suggested_use": "ground-cover grass clump (garden tiles, wild terrain scatter)",
+      "repack": "split into one GLB per variant (each already game-budget); naive load renders only variant 1 (714 tris), which is usable as-is"
+    },
+    {
+      "slug": "fern_02",
+      "name": "Fern 02",
+      "source": "https://polyhaven.com/a/fern_02",
+      "texture_resolution": "2k",
+      "gltf": "fern_02/fern_02_2k.gltf",
+      "files": [
+        "fern_02/fern_02_2k.gltf",
+        "fern_02/fern_02.bin",
+        "fern_02/textures/fern_02_diff_2k.jpg",
+        "fern_02/textures/fern_02_nor_gl_2k.jpg",
+        "fern_02/textures/fern_02_arm_2k.jpg"
+      ],
+      "total_bytes": 3393249,
+      "triangles_total": 6232,
+      "structure": "4 meshes = 4 standalone fern variants (2384 / 2248 / 784 / 816 tris), one shared material",
+      "dims_m": [
+        0.99,
+        0.43,
+        0.89
+      ],
+      "suggested_use": "wild shrub / forest-floor fern (also fits shaded garden beds)",
+      "repack": "split into one GLB per variant; naive load renders variant 1 (2384 tris), usable as-is"
+    },
+    {
+      "slug": "shrub_01",
+      "name": "Shrub 01",
+      "source": "https://polyhaven.com/a/shrub_01",
+      "texture_resolution": "2k",
+      "gltf": "shrub_01/shrub_01_2k.gltf",
+      "files": [
+        "shrub_01/shrub_01_2k.gltf",
+        "shrub_01/shrub_01.bin",
+        "shrub_01/textures/shrub_01_diff_2k.jpg",
+        "shrub_01/textures/shrub_01_nor_gl_2k.jpg",
+        "shrub_01/textures/shrub_01_arm_2k.jpg"
+      ],
+      "total_bytes": 10755503,
+      "triangles_total": 156012,
+      "structure": "1 mesh, 1 primitive, 1 material — loads fully with the current first-primitive loader",
+      "dims_m": [
+        2.59,
+        0.4,
+        0.22
+      ],
+      "suggested_use": "wild shrub / hedge strip (low wide ground shrub)",
+      "repack": "none needed structurally (single primitive), but 156k tris is over game-prop budget — decimate to ~15-25k for scatter use, or reserve as a hero plant"
+    },
+    {
+      "slug": "potted_plant_01",
+      "name": "Potted Plant 01",
+      "source": "https://polyhaven.com/a/potted_plant_01",
+      "texture_resolution": "2k",
+      "gltf": "potted_plant_01/potted_plant_01_2k.gltf",
+      "files": [
+        "potted_plant_01/potted_plant_01_2k.gltf",
+        "potted_plant_01/potted_plant_01.bin",
+        "potted_plant_01/textures/potted_plant_01_pot_diff_2k.jpg",
+        "potted_plant_01/textures/potted_plant_01_pot_nor_gl_2k.jpg",
+        "potted_plant_01/textures/potted_plant_01_pot_rough_2k.jpg",
+        "potted_plant_01/textures/potted_plant_01_leaves_diff_2k.jpg",
+        "potted_plant_01/textures/potted_plant_01_leaves_nor_gl_2k.jpg",
+        "potted_plant_01/textures/potted_plant_01_leaves_rough_2k.jpg"
+      ],
+      "total_bytes": 9049704,
+      "triangles_total": 176226,
+      "structure": "4 meshes: pot base (7008 tris), pot body (56878), soil ring (5440), leaves (106900); 2 materials (pot, leaves)",
+      "dims_m": [
+        0.59,
+        1.34,
+        0.63
+      ],
+      "suggested_use": "interior potted plant (ship rooms, homestead interiors) — hero decoration",
+      "repack": "REQUIRED — naive load shows only the pot base without leaves; join all 4 meshes into one primitive and export GLB; decimate leaves (106k tris) toward ~20k for a prop-budget version"
+    },
+    {
+      "slug": "fir_sapling",
+      "name": "Fir Sapling",
+      "source": "https://polyhaven.com/a/fir_sapling",
+      "texture_resolution": "1k",
+      "gltf": "fir_sapling/fir_sapling_1k.gltf",
+      "files": [
+        "fir_sapling/fir_sapling_1k.gltf",
+        "fir_sapling/fir_sapling.bin",
+        "fir_sapling/textures/fir_sapling_branches_diff_1k.jpg",
+        "fir_sapling/textures/fir_sapling_branches_nor_gl_1k.jpg",
+        "fir_sapling/textures/fir_sapling_branches_arm_1k.jpg",
+        "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg",
+        "fir_sapling/textures/fir_sapling_twigs_nor_gl_1k.jpg",
+        "fir_sapling/textures/fir_sapling_twigs_arm_1k.jpg"
+      ],
+      "total_bytes": 25423602,
+      "triangles_total": 433021,
+      "structure": "3 meshes = 3 tree variants (a/b/c), each 2 primitives (branches ~500 tris + twigs 124k-157k tris); 2 materials; uses optional KHR_materials_specular + KHR_materials_ior (not in extensionsRequired, safe to ignore)",
+      "dims_m": [
+        0.86,
+        1.3,
+        0.83
+      ],
+      "suggested_use": "young tree / garden hero sapling (~1.3 m tall)",
+      "repack": "REQUIRED — naive load shows only a bare 546-tri branch skeleton (twigs are the 2nd primitive); per variant, merge branches+twigs into one primitive and decimate twigs hard (target ~20-40k tris per tree) before scatter use"
+    },
+    {
+      "slug": "pine_sapling_small",
+      "name": "Pine Sapling Small",
+      "source": "https://polyhaven.com/a/pine_sapling_small",
+      "texture_resolution": "2k",
+      "gltf": "pine_sapling_small/pine_sapling_small_2k.gltf",
+      "files": [
+        "pine_sapling_small/pine_sapling_small_2k.gltf",
+        "pine_sapling_small/pine_sapling_small.bin",
+        "pine_sapling_small/textures/pine_sapling_small_bark_diff_2k.jpg",
+        "pine_sapling_small/textures/pine_sapling_small_bark_nor_gl_2k.jpg",
+        "pine_sapling_small/textures/pine_sapling_small_bark_arm_2k.jpg",
+        "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg",
+        "pine_sapling_small/textures/pine_sapling_small_twig_nor_gl_2k.jpg",
+        "pine_sapling_small/textures/pine_sapling_small_twig_arm_2k.jpg"
+      ],
+      "total_bytes": 32151039,
+      "triangles_total": 398144,
+      "structure": "3 meshes = 3 tree variants (b/a/c), each 2 primitives (bark ~500 tris + twigs 122k-142k tris); 2 materials; uses optional KHR_materials_specular + KHR_materials_ior (not in extensionsRequired, safe to ignore)",
+      "dims_m": [
+        0.79,
+        1.3,
+        0.77
+      ],
+      "suggested_use": "young pine tree (~1.3 m) — forest edges, homestead planting",
+      "repack": "REQUIRED — naive load shows only a bare ~490-tri trunk (twigs are the 2nd primitive); per variant, merge bark+twigs into one primitive and decimate twigs (target ~20-40k tris) before scatter use"
+    }
+  ]
+}

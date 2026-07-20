@@ -1,0 +1,54 @@
+{
+  "description": "CC0 PBR ground texture sets for the terrain material system. Sourced from ambientCG (https://ambientcg.com), downloaded 2026-07-19 at 2K resolution (JPG variant), converted to PNG at 2048x2048. Color and NormalGL (OpenGL-convention tangent-space normal, +Y up) maps only; Roughness/AO/Displacement remain in the source zips if needed later.",
+  "license": "CC0 1.0 Universal (verified on each asset page: 'free to use without attribution - even in commercial circumstances')",
+  "source_site": "https://ambientcg.com",
+  "downloaded": "2026-07-19",
+  "resolution": [2048, 2048],
+  "normal_convention": "OpenGL (NormalGL, +Y up)",
+  "sets": {
+    "grass": {
+      "asset_id": "Grass001",
+      "page": "https://ambientcg.com/view?id=Grass001",
+      "download_url": "https://ambientcg.com/get?file=Grass001_2K-JPG.zip",
+      "license": "CC0",
+      "material": "Short dense fresh green lawn (procedural PBR), ~1.4 m x 1.4 m coverage",
+      "files": {
+        "color": "grass_color.png",
+        "normal": "grass_normal.png"
+      }
+    },
+    "dirt": {
+      "asset_id": "Ground048",
+      "page": "https://ambientcg.com/view?id=Ground048",
+      "download_url": "https://ambientcg.com/get?file=Ground048_2K-JPG.zip",
+      "license": "CC0",
+      "material": "Plain brown dirt/soil (surface photogrammetry)",
+      "files": {
+        "color": "dirt_color.png",
+        "normal": "dirt_normal.png"
+      }
+    },
+    "rock": {
+      "asset_id": "Rock035",
+      "page": "https://ambientcg.com/view?id=Rock035",
+      "download_url": "https://ambientcg.com/get?file=Rock035_2K-JPG.zip",
+      "license": "CC0",
+      "material": "Dark grey/black stone, cave/cliff surface (procedural PBR)",
+      "files": {
+        "color": "rock_color.png",
+        "normal": "rock_normal.png"
+      }
+    },
+    "sand": {
+      "asset_id": "Ground033",
+      "page": "https://ambientcg.com/view?id=Ground033",
+      "download_url": "https://ambientcg.com/get?file=Ground033_2K-JPG.zip",
+      "license": "CC0",
+      "material": "Light sandy beach ground (tags: Beach, Dirt, Ground, Sand, White)",
+      "files": {
+        "color": "sand_color.png",
+        "normal": "sand_normal.png"
+      }
+    }
+  }
+}

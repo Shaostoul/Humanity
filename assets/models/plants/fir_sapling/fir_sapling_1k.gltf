@@ -1,0 +1,584 @@
+{
+  "asset": {
+    "generator": "Khronos glTF Blender I/O v3.5.30",
+    "version": "2.0"
+  },
+  "extensionsUsed": [
+    "KHR_materials_specular",
+    "KHR_materials_ior"
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0,
+        1,
+        2
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fir_sapling_a"
+    },
+    {
+      "mesh": 1,
+      "name": "fir_sapling_b",
+      "translation": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "mesh": 2,
+      "name": "fir_sapling_c",
+      "translation": [
+        2,
+        0,
+        0
+      ]
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "fir_sapling_branches",
+      "normalTexture": {
+        "index": 0
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 1
+        },
+        "metallicFactor": 0,
+        "metallicRoughnessTexture": {
+          "index": 2
+        }
+      }
+    },
+    {
+      "doubleSided": true,
+      "extensions": {
+        "KHR_materials_specular": {
+          "specularColorFactor": [
+            0.05309009571385226,
+            0.05309009571385226,
+            0.05309009571385226
+          ]
+        },
+        "KHR_materials_ior": {
+          "ior": 1.4500000476837158
+        }
+      },
+      "name": "fir_sapling_twigs",
+      "normalTexture": {
+        "index": 3
+      },
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 4
+        },
+        "metallicFactor": 0,
+        "metallicRoughnessTexture": {
+          "index": 5
+        }
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "Cylinder",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "TEXCOORD_0": 1,
+            "NORMAL": 2
+          },
+          "indices": 3,
+          "material": 0
+        },
+        {
+          "attributes": {
+            "POSITION": 4,
+            "TEXCOORD_0": 5,
+            "NORMAL": 6
+          },
+          "indices": 7,
+          "material": 1
+        }
+      ]
+    },
+    {
+      "name": "Cylinder.069",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 8,
+            "TEXCOORD_0": 9,
+            "NORMAL": 10
+          },
+          "indices": 11,
+          "material": 0
+        },
+        {
+          "attributes": {
+            "POSITION": 12,
+            "TEXCOORD_0": 13,
+            "NORMAL": 14
+          },
+          "indices": 15,
+          "material": 1
+        }
+      ]
+    },
+    {
+      "name": "Cylinder.125",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 16,
+            "TEXCOORD_0": 17,
+            "NORMAL": 18
+          },
+          "indices": 19,
+          "material": 0
+        },
+        {
+          "attributes": {
+            "POSITION": 20,
+            "TEXCOORD_0": 21,
+            "NORMAL": 22
+          },
+          "indices": 23,
+          "material": 1
+        }
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    },
+    {
+      "sampler": 0,
+      "source": 1
+    },
+    {
+      "sampler": 0,
+      "source": 2
+    },
+    {
+      "sampler": 0,
+      "source": 3
+    },
+    {
+      "sampler": 0,
+      "source": 4
+    },
+    {
+      "sampler": 0,
+      "source": 5
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_branches_nor_gl",
+      "uri": "textures/fir_sapling_branches_nor_gl_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_branches_diff",
+      "uri": "textures/fir_sapling_branches_diff_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_branches_rough",
+      "uri": "textures/fir_sapling_branches_arm_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_twigs_nor_gl",
+      "uri": "textures/fir_sapling_twigs_nor_gl_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_twigs_diff",
+      "uri": "textures/fir_sapling_twigs_diff_1k.jpg"
+    },
+    {
+      "mimeType": "image/jpeg",
+      "name": "fir_sapling_twigs_rough",
+      "uri": "textures/fir_sapling_twigs_arm_1k.jpg"
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 388,
+      "max": [
+        0.2531963288784027,
+        1.1080386638641357,
+        0.26755601167678833
+      ],
+      "min": [
+        -0.2750617563724518,
+        -0.007901787757873535,
+        -0.2920974791049957
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 388,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 388,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 1638,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 4,
+      "componentType": 5126,
+      "count": 186918,
+      "max": [
+        0.42418965697288513,
+        1.2928361892700195,
+        0.396030455827713
+      ],
+      "min": [
+        -0.43695688247680664,
+        0.02356576919555664,
+        -0.42620566487312317
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 5,
+      "componentType": 5126,
+      "count": 186918,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 6,
+      "componentType": 5126,
+      "count": 186918,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 7,
+      "componentType": 5125,
+      "count": 470568,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 8,
+      "componentType": 5126,
+      "count": 360,
+      "max": [
+        0.16692817211151123,
+        0.8820494413375854,
+        0.29256629943847656
+      ],
+      "min": [
+        -0.20628833770751953,
+        -0.000009949319064617157,
+        -0.29320934414863586
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 9,
+      "componentType": 5126,
+      "count": 360,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 10,
+      "componentType": 5126,
+      "count": 360,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 11,
+      "componentType": 5123,
+      "count": 1530,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 12,
+      "componentType": 5126,
+      "count": 179220,
+      "max": [
+        0.31415098905563354,
+        0.9515835642814636,
+        0.3871777057647705
+      ],
+      "min": [
+        -0.32576000690460205,
+        0.03145759180188179,
+        -0.4303826093673706
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 13,
+      "componentType": 5126,
+      "count": 179220,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 14,
+      "componentType": 5126,
+      "count": 179220,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 15,
+      "componentType": 5125,
+      "count": 451098,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 16,
+      "componentType": 5126,
+      "count": 268,
+      "max": [
+        0.20513582229614258,
+        0.6192036271095276,
+        0.158901646733284
+      ],
+      "min": [
+        -0.2061556577682495,
+        -0.00007270835340023041,
+        -0.2918061912059784
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 17,
+      "componentType": 5126,
+      "count": 268,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 18,
+      "componentType": 5126,
+      "count": 268,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 19,
+      "componentType": 5123,
+      "count": 1152,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 20,
+      "componentType": 5126,
+      "count": 148145,
+      "max": [
+        0.3057711124420166,
+        0.735627293586731,
+        0.31407177448272705
+      ],
+      "min": [
+        -0.31641829013824463,
+        0.03462404012680054,
+        -0.3199334442615509
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 21,
+      "componentType": 5126,
+      "count": 148145,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 22,
+      "componentType": 5126,
+      "count": 148145,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 23,
+      "componentType": 5125,
+      "count": 373077,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 4656,
+      "byteOffset": 0,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 3104,
+      "byteOffset": 4656,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4656,
+      "byteOffset": 7760,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 3276,
+      "byteOffset": 12416,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2243016,
+      "byteOffset": 15692,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1495344,
+      "byteOffset": 2258708,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2243016,
+      "byteOffset": 3754052,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1882272,
+      "byteOffset": 5997068,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4320,
+      "byteOffset": 7879340,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2880,
+      "byteOffset": 7883660,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 4320,
+      "byteOffset": 7886540,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 3060,
+      "byteOffset": 7890860,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2150640,
+      "byteOffset": 7893920,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1433760,
+      "byteOffset": 10044560,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2150640,
+      "byteOffset": 11478320,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1804392,
+      "byteOffset": 13628960,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 3216,
+      "byteOffset": 15433352,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2144,
+      "byteOffset": 15436568,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 3216,
+      "byteOffset": 15438712,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 2304,
+      "byteOffset": 15441928,
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1777740,
+      "byteOffset": 15444232,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1185160,
+      "byteOffset": 17221972,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1777740,
+      "byteOffset": 18407132,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 1492308,
+      "byteOffset": 20184872,
+      "target": 34963
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 21677180,
+      "uri": "fir_sapling.bin"
+    }
+  ]
+}
