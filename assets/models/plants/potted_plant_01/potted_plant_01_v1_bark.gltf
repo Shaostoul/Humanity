@@ -1,0 +1,136 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (bark/trunk part)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "potted_plant_01_v1_bark"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "potted_plant_01_v1_bark",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 44105,
+      "type": "VEC3",
+      "min": [
+        -0.2346075475215912,
+        -0.013706624507904053,
+        -0.22995881736278534
+      ],
+      "max": [
+        0.23310257494449615,
+        1.266984224319458,
+        0.23624619841575623
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 44105,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 44105,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 207978,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 529260,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 529260,
+      "byteLength": 529260,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1058520,
+      "byteLength": 352840,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1411360,
+      "byteLength": 415956,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 1827316,
+      "uri": "potted_plant_01_v1_bark.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "potted_plant_01_pot",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/potted_plant_01_pot_diff_2k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

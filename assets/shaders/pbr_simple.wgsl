@@ -1145,7 +1145,17 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // unchanged, full starfield. Day: bright dome occludes. Twilight
     // blends smoothly in between.
     let sky_lum = dot(mapped, vec3<f32>(0.2126, 0.7152, 0.0722));
-    let alpha_occ = max(alpha, clamp(sky_lum * 3.2, 0.0, 1.0));
+    // v0.913 (operator: "looking away from the sun... I can still see the
+    // stars" + "our changes have hidden OUR sun"): occlusion is now driven
+    // by the DAY itself (sun elevation at the camera), so the whole dome
+    // hides stars at noon, not just the bright half; and a narrow window
+    // toward the sun disc keeps the sky from occluding the sun - the sun
+    // outshines its own sky, and the disc stays sharp.
+    let sun_l = normalize(camera.sun_direction.xyz);
+    let day = smoothstep(-0.08, 0.12, dot(normalize(ro), sun_l));
+    let toward_sun = smoothstep(0.9986, 0.9997, dot(rd, sun_l));
+    var alpha_occ = max(alpha, max(clamp(sky_lum * 3.2, 0.0, 1.0), day * 0.985));
+    alpha_occ = mix(alpha_occ, alpha, toward_sun);
     // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
     // the radiance back out of the alpha so exactly `mapped` lands on
     // screen. Both terms go to zero together for thin air, so the ratio

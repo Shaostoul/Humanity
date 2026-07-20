@@ -1,1 +1,136 @@
-{"asset":{"generator":"HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)","version":"2.0"},"scene":0,"scenes":[{"name":"Scene","nodes":[0]}],"nodes":[{"mesh":0,"name":"fir_sapling_v1"}],"meshes":[{"name":"fir_sapling_v1","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"mode":4,"material":0}]}],"accessors":[{"bufferView":0,"componentType":5126,"count":187306,"type":"VEC3","min":[-0.4307094216346741,-0.007901787757873535,-0.426984041929245],"max":[0.4304371178150177,1.2928361892700195,0.3952520787715912]},{"bufferView":1,"componentType":5126,"count":187306,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":187306,"type":"VEC2"},{"bufferView":3,"componentType":5125,"count":472206,"type":"SCALAR"}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":2247672,"target":34962},{"buffer":0,"byteOffset":2247672,"byteLength":2247672,"target":34962},{"buffer":0,"byteOffset":4495344,"byteLength":1498448,"target":34962},{"buffer":0,"byteOffset":5993792,"byteLength":1888824,"target":34963}],"buffers":[{"byteLength":7882616,"uri":"fir_sapling_v1.bin"}],"materials":[{"name":"fir_sapling_twigs","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicFactor":0},"doubleSided":true}],"textures":[{"sampler":0,"source":0}],"images":[{"mimeType":"image/png","uri":"textures/fir_sapling_twigs_diff_a_1k.png"}],"samplers":[{"magFilter":9729,"minFilter":9987}]}
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fir_sapling_v1"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "fir_sapling_v1",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 186918,
+      "type": "VEC3",
+      "min": [
+        -0.4307094216346741,
+        0.02356576919555664,
+        -0.426984041929245
+      ],
+      "max": [
+        0.4304371178150177,
+        1.2928361892700195,
+        0.3952520787715912
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 186918,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 186918,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5125,
+      "count": 470568,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 2243016,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 2243016,
+      "byteLength": 2243016,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 4486032,
+      "byteLength": 1495344,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 5981376,
+      "byteLength": 1882272,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 7863648,
+      "uri": "fir_sapling_v1.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "fir_sapling_twigs",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/png",
+      "uri": "textures/fir_sapling_twigs_diff_a_1k.png"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

@@ -3122,8 +3122,16 @@ mod native_app {
         }
         let count = root["bookmarks"].as_array().map(|a| a.len()).unwrap_or(0);
         let name = format!("bm-{}", count + 1);
+        // Category (v0.913, operator: "we should be able to add categories
+        // to the locations we can teleport to"): whatever is typed in the
+        // Dev > Travel category box at save time tags the bookmark.
+        let category = {
+            let c = state.gui_state.bookmark_new_category.trim();
+            if c.is_empty() { "Uncategorized".to_string() } else { c.to_string() }
+        };
         let entry = serde_json::json!({
             "name": name,
+            "category": category,
             "body": body_json,
             "anchor": [anchor.x, anchor.y, anchor.z],
             "fwd": [fwd_store.x, fwd_store.y, fwd_store.z],
@@ -3140,8 +3148,9 @@ mod native_app {
             PATH,
             serde_json::to_string_pretty(&root).unwrap_or_default(),
         );
+        state.gui_state.location_bookmarks_dirty = true;
         state.gui_state.pending_toasts.push((
-            format!("Location bookmark {name} saved"),
+            format!("Location bookmark {name} saved ({category})"),
             crate::gui::ToastKind::Success,
         ));
         log::info!(
@@ -15697,16 +15706,27 @@ mod native_app {
                                             alt_over
                                         );
                                     }
-                                    // Lazy-load the two conifer models through
-                                    // the decoration cache (shared GPU reuse).
-                                    for name in
-                                        ["fir_sapling_v1", "pine_sapling_small_v1"]
-                                    {
+                                    // Lazy-load all six conifer shapes (3 fir +
+                                    // 3 pine variants) plus their _bark trunk
+                                    // parts (v0.913 - the trunk carries its own
+                                    // bark texture now, so it no longer
+                                    // alpha-discards into invisibility).
+                                    let mut tree_names: Vec<String> = Vec::new();
+                                    for base in ["fir_sapling", "pine_sapling_small"] {
+                                        for v in 1..=3 {
+                                            for suffix in ["", "_bark"] {
+                                                tree_names.push(format!("{base}_v{v}{suffix}"));
+                                            }
+                                        }
+                                    }
+                                    for name in &tree_names {
+                                        let name = name.as_str();
                                         if state.decoration_mesh_cache.contains_key(name) {
                                             continue;
                                         }
+                                        let stem = name.strip_suffix("_bark").unwrap_or(name);
                                         let base =
-                                            name.rfind("_v").map(|i| &name[..i]).unwrap_or(name);
+                                            stem.rfind("_v").map(|i| &stem[..i]).unwrap_or(stem);
                                         let rel = format!(
                                             "assets/models/plants/{}/{}.gltf",
                                             base, name
@@ -15765,27 +15785,32 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    let fir = state
-                                        .decoration_mesh_cache
-                                        .get("fir_sapling_v1")
-                                        .copied()
-                                        .unwrap_or((usize::MAX, usize::MAX));
-                                    let pine = state
-                                        .decoration_mesh_cache
-                                        .get("pine_sapling_small_v1")
-                                        .copied()
-                                        .unwrap_or((usize::MAX, usize::MAX));
+                                    // Per-variant model heights from the split
+                                    // report (metres): scale = target / model.
+                                    const TREE_MODEL_H: [[f32; 3]; 2] =
+                                        [[1.27, 0.92, 0.70], [1.06, 0.85, 0.83]];
                                     let td2 = tree_dist * tree_dist;
+                                    // The photoscans are 120-190k tris each;
+                                    // cap DRAWN trees (nearest first - the
+                                    // list is distance-sorted) so a dense
+                                    // forest stays in budget. Cards cover the
+                                    // rest.
+                                    let mut drawn = 0u32;
                                     for tr in &state.near_trees {
+                                        if drawn >= 64 {
+                                            break;
+                                        }
                                         let base_local = tr.dir * tr.r_m;
                                         if (base_local - cam_local).length_squared() > td2 {
                                             continue;
                                         }
-                                        let (mi, ma) =
-                                            if tr.species == 0 { fir } else { pine };
-                                        if mi == usize::MAX {
-                                            continue;
-                                        }
+                                        let sp = (tr.species % 2) as usize;
+                                        let va = (tr.variant % 3) as usize;
+                                        let stem = if sp == 0 {
+                                            format!("fir_sapling_v{}", va + 1)
+                                        } else {
+                                            format!("pine_sapling_small_v{}", va + 1)
+                                        };
                                         let pos_render = render_off + rot_d * base_local;
                                         // Y-up model onto the local radial up,
                                         // spun by its own yaw, riding the
@@ -15797,20 +15822,34 @@ mod native_app {
                                         let obj_rot = rotation
                                             * up_arc
                                             * Quat::from_rotation_y(tr.yaw);
-                                        // The scans are ~1.3 m tall; the card
-                                        // heights are 7-13 m.
-                                        let scl = tr.height_m / 1.3;
-                                        celestial_objects.push(RenderObject {
-                                            position: Vec3::new(
-                                                pos_render.x as f32,
-                                                pos_render.y as f32,
-                                                pos_render.z as f32,
-                                            ),
-                                            rotation: obj_rot,
-                                            scale: Vec3::splat(scl),
-                                            mesh: mi,
-                                            material: ma,
-                                        });
+                                        let scl = tr.height_m / TREE_MODEL_H[sp][va];
+                                        let mut any = false;
+                                        for suffix in ["", "_bark"] {
+                                            let key = format!("{stem}{suffix}");
+                                            let Some(&(mi, ma)) =
+                                                state.decoration_mesh_cache.get(&key)
+                                            else {
+                                                continue;
+                                            };
+                                            if mi == usize::MAX {
+                                                continue;
+                                            }
+                                            any = true;
+                                            celestial_objects.push(RenderObject {
+                                                position: Vec3::new(
+                                                    pos_render.x as f32,
+                                                    pos_render.y as f32,
+                                                    pos_render.z as f32,
+                                                ),
+                                                rotation: obj_rot,
+                                                scale: Vec3::splat(scl),
+                                                mesh: mi,
+                                                material: ma,
+                                            });
+                                        }
+                                        if any {
+                                            drawn += 1;
+                                        }
                                     }
                                 } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
                                     state.near_trees.clear();
@@ -18552,6 +18591,48 @@ mod native_app {
                     // F6 location bookmark save (v0.890): runs here so
                     // current_spin + frame-lock state are fresh this frame.
                     save_location_bookmark(state);
+                    // Bookmark GUI bridge (v0.913): reload the Dev > Travel
+                    // list when the file changed, and run GUI-triggered
+                    // bookmark teleports through the SAME restore path the
+                    // dev camera_request uses.
+                    if state.gui_state.location_bookmarks_dirty {
+                        state.gui_state.location_bookmarks_dirty = false;
+                        state.gui_state.location_bookmarks = std::fs::read_to_string(
+                            "debug/bookmarks.json",
+                        )
+                        .ok()
+                        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+                        .and_then(|root| {
+                            root.get("bookmarks").and_then(|b| b.as_array()).map(|arr| {
+                                arr.iter()
+                                    .filter_map(|e| {
+                                        let name = e.get("name")?.as_str()?.to_string();
+                                        let cat = e
+                                            .get("category")
+                                            .and_then(|c| c.as_str())
+                                            .unwrap_or("Uncategorized")
+                                            .to_string();
+                                        let body = e
+                                            .get("body")
+                                            .and_then(|b| b.as_str())
+                                            .unwrap_or("space")
+                                            .to_string();
+                                        Some((name, cat, body))
+                                    })
+                                    .collect()
+                            })
+                        })
+                        .unwrap_or_default();
+                    }
+                    if let Some(id) = state.gui_state.pending_bookmark_teleport.take() {
+                        let req = serde_json::json!({ "bookmark": id });
+                        if !restore_location_bookmark(state, &req) {
+                            state.gui_state.pending_toasts.push((
+                                format!("Bookmark {id} could not be restored"),
+                                crate::gui::ToastKind::Error,
+                            ));
+                        }
+                    }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must

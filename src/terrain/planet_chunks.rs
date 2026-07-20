@@ -194,12 +194,14 @@ pub const GRASS_MIN_DEPTH: u8 = 18;
 /// operator reported, and why grass seemed to vanish near the player.)
 /// Cell size is radians of arc on the unit sphere.
 pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
-/// Expected trees per tree cell at the equator (~864 trees per km^2);
-/// scaled by cos(lat) so density stays constant per square km.
-pub const TREES_PER_CELL: u32 = 42;
-/// Grass cell size (~33 m) and tufts per cell (~0.033 per m^2).
+/// Expected trees per tree cell at the equator (~2000 trees per km^2 as of
+/// v0.913 - operator: "it looks like we're in a fairly open plain, can we
+/// see about making the forest dense"); scaled by cos(lat) so density
+/// stays constant per square km.
+pub const TREES_PER_CELL: u32 = 100;
+/// Grass cell size (~33 m) and tufts per cell (v0.913: ~0.073 per m^2).
 pub const GRASS_CELL_RAD: f64 = 5.2e-6;
-pub const GRASS_PER_CELL: u32 = 36;
+pub const GRASS_PER_CELL: u32 = 80;
 /// Real-meter elevation ceiling for trees (a global treeline placeholder).
 pub const TREELINE_M: f32 = 1700.0;
 
@@ -938,10 +940,18 @@ pub fn select_patches_sticky(
         let was_split = last_drawn
             .map(|s| (0..4u32).any(|i| s.contains(&node.id.child(i))))
             .unwrap_or(false);
+        // v0.913 (operator: "a lot of terrain LOD flickering even when I'm
+        // barely moving or even not at all"): a parked probe showed an
+        // ENDLESS split trickle (draws +20-70 per diag tick for minutes) -
+        // the planet's own spin drifts every node's screen error, and with
+        // the split threshold exactly AT split_px the fringe ring crosses
+        // it perpetually, popping patches one by one. A fresh split now
+        // needs 1.15x the threshold (was-split keeps the low 0.7x hold),
+        // giving spin drift a dead zone to wander in on both sides.
         let split_thr = if was_split {
             params.split_px * 0.7
         } else {
-            params.split_px
+            params.split_px * 1.15
         };
         let want_split = node.err_px > split_thr && node.id.depth < params.max_depth;
         if want_split {
@@ -1615,7 +1625,11 @@ pub fn build_patch_mesh(
                         } else {
                             // Tree: trunk cards (brown) + canopy cards (dark
                             // green), 7-13 m - a conifer silhouette at range.
-                            let h = 7.0 + (r3 % 100) as f32 / 100.0 * 6.0;
+                            // v0.913: wider size spread (operator: "varied size... they all
+                            // seem uniform height"). 4-18 m, skewed toward
+                            // younger trees; BOTH stream sites (bake + the
+                            // near-model mirror) must stay identical.
+                            let h = 4.0 + ((r3 % 1000) as f32 / 1000.0).powf(1.6) * 14.0;
                             let trunk = [0.30, 0.22, 0.13];
                             let canopy = [
                                 0.08 + (r4 % 60) as f32 / 1000.0,
@@ -1720,6 +1734,8 @@ pub struct NearTree {
     pub height_m: f32,
     /// 0 = fir, 1 = pine (stable per tree).
     pub species: u8,
+    /// Shape variant 0-2 (the three photoscan variants per species).
+    pub variant: u8,
 }
 
 /// Enumerate trees within `radius_m` surface metres of `center_dir` on the
@@ -1819,17 +1835,30 @@ pub fn near_tree_instances(
                         displaced_radius_f64(def, e as f64)
                     };
                 let yaw = (r2 % 6283) as f32 / 1000.0;
-                let h = 7.0 + (r3 % 100) as f32 / 100.0 * 6.0;
+                // v0.913: wider size spread (operator: "varied size... they all
+                            // seem uniform height"). 4-18 m, skewed toward
+                            // younger trees; BOTH stream sites (bake + the
+                            // near-model mirror) must stay identical.
+                            let h = 4.0 + ((r3 % 1000) as f32 / 1000.0).powf(1.6) * 14.0;
                 out.push(NearTree {
                     dir,
                     r_m: r,
                     yaw,
                     height_m: h,
                     species: ((r5 >> 9) & 1) as u8,
+                    variant: ((r5 >> 11) % 3) as u8,
                 });
             }
         }
     }
+    // Nearest-first so the caller's draw cap keeps the trees beside the
+    // camera, not whichever cell enumerated first.
+    out.sort_by(|a, b| {
+        b.dir
+            .dot(center)
+            .partial_cmp(&a.dir.dot(center))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     out
 }
 
@@ -2024,11 +2053,34 @@ impl ChunkState {
         // the just-culled ring made every camera micro-turn a rebuild storm;
         // running temporarily over cap is strictly cheaper than thrash.
         let recent = self.frame.saturating_sub(120);
+        // Ancestor-chain guard (v0.913, operator: "the ground I'm standing
+        // on keeps shifting to lower LODs which causes a flicker"): only
+        // DRAWN leaves refresh last_used, so the interior nodes of their
+        // descent chains went recency-stale and were evicted at the cache
+        // cap - restricted descent then stalled at a shallow ancestor for a
+        // frame (probe caught a depth-6 leaf with a 6-million-pixel error
+        // flashing at the camera). Everything on the path from a drawn leaf
+        // up to its root is load-bearing; protect the whole chain.
+        let mut protected: std::collections::HashSet<PatchId> = std::collections::HashSet::new();
+        for id in &self.last_drawn {
+            let mut cur = *id;
+            loop {
+                if !protected.insert(cur) {
+                    break; // shared ancestor chain already walked
+                }
+                match cur.parent() {
+                    Some(p) => cur = p,
+                    None => break,
+                }
+            }
+        }
         while self.total_bytes > byte_cap {
             let victim = self
                 .cache
                 .iter()
-                .filter(|(id, e)| id.depth > 0 && e.last_used < recent)
+                .filter(|(id, e)| {
+                    id.depth > 0 && e.last_used < recent && !protected.contains(id)
+                })
                 .min_by_key(|(id, e)| (e.last_used, **id))
                 .map(|(id, _)| *id);
             let Some(id) = victim else { break };

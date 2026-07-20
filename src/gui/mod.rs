@@ -2757,6 +2757,17 @@ pub struct GuiState {
     /// Metres below the sea surface while underwater (drives the tint's
     /// depth grading + the HUD depth readout; 0 when surfaced).
     pub underwater_depth_m: f32,
+    /// F6 location bookmarks for the Dev > Travel list (v0.913):
+    /// (id, category, body label). Loaded from debug/bookmarks.json.
+    pub location_bookmarks: Vec<(String, String, String)>,
+    /// True when the bookmark file changed (F6 save) and the GUI list
+    /// should reload next frame.
+    pub location_bookmarks_dirty: bool,
+    /// Set by the Travel bookmark list; lib.rs teleports to this F6
+    /// bookmark id and clears it.
+    pub pending_bookmark_teleport: Option<String>,
+    /// Category applied to NEW F6 bookmark saves (typed in Dev > Travel).
+    pub bookmark_new_category: String,
     /// Toasts queued from engine code that has no egui clock (v0.890, e.g.
     /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
     /// which stamps them with the real egui time.
@@ -4528,6 +4539,10 @@ impl Default for GuiState {
             underwater: false,
             underwater_depth_m: 0.0,
             station_off: glam::Vec3::ZERO,
+            location_bookmarks: Vec::new(),
+            location_bookmarks_dirty: true,
+            pending_bookmark_teleport: None,
+            bookmark_new_category: String::new(),
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,

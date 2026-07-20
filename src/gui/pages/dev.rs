@@ -382,6 +382,75 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     .color(theme.text_secondary()),
             );
         }
+
+        // ── Location bookmarks (v0.913, operator: "can we add a teleport
+        // location selector for the spots I've added with the F6 key?") ──
+        // F6 saves the exact pose; this list restores it. Grouped by
+        // category; the category box tags FUTURE F6 saves, so building a
+        // curated tour (Mt Fuji / Home 2 / beautiful test spots) is: type
+        // the category, fly there, press F6.
+        ui.add_space(theme.spacing_sm);
+        ui.separator();
+        ui.label(
+            RichText::new("Location bookmarks (F6 saves your exact spot):")
+                .size(theme.font_size_small)
+                .color(theme.text_secondary()),
+        );
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new("Category for new F6 saves:")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+            ui.add(
+                egui::TextEdit::singleline(&mut state.bookmark_new_category)
+                    .hint_text("e.g. Scenic, Home, Testing")
+                    .desired_width(160.0),
+            );
+            if ui.button("Reload list").clicked() {
+                state.location_bookmarks_dirty = true;
+            }
+        });
+        if state.location_bookmarks.is_empty() {
+            ui.label(
+                RichText::new("No bookmarks yet. Press F6 anywhere in the 3D world to save one.")
+                    .size(theme.font_size_small)
+                    .color(theme.text_muted()),
+            );
+        } else {
+            // Stable category order: first-seen wins.
+            let mut cats: Vec<String> = Vec::new();
+            for (_, c, _) in &state.location_bookmarks {
+                if !cats.contains(c) {
+                    cats.push(c.clone());
+                }
+            }
+            let mut go: Option<String> = None;
+            for cat in cats {
+                ui.label(
+                    RichText::new(&cat)
+                        .size(theme.font_size_small)
+                        .color(theme.accent()),
+                );
+                ui.horizontal_wrapped(|ui| {
+                    for (id, c, body) in &state.location_bookmarks {
+                        if *c != cat {
+                            continue;
+                        }
+                        if ui
+                            .button(format!("{id} ({body})"))
+                            .on_hover_text("Teleport to this saved spot (exact position and view direction).")
+                            .clicked()
+                        {
+                            go = Some(id.clone());
+                        }
+                    }
+                });
+            }
+            if let Some(id) = go {
+                state.pending_bookmark_teleport = Some(id);
+            }
+        }
     });
 }
 

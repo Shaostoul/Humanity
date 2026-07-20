@@ -1,0 +1,136 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (bark/trunk part)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "pine_sapling_small_v3_bark"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "pine_sapling_small_v3_bark",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 344,
+      "type": "VEC3",
+      "min": [
+        -0.08205311745405197,
+        0.000687308085616678,
+        -0.2800366282463074
+      ],
+      "max": [
+        0.16347940266132355,
+        0.8720357418060303,
+        0.14485980570316315
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 344,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 344,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 1584,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 4128,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 4128,
+      "byteLength": 4128,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 8256,
+      "byteLength": 2752,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 11008,
+      "byteLength": 3168,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 14176,
+      "uri": "pine_sapling_small_v3_bark.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "pine_sapling_small_bark",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/pine_sapling_small_bark_diff_2k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

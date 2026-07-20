@@ -257,7 +257,8 @@ function mergeModel(gltf, buffers) {
  * position/normal/uv/index arrays, world transforms baked in. Used by merge
  * mode (all instances) and split mode (one cluster's instances at a time).
  */
-function mergeInstances(gltf, buffers, instances) {
+function mergeInstances(gltf, buffers, instances, matFilter) {
+  const matOk = (prim) => !matFilter || matFilter.has(prim.material !== undefined ? prim.material : -1);
   if (instances.length === 0) throw new Error('scene references no meshes');
 
   // Pass 1: totals, so we can pre-allocate exact-size typed arrays.
@@ -266,6 +267,7 @@ function mergeInstances(gltf, buffers, instances) {
   let sourcePrimitives = 0;
   for (const { mesh } of instances) {
     for (const prim of mesh.primitives) {
+      if (!matOk(prim)) continue;
       if (prim.mode !== undefined && prim.mode !== 4) {
         throw new Error(`primitive mode ${prim.mode} not supported (triangles only)`);
       }
@@ -295,6 +297,7 @@ function mergeInstances(gltf, buffers, instances) {
     const flipWinding = mat3Determinant(m3) < 0; // mirrored transform reverses triangle winding
 
     for (const prim of mesh.primitives) {
+      if (!matOk(prim)) continue;
       const attrs = prim.attributes;
       const pos = readAccessor(gltf, buffers, attrs.POSITION);
       const count = pos.length / 3;
@@ -481,8 +484,8 @@ function recenterOnBase(merged) {
   return { cx, cz };
 }
 
-/** Material index (into gltf.materials) covering the most triangles of the cluster, or -1. */
-function dominantMaterial(gltf, instances) {
+/** Per-material triangle counts for a cluster, sorted desc: [[matIdx, tris], ...]. */
+function materialsByTris(gltf, instances) {
   const triByMat = new Map();
   for (const { mesh } of instances) {
     for (const prim of mesh.primitives) {
@@ -493,11 +496,13 @@ function dominantMaterial(gltf, instances) {
       triByMat.set(key, (triByMat.get(key) || 0) + count);
     }
   }
-  let best = -1, bestTris = -1;
-  for (const [mat, tris] of triByMat) {
-    if (tris > bestTris) { bestTris = tris; best = mat; }
-  }
-  return best;
+  return [...triByMat.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+/** Material index (into gltf.materials) covering the most triangles of the cluster, or -1. */
+function dominantMaterial(gltf, instances) {
+  const sorted = materialsByTris(gltf, instances);
+  return sorted.length ? sorted[0][0] : -1;
 }
 
 /**
@@ -520,7 +525,16 @@ function buildMaterialBlock(gltf, dir, matIdx) {
   const tex = gltf.textures[bct.index];
   const img = gltf.images[tex.source];
   if (!img || !img.uri || img.uri.startsWith('data:')) return null;
-  const resolved = path.join(dir, decodeURIComponent(img.uri));
+  // Prefer an alpha-carrying twin when one exists beside the source
+  // texture (v0.913): Poly Haven diffuse JPGs lose the cutout alpha, so
+  // <name>_diff_a_<res>.png files (diffuse + mask merged offline) take
+  // precedence. Keeps re-splits from silently reverting to JPG.
+  let useUri = img.uri;
+  const alphaTwin = useUri.replace(/_diff_\w+\.jpg$/, '_diff_a_1k.png');
+  if (alphaTwin !== useUri && fs.existsSync(path.join(dir, decodeURIComponent(alphaTwin)))) {
+    useUri = alphaTwin;
+  }
+  const resolved = path.join(dir, decodeURIComponent(useUri));
   if (!fs.existsSync(resolved)) {
     throw new Error(`base-color texture URI does not resolve from variant location: ${img.uri}`);
   }
@@ -537,8 +551,8 @@ function buildMaterialBlock(gltf, dir, matIdx) {
   const block = {
     materials: [material],
     textures: [tex.sampler !== undefined ? { sampler: 0, source: 0 } : { source: 0 }],
-    images: [img.mimeType ? { mimeType: img.mimeType, uri: img.uri } : { uri: img.uri }],
-    textureUri: img.uri,
+    images: [{ mimeType: useUri.endsWith('.png') ? 'image/png' : (img.mimeType || 'image/jpeg'), uri: useUri }],
+    textureUri: useUri,
     materialName: src.name || 'material',
   };
   if (tex.sampler !== undefined) block.samplers = [gltf.samplers[tex.sampler]];
@@ -643,7 +657,7 @@ function writeMerged(outDir, baseName, merged, opts = {}) {
 
 function findSourceGltf(dir) {
   const files = fs.readdirSync(dir).filter(
-    (f) => f.endsWith('.gltf') && !f.endsWith('_merged.gltf') && !/_v\d+\.gltf$/.test(f)
+    (f) => f.endsWith('.gltf') && !f.endsWith('_merged.gltf') && !/_v\d+(_bark)?\.gltf$/.test(f)
   );
   if (files.length === 0) throw new Error(`no .gltf file in ${dir}`);
   if (files.length > 1) throw new Error(`multiple source .gltf files in ${dir}: ${files.join(', ')}`);
@@ -730,7 +744,7 @@ function processModelSplit(dir) {
   const clusters = clusterInstances(gltf, buffers, instances);
 
   // Remove stale variant files (idempotent re-runs; variant count may change).
-  const stalePattern = new RegExp(`^${slug}_v\\d+\\.(gltf|bin)$`);
+  const stalePattern = new RegExp(`^${slug}_v\\d+(_bark)?\\.(gltf|bin)$`);
   for (const f of fs.readdirSync(dir)) {
     if (stalePattern.test(f)) fs.unlinkSync(path.join(dir, f));
   }
@@ -739,9 +753,32 @@ function processModelSplit(dir) {
   let triSum = 0;
   clusters.forEach((cluster, ci) => {
     const baseName = `${slug}_v${ci + 1}`;
-    const merged = mergeInstances(gltf, buffers, cluster.instances);
-    const offset = recenterOnBase(merged);
-    const matIdx = dominantMaterial(gltf, cluster.instances);
+    // Material split (v0.913, operator: "the trees seem to be missing
+    // their trunks"): a single-material merge forced the trunk to borrow
+    // the twig texture, and the engine's alpha cutout then discarded the
+    // trunk (its UVs land on the twig sheet's transparent background).
+    // The variant now writes the DOMINANT-material geometry as the main
+    // file and everything else (bark trunk + branches) as a _bark
+    // companion with its own texture; the engine draws both parts at one
+    // transform.
+    const matsSorted = materialsByTris(gltf, cluster.instances);
+    const domMat = matsSorted.length ? matsSorted[0][0] : -1;
+    const restMats = matsSorted.slice(1).map(([m]) => m);
+    const single = restMats.length === 0;
+    const merged = single
+      ? mergeInstances(gltf, buffers, cluster.instances)
+      : mergeInstances(gltf, buffers, cluster.instances, new Set([domMat]));
+    // Base offset comes from the FULL cluster so both parts recenter
+    // identically and stay aligned.
+    const full = single ? merged : mergeInstances(gltf, buffers, cluster.instances);
+    const offset = recenterOnBase(full);
+    if (!single) {
+      for (let i = 0; i < merged.positions.length; i += 3) {
+        merged.positions[i] -= offset.cx;
+        merged.positions[i + 2] -= offset.cz;
+      }
+    }
+    const matIdx = domMat;
     const material = buildMaterialBlock(gltf, dir, matIdx);
     if (!material) console.warn(`  WARNING: ${baseName} has no textured material to carry over`);
 
@@ -749,6 +786,29 @@ function processModelSplit(dir) {
       material,
       generator: 'HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)',
     });
+
+    let barkInfo = null;
+    if (!single) {
+      const barkMerged = mergeInstances(gltf, buffers, cluster.instances, new Set(restMats));
+      for (let i = 0; i < barkMerged.positions.length; i += 3) {
+        barkMerged.positions[i] -= offset.cx;
+        barkMerged.positions[i + 2] -= offset.cz;
+      }
+      const barkMat = buildMaterialBlock(gltf, dir, restMats[0]);
+      const barkName = `${baseName}_bark`;
+      writeMerged(dir, barkName, barkMerged, {
+        material: barkMat,
+        generator: 'HumanityOS scripts/repack-plant-gltf.js --split (bark/trunk part)',
+      });
+      const barkTris = barkMerged.indices.length / 3;
+      triSum += barkTris;
+      barkInfo = {
+        file: `${slug}/${barkName}.gltf`,
+        tris: barkTris,
+        material: barkMat ? barkMat.materialName : null,
+      };
+      console.log(`  ${barkName}: ${barkTris} tris (trunk/branches part, material ${barkInfo.material || 'none'})`);
+    }
 
     // VERIFY: re-parse the file we just wrote with the same reader.
     const reGltf = JSON.parse(fs.readFileSync(gltfPath, 'utf8'));
@@ -778,6 +838,7 @@ function processModelSplit(dir) {
       base_centered: true,
       material: material ? material.materialName : null,
       texture: material ? `${slug}/${material.textureUri}` : null,
+      bark: barkInfo,
     });
 
     const fmt = (arr) => '[' + arr.map((v) => v.toFixed(3)).join(', ') + ']';

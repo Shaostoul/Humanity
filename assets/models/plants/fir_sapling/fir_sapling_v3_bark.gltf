@@ -1,0 +1,136 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (bark/trunk part)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fir_sapling_v3_bark"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "fir_sapling_v3_bark",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 268,
+      "type": "VEC3",
+      "min": [
+        -0.20502595603466034,
+        -0.00007270835340023041,
+        -0.2924589216709137
+      ],
+      "max": [
+        0.20626552402973175,
+        0.6192036271095276,
+        0.1582489162683487
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 268,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 268,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 1152,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 3216,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 3216,
+      "byteLength": 3216,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 6432,
+      "byteLength": 2144,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 8576,
+      "byteLength": 2304,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 10880,
+      "uri": "fir_sapling_v3_bark.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "fir_sapling_branches",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/jpeg",
+      "uri": "textures/fir_sapling_branches_diff_1k.jpg"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

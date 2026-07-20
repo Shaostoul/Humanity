@@ -1,1 +1,138 @@
-{"asset":{"generator":"HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)","version":"2.0"},"scene":0,"scenes":[{"name":"Scene","nodes":[0]}],"nodes":[{"mesh":0,"name":"pine_sapling_small_v3"}],"meshes":[{"name":"pine_sapling_small_v3","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"mode":4,"material":0}]}],"accessors":[{"bufferView":0,"componentType":5126,"count":136065,"type":"VEC3","min":[-0.22967271506786346,0.000687308085616678,-0.3224245607852936],"max":[0.2831133008003235,0.9620128870010376,0.2575409710407257]},{"bufferView":1,"componentType":5126,"count":136065,"type":"VEC3"},{"bufferView":2,"componentType":5126,"count":136065,"type":"VEC2"},{"bufferView":3,"componentType":5125,"count":400209,"type":"SCALAR"}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":1632780,"target":34962},{"buffer":0,"byteOffset":1632780,"byteLength":1632780,"target":34962},{"buffer":0,"byteOffset":3265560,"byteLength":1088520,"target":34962},{"buffer":0,"byteOffset":4354080,"byteLength":1600836,"target":34963}],"buffers":[{"byteLength":5954916,"uri":"pine_sapling_small_v3.bin"}],"materials":[{"name":"pine_sapling_small_twig","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicFactor":0},"alphaMode":"MASK","alphaCutoff":0.5,"doubleSided":true}],"textures":[{"sampler":0,"source":0}],"images":[{"mimeType":"image/png","uri":"textures/pine_sapling_small_twig_diff_a_1k.png"}],"samplers":[{"magFilter":9729,"minFilter":9987}]}
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js --split (one variant, base re-centered, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "pine_sapling_small_v3"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "pine_sapling_small_v3",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4,
+          "material": 0
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 135721,
+      "type": "VEC3",
+      "min": [
+        -0.22967271506786346,
+        0.1294592022895813,
+        -0.3224245607852936
+      ],
+      "max": [
+        0.2831133008003235,
+        0.9620128870010376,
+        0.2575409710407257
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 135721,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 135721,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5125,
+      "count": 398625,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 1628652,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 1628652,
+      "byteLength": 1628652,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 3257304,
+      "byteLength": 1085768,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 4343072,
+      "byteLength": 1594500,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 5937572,
+      "uri": "pine_sapling_small_v3.bin"
+    }
+  ],
+  "materials": [
+    {
+      "name": "pine_sapling_small_twig",
+      "pbrMetallicRoughness": {
+        "baseColorTexture": {
+          "index": 0
+        },
+        "metallicFactor": 0
+      },
+      "alphaMode": "MASK",
+      "alphaCutoff": 0.5,
+      "doubleSided": true
+    }
+  ],
+  "textures": [
+    {
+      "sampler": 0,
+      "source": 0
+    }
+  ],
+  "images": [
+    {
+      "mimeType": "image/png",
+      "uri": "textures/pine_sapling_small_twig_diff_a_1k.png"
+    }
+  ],
+  "samplers": [
+    {
+      "magFilter": 9729,
+      "minFilter": 9987
+    }
+  ]
+}

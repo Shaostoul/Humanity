@@ -43,7 +43,8 @@
           ],
           "base_centered": true,
           "material": "grass_medium_02",
-          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "grass_medium_02/grass_medium_02_v2.gltf",
@@ -61,7 +62,8 @@
           ],
           "base_centered": true,
           "material": "grass_medium_02",
-          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "grass_medium_02/grass_medium_02_v3.gltf",
@@ -79,7 +81,8 @@
           ],
           "base_centered": true,
           "material": "grass_medium_02",
-          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "grass_medium_02/grass_medium_02_v4.gltf",
@@ -97,7 +100,8 @@
           ],
           "base_centered": true,
           "material": "grass_medium_02",
-          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "grass_medium_02/grass_medium_02_v5.gltf",
@@ -115,7 +119,8 @@
           ],
           "base_centered": true,
           "material": "grass_medium_02",
-          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg"
+          "texture": "grass_medium_02/textures/grass_medium_02_diff_2k.jpg",
+          "bark": null
         }
       ]
     },
@@ -160,7 +165,8 @@
           ],
           "base_centered": true,
           "material": "fern_02",
-          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "fern_02/fern_02_v2.gltf",
@@ -178,7 +184,8 @@
           ],
           "base_centered": true,
           "material": "fern_02",
-          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "fern_02/fern_02_v3.gltf",
@@ -196,7 +203,8 @@
           ],
           "base_centered": true,
           "material": "fern_02",
-          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg",
+          "bark": null
         },
         {
           "file": "fern_02/fern_02_v4.gltf",
@@ -214,7 +222,8 @@
           ],
           "base_centered": true,
           "material": "fern_02",
-          "texture": "fern_02/textures/fern_02_diff_2k.jpg"
+          "texture": "fern_02/textures/fern_02_diff_2k.jpg",
+          "bark": null
         }
       ]
     },
@@ -259,7 +268,8 @@
           ],
           "base_centered": true,
           "material": "shrub_01",
-          "texture": "shrub_01/textures/shrub_01_diff_2k.jpg"
+          "texture": "shrub_01/textures/shrub_01_diff_2k.jpg",
+          "bark": null
         }
       ]
     },
@@ -293,11 +303,11 @@
       "variants": [
         {
           "file": "potted_plant_01/potted_plant_01_v1.gltf",
-          "verts": 113951,
-          "tris": 176226,
+          "verts": 69846,
+          "tris": 106900,
           "bbox_min": [
             -0.338,
-            -0.014,
+            0.583,
             -0.361
           ],
           "bbox_max": [
@@ -307,7 +317,12 @@
           ],
           "base_centered": true,
           "material": "potted_plant_01_leaves",
-          "texture": "potted_plant_01/textures/potted_plant_01_leaves_diff_2k.jpg"
+          "texture": "potted_plant_01/textures/potted_plant_01_leaves_diff_2k.jpg",
+          "bark": {
+            "file": "potted_plant_01/potted_plant_01_v1_bark.gltf",
+            "tris": 69326,
+            "material": "potted_plant_01_pot"
+          }
         }
       ]
     },
@@ -341,11 +356,11 @@
       "variants": [
         {
           "file": "fir_sapling/fir_sapling_v1.gltf",
-          "verts": 187306,
-          "tris": 157402,
+          "verts": 186918,
+          "tris": 156856,
           "bbox_min": [
             -0.431,
-            -0.008,
+            0.024,
             -0.427
           ],
           "bbox_max": [
@@ -355,15 +370,20 @@
           ],
           "base_centered": true,
           "material": "fir_sapling_twigs",
-          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_a_1k.png",
+          "bark": {
+            "file": "fir_sapling/fir_sapling_v1_bark.gltf",
+            "tris": 546,
+            "material": "fir_sapling_branches"
+          }
         },
         {
           "file": "fir_sapling/fir_sapling_v2.gltf",
-          "verts": 179580,
-          "tris": 150876,
+          "verts": 179220,
+          "tris": 150366,
           "bbox_min": [
             -0.324,
-            0,
+            0.031,
             -0.431
           ],
           "bbox_max": [
@@ -373,15 +393,20 @@
           ],
           "base_centered": true,
           "material": "fir_sapling_twigs",
-          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_a_1k.png",
+          "bark": {
+            "file": "fir_sapling/fir_sapling_v2_bark.gltf",
+            "tris": 510,
+            "material": "fir_sapling_branches"
+          }
         },
         {
           "file": "fir_sapling/fir_sapling_v3.gltf",
-          "verts": 148413,
-          "tris": 124743,
+          "verts": 148145,
+          "tris": 124359,
           "bbox_min": [
             -0.315,
-            0,
+            0.035,
             -0.321
           ],
           "bbox_max": [
@@ -391,7 +416,12 @@
           ],
           "base_centered": true,
           "material": "fir_sapling_twigs",
-          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_1k.jpg"
+          "texture": "fir_sapling/textures/fir_sapling_twigs_diff_a_1k.png",
+          "bark": {
+            "file": "fir_sapling/fir_sapling_v3_bark.gltf",
+            "tris": 384,
+            "material": "fir_sapling_branches"
+          }
         }
       ]
     },
@@ -425,11 +455,11 @@
       "variants": [
         {
           "file": "pine_sapling_small/pine_sapling_small_v1.gltf",
-          "verts": 145495,
-          "tris": 142506,
+          "verts": 145144,
+          "tris": 141966,
           "bbox_min": [
             -0.363,
-            -0.015,
+            0.221,
             -0.373
           ],
           "bbox_max": [
@@ -439,15 +469,20 @@
           ],
           "base_centered": true,
           "material": "pine_sapling_small_twig",
-          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_a_1k.png",
+          "bark": {
+            "file": "pine_sapling_small/pine_sapling_small_v1_bark.gltf",
+            "tris": 540,
+            "material": "pine_sapling_small_bark"
+          }
         },
         {
           "file": "pine_sapling_small/pine_sapling_small_v2.gltf",
-          "verts": 124796,
-          "tris": 122235,
+          "verts": 124481,
+          "tris": 121749,
           "bbox_min": [
             -0.264,
-            0.001,
+            0.195,
             -0.333
           ],
           "bbox_max": [
@@ -457,15 +492,20 @@
           ],
           "base_centered": true,
           "material": "pine_sapling_small_twig",
-          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_a_1k.png",
+          "bark": {
+            "file": "pine_sapling_small/pine_sapling_small_v2_bark.gltf",
+            "tris": 486,
+            "material": "pine_sapling_small_bark"
+          }
         },
         {
           "file": "pine_sapling_small/pine_sapling_small_v3.gltf",
-          "verts": 136065,
-          "tris": 133403,
+          "verts": 135721,
+          "tris": 132875,
           "bbox_min": [
             -0.23,
-            0.001,
+            0.129,
             -0.322
           ],
           "bbox_max": [
@@ -475,7 +515,12 @@
           ],
           "base_centered": true,
           "material": "pine_sapling_small_twig",
-          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_2k.jpg"
+          "texture": "pine_sapling_small/textures/pine_sapling_small_twig_diff_a_1k.png",
+          "bark": {
+            "file": "pine_sapling_small/pine_sapling_small_v3_bark.gltf",
+            "tris": 528,
+            "material": "pine_sapling_small_bark"
+          }
         }
       ]
     }
