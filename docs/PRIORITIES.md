@@ -19,30 +19,32 @@
 > SSAO, underwater depth tint + HUD readout, quest-id rewrite, sawmill +
 > grain_mill stations, plant repack script (all 6 Poly Haven models merged
 > to loader-compatible single-primitive *_merged.gltf).
-> REMAINING, ranked:
-> 1. Europe-noon darkness: LARGELY FIXED v0.908.0 (Blue Marble vegetation
->    measured ~20x darker than desert in linear light; land_gain() shadow
->    lift at bake + cloud ground-shadow ceiling 0.5->0.35 + ground-texture
->    desaturation). France noon: pitch black -> readable green field.
->    Residual gloom under the ~permanent MODIS deck is now an operator
->    TASTE knob: LAND_SHADOW_KNEE 0.15 / LAND_SHADOW_EXP 0.5 in
->    terrain/planet_surface.rs, and the 0.35 in the type-12 cloud-shadow
->    block. Get an operator verdict at a few landmarks before more tuning.
-> 2. Poly Haven plants INTO the world: loader texture support (or bake
->    vertex colors), per-variant split of the multi-clump *_merged files,
->    then place as hero garden/wild models. Quaternius Ultimate Crops
->    (CC0, growth stages) still the candidate for the 134-crop coverage.
-> 3. Grazing-angle texture smear: explicit-LOD sampling bypasses the
->    aniso sampler; near-field ground at grazing view is mushy. Use
->    textureSampleGrad or a footprint-anisotropy LOD bias.
-> 4. Forage flora spawns: creatures.csv renewable_product + Harvestable
->    is a ready-made regrowing forage mechanism, but creatures always
->    amble (min 0.2 m/s). Add a stationary flag so berry-bush/wild-flax
->    entries work; yields fruit_berries_0/herb_dandelion_0/fiber_bundle_0.
->    (Full findings in the 2026-07-20 data-agent report, journal.)
-> 5. Quest Travel objective emitters: nothing fires travel events, so the
->    v0.907 quest rewrite swapped Travel steps for Gather/Craft; restore
->    them once navigation emits (dated note in data/quests/exploration.ron).
+> REMAINING, ranked (v0.909 shipped: sea states + whiteout fix, plants
+> in-world w/ type-19 textured meshes, cloud density contrast, planet-
+> scaled bands + hysteresis + aim preservation, settings truth pass):
+> 1. TELEPORT-OVER-DEEP-OCEAN lands km off (found 2026-07-20 probing):
+>    camera_request altitude vs the HUD Alt disagree over deep water -
+>    the placement and readout use different ground conventions since the
+>    diving change (drawn/exaggerated vs true bathymetry). Make both use
+>    sea level over has_water oceans.
+> 2. AUDIO ENGINE INTEGRATION: AudioManager (src/audio/) has ZERO callers
+>    - no game sound exists, and the Settings volume sliders are honest
+>    placebos. Integrate kira playback + wire set_master/music/sfx.
+> 3. Garden crop hero models: Quaternius Ultimate Crops (CC0, growth
+>    stages) for the 134-crop coverage; potted_plant_01_v1 (176k tris)
+>    as an interior hero pot. The type-19 + decorations.ron pipeline is
+>    ready; crops need growth-stage swap wiring in the farming visuals.
+> 4. Cloud raymarch polish: underside shows banded step artifacts from
+>    below; deck-interior FPS dips to 10-16 (march cost). Consider step
+>    jitter + early-out tuning.
+> 5. Grazing-angle texture smear: explicit-LOD sampling bypasses the
+>    aniso sampler; use textureSampleGrad or footprint-anisotropy bias.
+> 6. Forage flora spawns: stationary-creature flag so berry-bush/wild-
+>    flax rows work (2026-07-20 data-agent report, journal).
+> 7. Quest Travel objective emitters (dated note in exploration.ron).
+> 8. Settings duplicates cleanup: the Notifications card + Wallet network
+>    selector edit dead fields (live paths live in chat DM cog / wallet
+>    page state); either wire or remove (2026-07-20 audit, journal).
 > Perf headroom: the operator is vsync-capped at 120 FPS - push quality.
 >
 > **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;
