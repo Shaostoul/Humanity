@@ -19,7 +19,21 @@
 > SSAO, underwater depth tint + HUD readout, quest-id rewrite, sawmill +
 > grain_mill stations, plant repack script (all 6 Poly Haven models merged
 > to loader-compatible single-primitive *_merged.gltf).
-> REMAINING, ranked (v0.909 shipped: sea states + whiteout fix, plants
+> REMAINING, ranked (v0.911 shipped: home round-trip dock fix + label
+> offsets, 64-light influence cull, real-tree groundwork behind the
+> EXPERIMENTAL tree-model-distance slider (default 0; cutout alpha needs
+> one operator screenshot at 120 to verify), 4 perf wins, docs/dev suite.
+> NEW TOP ITEMS:
+> 0a. LOD ladder proper (operator design): per-SIZE-CATEGORY render
+>     distance sliders (grass short, trees miles, ant vs beast same idea)
+>     with stages billboard -> alpha-mapped card -> full model. The card
+>     system + near_tree_instances are the first two rungs; needs the
+>     alpha-card middle stage + per-category settings + animal hookup.
+> 0b. DECOUPLING steps 3-5 (audit in journal): fold the ~15 home
+>     singletons into StructureInstance, data/structures.ron frames
+>     (orbit/surface/free), player as independent FrameRef entity.
+>     Steps 1-2 (current-frame docking + label offsets) shipped v0.911.
+> v0.909 items: sea states + whiteout fix, plants
 > in-world w/ type-19 textured meshes, cloud density contrast, planet-
 > scaled bands + hysteresis + aim preservation, settings truth pass):
 > 1. TELEPORT-OVER-DEEP-OCEAN lands km off (found 2026-07-20 probing):
