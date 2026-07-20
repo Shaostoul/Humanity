@@ -368,6 +368,16 @@ pub struct AppConfig {
     /// survive (1.0 = classic, 3.0 = detail visible at 3x the range).
     #[serde(default = "default_terrain_detail_distance")]
     pub terrain_detail_distance: f32,
+    /// Sun shadow map (v0.907): terrain/vegetation/structure shadows cast
+    /// by the sun. Off = the pre-v0.899 unshadowed look (cheaper).
+    #[serde(default = "default_true")]
+    pub sun_shadows: bool,
+    /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
+    #[serde(default = "default_godray_intensity")]
+    pub godray_intensity: f32,
+    /// Ambient-occlusion strength (v0.907 slider; 0 disables the pass).
+    #[serde(default = "default_ssao_strength")]
+    pub ssao_strength: f32,
     /// Patch mesh builds per frame: how fast terrain streams in during a
     /// descent. Higher = faster refinement, a few ms more per frame while
     /// streaming.
@@ -624,6 +634,8 @@ fn default_planet_max_subdiv() -> f32 { 6.0 }
 fn default_terrain_split_px() -> f32 { 4.0 }
 fn default_terrain_patch_budget() -> f32 { 3072.0 }
 fn default_terrain_detail_distance() -> f32 { 1.5 }
+fn default_godray_intensity() -> f32 { 0.55 }
+fn default_ssao_strength() -> f32 { 0.55 }
 fn default_terrain_builds_per_frame() -> f32 { 64.0 }
 fn default_panel_width() -> f32 { 220.0 }
 // In-world chat panel message-list height (unified-chat increment 1c).
@@ -929,6 +941,9 @@ impl AppConfig {
             terrain_split_px: state.settings.terrain_split_px,
             terrain_patch_budget: state.settings.terrain_patch_budget,
             terrain_detail_distance: state.settings.terrain_detail_distance,
+            sun_shadows: state.settings.sun_shadows,
+            godray_intensity: state.settings.godray_intensity,
+            ssao_strength: state.settings.ssao_strength,
             terrain_builds_per_frame: state.settings.terrain_builds_per_frame,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
@@ -1061,6 +1076,9 @@ impl AppConfig {
         state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 12288.0);
         state.settings.terrain_detail_distance =
             self.terrain_detail_distance.clamp(0.5, 3.0);
+        state.settings.sun_shadows = self.sun_shadows;
+        state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
+        state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);
         state.settings.terrain_builds_per_frame =
             self.terrain_builds_per_frame.clamp(6.0, 64.0);
         state.settings.planet_chunked = self.planet_chunked;

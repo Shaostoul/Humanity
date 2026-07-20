@@ -8,20 +8,20 @@
         description: "Expand your habitat with more sophisticated construction techniques and materials.",
         steps: [
             (
-                description: "Craft reinforced steel beams (10)",
-                objective: Craft(recipe_id: "steel_beam", quantity: 10),
+                description: "Smelt steel ingots for structural framing (10)",
+                objective: Craft(recipe_id: "smelt_steel", quantity: 10),
             ),
             (
-                description: "Construct a dedicated workshop room",
-                objective: Build(blueprint_id: "room_workshop"),
+                description: "Set up a crafting table for your workshop",
+                objective: Build(blueprint_id: "crafting_table"),
             ),
             (
-                description: "Add ventilation systems for air quality (3)",
-                objective: Build(blueprint_id: "ventilation_system"),
+                description: "Build an air filter unit for air quality",
+                objective: Craft(recipe_id: "build_air_filter", quantity: 1),
             ),
         ],
         rewards: [
-            ("welding_torch", 1),
+            ("welding_torch_0", 1),
         ],
         prerequisite: Some("tutorial_first_habitat"),
     ),
@@ -32,20 +32,20 @@
         description: "Learn to build upward with multi-story construction techniques.",
         steps: [
             (
-                description: "Construct a staircase between levels",
-                objective: Build(blueprint_id: "staircase"),
+                description: "Lay a stone foundation to carry the extra load",
+                objective: Build(blueprint_id: "stone_foundation"),
             ),
             (
-                description: "Build a second floor with floor tiles (20)",
-                objective: Build(blueprint_id: "floor_tile"),
+                description: "Raise a load-bearing metal wall for the upper level",
+                objective: Build(blueprint_id: "metal_wall"),
             ),
             (
-                description: "Gather steel ingots for upper walls (16)",
-                objective: Gather(item_id: "steel_ingot", quantity: 16),
+                description: "Gather steel ingots for upper framing (16)",
+                objective: Gather(item_id: "steel_ingot_0", quantity: 16),
             ),
         ],
         rewards: [
-            ("steel_ingot", 20),
+            ("steel_ingot_0", 20),
         ],
         prerequisite: Some("construction_advanced_habitat"),
     ),

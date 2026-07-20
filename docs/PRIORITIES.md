@@ -11,20 +11,38 @@
 
 ## Active focus
 
-> **>>> GREENLIT ASSET ARC (operator, 2026-07-19 night; downloads authorized,
-> 1TB storage budget): ultra-fidelity environment via real assets.**
-> 1. ambientCG CC0 PBR texture sets (grass/rock/dirt/sand) as TILING GROUND
->    MATERIALS in the type-12 terrain branch, sampled through the v0.902
->    camera-relative precision domain (sub-metre, planet-pinned, seamless).
->    Needs a group-3 binding addition - copy the shadow-map bindings 6-8
->    pattern (BOTH bind-group creation sites in renderer/mod.rs + the layout
->    in pipeline.rs). Blend 3-4 sets by the existing biome/imagery color.
-> 2. Poly Haven CC0 plant models (operator: "beautiful... let's use them") -
->    download GLB, decimate the heavy scans, feed the existing glTF loader;
->    replace/augment procedural plants for hero crops + wild trees.
->    Quaternius Ultimate Crops (CC0, 5 growth stages) fits the farming
->    stage ticks directly - consider it for the 134-crop coverage.
-> 3. Credit every shipped asset in CREDITS.md (in-app Library > Credits).
+> **>>> ASSET ARC STATUS (2026-07-20): ground textures SHIPPED (v0.907.0);
+> plants staged.** Done: ambientCG grass/dirt/rock/sand wired as triplanar
+> tiling ground materials in type-12 (8-layer array, group-3 bindings 9/10,
+> mean-normalized so imagery keeps owning color; neutral 1x1 fallback =
+> exact pre-texture look), Settings sliders for sun shadows / god rays /
+> SSAO, underwater depth tint + HUD readout, quest-id rewrite, sawmill +
+> grain_mill stations, plant repack script (all 6 Poly Haven models merged
+> to loader-compatible single-primitive *_merged.gltf).
+> REMAINING, ranked:
+> 1. EUROPE-NOON DARKNESS (found 2026-07-20, PRE-EXISTS v0.906): France
+>    47N/2E at local noon Clear renders night-dark olive in v0.905.1 AND
+>    v0.906+; Sahara/Canyon at the same clock are bright. Suspect the
+>    cloud GROUND shadow's MODIS field darkening 0.5x while the HUD/sky
+>    regime says Clear (double-darkening), on top of dark Blue Marble
+>    farmland + 43-degree sun. Probe evidence in the 2026-07-20 journal
+>    entry. Fix direction: tie ground-shadow strength to the VISIBLE deck
+>    alpha, and consider an imagery gamma lift for dark-green farmland.
+> 2. Grass classifier rarely fires on Blue Marble farmland (img.g ratio
+>    threshold 1.02..1.18 too strict there - France reads dirt). Tune, or
+>    add a latitude/biome prior.
+> 3. Poly Haven plants INTO the world: loader texture support (or bake
+>    vertex colors), per-variant split of the multi-clump *_merged files,
+>    then place as hero garden/wild models. Quaternius Ultimate Crops
+>    (CC0, growth stages) still the candidate for the 134-crop coverage.
+> 4. Grazing-angle texture smear: explicit-LOD sampling bypasses the
+>    aniso sampler; near-field ground at grazing view is mushy. Use
+>    textureSampleGrad or a footprint-anisotropy LOD bias.
+> 5. Forage flora spawns: creatures.csv renewable_product + Harvestable
+>    is a ready-made regrowing forage mechanism, but creatures always
+>    amble (min 0.2 m/s). Add a stationary flag so berry-bush/wild-flax
+>    entries work; yields fruit_berries_0/herb_dandelion_0/fiber_bundle_0.
+>    (Full findings in the 2026-07-20 data-agent report, journal.)
 > Perf headroom: the operator is vsync-capped at 120 FPS - push quality.
 >
 > **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;

@@ -1,0 +1,105 @@
+{
+  "asset": {
+    "generator": "HumanityOS scripts/repack-plant-gltf.js (all primitives merged, transforms baked)",
+    "version": "2.0"
+  },
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0,
+      "name": "fern_02_merged"
+    }
+  ],
+  "meshes": [
+    {
+      "name": "fern_02_merged",
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "bufferView": 0,
+      "componentType": 5126,
+      "count": 4337,
+      "type": "VEC3",
+      "min": [
+        -0.5281425714492798,
+        -0.030510280281305313,
+        -0.421874463558197
+      ],
+      "max": [
+        1.4443871974945068,
+        0.39718443155288696,
+        1.3021531105041504
+      ]
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 4337,
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 4337,
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 3,
+      "componentType": 5123,
+      "count": 18696,
+      "type": "SCALAR"
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteOffset": 0,
+      "byteLength": 52044,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 52044,
+      "byteLength": 52044,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 104088,
+      "byteLength": 34696,
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 138784,
+      "byteLength": 37392,
+      "target": 34963
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 176176,
+      "uri": "fern_02_merged.bin"
+    }
+  ]
+}

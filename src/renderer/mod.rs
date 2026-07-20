@@ -18,6 +18,7 @@ pub mod camera;
 pub mod stream_capture;
 pub mod cloud_noise;
 pub mod clouds;
+pub mod ground_textures;
 pub mod floating_origin;
 pub mod hologram;
 pub mod light;
@@ -181,6 +182,7 @@ pub struct Renderer {
     shadow_pass_texture_bind_group: wgpu::BindGroup,
     light_camera_bind_group: wgpu::BindGroup,
     shadow_comparison_sampler: wgpu::Sampler,
+    ground_textures: ground_textures::GroundTextures,
     /// Sun shadows on/off (max-graphics default on; zero cost when the sun
     /// is absent - the pass and the shader lookup both self-gate).
     pub sun_shadows: bool,
@@ -634,6 +636,10 @@ impl Renderer {
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
+        // Ground PBR texture array (v0.907): loads the ambientCG sets from
+        // assets/textures/ground/, or a neutral 1x1 fallback that renders
+        // identically to the pre-texture look.
+        let ground_textures = ground_textures::load(&device, &queue);
         let shadow_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shadow Uniforms"),
             size: 80, // mat4 (64) + vec4 (16)
@@ -717,6 +723,14 @@ impl Renderer {
                     binding: 8,
                     resource: shadow_uniform_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&ground_textures.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&ground_textures.sampler),
+                },
             ],
         });
         let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -758,6 +772,14 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 8,
                     resource: shadow_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&ground_textures.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&ground_textures.sampler),
                 },
             ],
         });
@@ -807,6 +829,7 @@ impl Renderer {
             light_camera_buffer,
             light_camera_bind_group,
             shadow_pass_texture_bind_group,
+            ground_textures,
             shadow_comparison_sampler,
             sun_shadows: true,
         }
@@ -998,6 +1021,14 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 8,
                     resource: self.shadow_uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 9,
+                    resource: wgpu::BindingResource::TextureView(&self.ground_textures.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 10,
+                    resource: wgpu::BindingResource::Sampler(&self.ground_textures.sampler),
                 },
             ],
         })
@@ -1860,6 +1891,10 @@ impl Renderer {
         view: &wgpu::TextureView,
         weather_scale: f32,
     ) {
+        // Settings slider at 0 = pass off entirely (v0.907).
+        if self.godray_intensity <= 0.001 {
+            return;
+        }
         // The SAME projection the celestial pass rendered depth with
         // (reverse-Z, far plane at 1e13) — a mismatched matrix would park
         // the sun uv in the wrong place and bend every shaft.
@@ -1887,6 +1922,10 @@ impl Renderer {
     /// render_godrays_onto, same celestial slot (depth still holds terrain +
     /// vegetation). Multiplies contact shade into the color target.
     pub fn render_ssao_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
+        // Settings slider at 0 = pass off entirely (v0.907).
+        if self.ssao_strength <= 0.001 {
+            return;
+        }
         // The SAME projection the celestial depth was rendered with; its
         // [2][2] / [3][2] elements linearize reverse-Z depth in the shader.
         let proj = Mat4::perspective_rh(

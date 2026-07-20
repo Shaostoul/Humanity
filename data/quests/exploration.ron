@@ -1,5 +1,10 @@
 // HumanityOS Quest Chain: Exploration
 // Quests that drive players to explore the surrounding environment.
+//
+// NOTE (2026-07-20 quest-data audit): the original Travel(destination: ...)
+// objectives were replaced with Gather/Craft steps because no game system
+// emits "travel_<destination>" quest events yet — a Travel objective can
+// never advance. Restore Travel steps once a navigation system pushes them.
 
 [
     (
@@ -8,24 +13,24 @@
         description: "Explore your immediate surroundings and gather information about the local environment.",
         steps: [
             (
-                description: "Survey the northern region",
-                objective: Travel(destination: "region_north"),
+                description: "Craft a compass to guide your survey",
+                objective: Craft(recipe_id: "craft_compass", quantity: 1),
             ),
             (
-                description: "Survey the southern region",
-                objective: Travel(destination: "region_south"),
+                description: "Gather ore samples from the local terrain (5)",
+                objective: Gather(item_id: "ore_sample_0", quantity: 5),
             ),
             (
-                description: "Gather environmental soil samples (5)",
-                objective: Gather(item_id: "soil_sample", quantity: 5),
+                description: "Bag soil samples for testing (2)",
+                objective: Gather(item_id: "soil_bag_0", quantity: 2),
             ),
             (
-                description: "Locate a water source",
-                objective: Travel(destination: "water_source"),
+                description: "Bottle water from a local source",
+                objective: Gather(item_id: "water_bottle_0", quantity: 1),
             ),
         ],
         rewards: [
-            ("map_compass", 1),
+            ("flashlight_0", 1),
         ],
         prerequisite: Some("tutorial_first_habitat"),
     ),
@@ -36,20 +41,20 @@
         description: "Venture far from your habitat to discover new resources and locations.",
         steps: [
             (
-                description: "Construct an exploration rover",
-                objective: Build(blueprint_id: "rover"),
+                description: "Assemble a rover kit for overland travel",
+                objective: Craft(recipe_id: "assemble_rover_kit", quantity: 1),
             ),
             (
-                description: "Explore distant regions",
-                objective: Travel(destination: "distant_region"),
+                description: "Stock refined fuel for the long journey (5)",
+                objective: Gather(item_id: "fuel_refined_0", quantity: 5),
             ),
             (
-                description: "Discover rare mineral deposits (3)",
-                objective: Gather(item_id: "rare_mineral", quantity: 3),
+                description: "Recover rare ore deposits (3)",
+                objective: Gather(item_id: "rare_ore_0", quantity: 3),
             ),
         ],
         rewards: [
-            ("multimeter", 1),
+            ("multimeter_0", 1),
         ],
         prerequisite: Some("exploration_first_survey"),
     ),

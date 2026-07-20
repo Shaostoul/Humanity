@@ -2749,6 +2749,9 @@ pub struct GuiState {
     /// Camera is below the sea surface (v0.903 diving): the GUI paints the
     /// underwater tint and the HUD can show depth.
     pub underwater: bool,
+    /// Metres below the sea surface while underwater (drives the tint's
+    /// depth grading + the HUD depth readout; 0 when surfaced).
+    pub underwater_depth_m: f32,
     /// Toasts queued from engine code that has no egui clock (v0.890, e.g.
     /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
     /// which stamps them with the real egui time.
@@ -4518,6 +4521,7 @@ impl Default for GuiState {
             nav_display_mode: NavDisplayMode::default(),
             toasts: Vec::new(),
             underwater: false,
+            underwater_depth_m: 0.0,
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,
@@ -6524,6 +6528,12 @@ pub struct SettingsState {
     pub terrain_detail_distance: f32,
     /// Patch mesh builds per frame (stream speed).
     pub terrain_builds_per_frame: f32,
+    /// Sun shadow map on/off (v0.907, Settings > Planets).
+    pub sun_shadows: bool,
+    /// Crepuscular god-ray shaft intensity (0 = off).
+    pub godray_intensity: f32,
+    /// Ambient-occlusion contact shading strength (0 = off).
+    pub ssao_strength: f32,
     /// Max icosphere subdivision level for sky planets (0-9; level 6 is
     /// ~82k faces, levels 8-9 are the heavy close-approach tiers -- see
     /// terrain::planet::MAX_SKY_SUBDIVISION for the face/memory table).
@@ -6644,6 +6654,9 @@ impl Default for SettingsState {
             terrain_patch_budget: 2048.0,
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
+            sun_shadows: true,
+            godray_intensity: 0.55,
+            ssao_strength: 0.55,
             planet_max_subdiv: 6.0,
             planet_chunked: true,
             planet_atmo_scatter: true,

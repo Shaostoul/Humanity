@@ -56,8 +56,33 @@ pub fn draw_underwater_tint(ctx: &egui::Context, state: &super::GuiState) {
         egui::Id::new("underwater_tint"),
     ));
     let r = ctx.screen_rect();
+    // v0.907 depth grading: light dies with depth. The wash deepens from
+    // the v0.903 surface tint to near-opaque by ~1 km and the hue slides
+    // toward abyssal navy by ~4 km, so the Marianas run actually goes
+    // DARK instead of staying snorkel-blue at 10,900 m.
+    let d = state.underwater_depth_m.max(0.0);
+    let k = (d / 1000.0).clamp(0.0, 1.0);
+    let k2 = (d / 4000.0).clamp(0.0, 1.0);
+    let a = (110.0 + 108.0 * k) as u8;
+    let rc = (8.0 * (1.0 - k2) + 1.0 * k2) as u8;
+    let gc = (46.0 * (1.0 - k2) + 7.0 * k2) as u8;
+    let bc = (64.0 * (1.0 - k2) + 20.0 * k2) as u8;
     // theme-exempt: environmental water tint, not a UI token.
-    painter.rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(8, 46, 64, 110)); // theme-exempt: underwater wash
+    painter.rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(rc, gc, bc, a)); // theme-exempt: underwater wash
+    // Depth readout: divers get one number they actually want. Top-center,
+    // clear of both the vitals HUD (left) and compass strip (right).
+    let txt = if d >= 1000.0 {
+        format!("Depth {:.2} km", d / 1000.0)
+    } else {
+        format!("Depth {:.0} m", d)
+    };
+    painter.text(
+        egui::pos2(r.center().x, r.top() + 54.0),
+        egui::Align2::CENTER_TOP,
+        txt,
+        egui::FontId::proportional(16.0),
+        egui::Color32::from_rgba_unmultiplied(210, 235, 245, 220), // theme-exempt: underwater HUD overlay
+    );
 }
 
 pub fn draw_toasts(ctx: &egui::Context, theme: &Theme, state: &mut super::GuiState) {

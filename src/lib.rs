@@ -10766,6 +10766,7 @@ mod native_app {
                         let in_walk_band = alt < SURFACE_ENGAGE_ALT;
                         let in_corotate_band = alt < CO_ROTATE_MAX_ALT;
                         state.gui_state.underwater = false;
+                        state.gui_state.underwater_depth_m = 0.0;
                         let in_blend_band = alt < INERTIAL_BLEND_MAX_ALT;
 
                         if in_corotate_band {
@@ -10985,6 +10986,14 @@ mod native_app {
                             state.frame_lock_anchor = anchor;
                             state.frame_lock_last_spin = spin;
                             state.gui_state.underwater = submerged && lock_body == "earth";
+                            // v0.907: metres below sea level for the tint's
+                            // depth grading + HUD readout (planet def radius
+                            // IS sea level on has_water worlds).
+                            state.gui_state.underwater_depth_m = if state.gui_state.underwater {
+                                def.map(|d| (d.radius - r).max(0.0) as f32).unwrap_or(0.0)
+                            } else {
+                                0.0
+                            };
                             // 1 Hz dive diag (dev tooling).
                             {
                                 use std::sync::atomic::{AtomicU64, Ordering};
@@ -20410,6 +20419,14 @@ mod native_app {
                                 // f32 stays precise for days of uptime.
                                 state.renderer.detail_distance =
                                     state.gui_state.settings.terrain_detail_distance.clamp(0.5, 3.0);
+                                // v0.907: the lighting-pass knobs from
+                                // Settings > Planets apply every frame.
+                                state.renderer.sun_shadows =
+                                    state.gui_state.settings.sun_shadows;
+                                state.renderer.godray_intensity =
+                                    state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
+                                state.renderer.ssao_strength =
+                                    state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is

@@ -415,12 +415,16 @@
     {
       "date": "2026-07-20",
       "decision": "v0.906.0 STORM SEAS + ASSET DELIVERIES: ocean de-squared (3 rotated noise octaves replace the single axis-aligned tap - value-noise lattice was the operator-reported rectangles), STORM STATE from the live MODIS weather (chop x2.4 + steepness-driven whitecap foam under real rain cells; probe-verified streaked wind-lanes fading to calm at the storm boundary; foam capped 0.72). TWO SUBAGENT DELIVERIES COMMITTED: assets/textures/ground/ (4 ambientCG CC0 PBR sets, 2K color+normal PNG + manifest + blend mapping: rock by slope, sand by beach band, grass by imagery green, dirt default) and assets/models/plants/ (6 Poly Haven CC0 photoscans + manifest; loader analysis: parse_gltf_mesh loads FIRST-mesh-FIRST-primitive only and discards textures - grass_medium_02 + fern_02 usable now, shrub/potted/saplings need a merge-repack, all need texture support for full beauty). NEXT WIRING: ground-texture group-3 bindings (follow shadow bindings 6-8 pattern) + gltf texture support / repack script."
+    },
+    {
+      "date": "2026-07-20",
+      "decision": "v0.907.0 GROUND PBR TEXTURES + PARALLEL BACKLOG WAVE. Solo: ambientCG grass/dirt/rock/sand wired as an 8-layer Rgba8Unorm texture array (group-3 bindings 9/10, new src/renderer/ground_textures.rs: parallel PNG decode 276ms, CPU sRGB->linear + PER-CHANNEL MEAN NORMALIZATION to 128 so textures carry pure structure and NASA imagery keeps owning color, CPU mip chain, repeat+aniso sampler, neutral 1x1 fallback = exact pre-texture render). Shader: triplanar in the v0.902 camera-relative anchor domain (GROUND_TILE_M=2 divides 64m), explicit footprint LOD, slope->rock / imagery-green->grass / warm-bright->sand / default dirt weights, dominant-material normal perturbation (normal now var). Micro-detail window widened 4->8 m/px * ddk. ALSO: Settings sliders sun_shadows/godray_intensity/ssao_strength (full config<->gui<->renderer chain + zero-strength early-outs), underwater depth-graded tint + HUD depth readout (underwater_depth_m). Boot-verified (0 PANIC), probe-verified Sahara sand grain + Canyon dirt/rock speckle. AGENTS: quest rewrite (41 dead ids fixed, 4 files; Travel objectives replaced - no travel emitter exists), sawmill+grain_mill MachineDefs + pre-placed, forage findings (stationary-creature flag needed for flora), plant repack script scripts/repack-plant-gltf.js -> 6 *_merged.gltf single-primitive loader-ready. FINDING (pre-existing, now top of asset queue): EUROPE-NOON DARKNESS - France 47N noon Clear is night-dark in v0.905.1 AND v0.906 (A/B probe-proven); Sahara same clock bright. Suspect MODIS cloud-ground-shadow double-darkening vs Clear sky regime + dark farmland imagery. Merged stray agent branch clever-moore (egui Unaligned overlay suppression)."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.906.0 released; v0.906.1 build-game in flight.",
+  "version_state": "v0.907.0 shipping",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",

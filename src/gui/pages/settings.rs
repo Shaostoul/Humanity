@@ -2010,6 +2010,20 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.").color(theme.text_muted()).size(theme.font_size_small));
+        // Lighting passes (v0.907): the three surface-lighting features
+        // gained user controls. All apply live next frame.
+        if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "God ray intensity", &mut state.settings.godray_intensity, 0.0..=1.5) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Visible light shafts when facing the sun through clouds or terrain gaps. 0 turns the pass off.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Ambient occlusion", &mut state.settings.ssao_strength, 0.0..=1.5) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Soft contact shading in crevices and where objects meet the ground. 0 turns the pass off.").color(theme.text_muted()).size(theme.font_size_small));
         // Analytic scattering atmosphere (v0.807): per-pixel single
         // scattering on the planet air shells. Off = the pre-v0.807 fresnel
         // tint, kept forever-dev style as the A/B reference + a safety hatch

@@ -9,25 +9,25 @@
         description: "Welcome! Start by building your first living space to establish a basic habitat for survival.",
         steps: [
             (
-                description: "Place foundation floor tiles (10)",
-                objective: Build(blueprint_id: "floor_tile"),
+                description: "Lay a wood foundation for the floor",
+                objective: Build(blueprint_id: "wood_foundation"),
             ),
             (
-                description: "Construct basic walls (8)",
-                objective: Build(blueprint_id: "wall_basic"),
+                description: "Raise a wood wall",
+                objective: Build(blueprint_id: "wood_wall"),
             ),
             (
                 description: "Install an entrance door",
-                objective: Build(blueprint_id: "door_basic"),
+                objective: Build(blueprint_id: "wood_door"),
             ),
             (
-                description: "Add basic lighting (2)",
-                objective: Build(blueprint_id: "light_basic"),
+                description: "Fit a window for natural light",
+                objective: Build(blueprint_id: "window"),
             ),
         ],
         rewards: [
-            ("concrete_mix", 20),
-            ("basic_toolkit", 1),
+            ("concrete_block_0", 20),
+            ("toolbox_0", 1),
         ],
         prerequisite: None,
     ),
@@ -38,22 +38,22 @@
         description: "Establish a sustainable food source by learning the basics of farming and growing your first crops.",
         steps: [
             (
-                description: "Prepare soil for planting (3 plots)",
-                objective: Build(blueprint_id: "farm_plot"),
+                description: "Gather bags of soil for planting beds (3)",
+                objective: Gather(item_id: "soil_bag_0", quantity: 3),
             ),
             (
-                description: "Plant your first potato seeds (3)",
+                description: "Grow and harvest your first potatoes (3)",
                 objective: Harvest(crop_id: "potato", quantity: 3),
             ),
             (
-                description: "Harvest mature crops (6 potatoes)",
-                objective: Gather(item_id: "fresh_potato", quantity: 6),
+                description: "Stock 6 potatoes in your inventory",
+                objective: Gather(item_id: "vegetable_potato_0", quantity: 6),
             ),
         ],
         rewards: [
-            ("tomato_seeds", 5),
-            ("carrot_seeds", 5),
-            ("fertilizer", 5),
+            ("seed_tomato_0", 5),
+            ("seed_carrot_0", 5),
+            ("fertilizer_0", 5),
         ],
         prerequisite: Some("tutorial_first_habitat"),
     ),
@@ -64,20 +64,20 @@
         description: "Learn to generate and distribute power throughout your habitat using basic electrical systems.",
         steps: [
             (
-                description: "Construct a solar power generator",
-                objective: Build(blueprint_id: "generator_solar"),
+                description: "Build a solar panel",
+                objective: Craft(recipe_id: "build_solar_panel", quantity: 1),
             ),
             (
-                description: "Run power cables to connect systems (10)",
-                objective: Craft(recipe_id: "power_cable", quantity: 10),
+                description: "Draw copper wire to connect systems (10 spools)",
+                objective: Craft(recipe_id: "make_wire", quantity: 10),
             ),
             (
-                description: "Add energy storage battery",
-                objective: Build(blueprint_id: "battery_basic"),
+                description: "Assemble a battery pack for energy storage",
+                objective: Craft(recipe_id: "assemble_battery_pack", quantity: 1),
             ),
         ],
         rewards: [
-            ("copper_wire", 20),
+            ("wire_0", 20),
         ],
         prerequisite: Some("tutorial_first_habitat"),
     ),

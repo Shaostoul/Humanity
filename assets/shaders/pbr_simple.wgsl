@@ -124,6 +124,15 @@ struct ShadowUniforms {
     params: vec4<f32>,
 };
 @group(3) @binding(8) var<uniform> shadow_u: ShadowUniforms;
+// Ground PBR texture array (v0.907): the ambientCG CC0 material sets that
+// give terrain REAL close-range surface texture. Layers 0..3 = color
+// (grass, dirt, rock, sand) already converted to LINEAR bytes on load;
+// layers 4..7 = the matching OpenGL tangent-space normal maps. ground_samp
+// wraps (tiling) with 4x anisotropy; the albedo sampler clamps, hence the
+// separate binding. A build without the asset pack gets neutral 1x1 layers
+// that render identically to the pre-texture look.
+@group(3) @binding(9) var ground_tex: texture_2d_array<f32>;
+@group(3) @binding(10) var ground_samp: sampler;
 
 // 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
 // Fragments outside the ortho box (or with shadows off) return fully lit,
@@ -625,6 +634,28 @@ fn micro_noise(p: vec3<f32>, period: f32) -> f32 {
         }
     }
     return s;
+}
+
+// ── Ground PBR texturing (v0.907) ──
+// Triplanar sample of one ground_tex layer in the camera-relative
+// planet-pinned metre domain (micro_noise's anchor domain, so tiles stay
+// seamless across the 64 m anchor jumps -- GROUND_TILE_M divides 64).
+// Explicit LOD from the analytic footprint, matching the shader's
+// no-implicit-derivative convention, so mips work in non-uniform flow.
+const GROUND_TILE_M: f32 = 2.0;
+
+fn ground_lod(footprint_m: f32) -> f32 {
+    // Ground texel = tile / 2048 px; LOD = log2(footprint / texel).
+    return clamp(log2(max(footprint_m * 2048.0 / GROUND_TILE_M, 1.0)), 0.0, 11.0);
+}
+
+fn ground_triplanar(layer: i32, p: vec3<f32>, w: vec3<f32>, lod: f32) -> vec3<f32> {
+    let uv_x = p.yz / GROUND_TILE_M;
+    let uv_y = p.xz / GROUND_TILE_M;
+    let uv_z = p.xy / GROUND_TILE_M;
+    return textureSampleLevel(ground_tex, ground_samp, uv_x, layer, lod).rgb * w.x
+        + textureSampleLevel(ground_tex, ground_samp, uv_y, layer, lod).rgb * w.y
+        + textureSampleLevel(ground_tex, ground_samp, uv_z, layer, lod).rgb * w.z;
 }
 
 fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {
@@ -2456,7 +2487,9 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
-    let normal = normalize(in.world_normal);
+    // var (not let) since v0.907: the ground PBR pass perturbs the terrain
+    // normal with the material's normal map before the lighting below.
+    var normal = normalize(in.world_normal);
     let view_dir = normalize(camera.view_pos.xyz - in.world_position);
 
     var albedo = material.base_color.rgb;
@@ -2745,13 +2778,22 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // of bilinear blur. Textured path only: the per-face fallback has
         // no planet-local frame to sample in.
         if (has_tex && detail_on && !is_water) {
+            // Raw imagery BEFORE any detail modulation: the material
+            // classifier below reads the photo's own color, not the
+            // noise-modulated result.
+            let img = albedo;
             albedo = albedo * land_detail_factor(dir, r_render, footprint);
             // Sub-8 m micro texture (v0.902, operator: "textures for the
             // land... as real as possible"): three camera-relative octaves
             // (2 m / 0.8 m / 0.32 m, periods 32/80/200 cells inside the
             // 64 m anchor modulus) carry ground variation all the way to
             // the player's feet. Fade by footprint like every octave.
-            if (footprint < 4.0) {
+            // v0.907: window widened (4 -> 8 m/px, detail-distance scaled)
+            // because the ground PBR textures below share this domain and
+            // reach further than the noise octaves; each octave's own fade
+            // still zeroes it at its correct range.
+            let ddk_g = select(1.0, max(camera.view_pos.w, 0.05), camera.view_pos.w > 0.01);
+            if (footprint < 8.0 * ddk_g) {
                 let inv_m = transpose(object.normal_matrix);
                 let dv =
                     (inv_m * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
@@ -2769,6 +2811,75 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 mf = mf + 0.07 * detail_octave_fade(0.32, footprint)
                     * (2.0 * micro_noise(pt / 0.32, 200.0) - 1.0);
                 albedo = albedo * clamp(1.0 + mf, 0.7, 1.3);
+                // ── Ground PBR textures (v0.907, ambientCG CC0) ──
+                // Real photoscanned material detail under the NASA photo:
+                // grass/dirt/rock/sand picked by slope + the imagery's own
+                // color, triplanar-tiled in the same pinned domain, fading
+                // back to pure imagery with distance (a 4 m detail octave).
+                let gt_presence = detail_octave_fade(4.0, footprint);
+                if (gt_presence > 0.003) {
+                    // Material weights. Steep slopes read rock; the photo
+                    // classifies the flats: green => grass, bright warm =>
+                    // sand, else dirt. Snow/ice keeps the pure photo (no
+                    // CC0 snow set yet, and bright ice under a dirt tile
+                    // would read as mud).
+                    let up_w = normalize(in.world_position - material.base_color.xyz);
+                    let steep = 1.0 - clamp(dot(normal, up_w), 0.0, 1.0);
+                    let lum = dot(img, vec3<f32>(0.299, 0.587, 0.114));
+                    let green = smoothstep(1.02, 1.18, img.g / max(max(img.r, img.b), 0.003));
+                    let warm = smoothstep(0.02, 0.08, img.r - img.b)
+                        * smoothstep(0.18, 0.32, lum);
+                    let snowy = smoothstep(0.5, 0.68, lum);
+                    let w_rock = smoothstep(0.20, 0.5, steep);
+                    let w_grass = green * (1.0 - w_rock);
+                    let w_sand = warm * (1.0 - green) * (1.0 - w_rock);
+                    let w_dirt = max(1.0 - w_rock - w_grass - w_sand, 0.0);
+                    let keep = gt_presence * (1.0 - snowy);
+                    // Triplanar plane weights from the radial direction
+                    // (smooth on a sphere; the surface normal would swim
+                    // on every slope change).
+                    let aw = pow(abs(dir), vec3<f32>(4.0));
+                    let tw = aw / max(aw.x + aw.y + aw.z, 0.0001);
+                    let lodg = ground_lod(footprint);
+                    var det = vec3<f32>(0.0);
+                    if (w_grass > 0.01) {
+                        det = det + w_grass * ground_triplanar(0, pt, tw, lodg);
+                    }
+                    if (w_dirt > 0.01) {
+                        det = det + w_dirt * ground_triplanar(1, pt, tw, lodg);
+                    }
+                    if (w_rock > 0.01) {
+                        det = det + w_rock * ground_triplanar(2, pt, tw, lodg);
+                    }
+                    if (w_sand > 0.01) {
+                        det = det + w_sand * ground_triplanar(3, pt, tw, lodg);
+                    }
+                    // Detail-albedo modulation: tex * 2 around its neutral
+                    // 0.5 grey keeps the photo's large-scale color
+                    // authoritative while the texture carries the fine
+                    // structure. Neutral fallback layers make this an
+                    // exact no-op.
+                    let modf = clamp(det * 2.0, vec3<f32>(0.3), vec3<f32>(2.0));
+                    albedo = albedo * mix(vec3<f32>(1.0), modf, keep);
+                    // Normal perturbation from the DOMINANT material's map.
+                    // The tangent basis is an arbitrary-but-smooth frame
+                    // around radial up: for rough ground the bump direction
+                    // convention doesn't matter, only its consistency.
+                    var dom = 0;
+                    var wmax = w_grass;
+                    if (w_dirt > wmax) { dom = 1; wmax = w_dirt; }
+                    if (w_rock > wmax) { dom = 2; wmax = w_rock; }
+                    if (w_sand > wmax) { dom = 3; wmax = w_sand; }
+                    let nm = ground_triplanar(4 + dom, pt, tw, lodg) * 2.0 - 1.0;
+                    let ref_a = select(
+                        vec3<f32>(0.0, 1.0, 0.0),
+                        vec3<f32>(1.0, 0.0, 0.0),
+                        abs(up_w.y) > 0.9,
+                    );
+                    let t1 = normalize(cross(up_w, ref_a));
+                    let t2 = cross(up_w, t1);
+                    normal = normalize(normal + (nm.x * t1 + nm.y * t2) * 0.7 * keep);
+                }
             }
         }
         // Cloud GROUND shadows (v0.898 - the deferred item noted in

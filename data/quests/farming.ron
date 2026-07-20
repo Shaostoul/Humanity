@@ -8,21 +8,21 @@
         description: "Build a controlled environment for year-round food production.",
         steps: [
             (
-                description: "Collect glass panels for greenhouse walls (20)",
-                objective: Gather(item_id: "glass_panels", quantity: 20),
+                description: "Collect glass panes for greenhouse walls (20)",
+                objective: Gather(item_id: "glass_pane_0", quantity: 20),
             ),
             (
-                description: "Construct the greenhouse structure",
-                objective: Build(blueprint_id: "greenhouse"),
+                description: "Enclose the growing space with a glass window",
+                objective: Build(blueprint_id: "window"),
             ),
             (
-                description: "Add climate control for temperature regulation",
-                objective: Build(blueprint_id: "climate_controller"),
+                description: "Build a heater for temperature regulation",
+                objective: Craft(recipe_id: "build_heater", quantity: 1),
             ),
         ],
         rewards: [
-            ("strawberry_seeds", 5),
-            ("pepper_seeds", 5),
+            ("seed_strawberry_0", 5),
+            ("seed_pepper_0", 5),
         ],
         prerequisite: Some("tutorial_farming_basics"),
     ),
@@ -33,20 +33,20 @@
         description: "Implement automated systems to manage your crops efficiently.",
         steps: [
             (
-                description: "Install automated irrigation system (5)",
-                objective: Build(blueprint_id: "irrigation_system"),
+                description: "Assemble an automated irrigation system",
+                objective: Craft(recipe_id: "build_irrigation", quantity: 1),
             ),
             (
-                description: "Build a farming robot",
-                objective: Craft(recipe_id: "farm_bot", quantity: 1),
+                description: "Build a water pump to feed the irrigation network",
+                objective: Craft(recipe_id: "build_water_pump", quantity: 1),
             ),
             (
-                description: "Harvest 10 crops using automation",
-                objective: Harvest(crop_id: "any", quantity: 10),
+                description: "Harvest 10 wheat with your automated setup",
+                objective: Harvest(crop_id: "wheat", quantity: 10),
             ),
         ],
         rewards: [
-            ("fertilizer", 20),
+            ("fertilizer_0", 20),
         ],
         prerequisite: Some("farming_greenhouse"),
     ),
