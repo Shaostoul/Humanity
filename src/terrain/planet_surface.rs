@@ -249,6 +249,12 @@ pub const OCEAN_ORBITAL_FLOOR: [f32; 3] = [0.010, 0.055, 0.22];
 /// where the classifier palette it replaced was authored ~3x brighter.
 /// A flat gain keeps the imagery's hue and relative contrast.
 pub const LAND_ALBEDO_GAIN: f32 = 1.6;
+/// Dark-land shadow lift (v0.908): linear-luma knee below which land pixels
+/// ride a hue-preserving power curve toward daylight brightness. Blue
+/// Marble vegetation measures ~20x darker than desert in linear light;
+/// this closes most of that gap without touching bright terrain.
+pub const LAND_SHADOW_KNEE: f32 = 0.15;
+pub const LAND_SHADOW_EXP: f32 = 0.5;
 
 /// Width of the sea-ice blend band on |sin(latitude)|: the albedo path's
 /// cap layer fades in from `polar_cap_latitude` to `polar_cap_latitude +
@@ -292,6 +298,31 @@ pub fn surface_color(
 /// (`bake_albedo_rgba`), so the two can never drift apart -- the LOD handoff
 /// between the packed-color fallback and the sampled texture depends on
 /// them agreeing.
+/// Total gain applied to an above-sea land texel (v0.908), hue-preserving:
+/// the calibrated orbital LAND_ALBEDO_GAIN x a dark-land shadow lift x a
+/// vegetation nudge. The shadow lift is the Europe-noon-darkness fix: Blue
+/// Marble's vegetated/forested land is radiometrically FAR darker than it
+/// reads to the eye (measured linear luma at 47N France 0.021 vs Sahara
+/// sand 0.40 -- a 20x gap), so mid-latitude noon rendered night-dark while
+/// deserts glowed (probe A/B 2026-07-20). Pixels below the LAND_SHADOW_KNEE
+/// luma ride a power curve (lifted = knee * (luma/knee)^exp), continuous at
+/// the knee; bright terrain passes through untouched. Public so the bake
+/// tests compute the same expectation.
+pub fn land_gain(raw: [f32; 3]) -> f32 {
+    let luma = 0.299 * raw[0] + 0.587 * raw[1] + 0.114 * raw[2];
+    let shadow_lift = if luma > 0.0005 && luma < LAND_SHADOW_KNEE {
+        LAND_SHADOW_KNEE * (luma / LAND_SHADOW_KNEE).powf(LAND_SHADOW_EXP) / luma
+    } else {
+        1.0
+    };
+    // Green-dominant pixels get a further nudge (living cover reflects
+    // more than shadowed rock): plain linear ratio, up to +50%.
+    let greenness = ((raw[1] - raw[0].max(raw[2])) / raw[1].max(0.001)).clamp(0.0, 1.0);
+    let t = ((greenness - 0.1) / 0.5).clamp(0.0, 1.0);
+    let veg_lift = 1.0 + 0.5 * (t * t * (3.0 - 2.0 * t));
+    LAND_ALBEDO_GAIN * shadow_lift * veg_lift
+}
+
 pub fn grade_albedo(
     def: &PlanetDef,
     raw: [f32; 3],
@@ -319,10 +350,11 @@ pub fn grade_albedo(
             raw[2].max(OCEAN_ORBITAL_FLOOR[2]),
         ]
     } else {
+        let k = land_gain(raw);
         [
-            (raw[0] * LAND_ALBEDO_GAIN).min(1.0),
-            (raw[1] * LAND_ALBEDO_GAIN).min(1.0),
-            (raw[2] * LAND_ALBEDO_GAIN).min(1.0),
+            (raw[0] * k).min(1.0),
+            (raw[1] * k).min(1.0),
+            (raw[2] * k).min(1.0),
         ]
     };
     // Sea-ice layer: polar ocean only (see the layering decision above).
@@ -1084,7 +1116,7 @@ mod tests {
         let baked = bake_albedo_rgba(&def, &hm, &al);
         use crate::terrain::planet_albedo::{linear_to_srgb_byte, srgb_byte_to_linear};
         let gray = srgb_byte_to_linear(100);
-        let land_r = linear_to_srgb_byte((gray * LAND_ALBEDO_GAIN).min(1.0));
+        let land_r = linear_to_srgb_byte((gray * land_gain([gray, gray, gray])).min(1.0));
         let water_r = linear_to_srgb_byte(gray.max(OCEAN_ORBITAL_FLOOR[0]));
         for row in 0..h {
             for col in 0..w {
@@ -1113,9 +1145,12 @@ mod tests {
         // Polar LAND keeps the imagery (Blue Marble already paints land
         // snow; re-capping would white out what the photo gets right).
         // The land gain applies, but no cap color.
-        let expect_land_b = (crate::terrain::planet_albedo::srgb_byte_to_linear(80)
-            * LAND_ALBEDO_GAIN)
-            .min(1.0);
+        let raw_land = [
+            crate::terrain::planet_albedo::srgb_byte_to_linear(10),
+            crate::terrain::planet_albedo::srgb_byte_to_linear(30),
+            crate::terrain::planet_albedo::srgb_byte_to_linear(80),
+        ];
+        let expect_land_b = (raw_land[2] * land_gain(raw_land)).min(1.0);
         let c_land = surface_color(&def, Some(&al), polar_dir, def.sea_level + 0.1);
         assert!(
             (c_land[2] - expect_land_b).abs() < 1e-5,

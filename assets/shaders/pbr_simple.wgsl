@@ -2893,7 +2893,13 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         if (has_tex && camera.light_count.w > 0.5) {
             let cw = cloud_weather(dir, camera.sun_color.w, camera.light_count.y);
             let ca = cloud_alpha_from_field(cw, camera.light_count.z);
-            albedo = albedo * (1.0 - 0.5 * ca);
+            // Ceiling eased 0.5 -> 0.35 (v0.908): the MODIS daily mask keeps
+            // most temperate land under SOME deck ~permanently, and a half-
+            // light world at noon read as gloom (Europe-noon-darkness fix,
+            // part 2 -- part 1 is the land_gain shadow lift at bake).
+            // Overcast kills the direct sun but sky-dome ambient keeps real
+            // overcast days far above half-dark.
+            albedo = albedo * (1.0 - 0.35 * ca);
         }
         // Ocean sun glint (v0.810): every orbital photo has a bright specular
         // spot where the sun mirrors off the sea; without it the ocean reads

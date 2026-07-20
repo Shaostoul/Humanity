@@ -98,6 +98,19 @@ fn load_layer(dir: &PathBuf, file: &str, srgb_to_linear: bool) -> Option<Vec<u8>
             px[1] = table[px[1] as usize];
             px[2] = table[px[2] as usize];
         }
+        // Partial desaturation (60% toward luma) BEFORE normalizing: the
+        // per-channel normalization below equalizes channel MEANS, but on a
+        // strongly tinted texture the unequal scales skew per-pixel hue
+        // (bright grass-blade texels went warm-brown over France). Pulling
+        // most of the texture's own hue out first keeps its structure and a
+        // touch of material character (red rock speckle) while the imagery
+        // owns the color.
+        for px in data.chunks_exact_mut(4) {
+            let luma = 0.299 * px[0] as f32 + 0.587 * px[1] as f32 + 0.114 * px[2] as f32;
+            for c in 0..3 {
+                px[c] = (luma + (px[c] as f32 - luma) * 0.4).clamp(0.0, 255.0) as u8;
+            }
+        }
         // Mean-normalize each channel to 128 (linear 0.5): the shader
         // applies detail as albedo * (tex * 2), so a layer's OWN average
         // brightness/tint must cancel out or dark materials (Grass001
