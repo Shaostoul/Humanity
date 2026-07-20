@@ -20,29 +20,29 @@
 > grain_mill stations, plant repack script (all 6 Poly Haven models merged
 > to loader-compatible single-primitive *_merged.gltf).
 > REMAINING, ranked:
-> 1. EUROPE-NOON DARKNESS (found 2026-07-20, PRE-EXISTS v0.906): France
->    47N/2E at local noon Clear renders night-dark olive in v0.905.1 AND
->    v0.906+; Sahara/Canyon at the same clock are bright. Suspect the
->    cloud GROUND shadow's MODIS field darkening 0.5x while the HUD/sky
->    regime says Clear (double-darkening), on top of dark Blue Marble
->    farmland + 43-degree sun. Probe evidence in the 2026-07-20 journal
->    entry. Fix direction: tie ground-shadow strength to the VISIBLE deck
->    alpha, and consider an imagery gamma lift for dark-green farmland.
-> 2. Grass classifier rarely fires on Blue Marble farmland (img.g ratio
->    threshold 1.02..1.18 too strict there - France reads dirt). Tune, or
->    add a latitude/biome prior.
-> 3. Poly Haven plants INTO the world: loader texture support (or bake
+> 1. Europe-noon darkness: LARGELY FIXED v0.908.0 (Blue Marble vegetation
+>    measured ~20x darker than desert in linear light; land_gain() shadow
+>    lift at bake + cloud ground-shadow ceiling 0.5->0.35 + ground-texture
+>    desaturation). France noon: pitch black -> readable green field.
+>    Residual gloom under the ~permanent MODIS deck is now an operator
+>    TASTE knob: LAND_SHADOW_KNEE 0.15 / LAND_SHADOW_EXP 0.5 in
+>    terrain/planet_surface.rs, and the 0.35 in the type-12 cloud-shadow
+>    block. Get an operator verdict at a few landmarks before more tuning.
+> 2. Poly Haven plants INTO the world: loader texture support (or bake
 >    vertex colors), per-variant split of the multi-clump *_merged files,
 >    then place as hero garden/wild models. Quaternius Ultimate Crops
 >    (CC0, growth stages) still the candidate for the 134-crop coverage.
-> 4. Grazing-angle texture smear: explicit-LOD sampling bypasses the
+> 3. Grazing-angle texture smear: explicit-LOD sampling bypasses the
 >    aniso sampler; near-field ground at grazing view is mushy. Use
 >    textureSampleGrad or a footprint-anisotropy LOD bias.
-> 5. Forage flora spawns: creatures.csv renewable_product + Harvestable
+> 4. Forage flora spawns: creatures.csv renewable_product + Harvestable
 >    is a ready-made regrowing forage mechanism, but creatures always
 >    amble (min 0.2 m/s). Add a stationary flag so berry-bush/wild-flax
 >    entries work; yields fruit_berries_0/herb_dandelion_0/fiber_bundle_0.
 >    (Full findings in the 2026-07-20 data-agent report, journal.)
+> 5. Quest Travel objective emitters: nothing fires travel events, so the
+>    v0.907 quest rewrite swapped Travel steps for Gather/Craft; restore
+>    them once navigation emits (dated note in data/quests/exploration.ron).
 > Perf headroom: the operator is vsync-capped at 120 FPS - push quality.
 >
 > **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;
