@@ -47,7 +47,7 @@ use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
 // 8192 since v0.892: the v0.891 submission batching made draw count ~4x
 // cheaper on the CPU, so the patch-budget ceiling rose to 6144 for
 // tomorrow's GPUs. Cost is one 2 MB dynamic uniform buffer - nothing.
-const MAX_OBJECTS: usize = 8192;
+const MAX_OBJECTS: usize = 16384;
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.
@@ -188,6 +188,10 @@ pub struct Renderer {
     /// celestial slot. Strength 0 disables the pass entirely.
     ssao: ssao::SsaoPass,
     pub ssao_strength: f32,
+    /// Detail-draw-distance factor (v0.905): scales every shader detail
+    /// octave's anti-alias fade so fine structure survives further out.
+    /// Synced from Settings each frame; poked into the view_pos.w pad.
+    pub detail_distance: f32,
 }
 
 impl Renderer {
@@ -782,6 +786,7 @@ impl Renderer {
             godray_intensity: 0.55,
             ssao: ssao_pass,
             ssao_strength: 0.55,
+            detail_distance: 1.0,
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -1949,6 +1954,9 @@ impl Renderer {
         // Micro-detail anchor in light0_cone_inner.yzw (offset 464 + 4).
         self.queue
             .write_buffer(&self.camera_buffer, 468, bytemuck::cast_slice(&ground_anchor));
+        // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
+        self.queue
+            .write_buffer(&self.camera_buffer, 76, bytemuck::bytes_of(&self.detail_distance));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

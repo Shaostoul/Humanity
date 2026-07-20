@@ -20,6 +20,13 @@
     // make it taller than Earth's 8.5 km despite the colder temperatures).
     scale_height_m: Some(11100.0),
     has_water: false,
+    // Real surface colors (2026-07-19): 4096x2048 RGB grid baked from the
+    // Solar System Scope 8k mars texture (CC-BY 4.0, based on NASA imagery)
+    // by scripts/build-planet-albedo.js. Carries the real albedo features
+    // (dark Syrtis Major, bright Hellas dust, Tharsis, both polar caps).
+    // With an albedo present the band palette below is BYPASSED; it stays
+    // as the fallback if this file goes missing.
+    albedo: Some("planets/mars_albedo.bin"),
     // No water: elevations below this line are dark BASINS (basin_color),
     // displaced inward as real depressions, never ocean-colored.
     sea_level: 0.42,

@@ -1998,9 +1998,13 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Patches split until triangles are about this many pixels on screen. LOWER = sharper terrain further away (more patches, more GPU).").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=6144.0) {
+        if widgets::labeled_slider(ui, theme, "Terrain patch budget", &mut state.settings.terrain_patch_budget, 256.0..=12288.0) {
             state.settings_dirty = true;
         }
+        if widgets::labeled_slider(ui, theme, "Detail draw distance", &mut state.settings.terrain_detail_distance, 0.5..=3.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How far fine surface detail (rock grain, waves, micro texture) stays visible. Higher = crisper distant terrain, more GPU.").color(theme.text_muted()).size(theme.font_size_small));
         ui.label(RichText::new("Most surface patches drawn at once. Higher holds detail across more of the horizon.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Terrain stream speed (builds per frame)", &mut state.settings.terrain_builds_per_frame, 6.0..=64.0) {
             state.settings_dirty = true;

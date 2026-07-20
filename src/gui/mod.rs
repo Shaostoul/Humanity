@@ -6520,6 +6520,8 @@ pub struct SettingsState {
     pub terrain_split_px: f32,
     /// Max surface patches per planet per frame.
     pub terrain_patch_budget: f32,
+    /// Detail draw distance factor (v0.905, Settings > Planets).
+    pub terrain_detail_distance: f32,
     /// Patch mesh builds per frame (stream speed).
     pub terrain_builds_per_frame: f32,
     /// Max icosphere subdivision level for sky planets (0-9; level 6 is
@@ -6640,6 +6642,7 @@ impl Default for SettingsState {
             planet_lod_px: 10.0,
             terrain_split_px: 4.0,
             terrain_patch_budget: 2048.0,
+            terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
             planet_max_subdiv: 6.0,
             planet_chunked: true,

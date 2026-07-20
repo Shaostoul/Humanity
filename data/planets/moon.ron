@@ -10,6 +10,12 @@
     atmosphere_color: None,
     atmosphere_scale: 0.0,
     has_water: false,
+    // Real surface colors (2026-07-19): 4096x2048 RGB grid baked from the
+    // Solar System Scope 8k moon texture (CC-BY 4.0, based on NASA imagery)
+    // by scripts/build-planet-albedo.js. With an albedo present the band
+    // palette below is BYPASSED (real maria/highlands come from the map);
+    // it stays as the fallback if this file goes missing.
+    albedo: Some("planets/moon_albedo.bin"),
     // Below this line = maria (dark basalt plains), displaced slightly
     // inward like the real basins.
     sea_level: 0.45,

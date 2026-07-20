@@ -578,7 +578,13 @@ const LAND5_SEED: f32 = 63.7;
 // spans, smoothstepped through the visibility band. Exactly 0 when the
 // octave would alias, exactly 1 when it is comfortably resolved.
 fn detail_octave_fade(lambda_m: f32, footprint_m: f32) -> f32 {
-    return smoothstep(DETAIL_FADE_LO, DETAIL_FADE_HI, lambda_m / footprint_m);
+    // v0.905 (operator: "everything is too smooth too soon" at 120 FPS
+    // vsync with GPU headroom): the detail-distance factor from Settings >
+    // Planets scales how far EVERY detail octave survives - land noise,
+    // micro texture, waves. Rides the view_pos.w pad; 0 means an older
+    // writer, treated as 1x.
+    let ddk = select(1.0, max(camera.view_pos.w, 0.05), camera.view_pos.w > 0.01);
+    return smoothstep(DETAIL_FADE_LO / ddk, DETAIL_FADE_HI / ddk, lambda_m / footprint_m);
 }
 
 // Triplanar value noise on the sphere -- same pow-4-weight construction as the
@@ -2441,7 +2447,53 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     if (material_type >= 15.5 && material_type < 16.5) {
         return ocean_shell(in);
     }
-    if (material_type >= 16.5 && material_type < 17.5) {
+    if (material_type >= 17.5 && material_type < 18.5) {
+        // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
+        // by noise, hardcoded per giant (params.w = 0 jupiter, 1 saturn,
+        // 2 uranus, 3 neptune - also finally un-ochres the ice giants).
+        // Falls through to the shared sun-lit path, so the day/night
+        // terminator and eclipse shading come free.
+        let gg_center = object.model[3].xyz;
+        let gg_p = normalize(in.world_position - gg_center);
+        let gg_lat = clamp(gg_p.y, -1.0, 1.0);
+        let gg_lon = atan2(-gg_p.z, gg_p.x);
+        let wob = (value_noise(vec2<f32>(gg_lon * 3.0, gg_lat * 6.0)) - 0.5) * 0.12
+            + (value_noise(vec2<f32>(gg_lon * 9.0, gg_lat * 18.0)) - 0.5) * 0.05;
+        let band = gg_lat + wob * (1.0 - abs(gg_lat));
+        let giant = material.params.w;
+        var gg_col: vec3<f32>;
+        if (giant < 0.5) {
+            // Jupiter: ochre/cream belts + rust zones + the Great Red Spot.
+            let t = sin(band * 18.0) * 0.5 + 0.5;
+            let t2 = sin(band * 7.0 + 1.7) * 0.5 + 0.5;
+            gg_col = mix(vec3<f32>(0.76, 0.62, 0.44), vec3<f32>(0.93, 0.86, 0.72), t);
+            gg_col = mix(gg_col, vec3<f32>(0.62, 0.40, 0.28), t2 * 0.35);
+            let sy = (gg_lat + 0.35) * 9.0;
+            let sx = sin((gg_lon - 1.2) * 0.5) * 6.0;
+            let spot = exp(-(sy * sy + sx * sx));
+            gg_col = mix(gg_col, vec3<f32>(0.72, 0.32, 0.20), spot * 0.85);
+        } else if (giant < 1.5) {
+            // Saturn: pale gold, soft wide bands.
+            let t = sin(band * 14.0) * 0.5 + 0.5;
+            gg_col = mix(vec3<f32>(0.82, 0.72, 0.52), vec3<f32>(0.93, 0.87, 0.70), t);
+        } else if (giant < 2.5) {
+            // Uranus: near-featureless cyan.
+            let t = sin(band * 6.0) * 0.5 + 0.5;
+            gg_col = mix(vec3<f32>(0.56, 0.78, 0.82), vec3<f32>(0.62, 0.83, 0.86), t * 0.5);
+        } else {
+            // Neptune: deep azure, faint bands, a dark storm oval.
+            let t = sin(band * 8.0) * 0.5 + 0.5;
+            gg_col = mix(vec3<f32>(0.15, 0.29, 0.62), vec3<f32>(0.24, 0.42, 0.75), t);
+            let ny = (gg_lat - 0.2) * 10.0;
+            let nx = sin((gg_lon + 0.6) * 0.5) * 7.0;
+            let nspot = exp(-(ny * ny + nx * nx));
+            gg_col = mix(gg_col, vec3<f32>(0.10, 0.18, 0.42), nspot * 0.7);
+        }
+        albedo = gg_col;
+        metallic = 0.0;
+        roughness = 0.9;
+        emissive_strength = 0.0;
+    } else if (material_type >= 16.5 && material_type < 17.5) {
         // Type 17: RADIAL GLOW (v0.886, the sun's corona halo). Drawn on an
         // oversized sphere; brightness falls off with the view ray's impact
         // parameter b (distance of the ray from the sphere center, 0 at the

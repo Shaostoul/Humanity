@@ -7247,9 +7247,15 @@ mod native_app {
         // sphere. Colors are coarse real-imagery approximations.
         state.solar_body_materials = [
             state.renderer.add_material([0.62, 0.52, 0.42, 1.0], 0.0, 0.85), // rocky/terrestrial — tan-grey
-            state.renderer.add_material([0.80, 0.66, 0.46, 1.0], 0.0, 0.55), // gas giant — banded ochre
+            state.renderer.add_material([0.80, 0.66, 0.46, 1.0], 0.0, 0.55), // gas giant — banded ochre (fallback)
             state.renderer.add_material([0.72, 0.82, 0.92, 1.0], 0.0, 0.40), // icy / dwarf — pale blue-white
             state.renderer.add_material([0.55, 0.55, 0.58, 1.0], 0.0, 0.80), // default — grey
+            // v0.905: per-giant type-18 procedural band materials (params.w
+            // selects the palette in the shader).
+            state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 18.0, 0.0), // jupiter
+            state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 18.0, 1.0), // saturn
+            state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 18.0, 2.0), // uranus
+            state.renderer.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 18.0, 3.0), // neptune
         ];
 
         // ── Orbit paths (v0.262.20 — thin world-space lines) ──
@@ -7853,7 +7859,7 @@ mod native_app {
         /// home (v0.262.9, map sync increment B): [0]=rocky, [1]=gas
         /// giant, [2]=icy/dwarf, [3]=default grey. Picked by SolBody
         /// `body_type`. The Sun reuses `sun_material`.
-        solar_body_materials: [usize; 4],
+        solar_body_materials: [usize; 8],
         /// Orbit paths for the FPS world (v0.262.20 — thin world-space
         /// lines, replacing the old too-thick tube meshes). Each entry
         /// is (PARENT-frame ellipse points in metres, parent_id);
@@ -9078,7 +9084,7 @@ mod native_app {
                 sun_world_pos: glam::DVec3::ZERO,
                 sun_material: 0,
                 sun_halo_material: 0,
-                solar_body_materials: [0; 4],
+                solar_body_materials: [0; 8],
                 solar_orbit_paths: Vec::new(),
                 homestead_floors: Vec::new(),
                 placeholder_objects: Vec::new(),
@@ -15251,7 +15257,7 @@ mod native_app {
                                     .gui_state
                                     .settings
                                     .terrain_patch_budget
-                                    .clamp(64.0, 6144.0)
+                                    .clamp(64.0, 12288.0)
                                     as usize;
                                 let params = chunks::ChunkParams {
                                     radius_m: d.radius,
@@ -15664,6 +15670,15 @@ mod native_app {
                                     // per-face packed colors otherwise.
                                     textured_mat.unwrap_or(state.planet_surface_material)
                                 } else {
+                                    // v0.905: the four giants get their own
+                                    // type-18 band palettes; everything else
+                                    // keeps the coarse per-type colors.
+                                    match b.id.as_str() {
+                                        "jupiter" => state.solar_body_materials[4],
+                                        "saturn" => state.solar_body_materials[5],
+                                        "uranus" => state.solar_body_materials[6],
+                                        "neptune" => state.solar_body_materials[7],
+                                        _ =>
                                     match b.body_type.as_str() {
                                         "gas_giant" | "gas giant" => state.solar_body_materials[1],
                                         "ice_giant" | "ice giant" => state.solar_body_materials[1],
@@ -15674,6 +15689,7 @@ mod native_app {
                                             state.solar_body_materials[0]
                                         }
                                         _ => state.solar_body_materials[3],
+                                    }
                                     }
                                 };
                                 if is_sun {
@@ -20392,6 +20408,8 @@ mod native_app {
                                 // The elapsed-seconds arg is the cloud-deck clock
                                 // (shader type 15 animation); app-start-relative so
                                 // f32 stays precise for days of uptime.
+                                state.renderer.detail_distance =
+                                    state.gui_state.settings.terrain_detail_distance.clamp(0.5, 3.0);
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is

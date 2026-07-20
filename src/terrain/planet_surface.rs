@@ -299,6 +299,16 @@ pub fn grade_albedo(
     abs_sin_lat: f32,
 ) -> [f32; 3] {
     let sea = def.sea_level.clamp(0.0, 1.0);
+    // v0.905 (multi-planet imagery): the ocean floor / sea-ice grading only
+    // applies to WATER worlds. On a dry Moon/Mars/Pluto, "below sea level"
+    // is ordinary low ground - the old unconditional path tinted lunar
+    // maria photo-blue and ice-capped Mars' poles twice (survey gotcha G1).
+    // Dry worlds pass imagery through with a NEUTRAL gain (the 1.6x land
+    // gain was calibrated to Earth's dark Blue Marble bake; NASA/USGS moon
+    // and mars mosaics are already exposure-balanced).
+    if !def.has_water {
+        return raw;
+    }
     // Orbital-look grading (2026-07-11 field report: "black planet surface
     // under the clouds"): floor water to photo blue, gain land toward the
     // brightness the pipeline is calibrated for. See the two constants above.

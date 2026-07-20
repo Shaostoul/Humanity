@@ -1,0 +1,54 @@
+// Pluto: dwarf planet at the Kuiper belt's inner edge. Nitrogen-ice heart
+// (Sputnik Planitia), dark reddish tholin plains (Cthulhu Macula), yellowish
+// north pole (Lowell Regio). Airless for rendering purposes (the real ~1 Pa
+// haze is far too thin to draw), no water, no procedural polar caps -- the
+// real bright regions come from the albedo map.
+// Procedural surface fields are consumed by terrain::planet_surface; see
+// src/terrain/planet.rs::PlanetDef for the full field list + defaults.
+(
+    name: "Pluto",
+    radius: 1188300.0,
+    gravity: 0.62,
+    // 134340 = Pluto's minor-planet catalog number.
+    terrain_seed: 134340,
+    ore_seed: 9091,
+    atmosphere_color: None,
+    atmosphere_scale: 0.0,
+    has_water: false,
+    // Real surface colors (2026-07-19): 2048x1024 RGB grid baked from the
+    // NASA/JHUAPL/SwRI New Horizons global color mosaic (public domain,
+    // https://science.nasa.gov/resource/pluto-global-color-map/) by
+    // scripts/build-planet-albedo.js --roll180 --fill-nodata. The south
+    // pole was unlit during the 2015 flyby, so everything below roughly
+    // -30 latitude is a smooth synthetic fill extrapolated from the last
+    // sunlit band (see the script header). With an albedo present the band
+    // palette below is BYPASSED; it stays as the fallback if this file
+    // goes missing.
+    albedo: Some("planets/pluto_albedo.bin"),
+    // 0.0 = no basins: real depressions are not resolvable in the flyby
+    // data, and with no water there is nothing to flood.
+    sea_level: 0.0,
+    land_color: (0.72, 0.60, 0.50, 1.0),
+    water_color: (0.1, 0.1, 0.1, 0.0),
+    // NASA fact sheet: semi-major axis 39.48 AU, period 247.94 yr,
+    // day 6.387 Earth days (magnitude; the retrograde spin is carried by
+    // the 122.5 degree axial tilt, expressed in radians like every def).
+    orbital_radius: 5906380000000.0,
+    orbital_period: 7824400000.0,
+    rotation_period: 551854.0,
+    axial_tilt: 2.1386,
+
+    // Procedural surface: gentle relief (Pluto's real peaks are ~3.5 km on
+    // a 1188 km radius); the albedo map carries the visual interest.
+    surface_relief: 0.003,
+    noise_frequency: 2.4,
+    noise_octaves: 5,
+    shore_color: (0.68, 0.56, 0.46, 1.0),
+    highland_color: (0.62, 0.50, 0.42, 1.0),
+    mountain_color: (0.55, 0.44, 0.38, 1.0),
+    cap_color: (0.88, 0.86, 0.80, 1.0),
+    basin_color: None,
+    // > 1.0 = procedural polar caps disabled (Sputnik/Lowell brightness is
+    // real data in the albedo map, not a latitude band).
+    polar_cap_latitude: 2.0,
+)

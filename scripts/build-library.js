@@ -17,6 +17,9 @@ const LIB = 'data/library';
 // Curated, nested categories. Sources are repo paths; only ones that exist are
 // included (missing ones are reported, not fatal).
 const CATEGORIES = [
+  { name: 'Credits', docs: [
+    { title: 'Credits and Thanks', src: 'CREDITS.md' },
+  ]},
   { name: 'The Accord', docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
     { title: 'Absolute Prohibitions', src: 'docs/accord/absolute_prohibitions.md' },
