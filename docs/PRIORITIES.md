@@ -11,6 +11,30 @@
 
 ## Active focus
 
+> **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;
+> reports summarized in the journal). Ranked:**
+> 1. QUEST REWRITE: tutorial/construction/exploration/farming.ron are
+>    ~80% dead ids (items/recipes/blueprints that do not exist; the 20
+>    Build objectives match none of the 12 real blueprints). Rewrite to
+>    real ids; add Travel/Talk objective emitters (none fire today).
+> 2. FORAGE FAUCET: wood_log/stone_raw/sand/clay/salt/oil/hides have NO
+>    gather source - the whole tech tree hangs off the vendor. A chop/
+>    forage/quarry verb on planet surfaces is the unlock (351/362
+>    recipes currently unreachable without vendor purchases).
+> 3. PLANET TEXTURES: albedo path is body-agnostic; bake Moon/Mars/Pluto
+>    from the USGS PD maps (links + G1-G3 gotchas in
+>    docs/reference/asset-and-map-sources.md + journal); Pluto needs a
+>    PlanetDef first; gas giants get the type-18 procedural band shader
+>    (also fixes uranus/neptune rendering gas-giant ochre).
+> 4. GARDEN HERO MODELS: consider the CC0 Quaternius Ultimate Crops pack
+>    (growth-staged GLTF) to replace procedural plants for hero crops -
+>    operator reviews links in docs/reference/asset-and-map-sources.md.
+> 5. Missing stations: sawmill + grain_mill machine types do not exist
+>    (2 recipes uncraftable); vehicle_assembler defined but unplaced.
+> 6. Underwater polish: depth-graded tint/fog, swim speed cap, bubbles;
+>    HUD depth readout (Alt currently shows height above SEAFLOOR when
+>    submerged).
+>
 > **>>> FABLE FINAL SPRINT (2026-07-19 day; v0.897-v0.900).** Morning field
 > reports answered: FLICKER ROOT-CAUSED AND KILLED in v0.898 (the 256 MB
 > patch cache was sized for 640-leaf budgets - at 6144 the needed set
