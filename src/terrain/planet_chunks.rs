@@ -1698,6 +1698,131 @@ pub const WATER_MAX_PATCH_DEPTH: u8 = 14;
 /// a smooth constant-radius sphere needs far fewer leaves than terrain.
 pub const WATER_MAX_LEAVES: usize = 144;
 
+/// One near-field tree from the planet-fixed vegetation stream (v0.911):
+/// the same cell hash the patch bake emits silhouette cards from,
+/// re-enumerated at runtime so REAL 3D models can stand where the cards
+/// are. dir is the planet-local unit direction, r_m the drawn ground
+/// radius at the base; yaw/height mirror the card's own randoms.
+pub struct NearTree {
+    pub dir: DVec3,
+    pub r_m: f64,
+    pub yaw: f32,
+    pub height_m: f32,
+    /// 0 = fir, 1 = pine (stable per tree).
+    pub species: u8,
+}
+
+/// Enumerate trees within `radius_m` surface metres of `center_dir` on the
+/// planet-fixed tree grid: the SAME deterministic per-cell stream, gates
+/// (treeline, beach, imagery-green biome), and ground sampling as
+/// build_patch_mesh's vegetation pass, so every returned tree coincides
+/// with a baked card (the model hides its card inside it). Capped at
+/// `max_n` (cells walk outward from the center row-major; a generous cap
+/// simply stops early).
+pub fn near_tree_instances(
+    def: &PlanetDef,
+    source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
+    center_dir: DVec3,
+    radius_m: f64,
+    max_n: usize,
+) -> Vec<NearTree> {
+    let mut out = Vec::new();
+    let center = center_dir.normalize();
+    let lat_c = center.y.clamp(-1.0, 1.0).asin();
+    // No trees on the caps (mirrors the bake's polar gate).
+    if lat_c.abs() > 1.5 {
+        return out;
+    }
+    let lon_c = (-center.z).atan2(center.x);
+    let ang = radius_m / def.radius.max(1.0);
+    let cos_ang = ang.cos();
+    let sea = def.sea_level.clamp(0.0, 1.0);
+    let range_m = match source {
+        ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
+        ElevationSource::Noise(_) => 1.0,
+    };
+    let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
+    let cell = TREE_CELL_RAD;
+    let salt: u64 = 0x51F0_A11C;
+    let lat_span = ang / cell;
+    let lon_span = ang / (cell * lat_c.cos().max(0.05));
+    let ylo = ((lat_c / cell).floor() as i64) - lat_span.ceil() as i64 - 1;
+    let yhi = ((lat_c / cell).floor() as i64) + lat_span.ceil() as i64 + 1;
+    let xlo = ((lon_c / cell).floor() as i64) - lon_span.ceil() as i64 - 1;
+    let xhi = ((lon_c / cell).floor() as i64) + lon_span.ceil() as i64 + 1;
+    for iy in ylo..=yhi {
+        let cell_lat = (iy as f64 + 0.5) * cell;
+        let count = ((TREES_PER_CELL as f64) * cell_lat.cos().max(0.0)).round() as u32;
+        for ix in xlo..=xhi {
+            // Identical stream to the bake: 6 randoms per item BEFORE any
+            // gate, so positions/looks agree exactly with the cards.
+            let mut s = (ix as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                ^ (iy as u64).wrapping_mul(0xBF58_476D_1CE4_E5B9)
+                ^ salt;
+            if s == 0 {
+                s = 0x94D0_49BB_1331_11EB;
+            }
+            let mut next = move || {
+                s ^= s << 13;
+                s ^= s >> 7;
+                s ^= s << 17;
+                s
+            };
+            for _ in 0..count {
+                let r0 = next();
+                let r1 = next();
+                let r2 = next();
+                let r3 = next();
+                let _r4 = next();
+                let r5 = next();
+                if out.len() >= max_n {
+                    return out;
+                }
+                let lat = (iy as f64 + (r0 % 4096) as f64 / 4096.0) * cell;
+                let lon = (ix as f64 + (r1 % 4096) as f64 / 4096.0) * cell;
+                let cl = lat.cos();
+                let dir = DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
+                if dir.dot(center) < cos_ang {
+                    continue;
+                }
+                let (e, _tile) = match source {
+                    ElevationSource::Heightmap { hm, tiles, .. } => {
+                        // Depth 20 = the deepest bake tier, so the tile-
+                        // gated sampler matches close patches.
+                        tile_or_base(hm, *tiles, dir, 20)
+                    }
+                    ElevationSource::Noise(sm) => (sm.elevation_at(dir.as_vec3()), false),
+                };
+                let elev_m = (e - sea) * range_m;
+                if elev_m < 3.0 || elev_m > TREELINE_M {
+                    continue;
+                }
+                let sc = surface_color(def, albedo, dir.as_vec3(), e);
+                if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
+                    continue;
+                }
+                let r = def.radius
+                    * if bathymetric {
+                        displaced_radius_f64_true(def, e as f64)
+                    } else {
+                        displaced_radius_f64(def, e as f64)
+                    };
+                let yaw = (r2 % 6283) as f32 / 1000.0;
+                let h = 7.0 + (r3 % 100) as f32 / 100.0 * 6.0;
+                out.push(NearTree {
+                    dir,
+                    r_m: r,
+                    yaw,
+                    height_m: h,
+                    species: ((r5 >> 9) & 1) as u8,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Conservative radial band for water-shell selection/culling: the sea
 /// sphere plus the worst-case analytic wave height either way (the vertex
 /// shader displaces within this envelope), plus skirt + slop.

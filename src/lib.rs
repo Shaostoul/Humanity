@@ -8033,6 +8033,13 @@ mod native_app {
         /// Mesh/material cache for decoration models so world reloads reuse
         /// GPU resources instead of re-appending them.
         decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,
+        /// Near-field REAL tree models on planet surfaces (v0.911): the
+        /// planet-fixed vegetation stream re-enumerated around the camera
+        /// so photoscanned conifers stand where the silhouette cards are.
+        near_trees: Vec<crate::terrain::planet_chunks::NearTree>,
+        /// Planet-local camera position at the last near-tree recompute
+        /// (recompute when the camera moves far enough).
+        near_trees_center: glam::DVec3,
         /// Pick volumes for viewport machine SELECTION (v0.553): (id, world center, bounding radius)
         /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
         /// to select a machine (its detail then shows on the right panel).
@@ -9243,6 +9250,8 @@ mod native_app {
                 machine_objects: Vec::new(),
                 decoration_objects: Vec::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
+                near_trees: Vec::new(),
+                near_trees_center: glam::DVec3::splat(f64::MAX),
                 grow_positions: Vec::new(),
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
@@ -11919,7 +11928,26 @@ mod native_app {
                                 // they would be reinterpreted in the tangent
                                 // frame and the home view would point wrong.
                                 state.camera.clear_surface();
-                                state.ship_world_pos = ship;
+                                // v0.911 (operator: "TPd back to home [and] the
+                                // home wasn't actually there but all the markers
+                                // ... were displaying"): since the v0.881 orbital
+                                // station, the home MOVES at ~7.66 km/s, so the
+                                // position stashed at departure is thousands of
+                                // km stale after any wander - the player returned
+                                // to empty space while the label overlays (which
+                                // never ride station_off) still projected home
+                                // content. Dock to the station's CURRENT frame;
+                                // the stashed f64 is only the fallback for the
+                                // pre-orbit window where the station position is
+                                // still zero.
+                                let station = state.station_world_pos;
+                                if station.length_squared() > 1.0 {
+                                    state.ship_world_pos = station;
+                                    state.station_ride = true;
+                                } else {
+                                    state.ship_world_pos = ship;
+                                }
+                                state.camera.roll = 0.0;
                                 state.camera.position = cam;
                                 state.camera.yaw = yaw;
                                 state.camera.pitch = pitch;
@@ -15628,6 +15656,165 @@ mod native_app {
                                         }
                                     }
                                     chunked_drawn = true;
+                                }
+                                // ── Near-field REAL trees (v0.911, operator:
+                                // "get the plants on the Earth to use a
+                                // variety... instead of the simple geometry
+                                // placeholder trees") ── within the Settings
+                                // radius, photoscanned conifers stand where
+                                // the vegetation stream put their silhouette
+                                // cards (the card hides inside the model).
+                                // The card system stays as the far LOD.
+                                let tree_dist = state
+                                    .gui_state
+                                    .settings
+                                    .tree_model_distance
+                                    .clamp(0.0, 400.0) as f64;
+                                let alt_over = cam_local.length() - d.radius;
+                                if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
+                                    let moved =
+                                        (state.near_trees_center - cam_local).length();
+                                    if moved > 40.0 {
+                                        let src = chunks::ElevationSource::Heightmap {
+                                            hm,
+                                            detail: &cs.detail,
+                                            tiles: tiles_ref,
+                                            ocean: ocean_ref,
+                                        };
+                                        state.near_trees = chunks::near_tree_instances(
+                                            d,
+                                            &src,
+                                            state.planet_albedos.get(&b.id),
+                                            cam_local.normalize(),
+                                            tree_dist + 60.0,
+                                            600,
+                                        );
+                                        state.near_trees_center = cam_local;
+                                        log::info!(
+                                            "[NearTree] recompute: {} trees within {:.0} m (alt {:.0} m)",
+                                            state.near_trees.len(),
+                                            tree_dist + 60.0,
+                                            alt_over
+                                        );
+                                    }
+                                    // Lazy-load the two conifer models through
+                                    // the decoration cache (shared GPU reuse).
+                                    for name in
+                                        ["fir_sapling_v1", "pine_sapling_small_v1"]
+                                    {
+                                        if state.decoration_mesh_cache.contains_key(name) {
+                                            continue;
+                                        }
+                                        let base =
+                                            name.rfind("_v").map(|i| &name[..i]).unwrap_or(name);
+                                        let rel = format!(
+                                            "assets/models/plants/{}/{}.gltf",
+                                            base, name
+                                        );
+                                        match state.asset_manager.parse_gltf_mesh_textured(
+                                            &state.renderer.device,
+                                            &rel,
+                                        ) {
+                                            Ok((mesh, tex)) => {
+                                                let mi = state.renderer.add_mesh(mesh);
+                                                if let Some((rgba, w, h)) = &tex {
+                                                    let clear = rgba
+                                                        .chunks_exact(4)
+                                                        .filter(|p| p[3] < 128)
+                                                        .count();
+                                                    log::info!(
+                                                        "[NearTree] {name}: texture {w}x{h}, {}% transparent texels",
+                                                        clear * 100 / (rgba.len() / 4).max(1)
+                                                    );
+                                                }
+                                                let ma = match tex {
+                                                    Some((rgba, w, h)) => {
+                                                        state.renderer.add_textured_material(
+                                                            [1.0, 1.0, 1.0, 1.0],
+                                                            0.0,
+                                                            0.9,
+                                                            19.0,
+                                                            0.0,
+                                                            &rgba,
+                                                            w,
+                                                            h,
+                                                        )
+                                                    }
+                                                    None => state.renderer.add_material_full(
+                                                        [0.2, 0.35, 0.15, 1.0],
+                                                        0.0,
+                                                        0.9,
+                                                        0.0,
+                                                        0.0,
+                                                    ),
+                                                };
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(name.to_string(), (mi, ma));
+                                            }
+                                            Err(e) => {
+                                                // Insert a sentinel so a missing
+                                                // asset logs once, not per frame.
+                                                log::warn!(
+                                                    "near-tree model {name} failed: {e}"
+                                                );
+                                                state.decoration_mesh_cache.insert(
+                                                    name.to_string(),
+                                                    (usize::MAX, usize::MAX),
+                                                );
+                                            }
+                                        }
+                                    }
+                                    let fir = state
+                                        .decoration_mesh_cache
+                                        .get("fir_sapling_v1")
+                                        .copied()
+                                        .unwrap_or((usize::MAX, usize::MAX));
+                                    let pine = state
+                                        .decoration_mesh_cache
+                                        .get("pine_sapling_small_v1")
+                                        .copied()
+                                        .unwrap_or((usize::MAX, usize::MAX));
+                                    let td2 = tree_dist * tree_dist;
+                                    for tr in &state.near_trees {
+                                        let base_local = tr.dir * tr.r_m;
+                                        if (base_local - cam_local).length_squared() > td2 {
+                                            continue;
+                                        }
+                                        let (mi, ma) =
+                                            if tr.species == 0 { fir } else { pine };
+                                        if mi == usize::MAX {
+                                            continue;
+                                        }
+                                        let pos_render = render_off + rot_d * base_local;
+                                        // Y-up model onto the local radial up,
+                                        // spun by its own yaw, riding the
+                                        // planet's rotation.
+                                        let up_arc = Quat::from_rotation_arc(
+                                            Vec3::Y,
+                                            tr.dir.as_vec3().normalize(),
+                                        );
+                                        let obj_rot = rotation
+                                            * up_arc
+                                            * Quat::from_rotation_y(tr.yaw);
+                                        // The scans are ~1.3 m tall; the card
+                                        // heights are 7-13 m.
+                                        let scl = tr.height_m / 1.3;
+                                        celestial_objects.push(RenderObject {
+                                            position: Vec3::new(
+                                                pos_render.x as f32,
+                                                pos_render.y as f32,
+                                                pos_render.z as f32,
+                                            ),
+                                            rotation: obj_rot,
+                                            scale: Vec3::splat(scl),
+                                            mesh: mi,
+                                            material: ma,
+                                        });
+                                    }
+                                } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
+                                    state.near_trees.clear();
+                                    state.near_trees_center = glam::DVec3::splat(f64::MAX);
                                 }
                                 if chunked_drawn != cs.active_last_frame {
                                     cs.active_last_frame = chunked_drawn;
@@ -20599,13 +20786,25 @@ mod native_app {
                                             Vec3::new(c.x, c.y + p.size.y * 0.5, c.z), color, 5.0, 4.5,
                                         ));
                                     }
-                                    // Sort by distance to camera, take nearest 8
+                                    // v0.911 (operator: "the full string light...
+                                    // refuses to render the light from all parts
+                                    // except the ones a meter from me"): the old
+                                    // nearest-8 cap predates the v0.782 growable
+                                    // lights STORAGE buffer - the shader loops
+                                    // num_lights with an early range rejection
+                                    // that makes far lights nearly free, so a
+                                    // string's every bulb can light its own
+                                    // surroundings. Sort by how far outside each
+                                    // light's influence sphere the camera sits
+                                    // (distance minus range - a big far light
+                                    // outranks a small near one) and keep a
+                                    // generous 64.
                                     lights.sort_by(|a, b| {
-                                        let da = (a.pos - cam_pos).length_squared();
-                                        let db = (b.pos - cam_pos).length_squared();
+                                        let da = ((a.pos - cam_pos).length() - a.range).max(0.0);
+                                        let db = ((b.pos - cam_pos).length() - b.range).max(0.0);
                                         da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                                     });
-                                    lights.truncate(8);
+                                    lights.truncate(64);
                                     // Home lights ride the station (v0.881).
                                     for l in lights.iter_mut() {
                                         l.pos += state.station_off;
@@ -20807,6 +21006,10 @@ mod native_app {
                                 // (head center at +0.55, radius 0.17 -- see the crew render
                                 // pass). clear() also empties the HUD when crew despawn on
                                 // leaving the world; a query on an empty world is free.
+                                // Labels project with the SAME station offset the
+                                // scene pass applies to home content (v0.911: the
+                                // ghost-markers half of the vanishing-home bug).
+                                state.gui_state.station_off = state.station_off;
                                 state.gui_state.crew_labels.clear();
                                 for (_e, (t, npc)) in state
                                     .game_world
@@ -20818,7 +21021,7 @@ mod native_app {
                                     .iter()
                                 {
                                     state.gui_state.crew_labels.push(crate::gui::CrewLabel {
-                                        pos: t.position + Vec3::new(0.0, 1.0, 0.0),
+                                        pos: t.position + Vec3::new(0.0, 1.0, 0.0) + state.station_off,
                                         name: npc.name.clone(),
                                         activity: npc.activity.clone(),
                                         working: npc.working,

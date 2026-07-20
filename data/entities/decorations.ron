@@ -1,36 +1,18 @@
-// Decoration plants for the homestead (v0.909, the photoscanned-asset arc).
+// Decoration plants (v0.909; emptied v0.911 per operator direction).
 //
-// Each entry scatters `count` copies of a Poly Haven CC0 plant variant near a
-// machine instance from data/machines/home.ron, within `spread` metres of the
-// anchor (+ optional offset). Models live in assets/models/plants/<base>/
-// as <base>_vN.gltf single-primitive variants (see that folder's
-// manifest.json; regenerate with `node scripts/repack-plant-gltf.js --split`).
-// Yaw and scale jitter are deterministic, so the layout is stable across
-// world reloads. Pure visuals - no gameplay hooks.
+// The operator's call (2026-07-20): photoscanned greenery belongs on PLANET
+// surfaces, not scattered on the spaceship homestead's decks - Earth's
+// surface vegetation now uses the real models directly (the near-field tree
+// overlay in terrain/planet_chunks.rs + lib.rs). This file stays as the
+// placement system for FUTURE ground structures (a town lot, a planet-side
+// homestead garden): each entry scatters `count` copies of a model variant
+// near a machine instance anchor, within `spread` metres (+ optional
+// offset/scale). Models: assets/models/plants/<base>/<base>_vN.gltf (see
+// manifest.json; regenerate variants with
+// `node scripts/repack-plant-gltf.js --split`).
 //
-// Triangle budgets (per instance): grass variants 714-2489, fern 784-2384 -
-// scatter freely. Saplings are 122k-157k tris - HERO accents only, keep
-// counts low. Adding greenery = adding a row here.
+// Example row (grass around a field plot):
+//   (model: "grass_medium_02_v1", near: "grain_field_1", count: 8, spread: 5.0),
 (
-    decorations: [
-        // Grass tufts around the outdoor field plots.
-        (model: "grass_medium_02_v1", near: "grain_field_1", count: 8, spread: 5.0),
-        (model: "grass_medium_02_v2", near: "grain_field_1", count: 6, spread: 6.5),
-        (model: "grass_medium_02_v3", near: "tuber_field_1", count: 8, spread: 5.0),
-        (model: "grass_medium_02_v4", near: "legume_field_1", count: 7, spread: 5.5),
-        (model: "grass_medium_02_v5", near: "oilseed_field_1", count: 7, spread: 5.5),
-        // Ferns in the shadier spots near the water infrastructure.
-        (model: "fern_02_v1", near: "cistern_1", count: 4, spread: 3.5),
-        (model: "fern_02_v2", near: "pump_1", count: 3, spread: 3.0),
-        (model: "fern_02_v3", near: "irrigation_1", count: 4, spread: 4.0),
-        // Hero saplings: one young fir and one pine flanking the fields,
-        // a second pine out past the grain plot. Heavy scans - keep rare.
-        (model: "fir_sapling_v1", near: "grain_field_1", offset: (8.0, 0.0, 4.0), count: 1, spread: 1.0),
-        (model: "pine_sapling_small_v1", near: "legume_field_1", offset: (-7.0, 0.0, 5.0), count: 1, spread: 1.0),
-        (model: "pine_sapling_small_v2", near: "oilseed_field_1", offset: (6.0, 0.0, -6.0), count: 1, spread: 1.0),
-        // A low shrub hedge piece near the composter.
-        (model: "shrub_01_v1", near: "composter_1", offset: (3.0, 0.0, 2.0), count: 1, spread: 1.0),
-        // Interior hero: the photoscanned potted plant by the household unit.
-        (model: "potted_plant_01_v1", near: "household_1", offset: (1.6, 0.0, 1.2), count: 1, spread: 0.5),
-    ],
+    decorations: [],
 )

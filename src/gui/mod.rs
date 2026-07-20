@@ -2749,6 +2749,11 @@ pub struct GuiState {
     /// Camera is below the sea surface (v0.903 diving): the GUI paints the
     /// underwater tint and the HUD can show depth.
     pub underwater: bool,
+    /// World-space offset the scene pass applies to home content (the
+    /// orbital station ride, v0.881). Labels/nameplates must project with
+    /// the SAME offset or they float where the home used to be (v0.911,
+    /// the ghost-markers half of the vanishing-home bug).
+    pub station_off: glam::Vec3,
     /// Metres below the sea surface while underwater (drives the tint's
     /// depth grading + the HUD depth readout; 0 when surfaced).
     pub underwater_depth_m: f32,
@@ -4522,6 +4527,7 @@ impl Default for GuiState {
             toasts: Vec::new(),
             underwater: false,
             underwater_depth_m: 0.0,
+            station_off: glam::Vec3::ZERO,
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,
@@ -6528,6 +6534,9 @@ pub struct SettingsState {
     pub terrain_detail_distance: f32,
     /// Patch mesh builds per frame (stream speed).
     pub terrain_builds_per_frame: f32,
+    /// Near-field real tree model distance in metres (v0.911; 0 = cards
+    /// only). Grass/tree silhouette cards continue past this range.
+    pub tree_model_distance: f32,
     /// Sun shadow map on/off (v0.907, Settings > Planets).
     pub sun_shadows: bool,
     /// Crepuscular god-ray shaft intensity (0 = off).
@@ -6654,6 +6663,7 @@ impl Default for SettingsState {
             terrain_patch_budget: 2048.0,
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
+            tree_model_distance: 0.0,
             sun_shadows: true,
             godray_intensity: 0.55,
             ssao_strength: 0.55,

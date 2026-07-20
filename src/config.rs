@@ -371,6 +371,10 @@ pub struct AppConfig {
     /// survive (1.0 = classic, 3.0 = detail visible at 3x the range).
     #[serde(default = "default_terrain_detail_distance")]
     pub terrain_detail_distance: f32,
+    /// Near-field real tree model distance in metres (v0.911; 0 = cards
+    /// only, higher = photoscanned conifers further out, more GPU).
+    #[serde(default = "default_tree_model_distance")]
+    pub tree_model_distance: f32,
     /// Sun shadow map (v0.907): terrain/vegetation/structure shadows cast
     /// by the sun. Off = the pre-v0.899 unshadowed look (cheaper).
     #[serde(default = "default_true")]
@@ -638,6 +642,7 @@ fn default_terrain_split_px() -> f32 { 4.0 }
 fn default_terrain_patch_budget() -> f32 { 3072.0 }
 fn default_terrain_detail_distance() -> f32 { 1.5 }
 fn default_godray_intensity() -> f32 { 0.55 }
+fn default_tree_model_distance() -> f32 { 0.0 }
 fn default_ssao_strength() -> f32 { 0.55 }
 fn default_terrain_builds_per_frame() -> f32 { 64.0 }
 fn default_panel_width() -> f32 { 220.0 }
@@ -945,6 +950,7 @@ impl AppConfig {
             terrain_split_px: state.settings.terrain_split_px,
             terrain_patch_budget: state.settings.terrain_patch_budget,
             terrain_detail_distance: state.settings.terrain_detail_distance,
+            tree_model_distance: state.settings.tree_model_distance,
             sun_shadows: state.settings.sun_shadows,
             godray_intensity: state.settings.godray_intensity,
             ssao_strength: state.settings.ssao_strength,
@@ -1081,6 +1087,7 @@ impl AppConfig {
         state.settings.terrain_patch_budget = self.terrain_patch_budget.clamp(256.0, 12288.0);
         state.settings.terrain_detail_distance =
             self.terrain_detail_distance.clamp(0.5, 3.0);
+        state.settings.tree_model_distance = self.tree_model_distance.clamp(0.0, 400.0);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);

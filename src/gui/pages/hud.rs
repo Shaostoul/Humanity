@@ -392,11 +392,16 @@ pub fn draw(
                 if !state.reveal_held && !in_current_room {
                     continue;
                 }
-                let cam_dist = (label.pos - cam_pos).length();
+                // Project at the label's WORLD position: home content rides
+                // the orbital station, so the scene pass shifts it by
+                // station_off - a label projected at the raw local position
+                // floats where the home USED to be (v0.911).
+                let wpos = label.pos + state.station_off;
+                let cam_dist = (wpos - cam_pos).length();
                 if cam_dist > dot_dist {
                     continue; // beyond the coarsest level of detail
                 }
-                let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
+                let Some(sp) = world_to_screen(wpos, view_proj, screen) else { continue };
                 let is_target = state.targeted_machine == Some(i);
                 // Marker dot; the machine you are looking at gets an accent ring.
                 painter.circle_filled(sp, 1.7, Color32::from_white_alpha(220));

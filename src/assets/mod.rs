@@ -272,6 +272,7 @@ impl AssetManager {
             );
             None
         })?;
+        let rgba = white_key_alpha_if_cutout(rgba, relative_path);
         downscale_rgba_if_needed(rgba, data.width, data.height, relative_path)
     }
 
@@ -618,6 +619,52 @@ fn downscale_rgba_if_needed(
     let resized = image::imageops::resize(&img, new_w, new_h, image::imageops::FilterType::Triangle);
     log::info!("{relative_path}: base-color texture downscaled {width}x{height} -> {new_w}x{new_h}");
     Some((resized.into_raw(), new_w, new_h))
+}
+
+/// White-key alpha recovery for cutout foliage (v0.911). Photoscan twig and
+/// leaf-card textures ship as JPEG (no alpha channel), so the white
+/// background around each twig cluster rendered as SOLID white slabs - a
+/// probe capture showed every conifer wrapped in pale boxes. When a texture
+/// has no real alpha variation AND a significant near-white fraction (the
+/// tell of a cutout sheet on white), derive alpha from brightness: white
+/// background fades to transparent, dark foliage stays opaque. Textures
+/// that are genuinely bright all over (sand, pot ceramic) are left alone by
+/// the fraction test; textures with real alpha are never touched.
+#[cfg(feature = "native")]
+fn white_key_alpha_if_cutout(mut rgba: Vec<u8>, relative_path: &str) -> Vec<u8> {
+    let n = rgba.len() / 4;
+    if n == 0 {
+        return rgba;
+    }
+    let mut has_alpha = false;
+    let mut near_white = 0usize;
+    for px in rgba.chunks_exact(4) {
+        if px[3] < 250 {
+            has_alpha = true;
+            break;
+        }
+        // Near-white AND low-saturation: background, not bright foliage.
+        let mx = px[0].max(px[1]).max(px[2]);
+        let mn = px[0].min(px[1]).min(px[2]);
+        if mn >= 210 && (mx - mn) < 28 {
+            near_white += 1;
+        }
+    }
+    if has_alpha || near_white * 100 < n * 12 {
+        return rgba;
+    }
+    for px in rgba.chunks_exact_mut(4) {
+        let mn = px[0].min(px[1]).min(px[2]) as f32;
+        // 1 at min-channel 170, 0 at 225: a smooth key with JPEG-artifact
+        // headroom on both sides.
+        let t = ((mn - 170.0) / 55.0).clamp(0.0, 1.0);
+        px[3] = (255.0 * (1.0 - t * t * (3.0 - 2.0 * t))) as u8;
+    }
+    log::info!(
+        "{relative_path}: cutout texture detected ({}% near-white) - alpha recovered by white key",
+        near_white * 100 / n
+    );
+    rgba
 }
 
 /// Generate flat normals when GLTF model has none.

@@ -2098,18 +2098,19 @@ impl Renderer {
                 pass.set_bind_group(3, &self.shadow_pass_texture_bind_group, &[]);
                 let uniform_align = 256_u64;
                 let mut bound_material = usize::MAX;
-                // Near-field caster cull (v0.899): the ortho box only covers
-                // ~1.5 km, so patches anchored beyond ~65 km (a bound big
-                // enough that even coarse horizon patches whose geometry
-                // could reach the box are kept) contribute nothing - skip
-                // them instead of rasterizing the whole 6144-draw planet
-                // into the map every frame.
+                // Near-field caster cull (v0.899; tightened v0.911, perf
+                // audit #2): the ortho box covers 1.5 km around the camera,
+                // so a caster can only matter if its anchor sits within the
+                // box plus the largest patch's own reach. 6 km covers the
+                // coarsest horizon patch that could still poke a triangle
+                // into the box; the old 65 km bound re-rasterized thousands
+                // of far patches into the 4096 map every frame for nothing.
                 let cast_center = camera.effective_position();
                 for (i, obj) in objects.iter().enumerate() {
                     if i >= MAX_OBJECTS {
                         break;
                     }
-                    if (obj.position - cast_center).length_squared() > 65_000.0_f32 * 65_000.0 {
+                    if (obj.position - cast_center).length_squared() > 6_000.0_f32 * 6_000.0 {
                         continue;
                     }
                     let mesh = match self.meshes.get(obj.mesh) {
@@ -2171,10 +2172,18 @@ impl Renderer {
             // (a couple dozen sky bodies in practice).
             // One batched object-uniform upload (v0.891): opaque bodies +
             // transparent shells share the buffer, shells continue the range.
+            // KEEP THIS UNCONDITIONAL. The v0.911 perf audit suggested
+            // skipping this upload when the shadow pass already staged the
+            // identical bytes at 2072 - probe-bisected result: with the
+            // skip, the atmosphere DOME vanished at ground level (black
+            // starfield at noon, only the horizon limb left) on DX12. The
+            // two writes are byte-identical in source, so the failure is a
+            // queue-write/submission-ordering subtlety, not logic; the
+            // ~1-2 ms is not worth a broken sky. Do not re-attempt without
+            // a boot+ground-level-sky probe check.
             let uniform_align = 256_u64;
             self.upload_object_uniforms(objects.iter().chain(transparent.iter()));
 
-            let mut bound_material = usize::MAX;
             let mut bound_material = usize::MAX;
             for (i, obj) in objects.iter().enumerate() {
                 if i >= MAX_OBJECTS { break; }

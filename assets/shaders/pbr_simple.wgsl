@@ -2125,6 +2125,13 @@ fn cloud_sun_tau(
         let lp = p + sun_local * dist;
         let dens = cloud_density_light(lp, t, seed, weather_a, reg);
         tau = tau + CLOUD_HI_SIGMA_T * dens * seg;
+        // v0.911 (perf audit #3): once the sun path is this optically deep
+        // every scatter octave is effectively zero - later taps cannot
+        // change the pixel. Saves up to half the light taps inside dense
+        // decks (the 10-16 FPS worst case), bit-identical output.
+        if (tau > 10.0) {
+            break;
+        }
     }
     return tau;
 }
@@ -2245,15 +2252,23 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // Exponentially spaced front-to-back march: t = m0 + seg * u^EXP puts
     // over half the samples in the nearest third of the segment -- the
     // foreground puffs get the budget, the far limb averages out.
+    // v0.911 (perf audit #5): the sample COUNT scales with how much slab
+    // the ray actually crosses - a straight-up path through the thin deck
+    // (seg ~ one slab thickness) needs ~a third of the budget a grazing
+    // limb path does. Same step distribution, fewer steps on short rays;
+    // the under-deck flight worst case gets its samples back.
+    let slab_h = CLOUD_RT - CLOUD_RB;
+    let n_samp_f = clamp(seg / (slab_h * 6.0), 0.34, 1.0) * f32(CLOUD_HI_SAMPLES);
+    let n_samp = max(i32(n_samp_f), 8);
     var s_prev = 0.0;
     var trans = 1.0;
     var acc = vec3<f32>(0.0);
     var acc_w = 0.0;
-    for (var i = 0; i < CLOUD_HI_SAMPLES; i = i + 1) {
+    for (var i = 0; i < n_samp; i = i + 1) {
         let fi = f32(i);
-        let s_next = pow((fi + 1.0) / f32(CLOUD_HI_SAMPLES), CLOUD_HI_STEP_EXP);
+        let s_next = pow((fi + 1.0) / n_samp_f, CLOUD_HI_STEP_EXP);
         let dt = (s_next - s_prev) * seg;
-        let sm = pow((fi + jitter) / f32(CLOUD_HI_SAMPLES), CLOUD_HI_STEP_EXP);
+        let sm = pow((fi + jitter) / n_samp_f, CLOUD_HI_STEP_EXP);
         let tm = m0 + sm * seg;
         s_prev = s_next;
 

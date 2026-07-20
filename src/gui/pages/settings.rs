@@ -2050,6 +2050,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Tree model distance (m)", &mut state.settings.tree_model_distance, 0.0..=300.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("EXPERIMENTAL: how close real 3D tree models appear on planet surfaces (try 120). Beyond this range trees stay as simple silhouettes. 0 = off (silhouettes only). Higher = prettier forests, more GPU.").color(theme.text_muted()).size(theme.font_size_small));
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.
         if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {

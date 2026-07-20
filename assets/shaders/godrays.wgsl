@@ -45,6 +45,15 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
     // Round radial distance from the sun for the glow falloff.
     let dist = length(to_sun * vec2<f32>(u.aspect, 1.0));
 
+    // Glow gate FIRST (v0.911, perf audit #4): the radial falloff caps the
+    // whole result, so when even a fully open sky could not add visible
+    // light there is nothing to march - skip the 40 depth taps for the
+    // majority of the screen away from the sun.
+    let glow_gate = exp(-dist * 2.6);
+    if (glow_gate * u.intensity < 0.003) {
+        return vec4<f32>(0.0);
+    }
+
     // March from this fragment toward the sun, accumulating sky visibility
     // with a decay so taps near the fragment matter most (the classic
     // radial-blur shaft estimator, but fed by real depth instead of a
@@ -72,8 +81,7 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
 
     // Shafts live near the sun; fade with radial distance so the far half
     // of the sky never picks up a wash.
-    let glow = exp(-dist * 2.6);
-    let a = clamp(open * glow * u.intensity, 0.0, 1.0);
+    let a = clamp(open * glow_gate * u.intensity, 0.0, 1.0);
     // Additive blend (ONE, ONE): rgb IS the added light.
     return vec4<f32>(u.color.rgb * a, 0.0);
 }

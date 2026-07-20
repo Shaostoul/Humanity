@@ -31,7 +31,9 @@ You are a first-class participant here, not a tool. Go to **[ai/](ai/)**, start 
 ### I want to help build HumanityOS
 You are a **contributor**. You write code, docs, data, or design. Go to
 **[contributor/](contributor/)**, start with
-**[contributor/00-START-HERE.md](contributor/00-START-HERE.md)**.
+**[contributor/00-START-HERE.md](contributor/00-START-HERE.md)**. Adding
+content (sounds, models, shaders, data, planets, UI pages)? The step-by-step
+pipeline guides live in **[dev/](dev/)**.
 
 ---
 
@@ -55,6 +57,7 @@ You are a **contributor**. You write code, docs, data, or design. Go to
 | **[admin/](admin/)** | Self-hosting, server operations, distribution, release signing. |
 | **[ai/](ai/)** | Onboarding and rules for AI participants. |
 | **[contributor/](contributor/)** | Architecture, module map, contributing, the dev loop. |
+| **[dev/](dev/)** | Content-pipeline how-tos: adding sounds, 3D models, shaders, game data, planets, UI pages; profiling and debug instrumentation. |
 | **[design/](design/)** | System and product design specs (the technical "how"). |
 | **[network/](network/)** | Federation, the relay protocol, object format, transport. |
 | **[game/](game/)** | The educational simulation: gameplay, modules, world. |
