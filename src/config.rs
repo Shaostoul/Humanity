@@ -382,6 +382,9 @@ pub struct AppConfig {
     /// God-ray shaft intensity (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_godray_intensity")]
     pub godray_intensity: f32,
+    /// Aerial perspective strength (v0.916; 0 = off, 1 = earthlike haze).
+    #[serde(default = "default_aerial_strength")]
+    pub aerial_strength: f32,
     /// Ambient-occlusion strength (v0.907 slider; 0 disables the pass).
     #[serde(default = "default_ssao_strength")]
     pub ssao_strength: f32,
@@ -643,6 +646,7 @@ fn default_terrain_patch_budget() -> f32 { 3072.0 }
 fn default_terrain_detail_distance() -> f32 { 1.5 }
 fn default_godray_intensity() -> f32 { 0.55 }
 fn default_tree_model_distance() -> f32 { 0.0 }
+fn default_aerial_strength() -> f32 { 1.0 }
 fn default_ssao_strength() -> f32 { 0.55 }
 fn default_terrain_builds_per_frame() -> f32 { 64.0 }
 fn default_panel_width() -> f32 { 220.0 }
@@ -953,6 +957,7 @@ impl AppConfig {
             tree_model_distance: state.settings.tree_model_distance,
             sun_shadows: state.settings.sun_shadows,
             godray_intensity: state.settings.godray_intensity,
+            aerial_strength: state.settings.aerial_strength,
             ssao_strength: state.settings.ssao_strength,
             terrain_builds_per_frame: state.settings.terrain_builds_per_frame,
             planet_max_subdiv: state.settings.planet_max_subdiv,
@@ -1090,6 +1095,7 @@ impl AppConfig {
         state.settings.tree_model_distance = self.tree_model_distance.clamp(0.0, 400.0);
         state.settings.sun_shadows = self.sun_shadows;
         state.settings.godray_intensity = self.godray_intensity.clamp(0.0, 1.5);
+        state.settings.aerial_strength = self.aerial_strength.clamp(0.0, 2.0);
         state.settings.ssao_strength = self.ssao_strength.clamp(0.0, 1.5);
         state.settings.terrain_builds_per_frame =
             self.terrain_builds_per_frame.clamp(6.0, 64.0);

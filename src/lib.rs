@@ -16625,6 +16625,59 @@ mod native_app {
                                 if gi { 2.5 } else { 0.0 },
                             );
                         }
+                        // Aerial perspective params (v0.916, research item
+                        // 2): exponential height haze fading distant land
+                        // and sea toward the sky's in-scatter color. Sigma
+                        // folds the Settings strength and the camera's
+                        // altitude density; the sky color rides the SAME
+                        // sunset transmittance as the sun light, so evening
+                        // haze warms while noon haze stays blue-grey.
+                        {
+                            let s = state.gui_state.settings.aerial_strength.clamp(0.0, 2.0);
+                            let mut sigma = 0.0f32;
+                            let mut cap = 25_000.0f32;
+                            let mut sky = [0.0f32; 3];
+                            let mut up = [0.0f32, 1.0, 0.0];
+                            if s > 0.001 {
+                                if let Some((d, _ac)) = state
+                                    .frame_lock_body
+                                    .as_deref()
+                                    .and_then(|b| state.planet_defs.get(b))
+                                    .and_then(|d| d.atmosphere_color.map(|ac| (d, ac)))
+                                {
+                                    let h_m = d.scale_height_or_default().max(500.0);
+                                    let alt =
+                                        (state.frame_lock_anchor.length() - d.radius) as f32;
+                                    let dens = (-(alt.max(0.0)) / h_m).exp();
+                                    // Base visibility ~45 km at sea level at
+                                    // strength 1.
+                                    sigma = s * 2.2e-5 * dens;
+                                    cap = h_m * 3.0;
+                                    let up_w = glam::DQuat::from_rotation_y(
+                                        state.current_spin,
+                                    ) * state.frame_lock_anchor.normalize_or_zero();
+                                    up = [up_w.x as f32, up_w.y as f32, up_w.z as f32];
+                                    let mu = up_w.dot(sun_dir) as f32;
+                                    let day = ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
+                                    // Hue from the sunset-tinted sun light,
+                                    // normalized so the tint shifts color
+                                    // without double-dimming.
+                                    let m = light_color[0]
+                                        .max(light_color[1])
+                                        .max(light_color[2])
+                                        .max(0.05);
+                                    sky = [
+                                        0.58 * day * (light_color[0] / m),
+                                        0.70 * day * (light_color[1] / m),
+                                        0.86 * day * (light_color[2] / m),
+                                    ];
+                                }
+                            }
+                            state.renderer.aerial_sigma = sigma;
+                            state.renderer.aerial_slant_cap = cap;
+                            state.renderer.aerial_sky = sky;
+                            state.renderer.aerial_up = up;
+                        }
                         // The fill is otherwise set once at init; re-assert it each frame so the GI
                         // toggle is authoritative (restores the default when GI is back on).
                         state.renderer.set_fill_light(

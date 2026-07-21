@@ -201,6 +201,16 @@ pub struct Renderer {
     /// within this range of the camera discard (the real 3D tree models
     /// stand there). Mirrors the Settings tree-model distance; 0 = off.
     pub tree_card_hide_m: f32,
+    /// Aerial perspective (v0.916): extinction per metre at the CAMERA's
+    /// altitude (strength + height falloff folded in by lib.rs; 0 = off).
+    pub aerial_sigma: f32,
+    /// Aerial slant cap: haze-layer thickness in metres, bounding vertical
+    /// sightlines so the sun/orbit stay clear.
+    pub aerial_slant_cap: f32,
+    /// Aerial in-scatter (sky) color, day/sunset tinted by lib.rs.
+    pub aerial_sky: [f32; 3],
+    /// Camera's radial up (world), for the slant path bound.
+    pub aerial_up: [f32; 3],
 }
 
 impl Renderer {
@@ -818,6 +828,10 @@ impl Renderer {
             detail_distance: 1.0,
             sea_state: 0.35,
             tree_card_hide_m: 0.0,
+            aerial_sigma: 0.0,
+            aerial_slant_cap: 25_000.0,
+            aerial_sky: [0.0, 0.0, 0.0],
+            aerial_up: [0.0, 1.0, 0.0],
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -2026,6 +2040,18 @@ impl Renderer {
         // at the player (lib.rs) or the showcase {"sea":x} dev override.
         self.queue
             .write_buffer(&self.camera_buffer, 668, bytemuck::bytes_of(&self.sea_state));
+        // Aerial perspective params (v0.916) in the unused per-light cone
+        // pads: [1].y sigma (484), [1].z slant cap (488), [2].yzw sky color
+        // (500), [3].yzw camera radial up (516). The interior passes'
+        // full uniform write zeroes these, so rooms never fog.
+        self.queue
+            .write_buffer(&self.camera_buffer, 484, bytemuck::bytes_of(&self.aerial_sigma));
+        self.queue
+            .write_buffer(&self.camera_buffer, 488, bytemuck::bytes_of(&self.aerial_slant_cap));
+        self.queue
+            .write_buffer(&self.camera_buffer, 500, bytemuck::cast_slice(&self.aerial_sky));
+        self.queue
+            .write_buffer(&self.camera_buffer, 516, bytemuck::cast_slice(&self.aerial_up));
         // Light the bodies by the REAL Sun (v0.451): the full-uniform write above
         // stamps the default fake sun [0.3,1,0.5] at offset 608 (v0.639: shifted from 352 by
         // the +256-byte light_spot/light_cone_inner insertion), so re-poke it with the true

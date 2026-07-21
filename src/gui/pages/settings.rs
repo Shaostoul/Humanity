@@ -2060,6 +2060,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Terrain, plants, and structures cast real shadows from the sun. Off = flatter light, a little more FPS.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Aerial haze strength", &mut state.settings.aerial_strength, 0.0..=2.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How strongly distant hills and sea fade into the sky, like real air does. 0 = crystal-clear air (off), 1 = earthlike, 2 = misty. Almost free on the GPU.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "God ray intensity", &mut state.settings.godray_intensity, 0.0..=1.5) {
             state.settings_dirty = true;
         }

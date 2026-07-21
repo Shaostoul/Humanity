@@ -3198,6 +3198,39 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // Procedural emissive (e.g. lava cracks) -- additive, independent of params.w
     color = color + proc_emissive;
 
+    // ── Aerial perspective (v0.916, research roadmap item 2) ──
+    // Distant surfaces fade toward the sky's in-scatter color - the single
+    // strongest landscape realism cue. Exponential height haze: the CPU
+    // pokes sigma (already folded with the camera-altitude density falloff
+    // and the Settings strength) into light1_cone_inner.y, the slant cap
+    // scale into light1_cone_inner.z, the day/sunset-tinted sky color into [2].yzw, and
+    // the camera's radial up into [3].yzw. The SLANT path bound keeps a
+    // noon sun and orbit views clear: looking up exits the haze layer in a
+    // few km, so only long, flat sightlines accumulate fog. sigma = 0 (off
+    // in space, at night the color also darkens) makes this a no-op.
+    let aer_sigma = camera.light1_cone_inner.y;
+    if (aer_sigma > 1.0e-9) {
+        let aer_vec = in.world_position - camera.view_pos.xyz;
+        let aer_dist = length(aer_vec);
+        if (aer_dist > 120.0) {
+            let aer_up = vec3<f32>(
+                camera.light3_cone_inner.y,
+                camera.light3_cone_inner.z,
+                camera.light3_cone_inner.w,
+            );
+            let up_dot = abs(dot(aer_vec / aer_dist, aer_up));
+            let slant_cap = camera.light1_cone_inner.z / max(up_dot, 0.035);
+            let path = min(aer_dist - 120.0, slant_cap);
+            let t_aer = exp(-aer_sigma * path);
+            let sky_aer = vec3<f32>(
+                camera.light2_cone_inner.y,
+                camera.light2_cone_inner.z,
+                camera.light2_cone_inner.w,
+            );
+            color = color * t_aer + sky_aer * (1.0 - t_aer);
+        }
+    }
+
     // ACES-like tone mapping (more filmic than Reinhard)
     let a = 2.51;
     let b = 0.03;

@@ -6561,6 +6561,9 @@ pub struct SettingsState {
     pub tree_model_distance: f32,
     /// Sun shadow map on/off (v0.907, Settings > Planets).
     pub sun_shadows: bool,
+    /// Aerial perspective strength (v0.916): how strongly distant land and
+    /// sea fade toward sky color. 0 = off, 1 = earthlike.
+    pub aerial_strength: f32,
     /// Crepuscular god-ray shaft intensity (0 = off).
     pub godray_intensity: f32,
     /// Ambient-occlusion contact shading strength (0 = off).
@@ -6687,6 +6690,7 @@ impl Default for SettingsState {
             terrain_builds_per_frame: 64.0,
             tree_model_distance: 0.0,
             sun_shadows: true,
+            aerial_strength: 1.0,
             godray_intensity: 0.55,
             ssao_strength: 0.55,
             planet_max_subdiv: 6.0,
