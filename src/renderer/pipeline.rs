@@ -281,6 +281,63 @@ impl Pipeline {
             push_constant_ranges: &[],
         });
 
+        let (render_pipeline, transparent_pipeline, overlay_pipeline, shadow_pipeline) =
+            Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
+
+        Self {
+            render_pipeline,
+            shadow_pipeline,
+            transparent_pipeline,
+            overlay_pipeline,
+            camera_bind_group_layout,
+            object_bind_group_layout,
+            material_bind_group_layout,
+            texture_bind_group_layout,
+        }
+    }
+
+    /// Rebuild the four PSOs from a NEW shader module while keeping every
+    /// bind group layout object intact (v0.924 megashader hot-reload): the
+    /// layouts are what live bind groups reference, so swapping only the
+    /// pipelines means nothing else in the renderer needs recreating.
+    /// Costs a few seconds of PSO compile - trivial next to the 3+ minute
+    /// rebuild-and-reboot it replaces.
+    pub fn recreate_pipelines(
+        &mut self,
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+    ) {
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("PBR-lite Pipeline Layout (hot-reload)"),
+            bind_group_layouts: &[
+                &self.camera_bind_group_layout,
+                &self.object_bind_group_layout,
+                &self.material_bind_group_layout,
+                &self.texture_bind_group_layout,
+            ],
+            push_constant_ranges: &[],
+        });
+        let (render, transparent, overlay, shadow) =
+            Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
+        self.render_pipeline = render;
+        self.transparent_pipeline = transparent;
+        self.overlay_pipeline = overlay;
+        self.shadow_pipeline = shadow;
+    }
+
+    /// The four PSO compiles shared by `new` and `recreate_pipelines`.
+    fn build_pipeline_set(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+        pipeline_layout: &wgpu::PipelineLayout,
+    ) -> (
+        wgpu::RenderPipeline,
+        wgpu::RenderPipeline,
+        wgpu::RenderPipeline,
+        wgpu::RenderPipeline,
+    ) {
         // ── Parallel PBR pipeline compile (boot-speed, 2026-07-12) ──
         // The three PBR variants (opaque / transparent glass / editor overlay)
         // each bake the WHOLE pbr_simple.wgsl fragment into a backend PSO, which
@@ -300,7 +357,7 @@ impl Pipeline {
          -> wgpu::RenderPipeline {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
-                layout: Some(&pipeline_layout),
+                layout: Some(pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: shader,
                     entry_point: Some("vs_main"),
@@ -388,7 +445,7 @@ impl Pipeline {
         // z (the light ortho maps near->0), unlike the reverse-Z main passes.
         let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Sun Shadow Pipeline"),
-            layout: Some(&pipeline_layout),
+            layout: Some(pipeline_layout),
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some("vs_main"),
@@ -412,15 +469,6 @@ impl Pipeline {
             cache: None,
         });
 
-        Self {
-            render_pipeline,
-            shadow_pipeline,
-            transparent_pipeline,
-            overlay_pipeline,
-            camera_bind_group_layout,
-            object_bind_group_layout,
-            material_bind_group_layout,
-            texture_bind_group_layout,
-        }
+        (render_pipeline, transparent_pipeline, overlay_pipeline, shadow_pipeline)
     }
 }

@@ -20,6 +20,62 @@ pub struct ShaderLoader {
     change_rx: std::sync::mpsc::Receiver<PathBuf>,
 }
 
+/// Full naga validation of WGSL source WITHOUT touching the GPU (v0.924
+/// megashader hot-reload): parse, validate, and pin the two entry points.
+/// Used as the gate before a hot-reloaded shader is allowed anywhere near
+/// pipeline creation - a mid-edit save must produce a log line, never a
+/// crash. Same checks the `embedded_pbr_shader_parses_and_validates` test
+/// enforces at build time.
+pub fn validate_wgsl(source: &str) -> Result<(), String> {
+    let module = wgpu::naga::front::wgsl::parse_str(source)
+        .map_err(|e| format!("parse error: {e}"))?;
+    let mut validator = wgpu::naga::valid::Validator::new(
+        wgpu::naga::valid::ValidationFlags::all(),
+        wgpu::naga::valid::Capabilities::all(),
+    );
+    validator
+        .validate(&module)
+        .map_err(|e| format!("validation error: {e:?}"))?;
+    let entries: Vec<&str> = module.entry_points.iter().map(|e| e.name.as_str()).collect();
+    if !entries.contains(&"vs_main") || !entries.contains(&"fs_main") {
+        return Err(format!(
+            "entry points missing (an attribute may have orphaned onto a const): {entries:?}"
+        ));
+    }
+    Ok(())
+}
+
+/// Locate assets/shaders/ beside the exe or up the parent chain (the same
+/// walk ground_textures uses for its asset dir), falling back to the CWD.
+/// None = stripped install with no shader sources: hot-reload simply stays
+/// off and the embedded shader rules, exactly as before v0.924.
+#[cfg(feature = "native")]
+pub fn find_shaders_dir() -> Option<std::path::PathBuf> {
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            candidates.push(exe_dir.to_path_buf());
+            let mut dir = exe_dir.to_path_buf();
+            for _ in 0..6 {
+                match dir.parent() {
+                    Some(p) => {
+                        candidates.push(p.to_path_buf());
+                        dir = p.to_path_buf();
+                    }
+                    None => break,
+                }
+            }
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd);
+    }
+    candidates
+        .into_iter()
+        .map(|c| c.join("assets").join("shaders"))
+        .find(|p| p.is_dir())
+}
+
 impl ShaderLoader {
     pub fn new() -> Self {
         #[cfg(feature = "native")]
@@ -131,23 +187,23 @@ mod tests {
     /// alongside the planet-surface material types (12/13).
     #[test]
     fn embedded_pbr_shader_parses_and_validates() {
-        let module = wgpu::naga::front::wgsl::parse_str(super::FALLBACK_SHADER)
-            .expect("pbr_simple.wgsl failed to parse");
-        let mut validator = wgpu::naga::valid::Validator::new(
-            wgpu::naga::valid::ValidationFlags::all(),
-            wgpu::naga::valid::Capabilities::all(),
-        );
-        validator
-            .validate(&module)
-            .expect("pbr_simple.wgsl failed naga validation");
         // Entry points must EXIST by name (v0.876 lesson): naga silently
         // accepts an @vertex/@fragment attribute orphaned onto a const by an
         // insertion between the attribute and its fn -- the module then
         // validates fine but has no entry point, and every pipeline dies at
-        // FIRST BOOT with "Unable to find entry point". Pin both names.
-        let entries: Vec<&str> =
-            module.entry_points.iter().map(|e| e.name.as_str()).collect();
-        assert!(entries.contains(&"vs_main"), "vs_main entry point missing: {entries:?}");
-        assert!(entries.contains(&"fs_main"), "fs_main entry point missing: {entries:?}");
+        // FIRST BOOT with "Unable to find entry point". validate_wgsl (the
+        // hot-reload gate, v0.924) carries all three checks now - this test
+        // pins the EMBEDDED shader through the same gate.
+        if let Err(e) = super::validate_wgsl(super::FALLBACK_SHADER) {
+            panic!("pbr_simple.wgsl failed validation: {e}");
+        }
+    }
+
+    #[test]
+    fn validate_wgsl_rejects_broken_and_entryless_sources() {
+        // Parse error.
+        assert!(super::validate_wgsl("fn nope( {").is_err());
+        // Valid WGSL but no vs_main/fs_main entry points.
+        assert!(super::validate_wgsl("fn helper() -> f32 { return 1.0; }").is_err());
     }
 }

@@ -18884,6 +18884,11 @@ mod native_app {
                     // co-presence tests. Runs immediately BEFORE the auto-connect
                     // block so a dropped request is honored the same frame.
                     poll_autopilot_request(state);
+                    // Megashader hot-reload poll (v0.924 dev-aid): lives with
+                    // the other unconditional per-frame polls - effectively
+                    // free when idle (one try_recv); a saved shader edit
+                    // swaps the PSOs in seconds with world state intact.
+                    state.renderer.poll_shader_reload();
 
                     // Dev camera request (v0.813): the file-request sibling of the
                     // Dev page's Travel tool, for scripted visual verification --

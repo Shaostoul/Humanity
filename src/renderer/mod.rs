@@ -110,6 +110,13 @@ pub struct Renderer {
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
     pipeline: Pipeline,
+    /// Megashader hot-reload state (v0.924): (path, last seen mtime) of the
+    /// on-disk pbr_simple.wgsl; None in stripped installs (feature dormant).
+    #[cfg(feature = "native")]
+    shader_hot: Option<(std::path::PathBuf, std::time::SystemTime)>,
+    /// Throttle for the mtime poll (one metadata read per second).
+    #[cfg(feature = "native")]
+    shader_hot_checked: std::time::Instant,
     /// World-space thin-line pipeline (orbit paths). Shares the main
     /// camera bind group; reverse-Z depth-test, no depth-write.
     line_pipeline: wgpu::RenderPipeline,
@@ -429,9 +436,25 @@ impl Renderer {
         let godray_pass = godrays::GodrayPass::new(&device, surface_format);
         let ssao_pass = ssao::SsaoPass::new(&device, surface_format);
 
-        // Shader + pipeline
+        // Shader + pipeline. The megashader compiles from the EMBEDDED
+        // source; when assets/shaders/pbr_simple.wgsl exists on disk (dev
+        // checkout, portable rig) hot-reload arms (v0.924): saving the file
+        // revalidates + rebuilds the PSOs in seconds instead of a full
+        // rebuild-and-reboot. Detection is a once-per-second MTIME poll,
+        // not a filesystem watcher - the notify backend silently delivered
+        // ZERO events through the rig's NTFS junction (probe-proven, both
+        // on the junction path and the canonicalized real path), and one
+        // metadata read per second is free and works through every alias
+        // and editor write strategy. See poll_shader_reload.
         let shader_loader = shader_loader::ShaderLoader::new();
         let shader = shader_loader.load_embedded_pbr(&device);
+        #[cfg(feature = "native")]
+        let shader_hot = shader_loader::find_shaders_dir().and_then(|dir| {
+            let path = dir.join("pbr_simple.wgsl");
+            let mtime = std::fs::metadata(&path).ok()?.modified().ok()?;
+            log::info!("[HotReload] armed: polling mtime of {path:?}");
+            Some((path, mtime))
+        });
         let pipeline = Pipeline::new(&device, surface_format, &shader);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
@@ -821,6 +844,10 @@ impl Renderer {
             depth_texture,
             depth_view,
             pipeline,
+            #[cfg(feature = "native")]
+            shader_hot,
+            #[cfg(feature = "native")]
+            shader_hot_checked: std::time::Instant::now(),
             line_pipeline,
             camera_buffer,
             camera_bind_group,
@@ -915,6 +942,58 @@ impl Renderer {
     /// Surface texture format (needed by egui-wgpu renderer).
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         self.config.format
+    }
+
+    /// Megashader hot-reload (v0.924, dev-aid): when pbr_simple.wgsl
+    /// changes on disk, VALIDATE the new source with naga first (a mid-edit
+    /// save logs and keeps the old pipelines - never crashes), then rebuild
+    /// the four PSOs in place. Bind group layouts are reused, so every live
+    /// bind group stays valid and the running world is untouched. Turns the
+    /// shader iteration loop from a 3+ minute rebuild-and-reboot into a
+    /// few-second recompile with full world state intact. Call once per
+    /// frame; try_recv makes the idle cost effectively zero.
+    #[cfg(feature = "native")]
+    pub fn poll_shader_reload(&mut self) {
+        if self.shader_hot_checked.elapsed().as_secs_f32() < 1.0 {
+            return;
+        }
+        self.shader_hot_checked = std::time::Instant::now();
+        let Some((path, last_mtime)) = self.shader_hot.as_mut() else {
+            return;
+        };
+        let Some(mtime) = std::fs::metadata(&*path).ok().and_then(|m| m.modified().ok())
+        else {
+            return;
+        };
+        if mtime == *last_mtime {
+            return;
+        }
+        *last_mtime = mtime;
+        let path = path.clone();
+        let source = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("[HotReload] read {path:?} failed: {e}");
+                return;
+            }
+        };
+        if let Err(e) = shader_loader::validate_wgsl(&source) {
+            log::error!("[HotReload] pbr_simple.wgsl REJECTED (old pipelines kept): {e}");
+            return;
+        }
+        let t0 = std::time::Instant::now();
+        let module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("pbr_simple.wgsl (hot-reload)"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+        let format = self.config.format;
+        self.pipeline.recreate_pipelines(&self.device, format, &module);
+        log::info!(
+            "[HotReload] pbr_simple.wgsl recompiled + 4 PSOs rebuilt in {:.1}s",
+            t0.elapsed().as_secs_f32()
+        );
     }
 
     /// Current surface dimensions.

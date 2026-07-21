@@ -171,3 +171,28 @@ construction-material family. When in doubt whether to extend pbr_simple or
 add a pipeline: a new SURFACE look is a material type; a new PASS (post
 effect, different vertex format) is a new pipeline in
 `src/renderer/`.
+
+## Hot-reload (v0.924): edit the megashader LIVE, no rebuild
+
+Saving `assets/shaders/pbr_simple.wgsl` while HumanityOS is running
+revalidates the source with naga and rebuilds the four PSOs in place -
+the running world (position, saves, streamed terrain) is untouched. This
+replaces the 3+ minute rebuild-and-reboot loop for shader iteration.
+
+- Detection is a once-per-second MTIME poll (`Renderer::poll_shader_reload`),
+  NOT a filesystem watcher: the notify backend delivered zero events
+  through the portable rig's NTFS junction (probe-proven on both the
+  junction path and the canonicalized real path). One metadata read per
+  second is free and works through every alias and editor write strategy.
+- A broken mid-edit save is REJECTED with a `[HotReload] ... REJECTED` log
+  line and the old pipelines stay - the app never crashes on a bad save.
+  Fix the file and save again.
+- Rebuild cost is the PSO compile: ~5 s with DXC (`dxcompiler.dll` +
+  `dxil.dll` beside the exe), ~30 s on the FXC fallback. The frame thread
+  blocks for that time (acceptable for a dev loop; async swap is a noted
+  follow-up). Watch for `[HotReload] ... recompiled + 4 PSOs rebuilt`.
+- Scope: `pbr_simple.wgsl` only (the shader that changes daily). The small
+  single-purpose shaders still need a rebuild.
+- The probe rig gets hot-reload automatically (its `assets/` junction
+  resolves to the repo checkout). Keep the DXC DLLs in the rig folder or
+  reloads take the slow path.
