@@ -924,6 +924,21 @@ const ATMO_FAR_R: f32 = 2.5;
 // approved from-orbit limb + 12,000 km disc stay bit-identical. Mirror + tests:
 // renderer::atmosphere::near_haze_scale.
 const ATMO_NEAR_HAZE: f32 = 0.45;
+// Ground-level sky-dome tier (v0.918, exposure calibration / research item 4):
+// miss-the-planet rays from a camera INSIDE the shell used to ride the full
+// space-calibrated ATMO_EXPOSURE and ACES-clipped a broad band of the dome to
+// white (the operator's washed sky). The dome tier ramps back to ATMO_EXPOSURE
+// as the camera climbs out of the shell (w_alt in atmosphere_scattering), so
+// the 400 km limb glow and every from-orbit look stay bit-identical.
+// Mirror + tests: renderer::atmosphere::EXPOSURE_DOME.
+const ATMO_EXPOSURE_DOME: f32 = 1.7;
+// Isotropic multiple-scatter bounce (v0.918): single scattering alone leaves
+// the dimmer dome starved where the phase functions de-weight it (zenith away
+// from the sun). One extra-bounce term with a flat phase rides the SAME
+// per-channel path integral, restoring that energy without re-brightening the
+// forward lobe. Gated by the same weight that lowers the dome, so it is
+// exactly zero wherever the exposure is unchanged.
+const ATMO_MS_ISO: f32 = 0.07;
 
 // Scaled complementary error function erfcx(z) = exp(z^2) * erfc(z) for
 // z >= 0, the kernel of the Chapman function below. Two branches, both
@@ -1084,29 +1099,44 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // Phase evaluation: cos of the angle between view ray and sun direction;
     // +1 = looking straight at the sun (forward scattering).
     let cos_theta = dot(rd, sun);
-    // Exposure blend (see the ATMO_EXPOSURE_NEAR comment): surface-terminated
-    // rays from a close camera get the calm exposure; limb rays and far
-    // cameras keep the full one. A ray hits the planet iff it runs forward
-    // (tca > 0) with impact parameter below rp -- for a camera above the
-    // surface, b rises through rp BEFORE tca changes sign as the ray tilts
-    // from down to up, so the tca gate never introduces a visible seam and
-    // the ground-level SKY (upward rays: tca <= 0 or b >= rp) keeps today's
-    // approved full-exposure look untouched.
+    // A ray hits the planet iff it runs forward (tca > 0) with impact
+    // parameter below rp -- for a camera above the surface, b rises through
+    // rp BEFORE tca changes sign as the ray tilts from down to up, so the
+    // hit gate never introduces a visible seam.
     let b_impact = sqrt(d2);
-    var w_limb = 1.0;
+    let cam_r = length(ro);
+    let w_far = smoothstep(ATMO_NEAR_R, ATMO_FAR_R, cam_r);
+    // v0.918 three-tier rework (see ATMO_EXPOSURE_DOME): the SKY tier is the
+    // dome exposure at ground level, ramping back to full as the camera
+    // climbs out of the shell (w_alt) or recedes (w_far). Surface-hitting
+    // rays keep the calm v0.815 near exposure in the disc interior and blend
+    // toward the SKY tier across the limb band, so the horizon seam stays
+    // continuous. Grazing rays (b_impact ~ rp: horizon water/coast from
+    // ground level) used to land in that band at FULL space-calibrated
+    // exposure -- the white veil the operator saw on grazing-angle water.
+    let w_alt = smoothstep(rp, 1.0, cam_r);
+    let sky_base = mix(ATMO_EXPOSURE_DOME, ATMO_EXPOSURE, max(w_alt, w_far));
+    var base = sky_base;
+    var edge_surf = 0.0;
     if (tca > 0.0 && b_impact < rp) {
-        w_limb = smoothstep(rp - (1.0 - rp) * 0.5, rp, b_impact);
+        let w_edge = smoothstep(rp - (1.0 - rp) * 0.5, rp, b_impact);
+        base = mix(ATMO_EXPOSURE_NEAR, sky_base, w_edge);
+        edge_surf = clamp(1.0 - max(w_edge, w_far), 0.0, 1.0);
     }
-    let w_far = smoothstep(ATMO_NEAR_R, ATMO_FAR_R, length(ro));
-    let exposure = mix(ATMO_EXPOSURE_NEAR, ATMO_EXPOSURE, max(w_limb, w_far));
+    let exposure = mix(base, ATMO_EXPOSURE, w_far);
     // Low-altitude aerial-perspective trim: the same near-surface weight the
     // exposure blend uses drives the haze-alpha scale (1.0 for limb/sky/far).
-    let near_surf = clamp(1.0 - max(w_limb, w_far), 0.0, 1.0);
+    let near_surf = edge_surf;
     let haze_scale = mix(1.0, ATMO_NEAR_HAZE, near_surf);
     let sun_radiance = camera.sun_color.rgb * camera.sun_direction.w * exposure;
+    // Isotropic multiple-scatter bounce (see ATMO_MS_ISO): gated by the same
+    // weight that lowers the dome, so every unchanged-exposure view (400 km
+    // limb, 12,000 km blue marble) stays bit-identical.
+    let ms_gate = ATMO_MS_ISO * (1.0 - max(w_alt, w_far));
     let radiance = sun_radiance
         * (beta_ray * atmo_rayleigh_phase(cos_theta)
-            + vec3<f32>(beta_mie) * atmo_mie_phase(cos_theta))
+            + vec3<f32>(beta_mie) * atmo_mie_phase(cos_theta)
+            + (beta_ray + vec3<f32>(beta_mie)) * ms_gate)
         * inscatter;
 
     // Per-channel transmittance of whatever sits behind this pixel,
@@ -1154,7 +1184,11 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     let sun_l = normalize(camera.sun_direction.xyz);
     let day = smoothstep(-0.08, 0.12, dot(normalize(ro), sun_l));
     let toward_sun = smoothstep(0.9986, 0.9997, dot(rd, sun_l));
-    var alpha_occ = max(alpha, max(clamp(sky_lum * 3.2, 0.0, 1.0), day * 0.985));
+    // 4.5 (was 3.2 pre-v0.918): the calibrated dome is dimmer, so the
+    // luminance-driven twilight occlusion needs a stronger gain to keep
+    // stars hidden through civil dusk. Daytime is owned by the `day` term
+    // (0.985 dominates) and night sky_lum ~ 0, so only twilight shifts.
+    var alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
     alpha_occ = mix(alpha_occ, alpha, toward_sun);
     // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
     // the radiance back out of the alpha so exactly `mapped` lands on

@@ -82,6 +82,21 @@ pub const FAR_R: f32 = 2.5;
 /// camera, so the from-orbit look is bit-identical.
 pub const NEAR_HAZE: f32 = 0.45;
 
+/// Mirrors `ATMO_EXPOSURE_DOME` (v0.918 exposure calibration): the ground-
+/// level SKY tier. Miss-the-planet rays from a camera inside the shell used
+/// to ride the full space-calibrated `EXPOSURE` and ACES-clipped a broad
+/// band of the dome to white (the washed sky). They now use this calmer
+/// tier, ramping back to `EXPOSURE` as the camera climbs out of the shell,
+/// so the 400 km limb glow and every from-orbit look stay bit-identical.
+pub const EXPOSURE_DOME: f32 = 1.7;
+
+/// Mirrors `ATMO_MS_ISO` (v0.918): isotropic multiple-scatter bounce weight.
+/// Restores the energy the dimmer dome loses where the phase functions
+/// de-weight it (zenith away from the sun); gated in the shader by the same
+/// weight that lowers the dome, so it is exactly zero wherever the exposure
+/// is unchanged.
+pub const MS_ISO: f32 = 0.07;
+
 /// Mirrors WGSL `smoothstep(e0, e1, x)`.
 fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
@@ -89,9 +104,13 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
 }
 
 /// Mirrors the per-fragment exposure blend in `atmosphere_scattering`
-/// (v0.815): full exposure for limb rays (miss the planet, or graze within
-/// half a shell thickness of it) and for far cameras; the calm near exposure
-/// only for surface-terminated rays seen up close.
+/// (v0.918 three tiers): SKY rays (miss the planet) use `EXPOSURE_DOME` at
+/// ground level, ramping to the full `EXPOSURE` as the camera climbs out of
+/// the shell or recedes past `FAR_R`. Surface-hitting rays keep the calm
+/// v0.815 `EXPOSURE_NEAR` in the disc interior and blend toward the SKY tier
+/// across the limb band, so the horizon seam is continuous -- grazing rays
+/// (impact_b ~ rp: horizon water/coast) no longer land on the full
+/// space-calibrated exposure (the white veil on grazing-angle water).
 ///
 /// * `cam_r` -- camera distance from the planet center, shell radii.
 /// * `tca` -- ray parameter of the closest approach to the center (negative
@@ -101,25 +120,29 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
 ///
 /// A ray hits the planet iff `tca > 0 && impact_b < rp`. For a camera above
 /// the surface, `impact_b` rises through `rp` BEFORE `tca` changes sign as
-/// the ray tilts from down to up, so the `tca` gate introduces no seam and
-/// ground-level SKY rays always keep the full exposure.
+/// the ray tilts from down to up, so the `tca` gate introduces no seam.
 pub fn atmo_exposure(cam_r: f32, tca: f32, impact_b: f32, rp: f32) -> f32 {
-    let mut w_limb = 1.0;
-    if tca > 0.0 && impact_b < rp {
-        w_limb = smoothstep(rp - (1.0 - rp) * 0.5, rp, impact_b);
-    }
     let w_far = smoothstep(NEAR_R, FAR_R, cam_r);
-    EXPOSURE_NEAR + (EXPOSURE - EXPOSURE_NEAR) * w_limb.max(w_far)
+    let w_alt = smoothstep(rp, 1.0, cam_r);
+    let sky_base = EXPOSURE_DOME + (EXPOSURE - EXPOSURE_DOME) * w_alt.max(w_far);
+    let mut base = sky_base;
+    if tca > 0.0 && impact_b < rp {
+        let w_edge = smoothstep(rp - (1.0 - rp) * 0.5, rp, impact_b);
+        base = EXPOSURE_NEAR + (sky_base - EXPOSURE_NEAR) * w_edge;
+    }
+    base + (EXPOSURE - base) * w_far
 }
 
 /// Mirrors the v0.826 haze-alpha scale: the returned atmosphere alpha is
 /// multiplied by this so the milky low-altitude wash over the surface thins.
-/// Driven by the SAME `near_surf = 1 - max(w_limb, w_far)` weight the exposure
-/// blend uses, so it is exactly 1.0 for limb rays, ground-level sky, and any
-/// far camera (near_surf = 0) -- the from-orbit look is untouched -- and dips
-/// toward `NEAR_HAZE` for a near camera's surface-terminated rays.
-pub fn near_haze_scale(w_limb: f32, w_far: f32) -> f32 {
-    let near_surf = (1.0 - w_limb.max(w_far)).clamp(0.0, 1.0);
+/// As of v0.918 it applies ONLY to surface-hitting rays (the shader's
+/// `edge_surf` is zero for sky rays, so miss rays always keep full haze);
+/// the first argument is the limb-band edge weight for a hitting ray. It is
+/// 1.0 at the limb band's edge and for any far camera -- the from-orbit look
+/// is untouched -- and dips toward `NEAR_HAZE` for a near camera's
+/// disc-interior surface rays.
+pub fn near_haze_scale(w_edge: f32, w_far: f32) -> f32 {
+    let near_surf = (1.0 - w_edge.max(w_far)).clamp(0.0, 1.0);
     1.0 + (NEAR_HAZE - 1.0) * near_surf
 }
 /// Earth's density scale height as a fraction of its radius (8.5 km over
@@ -431,16 +454,34 @@ mod tests {
         for b in [0.0_f32, 0.4, RP - 0.01, RP + 0.005, 0.999] {
             assert_eq!(atmo_exposure(2.88, 1.0, b, RP), EXPOSURE);
         }
-        // Near camera (400 km is ~1.03 shell radii): disc-interior rays get
-        // the calm exposure, rays past the limb keep the full one.
+        // Near camera (400 km is ~1.03 shell radii, ABOVE the shell top at
+        // 1.0): disc-interior rays get the calm exposure, rays past the limb
+        // keep the full one -- the low-orbit limb glow is untouched by the
+        // v0.918 dome tier because w_alt is already 1 there.
         assert_eq!(atmo_exposure(1.03, 1.0, 0.5, RP), EXPOSURE_NEAR);
         assert_eq!(atmo_exposure(1.03, 1.0, RP + 0.001, RP), EXPOSURE);
-        // Ground-level sky: upward rays (tca <= 0) never hit the planet and
-        // must keep today's full-exposure sky even though impact_b is tiny.
-        assert_eq!(atmo_exposure(0.972, -0.5, 0.0, RP), EXPOSURE);
-        // Horizon from low altitude: b ~ cam_r >= rp -> full exposure, so
-        // the layered horizon gradient survives the tune.
-        assert_eq!(atmo_exposure(0.9724, 1.0e-3, 0.9724, RP), EXPOSURE);
+        // Ground-level sky (v0.918): upward rays from inside the shell ride
+        // the calmer dome tier -- the full space-calibrated exposure used to
+        // ACES-clip a broad band of the dome to white. (Camera exactly at
+        // the surface: w_alt = 0.)
+        assert_eq!(atmo_exposure(RP, -0.5, 0.0, RP), EXPOSURE_DOME);
+        // The dome tier returns to full strength by the shell top, so the
+        // from-orbit sky (and the 400 km limb) never changes.
+        assert_eq!(atmo_exposure(1.0, -0.5, 0.0, RP), EXPOSURE);
+        // Grazing surface ray from ground level (b just under rp: horizon
+        // water/coast): used to land in the limb band at FULL exposure --
+        // the white veil on grazing-angle water. Now it meets the adjacent
+        // sky value instead.
+        let graze = atmo_exposure(0.9725, 1.0e-3, RP - 1.0e-4, RP);
+        assert!(graze < 2.0, "grazing veil back at full exposure: {graze}");
+        // Horizon seam continuity: the grazing hit ray and the sky ray right
+        // next to it must agree, or a ring appears at the horizon line.
+        let sky = atmo_exposure(0.9725, -0.5, 0.0, RP);
+        let seam = atmo_exposure(0.9725, 1.0e-3, RP - 1.0e-6, RP);
+        assert!(
+            (sky - seam).abs() < 1.0e-2,
+            "horizon seam: sky {sky} vs graze {seam}"
+        );
     }
 
     #[test]
@@ -483,11 +524,9 @@ mod tests {
         // on any ray, limb or disc -- the approved from-orbit look is untouched.
         assert_eq!(near_haze_scale(0.0, 1.0), 1.0);
         assert_eq!(near_haze_scale(1.0, 1.0), 1.0);
-        // Limb ray from a near camera (w_limb = 1): untouched, so the blue limb
-        // glow and the ground-level horizon gradient never change.
-        assert_eq!(near_haze_scale(1.0, 0.0), 1.0);
-        // Ground-level upward sky rides w_limb = 1 too (see atmo_exposure):
-        // full haze, still blue.
+        // A hitting ray at the limb band's edge (w_edge = 1): untouched, so
+        // the horizon gradient never changes. (Sky/miss rays never reach
+        // this fn as of v0.918 -- the shader's edge_surf is 0 for them.)
         assert_eq!(near_haze_scale(1.0, 0.0), 1.0);
         // A near camera's surface-interior ray (both weights 0): full trim.
         assert_eq!(near_haze_scale(0.0, 0.0), NEAR_HAZE);
@@ -498,7 +537,7 @@ mod tests {
             let w = i as f32 / 100.0;
             let k = near_haze_scale(w, 0.0);
             assert!((NEAR_HAZE..=1.0).contains(&k), "haze scale out of band: {k}");
-            assert!(k >= prev - 1e-6, "haze scale not monotone at w_limb {w}");
+            assert!(k >= prev - 1e-6, "haze scale not monotone at w_edge {w}");
             prev = k;
         }
         assert_eq!(prev, 1.0, "haze trim must vanish at the limb");
@@ -517,6 +556,8 @@ mod tests {
             ("ATMO_MIE_G", MIE_G),
             ("ATMO_EXPOSURE", EXPOSURE),
             ("ATMO_EXPOSURE_NEAR", EXPOSURE_NEAR),
+            ("ATMO_EXPOSURE_DOME", EXPOSURE_DOME),
+            ("ATMO_MS_ISO", MS_ISO),
             ("ATMO_NEAR_R", NEAR_R),
             ("ATMO_FAR_R", FAR_R),
             ("ATMO_NEAR_HAZE", NEAR_HAZE),

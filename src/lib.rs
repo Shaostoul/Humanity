@@ -16287,7 +16287,10 @@ mod native_app {
                                         // atmosphere (per-fragment noise does the
                                         // detail work; only the silhouette is mesh).
                                         // Level 5 (20,480 tris - still trivial): at level 3 the big flat facets crease the per-pixel scattering/cloud math into faint straight seams across the disc (2026-07-11 field report).
-                                        let shell_level = 5.min(max_level);
+                                        // FIXED level like the atmosphere shell below (v0.918): capping
+                                        // by planet_max_subdiv sank the shell inside the planet at low
+                                        // settings (see the atmosphere shell comment).
+                                        let shell_level = 5;
                                         let skey = ("_flat".to_string(), shell_level);
                                         let cloud_mesh = if let Some(&m) =
                                             state.planet_mesh_cache.get(&skey)
@@ -16376,7 +16379,15 @@ mod native_app {
                                             // Smooth shell: the shared flat
                                             // sphere cache at a fixed mid level.
                                             // Level 5 (20,480 tris - still trivial): at level 3 the big flat facets crease the per-pixel scattering/cloud math into faint straight seams across the disc (2026-07-11 field report).
-                                        let shell_level = 5.min(max_level);
+                                            // FIXED level, deliberately NOT capped by planet_max_subdiv
+                                            // (v0.918): an icosphere below level ~3 has its face planes
+                                            // INSIDE the planet surface (level-0 inradius is 0.79R vs the
+                                            // 0.97R ground), so a low "planet detail" setting silently
+                                            // swallowed the whole sky dome underground - no sky, stars at
+                                            // noon (probe rig, 2026-07-21). The cap exists for the HEAVY
+                                            // body meshes (levels 8-9, hundreds of MB); the shell's 20k
+                                            // tris cost nothing on any GPU.
+                                        let shell_level = 5;
                                             let skey = ("_flat".to_string(), shell_level);
                                             let shell_mesh = if let Some(&m) =
                                                 state.planet_mesh_cache.get(&skey)

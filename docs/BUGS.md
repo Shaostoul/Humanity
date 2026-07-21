@@ -289,6 +289,14 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
   1. `.github/workflows/build-desktop.yml` now also publishes the raw binary (`HumanityOS-windows-x64.exe`, `HumanityOS-linux-x64`, `HumanityOS-macos-arm64`, `HumanityOS-macos-x64`) alongside the existing `.tar.gz` bundle. Bundles still ship for fresh installs that need the data/assets too.
   2. `src/updater.rs::find_platform_asset` now prefers a raw binary asset and **refuses** archive-only releases instead of silently corrupting the install. Pre-v0.124.0 releases will surface "No binary for this platform", operators must wait for the next tag (which will ship with raw binaries).
 
+### BUG-047: Sky dome vanished (stars at noon) when the planet-detail cap was set low
+- **Status**: Fixed
+- **Version Found**: v0.913.1 era (latent since the shells were added; surfaced 2026-07-21 in the probe rig)
+- **Version Fixed**: v0.918.0
+- **Description**: The atmosphere and cloud shell meshes were built at `5.min(planet_max_subdiv)` icosphere subdivisions, sharing the cap that exists to bound the heavy planet-body meshes (levels 8-9, hundreds of MB). An icosphere below level ~3 has its face planes well inside the sphere (a level-0 icosahedron's inradius is 0.79R against the 0.97R planet surface), so with Settings > Planet detail at 0-2 the entire sky shell sat underground: no daytime sky, full starfield at noon, no limb glow from orbit, no disc haze. Every graphics version of the exe showed it identically because the trigger was the CONFIG value, not code drift - which made it masquerade as a renderer regression during bisection.
+- **Fix**: Both shell meshes use a fixed level 5 (20,480 tris - trivial on any GPU), independent of `planet_max_subdiv` ([lib.rs](../src/lib.rs), the two `let shell_level = 5;` sites). The cap still bounds the body meshes it was written for.
+- **Lesson**: The probe rig's `config.json` accumulates experiment state across sessions. Before attributing a visual bug to code, dump the rig's graphics toggles against `src/config.rs` defaults (`planet_max_subdiv` 6, `planet_lod_px` 10, `planet_clouds` true) - a five-minute check that would have saved an hour of exe bisection.
+
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues
