@@ -1897,6 +1897,7 @@ pub fn water_band(radius_m: f64) -> RadialBand {
 pub fn build_water_patch_mesh(
     def: &PlanetDef,
     ocean: &super::ocean_mask::OceanMask,
+    hm: Option<&PlanetHeightmap>,
     id: &PatchId,
 ) -> Option<PatchMesh> {
     let n = PATCH_TESS;
@@ -1933,10 +1934,24 @@ pub fn build_water_patch_mesh(
     let skirt_tris = (3 * n * 2) as usize;
     let mut vertices: Vec<SurfaceVertexData> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
     let mut indices: Vec<u32> = Vec::with_capacity((grid_tris + skirt_tris) * 3);
-    // Color is unused by the type-16 shader (it derives everything from the
-    // planet-local frame), but keep the def's water color so any debug view
-    // of the raw mesh reads sensibly.
-    let color = [def.water_color[0], def.water_color[1], def.water_color[2]];
+    // Per-vertex WATER DEPTH baked into the color transport (v0.917,
+    // shoreline increment): the builder already knows the seafloor from
+    // the heightmap, so the shader gets a smooth interpolated depth field
+    // with zero runtime cost - no depth-texture pass needed. Encoding:
+    // color r/g carry depth in decimetres as (hi, lo) bytes; the packed
+    // UV then equals water_bit + depth_dm, and LINEAR interpolation of
+    // that scalar across a triangle IS linear depth interpolation.
+    // Without a heightmap every vertex reads 30 m (open-deep default).
+    let depth_color = |dir: DVec3| -> [f32; 3] {
+        // sample_meters is real elevation relative to sea level, so depth
+        // below the surface is simply its negation.
+        let depth_m = hm
+            .map(|h| (-h.sample_meters(dir.as_vec3())).max(0.0))
+            .unwrap_or(300.0);
+        let dm = (depth_m * 10.0).clamp(0.0, 65535.0) as u32;
+        [((dm >> 8) & 255) as f32 / 255.0, (dm & 255) as f32 / 255.0, 0.0]
+    };
+    let depth_colors: Vec<[f32; 3]> = dirs.iter().map(|d| depth_color(*d)).collect();
     let mut emit_face = |ia: usize, ib: usize, ic: usize,
                          vertices: &mut Vec<SurfaceVertexData>,
                          indices: &mut Vec<u32>| {
@@ -1945,9 +1960,9 @@ pub fn build_water_patch_mesh(
             vertices.push(SurfaceVertexData {
                 position: offsets[i].to_array(),
                 normal: dirs[i].as_vec3().to_array(),
-                color,
+                color: depth_colors[i],
                 water: true,
-                        tree_card: false,
+                tree_card: false,
             });
         }
     };
@@ -2451,7 +2466,7 @@ mod tests {
         let def = earth_like();
         let id = PatchId::root(3).child(2).child(1);
         // All-ocean mask: a real mesh at the exact sea radius.
-        let pm = build_water_patch_mesh(&def, &synth_mask(true), &id)
+        let pm = build_water_patch_mesh(&def, &synth_mask(true), None, &id)
             .expect("ocean patch builds");
         assert!(!pm.mesh.vertices.is_empty());
         // Every grid vertex sits ON the LIFTED sea sphere (v0.882: the
@@ -2478,7 +2493,7 @@ mod tests {
         assert!(pm.band.min_r_m <= def.radius - wave);
         // All-land mask: no geometry at all.
         assert!(
-            build_water_patch_mesh(&def, &synth_mask(false), &id).is_none(),
+            build_water_patch_mesh(&def, &synth_mask(false), None, &id).is_none(),
             "all-land patch must not build water"
         );
     }

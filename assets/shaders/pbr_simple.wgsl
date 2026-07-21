@@ -2461,9 +2461,18 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let t = camera.sun_color.w;
     let dist_frag = max(length(camera.view_pos.xyz - in.world_position), 1.0);
     let footprint = max(dist_frag * PLANET_PIXEL_ANGLE, 0.001);
+    // Per-vertex WATER DEPTH (v0.917, shoreline increment): the shell
+    // builder bakes seafloor depth (decimetres) into the packed UV, and
+    // linear interpolation of that scalar IS linear depth - a smooth
+    // shoreline gradient with no depth-texture pass.
+    let depth_m = f32(u32(round(max(in.uv.x, 0.0))) & 65535u) / 10.0;
     // Deep open-ocean body color (linear). The seabed under the shell keeps
     // the graded bathymetry albedo; this is only the water column's own hue.
     var deep = vec3<f32>(0.013, 0.055, 0.11);
+    // Shallow water is turquoise: the column is too thin to absorb the
+    // seabed's warmth, so mix toward a bright green-blue over the first
+    // ~9 m of depth.
+    deep = mix(vec3<f32>(0.075, 0.30, 0.30), deep, smoothstep(0.4, 9.0, depth_m));
     // Regional sea variation (v0.902; de-squared v0.906 - the operator saw
     // "very obvious squares"): single low-frequency value noise shows its
     // axis-aligned lattice as rectangular blotches. Three octaves at
@@ -2506,7 +2515,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Storm water body darkens toward slate (reference: storm seas read
     // dark blue-grey under the cloud deck, not bright blue).
     deep = mix(deep, vec3<f32>(0.012, 0.030, 0.048), sea_state * 0.6);
-    let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 2.3, sea_state);
+    // Waves die in the shallows (v0.917): amplitude drains over the last
+    // ~7 m of depth, so surf zones read calm-lapping instead of open-sea
+    // chop running aground.
+    let shoal = 0.2 + 0.8 * smoothstep(0.4, 7.0, depth_m);
+    let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 2.3, sea_state) * shoal;
     let presence = wave_presence(footprint);
     var n_pert = n_geo;
     var foam = 0.0;
@@ -2562,7 +2575,21 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let foam_day = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
     let foam_col = vec3<f32>(0.75, 0.81, 0.86)
         * (foam_day * camera.sun_direction.w * 0.42 + 0.015);
-    rgb = mix(rgb, foam_col, clamp(foam, 0.0, 0.35));
+    // Shoreline surf (v0.917, operator: "the water to land interface is
+    // still behaving very weird"): an animated foam band hugs the beach in
+    // the 0.2-2.2 m depth band - waves arriving, breaking, and receding.
+    // Along-shore noise breaks the band into patches; the slow depth-phased
+    // sine makes it BREATHE toward and away from the sand.
+    let surf_reach = 1.0 - smoothstep(4.0, 9.0, footprint);
+    if (surf_reach > 0.003) {
+        let band = (1.0 - smoothstep(0.25, 2.2, depth_m)) * smoothstep(0.03, 0.25, depth_m);
+        let along = surface_detail_noise(dir_r2, r_render / 40.0, 1543.0);
+        let breathe = 0.5 + 0.5 * sin(6.2831853 * (t * 0.5 - depth_m * 0.65));
+        let surf_line = band * (0.35 + 0.65 * breathe) * (0.4 + 0.6 * along)
+            * (0.55 + 0.45 * sea_state) * surf_reach;
+        foam = max(foam, surf_line);
+    }
+    rgb = mix(rgb, foam_col, clamp(foam, 0.0, 0.5));
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.
@@ -2576,7 +2603,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // v0.902: opened slightly (0.96 -> 0.93 nadir) so shallow coasts show
     // a hint of the graded seabed - real water is not paint. Still well
     // above the 0.88 that caused the v0.887 glowing-coast regression.
-    let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0);
+    // Waterline feather (v0.917): the shell fades to fully transparent
+    // over the last metre of depth, so the sea EDGE dissolves onto the
+    // sand instead of cutting a hard polygon line against the beach.
+    let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, 1.0, depth_m);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;

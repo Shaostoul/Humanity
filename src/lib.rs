@@ -15980,7 +15980,7 @@ mod native_app {
                                         // requesting them (drawing it is a
                                         // no-op triangle at the anchor).
                                         let (mesh, anchor, band, bytes) =
-                                            match chunks::build_water_patch_mesh(d, om, id) {
+                                            match chunks::build_water_patch_mesh(d, om, state.planet_heightmaps.get(&b.id), id) {
                                                 Some(pm) => (
                                                     Mesh::from_planet_surface(
                                                         &state.renderer.device,
