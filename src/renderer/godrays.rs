@@ -7,7 +7,40 @@
 //! Shader: assets/shaders/godrays.wgsl.
 
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec3};
+use glam::{DVec3, Mat4, Vec3};
+
+/// Geometric sun visibility along the camera->sun segment against one
+/// occluding sphere (v0.921, operator: "god rays are peaking around the
+/// planet and through the planet... Earth between us and the sun"). The
+/// screen-space march can only test occluders that are IN the frame - with
+/// the sun off-screen behind a planet, sky pixels read as lit and shafts
+/// leak across the night side. This is the CPU-side truth the pass scales
+/// by: 0 = sun fully behind the sphere, 1 = clear, smooth across ~3% past
+/// the limb so the fade never pops. Pure geometry, so a Moon eclipse dims
+/// the rays for free.
+pub fn segment_sphere_visibility(cam: DVec3, sun: DVec3, center: DVec3, radius: f64) -> f32 {
+    let to_sun = sun - cam;
+    let dist = to_sun.length();
+    if dist <= radius.max(1.0) {
+        return 1.0; // degenerate: camera essentially at the sun
+    }
+    let dir = to_sun / dist;
+    let oc = center - cam;
+    let tca = oc.dot(dir);
+    // Only a body BETWEEN the camera and the sun occludes; behind the
+    // camera or beyond the sun it cannot block the segment.
+    if tca <= 0.0 || tca >= dist {
+        return 1.0;
+    }
+    // Camera INSIDE the sphere (standing on a planet looking up counts -
+    // the planet center is "between" but the near hemisphere is below the
+    // horizon): the impact-parameter test below still answers correctly,
+    // because at ground level the segment grazes at b ~ cam distance from
+    // center, which exceeds radius exactly when the sun is up.
+    let b = (oc - dir * tca).length();
+    let t = ((b / radius - 1.0) / 0.03).clamp(0.0, 1.0) as f32;
+    t * t * (3.0 - 2.0 * t)
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -217,5 +250,89 @@ impl GodrayPass {
             pass.draw(0..3, 0..1);
         }
         queue.submit(std::iter::once(encoder.finish()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const R: f64 = 6_371_000.0; // Earth
+    const AU: f64 = 1.496e11;
+
+    #[test]
+    fn sun_behind_the_planet_kills_the_rays() {
+        // Camera in orbit on the night side: Earth dead-center between the
+        // camera and the sun (the operator's station screenshots).
+        let cam = DVec3::new(R + 400_000.0, 0.0, 0.0);
+        let sun = DVec3::new(-AU, 0.0, 0.0);
+        assert_eq!(segment_sphere_visibility(cam, sun, DVec3::ZERO, R), 0.0);
+    }
+
+    #[test]
+    fn clear_line_of_sight_keeps_full_rays() {
+        // Sun on the SAME side as the camera: nothing between them.
+        let cam = DVec3::new(R + 400_000.0, 0.0, 0.0);
+        let sun = DVec3::new(AU, 0.0, 0.0);
+        assert_eq!(segment_sphere_visibility(cam, sun, DVec3::ZERO, R), 1.0);
+        // Body far off to the side of the segment: clear.
+        let side = DVec3::new(0.0, 50.0 * R, 0.0);
+        assert_eq!(segment_sphere_visibility(cam, sun, side, R), 1.0);
+    }
+
+    #[test]
+    fn limb_grazing_fades_smoothly_instead_of_popping() {
+        // March the sun past the limb: visibility must rise 0 -> 1 through
+        // intermediate values (the soft 3% window), monotonically.
+        let cam = DVec3::new(2.0 * R, 0.0, 0.0);
+        let mut prev = -1.0_f32;
+        let mut saw_partial = false;
+        for i in 0..=100 {
+            // Sun sweeps from straight behind the planet to well clear.
+            // From 2R away the disc subtends ~30 degrees, so sweep to 45.
+            let y = (i as f64 / 100.0) * AU;
+            let v = segment_sphere_visibility(
+                cam,
+                DVec3::new(-AU, y, 0.0),
+                DVec3::ZERO,
+                R,
+            );
+            assert!(v >= prev - 1e-6, "visibility regressed mid-sweep at {i}");
+            if v > 0.0 && v < 1.0 {
+                saw_partial = true;
+            }
+            prev = v;
+        }
+        assert_eq!(prev, 1.0, "sweep must end clear");
+        assert!(saw_partial, "no soft limb transition seen");
+    }
+
+    #[test]
+    fn ground_level_horizon_behaves() {
+        // Standing on the surface: sun overhead = full rays, sun below the
+        // horizon = none (the planet itself is the occluder).
+        let cam = DVec3::new(R + 2.0, 0.0, 0.0);
+        let up_sun = DVec3::new(AU, 0.0, 0.0);
+        assert_eq!(segment_sphere_visibility(cam, up_sun, DVec3::ZERO, R), 1.0);
+        // Sun 5 degrees below the horizon plane.
+        let e = (-5.0_f64).to_radians();
+        let below = DVec3::new(AU * e.sin(), AU * e.cos(), 0.0);
+        assert_eq!(segment_sphere_visibility(cam, below, DVec3::ZERO, R), 0.0);
+    }
+
+    #[test]
+    fn a_body_behind_the_camera_or_beyond_the_sun_never_occludes() {
+        let cam = DVec3::ZERO;
+        let sun = DVec3::new(AU, 0.0, 0.0);
+        // Behind the camera.
+        assert_eq!(
+            segment_sphere_visibility(cam, sun, DVec3::new(-10.0 * R, 0.0, 0.0), R),
+            1.0
+        );
+        // Beyond the sun.
+        assert_eq!(
+            segment_sphere_visibility(cam, sun, DVec3::new(AU + 10.0 * R, 0.0, 0.0), R),
+            1.0
+        );
     }
 }

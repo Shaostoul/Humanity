@@ -2850,7 +2850,7 @@ mod native_app {
         // screenshots show exactly what the player sees.
         state
             .renderer
-            .render_godrays_onto(&state.camera, sun_dir_f, &capture_view, godray_weather_scale(state));
+            .render_godrays_onto(&state.camera, sun_dir_f, &capture_view, godray_scale(state));
         state.renderer.render_ssao_onto(&state.camera, &capture_view);
         state
             .renderer
@@ -3033,6 +3033,59 @@ mod native_app {
     /// overcast (MODIS says clouds here) the shafts fade to ~15% instead of
     /// punching through the deck at full strength - thick water blocks sun.
     /// Same envelope curve the sky shader uses (smoothstep 0.35..0.9).
+    /// Combined god-ray strength scale: overcast weather dims the shafts,
+    /// and geometric sun occlusion (v0.921) KILLS them when a solar body
+    /// sits between the camera and the sun - the screen-space march can
+    /// only see occluders in the frame, so without this the night side of
+    /// the station showed shafts "peaking around and through the planet"
+    /// (operator report, 2026-07-21).
+    fn godray_scale(state: &EngineState) -> f32 {
+        let occ = sun_occlusion_factor(state);
+        if occ <= 0.001 {
+            return 0.0;
+        }
+        occ * godray_weather_scale(state)
+    }
+
+    /// Geometric sun visibility from the camera against every solar body
+    /// (pure math + tests: renderer::godrays::segment_sphere_visibility).
+    /// Also covers eclipses - the Moon crossing the sun dims the rays.
+    fn sun_occlusion_factor(state: &EngineState) -> f32 {
+        let cam = state.ship_world_pos
+            + glam::DVec3::new(
+                state.camera.position.x as f64,
+                state.camera.position.y as f64,
+                state.camera.position.z as f64,
+            );
+        let sim_t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs_f64())
+            .unwrap_or(0.0)
+            - 946_728_000.0;
+        let earth_helio = crate::cosmos::find_body("earth")
+            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+            .unwrap_or(glam::DVec3::ZERO);
+        let mut vis = 1.0_f32;
+        for body in crate::cosmos::sol_bodies() {
+            if body.body_type == "star" {
+                continue;
+            }
+            let center = (crate::cosmos::body_world_position_3d_au(body, sim_t)
+                - earth_helio)
+                * crate::cosmos::M_PER_AU;
+            vis *= crate::renderer::godrays::segment_sphere_visibility(
+                cam,
+                state.sun_world_pos,
+                center,
+                body.radius_km * 1000.0,
+            );
+            if vis <= 0.001 {
+                return 0.0;
+            }
+        }
+        vis
+    }
+
     fn godray_weather_scale(state: &EngineState) -> f32 {
         let Some(grid) = state.weather_grid.as_ref() else {
             return 1.0;
@@ -21202,7 +21255,7 @@ mod native_app {
                                 // bodies silhouettes) toward the sun BEFORE
                                 // the scene pass clears depth. Additive;
                                 // self-gates when the sun is off-camera.
-                                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray_weather_scale(state));
+                                state.renderer.render_godrays_onto(&state.camera, sun_dir_f, &view, godray_scale(state));
                                 // Pass 1.8: SSAO contact shade (v0.901) -
                                 // same slot, same depth, multiplies creases
                                 // and tree bases darker before the interior
