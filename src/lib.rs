@@ -4032,7 +4032,7 @@ mod native_app {
             if p.control_panel && !p.auto_open {
                 let cp = p.control_panel_pos;
                 let mat = if locked_now { energy_locked_mat } else { energy_open_mat };
-                transparent.push(RenderObject {
+                transparent.push(RenderObject { fade: 0.0,
                     position: Vec3::new(cp.x, cp.y - 0.14, cp.z),
                     rotation: p.rotation,
                     scale: Vec3::new(0.18, 0.28, 0.06),
@@ -4051,7 +4051,7 @@ mod native_app {
                         crate::ship::lock_types::LockState::Unlocked => energy_open_mat,
                         crate::ship::lock_types::LockState::Broken => slab_mat,
                     };
-                    transparent.push(RenderObject {
+                    transparent.push(RenderObject { fade: 0.0,
                         position: Vec3::new(lock.pos.x, lock.pos.y - 0.05, lock.pos.z),
                         rotation: p.rotation,
                         scale: Vec3::new(0.1, 0.1, 0.05),
@@ -4106,7 +4106,7 @@ mod native_app {
             } else {
                 (slab_mat, false)
             };
-            let obj = RenderObject { position: pos, rotation: rot, scale, mesh, material };
+            let obj = RenderObject { fade: 0.0, position: pos, rotation: rot, scale, mesh, material };
             if is_transparent {
                 transparent.push(obj);
             } else {
@@ -13421,7 +13421,7 @@ mod native_app {
                     // Homestead at origin — vertex positions are in ship-local coords.
                     if !showroom {
                         for &(mesh_idx, mat_idx) in &state.homestead_floors {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -13454,7 +13454,7 @@ mod native_app {
                                     if let Some(rb) = state.gui_state.room_bounds.iter().find(|b| b.id == id) {
                                         let center = (rb.min + rb.max) * 0.5;
                                         let size = rb.max - rb.min;
-                                        transparent_objects.push(RenderObject {
+                                        transparent_objects.push(RenderObject { fade: 0.0,
                                             position: Vec3::new(center.x, rb.min.y + 0.03, center.z),
                                             rotation: Quat::IDENTITY,
                                             scale: Vec3::new(size.x, 1.0, size.z),
@@ -13518,7 +13518,7 @@ mod native_app {
                                         // Nudge proud of the wall toward the camera (anti z-fight).
                                         let s = (cam - h.base_center).dot(h.n);
                                         let face = h.n * (if s >= 0.0 { 1.0 } else { -1.0 }) * 0.06;
-                                        transparent_objects.push(RenderObject {
+                                        transparent_objects.push(RenderObject { fade: 0.0,
                                             position: h.base_center + face,
                                             rotation: Quat::IDENTITY,
                                             scale: Vec3::splat(0.22),
@@ -13535,7 +13535,7 @@ mod native_app {
                                                     spots.push(h.handle_top);
                                                 }
                                                 for p in spots {
-                                                    transparent_objects.push(RenderObject {
+                                                    transparent_objects.push(RenderObject { fade: 0.0,
                                                         position: p + face,
                                                         rotation: Quat::IDENTITY,
                                                         scale: Vec3::splat(0.14),
@@ -13579,7 +13579,7 @@ mod native_app {
                             shell.push(state.homestead_hull);
                         }
                         for (mesh_idx, mat_idx) in shell.into_iter().flatten() {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -13590,7 +13590,7 @@ mod native_app {
                         // Per-material home walls (v0.552): opaque materials in the main pass, glass
                         // (transparent) in the transparent pass so it blends behind/through correctly.
                         for &(mesh_idx, mat_idx, transparent) in &state.homestead_material_walls {
-                            let obj = RenderObject {
+                            let obj = RenderObject { fade: 0.0,
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -13605,7 +13605,7 @@ mod native_app {
                         }
                         // Glass windows + a glass roof -> the transparent pass.
                         if let Some((mesh_idx, mat_idx)) = state.homestead_windows {
-                            transparent_objects.push(RenderObject {
+                            transparent_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -13617,7 +13617,7 @@ mod native_app {
                         // top-down editor view; it shows in first-person (a sealed clear roof).
                         if state.homestead_ceiling_glass && !state.gui_state.construction_active {
                             if let Some((mesh_idx, mat_idx)) = state.homestead_ceiling {
-                                transparent_objects.push(RenderObject {
+                                transparent_objects.push(RenderObject { fade: 0.0,
                                     position: Vec3::ZERO,
                                     rotation: Quat::IDENTITY,
                                     scale: Vec3::ONE,
@@ -13634,7 +13634,7 @@ mod native_app {
                     for &(mesh_idx, mat_idx, pos) in
                         state.placeholder_objects.get(pstart..).unwrap_or(&[])
                     {
-                        all_objects.push(RenderObject {
+                        all_objects.push(RenderObject { fade: 0.0,
                             position: pos,
                             rotation: Quat::IDENTITY,
                             scale: Vec3::ONE,
@@ -13650,7 +13650,7 @@ mod native_app {
                     if !showroom {
                         if !hide_machines {
                         for &(mesh_idx, mat_idx, pos, yaw) in &state.machine_objects {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()), // v0.633 machine yaw
                                 scale: Vec3::ONE,
@@ -13661,7 +13661,7 @@ mod native_app {
                         // Procedural plants (v0.862): one merged mesh per planted
                         // tower, geometry already in world coordinates.
                         for &(mesh_idx, mat_idx) in &state.plant_objects {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::ZERO,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -13672,7 +13672,7 @@ mod native_app {
                         // Photoscanned decoration plants (v0.909): CC0 models
                         // scattered from data/entities/decorations.ron.
                         for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()),
                                 scale: Vec3::splat(scl),
@@ -13684,7 +13684,7 @@ mod native_app {
                         // Connection cylinders (live, colored by kind; follow rooms). (v0.530)
                         if !hide_pipes {
                         for &(mesh_idx, mat_idx, pos, rot, scale) in &state.connection_objects {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: rot,
                                 scale,
@@ -13740,7 +13740,7 @@ mod native_app {
                                         }
                                         // Cycle the rainbow by marker index + time so the colour flows.
                                         let ci = ((k as f32 + t * 2.0) as usize) % nmat;
-                                        all_objects.push(RenderObject {
+                                        all_objects.push(RenderObject { fade: 0.0,
                                             position: pos,
                                             rotation: Quat::IDENTITY,
                                             scale: Vec3::ONE,
@@ -13783,7 +13783,7 @@ mod native_app {
                                             m
                                         }
                                     };
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: wp,
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
@@ -13840,7 +13840,7 @@ mod native_app {
                                     } else {
                                         Quat::IDENTITY
                                     };
-                                    all_objects.push(RenderObject { position: pos, rotation: rot, scale: Vec3::ONE, mesh, material: mat });
+                                    all_objects.push(RenderObject { fade: 0.0, position: pos, rotation: rot, scale: Vec3::ONE, mesh, material: mat });
                                 }
                             }
                         }
@@ -13894,7 +13894,7 @@ mod native_app {
                             })
                             .unwrap_or_default();
                         for (position, rotation, scale) in cars {
-                            all_objects.push(RenderObject { position, rotation, scale, mesh: car_mesh, material: car_mat });
+                            all_objects.push(RenderObject { fade: 0.0, position, rotation, scale, mesh: car_mesh, material: car_mat });
                         }
                     }
                     // Placement ghost: the held palette item, previewed (semi-transparent, faintly
@@ -13937,7 +13937,7 @@ mod native_app {
                             if let Some((mesh_idx, mat)) = ghost {
                                 if let Some((rb_i, hx, hz)) = cursor_floor_hit(state) {
                                     let floor_y = state.gui_state.room_bounds[rb_i].min.y;
-                                    transparent_objects.push(RenderObject {
+                                    transparent_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(hx, floor_y, hz),
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
@@ -13995,7 +13995,7 @@ mod native_app {
                                             [0.45, 0.85, 1.0, 0.6],
                                         );
                                     }
-                                    transparent_objects.push(RenderObject {
+                                    transparent_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(hx, py, hz),
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
@@ -14029,7 +14029,7 @@ mod native_app {
                             let floor_y = state.gui_state.room_bounds[rb_i].min.y;
                             // Corner-node marker: a slim post where the next click lands. (box_xyz is
                             // y-bottom-origin, so position at floor_y -> the post spans [floor, +3].)
-                            transparent_objects.push(RenderObject {
+                            transparent_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(hx, floor_y, hz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(0.3, 3.0, 0.3),
@@ -14052,7 +14052,7 @@ mod native_app {
                                     let rot = Quat::from_rotation_arc(Vec3::X, dir);
                                     // box_xyz is y-bottom-origin -> position at floor_y so the preview
                                     // wall fills [floor, floor+height].
-                                    transparent_objects.push(RenderObject {
+                                    transparent_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::new((a.x + b.x) * 0.5, floor_y, (a.z + b.z) * 0.5),
                                         rotation: rot,
                                         scale: Vec3::new(len, height, 0.15),
@@ -14117,7 +14117,7 @@ mod native_app {
                             // The orb's TOP touches the wall-corner BASE (operator note): centre at -r
                             // so the top vertex is at the floor. Overlay pass -> visible through walls
                             // + the floor it sits under. (v0.560). Idle -> hover -> active by colour (v0.569).
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(c.0 + zo.x, zo.y - r, c.1 + zo.z),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(r),
@@ -14155,7 +14155,7 @@ mod native_app {
                             .unwrap_or_default();
                         for (i, mx, mz) in &wall_mids {
                             let selected = sel_wall == Some(*i);
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(*mx, zo.y - 0.07, *mz), // orb top at the floor base
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(0.07),
@@ -14333,7 +14333,7 @@ mod native_app {
                                         }
                                     };
                                     // World-space mesh: identity transform.
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::ZERO,
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
@@ -14350,7 +14350,7 @@ mod native_app {
                                     } else {
                                         Vec3::X
                                     };
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: fx.pos,
                                         rotation: Quat::from_rotation_arc(Vec3::X, axis),
                                         scale: Vec3::new(fx.length, 0.035, 0.035),
@@ -14362,14 +14362,14 @@ mod native_app {
                                     // Bulb + a short snout tube along the aim direction.
                                     let aim = fx.dir.normalize_or_zero();
                                     let aim = if aim == Vec3::ZERO { Vec3::NEG_Y } else { aim };
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: fx.pos,
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::splat(0.07),
                                         mesh: sphere,
                                         material: mat,
                                     });
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: fx.pos + aim * 0.1,
                                         rotation: Quat::from_rotation_arc(Vec3::X, aim),
                                         scale: Vec3::new(0.2, 0.05, 0.05),
@@ -14379,7 +14379,7 @@ mod native_app {
                                 }
                                 _ if fx.flat_panel => {
                                     // Ceiling/cool panel: a thin flat luminous slab.
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: fx.pos,
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::new(0.6, 0.03, 0.6),
@@ -14389,7 +14389,7 @@ mod native_app {
                                 }
                                 _ => {
                                     // Lamp/point: a bulb sphere.
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: fx.pos,
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::splat(0.09),
@@ -14471,7 +14471,7 @@ mod native_app {
                         };
                         for (i, pos, range, spot) in &lights {
                             // Diamond centre marker (overlay -> visible through walls); RGB if selected.
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: *pos,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(if sel_light == Some(*i) { 0.16 } else { 0.12 }),
@@ -14563,7 +14563,7 @@ mod native_app {
                                     .map(|l| l.path.iter().map(|p| Vec3::new(p.0, p.1, p.2) + lzo).collect())
                                     .unwrap_or_default();
                             for p in strip_pts {
-                                overlay_objects.push(RenderObject {
+                                overlay_objects.push(RenderObject { fade: 0.0,
                                     position: p,
                                     rotation: Quat::IDENTITY,
                                     scale: Vec3::splat(0.11),
@@ -14610,7 +14610,7 @@ mod native_app {
                             })
                             .unwrap_or_default();
                         for p in mouths {
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 // Lifted off the deck so the handle hangs in the doorway, not in the
                                 // floor slab; the pick fn uses the SAME lift so you grab what you see.
                                 position: p + Vec3::Y * CORRIDOR_MOUTH_HANDLE_LIFT,
@@ -14956,14 +14956,14 @@ mod native_app {
                             // zone-local (cx, cz) shifts to world by the zone origin (v0.754).
                             let zo = active_zone_origin(state);
                             let (cx, cz) = (cx + zo.x, cz + zo.z);
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(cx, zo.y, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
                                 mesh: body_mesh,
                                 material: char_mat,
                             });
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(cx, zo.y + 1.66, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::splat(0.2),
@@ -14972,7 +14972,7 @@ mod native_app {
                             });
                             // Pyramid gizmo BELOW the floor with its top vertex at the floor (operator
                             // note): apex at y=0, base at -0.4.
-                            overlay_objects.push(RenderObject {
+                            overlay_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(cx, zo.y - 0.4, cz),
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::new(0.5, 0.4, 0.5),
@@ -15024,7 +15024,7 @@ mod native_app {
                             } else {
                                 mat
                             };
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(p.x, p.y - S * 0.5, p.z), // box_xyz y-bottom -> centre
                                 rotation: Quat::from_rotation_y(-yaw),
                                 scale: Vec3::splat(S),
@@ -15039,7 +15039,7 @@ mod native_app {
                         for ((wi, oi, edge), p) in opening_resize_handles(hs, ozo) {
                             let yaw = hs.walls.get(wi).map_or(0.0, |w| (w.b.1 - w.a.1).atan2(w.b.0 - w.a.0));
                             let m = if resize_grab == Some((wi, oi, edge)) { hot_mat } else { node_mat };
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: Vec3::new(p.x, p.y - RS * 0.5, p.z),
                                 rotation: Quat::from_rotation_y(-yaw),
                                 scale: Vec3::splat(RS),
@@ -15071,14 +15071,14 @@ mod native_app {
                                 .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemotePlayer)>()
                                 .iter()
                             {
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: t.position - Vec3::new(0.0, 0.85, 0.0),
                                     rotation: t.rotation,
                                     scale: Vec3::ONE,
                                     mesh: body,
                                     material: mat,
                                 });
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: t.position + Vec3::new(0.0, 0.05, 0.0),
                                     rotation: t.rotation,
                                     scale: Vec3::ONE,
@@ -15113,14 +15113,14 @@ mod native_app {
                                 .query::<(&crate::ecs::components::Transform, &crate::net::sync::RemoteNpc)>()
                                 .iter()
                             {
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: t.position - Vec3::new(0.0, 0.3, 0.0),
                                     rotation: t.rotation,
                                     scale: Vec3::ONE,
                                     mesh: body,
                                     material: mat,
                                 });
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: t.position + Vec3::new(0.0, 0.55, 0.0),
                                     rotation: t.rotation,
                                     scale: Vec3::ONE,
@@ -15143,7 +15143,7 @@ mod native_app {
                                 .unwrap_or(false);
                             if is_sphere {
                                 if let Some(bm) = state.showroom_body {
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: state.avatar_base - Vec3::new(0.0, 30.0, 0.0),
                                         rotation: Quat::IDENTITY,
                                         scale: Vec3::ONE,
@@ -15152,7 +15152,7 @@ mod native_app {
                                     });
                                 }
                             } else {
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: state.avatar_base,
                                     rotation: Quat::IDENTITY,
                                     scale: Vec3::ONE,
@@ -15171,7 +15171,7 @@ mod native_app {
                     if !showroom {
                         // Orbit rings (centered on hologram)
                         for &(mesh_idx, mat_idx) in &state.hologram_orbits {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: hologram_center,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -15182,7 +15182,7 @@ mod native_app {
 
                         // Planet bodies
                         for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_objects {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: hologram_center + *local_pos,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -15193,7 +15193,7 @@ mod native_app {
 
                         // Pin markers above each planet
                         for (mesh_idx, mat_idx, local_pos, _name) in &state.hologram_pins {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: hologram_center + *local_pos,
                                 rotation: Quat::IDENTITY,
                                 scale: Vec3::ONE,
@@ -15554,7 +15554,29 @@ mod native_app {
                                     &params,
                                     Some(&cs.last_drawn),
                                 );
-                                cs.last_drawn = selection.draws.iter().cloned().collect();
+                                let now_drawn: std::collections::HashSet<chunks::PatchId> =
+                                    selection.draws.iter().cloned().collect();
+                                // Geomorph fades (v0.920): diff the drawn set
+                                // and dissolve every split/merge over
+                                // FADE_SECONDS instead of popping. Selection
+                                // itself is untouched (the v0.913 stability
+                                // machinery stays authoritative); this is
+                                // presentation only. Gated off during
+                                // activation (everything "appears" at once)
+                                // and by the Settings toggle.
+                                let fade_on = state.gui_state.settings.terrain_lod_fade
+                                    && cs.active_last_frame
+                                    && selection.fully_covered;
+                                if fade_on {
+                                    let appeared: Vec<chunks::PatchId> =
+                                        now_drawn.difference(&cs.last_drawn).cloned().collect();
+                                    let vanished: Vec<chunks::PatchId> =
+                                        cs.last_drawn.difference(&now_drawn).cloned().collect();
+                                    cs.ingest_lod_swaps(&appeared, &vanished, dt);
+                                } else {
+                                    cs.fades.clear();
+                                }
+                                cs.last_drawn = now_drawn;
                                 // Stamp every selected patch as used THIS
                                 // frame BEFORE eviction runs below: a patch
                                 // that just re-entered view after a long
@@ -15656,6 +15678,9 @@ mod native_app {
                                 // build) the uniform sphere below keeps
                                 // drawing so the planet never blinks out.
                                 if selection.fully_covered && !selection.draws.is_empty() {
+                                    // Per-patch crossfade values (v0.920):
+                                    // positive = rising, absent = normal.
+                                    let fade_map = cs.fade_values();
                                     for id in &selection.draws {
                                         if let Some(e) = cs.cache.get(id) {
                                             // Per-patch translation composed in
@@ -15667,6 +15692,16 @@ mod native_app {
                                             // through f32 math.
                                             let anchor_render = render_off + rot_d * e.anchor;
                                             celestial_objects.push(RenderObject {
+                                                // A drawn patch can only be
+                                                // rising (falling ids are purged
+                                                // from the drawn set); clamp
+                                                // keeps a stray negative from
+                                                // hiding a normal draw.
+                                                fade: fade_map
+                                                    .get(id)
+                                                    .copied()
+                                                    .unwrap_or(0.0)
+                                                    .max(0.0),
                                                 position: Vec3::new(
                                                     anchor_render.x as f32,
                                                     anchor_render.y as f32,
@@ -15682,6 +15717,33 @@ mod native_app {
                                                 material: textured_mat
                                                     .unwrap_or(state.planet_surface_material),
                                             });
+                                        }
+                                    }
+                                    // Falling patches (v0.920): the outgoing
+                                    // generation keeps drawing with the
+                                    // complementary Bayer mask until its
+                                    // clock retires it; its pixels partition
+                                    // exactly against the risers above.
+                                    for (id, f) in fade_map.iter() {
+                                        if *f < 0.0 && !cs.last_drawn.contains(id) {
+                                            if let Some(e) = cs.cache.get(id) {
+                                                let anchor_render =
+                                                    render_off + rot_d * e.anchor;
+                                                celestial_objects.push(RenderObject {
+                                                    fade: *f,
+                                                    position: Vec3::new(
+                                                        anchor_render.x as f32,
+                                                        anchor_render.y as f32,
+                                                        anchor_render.z as f32,
+                                                    ),
+                                                    rotation,
+                                                    scale: Vec3::ONE,
+                                                    mesh: e.mesh,
+                                                    material: textured_mat.unwrap_or(
+                                                        state.planet_surface_material,
+                                                    ),
+                                                });
+                                            }
                                         }
                                     }
                                     chunked_drawn = true;
@@ -15869,7 +15931,7 @@ mod native_app {
                                                 continue;
                                             }
                                             any = true;
-                                            celestial_objects.push(RenderObject {
+                                            celestial_objects.push(RenderObject { fade: 0.0,
                                                 position: Vec3::new(
                                                     pos_render.x as f32,
                                                     pos_render.y as f32,
@@ -16057,7 +16119,7 @@ mod native_app {
                                                 // atmo/cloud shells, so the
                                                 // blend order stays
                                                 // back-to-front from space.
-                                                celestial_transparent.push(RenderObject {
+                                                celestial_transparent.push(RenderObject { fade: 0.0,
                                                     position: Vec3::new(
                                                         anchor_render.x as f32,
                                                         anchor_render.y as f32,
@@ -16177,7 +16239,7 @@ mod native_app {
                                     // Type-17 core (v0.887) blends: it must
                                     // ride the transparent list or the alpha
                                     // is stamped opaque.
-                                    celestial_transparent.push(RenderObject {
+                                    celestial_transparent.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(
                                             render_off.x as f32,
                                             render_off.y as f32,
@@ -16189,7 +16251,7 @@ mod native_app {
                                         material,
                                     });
                                 } else {
-                                    celestial_objects.push(RenderObject {
+                                    celestial_objects.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(
                                             render_off.x as f32,
                                             render_off.y as f32,
@@ -16207,7 +16269,7 @@ mod native_app {
                                 // beginning but was never drawn, leaving the
                                 // sun a hard-edged white blob.
                                 if is_sun {
-                                    celestial_transparent.push(RenderObject {
+                                    celestial_transparent.push(RenderObject { fade: 0.0,
                                         position: Vec3::new(
                                             render_off.x as f32,
                                             render_off.y as f32,
@@ -16335,7 +16397,7 @@ mod native_app {
                                         // in the mesh's LOCAL frame, so the deck
                                         // rides the planet's spin and the drift
                                         // constants are true weather motion.
-                                        celestial_transparent.push(RenderObject {
+                                        celestial_transparent.push(RenderObject { fade: 0.0,
                                             position,
                                             rotation,
                                             scale: Vec3::splat(
@@ -16425,7 +16487,7 @@ mod native_app {
                                                 state.planet_mesh_cache.insert(skey, m);
                                                 m
                                             };
-                                            celestial_transparent.push(RenderObject {
+                                            celestial_transparent.push(RenderObject { fade: 0.0,
                                                 position,
                                                 rotation,
                                                 scale: Vec3::splat(
@@ -17950,7 +18012,7 @@ mod native_app {
                             let lift = (1.0 - state.drone_dock_anim).powi(2) * 4.0;
                             let deck_y = hangar_pos.y + 0.10 + lift;
                             let body_pos = Vec3::new(hangar_pos.x, deck_y + 0.11, hangar_pos.z);
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: body_pos,
                                 rotation: yaw,
                                 scale: Vec3::ONE,
@@ -17958,7 +18020,7 @@ mod native_app {
                                 material: hull_mat,
                             });
                             let nose_local = Vec3::new(0.55, -0.11, 0.0);
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: body_pos + yaw * nose_local,
                                 rotation: yaw * Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
                                 scale: Vec3::ONE,
@@ -17968,7 +18030,7 @@ mod native_app {
                             const POD_OFFSETS: [(f32, f32); 4] = [(0.4, 0.24), (0.4, -0.24), (-0.4, 0.24), (-0.4, -0.24)];
                             for (dx, dz) in POD_OFFSETS {
                                 let pod_local = Vec3::new(dx, 0.0, dz);
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: body_pos + yaw * pod_local,
                                     rotation: yaw,
                                     scale: Vec3::ONE,
@@ -18019,7 +18081,7 @@ mod native_app {
                                 let rot = tf.rotation;
                                 let base = tf.position;
                                 // Body bed rides at axle height (box_xyz is y-bottom-origin).
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: base + rot * Vec3::new(0.0, r, 0.0),
                                     rotation: rot,
                                     scale: Vec3::new(bl, bh, bw),
@@ -18027,7 +18089,7 @@ mod native_app {
                                     material: paint_mat,
                                 });
                                 // Cabin on top of the body, offset forward/back per the def.
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: base + rot * Vec3::new(def.cabin_offset_x, r + bh, 0.0),
                                     rotation: rot,
                                     scale: Vec3::new(cl, ch, cw),
@@ -18040,7 +18102,7 @@ mod native_app {
                                 let wx = (bl * 0.5 - r * 1.2).max(r);
                                 let wz = bw * 0.5;
                                 for (dx, dz) in [(wx, wz), (wx, -wz), (-wx, wz), (-wx, -wz)] {
-                                    all_objects.push(RenderObject {
+                                    all_objects.push(RenderObject { fade: 0.0,
                                         position: base + rot * Vec3::new(dx, r, dz),
                                         rotation: wheel_rot,
                                         scale: Vec3::new(r * 2.0, 0.3, r * 2.0),
@@ -18105,7 +18167,7 @@ mod native_app {
                             // Scaffold rises from 15% to full height with progress.
                             let frac =
                                 (c.progress / c.build_time.max(0.01)).clamp(0.0, 1.0) * 0.85 + 0.15;
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: tf.position,
                                 rotation: tf.rotation,
                                 scale: Vec3::new(tf.scale.x, tf.scale.y * frac, tf.scale.z),
@@ -18122,7 +18184,7 @@ mod native_app {
                             )>()
                             .iter()
                         {
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: tf.position,
                                 rotation: tf.rotation,
                                 scale: tf.scale,
@@ -18183,7 +18245,7 @@ mod native_app {
                             });
                             let leg_h = s * 0.5;
                             // Body: bottom-origin box riding on the legs.
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: pos + Vec3::Y * leg_h,
                                 rotation: rot,
                                 scale: Vec3::new(s * 0.9, s, s * 1.6),
@@ -18191,7 +18253,7 @@ mod native_app {
                                 material: body_mat,
                             });
                             // Head at the front (+Z), above the body line.
-                            all_objects.push(RenderObject {
+                            all_objects.push(RenderObject { fade: 0.0,
                                 position: pos + rot * Vec3::new(0.0, leg_h + s * 0.75, s * 0.95),
                                 rotation: rot,
                                 scale: Vec3::splat(s * 0.55),
@@ -18205,7 +18267,7 @@ mod native_app {
                                 (-s * 0.3, s * 0.55),
                                 (-s * 0.3, -s * 0.55),
                             ] {
-                                all_objects.push(RenderObject {
+                                all_objects.push(RenderObject { fade: 0.0,
                                     position: pos + rot * Vec3::new(dx, 0.0, dz),
                                     rotation: rot,
                                     scale: Vec3::new(s * 0.18, leg_h, s * 0.18),

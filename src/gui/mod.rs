@@ -6579,6 +6579,11 @@ pub struct SettingsState {
     /// close-approach spheres. Off keeps the pre-chunk behavior (uniform
     /// levels 8-9 near a planet). See terrain::planet_chunks.
     pub planet_chunked: bool,
+    /// Geomorph crossfades (v0.920): terrain LOD splits/merges dissolve
+    /// over ~0.3 s with a complementary screen-door dither instead of
+    /// popping. Off = instant swaps (the pre-v0.920 behavior, kept as the
+    /// A/B reference and safety hatch). See planet_chunks::FadePair.
+    pub terrain_lod_fade: bool,
     /// Analytic scattering atmosphere shells (v0.807): per-pixel single
     /// scattering (blue limb, warm terminator, in-atmosphere sky gradient).
     /// Off = the old fresnel-tinted shell -- kept forever-dev style as the
@@ -6695,6 +6700,7 @@ impl Default for SettingsState {
             ssao_strength: 0.55,
             planet_max_subdiv: 6.0,
             planet_chunked: true,
+            terrain_lod_fade: true,
             planet_atmo_scatter: true,
             planet_clouds: true,
             live_weather: true,

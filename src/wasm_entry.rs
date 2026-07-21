@@ -362,7 +362,7 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
         // Scene objects — several cubes to give spatial reference
         let objects = [
             // Center cube (spinning, red)
-            RenderObject {
+            RenderObject { fade: 0.0,
                 position: Vec3::new(0.0, 1.0, 0.0),
                 rotation: cube_rotation,
                 scale: Vec3::ONE,
@@ -370,7 +370,7 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
                 material: s.cube_material,
             },
             // Blue cube at +X
-            RenderObject {
+            RenderObject { fade: 0.0,
                 position: Vec3::new(4.0, 0.5, 0.0),
                 rotation: Quat::IDENTITY,
                 scale: Vec3::ONE,
@@ -378,7 +378,7 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
                 material: s.blue_material,
             },
             // Yellow cube at -Z
-            RenderObject {
+            RenderObject { fade: 0.0,
                 position: Vec3::new(0.0, 0.5, -4.0),
                 rotation: Quat::from_rotation_y(0.5),
                 scale: Vec3::splat(0.7),
@@ -386,7 +386,7 @@ fn start_render_loop(state: Rc<RefCell<WasmEngineState>>) {
                 material: s.yellow_material,
             },
             // Ground plane
-            RenderObject {
+            RenderObject { fade: 0.0,
                 position: Vec3::ZERO,
                 rotation: Quat::IDENTITY,
                 scale: Vec3::ONE,

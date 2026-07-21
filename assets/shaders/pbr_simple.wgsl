@@ -247,6 +247,11 @@ fn ocean_wave_height(p_m: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     var world_pos = object.model * vec4<f32>(vertex.position, 1.0);
+    // The model matrix's w ROW carries per-object metadata (model[0].w =
+    // LOD crossfade, v0.920), so rebuild the homogeneous w explicitly. For
+    // an ordinary TRS matrix this is a no-op; with metadata present it is
+    // what keeps clip_position correct. xyz is untouched by the w row.
+    world_pos = vec4<f32>(world_pos.xyz, 1.0);
     // Water shell (type 16): displace the vertex radially by the analytic
     // wave height, computed in the planet-local frame via the same
     // center + inverse-rotation trick the planet fragment branch uses
@@ -2658,6 +2663,26 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    // LOD crossfade (v0.920): model[0].w carries the per-object fade (see
+    // RenderObject::fade). 0 = normal. Positive f = fading IN: keep pixels
+    // whose 4x4 Bayer threshold is below f. Negative -f = fading OUT: keep
+    // pixels at/above f. A rising patch at t and its falling partner at -t
+    // partition the screen per-pixel, so terrain LOD swaps dissolve instead
+    // of popping - with opaque depth intact and zero overdraw holes.
+    let lod_fade = object.model[0].w;
+    if (lod_fade != 0.0) {
+        let px = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
+        // 4x4 Bayer matrix via bit interleaving: thresholds (0.5..15.5)/16.
+        let bx = px.x % 4u;
+        let by = px.y % 4u;
+        let bayer_i = (bx % 2u) * 8u + (by % 2u) * 4u + ((bx / 2u) % 2u) * 2u + (by / 2u) % 2u;
+        let b = (f32(bayer_i) + 0.5) / 16.0;
+        if (lod_fade > 0.0) {
+            if (b >= lod_fade) { discard; }
+        } else {
+            if (b < -lod_fade) { discard; }
+        }
+    }
     // var (not let) since v0.907: the ground PBR pass perturbs the terrain
     // normal with the material's normal map before the lighting below.
     var normal = normalize(in.world_normal);

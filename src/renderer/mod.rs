@@ -59,6 +59,15 @@ pub struct RenderObject {
     pub scale: Vec3,
     pub mesh: usize,     // index into Renderer::meshes
     pub material: usize, // index into Renderer::materials
+    /// LOD crossfade (v0.920): 0.0 = drawn normally (the default everywhere).
+    /// (0, 1) = fading IN - the fragment shader shows pixels where the 4x4
+    /// Bayer threshold is BELOW this value. (-1, 0) = fading OUT with
+    /// threshold |fade| - shows pixels where Bayer is AT/ABOVE it. A rising
+    /// patch at t and its falling partner at -t therefore partition the
+    /// screen per-pixel: no holes, no double-write, opaque depth intact.
+    /// Rides row 3 of the model matrix (model[0].w - the vertex shader
+    /// rebuilds the homogeneous w, so the slot is free metadata).
+    pub fade: f32,
 }
 
 /// Material properties for PBR-lite rendering.
@@ -1498,9 +1507,16 @@ impl Renderer {
             if i >= MAX_OBJECTS {
                 break;
             }
-            let model =
+            let clean =
                 Mat4::from_scale_rotation_translation(obj.scale, obj.rotation, obj.position);
-            let normal_matrix = model.inverse().transpose();
+            // Normal matrix from the CLEAN transform - the fade smuggled into
+            // the w row below would corrupt the inverse.
+            let normal_matrix = clean.inverse().transpose();
+            // LOD crossfade (v0.920) rides model[0].w; the vertex shader
+            // rebuilds the homogeneous w after transforming, so this slot is
+            // free per-object metadata (see RenderObject::fade).
+            let mut model = clean;
+            model.x_axis.w = obj.fade;
             let uniforms = ObjectUniforms {
                 model: model.to_cols_array_2d(),
                 normal_matrix: normal_matrix.to_cols_array_2d(),

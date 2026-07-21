@@ -2042,6 +2042,88 @@ pub struct ChunkState {
     pub last_drawn: std::collections::HashSet<PatchId>,
     /// Frame stamp of the last budget-saturation log (throttle).
     pub last_saturation_log: u64,
+    /// LOD crossfades in flight (v0.920 geomorph fades): each split/merge
+    /// dissolves over FADE_SECONDS instead of popping. Selection is
+    /// untouched - this is pure presentation on top of the drawn-set diff.
+    pub fades: Vec<FadePair>,
+}
+
+/// One LOD crossfade in flight (v0.920): `rising` dissolves IN while
+/// `falling` dissolves OUT with the complementary Bayer mask, sharing one
+/// clock, so the two generations partition the screen per-pixel (no holes,
+/// no double-write; see RenderObject::fade).
+pub struct FadePair {
+    pub rising: Vec<PatchId>,
+    pub falling: Vec<PatchId>,
+    /// 0..1, advanced by dt / FADE_SECONDS each frame; retired at 1.
+    pub t: f32,
+}
+
+/// Crossfade duration. Short enough that fast dives never stack many
+/// generations; long enough that a swap reads as a dissolve, not a pop.
+pub const FADE_SECONDS: f32 = 0.30;
+/// Overflow guard: past this many active pairs new swaps just pop (bounds
+/// the extra falling-patch draw cost during a screaming descent).
+pub const MAX_FADE_PAIRS: usize = 192;
+
+/// Classify one frame's drawn-set diff into crossfade pairs (v0.920).
+/// `appeared` / `vanished` are this frame's set differences against the
+/// previous drawn set. A vanished PARENT whose children appeared = a split
+/// (parent falls, children rise together). Vanished CHILDREN whose parent
+/// appeared = a merge (parent rises, children fall together). Appeared
+/// orphans (fresh stream-ins) rise from nothing as one batch; vanished
+/// orphans (culled off-screen) pop instantly - fading something the frustum
+/// already rejected would draw it for nothing.
+pub fn classify_lod_swaps(appeared: &[PatchId], vanished: &[PatchId]) -> Vec<FadePair> {
+    use std::collections::HashSet;
+    let vanished_set: HashSet<PatchId> = vanished.iter().cloned().collect();
+    let appeared_set: HashSet<PatchId> = appeared.iter().cloned().collect();
+    let mut used_appeared: HashSet<PatchId> = HashSet::new();
+    let mut used_vanished: HashSet<PatchId> = HashSet::new();
+    let mut pairs: Vec<FadePair> = Vec::new();
+    // Splits: group appeared children under a vanished parent.
+    let mut split_kids: HashMap<PatchId, Vec<PatchId>> = HashMap::new();
+    for a in appeared {
+        if let Some(p) = a.parent() {
+            if vanished_set.contains(&p) {
+                split_kids.entry(p).or_default().push(*a);
+                used_appeared.insert(*a);
+            }
+        }
+    }
+    for (parent, kids) in split_kids {
+        used_vanished.insert(parent);
+        pairs.push(FadePair { rising: kids, falling: vec![parent], t: 0.0 });
+    }
+    // Merges: group vanished children under an appeared parent.
+    let mut merge_kids: HashMap<PatchId, Vec<PatchId>> = HashMap::new();
+    for v in vanished {
+        if used_vanished.contains(v) {
+            continue;
+        }
+        if let Some(p) = v.parent() {
+            if appeared_set.contains(&p) && !used_appeared.contains(&p) {
+                merge_kids.entry(p).or_default().push(*v);
+            }
+        }
+    }
+    for (parent, kids) in merge_kids {
+        for k in &kids {
+            used_vanished.insert(*k);
+        }
+        used_appeared.insert(parent);
+        pairs.push(FadePair { rising: vec![parent], falling: kids, t: 0.0 });
+    }
+    // Orphan rises (fresh stream-ins): one shared-clock batch.
+    let orphans: Vec<PatchId> = appeared
+        .iter()
+        .filter(|a| !used_appeared.contains(a))
+        .cloned()
+        .collect();
+    if !orphans.is_empty() {
+        pairs.push(FadePair { rising: orphans, falling: Vec::new(), t: 0.0 });
+    }
+    pairs
 }
 
 impl ChunkState {
@@ -2054,7 +2136,47 @@ impl ChunkState {
             active_last_frame: false,
             last_drawn: std::collections::HashSet::new(),
             last_saturation_log: 0,
+            fades: Vec::new(),
         }
+    }
+
+    /// Ingest one frame's drawn-set diff as new crossfade pairs (v0.920) and
+    /// advance every active clock by `dt` seconds. Re-appearing patches are
+    /// purged from falling lists (their area is covered by the normal draw
+    /// again) and re-vanished patches from rising lists, so a hysteresis
+    /// flip mid-fade can never double-mask an area.
+    pub fn ingest_lod_swaps(&mut self, appeared: &[PatchId], vanished: &[PatchId], dt: f32) {
+        for f in &mut self.fades {
+            f.t += dt / FADE_SECONDS;
+            if !appeared.is_empty() {
+                f.falling.retain(|id| !appeared.contains(id));
+            }
+            if !vanished.is_empty() {
+                f.rising.retain(|id| !vanished.contains(id));
+            }
+        }
+        self.fades
+            .retain(|f| f.t < 1.0 && (!f.rising.is_empty() || !f.falling.is_empty()));
+        if (!appeared.is_empty() || !vanished.is_empty()) && self.fades.len() < MAX_FADE_PAIRS {
+            self.fades.append(&mut classify_lod_swaps(appeared, vanished));
+        }
+    }
+
+    /// Per-patch fade values for the draw pass: positive = rising (show
+    /// where Bayer < t), negative = falling (show where Bayer >= t). Absent
+    /// = drawn normally.
+    pub fn fade_values(&self) -> HashMap<PatchId, f32> {
+        let mut m = HashMap::new();
+        for p in &self.fades {
+            let t = p.t.clamp(0.0, 1.0);
+            for id in &p.rising {
+                m.insert(*id, t.max(1.0 / 32.0));
+            }
+            for id in &p.falling {
+                m.insert(*id, -t.max(1.0 / 32.0));
+            }
+        }
+        m
     }
 
     pub fn insert(&mut self, id: PatchId, mesh: usize, bytes: usize, anchor: DVec3, band: RadialBand) {
@@ -2099,6 +2221,16 @@ impl ChunkState {
                     Some(p) => cur = p,
                     None => break,
                 }
+            }
+        }
+        // Mid-crossfade guard (v0.920): a fading-out patch is still being
+        // drawn for up to FADE_SECONDS after it left the drawn set (merge
+        // children are NOT ancestors of any drawn leaf, so the chain guard
+        // above does not cover them). Evicting one mid-dissolve would flash
+        // a hole exactly where the eye is watching a transition.
+        for pair in &self.fades {
+            for id in pair.rising.iter().chain(pair.falling.iter()) {
+                protected.insert(*id);
             }
         }
         while self.total_bytes > byte_cap {
@@ -3168,5 +3300,74 @@ mod tests {
         assert!(b.contains(&grid_idx(0, 0)));
         assert!(b.contains(&grid_idx(n, 0)));
         assert!(b.contains(&grid_idx(n, n)));
+    }
+
+    #[test]
+    fn lod_swap_classifier_pairs_splits_merges_and_orphans() {
+        let parent = PatchId::root(3).child(1);
+        let kids: Vec<PatchId> = (0..4).map(|i| parent.child(i)).collect();
+        // Split: parent vanished, its 4 children appeared.
+        let pairs = classify_lod_swaps(&kids, &[parent]);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].rising.len(), 4);
+        assert_eq!(pairs[0].falling, vec![parent]);
+        // Merge: children vanished, parent appeared.
+        let pairs = classify_lod_swaps(&[parent], &kids);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].rising, vec![parent]);
+        assert_eq!(pairs[0].falling.len(), 4);
+        // Orphan appear (fresh stream-in): rises alone, nothing falls.
+        let stray = PatchId::root(7).child(0).child(2);
+        let pairs = classify_lod_swaps(&[stray], &[]);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].rising, vec![stray]);
+        assert!(pairs[0].falling.is_empty());
+        // Orphan vanish (culled off-screen): pops instantly, no pair.
+        let pairs = classify_lod_swaps(&[], &[stray]);
+        assert!(pairs.is_empty());
+        // Mixed frame: one split + one culled orphan = exactly one pair.
+        let pairs = classify_lod_swaps(&kids, &[parent, stray]);
+        assert_eq!(pairs.len(), 1);
+    }
+
+    #[test]
+    fn ingest_advances_retires_and_purges_reappearances() {
+        let mut cs = ChunkState::new(42);
+        let parent = PatchId::root(0).child(0);
+        let kids: Vec<PatchId> = (0..4).map(|i| parent.child(i)).collect();
+        cs.ingest_lod_swaps(&kids, &[parent], 0.0);
+        assert_eq!(cs.fades.len(), 1);
+        // Fade values: risers positive, faller negative, complementary clock.
+        let m = cs.fade_values();
+        assert!(m[&kids[0]] > 0.0);
+        assert!(m[&parent] < 0.0);
+        // A hysteresis flip mid-fade: the parent re-appears -> purged from
+        // the falling list so it can never double-mask its own normal draw.
+        cs.ingest_lod_swaps(&[parent], &kids, FADE_SECONDS * 0.5);
+        for f in &cs.fades {
+            assert!(
+                !f.falling.contains(&parent),
+                "re-appeared patch still falling"
+            );
+        }
+        // Clock retirement: after FADE_SECONDS everything is gone.
+        cs.ingest_lod_swaps(&[], &[], FADE_SECONDS * 1.1);
+        assert!(cs.fades.is_empty(), "fades survived their clock");
+    }
+
+    #[test]
+    fn evictions_never_take_a_mid_fade_patch() {
+        let mut cs = ChunkState::new(42);
+        let parent = PatchId::root(0).child(0);
+        let kids: Vec<PatchId> = (0..4).map(|i| parent.child(i)).collect();
+        // Cache the parent as a stale entry that would normally be evicted.
+        cs.insert(parent, 11, 1_000_000, DVec3::X, RadialBand { min_r_m: 1.0, max_r_m: 2.0 });
+        cs.frame = 10_000; // far past the recency guard
+        cs.ingest_lod_swaps(&kids, &[parent], 0.0);
+        let evicted = cs.collect_evictions(0); // cap 0 = evict everything legal
+        assert!(
+            evicted.iter().all(|(id, _)| *id != parent),
+            "mid-fade parent was evicted"
+        );
     }
 }

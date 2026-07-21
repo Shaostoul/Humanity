@@ -2030,6 +2030,11 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Near a planet with real elevation data, surface detail streams in around the camera (down to ~7 m triangles with the tile tier) instead of remeshing the whole globe. Turn off to fall back to uniform spheres.").color(theme.text_muted()).size(theme.font_size_small));
+        // Geomorph crossfades (v0.920): LOD swaps dissolve instead of pop.
+        if widgets::toggle(ui, theme, "Smooth detail transitions", &mut state.settings.terrain_lod_fade) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("When ground detail changes level, the old and new versions crossfade for a third of a second instead of swapping instantly. Costs almost nothing; turn off only to compare or debug.").color(theme.text_muted()).size(theme.font_size_small));
         // Planet LOD knobs (v0.873, operator: "I want to see more real
         // terrain further away from me... add settings for all these
         // variables"). All three apply live next frame.

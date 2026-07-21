@@ -398,6 +398,10 @@ pub struct AppConfig {
     /// heavy uniform level 8-9 spheres. See terrain::planet_chunks.
     #[serde(default = "default_true")]
     pub planet_chunked: bool,
+    /// Geomorph crossfades (v0.920): terrain LOD swaps dissolve over ~0.3 s
+    /// instead of popping. Off = instant swaps.
+    #[serde(default = "default_true")]
+    pub terrain_lod_fade: bool,
     /// Analytic scattering atmosphere shells (v0.807). Off = the simple
     /// fresnel-tinted shell (the v0.763 look), kept as the fallback for
     /// GPUs that dislike the per-pixel scattering math.
@@ -962,6 +966,7 @@ impl AppConfig {
             terrain_builds_per_frame: state.settings.terrain_builds_per_frame,
             planet_max_subdiv: state.settings.planet_max_subdiv,
             planet_chunked: state.settings.planet_chunked,
+            terrain_lod_fade: state.settings.terrain_lod_fade,
             planet_atmo_scatter: state.settings.planet_atmo_scatter,
             planet_clouds: state.settings.planet_clouds,
             live_weather: state.settings.live_weather,
@@ -1100,6 +1105,7 @@ impl AppConfig {
         state.settings.terrain_builds_per_frame =
             self.terrain_builds_per_frame.clamp(6.0, 64.0);
         state.settings.planet_chunked = self.planet_chunked;
+        state.settings.terrain_lod_fade = self.terrain_lod_fade;
         state.settings.planet_atmo_scatter = self.planet_atmo_scatter;
         state.settings.planet_clouds = self.planet_clouds;
         state.settings.live_weather = self.live_weather;
@@ -1445,6 +1451,7 @@ mod pbkdf2_migration_tests {
         assert!(c.vsync);
         assert!(c.planet_detail);
         assert!(c.planet_chunked);
+        assert!(c.terrain_lod_fade);
         assert!(c.planet_atmo_scatter);
         assert!(c.planet_surface_detail);
         assert_eq!(c.cloud_quality, "high");
