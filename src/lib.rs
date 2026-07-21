@@ -16574,6 +16574,50 @@ mod native_app {
                                 [1.0, 0.97, 0.92],
                             )
                         };
+                        // Sun transmittance tint (v0.915, research roadmap
+                        // item 1): direct sunlight dims AND reddens through
+                        // the atmosphere - blue extinguishes first, so a low
+                        // sun paints terrain, water, foam, and clouds in
+                        // sunset tones, and daylight stops being a fixed
+                        // white. Only when standing at a planet with an
+                        // atmosphere; the construction-editor override keeps
+                        // its hand-picked color.
+                        let light_color = if !(state.gui_state.construction_active
+                            && state.gui_state.construction_sun_override)
+                        {
+                            let tint = state
+                                .frame_lock_body
+                                .as_deref()
+                                .and_then(|b| state.planet_defs.get(b))
+                                .and_then(|d| d.atmosphere_color.map(|ac| (d, ac)))
+                                .map(|(d, ac)| {
+                                    let (rp, h) = crate::renderer::atmosphere::shell_packing(
+                                        d.atmosphere_scale,
+                                        d.scale_height_or_default(),
+                                        d.radius,
+                                    );
+                                    let shell_r_m = d.radius * d.atmosphere_scale as f64;
+                                    let cam_r = ((state.frame_lock_anchor.length()
+                                        / shell_r_m.max(1.0))
+                                        as f32)
+                                        .clamp(rp, 1.0);
+                                    let up_world = glam::DQuat::from_rotation_y(
+                                        state.current_spin,
+                                    ) * state.frame_lock_anchor.normalize_or_zero();
+                                    let mu = up_world.dot(sun_dir) as f32;
+                                    crate::renderer::atmosphere::sun_transmittance(
+                                        cam_r, mu, rp, h, ac,
+                                    )
+                                })
+                                .unwrap_or([1.0, 1.0, 1.0]);
+                            [
+                                light_color[0] * tint[0],
+                                light_color[1] * tint[1],
+                                light_color[2] * tint[2],
+                            ]
+                        } else {
+                            light_color
+                        };
                         if light_dir != Vec3::ZERO {
                             state.renderer.set_sun_light(
                                 light_dir,

@@ -223,6 +223,28 @@ pub fn rayleigh_beta(atmosphere_color: [f32; 4], h_rel: f32) -> [f32; 3] {
     ]
 }
 
+/// Per-channel transmittance of DIRECT sunlight reaching shell-unit radius
+/// `r` with the sun at elevation cosine `mu` (v0.915, research roadmap item
+/// 1: "sun disc transmittance"). Same extinction construction as the WGSL
+/// (`beta_ext = beta_ray + 1.11 * beta_mie`), optical depth from the tested
+/// Chapman analytic. Blue extinguishes fastest, so a low sun dims AND
+/// reddens - and because the caller feeds the result into the global sun
+/// LIGHT color, terrain, water, foam, and clouds all pick up sunset tones
+/// for free. Returns black when the ray strikes the planet.
+pub fn sun_transmittance(r: f32, mu: f32, rp: f32, h: f32, atmosphere_color: [f32; 4]) -> [f32; 3] {
+    let od = od_to_space(r, mu, rp, h);
+    if od > 1.0e8 {
+        return [0.0, 0.0, 0.0];
+    }
+    let beta_r = rayleigh_beta(atmosphere_color, h);
+    let beta_m = atmosphere_color[3].max(0.0) * TAU_MIE / h.max(1.0e-6) * 1.11;
+    [
+        (-(beta_r[0] + beta_m) * od).exp(),
+        (-(beta_r[1] + beta_m) * od).exp(),
+        (-(beta_r[2] + beta_m) * od).exp(),
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,6 +291,27 @@ mod tests {
     /// exactly what earth.ron produces via shell_packing).
     const RP: f32 = 0.970_873_8; // 1 / 1.03
     const H: f32 = 0.001_295_4; // (8500 / 6371000) * RP
+
+    #[test]
+    fn sun_transmittance_dims_and_reddens_toward_the_horizon() {
+        // Earth-like shell: 1.5% atmosphere, 8.5 km scale height.
+        let (rp, h) = shell_packing(1.015, 8500.0, 6_371_000.0);
+        let ac = [0.18, 0.30, 0.60, 1.0]; // blue-dominant Rayleigh color
+        let ground = rp + 1.0e-5;
+        let noon = sun_transmittance(ground, 1.0, rp, h, ac);
+        let low = sun_transmittance(ground, 0.05, rp, h, ac);
+        let set = sun_transmittance(ground, -0.2, rp, h, ac);
+        // Overhead: most light gets through, blue attenuated more than red.
+        assert!(noon[0] > 0.5 && noon[0] > noon[2], "noon {noon:?}");
+        // Near the horizon: dimmer overall and strongly red-shifted.
+        assert!(low[0] < noon[0], "low sun must be dimmer: {low:?}");
+        assert!(
+            low[0] > low[2] * 2.0,
+            "low sun must redden (red much stronger than blue): {low:?}"
+        );
+        // Below the geometric horizon: the planet blocks the ray entirely.
+        assert_eq!(set, [0.0, 0.0, 0.0], "set sun must be black");
+    }
 
     #[test]
     fn optical_depth_matches_brute_force_integration() {
