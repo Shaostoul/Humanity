@@ -451,12 +451,16 @@
     {
       "date": "2026-07-21",
       "decision": "v0.915.0 LOOP ITERATION 1 - SUN TRANSMITTANCE (research item 1): renderer::atmosphere::sun_transmittance (Chapman od_to_space + the WGSL beta_ext construction beta_ray + 1.11*beta_mie) tints the global sun LIGHT color per frame when frame-locked to an atmosphere planet (lib.rs sun-light block; construction override exempt). Physics test: noon passes, horizon dims + reddens 2x+, set = black. Probe: warm canopy light at 18:24, black after sunset. LOOP QUEUE next: [2] aerial perspective on terrain (M - march 4-6 samples camera-to-fragment with the Chapman legs in the type-12 branch, surface*T + S, strength slider), then [3] shoreline depth fade + foam line."
+    },
+    {
+      "date": "2026-07-21",
+      "decision": "v0.916.0 LOOP ITERATION 2 - AERIAL PERSPECTIVE (research item 2): exponential height haze at the end of fs_main shared path (color*T + sky*(1-T)); params poked via the unused per-light cone pads (light1_cone_inner.y sigma folded with strength*altitude-density, .z slant cap 3H, light2_cone_inner.yzw sky color day+sunset-tinted from the v0.915 transmittance, light3_cone_inner.yzw camera radial up for the slant bound). Interior passes zero the pads (full uniform rewrite) so rooms never fog. Settings aerial_strength slider 0-2 default 1. GOTCHA: WGSL camera struct has SCALAR light0..7_cone_inner fields, NOT an array - camera.light_cone_inner[1] fails naga parse (caught by the embedded-shader validate test). Probe: 11km canyon vista wears a distance-deepening warm veil. LOOP QUEUE next: [3] shoreline depth fade + foam line (M - depth copy after opaque pass at group 3 binding 11, thickness absorption tint, waterline alpha ramp, animated foam band, depth-attenuated wave amplitude + ocean_waves twin)."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.915.0 released; v0.915.1 stamp pending.",
+  "version_state": "v0.916.0 released; v0.916.1 stamp pending.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
