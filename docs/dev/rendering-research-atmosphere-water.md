@@ -357,12 +357,19 @@ Sizes are relative (S under a day, M a day or two, L a multi-day arc).
    twin + guard test together). Payoff: directly fixes "the water to land
    interface is still behaving very weird"; beaches get wet edges, shallow
    turquoise, and breaking-wave foam lines.
-4. **Multiple scattering energy + exposure cleanup (M).** Add Hillaire's
-   32 x 32 multiple-scattering LUT (or even its analytic series evaluated per
-   fragment, it is cheap), then walk `ATMO_EXPOSURE` from 4.0 toward 1.x and
-   retire the NEAR/HAZE compensators that exist only to undo it. Payoff:
-   the washed-out haze dome resolves at the root, twilight and zenith get
-   correct energy instead of tuned energy.
+4. **Multiple scattering energy + exposure cleanup (M). DONE v0.918.0.**
+   Shipped as a three-tier exposure instead of a global walk-down: ground
+   SKY rays get `ATMO_EXPOSURE_DOME` 1.7 (ramping back to the full 4.0 by
+   the shell top, so the 400 km limb + 12,000 km marble are bit-identical),
+   grazing surface rays blend toward the sky tier (killing the white veil
+   on grazing-angle water), and an analytic isotropic multiple-scatter term
+   (`ATMO_MS_ISO` 0.07, gated to exactly the region the dome dimmed) rides
+   the same per-channel path integral. The NEAR/HAZE compensators were KEPT
+   deliberately - they compensate close-range surface haze, not the dome,
+   and each retirement risks an approved look; revisit under item 5 when
+   the sky becomes a sampled radiance source. Twilight star-occlusion gain
+   3.2 -> 4.5 offsets the dimmer dome. Bonus fix (BUG-047): shell meshes no
+   longer ride `planet_max_subdiv` down into the planet.
 5. **Sky-view LUT + sky-as-radiance (M/L).** 200 x 100 fragment-pass LUT with
    the horizon-packed mapping, recomputed per frame for the near planet;
    the in-atmosphere sky samples it (space views keep the approved type-14

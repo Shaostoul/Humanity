@@ -23,6 +23,14 @@
 > offsets, 64-light influence cull, real-tree groundwork behind the
 > EXPERIMENTAL tree-model-distance slider (default 0; cutout alpha needs
 > one operator screenshot at 120 to verify), 4 perf wins, docs/dev suite.
+> LOOP MODE (operator-enabled 2026-07-21, one queue item per iteration;
+> ranked queue + next pointer live in orchestrator_state.json entries):
+> shipped so far v0.915 sun transmittance, v0.916 aerial perspective,
+> v0.917 shoreline (depth-baked shallows/waterline/surf), v0.918 exposure
+> calibration (three-tier dome + multiple scattering; killed the washed
+> sky AND the grazing-white water) + BUG-047 (planet-detail setting sank
+> the sky shell underground). Queue next: terrain stepping smoothing,
+> then geomorph fades, bookmark studio arc, LOD ladder (0a below).
 > NEW TOP ITEMS:
 > 0a. LOD ladder proper (operator design): per-SIZE-CATEGORY render
 >     distance sliders (grass short, trees miles, ant vs beast same idea)
