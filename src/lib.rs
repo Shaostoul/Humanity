@@ -15680,6 +15680,9 @@ mod native_app {
                                     .tree_model_distance
                                     .clamp(0.0, 400.0) as f64;
                                 let alt_over = cam_local.length() - d.radius;
+                                // Default: no card hiding unless the model
+                                // loop below actually covered a radius.
+                                state.renderer.tree_card_hide_m = 0.0;
                                 if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
                                     let moved =
                                         (state.near_trees_center - cam_local).length();
@@ -15796,12 +15799,23 @@ mod native_app {
                                     // forest stays in budget. Cards cover the
                                     // rest.
                                     let mut drawn = 0u32;
+                                    // v0.914 (operator: "the nearest trees to
+                                    // me are disappearing"): cards hid across
+                                    // the WHOLE slider radius while models
+                                    // only covered the nearest 64 - everything
+                                    // past the cap had neither card nor model,
+                                    // and approaching a dense stand rotated
+                                    // nearby trees out of existence. Track how
+                                    // far the drawn models actually reach and
+                                    // hide cards only inside that.
+                                    let mut covered_r2: f64 = 0.0;
                                     for tr in &state.near_trees {
                                         if drawn >= 64 {
                                             break;
                                         }
                                         let base_local = tr.dir * tr.r_m;
-                                        if (base_local - cam_local).length_squared() > td2 {
+                                        let d2 = (base_local - cam_local).length_squared();
+                                        if d2 > td2 {
                                             continue;
                                         }
                                         let sp = (tr.species % 2) as usize;
@@ -15849,8 +15863,21 @@ mod native_app {
                                         }
                                         if any {
                                             drawn += 1;
+                                            if d2 > covered_r2 {
+                                                covered_r2 = d2;
+                                            }
                                         }
                                     }
+                                    // Effective card-hide radius: the slider
+                                    // when the cap was not reached (models
+                                    // cover the full radius), else the actual
+                                    // reach of the drawn set, slightly shrunk
+                                    // so boundary trees keep their cards.
+                                    state.renderer.tree_card_hide_m = if drawn < 64 {
+                                        tree_dist as f32
+                                    } else {
+                                        (covered_r2.sqrt() as f32 - 8.0).max(0.0)
+                                    };
                                 } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
                                     state.near_trees.clear();
                                     state.near_trees_center = glam::DVec3::splat(f64::MAX);
@@ -18633,6 +18660,49 @@ mod native_app {
                             ));
                         }
                     }
+                    // Bookmark file edits from the Travel list (v0.914):
+                    // delete a bookmark or move it to another category.
+                    let delete = state.gui_state.pending_bookmark_delete.take();
+                    let recat = state.gui_state.pending_bookmark_recat.take();
+                    if delete.is_some() || recat.is_some() {
+                        const BM_PATH: &str = "debug/bookmarks.json";
+                        if let Some(mut root) = std::fs::read_to_string(BM_PATH)
+                            .ok()
+                            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+                        {
+                            if let Some(arr) = root
+                                .get_mut("bookmarks")
+                                .and_then(|b| b.as_array_mut())
+                            {
+                                if let Some(id) = &delete {
+                                    arr.retain(|e| {
+                                        e.get("name").and_then(|n| n.as_str()) != Some(id)
+                                    });
+                                }
+                                if let Some((id, cat)) = &recat {
+                                    for e in arr.iter_mut() {
+                                        if e.get("name").and_then(|n| n.as_str())
+                                            == Some(id.as_str())
+                                        {
+                                            e["category"] =
+                                                serde_json::json!(cat.trim().to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            let _ = std::fs::write(
+                                BM_PATH,
+                                serde_json::to_string_pretty(&root).unwrap_or_default(),
+                            );
+                            state.gui_state.location_bookmarks_dirty = true;
+                            if let Some(id) = delete {
+                                state.gui_state.pending_toasts.push((
+                                    format!("Bookmark {id} deleted"),
+                                    crate::gui::ToastKind::Info,
+                                ));
+                            }
+                        }
+                    }
 
                     // ── Auto-connect to server if configured AND seed unlocked ──
                     // Full-PQ guard (was the limited-mode squat bug): we must
@@ -20927,8 +20997,9 @@ mod native_app {
                                     state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
                                 state.renderer.ssao_strength =
                                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
-                                state.renderer.tree_card_hide_m =
-                                    state.gui_state.settings.tree_model_distance.clamp(0.0, 400.0);
+                                // (tree_card_hide_m is owned by the near-tree
+                                // draw loop since v0.914 - it tracks the
+                                // radius models actually cover each frame.)
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is

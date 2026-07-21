@@ -2543,21 +2543,26 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let steep = length(grad) * (1.0 + sea_state * 1.4);
         let cap_noise = surface_detail_noise(dir_r1, r_render / 90.0, 977.0);
         let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
-        // v0.912 (operator: "if that is whitecaps or foam it is way too
-        // strong and looks fake"): crest-only threshold raised, coverage
-        // roughly halved, and the storm gate starts later.
-        foam = smoothstep(0.16, 0.30, steep)
-            * smoothstep(0.5, 0.95, sea_state)
-            * (0.45 + 0.55 * cap_noise)
+        // v0.914: tightened again (operator: "still a lot of white up
+        // close") - crests only, later storm gate, and real seas cap out
+        // around a third foam coverage even in storms.
+        foam = smoothstep(0.20, 0.36, steep)
+            * smoothstep(0.55, 0.95, sea_state)
+            * (0.4 + 0.6 * cap_noise)
             * foam_reach
             * presence;
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
     var rgb = water_shade(deep, n_geo, n_pert, view_dir);
-    // Foam is scattered froth: it flattens the water shading toward broken
-    // off-white and reads at any sun angle.
-    rgb = mix(rgb, vec3<f32>(0.75, 0.81, 0.86), clamp(foam, 0.0, 0.4));
+    // Foam is scattered froth - and froth is DIFFUSE, so it is SUNLIT like
+    // everything else (v0.914, operator: "the ocean in night time is
+    // bright white, almost like it is glowing" - the old constant foam
+    // color ignored the sun entirely). Night foam goes dark with the sea.
+    let foam_day = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
+    let foam_col = vec3<f32>(0.75, 0.81, 0.86)
+        * (foam_day * camera.sun_direction.w * 0.42 + 0.015);
+    rgb = mix(rgb, foam_col, clamp(foam, 0.0, 0.35));
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.

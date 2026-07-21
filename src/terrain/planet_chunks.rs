@@ -201,7 +201,7 @@ pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
 pub const TREES_PER_CELL: u32 = 100;
 /// Grass cell size (~33 m) and tufts per cell (v0.913: ~0.073 per m^2).
 pub const GRASS_CELL_RAD: f64 = 5.2e-6;
-pub const GRASS_PER_CELL: u32 = 80;
+pub const GRASS_PER_CELL: u32 = 160;
 /// Real-meter elevation ceiling for trees (a global treeline placeholder).
 pub const TREELINE_M: f32 = 1700.0;
 
@@ -1629,7 +1629,13 @@ pub fn build_patch_mesh(
                             // seem uniform height"). 4-18 m, skewed toward
                             // younger trees; BOTH stream sites (bake + the
                             // near-model mirror) must stay identical.
-                            let h = 4.0 + ((r3 % 1000) as f32 / 1000.0).powf(1.6) * 14.0;
+                            let species_fir = ((r5 >> 9) & 1) == 0;
+                            // v0.914 (operator: "set all the trees to the max
+                            // height of their tree species"): full-grown
+                            // conifers with a natural +-12% spread - fir ~22 m,
+                            // pine ~16 m. BOTH stream sites stay identical.
+                            let jitter = 0.88 + (r3 % 100) as f32 / 100.0 * 0.24;
+                            let h = if species_fir { 22.0 * jitter } else { 16.0 * jitter };
                             let trunk = [0.30, 0.22, 0.13];
                             let canopy = [
                                 0.08 + (r4 % 60) as f32 / 1000.0,
@@ -1839,7 +1845,13 @@ pub fn near_tree_instances(
                             // seem uniform height"). 4-18 m, skewed toward
                             // younger trees; BOTH stream sites (bake + the
                             // near-model mirror) must stay identical.
-                            let h = 4.0 + ((r3 % 1000) as f32 / 1000.0).powf(1.6) * 14.0;
+                            let species_fir = ((r5 >> 9) & 1) == 0;
+                            // v0.914 (operator: "set all the trees to the max
+                            // height of their tree species"): full-grown
+                            // conifers with a natural +-12% spread - fir ~22 m,
+                            // pine ~16 m. BOTH stream sites stay identical.
+                            let jitter = 0.88 + (r3 % 100) as f32 / 100.0 * 0.24;
+                            let h = if species_fir { 22.0 * jitter } else { 16.0 * jitter };
                 out.push(NearTree {
                     dir,
                     r_m: r,

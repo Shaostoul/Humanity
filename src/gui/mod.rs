@@ -2768,6 +2768,11 @@ pub struct GuiState {
     pub pending_bookmark_teleport: Option<String>,
     /// Category applied to NEW F6 bookmark saves (typed in Dev > Travel).
     pub bookmark_new_category: String,
+    /// Bookmark id the Travel list wants DELETED (lib.rs rewrites the file).
+    pub pending_bookmark_delete: Option<String>,
+    /// Bookmark id + new category from the Travel list's recategorize
+    /// control (lib.rs rewrites the file).
+    pub pending_bookmark_recat: Option<(String, String)>,
     /// Toasts queued from engine code that has no egui clock (v0.890, e.g.
     /// the F6 bookmark save in the raw input path). Drained by draw_toasts,
     /// which stamps them with the real egui time.
@@ -4543,6 +4548,8 @@ impl Default for GuiState {
             location_bookmarks_dirty: true,
             pending_bookmark_teleport: None,
             bookmark_new_category: String::new(),
+            pending_bookmark_delete: None,
+            pending_bookmark_recat: None,
             pending_toasts: Vec::new(),
             surface_altitude_m: None,
             surface_speed_mult: 1.0,

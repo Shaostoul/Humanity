@@ -426,6 +426,8 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                 }
             }
             let mut go: Option<String> = None;
+            let mut del: Option<String> = None;
+            let mut recat: Option<(String, String)> = None;
             for cat in cats {
                 ui.label(
                     RichText::new(&cat)
@@ -444,11 +446,38 @@ fn draw_travel_card(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         {
                             go = Some(id.clone());
                         }
+                        if ui
+                            .small_button("x")
+                            .on_hover_text(format!("Delete bookmark {id} (cannot be undone)."))
+                            .clicked()
+                        {
+                            del = Some(id.clone());
+                        }
+                        if ui
+                            .small_button(">")
+                            .on_hover_text(
+                                "Move this bookmark into the category typed in the box above.",
+                            )
+                            .clicked()
+                        {
+                            let target = if state.bookmark_new_category.trim().is_empty() {
+                                "Uncategorized".to_string()
+                            } else {
+                                state.bookmark_new_category.trim().to_string()
+                            };
+                            recat = Some((id.clone(), target));
+                        }
                     }
                 });
             }
             if let Some(id) = go {
                 state.pending_bookmark_teleport = Some(id);
+            }
+            if let Some(id) = del {
+                state.pending_bookmark_delete = Some(id);
+            }
+            if let Some(rc) = recat {
+                state.pending_bookmark_recat = Some(rc);
             }
         }
     });
