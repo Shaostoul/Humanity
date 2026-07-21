@@ -34,8 +34,16 @@
 > was bodies with no heightmap riding the bare uniform sphere), v0.920
 > geomorph fades (LOD swaps dissolve via complementary Bayer crossfade;
 > RenderObject.fade rides the model matrix w-row - the tree/animal LOD
-> ladder can reuse the channel). Queue next: bookmark studio arc, then
-> LOD ladder (0a below), light clustering, audio engine.
+> ladder can reuse the channel). 2026-07-21 operator field-report batch
+> shipped: v0.921 god rays respect planet occlusion, v0.922 ocean near-
+> field rework (tiling mipped wave texture replaces aliasing analytic
+> shading; sea-pin fix; 3ms terrain-build cap kills the descent hang),
+> v0.923 planet-frame momentum on liftoff (radial Space thrust + full
+> blend-band ride) + vegetation LOD stage 1 (trees DEFAULT ON at 120m,
+> bare-forest guard, model+silhouette sliders). Queue next: bookmark
+> studio arc, then LOD ladder rungs 2+ (billboard mid-stage, grass far
+> cutoff needs a grass bit in packed UV, shrub/animal categories,
+> per-stage crossfades), light clustering, audio engine.
 > NEW TOP ITEMS:
 > 0a. LOD ladder proper (operator design): per-SIZE-CATEGORY render
 >     distance sliders (grass short, trees miles, ant vs beast same idea)
