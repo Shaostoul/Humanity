@@ -120,8 +120,13 @@ struct GpuLight {
 @group(3) @binding(7) var shadow_samp: sampler_comparison;
 struct ShadowUniforms {
     light_vp: mat4x4<f32>,
-    // x = enable, y = shadow strength (0..1), z = 1/map size, w = unused.
+    // x = enable, y = shadow strength (0..1), z = 1/map size,
+    // w = tree-card HIDE radius (cards yield to 3D models inside it).
     params: vec4<f32>,
+    // v0.924 vegetation LOD: x = tree-card FAR cutoff (m) - the silhouette
+    // stage's outer distance, the "Tree silhouette distance" Settings
+    // slider. yzw reserved for the grass/shrub ladder stages.
+    params2: vec4<f32>,
 };
 @group(3) @binding(8) var<uniform> shadow_u: ShadowUniforms;
 // Ground PBR texture array (v0.907): the ambientCG CC0 material sets that
@@ -2986,7 +2991,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // conifer stands here, so the card yields entirely.
         if ((packed & 131072u) != 0u) {
             let card_dist = length(camera.view_pos.xyz - in.world_position);
-            if (card_dist < shadow_u.params.w) {
+            // Inside the hide radius the 3D models own the tree; beyond
+            // the far cutoff (v0.924 "Tree silhouette distance" slider)
+            // the card stage ends entirely.
+            if (card_dist < shadow_u.params.w || card_dist > shadow_u.params2.x) {
                 discard;
             }
         }

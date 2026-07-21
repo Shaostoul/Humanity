@@ -2055,10 +2055,18 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How fast terrain refines during a descent. Higher = quicker sharpening, a few ms per frame while streaming.").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, "Tree model distance (m)", &mut state.settings.tree_model_distance, 0.0..=300.0) {
+        // Vegetation LOD ladder (v0.923, operator: per-stage distance
+        // sliders "like LOD0, LOD1, LOD2"). Stage 1 = full 3D models,
+        // stage 2 = silhouette cards, then bare terrain. Billboard mid-stage
+        // + grass/shrub categories are the next rungs.
+        if widgets::labeled_slider(ui, theme, "Tree detail: 3D models within (m)", &mut state.settings.tree_model_distance, 0.0..=300.0) {
             state.settings_dirty = true;
         }
-        ui.label(RichText::new("EXPERIMENTAL: how close real 3D tree models appear on planet surfaces (try 120). Beyond this range trees stay as simple silhouettes. 0 = off (silhouettes only). Higher = prettier forests, more GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        ui.label(RichText::new("The closest, prettiest tree stage: real photoscanned trees stand within this range. Lower if forests cost too much GPU; 0 turns the stage off (silhouettes only).").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Tree detail: silhouettes out to (m)", &mut state.settings.veg_tree_card_m, 100.0..=3000.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.
         if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {

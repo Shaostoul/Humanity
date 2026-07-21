@@ -210,6 +210,9 @@ pub struct Renderer {
     /// within this range of the camera discard (the real 3D tree models
     /// stand there). Mirrors the Settings tree-model distance; 0 = off.
     pub tree_card_hide_m: f32,
+    /// Tree-card FAR cutoff (v0.924 vegetation LOD): the silhouette stage's
+    /// outer distance in metres (the Settings slider). Cards past it discard.
+    pub tree_card_far_m: f32,
     /// Aerial perspective (v0.916): extinction per metre at the CAMERA's
     /// altitude (strength + height falloff folded in by lib.rs; 0 = off).
     pub aerial_sigma: f32,
@@ -668,7 +671,7 @@ impl Renderer {
         let ground_textures = ground_textures::load(&device, &queue);
         let shadow_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shadow Uniforms"),
-            size: 80, // mat4 (64) + vec4 (16)
+            size: 96, // mat4 (64) + params vec4 (16) + params2 vec4 (16)
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -837,6 +840,7 @@ impl Renderer {
             detail_distance: 1.0,
             sea_state: 0.35,
             tree_card_hide_m: 0.0,
+            tree_card_far_m: 1500.0,
             aerial_sigma: 0.0,
             aerial_slant_cap: 25_000.0,
             aerial_sky: [0.0, 0.0, 0.0],
@@ -2105,7 +2109,7 @@ impl Renderer {
             light_u.view_proj = vp.to_cols_array_2d();
             self.queue
                 .write_buffer(&self.light_camera_buffer, 0, bytemuck::bytes_of(&light_u));
-            let mut su = [0.0_f32; 20];
+            let mut su = [0.0_f32; 24];
             su[..16].copy_from_slice(&vp.to_cols_array());
             su[16] = if shadow_on { 1.0 } else { 0.0 };
             su[17] = 0.6; // shadow strength
@@ -2113,6 +2117,8 @@ impl Renderer {
             // params.w (v0.912): the tree-model radius - terrain tree CARDS
             // hide inside it so the real 3D conifers replace them cleanly.
             su[19] = self.tree_card_hide_m;
+            // params2.x (v0.924): tree-card far cutoff (vegetation LOD slider).
+            su[20] = self.tree_card_far_m.max(1.0);
             self.queue
                 .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
         }

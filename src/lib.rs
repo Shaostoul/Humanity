@@ -11115,16 +11115,25 @@ mod native_app {
                             // FLIGHT band (10-100 km) flies WHERE YOU LOOK,
                             // exactly like FTL above it: W with the nose down
                             // descends, no separate descend key needed.
+                            let dir0 = anchor.normalize_or_zero();
                             let wish = if in_walk_band && !submerged {
                                 state.controller.surface_wish_dir(&state.camera)
                             } else {
                                 // Flight band above, SWIMMING below (v0.903):
-                                // both move where you look.
-                                state.controller.fly_wish_dir(&state.camera)
+                                // both move where you look. Space/Shift thrust
+                                // along the LOCAL RADIAL up (v0.923, operator:
+                                // "the moment I press space the planet and I
+                                // seem to decouple") - world +Y is TANGENTIAL
+                                // at the equator, so the old fixed axis slid
+                                // you along the surface instead of lifting.
+                                let up_w = glam::DQuat::from_rotation_y(spin) * dir0;
+                                state.controller.fly_wish_dir_up(
+                                    &state.camera,
+                                    Vec3::new(up_w.x as f32, up_w.y as f32, up_w.z as f32),
+                                )
                             };
                             let wish_unrot = glam::DQuat::from_rotation_y(-spin)
                                 * glam::DVec3::new(wish.x as f64, wish.y as f64, wish.z as f64);
-                            let dir0 = anchor.normalize_or_zero();
                             let radial_wish = wish_unrot.dot(dir0);
                             let tangential = wish_unrot - dir0 * radial_wish;
                             // ── Unified flight speed (v0.880, operator stuck
@@ -11332,30 +11341,31 @@ mod native_app {
                             // fly + FTL wheel integration handles movement (the
                             // ownership flag below releases the FTL gate).
                             state.surface_owns_translation = false;
-                            // ── Partial co-rotation (v0.890, operator: smooth
-                            // the space -> orbit -> surface transitions) ──
-                            // Below this band the camera rides the planet's
-                            // spin FULLY; above it, not at all. Crossing
-                            // 100 km used to change the camera's tangential
-                            // velocity by the local surface speed (~465 m/s at
-                            // the equator) in a single frame - a visible
-                            // sideways yank right as the ground got close.
-                            // Ride (1-s) of each frame's spin delta instead:
-                            // descent picks up the ground frame gradually and
-                            // reaches the boundary already velocity-matched;
-                            // ascent sheds it just as smoothly. The 0.01 rad
-                            // guard skips stale anchors (e.g. the first frame
-                            // after a teleport wrote a fresh last_spin far in
-                            // the past).
+                            // ── FULL co-rotation through the band (v0.923,
+                            // operator momentum directive: "we're relative to
+                            // the Earth so our movement should act relative
+                            // to Earth" - supersedes the v0.890 partial
+                            // (1-s) ride). Lifting off no longer sheds the
+                            // planet's frame at all until the very top of
+                            // the band: the ride stays FULL through 80% of
+                            // it, then fades over the last 20% so entering
+                            // the inertial ISS regime is still seamless.
+                            // The up-vector ease above is untouched - only
+                            // POSITION inheritance changed. The 0.01 rad
+                            // guard skips stale anchors (e.g. the first
+                            // frame after a teleport wrote a fresh
+                            // last_spin far in the past).
                             let d_spin = spin - state.frame_lock_last_spin;
                             let mut cam_world_now = cam_world;
                             if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
                                 let rot_new = glam::DQuat::from_rotation_y(spin);
                                 let rot_old =
                                     glam::DQuat::from_rotation_y(state.frame_lock_last_spin);
+                                let shed = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
+                                let keep = 1.0 - shed * shed * (3.0 - 2.0 * shed);
                                 let ride = (rot_new * state.frame_lock_anchor
                                     - rot_old * state.frame_lock_anchor)
-                                    * (1.0 - s as f64);
+                                    * keep;
                                 state.ship_world_pos += ride;
                                 cam_world_now += ride;
                             }
@@ -16021,7 +16031,17 @@ mod native_app {
                                     // cover the full radius), else the actual
                                     // reach of the drawn set, slightly shrunk
                                     // so boundary trees keep their cards.
-                                    state.renderer.tree_card_hide_m = if drawn < 64 {
+                                    state.renderer.tree_card_hide_m = if drawn == 0 {
+                                        // v0.923 (operator: "the plants aren't
+                                        // rendering close to me again"): if NO
+                                        // model actually drew - every mesh
+                                        // failed to load, or none were in
+                                        // range - hiding cards would leave
+                                        // BARE GROUND where the forest is.
+                                        // Cards keep the forest until models
+                                        // truly replace them.
+                                        0.0
+                                    } else if drawn < 64 {
                                         tree_dist as f32
                                     } else {
                                         (covered_r2.sqrt() as f32 - 8.0).max(0.0)
@@ -21255,6 +21275,10 @@ mod native_app {
                                 // f32 stays precise for days of uptime.
                                 state.renderer.detail_distance =
                                     state.gui_state.settings.terrain_detail_distance.clamp(0.5, 3.0);
+                                // Vegetation LOD (v0.923): the tree-card far
+                                // cutoff slider applies live.
+                                state.renderer.tree_card_far_m =
+                                    state.gui_state.settings.veg_tree_card_m.clamp(100.0, 3000.0);
                                 // v0.907: the lighting-pass knobs from
                                 // Settings > Planets apply every frame.
                                 state.renderer.sun_shadows =

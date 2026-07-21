@@ -875,6 +875,16 @@ impl CameraController {
     /// world-scale (ship_world_pos) share of an FTL flight with the same
     /// intent the local share uses.
     pub fn fly_wish_dir(&self, camera: &Camera) -> Vec3 {
+        self.fly_wish_dir_up(camera, Vec3::Y)
+    }
+
+    /// `fly_wish_dir` with a caller-supplied UP axis (v0.923, operator:
+    /// "the moment I press space the planet and I seem to decouple"): in a
+    /// planet's flight band Space/Shift must thrust along the LOCAL RADIAL
+    /// up. World +Y is TANGENTIAL at the equator, so the old fixed axis
+    /// slid you along the surface instead of lifting you - which read as
+    /// instantly losing the planet's frame.
+    pub fn fly_wish_dir_up(&self, camera: &Camera, up: Vec3) -> Vec3 {
         let forward = camera.forward();
         let right = camera.right();
         let mut wish = Vec3::ZERO;
@@ -882,8 +892,8 @@ impl CameraController {
         if self.backward { wish -= forward; }
         if self.right { wish += right; }
         if self.left { wish -= right; }
-        if self.ascend { wish += Vec3::Y; }
-        if self.descend { wish -= Vec3::Y; }
+        if self.ascend { wish += up; }
+        if self.descend { wish -= up; }
         if wish.length_squared() > 0.0 {
             wish.normalize()
         } else {

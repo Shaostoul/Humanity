@@ -6559,6 +6559,9 @@ pub struct SettingsState {
     /// Near-field real tree model distance in metres (v0.911; 0 = cards
     /// only). Grass/tree silhouette cards continue past this range.
     pub tree_model_distance: f32,
+    /// Vegetation LOD (v0.923): tree silhouette-card far cutoff in metres -
+    /// the card stage's outer distance. More ladder stages follow.
+    pub veg_tree_card_m: f32,
     /// Sun shadow map on/off (v0.907, Settings > Planets).
     pub sun_shadows: bool,
     /// Aerial perspective strength (v0.916): how strongly distant land and
@@ -6693,7 +6696,8 @@ impl Default for SettingsState {
             terrain_patch_budget: 2048.0,
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
-            tree_model_distance: 0.0,
+            tree_model_distance: 120.0,
+            veg_tree_card_m: 1500.0,
             sun_shadows: true,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
