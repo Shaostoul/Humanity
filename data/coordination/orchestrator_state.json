@@ -455,12 +455,16 @@
     {
       "date": "2026-07-21",
       "decision": "v0.916.0 LOOP ITERATION 2 - AERIAL PERSPECTIVE (research item 2): exponential height haze at the end of fs_main shared path (color*T + sky*(1-T)); params poked via the unused per-light cone pads (light1_cone_inner.y sigma folded with strength*altitude-density, .z slant cap 3H, light2_cone_inner.yzw sky color day+sunset-tinted from the v0.915 transmittance, light3_cone_inner.yzw camera radial up for the slant bound). Interior passes zero the pads (full uniform rewrite) so rooms never fog. Settings aerial_strength slider 0-2 default 1. GOTCHA: WGSL camera struct has SCALAR light0..7_cone_inner fields, NOT an array - camera.light_cone_inner[1] fails naga parse (caught by the embedded-shader validate test). Probe: 11km canyon vista wears a distance-deepening warm veil. LOOP QUEUE next: [3] shoreline depth fade + foam line (M - depth copy after opaque pass at group 3 binding 11, thickness absorption tint, waterline alpha ramp, animated foam band, depth-attenuated wave amplitude + ocean_waves twin)."
+    },
+    {
+      "date": "2026-07-21",
+      "decision": "v0.917.0 LOOP ITERATION 3 - SHORELINE (research item 3): AVOIDED the depth-texture infrastructure entirely - build_water_patch_mesh now takes the heightmap and bakes per-vertex seafloor depth (decimetres) into the color->packed-UV transport; the packed scalar (water_bit + depth_dm) interpolates as LINEAR DEPTH across triangles. Shader: turquoise shallows (<9m), shoal wave attenuation (<7m), waterline alpha feather (<1m - the hard sea/land polygon edge dissolves), animated breathing surf line (0.2-2.2m band, along-shore noise, sea-state scaled, sunlit like all foam, footprint-faded by 9m/px). REPRODUCED the operator white-stripes ocean at 6m/day: NOT a regression (identical pre-v0.917), root = grazing fresnel reflecting the overbright sky -> the EXPOSURE CALIBRATION iteration owns it (sky_term math: horizon ramp * sun 2.5 * WATER_SKY_GAIN 0.2 does not explain the white alone; suspect the tonemap-normalized washed dome, research item 4 multiple-scattering + ATMO_EXPOSURE walk-down). LOOP QUEUE next: [4] exposure calibration (washed dome + white water; research item 4: multiple-scattering energy + walk ATMO_EXPOSURE 4.0 toward 1.x, retire NEAR/HAZE compensators), then [5] terrain stepping smoothing, [6] geomorph fades, [7] bookmark studio, [8] LOD ladder + plants.csv, [9] light clustering, [10] audio."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.916.0 released; v0.916.1 stamp pending.",
+  "version_state": "v0.917.0 released; v0.917.1 stamp pending.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
