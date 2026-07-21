@@ -31,8 +31,11 @@
 > sky AND the grazing-white water) + BUG-047 (planet-detail setting sank
 > the sky shell underground), v0.919 synthesized heightmaps (Moon/Mars/
 > Pluto get real chunked-LOD cratered ground; the "icosphere stepping"
-> was bodies with no heightmap riding the bare uniform sphere). Queue
-> next: geomorph fades, bookmark studio arc, LOD ladder (0a below).
+> was bodies with no heightmap riding the bare uniform sphere), v0.920
+> geomorph fades (LOD swaps dissolve via complementary Bayer crossfade;
+> RenderObject.fade rides the model matrix w-row - the tree/animal LOD
+> ladder can reuse the channel). Queue next: bookmark studio arc, then
+> LOD ladder (0a below), light clustering, audio engine.
 > NEW TOP ITEMS:
 > 0a. LOD ladder proper (operator design): per-SIZE-CATEGORY render
 >     distance sliders (grass short, trees miles, ant vs beast same idea)
