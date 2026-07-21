@@ -447,12 +447,16 @@
     {
       "date": "2026-07-21",
       "decision": "v0.914.0 BATCH 4 + LOOP MODE ENABLED (operator: \"enable loop mode to work through everything we have discussed and the backlog\"): (1) TREE POP - card-hide radius now tracks the drawn-model reach per frame (was the full slider radius while models capped at 64 -> trees past the cap had NO representation; approaching dense stands rotated near trees out). (2) NIGHT OCEAN GLOW - foam was an UNLIT constant mixed after water_shade; now sunlit (n_geo dot sun * intensity), dark at night; coverage tightened (0.20-0.36 steep, 0.55+ gate, cap 0.35). (3) Species max heights (fir 22m pine 16m +-12%, both stream sites lockstep), grass 160/cell (4.4x). (4) Bookmark delete (x) + recategorize (>) in Dev > Travel; lib rewrites bookmarks.json. QUEUED as bookmark-studio arc: maps-page teleport, POV preview editing, time/weather scrub. LOOP QUEUE (from operator + PRIORITIES, ranked): [1] sun-disc transmittance (research item 1, S), [2] aerial perspective on terrain (research item 2, M), [3] shoreline depth fade + foam line (research item 3, M - fixes water-land interface), [4] terrain stepping smoothing, [5] exposure calibration (washed dome + white water reflections), [6] water tess/subdivision increase near camera, [7] geomorph fades, [8] bookmark studio arc, [9] LOD ladder per size category + plants.csv species tie-in, [10] light clustering, [11] audio integration, [12] decoupling steps 3-5. Loop protocol: solo hot-file work, ship each increment, probe-verify renderer changes, journal every release."
+    },
+    {
+      "date": "2026-07-21",
+      "decision": "v0.915.0 LOOP ITERATION 1 - SUN TRANSMITTANCE (research item 1): renderer::atmosphere::sun_transmittance (Chapman od_to_space + the WGSL beta_ext construction beta_ray + 1.11*beta_mie) tints the global sun LIGHT color per frame when frame-locked to an atmosphere planet (lib.rs sun-light block; construction override exempt). Physics test: noon passes, horizon dims + reddens 2x+, set = black. Probe: warm canopy light at 18:24, black after sunset. LOOP QUEUE next: [2] aerial perspective on terrain (M - march 4-6 samples camera-to-fragment with the Chapman legs in the type-12 branch, surface*T + S, strength slider), then [3] shoreline depth fade + foam line."
     }
   ],
   "active_scopes_to_avoid": [
     "_When this list is non-empty, another orchestrator session may be coordinating those scopes; check timestamps before claiming."
   ],
-  "version_state": "v0.914.0 released; v0.914.1 build-game in flight.",
+  "version_state": "v0.915.0 released; v0.915.1 stamp pending.",
   "files_in_flight_or_recently_changed": [
     "web/shared/shell.js — nav .tab/.tab-label/.hub-nav CSS (labels always shown) v0.287.7",
     "web/chat/chat-ui.js — #unified-scratch-row inject + switchChannel wrapper (v0.287.8); toggleIdentityMenu/closeIdentityMenuOutside + relocateIdentityToMenu (v0.287.9)",
