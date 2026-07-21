@@ -29,8 +29,10 @@
 > v0.917 shoreline (depth-baked shallows/waterline/surf), v0.918 exposure
 > calibration (three-tier dome + multiple scattering; killed the washed
 > sky AND the grazing-white water) + BUG-047 (planet-detail setting sank
-> the sky shell underground). Queue next: terrain stepping smoothing,
-> then geomorph fades, bookmark studio arc, LOD ladder (0a below).
+> the sky shell underground), v0.919 synthesized heightmaps (Moon/Mars/
+> Pluto get real chunked-LOD cratered ground; the "icosphere stepping"
+> was bodies with no heightmap riding the bare uniform sphere). Queue
+> next: geomorph fades, bookmark studio arc, LOD ladder (0a below).
 > NEW TOP ITEMS:
 > 0a. LOD ladder proper (operator design): per-SIZE-CATEGORY render
 >     distance sliders (grass short, trees miles, ant vs beast same idea)
