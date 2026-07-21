@@ -6437,6 +6437,26 @@ mod native_app {
                                     b.id
                                 ),
                             }
+                        } else {
+                            // No measured grid shipped (Moon/Mars/Pluto/mods):
+                            // synthesize one (v0.919) so the chunked-LOD
+                            // ground + ground clamp + albedo texture bake all
+                            // activate — without this the body renders as the
+                            // bare uniform icosphere, kilometer-wide flat
+                            // facets at walking height (the operator's
+                            // "icosphere stepping"). RON sea_level is NOT
+                            // overridden here: for an airless body it is a
+                            // color-band threshold (the Moon's maria line),
+                            // not a coastline.
+                            let t0 = Instant::now();
+                            let hm =
+                                crate::terrain::procedural_heightmap::synthesize(&def);
+                            log::info!(
+                                "Planet '{}': synthesized heightmap ({}x{}, {:.0}..{:.0} m) in {:.0?}",
+                                b.id, hm.width(), hm.height(),
+                                hm.min_meters(), hm.max_meters(), t0.elapsed()
+                            );
+                            state.planet_heightmaps.insert(b.id.clone(), hm);
                         }
                         // Real surface-color grid (Earth: NASA Blue Marble
                         // via scripts/build-earth-albedo.js). On failure we

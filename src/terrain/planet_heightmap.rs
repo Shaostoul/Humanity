@@ -165,6 +165,33 @@ impl PlanetHeightmap {
         Self::from_bytes(&bytes)
     }
 
+    /// Build a heightmap from an in-memory grid (the synthesized-terrain
+    /// path, v0.919 — bodies with no measured elevation file). Same
+    /// validations as `from_bytes` so a synthesized grid can never poison
+    /// the samplers with what a malformed file could not.
+    pub fn from_grid(
+        width: u32,
+        height: u32,
+        min_m: f32,
+        max_m: f32,
+        samples: Vec<u16>,
+    ) -> Result<Self, String> {
+        if width == 0 || height == 0 {
+            return Err(format!("heightmap has degenerate dimensions {width}x{height}"));
+        }
+        if !(max_m > min_m) {
+            return Err(format!("heightmap range invalid: min {min_m} max {max_m}"));
+        }
+        let expected = width as usize * height as usize;
+        if samples.len() != expected {
+            return Err(format!(
+                "heightmap grid is {} samples, expected {expected} for {width}x{height}",
+                samples.len()
+            ));
+        }
+        Ok(Self { width, height, min_m, max_m, samples })
+    }
+
     pub fn width(&self) -> u32 { self.width }
     pub fn height(&self) -> u32 { self.height }
     pub fn min_meters(&self) -> f32 { self.min_m }

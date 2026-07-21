@@ -15,4 +15,5 @@ pub mod ocean_waves;
 pub mod terrain_tiles;
 pub mod planet_heightmap;
 pub mod planet_registry;
+pub mod procedural_heightmap;
 pub mod planet_surface;
