@@ -1234,7 +1234,18 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // toward the sun disc keeps the sky from occluding the sun - the sun
     // outshines its own sky, and the disc stays sharp.
     let sun_l = normalize(camera.sun_direction.xyz);
-    let day = smoothstep(-0.08, 0.12, dot(normalize(ro), sun_l));
+    // v0.925 (operator: "a hard edged black shell around the Earth that
+    // should be the atmosphere fading to stars"): the geometric day term
+    // is a GROUND-VIEW rule - at noon the whole dome outshines the stars.
+    // From ORBIT the same rule forced ~98.5% opacity onto every shell
+    // fragment, including the thin outer limb where the in-scatter is
+    // nearly zero: an opaque near-black ring swallowing the starfield.
+    // Gate it by "camera inside the atmosphere" (the v0.918 w_alt weight):
+    // ground keeps the full noon occlusion, and from space the limb
+    // occludes stars only by its own BRIGHTNESS (sky_lum below), so the
+    // faint outer shell fades smoothly into stars.
+    let day = smoothstep(-0.08, 0.12, dot(normalize(ro), sun_l))
+        * (1.0 - max(w_alt, w_far));
     let toward_sun = smoothstep(0.9986, 0.9997, dot(rd, sun_l));
     // 4.5 (was 3.2 pre-v0.918): the calibrated dome is dimmer, so the
     // luminance-driven twilight occlusion needs a stronger gain to keep
