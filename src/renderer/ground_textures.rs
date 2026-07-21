@@ -135,6 +135,99 @@ fn load_layer(dir: &PathBuf, file: &str, srgb_to_linear: bool) -> Option<Vec<u8>
     Some(data)
 }
 
+/// Procedural tiling OCEAN WAVE layer (v0.922, array layer 8): the near-field
+/// water rework. The analytic per-fragment wave octaves aliased into zebra
+/// stripes and moire rings at speed (operator screenshots, 2026-07-21) because
+/// trig math has no mip chain - this texture DOES. RG = tangent slope xy
+/// (biased 0.5), B = normalized crest height (foam mask), A = 255. Content is
+/// a random-phase sum of ~32 directional waves whose wave-vectors are INTEGER
+/// cycle counts, so the tile wraps perfectly; random phases mean no coherent
+/// interference lattices, ever. Sampled with the shared repeat+aniso sampler
+/// and the CPU mip chain below, the GPU clamps its screen-space frequency
+/// automatically - the exact thing the analytic path could not do.
+fn ocean_wave_layer(size: u32) -> Vec<u8> {
+    let n_px = (size * size) as usize;
+    // Deterministic wave set: xorshift over a fixed seed.
+    let mut s: u64 = 0x0CEA_0CEA_2026_0721;
+    let mut rand = move || {
+        s ^= s >> 12;
+        s ^= s << 25;
+        s ^= s >> 27;
+        (s.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 40) as f32 / (1u64 << 24) as f32
+    };
+    // Integer wave vectors (cycles per tile) in 3..40, amplitude ~ 1/|k|,
+    // random phase. A mild directional bias (toward +x) reads as wind.
+    struct W {
+        kx: f32,
+        ky: f32,
+        amp: f32,
+        phase: f32,
+    }
+    let mut waves: Vec<W> = Vec::with_capacity(32);
+    while waves.len() < 32 {
+        let mag = 3.0 + rand() * rand() * 37.0; // bias toward long waves
+        let ang = (rand() - 0.5) * std::f32::consts::PI * 1.6; // wind-ish spread
+        let kx = (mag * ang.cos()).round();
+        let ky = (mag * ang.sin()).round();
+        if kx.abs() < 0.5 && ky.abs() < 0.5 {
+            continue;
+        }
+        let k = (kx * kx + ky * ky).sqrt();
+        waves.push(W {
+            kx,
+            ky,
+            amp: 1.0 / k.powf(1.05),
+            phase: rand() * std::f32::consts::TAU,
+        });
+    }
+    let amp_sum: f32 = waves.iter().map(|w| w.amp).sum();
+    // Height range for the B-channel normalization: random-phase sums stay
+    // well inside +-amp_sum; +-0.45 * amp_sum clips <1% of crests, which is
+    // exactly what a foam mask wants saturated anyway.
+    let h_scale = 0.45 * amp_sum;
+    // Slope scale: steepest summed slope ~ TAU * sum(amp * k) / size... in
+    // UV cycles; normalize by the actual max so the RG channels use their
+    // full precision and the shader applies physical strength itself.
+    let slope_scale: f32 = waves.iter().map(|w| w.amp * (w.kx * w.kx + w.ky * w.ky).sqrt()).sum::<f32>() * 0.5;
+    let mut data = vec![0u8; n_px * 4];
+    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).min(16);
+    let rows_per = size.div_ceil(threads as u32);
+    let waves_ref = &waves;
+    std::thread::scope(|sc| {
+        for (ti, chunk) in data.chunks_mut((rows_per * size * 4) as usize).enumerate() {
+            let y0 = ti as u32 * rows_per;
+            sc.spawn(move || {
+                for (row_i, row) in chunk.chunks_mut((size * 4) as usize).enumerate() {
+                    let y = (y0 + row_i as u32) as f32 / size as f32;
+                    for (x_i, px) in row.chunks_mut(4).enumerate() {
+                        let x = x_i as f32 / size as f32;
+                        let mut h = 0.0_f32;
+                        let mut sx = 0.0_f32;
+                        let mut sy = 0.0_f32;
+                        for w in waves_ref {
+                            let ph = std::f32::consts::TAU * (w.kx * x + w.ky * y) + w.phase;
+                            let (sin_ph, cos_ph) = ph.sin_cos();
+                            h += w.amp * cos_ph;
+                            // d/dx of cos(TAU k x) = -TAU k sin; TAU folds
+                            // into slope_scale's normalization.
+                            sx -= w.amp * w.kx * sin_ph;
+                            sy -= w.amp * w.ky * sin_ph;
+                        }
+                        let nx = (sx / slope_scale).clamp(-1.0, 1.0);
+                        let ny = (sy / slope_scale).clamp(-1.0, 1.0);
+                        let hb = (h / h_scale).clamp(-1.0, 1.0);
+                        px[0] = ((nx * 0.5 + 0.5) * 255.0) as u8;
+                        px[1] = ((ny * 0.5 + 0.5) * 255.0) as u8;
+                        px[2] = ((hb * 0.5 + 0.5) * 255.0) as u8;
+                        px[3] = 255;
+                    }
+                }
+            });
+        }
+    });
+    data
+}
+
 /// Neutral layer bytes: exact no-op under the shader's application rules.
 fn neutral_layer(w: u32, h: u32, is_normal: bool) -> Vec<u8> {
     let px: [u8; 4] = if is_normal { [128, 128, 255, 255] } else { [128, 128, 128, 255] };
@@ -194,12 +287,23 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
     let loaded_count = layers.iter().filter(|l| l.is_some()).count();
 
     // No assets at all (headless dev checkout, stripped install): ship a 1x1
-    // neutral array instead of 130 MB of grey.
+    // neutral array instead of 130 MB of grey. The ocean layer is procedural
+    // and follows the same collapse (a 1x1 flat-normal ocean = glassy calm,
+    // an acceptable stripped-install look).
     let (size, mip_count) = if loaded_count == 0 { (1u32, 1u32) } else { (SIZE, SIZE.ilog2() + 1) };
+
+    // Layer 8 (v0.922): the procedural tiling ocean wave layer - generated,
+    // not loaded, so it exists in every install.
+    let ocean = if size > 1 {
+        ocean_wave_layer(size)
+    } else {
+        neutral_layer(size, size, true)
+    };
+    layers.push(Some(ocean));
 
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some("Ground PBR Array"),
-        size: wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 8 },
+        size: wgpu::Extent3d { width: size, height: size, depth_or_array_layers: 9 },
         mip_level_count: mip_count,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,

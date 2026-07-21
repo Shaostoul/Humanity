@@ -15653,10 +15653,23 @@ mod native_app {
                                 // first; new meshes enter NEXT frame's
                                 // selection (progressive refinement, no
                                 // frame hitch).
+                                // v0.922 (operator: "a hard hang that lasts
+                                // several seconds at the transitionary
+                                // period" descending to the ocean): the
+                                // count budget alone let 64 x ~1 ms builds
+                                // stack ~60 ms on a single frame, and the
+                                // LOD-activation ramp holds that for seconds
+                                // of ~10 FPS. A WALL-CLOCK cap (3 ms) rules
+                                // the frame instead - the backlog just
+                                // spreads across more frames, which the
+                                // v0.920 crossfades already smooth over.
+                                let build_t0 = Instant::now();
                                 for id in &selection.build_requests {
                                     if patch_builds_this_frame
                                         >= state.gui_state.settings.terrain_builds_per_frame.clamp(1.0, 64.0)
                                             as usize
+                                        || (patch_builds_this_frame > 0
+                                            && build_t0.elapsed().as_secs_f32() > 0.003)
                                     {
                                         break;
                                     }
@@ -18362,8 +18375,18 @@ mod native_app {
                         // (~30 s time constant) so weather regime flips roll
                         // the ocean over instead of snapping it.
                         if let Some(pin) = state.sea_state_override {
-                            state.renderer.sea_state = pin;
+                            // PINNED encoding (v0.922): the shader takes
+                            // max(local MODIS storm cell, this pad), so a
+                            // plain low pin could never calm a storm cell
+                            // for dev shots. Values >= 1.5 mean "pinned at
+                            // (value - 2), ignore MODIS".
+                            state.renderer.sea_state = pin.clamp(0.0, 1.0) + 2.0;
                         } else {
+                            if state.renderer.sea_state > 1.5 {
+                                // Leaving pinned mode: snap back into the
+                                // 0..1 wind domain before smoothing.
+                                state.renderer.sea_state -= 2.0;
+                            }
                             let target = ((w.wind_speed - 2.0) / 13.0).clamp(0.0, 1.0);
                             let k = (dt as f32 / 30.0).min(1.0);
                             state.renderer.sea_state +=

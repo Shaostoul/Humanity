@@ -748,16 +748,58 @@ fn wave_octave(
     return tp * (slope * fade * cos(ph));
 }
 
-// Sum of all six wave octaves: the height-field slope gradient in the
-// tangent plane. The perturbed water normal is normalize(n - this).
+// Swell-only slope gradient (v0.922 near-field rework): the three LONG wave
+// trains (2000/360/150 m) keep their analytic shading - at those wavelengths
+// the AA fade genuinely protects them. The three FINE trains (50/18/6 m) and
+// the micro ripples are shading-retired: analytic trig has no mip chain, so
+// up close they aliased into zebra stripes and coherent moire rings
+// (operator screenshots, 2026-07-21). Their role now belongs to the mipped
+// ocean texture (ocean_tex_gradient below). The fine trains still DISPLACE
+// geometry in the vertex shader - silhouette unchanged, CPU swim-height twin
+// untouched.
 fn water_wave_gradient(p_m: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -> vec3<f32> {
     var g = wave_octave(p_m, n, WAVE1_DIR, WAVE1_LAMBDA, WAVE1_CPS, WAVE1_SLOPE, t, footprint_m);
     g = g + wave_octave(p_m, n, WAVE2_DIR, WAVE2_LAMBDA, WAVE2_CPS, WAVE2_SLOPE, t, footprint_m);
     g = g + wave_octave(p_m, n, WAVE3_DIR, WAVE3_LAMBDA, WAVE3_CPS, WAVE3_SLOPE, t, footprint_m);
-    g = g + wave_octave(p_m, n, WAVE4_DIR, WAVE4_LAMBDA, WAVE4_CPS, WAVE4_SLOPE, t, footprint_m);
-    g = g + wave_octave(p_m, n, WAVE5_DIR, WAVE5_LAMBDA, WAVE5_CPS, WAVE5_SLOPE, t, footprint_m);
-    g = g + wave_octave(p_m, n, WAVE6_DIR, WAVE6_LAMBDA, WAVE6_CPS, WAVE6_SLOPE, t, footprint_m);
     return g;
+}
+
+// ── Ocean detail from the tiling wave texture (v0.922, ground_tex layer 8) ──
+// Two scrolled octaves of the procedurally generated random-phase wave tile,
+// sampled with explicit mip LOD so the GPU clamps screen-space frequency
+// automatically - the property the analytic octaves could never have. RG =
+// tangent slope, B = crest height (foam mask). `p_anch` is the camera-
+// anchored planet-local metre domain (the micro-ripple anchor), so UV math
+// stays in small floats. Octave tiles 16 m and 64 m both divide the 64 m
+// anchor modulus. Returns xyz = tangent-plane gradient, w = crest 0..1.
+fn ocean_tex_gradient(p_anch: vec3<f32>, n: vec3<f32>, t: f32, footprint_m: f32) -> vec4<f32> {
+    // Stable tangent basis from the sphere normal (poles guarded).
+    var up_ref = vec3<f32>(0.0, 1.0, 0.0);
+    if (abs(n.y) > 0.94) {
+        up_ref = vec3<f32>(1.0, 0.0, 0.0);
+    }
+    let t1 = normalize(cross(n, up_ref));
+    let t2 = cross(n, t1);
+    let uv_m = vec2<f32>(dot(p_anch, t1), dot(p_anch, t2));
+    // Octave A: 16 m tile, the main chop. Octave B: 64 m tile, slow rollers.
+    // Different scroll directions decorrelate the shared content.
+    let lod_a = clamp(log2(max(footprint_m * 2048.0 / 16.0, 1.0)), 0.0, 11.0);
+    let s_a = textureSampleLevel(
+        ground_tex, ground_samp,
+        uv_m / 16.0 + vec2<f32>(t * 0.021, t * 0.009), 8, lod_a);
+    let lod_b = clamp(log2(max(footprint_m * 2048.0 / 64.0, 1.0)), 0.0, 11.0);
+    let s_b = textureSampleLevel(
+        ground_tex, ground_samp,
+        uv_m / 64.0 + vec2<f32>(-t * 0.0035, t * 0.0055), 8, lod_b);
+    let g_a = s_a.rg * 2.0 - 1.0;
+    let g_b = s_b.rg * 2.0 - 1.0;
+    let g2 = g_a * 0.80 + g_b * 0.55;
+    // Crest mask: only the TOP of octave A's height range counts as a
+    // breaking crest, weighted up where the roller octave also peaks
+    // (compound crests foam first). Random-phase heights are near-Gaussian,
+    // so the 0.72 threshold keeps coverage to the top few percent.
+    let crest = smoothstep(0.72, 0.95, s_a.b) * (0.5 + 0.9 * clamp((s_b.b - 0.5) * 2.0, 0.0, 1.0));
+    return vec4<f32>(t1 * g2.x + t2 * g2.y, crest);
 }
 
 // Fixed screen-space anti-alias fade (v0.909): like detail_octave_fade but
@@ -2550,7 +2592,12 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // wind at the player (fill_color.w pad; showcase {"sea":x} overrides).
     // 0 = glassy mirror, ~0.35 = the classic ripple look, 1 = storm.
     let modis_storm = smoothstep(0.5, 0.9, sw.r * (0.3 + 0.7 * sw.g));
-    let sea_state = clamp(max(modis_storm, camera.fill_color.w), 0.0, 1.0);
+    // Pad >= 1.5 = PINNED at (value - 2), ignoring the MODIS cell (v0.922:
+    // the old max() meant a dev {"sea":0} could never calm a storm cell).
+    var sea_state = clamp(max(modis_storm, camera.fill_color.w), 0.0, 1.0);
+    if (camera.fill_color.w >= 1.5) {
+        sea_state = clamp(camera.fill_color.w - 2.0, 0.0, 1.0);
+    }
     // Storm water body darkens toward slate (reference: storm seas read
     // dark blue-grey under the cloud deck, not bright blue).
     deep = mix(deep, vec3<f32>(0.012, 0.030, 0.048), sea_state * 0.6);
@@ -2563,14 +2610,20 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     var n_pert = n_geo;
     var foam = 0.0;
     if (presence > 0.001) {
+        // Long-swell analytic shading (2000/360/150 m trains only, v0.922).
         var grad = water_wave_gradient(p_local, dir, t, footprint) * gscale;
-        // Close-range micro ripples (v0.902): two fast camera-relative
-        // octaves (3.2 m and 0.8 m - both divide the 64 m anchor modulus,
-        // so anchor jumps are seamless) give the surface visible MOTION at
-        // walking/boating range. Purely a normal perturbation; the swim
-        // height (CPU twin) is untouched. Scaled by sea state so a glassy
-        // calm stays near-mirror.
-        if (footprint < 1.5) {
+        // Near-field detail from the tiling wave TEXTURE (v0.922 rework,
+        // operator: "the ocean texture still doesn't look good up close...
+        // the way we're doing it just isn't cutting it"): mipped random-
+        // phase content replaces the fine analytic trains + micro ripples,
+        // so close chop has real structure and CANNOT alias into zebra
+        // stripes or moire rings - the mip chain clamps its frequency to
+        // the screen. Reaches much further than the old 1.5 m/px micro
+        // band because mips make distance safe; amplitude still calms far
+        // out so the far field stays the approved satellite look.
+        var crest = 0.0;
+        let tex_reach = 1.0 - smoothstep(4.0, 14.0, footprint);
+        if (tex_reach > 0.003) {
             let inv_mw = transpose(object.normal_matrix);
             let dvw =
                 (inv_mw * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
@@ -2580,27 +2633,35 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
                 camera.light0_cone_inner.w,
             );
             let ptw = anchw + dvw;
-            let rip = 0.30 + 0.70 * sea_state;
-            grad = grad
-                + wave_octave(ptw, dir, WAVE2_DIR, 3.2, 0.55, 0.05, t, footprint) * rip;
-            grad = grad
-                + wave_octave(ptw, dir, WAVE4_DIR, 0.8, 1.1, 0.045, t, footprint) * rip;
+            let det = ocean_tex_gradient(ptw, dir, t, footprint);
+            // The texture stores slopes NORMALIZED to full channel range for
+            // precision; the physical steepness lives here. Calm seas are
+            // near-mirror (~4 deg max tilt), storms chop to ~14 deg - going
+            // past that swings the Fresnel between sky-white and dark body
+            // and the whole surface strobes white/blue.
+            let det_amp = (0.06 + 0.19 * sea_state) * shoal * tex_reach;
+            grad = grad + det.xyz * det_amp;
+            crest = det.w * tex_reach;
         }
-        // Whitecaps (v0.909 rework after the "ocean is mostly white"
-        // regression): breaking crests are a ~10 m phenomenon, so foam gets
-        // a HARD fixed screen-space reach (gone past ~5 m/px regardless of
-        // the detail-distance slider), a crest-only steepness threshold,
-        // and a sea-state gate - reference storm photos show DARK water
-        // with white streaks only along breaking crests.
+        // Slope soft-clamp (v0.922): six summed octaves could exceed unit
+        // slope in storms and FLIP the shaded normal - alternating lit and
+        // unlit stripes at wave frequency (the operator's zebra ocean).
+        // Compressing the gradient magnitude keeps every normal on the
+        // correct hemisphere at any sea state.
+        let gl = length(grad);
+        grad = grad * (1.0 / (1.0 + 0.75 * gl));
+        // Whitecaps: crest-masked from the texture's height channel (foam
+        // rides actual wave tops now) plus the long-swell steepness term,
+        // both sea-state gated. Same hard screen-space reach as before -
+        // breaking crests are a ~10 m phenomenon.
         let steep = length(grad) * (1.0 + sea_state * 1.4);
-        let cap_noise = surface_detail_noise(dir_r1, r_render / 90.0, 977.0);
         let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
-        // v0.914: tightened again (operator: "still a lot of white up
-        // close") - crests only, later storm gate, and real seas cap out
-        // around a third foam coverage even in storms.
-        foam = smoothstep(0.20, 0.36, steep)
+        let cap_tex = smoothstep(0.55, 0.85, crest);
+        foam = max(
+            smoothstep(0.20, 0.36, steep) * (0.4 + 0.6 * cap_tex),
+            cap_tex * 0.85
+        )
             * smoothstep(0.55, 0.95, sea_state)
-            * (0.4 + 0.6 * cap_noise)
             * foam_reach
             * presence;
         let n_pert_local = normalize(dir - grad * presence);
