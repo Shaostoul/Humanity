@@ -499,6 +499,10 @@
   {
    "date": "2026-07-22",
    "decision": "v0.927.0 OPERATOR REPORT FIX - frame-lock proximity auto-switch: flying Moon->Earth manually never engaged Earth re-entry because frame_lock_body changed ONLY on teleports (the departure body frame persisted). Now a per-frame sweep rates every solar body by envelope ratio (alt / per-body inertial-blend ceiling - Earth 1000km, Moon ~273km, same v0.909 band_k scaling): enter below 0.9x (fresh anchor captured at current pos - no jump), release beyond 1.2x, hysteresis kills flap, station_ride keeps precedence. Makes the operator standing rule automatic (Earth frame at Earth, Moon at Moon, ship aboard ship). Probe logs proved all three arms: engage-from-None at world entry, release at 150000km over the Moon, teleports unaffected, 0 flap, 0 PANICs. ~15us/frame. NOTE the engage log wording says switched for engage-from-None too. LOOP QUEUE unchanged: [3] parked-selection skip + PatchBounds cache next, then sky-view LUT, LOD ladder rungs, bookmark studio, light clustering, audio, decoupling."
+  },
+  {
+   "date": "2026-07-22",
+   "decision": "v0.928.0 LOOP (queue item 3) - PARKED-SELECTION SKIP: both ~30k-node LOD selections (terrain + water) skip while the camera is parked in co-rotating surface mode (local pose static <0.25m + view dot >0.99999 + params unchanged) with NO invalidation - builds, ALL THREE eviction sites, tile arrivals, settings, outstanding requests, partial coverage each force a fresh walk. Inertial orbit never skips (planet turns beneath). Selection derives Clone; ChunkState carries last_selection + pose + sel_dirty; reuse means identical draws so the v0.913 hysteresis/fades/eviction-guards see an unchanged steady state by construction. Probe: Fuji parked settled 25.9fps (class ran ~18-22 before), scene identical, 0 PANICs, 28 tests green. LOOP QUEUE next: [4] sky-view LUT / sky-as-radiance (research item 5 - one consistent sky the water reflects, stars occluded by physics not the alpha patch), then [5] LOD ladder rungs 2+, [6] bookmark studio, [7] light clustering, [8] audio, [9] decoupling 3-5."
   }
  ],
  "active_scopes_to_avoid": [
