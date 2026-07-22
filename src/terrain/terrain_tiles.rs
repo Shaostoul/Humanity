@@ -93,8 +93,12 @@ pub struct TerrainTiles {
     absent: HashSet<TileKey>,
     /// Most recent region center, for LRU distance eviction.
     last_center: TileKey,
-    tx: Sender<(TileKey, Option<Tile>)>,
-    rx: Receiver<(TileKey, Option<Tile>)>,
+    // Mutex-wrapped (v0.926 threaded terrain builds): std mpsc ends are
+    // !Sync, and the parallel patch-build scope shares &TerrainTiles across
+    // worker threads for read-only sampling. The locks are touched only by
+    // the frame thread (ensure_region / poll), so there is zero contention.
+    tx: std::sync::Mutex<Sender<(TileKey, Option<Tile>)>>,
+    rx: std::sync::Mutex<Receiver<(TileKey, Option<Tile>)>>,
 }
 
 impl TerrainTiles {
@@ -110,8 +114,8 @@ impl TerrainTiles {
             pending: HashSet::new(),
             absent: HashSet::new(),
             last_center: (90, -180),
-            tx,
-            rx,
+            tx: std::sync::Mutex::new(tx),
+            rx: std::sync::Mutex::new(rx),
         }
     }
 
@@ -140,7 +144,7 @@ impl TerrainTiles {
                 }
                 self.pending.insert(key);
                 let path = self.dir.join(file_name(key));
-                let tx = self.tx.clone();
+                let tx = self.tx.lock().expect("tile tx lock").clone();
                 std::thread::spawn(move || {
                     let tile = load_tile(&path);
                     let _ = tx.send((key, tile));
@@ -153,7 +157,14 @@ impl TerrainTiles {
     /// resident (the caller should invalidate patches built from base data).
     pub fn poll(&mut self) -> bool {
         let mut arrived = false;
-        while let Ok((key, tile)) = self.rx.try_recv() {
+        // Drain into a local batch first: holding the rx guard while calling
+        // &mut self methods (evict_far) trips the borrow checker, and the
+        // guard is only needed for the try_recv loop anyway.
+        let batch: Vec<(TileKey, Option<Tile>)> = {
+            let rx = self.rx.lock().expect("tile rx lock");
+            std::iter::from_fn(|| rx.try_recv().ok()).collect()
+        };
+        for (key, tile) in batch {
             self.pending.remove(&key);
             match tile {
                 Some(t) => {

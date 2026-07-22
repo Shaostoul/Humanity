@@ -15673,55 +15673,126 @@ mod native_app {
                                 // the frame instead - the backlog just
                                 // spreads across more frames, which the
                                 // v0.920 crossfades already smooth over.
+                                // ── THREADED patch builds (v0.926, operator
+                                // mandate: tune every hang to max efficiency)
+                                // ── the v0.922 3 ms wall cap bounded the
+                                // frame but stretched the descent ramp; now
+                                // the CPU meshing fans across cores in a
+                                // scoped burst, so the WHOLE per-frame budget
+                                // (64 patches) completes inside one ~4 ms
+                                // slice. Real imagery colors when Earth ships
+                                // an albedo grid; classifier otherwise (same
+                                // source as the uniform sphere, so the LOD
+                                // handoff never changes hue). Borrow safety:
+                                // everything the workers touch (heightmap,
+                                // detail noise, tiles, ocean mask, albedo,
+                                // def) is read-only inside the scope, and the
+                                // frame thread WAITS in it, so nothing can
+                                // alias the tile streamer's &mut poll (which
+                                // runs sequentially elsewhere this frame).
                                 let build_t0 = Instant::now();
-                                for id in &selection.build_requests {
-                                    if patch_builds_this_frame
-                                        >= state.gui_state.settings.terrain_builds_per_frame.clamp(1.0, 64.0)
-                                            as usize
-                                        || (patch_builds_this_frame > 0
-                                            && build_t0.elapsed().as_secs_f32() > 0.003)
-                                    {
-                                        break;
-                                    }
-                                    if cs.cache.contains_key(id) {
-                                        continue;
-                                    }
-                                    let src = chunks::ElevationSource::Heightmap {
-                                        hm,
-                                        detail: &cs.detail,
-                                        tiles: tiles_ref,
-                                        ocean: ocean_ref,
-                                    };
-                                    // Real imagery colors when Earth ships an
-                                    // albedo grid; classifier otherwise (same
-                                    // source the uniform sphere uses, so the
-                                    // LOD handoff never changes hue).
-                                    let pm = chunks::build_patch_mesh(
-                                        d,
-                                        &src,
-                                        state.planet_albedos.get(&b.id),
-                                        id,
-                                    );
-                                    let mesh =
-                                        Mesh::from_planet_surface(&state.renderer.device, &pm.mesh);
-                                    // Recycle an eviction-freed renderer slot
-                                    // when one exists so the mesh Vec stays
-                                    // bounded over long flights.
-                                    let slot =
-                                        if let Some(idx) = state.planet_patch_free_slots.pop() {
+                                let budget = state
+                                    .gui_state
+                                    .settings
+                                    .terrain_builds_per_frame
+                                    .clamp(1.0, 64.0) as usize;
+                                let to_build: Vec<chunks::PatchId> = selection
+                                    .build_requests
+                                    .iter()
+                                    .filter(|id| !cs.cache.contains_key(id))
+                                    .take(budget)
+                                    .cloned()
+                                    .collect();
+                                if !to_build.is_empty() {
+                                    let albedo = state.planet_albedos.get(&b.id);
+                                    let detail = &cs.detail;
+                                    let deadline =
+                                        build_t0 + std::time::Duration::from_millis(4);
+                                    let workers = std::thread::available_parallelism()
+                                        .map(|n| n.get().saturating_sub(2).max(1))
+                                        .unwrap_or(4)
+                                        .min(to_build.len());
+                                    let next = std::sync::atomic::AtomicUsize::new(0);
+                                    let to_build_ref = &to_build;
+                                    let built: Vec<(chunks::PatchId, chunks::PatchMesh)> =
+                                        std::thread::scope(|sc| {
+                                            let handles: Vec<_> = (0..workers)
+                                                .map(|_| {
+                                                    let next = &next;
+                                                    sc.spawn(move || {
+                                                        let mut out = Vec::new();
+                                                        loop {
+                                                            // Deadline check between
+                                                            // items keeps low-core
+                                                            // machines bounded; the
+                                                            // first item per worker
+                                                            // always runs so progress
+                                                            // is guaranteed.
+                                                            if !out.is_empty()
+                                                                && Instant::now() > deadline
+                                                            {
+                                                                break;
+                                                            }
+                                                            let i = next.fetch_add(
+                                                                1,
+                                                                std::sync::atomic::Ordering::Relaxed,
+                                                            );
+                                                            if i >= to_build_ref.len() {
+                                                                break;
+                                                            }
+                                                            let id = to_build_ref[i];
+                                                            let src = chunks::ElevationSource::Heightmap {
+                                                                hm,
+                                                                detail,
+                                                                tiles: tiles_ref,
+                                                                ocean: ocean_ref,
+                                                            };
+                                                            out.push((
+                                                                id,
+                                                                chunks::build_patch_mesh(
+                                                                    d, &src, albedo, &id,
+                                                                ),
+                                                            ));
+                                                        }
+                                                        out
+                                                    })
+                                                })
+                                                .collect();
+                                            handles
+                                                .into_iter()
+                                                .flat_map(|h| {
+                                                    h.join().expect("patch build worker panicked")
+                                                })
+                                                .collect()
+                                        });
+                                    // GPU upload + cache insert stay on the
+                                    // frame thread (cheap; keeps the renderer
+                                    // single-writer).
+                                    for (id, pm) in built {
+                                        let mesh = Mesh::from_planet_surface(
+                                            &state.renderer.device,
+                                            &pm.mesh,
+                                        );
+                                        // Recycle an eviction-freed renderer
+                                        // slot when one exists so the mesh Vec
+                                        // stays bounded over long flights.
+                                        let slot = if let Some(idx) =
+                                            state.planet_patch_free_slots.pop()
+                                        {
                                             state.renderer.replace_mesh(idx, mesh);
                                             idx
                                         } else {
                                             state.renderer.add_mesh(mesh)
                                         };
-                                    cs.insert(
-                                        *id,
-                                        slot,
-                                        chunks::PATCH_MESH_BYTES,
-                                        pm.anchor,
-                                        pm.band,
-                                    );
-                                    patch_builds_this_frame += 1;
+                                        cs.insert(
+                                            id,
+                                            slot,
+                                            chunks::PATCH_MESH_BYTES,
+                                            pm.anchor,
+                                            pm.band,
+                                        );
+                                        patch_builds_this_frame += 1;
+                                    }
                                 }
                                 // Sustained build-budget saturation is worth
                                 // seeing in the log (normal for a few seconds
