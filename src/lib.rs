@@ -10959,9 +10959,15 @@ mod native_app {
                     // per-body inertial-blend ceiling) the camera sits inside;
                     // switch with hysteresis (enter below 0.9x, leave above
                     // 1.2x) and capture a fresh anchor at the CURRENT spot so
-                    // nothing jumps. The station ride keeps precedence - the
-                    // ship IS the frame while aboard.
-                    if !state.station_ride {
+                    // nothing jumps. The station keeps precedence - the ship
+                    // IS the frame while riding OR aboard (v0.928.x, operator:
+                    // "not spawning in my home... just floating in space
+                    // above Earth" - the station orbits INSIDE Earth's
+                    // envelope, so during spawn/docking frames where the ride
+                    // flag was not yet set the switch grabbed Earth's frame
+                    // with a degenerate anchor and Earth's surface bands
+                    // yanked the player out of the hull).
+                    if !state.station_ride && !state.aboard_station {
                         let sim_t = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .map(|d| d.as_secs_f64())
@@ -10997,7 +11003,15 @@ mod native_app {
                         let mut best: Option<(String, f64, glam::DVec3)> = None;
                         for b in crate::cosmos::sol_bodies() {
                             if let Some((center, ratio)) = body_ratio(&b.id) {
-                                if ratio < 1.0
+                                // ratio <= 0 = camera AT or INSIDE the body's
+                                // radius: a degenerate placement (spawn frames
+                                // before the station snap, mid-teleport), not
+                                // a real approach. Never engage from it - the
+                                // captured anchor would be garbage and the
+                                // surface bands would clamp the player to the
+                                // planet (v0.928.x spawn regression).
+                                if ratio > 0.0
+                                    && ratio < 1.0
                                     && best.as_ref().map_or(true, |(_, r, _)| ratio < *r)
                                 {
                                     best = Some((b.id.clone(), ratio, center));
