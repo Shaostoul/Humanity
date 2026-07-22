@@ -755,7 +755,10 @@ pub struct ChunkParams {
     pub max_build_requests: usize,
 }
 
-/// Selection outcome for one planet this frame.
+/// Selection outcome for one planet this frame. Clone exists for the
+/// parked-selection skip (v0.928): a parked camera in surface mode reuses
+/// the last full selection instead of re-walking ~30k nodes per frame.
+#[derive(Clone)]
 pub struct Selection {
     /// Final draw list: complete, non-overlapping cover of the visible
     /// surface (unbuilt leaves are substituted by their nearest built
@@ -2046,6 +2049,18 @@ pub struct ChunkState {
     /// dissolves over FADE_SECONDS instead of popping. Selection is
     /// untouched - this is pure presentation on top of the drawn-set diff.
     pub fades: Vec<FadePair>,
+    /// Parked-selection skip (v0.928): the last full selection + the local
+    /// pose/params it was computed at. While the camera is parked in
+    /// surface mode (planet-local pose static) and nothing invalidated it,
+    /// the ~30k-node walk is skipped and this is reused.
+    pub last_selection: Option<Selection>,
+    pub last_sel_cam: DVec3,
+    pub last_sel_fwd: DVec3,
+    pub last_sel_split_px: f32,
+    pub last_sel_budget: f32,
+    /// Set by builds, evictions, tile arrivals - anything that changes what
+    /// a fresh selection would decide.
+    pub sel_dirty: bool,
 }
 
 /// One LOD crossfade in flight (v0.920): `rising` dissolves IN while
@@ -2137,6 +2152,12 @@ impl ChunkState {
             last_drawn: std::collections::HashSet::new(),
             last_saturation_log: 0,
             fades: Vec::new(),
+            last_selection: None,
+            last_sel_cam: DVec3::ZERO,
+            last_sel_fwd: DVec3::ZERO,
+            last_sel_split_px: 0.0,
+            last_sel_budget: 0.0,
+            sel_dirty: false,
         }
     }
 

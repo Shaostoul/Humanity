@@ -15643,7 +15643,16 @@ mod native_app {
                                             u.as_vec3(),
                                         );
                                     state.terrain_tiles.ensure_region(tla, tlo);
-                                    let _ = state.terrain_tiles.poll();
+                                    if state.terrain_tiles.poll() {
+                                        // New tile resident: a fresh selection
+                                        // may now choose deeper patches - the
+                                        // parked skip must not hold (v0.928).
+                                        if let Some(cs) =
+                                            state.planet_chunk_states.get_mut(&b.id)
+                                        {
+                                            cs.sel_dirty = true;
+                                        }
+                                    }
                                 }
                                 let tiles_ref = (b.id == "earth"
                                     && state.terrain_tiles.tier_installed())
@@ -15693,13 +15702,50 @@ mod native_app {
                                     .entry(b.id.clone())
                                     .or_insert_with(|| chunks::ChunkState::new(seed));
                                 cs.frame += 1;
-                                let selection = chunks::select_patches_sticky(
-                                    cam_local,
-                                    Some(&frustum),
-                                    &|id| cs.cache.get(id).map(|e| e.band),
-                                    &params,
-                                    Some(&cs.last_drawn),
-                                );
+                                // ── Parked-selection skip (v0.928, several
+                                // ms/frame at rest): in co-rotating surface
+                                // mode the planet-local camera pose is truly
+                                // static while parked (the frustum above is
+                                // already transformed into the local frame),
+                                // so when nothing has invalidated the last
+                                // selection - no builds, evictions, tile
+                                // arrivals, settings changes, or outstanding
+                                // build requests - the ~30k-node walk is
+                                // skipped and the last selection reused.
+                                // Inertial orbit views never skip (the
+                                // planet turns beneath a static camera).
+                                let cam_fwd_local = (rot_d.inverse()
+                                    * state.camera.forward().as_dvec3())
+                                .normalize_or_zero();
+                                let split_now = params.split_px;
+                                let budget_now = patch_budget as f32;
+                                let parked = state.camera.surface_mode
+                                    && (cam_local - cs.last_sel_cam).length() < 0.25
+                                    && cam_fwd_local.dot(cs.last_sel_fwd) > 0.99999
+                                    && cs.last_sel_split_px == split_now
+                                    && cs.last_sel_budget == budget_now
+                                    && !cs.sel_dirty
+                                    && cs.last_selection.as_ref().is_some_and(|s| {
+                                        s.build_requests.is_empty() && s.fully_covered
+                                    });
+                                let selection = if parked {
+                                    cs.last_selection.clone().expect("parked implies stored")
+                                } else {
+                                    let sel = chunks::select_patches_sticky(
+                                        cam_local,
+                                        Some(&frustum),
+                                        &|id| cs.cache.get(id).map(|e| e.band),
+                                        &params,
+                                        Some(&cs.last_drawn),
+                                    );
+                                    cs.last_sel_cam = cam_local;
+                                    cs.last_sel_fwd = cam_fwd_local;
+                                    cs.last_sel_split_px = split_now;
+                                    cs.last_sel_budget = budget_now;
+                                    cs.sel_dirty = false;
+                                    cs.last_selection = Some(sel.clone());
+                                    sel
+                                };
                                 let now_drawn: std::collections::HashSet<chunks::PatchId> =
                                     selection.draws.iter().cloned().collect();
                                 // Geomorph fades (v0.920): diff the drawn set
@@ -15851,6 +15897,9 @@ mod native_app {
                                     // GPU upload + cache insert stay on the
                                     // frame thread (cheap; keeps the renderer
                                     // single-writer).
+                                    if !built.is_empty() {
+                                        cs.sel_dirty = true; // v0.928 parked skip
+                                    }
                                     for (id, pm) in built {
                                         let mesh = Mesh::from_planet_surface(
                                             &state.renderer.device,
@@ -15893,9 +15942,11 @@ mod native_app {
                                 }
                                 // LRU eviction past the byte cap: swap the GPU
                                 // mesh for a placeholder and bank the slot.
-                                for (_, mesh_idx) in
-                                    cs.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES)
-                                {
+                                let evicted = cs.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES);
+                                if !evicted.is_empty() {
+                                    cs.sel_dirty = true; // v0.928 parked skip
+                                }
+                                for (_, mesh_idx) in evicted {
                                     state.renderer.replace_mesh(
                                         mesh_idx,
                                         Mesh::placeholder(&state.renderer.device),
@@ -16275,13 +16326,32 @@ mod native_app {
                                         .entry(wkey)
                                         .or_insert_with(|| chunks::ChunkState::new(seed));
                                     ws.frame += 1;
-                                    let wsel = chunks::select_patches_sticky(
-                                        cam_local,
-                                        Some(&frustum),
-                                        &|id| ws.cache.get(id).map(|e| e.band),
-                                        &wparams,
-                                        Some(&ws.last_drawn),
-                                    );
+                                    // Parked skip for the WATER selection too
+                                    // (v0.928) - same static-pose rule as the
+                                    // terrain selection above.
+                                    let wparked = state.camera.surface_mode
+                                        && (cam_local - ws.last_sel_cam).length() < 0.25
+                                        && cam_fwd_local.dot(ws.last_sel_fwd) > 0.99999
+                                        && !ws.sel_dirty
+                                        && ws.last_selection.as_ref().is_some_and(|s| {
+                                            s.build_requests.is_empty() && s.fully_covered
+                                        });
+                                    let wsel = if wparked {
+                                        ws.last_selection.clone().expect("wparked implies stored")
+                                    } else {
+                                        let sel = chunks::select_patches_sticky(
+                                            cam_local,
+                                            Some(&frustum),
+                                            &|id| ws.cache.get(id).map(|e| e.band),
+                                            &wparams,
+                                            Some(&ws.last_drawn),
+                                        );
+                                        ws.last_sel_cam = cam_local;
+                                        ws.last_sel_fwd = cam_fwd_local;
+                                        ws.sel_dirty = false;
+                                        ws.last_selection = Some(sel.clone());
+                                        sel
+                                    };
                                     ws.last_drawn = wsel.draws.iter().cloned().collect();
                                     let frame = ws.frame;
                                     for id in &wsel.draws {
@@ -16335,9 +16405,15 @@ mod native_app {
                                         ws.insert(*id, slot, bytes, anchor, band);
                                         wbuilds += 1;
                                     }
-                                    for (_, mesh_idx) in
-                                        ws.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES / 8)
-                                    {
+                                    if wbuilds > 0 {
+                                        ws.sel_dirty = true; // v0.928 parked skip
+                                    }
+                                    let wevicted =
+                                        ws.collect_evictions(chunks::PATCH_CACHE_MAX_BYTES / 8);
+                                    if !wevicted.is_empty() {
+                                        ws.sel_dirty = true;
+                                    }
+                                    for (_, mesh_idx) in wevicted {
                                         state.renderer.replace_mesh(
                                             mesh_idx,
                                             Mesh::placeholder(&state.renderer.device),
@@ -16389,6 +16465,7 @@ mod native_app {
                                     // shrink can actually run.
                                     cs.frame += 1;
                                     let mut freed = 0usize;
+                                    cs.sel_dirty = true; // v0.928 parked skip
                                     for (_, mesh_idx) in cs.collect_evictions(
                                         crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
                                     ) {
