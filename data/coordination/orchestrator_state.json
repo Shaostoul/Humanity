@@ -503,6 +503,10 @@
   {
    "date": "2026-07-22",
    "decision": "v0.928.0 LOOP (queue item 3) - PARKED-SELECTION SKIP: both ~30k-node LOD selections (terrain + water) skip while the camera is parked in co-rotating surface mode (local pose static <0.25m + view dot >0.99999 + params unchanged) with NO invalidation - builds, ALL THREE eviction sites, tile arrivals, settings, outstanding requests, partial coverage each force a fresh walk. Inertial orbit never skips (planet turns beneath). Selection derives Clone; ChunkState carries last_selection + pose + sel_dirty; reuse means identical draws so the v0.913 hysteresis/fades/eviction-guards see an unchanged steady state by construction. Probe: Fuji parked settled 25.9fps (class ran ~18-22 before), scene identical, 0 PANICs, 28 tests green. LOOP QUEUE next: [4] sky-view LUT / sky-as-radiance (research item 5 - one consistent sky the water reflects, stars occluded by physics not the alpha patch), then [5] LOD ladder rungs 2+, [6] bookmark studio, [7] light clustering, [8] audio, [9] decoupling 3-5."
+  },
+  {
+   "date": "2026-07-22",
+   "decision": "v0.929.0 OPERATOR REGRESSION HOTFIX - v0.927 auto-switch broke spawn/return-home (floating in space above Earth): the home station orbits at 400km INSIDE Earth 1000km envelope, so any frame without station_ride set (spawn placement, docking) let the switch lock Earth with a garbage anchor (the spawn-time envelope -6.37 log line WAS the smoking gun - I noted it as harmless; LESSON: a negative/degenerate metric in a probe log is never harmless, chase it). Fix: (1) auto-switch yields while aboard_station OR station_ride; (2) candidates with ratio <= 0 (camera at/inside the body radius = degenerate placement) never engage. Genuine flights untouched (0.9 enter / 1.2 release). Probe: spawn lands in room_1 interior, no FrameLock line at entry, 0 PANICs. Loop resumes at [4] sky-view LUT."
   }
  ],
  "active_scopes_to_avoid": [
