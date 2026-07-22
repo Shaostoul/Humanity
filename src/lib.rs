@@ -10948,6 +10948,89 @@ mod native_app {
                     // Surface HUD readout resets each frame; the engage branch
                     // below repopulates it while a surface is actually locked.
                     state.gui_state.surface_altitude_m = None;
+                    // ── Frame-lock AUTO-SWITCH by proximity (v0.927, operator:
+                    // "I teleported to the moon then flew to the Earth and it
+                    // wouldn't act like I was reentering... I just flew as if
+                    // I wasn't transitioning to the surface of a planet"):
+                    // the locked body used to change only on TELEPORT, so a
+                    // manual interplanetary flight kept the OLD body's frame
+                    // and the destination's surface bands never engaged. Each
+                    // frame, find the body whose scaled frame envelope (the
+                    // per-body inertial-blend ceiling) the camera sits inside;
+                    // switch with hysteresis (enter below 0.9x, leave above
+                    // 1.2x) and capture a fresh anchor at the CURRENT spot so
+                    // nothing jumps. The station ride keeps precedence - the
+                    // ship IS the frame while aboard.
+                    if !state.station_ride {
+                        let sim_t = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs_f64())
+                            .unwrap_or(0.0)
+                            - 946_728_000.0;
+                        let earth_helio = crate::cosmos::find_body("earth")
+                            .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
+                            .unwrap_or(glam::DVec3::ZERO);
+                        let cam_world = state.ship_world_pos
+                            + glam::DVec3::new(
+                                state.camera.position.x as f64,
+                                state.camera.position.y as f64,
+                                state.camera.position.z as f64,
+                            );
+                        let body_ratio = |id: &str| -> Option<(glam::DVec3, f64)> {
+                            let b = crate::cosmos::find_body(id)?;
+                            if b.body_type == "star" {
+                                return None;
+                            }
+                            let center = if b.id == "earth" {
+                                glam::DVec3::ZERO
+                            } else {
+                                (crate::cosmos::body_world_position_3d_au(b, sim_t)
+                                    - earth_helio)
+                                    * crate::cosmos::M_PER_AU
+                            };
+                            let radius = b.radius_km * 1000.0;
+                            let band_k = (radius / 6_371_000.0).clamp(0.001, 4.0);
+                            let ceiling = (INERTIAL_BLEND_MAX_ALT * band_k).max(20_000.0);
+                            let alt = (cam_world - center).length() - radius;
+                            Some((center, alt / ceiling))
+                        };
+                        let mut best: Option<(String, f64, glam::DVec3)> = None;
+                        for b in crate::cosmos::sol_bodies() {
+                            if let Some((center, ratio)) = body_ratio(&b.id) {
+                                if ratio < 1.0
+                                    && best.as_ref().map_or(true, |(_, r, _)| ratio < *r)
+                                {
+                                    best = Some((b.id.clone(), ratio, center));
+                                }
+                            }
+                        }
+                        let cur_ratio = state
+                            .frame_lock_body
+                            .as_deref()
+                            .and_then(|id| body_ratio(id))
+                            .map(|(_, r)| r);
+                        match (&state.frame_lock_body, &best) {
+                            (cur, Some((cand, ratio, center)))
+                                if *ratio < 0.9 && cur.as_deref() != Some(cand.as_str()) =>
+                            {
+                                let spin = state.current_spin;
+                                state.frame_lock_anchor = crate::dev_travel::frame_lock_capture(
+                                    *center, spin, cam_world,
+                                );
+                                state.frame_lock_last_spin = spin;
+                                state.frame_lock_body = Some(cand.clone());
+                                log::info!(
+                                    "[FrameLock] switched to {cand} by proximity (envelope {:.2})",
+                                    ratio
+                                );
+                            }
+                            (Some(cur), _) if cur_ratio.is_none_or(|r| r > 1.2) => {
+                                log::info!("[FrameLock] released {cur} (left its envelope)");
+                                state.frame_lock_body = None;
+                            }
+                            _ => {}
+                        }
+                    }
                     if let Some(lock_body) = state.frame_lock_body.clone() {
                         let spin = state.current_spin;
                         // Body centre in the celestial frame (0 for Earth, the
