@@ -2254,21 +2254,33 @@ impl ChunkState {
                 protected.insert(*id);
             }
         }
-        while self.total_bytes > byte_cap {
-            let victim = self
-                .cache
-                .iter()
-                .filter(|(id, e)| {
-                    id.depth > 0 && e.last_used < recent && !protected.contains(id)
-                })
-                .min_by_key(|(id, e)| (e.last_used, **id))
-                .map(|(id, _)| *id);
-            let Some(id) = victim else { break };
+        // LINEAR eviction (v0.930, operator: "10+ second hang" leaving a
+        // planet): the old loop re-scanned the whole cache to find each
+        // victim - O(N) per eviction, O(N*M) for the deactivation shrink,
+        // which at a 12k-patch budget meant ~10 SECONDS on one frame. One
+        // pass + one sort, oldest-first, and a per-call cap so a huge
+        // shrink spreads across frames instead of owning one.
+        const MAX_EVICTIONS_PER_CALL: usize = 2048;
+        let mut cands: Vec<(u64, PatchId, usize)> = self
+            .cache
+            .iter()
+            .filter(|(id, e)| id.depth > 0 && e.last_used < recent && !protected.contains(id))
+            .map(|(id, e)| (e.last_used, *id, e.bytes))
+            .collect();
+        cands.sort_unstable();
+        let mut freed = 0usize;
+        for (_, id, bytes) in cands {
+            if self.total_bytes.saturating_sub(freed) <= byte_cap
+                || evicted.len() >= MAX_EVICTIONS_PER_CALL
+            {
+                break;
+            }
             if let Some(e) = self.cache.remove(&id) {
-                self.total_bytes = self.total_bytes.saturating_sub(e.bytes);
+                freed += bytes;
                 evicted.push((id, e.mesh));
             }
         }
+        self.total_bytes = self.total_bytes.saturating_sub(freed);
         evicted
     }
 }

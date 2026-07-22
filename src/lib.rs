@@ -3490,7 +3490,7 @@ mod native_app {
                 .then_some(&state.terrain_tiles);
             ground_radius_m(
                 state.planet_defs.get(&body_id),
-                state.planet_heightmaps.get(&body_id),
+                state.planet_heightmaps.get(&body_id).map(|a| a.as_ref()),
                 detail.as_ref(),
                 tiles,
                 unit,
@@ -6483,7 +6483,7 @@ mod native_app {
                                         hm.min_meters(), hm.max_meters(),
                                         def.sea_level
                                     );
-                                    state.planet_heightmaps.insert(b.id.clone(), hm);
+                                    state.planet_heightmaps.insert(b.id.clone(), std::sync::Arc::new(hm));
                                 }
                                 Err(e) => log::warn!(
                                     "Planet '{}': heightmap {hm_rel} failed to load ({e}); falling back to procedural noise",
@@ -6509,7 +6509,7 @@ mod native_app {
                                 b.id, hm.width(), hm.height(),
                                 hm.min_meters(), hm.max_meters(), t0.elapsed()
                             );
-                            state.planet_heightmaps.insert(b.id.clone(), hm);
+                            state.planet_heightmaps.insert(b.id.clone(), std::sync::Arc::new(hm));
                         }
                         // Real surface-color grid (Earth: NASA Blue Marble
                         // via scripts/build-earth-albedo.js). On failure we
@@ -6523,7 +6523,7 @@ mod native_app {
                                         "Planet '{}': albedo {} ({}x{})",
                                         b.id, al_rel, al.width(), al.height()
                                     );
-                                    state.planet_albedos.insert(b.id.clone(), al);
+                                    state.planet_albedos.insert(b.id.clone(), std::sync::Arc::new(al));
                                 }
                                 Err(e) => log::warn!(
                                     "Planet '{}': albedo {al_rel} failed to load ({e}); falling back to band classifier",
@@ -8015,19 +8015,24 @@ mod native_app {
         /// to 0.1 degrees, ~12.4 MB resident). Keyed by body id; a body
         /// absent here falls back to procedural noise, so a missing or
         /// corrupt grid degrades gracefully instead of blanking the planet.
-        planet_heightmaps: std::collections::HashMap<String, crate::terrain::planet_heightmap::PlanetHeightmap>,
+        // Arc-wrapped (v0.930): background sky-sphere builds share these
+        // grids with worker threads at zero copy cost.
+        planet_heightmaps: std::collections::HashMap<String, std::sync::Arc<crate::terrain::planet_heightmap::PlanetHeightmap>>,
         /// Loaded real surface-color grids for defs whose `albedo` field
         /// points at a data file (Earth ships one: NASA Blue Marble
         /// downsampled to 4096x2048, ~25 MB resident). Keyed by body id; a
         /// body absent here falls back to the elevation-band classifier,
         /// so a missing or corrupt grid degrades gracefully.
-        planet_albedos: std::collections::HashMap<String, crate::terrain::planet_albedo::PlanetAlbedo>,
+        planet_albedos: std::collections::HashMap<String, std::sync::Arc<crate::terrain::planet_albedo::PlanetAlbedo>>,
         /// Cached sky-body meshes keyed by (body id, subdivision level).
         /// Bodies WITHOUT a procedural def share plain icosphere meshes
         /// under the reserved id "_flat". LOD switches therefore never
         /// regenerate a mesh that was already built this session; only a
         /// first visit to a (body, level) pair pays the build cost.
         planet_mesh_cache: std::collections::HashMap<(String, u32), usize>,
+        /// Background sky-sphere builds in flight (v0.930): key = (body, level),
+        /// worker delivers the CPU mesh via the channel; frame thread uploads.
+        sky_mesh_pending: std::collections::HashMap<(String, u32), std::sync::mpsc::Receiver<crate::terrain::planet_surface::SurfaceMeshData>>,
         /// Chunked-LOD state per heightmap-bearing body (2026-07-11): the
         /// quadtree patch cache + detail noise that takes over from the
         /// uniform sphere when the planet's disc overflows the screen (the
@@ -9315,6 +9320,7 @@ mod native_app {
                 planet_heightmaps: std::collections::HashMap::new(),
                 planet_albedos: std::collections::HashMap::new(),
                 planet_mesh_cache: std::collections::HashMap::new(),
+                sky_mesh_pending: std::collections::HashMap::new(),
                 planet_chunk_states: std::collections::HashMap::new(),
                 planet_patch_free_slots: Vec::new(),
                 planet_surface_material: 0,
@@ -11099,7 +11105,7 @@ mod native_app {
                         let anchor_pre =
                             crate::dev_travel::frame_lock_capture(body_center, spin, cam_world);
                         let def = state.planet_defs.get(&lock_body);
-                        let hm = state.planet_heightmaps.get(&lock_body);
+                        let hm = state.planet_heightmaps.get(&lock_body).map(|a| a.as_ref());
                         let ground_r =
                             ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero().as_vec3());
                         // Altitude bands (v0.872; per-body scaled v0.909,
@@ -12302,7 +12308,7 @@ mod native_app {
                             let dir_out = world_dir.normalize_or_zero();
                             let surface_radius = ground_radius_m(
                                 state.planet_defs.get(&target),
-                                state.planet_heightmaps.get(&target),
+                                state.planet_heightmaps.get(&target).map(|a| a.as_ref()),
                                 None,
                                 None,
                                 unit,
@@ -15847,7 +15853,7 @@ mod native_app {
                                     .cloned()
                                     .collect();
                                 if !to_build.is_empty() {
-                                    let albedo = state.planet_albedos.get(&b.id);
+                                    let albedo = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
                                     let detail = &cs.detail;
                                     let deadline =
                                         build_t0 + std::time::Duration::from_millis(4);
@@ -16073,7 +16079,7 @@ mod native_app {
                                         state.near_trees = chunks::near_tree_instances(
                                             d,
                                             &src,
-                                            state.planet_albedos.get(&b.id),
+                                            state.planet_albedos.get(&b.id).map(|a| a.as_ref()),
                                             cam_local.normalize(),
                                             tree_dist + 60.0,
                                             600,
@@ -16386,7 +16392,7 @@ mod native_app {
                                         // requesting them (drawing it is a
                                         // no-op triangle at the anchor).
                                         let (mesh, anchor, band, bytes) =
-                                            match chunks::build_water_patch_mesh(d, om, state.planet_heightmaps.get(&b.id), id) {
+                                            match chunks::build_water_patch_mesh(d, om, state.planet_heightmaps.get(&b.id).map(|a| a.as_ref()), id) {
                                                 Some(pm) => (
                                                     Mesh::from_planet_surface(
                                                         &state.renderer.device,
@@ -16478,24 +16484,51 @@ mod native_app {
                                     // counts as used-this-frame and the LRU
                                     // shrink can actually run.
                                     cs.frame += 1;
-                                    let mut freed = 0usize;
                                     cs.sel_dirty = true; // v0.928 parked skip
-                                    for (_, mesh_idx) in cs.collect_evictions(
-                                        crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
-                                    ) {
+                                    log::info!(
+                                        "Planet chunks '{}': deactivated ({:.1} MB cached) - shrinking to the warm floor over the next frames",
+                                        b.id,
+                                        cs.total_bytes as f64 / (1024.0 * 1024.0),
+                                    );
+                                }
+                                // AMORTIZED shrink (v0.930, operator: "10+
+                                // second hang" crossing away from Earth):
+                                // the old one-shot eviction paid the WHOLE
+                                // session cache on a single frame - with the
+                                // quadratic LRU that was ~10 s. Eviction is
+                                // linear now AND capped per call, and this
+                                // runs every frame while over the warm
+                                // floor, so a big departure shrink costs a
+                                // few ms across a handful of frames. Free
+                                // (early-returns) once under the floor.
+                                // Keep the frame stamp ticking while
+                                // deactivated (it normally only advances
+                                // when chunk-active) or the 120-frame
+                                // recency guard freezes and the drain
+                                // stalls two batches in.
+                                if cs.total_bytes
+                                    > crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES
+                                {
+                                    cs.frame += 1;
+                                }
+                                let evicted = cs.collect_evictions(
+                                    crate::terrain::planet_chunks::PATCH_CACHE_WARM_BYTES,
+                                );
+                                if !evicted.is_empty() {
+                                    cs.sel_dirty = true;
+                                    log::info!(
+                                        "Planet chunks '{}': warm shrink batch ({} evicted, {:.1} MB remain)",
+                                        b.id,
+                                        evicted.len(),
+                                        cs.total_bytes as f64 / (1024.0 * 1024.0),
+                                    );
+                                    for (_, mesh_idx) in evicted {
                                         state.renderer.replace_mesh(
                                             mesh_idx,
                                             Mesh::placeholder(&state.renderer.device),
                                         );
                                         state.planet_patch_free_slots.push(mesh_idx);
-                                        freed += 1;
                                     }
-                                    log::info!(
-                                        "Planet chunks '{}': deactivated, shrunk cache to {:.1} MB ({} patches evicted)",
-                                        b.id,
-                                        cs.total_bytes as f64 / (1024.0 * 1024.0),
-                                        freed,
-                                    );
                                 }
                             }
 
@@ -16510,16 +16543,121 @@ mod native_app {
                             let cache_id: &str = if def.is_some() { b.id.as_str() } else { "_flat" };
                             if !chunked_drawn {
                                 let key = (cache_id.to_string(), level);
+                                // Deliver a finished background sky-sphere
+                                // build for this body+level (v0.930): GPU
+                                // upload + cache insert here, ~tens of ms.
+                                if let Some(rx) = state.sky_mesh_pending.get(&key) {
+                                    if let Ok(data) = rx.try_recv() {
+                                        let mesh = Mesh::from_planet_surface(
+                                            &state.renderer.device,
+                                            &data,
+                                        );
+                                        let m = state.renderer.add_mesh(mesh);
+                                        state.planet_mesh_cache.insert(key.clone(), m);
+                                        state.sky_mesh_pending.remove(&key);
+                                        log::info!(
+                                            "Sky-planet mesh built ASYNC: {} level {} (~{:.0} px)",
+                                            cache_id, level, px
+                                        );
+                                    }
+                                }
                                 let body_mesh = if let Some(&m) = state.planet_mesh_cache.get(&key) {
                                     m
+                                } else if def.is_some() && level >= 7 {
+                                    // ── Heavy tier goes OFF-THREAD (v0.930,
+                                    // operator: "10+ second hang" at the
+                                    // disc-fills-the-screen boundary) ──
+                                    // level 7 = 327k faces, 8 = 1.3M, 9 =
+                                    // 5.2M, each vertex sampling the
+                                    // heightmap - seconds of CPU meshing
+                                    // that used to run on the frame thread.
+                                    // The Arc'd grids make the spawn free;
+                                    // the current lower level keeps drawing
+                                    // until the worker delivers (progressive
+                                    // refinement, same idea as the terrain
+                                    // patches).
+                                    let d = def.expect("guarded by def.is_some");
+                                    if !state.sky_mesh_pending.contains_key(&key) {
+                                        let (tx, rx) = std::sync::mpsc::channel();
+                                        let d2 = d.clone();
+                                        let hm2 = state.planet_heightmaps.get(&b.id).cloned();
+                                        let al2 = state.planet_albedos.get(&b.id).cloned();
+                                        let lvl = level;
+                                        std::thread::spawn(move || {
+                                            let data =
+                                                crate::terrain::planet_surface::build_surface_mesh(
+                                                    &d2,
+                                                    hm2.as_deref(),
+                                                    al2.as_deref(),
+                                                    lvl,
+                                                );
+                                            let _ = tx.send(data);
+                                        });
+                                        state.sky_mesh_pending.insert(key.clone(), rx);
+                                        log::info!(
+                                            "Sky-planet mesh building in BACKGROUND: {} level {}",
+                                            cache_id, level
+                                        );
+                                    }
+                                    // Best cached lower level carries the
+                                    // frame meanwhile.
+                                    let mut fallback = None;
+                                    for l in (0..level).rev() {
+                                        if let Some(&m) = state
+                                            .planet_mesh_cache
+                                            .get(&(cache_id.to_string(), l))
+                                        {
+                                            fallback = Some(m);
+                                            break;
+                                        }
+                                    }
+                                    if let Some(m) = fallback {
+                                        m
+                                    } else {
+                                        // Fresh far teleport with nothing
+                                        // cached: sync-build a modest level
+                                        // (fast) so the planet never blinks
+                                        // out; the heavy level swaps in when
+                                        // the worker lands.
+                                        let lvl = level.min(5);
+                                        let key5 = (cache_id.to_string(), lvl);
+                                        if let Some(&m) = state.planet_mesh_cache.get(&key5) {
+                                            m
+                                        } else {
+                                            let hm = state
+                                                .planet_heightmaps
+                                                .get(&b.id)
+                                                .map(|a| a.as_ref());
+                                            let al = state
+                                                .planet_albedos
+                                                .get(&b.id)
+                                                .map(|a| a.as_ref());
+                                            let data =
+                                                crate::terrain::planet_surface::build_surface_mesh(
+                                                    d, hm, al, lvl,
+                                                );
+                                            let mesh = Mesh::from_planet_surface(
+                                                &state.renderer.device,
+                                                &data,
+                                            );
+                                            let m = state.renderer.add_mesh(mesh);
+                                            state.planet_mesh_cache.insert(key5, m);
+                                            log::info!(
+                                                "Sky-planet mesh built (fallback): {} level {}",
+                                                cache_id, lvl
+                                            );
+                                            m
+                                        }
+                                    }
                                 } else {
                                     let mesh = if let Some(d) = def {
                                         // Real heightmap (Earth) beats noise,
                                         // real albedo imagery beats the band
                                         // classifier; both feed the same
-                                        // mesh builder.
-                                        let hm = state.planet_heightmaps.get(&b.id);
-                                        let al = state.planet_albedos.get(&b.id);
+                                        // mesh builder. Levels <= 6 build in
+                                        // well under a frame's budget.
+                                        let hm = state.planet_heightmaps.get(&b.id).map(|a| a.as_ref());
+                                        let al = state.planet_albedos.get(&b.id).map(|a| a.as_ref());
                                         let data =
                                             crate::terrain::planet_surface::build_surface_mesh(d, hm, al, level);
                                         Mesh::from_planet_surface(&state.renderer.device, &data)
