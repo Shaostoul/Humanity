@@ -608,3 +608,25 @@ fleet-status:
 snapshot-check:
     just snapshots
     node scripts/snapshot-diff.js
+
+# ── 3D SCENE sweeps (the running game, not the egui pages) ──
+# Capture the canonical 3D vantages (tests/visual/vantages.json) into
+# .probe-rig/sweeps/<ts>/: one screenshot + live fps each. Sets up a portable
+# rig (junctions to data/ + assets/), boots target/release/HumanityOS.exe,
+# drives the tour, and kills it. Needs a release exe + a GPU. Pass driver args
+# through, e.g. `just probe-sweep --only moon-surface-200m`.
+probe-sweep *ARGS:
+    node scripts/probe-sweep.js {{ARGS}}
+
+# Capture + print the fps/frame-time table across every canonical vantage,
+# flagging any stop below its advisory floor. Exit 2 if any is below floor or
+# a PANIC occurred - so it can gate. The perf half of the sweep; deterministic,
+# no AI. For a visual-regression pass, run the visual-sweep workflow.
+perf-sweep:
+    node scripts/probe-sweep.js
+    node scripts/perf-report.js
+
+# Diff the newest sweep's fps against a baseline manifest to catch a slowdown
+# that is still above floor: `just perf-diff .probe-rig/sweeps/<old>/manifest.json`
+perf-diff baseline:
+    node scripts/perf-report.js --baseline {{baseline}}

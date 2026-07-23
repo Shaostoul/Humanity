@@ -99,3 +99,7 @@ wallpapers/
 
 # Standalone lint compile outputs (just verify workaround dir)
 lintrun/
+
+# Probe rig for the 3D visual/perf sweeps (scripts/probe-sweep.js): portable
+# game copy, junctions, and captured sweeps. Regenerated on demand.
+/.probe-rig/

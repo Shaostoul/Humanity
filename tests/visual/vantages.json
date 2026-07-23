@@ -1,0 +1,175 @@
+{
+  "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
+  "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
+  "vantages": [
+    {
+      "id": "sahara-noon-ground",
+      "desc": "Ground level in the Sahara at local noon, facing the horizon",
+      "showcase": {
+        "time": "12.0",
+        "sea": "0.3"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 0.03,
+        "look_offset_deg": 80
+      },
+      "settle_s": 8,
+      "expect": "A deep, saturated blue sky dome fading to a pale warm band at the horizon, over rolling tan sand. Bright and clearly daytime.",
+      "regressions": [
+        "NO stars visible (v0.913-era daytime star bleed)",
+        "no washed-out near-white dome (v0.918 exposure)",
+        "no hard-edged black shell or ring around the horizon"
+      ],
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "ocean-grazing-calm",
+      "desc": "8 m above a calm sea, grazing angle to the horizon",
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.008,
+        "look_offset_deg": 88
+      },
+      "settle_s": 10,
+      "expect": "Deep rippled blue water reading as gentle rolling swell all the way to a clean horizon, under a blue-to-warm sky. Fine surface structure, not glassy-flat.",
+      "regressions": [
+        "NO black/white zebra banding (v0.921 analytic-wave aliasing)",
+        "no concentric moire interference rings",
+        "no white-out sheet at the grazing angle"
+      ],
+      "perf_floor_fps": 20
+    },
+    {
+      "id": "ocean-storm-low",
+      "desc": "6 m above a storm sea, grazing angle",
+      "showcase": {
+        "time": "10.55",
+        "sea": "0.9"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.006,
+        "look_offset_deg": 85
+      },
+      "settle_s": 8,
+      "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet.",
+      "regressions": [
+        "no full-white ocean (v0.906 whiteout)",
+        "foam on crests only, not flat areas",
+        "no zebra banding even in chop"
+      ],
+      "perf_floor_fps": 18
+    },
+    {
+      "id": "fuji-forest-ground",
+      "desc": "Ground level near Mt Fuji in a conifer forest, morning",
+      "showcase": {
+        "time": "2.9",
+        "sea": "0.3"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 0.03,
+        "look_offset_deg": 80
+      },
+      "settle_s": 25,
+      "expect": "Dense green ground with real 3D conifer trees standing around the camera - visible brown trunks, needled canopies - and flatter silhouette-card trees carrying the forest toward the horizon. Grass underfoot.",
+      "regressions": [
+        "3D tree MODELS present, not just flat cards (v0.923 default-off regression)",
+        "no bare ground where a forest should be (bare-forest card-hide bug)",
+        "trunks visible, not floating canopies"
+      ],
+      "perf_floor_fps": 18
+    },
+    {
+      "id": "limb-400km",
+      "desc": "400 km over the Sahara, the atmosphere limb in frame against stars",
+      "showcase": {
+        "time": "12.0",
+        "sea": "0.3"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 400,
+        "look_offset_deg": -20
+      },
+      "settle_s": 8,
+      "expect": "The curved planet surface below a THIN bright blue atmosphere limb that fades smoothly into a black star-filled sky. Stars visible right down to the edge of the atmosphere band.",
+      "regressions": [
+        "NO hard-edged opaque black shell/ring around the planet (v0.925 orbital occlusion bug)",
+        "the limb fades to stars, it does not cut off"
+      ],
+      "perf_floor_fps": 25
+    },
+    {
+      "id": "blue-marble-12000km",
+      "desc": "12,000 km from Earth, the approved full-disc blue marble",
+      "camera": {
+        "body": "earth",
+        "altitude_km": 12000
+      },
+      "settle_s": 8,
+      "expect": "The full Earth disc as a blue marble with a soft blue atmosphere rim, oceans and continents visible, against stars. The operator-approved from-orbit look.",
+      "regressions": [
+        "disc and rim look unchanged from the approved v0.918 baseline",
+        "no white-out, no missing atmosphere rim"
+      ],
+      "perf_floor_fps": 30
+    },
+    {
+      "id": "moon-surface-200m",
+      "desc": "200 m over the Moon's cratered surface, sunlit",
+      "camera": {
+        "body": "moon",
+        "lat": 5,
+        "lon": -150,
+        "altitude_km": 0.06,
+        "look_offset_deg": 55
+      },
+      "settle_s": 15,
+      "expect": "Continuous grey cratered lunar regolith with real crater bowls and rims and the true satellite-imagery albedo, under a black star sky. NOT bare flat facets.",
+      "regressions": [
+        "real cratered terrain, NOT the bare uniform icosphere (v0.919 synthesized-heightmap fix)",
+        "no km-wide flat facets with hard creases"
+      ],
+      "perf_floor_fps": 25
+    },
+    {
+      "id": "sunset-over-water",
+      "desc": "Low altitude over water aimed at the setting sun",
+      "showcase": {
+        "time": "16.85",
+        "sea": "0.3"
+      },
+      "camera": {
+        "body": "earth",
+        "lat": 30.8,
+        "lon": 18.5,
+        "altitude_km": 0.012,
+        "aim": "sun"
+      },
+      "settle_s": 6,
+      "expect": "A warm reddened sun low over water with a red/orange ember band along the horizon fading up into deepening blue and emerging stars. Sunlight visibly reddened.",
+      "regressions": [
+        "sun disc reddened not white (v0.915 transmittance)",
+        "no washed dome, no black shell above the glow"
+      ],
+      "perf_floor_fps": 12
+    }
+  ]
+}
