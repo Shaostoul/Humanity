@@ -106,10 +106,10 @@
     {
       "id": "complete",
       "title": "You're Ready",
-      "content": "Welcome to the community. You are now a peer participant in HumanityOS. Connect to a server, join a general channel, and introduce yourself. For full technical details, see the AI Onboarding Guide at docs/ai-onboarding.md and the AI Interface specification at docs/design/ai_interface.md. Remember: altruistic benevolence, always.",
+      "content": "Welcome to the community. You are now a peer participant in HumanityOS. Connect to a server, join a general channel, and introduce yourself. For full technical details, see the AI Onboarding Guide at docs/ai/onboarding.md and the AI Interface specification at docs/design/ai_interface.md. Remember: altruistic benevolence, always.",
       "requires_action": false,
       "references": [
-        "docs/ai-onboarding.md",
+        "docs/ai/onboarding.md",
         "docs/accord/humanity_accord.md",
         "docs/design/ai_interface.md",
         "docs/design/accord_constraints.md"

@@ -478,7 +478,7 @@ client strings as args); security-reviewed (no HIGH/MEDIUM). v0.262.16.
 
 ### Projects Page
 Project Universe timeline (Dec 2017 ICU through Jan 2026 rename to HumanityOS).
-- Web: `web/pages/projects.html`
+- The standalone `web/pages/projects.html` timeline page was retired in the 2026-07-05 trim. (This is distinct from the live Projects task-CRUD system, documented separately.)
 
 ---
 

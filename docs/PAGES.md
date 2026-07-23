@@ -9,7 +9,8 @@
 > **Latest change (v0.699.0, 2026-07-04):** removed 17 dead `GuiPage` variants — the 5
 > category-landing pages (`OverviewReality/Sim/Tools/Settings/Dev`) and the 12
 > `Settings*` sub-page variants — leaving **36** variants (35 pages + the `None`
-> in-game state). All 17 were unreachable since the v0.196 single-row-nav rewrite;
+> in-game state) at the time; two pages added since (`RelayControl` v0.846,
+> `Watch` v0.857) bring the current total to **38** (37 pages + `None`). All 17 were unreachable since the v0.196 single-row-nav rewrite;
 > Settings content is untouched (it lives in `settings.rs`'s internal router). The same
 > release rehomed Calculator + Files into the Platform tab and Trade + Guilds into the
 > Real tab so they're reachable again. Earlier: `Agents`, `AiUsage`, standalone
@@ -21,7 +22,7 @@
 - **Removing/renaming**: update the table, update `GuiPage`, update `src/gui/pages/escape_menu.rs::sub_pages_for()` if the page was nav-listed.
 - **Audit drift**: `tests/page_registry_lint.rs` (built 2026-07-02, runs in `just lints`) now mechanically enforces this file against the code: every `GuiPage` variant must be mentioned here, every referenced page file must exist, every `web/pages/*.html` must be listed, and the standalone count in the web-pages heading must equal the real file count. Prose accuracy (purpose text) still needs a human audit pass now and then.
 
-## Native pages (35 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
+## Native pages (37 `GuiPage` variants, `src/gui/pages/`, plus the `None` in-game/no-menu state)
 
 Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 

@@ -89,7 +89,7 @@ Every user's chat identity is a **Dilithium3 / ML-DSA-65 keypair** (FIPS 204,
 post-quantum), derived deterministically from a BIP39 24-word seed phrase generated on
 first use:
 - **Private key**, never leaves your device
-- **Public key**, your identity; also your "user ID" (a short hex string)
+- **Public key**, your identity; also your "user ID" (a Dilithium3 hex string; the app shows the shorter `did:hum:...` form for display)
 
 Every message is signed with the private key. The server verifies the signature before
 accepting the message. This means no passwords, no accounts, the server cannot

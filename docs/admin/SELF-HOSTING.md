@@ -57,13 +57,17 @@ cargo build --release --features relay --no-default-features
 ./target/release/HumanityOS --headless
 ```
 
-Either way, that's it. The relay starts on `http://localhost:3210` --
-open that address in your browser and you are looking at **your own copy
-of the website**, served by your machine:
-- Web client (the whole site) at `/`
+Either way, that's it. The relay starts on `http://localhost:3210` and serves:
 - WebSocket at `/ws`
 - Bot API at `/api/`
+- Uploads at `/uploads`
 - SQLite database auto-created at `data/relay.db`
+
+The relay also has a static fallback at `/` that serves a `client/` directory,
+but **no build step populates `client/`** -- so on a bare relay `/` returns 404.
+The website is served **separately** (nginx over the `web/` files), which the
+Production section below sets up. To serve the site from the relay itself
+instead, copy your built `web/` files into a `client/` folder beside the binary.
 
 ---
 
@@ -319,7 +323,7 @@ Once connected with your admin key, you have access to:
 | `/wipe` | Clear all messages in the CURRENT channel (admin only) |
 | `/wipe-all` | Clear all messages across every channel (admin only) |
 | `/server-add <url>` | Add a federated server |
-| `/server-trust <name> <tier>` | Set federation trust tier |
+| `/server-trust <server_id> <0-3>` | Set federation trust tier |
 
 ---
 

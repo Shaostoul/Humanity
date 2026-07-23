@@ -14,9 +14,10 @@
 > v0.400-414; homes-as-profiles + aeroponic towers + seed economy v0.379-399.
 >
 > **⚠️ KNOWN GAPS (the strategic backlog lives in [ROADMAP.md](ROADMAP.md)):** multiplayer
-> co-presence is NOT wired on the client (the relay game world is live, but `NetSyncSystem` is never
-> instantiated -- see [docs/design/first-playable.md](design/first-playable.md) +
-> [characters-and-servers.md](design/characters-and-servers.md)). RESOLVED 2026-06-16: desktop
+> co-presence is WIRED (`NetSyncSystem` is instantiated in the client loop and avatar streaming is
+> shipped); what remains is the two-human live-world proof on the VPS -- see
+> [docs/design/first-playable.md](design/first-playable.md) +
+> [characters-and-servers.md](design/characters-and-servers.md). RESOLVED 2026-06-16: desktop
 > auto-update (v0.470.0 now signed) and the web a11y/i18n/glossary modules (now wired into every
 > page, v0.471.0).
 >
@@ -468,7 +469,7 @@ actual binary.
 | Auto-rotating backups | ✅ | Keeps last 5 timestamped snapshots |
 | USB drive detection | ✅ | Detects removable drives for export/import |
 | Tiered sync config | ✅ | Configurable sync levels |
-| Data management UI | ✅ | web/pages/data.html with saves, backups, sync settings, USB tabs |
+| Data management UI | ✅ | In-app (native Files/Data surfaces); the standalone web/pages/data.html was retired in the 2026-07-05 trim |
 
 ---
 
