@@ -635,3 +635,8 @@ perf-diff baseline:
 # inventory figures in STATUS.md/FEATURES.md can be re-synced instead of drifting.
 data-counts:
     @node scripts/data-counts.js
+
+# Regenerate data/roadmap.json (the website mirror) from docs/ROADMAP.md.
+# Run after editing ROADMAP.md - the site renders the JSON, not the markdown.
+roadmap:
+    node scripts/roadmap-to-json.js

@@ -111,10 +111,52 @@ for (const file of files) {
   }
 }
 
+// ── Data-file doc references (2026-07-23) ── Machine-readable data files
+// (e.g. data/ai/onboarding.json) embed `docs/....md` paths as string values.
+// The markdown pass above never sees them, so a dead pointer there is invisible
+// to CI - which is exactly how data/ai/onboarding.json kept a moved link. Scan
+// data/ JSON + RON for embedded doc-path references and validate them too.
+function walkExt(dir, exts, acc) {
+  if (!fs.existsSync(dir)) return acc;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walkExt(full, exts, acc);
+    else if (exts.some((e) => entry.name.endsWith(e))) acc.push(full);
+  }
+  return acc;
+}
+const DOC_REF_RE = /\b(docs\/[\w./-]+\.md)\b/g;
+// Frozen historical records: their embedded links are a record of what was
+// said at the time, not live pointers - fixing them would be revisionism (same
+// reason the markdown pass skips docs/history/). announcements_archive.json is
+// re-seeded verbatim to #announcements on a wipe.
+const DATA_SKIP = [path.join('data', 'announcements_archive.json')];
+let dataChecked = 0;
+for (const file of walkExt(path.join(ROOT, 'data'), ['.json', '.ron'], [])) {
+  const relFile = path.relative(ROOT, file);
+  if (DATA_SKIP.some((s) => relFile === s)) continue;
+  const text = fs.readFileSync(file, 'utf8');
+  const seen = new Set();
+  let m;
+  DOC_REF_RE.lastIndex = 0;
+  while ((m = DOC_REF_RE.exec(text))) {
+    const ref = m[1];
+    if (seen.has(ref)) continue;
+    seen.add(ref);
+    dataChecked++;
+    checked++;
+    if (!fs.existsSync(path.join(ROOT, ref))) {
+      broken.push({ file: path.relative(ROOT, file), target: ref });
+    }
+  }
+}
+
 if (!QUIET && broken.length) {
   console.log('Broken internal links:');
   for (const b of broken) console.log(`  ${b.file}  ->  ${b.target}`);
   console.log('');
 }
-console.log(`Checked ${checked} internal links across ${files.length} files. Broken: ${broken.length}`);
+console.log(
+  `Checked ${checked} internal links across ${files.length} docs + ${dataChecked} data-file doc refs. Broken: ${broken.length}`
+);
 process.exit(broken.length ? 1 : 0);

@@ -184,13 +184,13 @@
           "id": "host-server",
           "title": "Run your own server",
           "description": "One program, under ten minutes from nothing to live. Your community gets its own space, and people keep their identity when they move between servers.",
-          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/SELF-HOSTING.md"
+          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/admin/SELF-HOSTING.md"
         },
         {
           "id": "contribute",
           "title": "Help build HumanityOS",
           "description": "Code, writing, design, translation, testing, feedback. This is a public-domain project. Everything built here belongs to everyone.",
-          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/ONBOARDING.md"
+          "link": "https://github.com/Shaostoul/Humanity/blob/main/docs/user/ONBOARDING.md"
         },
         {
           "id": "read-accord",
