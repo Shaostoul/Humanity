@@ -1766,20 +1766,21 @@ Manhattan/service-height auto-router that runs pipes up to the ceiling and down 
 102 components for crafting and construction.
 - Data: `data/components.csv`
 
-### Items Database (expanded v0.90.0)
-404 items for crafting, construction, and gameplay.
+### Items Database
+~829 items for crafting, construction, and gameplay. (Counts here are
+approximate and drift as data grows; run `just data-counts` for live figures.)
 - Data: `data/items.csv`
 
-### Recipes Database (expanded v0.90.0)
-371 recipes for crafting and construction.
+### Recipes Database
+~444 recipes for crafting and construction.
 - Data: `data/recipes.csv`
 
-### Plants Database (expanded v0.90.0)
-161 plants with growth stages, climate requirements, and harvest data. Expanded from 21 to 161.
+### Plants Database
+~166 plants with growth stages, climate requirements, and harvest data.
 - Data: `data/plants.csv`
 
-### Creatures Database (v0.90.0)
-123 creatures with behaviors, stats, habitats, and loot tables.
+### Creatures Database
+~127 creatures with behaviors, stats, habitats, and loot tables.
 - Data: `data/creatures.csv`
 
 ### Spells Database (v0.90.0)
@@ -1858,7 +1859,7 @@ Data definitions for natural science simulation. **⚠️ The consuming systems 
 Platform detection icons (Steam, Epic, GOG, PlayStation, Xbox) as inline SVGs.
 - Assets: `assets/icons/platforms/`
 
-### Total: 108 data files, ~3000+ entries (v0.90.8)
+### Total: ~215 data files, thousands of entries (`just data-counts` for live figures)
 
 ---
 

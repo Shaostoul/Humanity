@@ -35,29 +35,38 @@ this hour" detail lives in the maintainers' journal
 ## Right now
 
 The active queue, strict-ranked. The top item is what is being worked on next.
+Tactical, per-iteration detail lives in `docs/PRIORITIES.md` and
+`data/coordination/orchestrator_state.json`; this is the strategic summary.
 
-1. `[awaiting operator steer]` **Three mothership-superstructure design forks,** logged
-   2026-06-29 when the autonomous loop paused itself at v0.637 after 9 verified
-   construction/superstructure releases (v0.629 to v0.637: zones M1, conduit tiers,
-   machine rotation, zone interactivity, the rail node graph M2/M2b, viewport hide-per-type).
-   The remaining backlog needs a taste/architecture call before it resumes: (1) M1
-   zone-editor architecture, one editor with a zoom/scale switch (mothership to zone to
-   room) versus separate editors; (2) M3 civic mall/meeting-zone design, shop stalls,
-   plaza, transit-hub access, ties into market + guilds; (3) grid S3 multi-home tiers,
-   substations aggregating homes into the fleet grid. See
-   `docs/design/mothership-superstructure.md` and `docs/design/grid-hierarchy.md`.
-2. `[building]` **Multiplayer co-presence + the character selector.** Co-presence
-   CLIENT WIRING SHIPPED (v0.472): two players share the VPS world, stream position, and
-   see each other as avatars; pending a two-player test. Remaining: nameplates, the
-   world-snapshot prefill, and the CHARACTER LAUNCHER (the Play button becomes a launcher
-   with character select + homes + a default to skip it; self-custodial LOCAL vs
-   server-authoritative SERVER characters, open / closed / hybrid like Diablo II). Design
-   in `docs/design/characters-and-servers.md`.
-3. `[building]` **First Playable / live home sim depth.** Battery state-of-charge SHIPPED
-   (v0.473: the banks now charge/discharge with the solar swing, live HUD readout).
-   Remaining: walk-up stations, a 3D vitals HUD, death and respawn, a guided first day,
-   and letting battery discharge prevent load-shedding.
-4. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
+1. `[building]` **Planet-scale rendering realism** -- the arc the project has been built
+   around since v0.85x, run as an autonomous per-iteration loop. SHIPPED: chunked-LOD
+   Earth at true 1 m scale, live NASA weather + seven cloud families, Gerstner oceans, a
+   real sun shadow map, SSAO, god rays, and triplanar ground textures; then the realism
+   pass -- physical atmosphere (sun transmittance, aerial perspective, three-tier
+   exposure), the ocean rework (depth-baked shorelines plus a mipped wave texture that
+   killed the aliasing), synthesized Moon/Mars/Pluto terrain, geomorph LOD crossfades,
+   god-ray occlusion, planet-frame momentum with proximity frame-lock, and the perf fixes
+   (threaded terrain builds, parked-selection skip, async sky-sphere builds -- the
+   10-second departure hang is gone). NEXT in the queue: a sky-view LUT (one consistent
+   sky the water can reflect), the per-size-category LOD ladder (billboard to alpha card
+   to full model, for plants and animals), light clustering (1000+ sources), and
+   audio-engine integration (the volume sliders are still placebos).
+2. `[next]` **Scene tooling: bookmark studio.** F6 teleport bookmarks with categories
+   shipped; next is maps-page teleport integration and a live POV-preview bookmark editor
+   with time/weather scrubbing. The 3D visual + perf regression sweeps (2026-07-23,
+   `just perf-sweep` + the visual-sweep workflow) now guard the rendering work.
+3. `[paused behind the graphics arc]` **Multiplayer co-presence + the character
+   selector.** Client wiring shipped (v0.472): two players share the VPS world, stream
+   position, and see each other as avatars; pending a two-player live test. Remaining:
+   nameplates, the world-snapshot prefill, and the CHARACTER LAUNCHER (self-custodial
+   LOCAL vs server-authoritative SERVER characters, open / closed / hybrid). Design in
+   `docs/design/characters-and-servers.md`.
+4. `[paused behind the graphics arc]` **First Playable depth + mothership superstructure.**
+   First Playable: walk-up stations, a 3D vitals HUD, death and respawn, a guided first
+   day. Superstructure (paused at v0.637, needs a taste/architecture call): the M1
+   zone-editor architecture, the M3 civic mall/meeting-zone, and grid S3 multi-home tiers.
+   See `docs/design/mothership-superstructure.md` and `docs/design/grid-hierarchy.md`.
+5. `[next]` **GitHub branch + tag protection on `main`** (deploy auto-pushes to the live
    relay with no approval gate) and the backup-restore drill.
 
 ---
@@ -408,8 +417,27 @@ Every operator gets the same sovereignty tools, not just the original.
 
 ## Recently shipped
 
-Newest first. For older history see `docs/history/` and `git log`.
+Newest first. This lists milestones, not every release (the project is at ~v0.930
+with ~900 tagged releases); for the granular per-release history see `docs/history/`,
+the release notes, and `git log`.
 
+- `v0.924-v0.930` Dev tooling + perf: megashader hot-reload (edit `pbr_simple.wgsl`
+  live, no rebuild), threaded terrain builds, parked-selection skip, async sky-sphere
+  builds + linear amortized cache shrink (the multi-second departure hang is dead), the
+  3D visual-regression + perf sweeps, and the frame-lock proximity auto-switch (fly
+  Moon-to-Earth and re-entry engages).
+- `v0.915-v0.923` Rendering realism loop: sun-disc transmittance, aerial perspective,
+  three-tier exposure calibration (killed the washed sky + the grazing-white water),
+  depth-baked shorelines, a mipped ocean-wave texture (no more zebra/moire), synthesized
+  Moon/Mars/Pluto cratered terrain, geomorph LOD crossfades, god rays that respect
+  planetary occlusion, planet-frame momentum on liftoff, and vegetation LOD stage 1.
+- `v0.874-v0.901` The planet marathon: chunked-LOD Earth at true 1 m scale with live
+  NASA weather, seven cloud families, Gerstner oceans, planet-fixed vegetation, god rays,
+  cloud ground shadows, SSAO, and the first real sun shadow map.
+- `v0.639-v0.873` Everyday-use features: storage chooser + portable mode, in-app file
+  browser, chat daily-use parity (saved servers, unread, voice calls, markdown), machine
+  cards, typed containers, the economy phase-2 kit->factory->drone chain, and ground
+  textures.
 - `v0.638` M2c: mothership zone interior population -- residential zones clone the
   player's home into every slot; every other zone type gets a generic tiled filler
   tinted by its zone colour; two new zone types (armory, arena).

@@ -630,3 +630,8 @@ perf-sweep:
 # that is still above floor: `just perf-diff .probe-rig/sweeps/<old>/manifest.json`
 perf-diff baseline:
     node scripts/perf-report.js --baseline {{baseline}}
+
+# Live game-data counts (items/plants/creatures/recipes + data files) so the
+# inventory figures in STATUS.md/FEATURES.md can be re-synced instead of drifting.
+data-counts:
+    @node scripts/data-counts.js

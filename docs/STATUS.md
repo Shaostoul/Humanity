@@ -273,7 +273,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Three-mode camera | ✅ | First-person, third-person, orbit with smooth transitions (v0.26.0) |
 | Platform abstraction | ✅ | platform.rs: logging, timing, asset loading across native/WASM |
 | WGSL shaders | ✅ | 41 shaders (planets, PBR, procedural materials, particles, bloom) |
-| Game data files | ✅ | 108 data files, ~3000+ entries across CSV/TOML/RON/JSON |
+| Game data files | ✅ | ~215 data files across CSV/TOML/RON/JSON (run `just data-counts` for live figures) |
 | Gardening activity | ✅ | Playable 2D canvas farming (6 crops, save/load) |
 | Data loading (AssetManager) | ✅ | load_csv/toml/ron/json, FileWatcher, HotReloadCoordinator (v0.28.0) |
 | ECS system runner | ✅ | System trait, SystemRunner, 20 game components, per-frame tick (v0.29.0) |
@@ -481,9 +481,9 @@ actual binary.
 | Solar system database | ✅ | 70+ celestial bodies with orbital and physical data (v0.42.0) |
 | Materials database | ✅ | 92 materials with properties (v0.42.0) |
 | Components database | ✅ | 102 components for crafting/construction (v0.42.0) |
-| Items and recipes | ✅ | 404 items, 371 recipes (expanded v0.90.0) |
-| Plants database | ✅ | 161 plants with growth stages and requirements (expanded v0.90.0) |
-| Creatures database | ✅ | 123 creatures with behaviors and stats (v0.90.0) |
+| Items and recipes | ✅ | ~829 items, ~444 recipes (`just data-counts`) |
+| Plants database | ✅ | ~166 plants with growth stages and requirements |
+| Creatures database | ✅ | ~127 creatures with behaviors and stats |
 | Spells database | ✅ | 149 spells across multiple schools of magic (v0.90.0) |
 | Structures database | ✅ | 163 structures for construction (v0.90.0) |
 | Status effects | ✅ | 80 status effects (buffs, debuffs, conditions) (v0.90.0) |
@@ -502,7 +502,7 @@ actual binary.
 | Science systems | ✅ | geology, oceanography, astronomy_tools, genetics, manufacturing, waste_management RON files (v0.90.0) |
 | Data schemas | ✅ | 22 TOML schemas documenting all data formats (v0.90.0) |
 | Platform brand SVGs | ✅ | Steam, Epic, GOG, PlayStation, Xbox icons (v0.41.0) |
-| 108 total data files | ✅ | ~3000+ entries across CSV/TOML/RON/JSON (v0.90.0) |
+| ~215 total data files | ✅ | thousands of entries across CSV/TOML/RON/JSON (`just data-counts`) |
 
 ---
 
