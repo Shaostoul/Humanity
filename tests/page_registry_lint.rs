@@ -14,6 +14,10 @@
 //!    "N standalone" count in the web-pages heading equals the real file count.
 //! 3. Every native page row's `file.rs` reference points at a real file under
 //!    src/gui/pages/.
+//! 4. The native-pages heading's variant count equals the real `GuiPage` count
+//!    (excluding `None`). Added 2026-07-23: only the web count was guarded, so
+//!    the native prose silently drifted to 35 while the enum grew to 37, and
+//!    CLAUDE.md tells agents to trust that heading.
 //! Deliberately NOT checked: prose accuracy (only a human can audit purpose
 //! text) and per-variant row format (the doc groups variants into tables of
 //! different shapes; a mention anywhere is the invariant that prevents rot).
@@ -141,5 +145,36 @@ fn web_page_files_and_count_match_the_registry() {
         files.len(),
         "docs/PAGES.md claims {claimed} standalone web pages but web/pages/ holds {} -- update the heading (and add/remove the page rows)",
         files.len()
+    );
+}
+
+/// The NATIVE heading count (2026-07-23). Only the web count was guarded, so the
+/// native prose drifted unnoticed: RelayControl (v0.846) and Watch (v0.857) were
+/// added to the tables but the heading still claimed 35, and CLAUDE.md tells
+/// agents to trust that heading for the live native page count. Guard it the
+/// same way the web count is guarded.
+#[test]
+fn native_page_count_in_the_heading_matches_the_enum() {
+    let doc = fs::read_to_string(repo().join("docs/PAGES.md")).expect("read docs/PAGES.md");
+    let variants = gui_page_variants();
+    // `None` is the in-game/no-menu state, called out separately in the heading.
+    let pages = variants.iter().filter(|v| *v != "None").count();
+
+    let heading = doc
+        .lines()
+        .find(|l| l.starts_with("## Native pages"))
+        .expect("native-pages heading present in docs/PAGES.md");
+    let claimed: usize = heading
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<String>()
+        .parse()
+        .expect("native-pages heading carries a count like `## Native pages (37 GuiPage variants,`");
+
+    assert_eq!(
+        claimed, pages,
+        "docs/PAGES.md claims {claimed} native GuiPage page variants but src/gui/mod.rs has {pages} \
+         (excluding `None`) -- update the heading in docs/PAGES.md (and add/remove the page rows)"
     );
 }
