@@ -55,7 +55,7 @@ Humanity speaks many languages. The mission should too.
 3. **Explore the repo**, see what exists, what's planned
    → [github.com/Shaostoul/Humanity](https://github.com/Shaostoul/Humanity)
 
-4. **Download the app**, try the [desktop app (v0.2.0)](https://github.com/Shaostoul/Humanity/releases/latest) or install the PWA on mobile
+4. **Download the app**, try the [desktop app](https://github.com/Shaostoul/Humanity/releases/latest) or install the PWA on mobile
 
 5. **Pick something small**, fix a typo, clarify a sentence, add a detail. Small contributions matter.
 
