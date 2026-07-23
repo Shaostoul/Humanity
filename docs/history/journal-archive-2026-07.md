@@ -333,3 +333,276 @@ Decisions rotated out of `data/coordination/orchestrator_state.json` (oldest fir
 
 **Why:** Operator directive + it is a safe reversible op (backup + validate + graceful reload + curl verify). Corrected my standing over-caution: the AI has root SSH via humanity-vps (same as just sync) and should do safe VPS ops directly, not hand the operator a command list. Persisted as memory ops_ai_can_do_vps_work.
 
+
+## 2026-07-05
+
+**Decision:** Two live-VPS ops + a fluff-trim release. (1) Set ACCORD_COMPLIANT=true in /opt/Humanity/.env, restarted humanity-relay (EnvironmentFile picks it up); /api/server-info now reports accord_compliant:true (was false). (2) v0.699.3 fluff-trim: DELETED web/pages/{audit,ai-usage,dashboard}.html + web/activities/{index,gardening}.html + the 8 activities hub JS files + data/ai_usage/filters.json. Cleaned every touchpoint (nginx /dashboard route, commands.json Dashboard entry, shell.js active-state + Audit drawer link, onboarding-tour gardening step, PAGES.md). Applied to the LIVE VPS too (removed the /dashboard route + rm the deleted files from the web root since the deploy has no --delete; also swept the stray activities/download.html fork). Verified: /dashboard /audit /ai-usage /activities/gardening all 404, /activities/game still 200. KEPT web/activities/game.html (linked from Download) + agents.html (live dashboard, README-linked).
+
+**Why:** Operator directive: get everything into ONE cohesive package; trim tech-demo/fluff ("any fluff we add now is fat we have to trim later"); one gardening game (the native app), not two partial ones; kill the audit page. Accord flag: the flagship server SHOULD declare compliance (operator OK'd it).
+
+
+## 2026-07-05
+
+**Decision:** v0.700.0 THE HOME OUTLINE (operator: "use home as a page for outlining what we need in the perfect ideal 100% closed loop self-sustaining homestead... it could also help us clearly outline what we need in the game for the home"). Discovered the outline content ALREADY existed as docs/design/homestead-solo-design.md (sections 0-9, numbers cross-checked against game data; all 5 section-7 content gaps closed by v0.664) -- so this was distillation + surfacing, not invention. Authored data/home_outline.json (top-level so the web deploy publishes it; subdir data like coordination/ stays private): 6 loops (power 4.0 kWh/d, water 80 L/d, food 2200 kcal/d, air, nutrients, shelter), each with sized requirements whose game_id is a REAL data id, cannot-close cross-ref, in_game_next (play-load solo home, live-balance tracking, real-home import), footer = the done-enough criterion for the Home feature. Native: homes.rs renders it as "The ideal closed loop" panel (expandable_row pattern) between the live loop-closure card and the cannot-close panel; serde loader + OnceLock cache mirroring cannot_close. Web: home.html REWRITTEN as a faithful mirror fetching the same JSON (old localStorage room-decorator deleted -- it was the diverging second-Home the web-mirrors-native rule exists to prevent). 3 new unit tests: parses+complete, game_ids_are_real (drift guard), missing-file degrades.
+
+**Why:** Operator design synthesis: one page that is simultaneously education (what closure really takes), the game requirements list (the outline IS the backlog for Home), and later a live tracker (your home vs the ideal). Executed native-first per web-mirrors-native.
+
+
+## 2026-07-05
+
+**Decision:** v0.701.0 HOME OUTLINE v2 (operator: dual units "metric (imperial)" + two tiers, bare minimum vs life of luxury with all the latest tech, comfort-in-space as the design target; explicitly wanted heating/cooling, hydroponics/aeroponics, fridge/freezer, 3D printer, electric tools). data/home_outline.json rewritten: every measurement now metric-first with imperial in parens (80 L/day (21 gal/day), 8,000 L (2,100 gal), 1,156 m2 (12,440 sq ft), 20 C (68 F), ...); every requirement carries tier baseline|luxury; NEW 7th loop Climate (heating and cooling) with insulation/stove/passive-solar baseline and heat_pump/air_conditioner/radiant_floor/thermostat luxury; luxury power budget honestly sized at ~16 kWh/day vs 4.0 bare (14 panels / 8 battery banks); luxury rows across water (washing_machine_0 + flagged water heater + dishwasher), food (fridge_0, apothecary tower, grow_light), air (hepa_filter), shelter/workshop (printer_3d_0, drill_electric_0, server_rack). game_id may now be EMPTY = renders a "not in game yet" flag on both surfaces, so the luxury tier doubles as the game-content gap list; only 2 items are flagged (on-demand water heater, dishwasher), added to in_game_next. Renderers: homes.rs groups rows under Bare minimum / Life of luxury labels with warning-colored not-in-game tags; home.html mirrors with tier labels + chips. Tests hardened: 7 loops, every loop has baseline rows, tier values validated, luxury tier >= 5 rows, >= 1 not-in-game flag must exist, game_ids_are_real skips only empty ids (haystack extended with hvac/electrical/rooms/blueprint files).
+
+**Why:** Operator design directives verbatim. The id drift-guard test EARNED ITS KEEP during authoring: caught 3d_printer_0 (real id printer_3d_0) and power_drill (only an enchantment string; real tool is drill_electric_0) before they shipped as lies.
+
+
+## 2026-07-05
+
+**Decision:** v0.702.0 NATIVE CHAT PARITY increment 1. (a) Inline markdown + links: new PURE parser widgets/msg_format.rs (content -> stripped display text + char-indexed FormatSpans; **bold** -> WHITE (repo convention, no bold font face), *italic* -> TextFormat.italics, `code` -> monospace + bg_card background, ~~strike~~ -> strikethrough, http(s) URLs -> accent+underline Link spans carrying the URL; unclosed markers render verbatim WHOLE (the failed ** tail must not re-match as italic -- caught by unit test), no pairing across lines, code protects inner markers, char-indexed for multibyte). message_row generalized: per-char style-mask merge of mention ranges + format spans -> run-grouped LayoutJob; clicked_link hit-test mirrors clicked_mention; chat.rs parses AFTER image-strip so mentions compute on the stripped text, opens links via ctx.open_url New_tab (Browser-page pattern). settings.rs theme-preview callers pass empty spans. (b) Scratchpad privacy: it posted channel:"scratchpad" to the relay whenever connected despite the local-only label (same looks-private-is-not class as the web DM-attachment leak) -- WS send now gated on channel != scratchpad, local echo only.
+
+**Why:** Operator picked native chat parity over browser R&D; markdown/links was the top-ranked gap (help modal advertised markdown that did not exist) and the scratchpad was a small privacy-truth fix in the same file. Parser is a separate pure module (NOT a duplicate of widgets::markdown, which is the block-level doc reader for Library/Accord and cannot do inline spans or links) with 10 unit tests.
+
+
+## 2026-07-05
+
+**Decision:** v0.703.0 NATIVE ANSWERS 1:1 VOICE CALLS (the ring-forever bug, worst cross-client defect in the parity audit). Design: reuse the ENTIRE proven voice-room audio path (str0m browser-compatible WebRTC: SDP byte-identical to RTCSessionDescription, DTLS-SRTP, Opus/RTP; cpal capture; the lib.rs mic pump + VoiceConnected/VoiceFrame events) by introducing a reserved pseudo-room CALL_ROOM_ID=__call__: emit_voice_signal branches on it to wear the web 1:1 webrtc_signal envelope (bare offer/answer/ice, OBJECT data, no room_id) instead of voice_room_signal. Inbound: lib.rs routes bare offer/answer/ice into submit_voice_signal(__call__) GATED on the accepted call peer (never auto-answer unsolicited media offers); dc_* keep their DataChannel path. Control plane: voice_call ring/accept/reject/hangup handled (was an explicit discard); busy auto-reject (in call, ringing, or in a voice room); relay stamps from_name. UI: Accept/Decline modal + in-call bar (connecting/connected + Hang up) drawn on the Chat page AND as a global overlay from lib.rs so a ring is answerable from any page (web caller gives up in 30 s). NEW WebrtcManager Command::ClosePeer + close_peer(): hangup drops the str0m Rtc immediately, else its is_alive guard would refuse the SAME peer's next call until ICE timeout. Session lifecycle: want_session now voice_active_room OR call_active; Closed event also clears call_active (covers web tab-close with no hangup message). Scope: ANSWER only; native-initiated calls are the next increment.
+
+**Why:** Operator picked chat parity and approved proceeding with my suggestion (this bug ranked worst: silent cross-client failure). The str0m room path already interops with browsers, so the honest increment was signaling + control + UI, not a new audio engine. Known edge documented in on_voice_offer: a live P2P DataChannel to the same peer trips the one-connection guard and refuses the call offer (rare; native DC is a manual dev tool; proper fix = m-line renegotiation, in PRIORITIES).
+
+
+## 2026-07-05
+
+**Decision:** v0.704.0 Home outline fully exposed (operator: get rid of the expandable areas, all info immediately visible). Native homes.rs: outline loops + cannot-close entries render flat (name+mark, demand, note, tier rows, separator) -- no expandable_row. Web home.html: all loop cards always open, toggle JS + cursor removed. Field results logged: markdown/links verified working by operator; Nova drives properly; Home approved.
+
+**Why:** Direct operator directive; also entered loop mode on obvious-only items per operator.
+
+
+## 2026-07-05
+
+**Decision:** v0.705.0 (loop mode) NATIVE-INITIATED 1:1 CALLS + MUTE. Call button in the chat user modal (disabled unless idle + not self) sends voice_call ring, sets call_outgoing + a 30s deadline (matches web setTimeout). Inbound accept handler: when the accepter matches call_outgoing, move to call_active and offer_to_voice(peer, CALL_ROOM_ID) -- the caller creates the offer, exactly the web flow. reject/hangup clears call_outgoing; ring busy-check now includes call_outgoing. Ring-out timeout drives per-frame from call_outgoing_deadline (sends hangup, clears). UI: call bar shows a Calling.../Cancel state while ringing out, and Mute/Unmute in the in-call bar. Mute gates the voice pump send (still receives peer audio); resets on call start/accept/hangup. New GuiState: call_outgoing, call_outgoing_deadline (Instant, not serialized), call_muted.
+
+**Why:** Loop item 1+2 (obvious, no operator decision): completes the call feature to peer parity with web (both directions) + the standard mute control, reusing the CALL_ROOM_ID voice path from v0.703.
+
+
+## 2026-07-06
+
+**Decision:** Wound down loop mode after clearing the genuinely-obvious no-decision items. Shipped this loop: v0.704.0 (Home outline fully exposed, expandables removed per operator), v0.705.0 (native-initiated 1:1 calls: Call button + ringing-out state + accept->offer + 30s timeout + Mute/Unmute), v0.705.1 (deleted chat-voice.js monolith + style.css, 5642 lines, verified unreferenced), v0.705.2 (version-alignment reconcile after a build-game auto-bump tangle). Documented the build-game-auto-bumps-at-start gotcha in CLAUDE.md SOP.
+
+**Why:** Loop scope was obvious/no-decision items. The three remaining backlog items each require an operator decision (new rfd dependency for file attach; keep-or-drop the app/web offline-bundle feature; source a ring audio asset + wire GUI audio). Per the loop rule (defer decision items) + the operators anti-waste directive, stopping is correct rather than pinging idle or deciding unsupervised.
+
+
+## 2026-07-06
+
+**Decision:** v0.706.0 FRESH-INSTALL FIXES from a 3-agent adversarially-verified audit (fresh-install-audit workflow, 12 agents / ~950k tokens). FIX 1 (exe litter): extract_data_if_needed wrote ~70 embedded data files into <exe_dir>/data on first run (CONFIRMED dominant litter source: a user ran HumanityOS.exe from Downloads and got the pile there). Now extracts to os_data_dir() = %APPDATA%HumanityOSdata (new helper mirroring persistence::saves_dir); find_data_dir adds that as a candidate so reads + construction-editor saves target it; AssetManager already falls back to embedded so a zero-file install still runs. FIX 2 (avatar/blank world): the avatar-place + showroom-asset block (lib.rs ~4180) was gated on room id "respawner", which only the legacy fibonacci layout emits; the default HomeStructure home emits "home"/"room_N" + is_spawn_room, so the block was skipped on EVERY path -> avatar_base stayed Vec3::ZERO, no avatar body, and Play/Characters showroom orbited an empty point. Now falls back to the spawn room (is_spawn_room).
+
+**Why:** Operator report: his dad saw a blank skybox/no world on Esc + files littered his root folder on a fresh run. The audit REFUTED the world-gated-behind-Play hypothesis (load_world fires on any Esc; world+skybox render; 3D deferral is by-design chat-first) and CONFIRMED the real causes: the exe-dir extraction litter and the respawner-hardcode that suppressed the avatar. Fixed both; flagged the exact blank-skybox repro as needing an operator re-test on v0.706 (most likely the now-fixed no-avatar impression or a stale build).
+
+
+## 2026-07-06
+
+**Decision:** v0.707.0 FIRST-BOOT STORAGE CHOOSER + PORTABLE MODE (operator design: "on first boot... have the user choose where they are putting it"; his external-drive concern). New src/storage.rs: StorageMode { Portable (portable.txt beside exe -> EVERYTHING beside exe: data, saves, config incl. encrypted identity, logs), LegacyBesideExe (data/ beside exe, no marker -> byte-identical pre-v0.707 behavior, protects the dads install: data beside exe, saves/config stay APPDATA), Installed (APPDATA content), Undecided (fresh machine) }. Detection checks CONTENT not bare dirs (config_path historically create_dir_alls the empty root). Main menu draws the chooser BEFORE identity creation when Undecided; nothing is written until chosen; choose_* writes the marker/root + runs extraction. Path helpers consult portable overrides: config_path (identity travels!), saves_dir, log_dir, writable_data_dir; extraction + editor saves target the mode dir; per-frame data_dir re-resolve after the choice (else a fresh machine would keep the CWD fallback until restart). extract_data_if_needed MOVED from lib.rs to storage.rs (also cleans the v0.706 dangling-doc nit). ALSO re-verified the whole v0.706.0 diff line-by-line at operator request (model had downgraded to Opus mid-session): logic correct in all three scenarios, one cosmetic doc nit (now gone with the move).
+
+**Why:** Operator: worried APPDATA strands external-drive users + wants nothing lost + wants the placement step right. This is the standard portable-app pattern matched to his exact proposal (check files beside exe; else ask). GUI-first rule honored: an in-app step, not an installer dependency. APPDATA downsides honestly documented in PRIORITIES (hidden dir, non-portable, per-user, orphan on delete).
+
+
+## 2026-07-06
+
+**Decision:** v0.708.0 IN-APP FILE BROWSER + CHAT ATTACH (the all-in-one decision executed: in-app widget, NOT rfd). New widgets/file_browser.rs: pure list_dir (dirs-first, ci-alpha, dotfiles hidden, ext filter incl compound .tar.gz) + human_size + quick_roots (Home/Downloads/Documents/Desktop/Game data/App folder) + FilePickerState/file_picker_modal (breadcrumb, Up, selectable list, oversized files greyed with visible 6MB cap, double-click or Attach button) -- 5 unit tests. Chat: Attach button beside Send opens the picker filtered to the web accept list (png..glb); picked file validates size (6MB = the REAL nginx client_max_body_size cap on /api/upload; the webs 10/20MB copy is stale), uploads on a worker thread via new generalized upload_file_blocking (real filename, mime guess, multipart-safe name sanitize, share=1 for blend/stl/obj/gltf/glb like web -> Shared Files library), drains through the same receiver as clipboard uploads. ARCHITECTURE: extracted send_composed_content(state, content) as THE single native routing authority (p2pgroup HTTP / scratchpad local-only / DM E2EE fail-closed with confirm-modal stash / group_msg / Dilithium-signed channel chat + reply_to + local echo + dedup timestamps); composer delegates; clipboard drain delegates.
+
+**Why:** Operator decisions: in-app browser over rfd (all-in-one app; same widget will serve Files page, downloads, move-my-files); embed tools so modding/uploads get easier. BONUS FIX found during wiring: the native clipboard-paste flow sent raw type:chat with the active channel -- in a DM view that bypassed Kyber E2EE entirely (same class as web v0.698.2 leak); now routed + fail-closed.
+
+
+## 2026-07-06
+
+**Decision:** v0.709.0 SHARED-FILE REMOVAL (server side). The shared-file library had upload (POST /api/upload?share=1) + list (GET /api/uploads) but no remove path, so the operator could add files people download but never take one down. Added Storage::delete_shared_upload(filename, requester_key, is_admin) (owner OR admin may remove; returns the filename to unlink or None if missing/unauthorized) + POST /api/uploads/delete (signed like admin_stats: Dilithium over delete_upload+timestamp, 5-min freshness, basename-only guard, unlinks data/uploads/file). 4 storage tests. This is the relay half; the native shared-files manager UI is the next increment. Also captured the Fable->Opus handoff plan in PRIORITIES + a stay-on-Fable working note in CLAUDE.md after a security-worded audit WORKFLOW tripped the dual-use safeguard and downgraded the turn to Opus (then a follow-up Bash failed because the Opus safety classifier was momentarily down). Going solo + plain framing.
+
+**Why:** Operator wants to easily add AND remove files on the server for people to access. Add existed; remove did not. Admin-removes-any matches curating a public library; owner-removes-own is the fair default. Signed-request auth matches the existing authenticated endpoints.
+
+
+## 2026-07-06
+
+**Decision:** v0.710.0 NATIVE SHARED-FILES MANAGER (Files page). Added a Shared files on the server section at the top of src/gui/pages/files.rs: lists the public library (GET /api/uploads, auto-loads on first view + Refresh), an Upload a file button that opens the in-app file browser widget and uploads with share=1 (reuses chat::upload_file_blocking, now pub(crate)), and a Remove button per row shown when the file is the operators own OR the operator is an admin (server enforces via the v0.709 signed endpoint regardless). All HTTP runs on worker threads (fetch_shared_blocking, delete_shared_blocking sign delete_upload+ts via pq_sign_chat) with results drained per-frame into the thread-local FileBrowserState. Together with v0.709 this delivers the operators explicit need: add AND remove files on the server from the native PC app.
+
+**Why:** Operator: the Files page will play into this as I need to easily add/remove files from the server for people to access. Built on the Files page as directed; reuses the v0.708 file browser + upload path so it is one consistent in-app surface (the all-in-one direction).
+
+
+## 2026-07-06
+
+**Decision:** v0.711.0 WIDGET REVIEW (operator: double-check the widgets). Inventoried all widget modules by real call sites. Removed 5 that had ZERO callers and are superseded by widgets the app actually uses (card/row/expandable_row/egui::Window): data_table (259), item_list (156), stat_display (103), modal (138), toolbar (74) = 730 lines. The remaining ~17 are healthy: Button (21 files), card (24), form_row (9), search_bar (6), icons (6), row (4), alert (3), file_browser (3), help_modal/msg_format/image_cache (2 each), plus dialog/tree_node/passphrase_modal/body_pill/markdown/image_cache_view (used). All pass theme_token_lint + theme_editor_coverage (theme-token compliant, every token editable in Settings).
+
+**Why:** Directed widget review. The universal-widget rule allows widgets ahead of consumers, but these five have NO consumers AND their pattern is already provided by in-use widgets, so they are superseded dead code, not forward-looking building blocks. Trim aligns with the no-dead-code norm.
+
+
+## 2026-07-06
+
+**Decision:** v0.712.0 SAVED-SERVERS SWITCH + FORGET. The chat sidebar rendered saved-server names as inert labels even though the Add Server modal promised clicking switches to them and ChatServer.url doc-comment says the same. Wired it: clicking a saved server switches server_url + reconnects with the same identity (mirrors the Connect button: connect_with_kyber, reset reconnect timers, clear chat_messages + history_fetched=false to reload). Active server shows in success color with a (current) tag, not re-clickable. Each non-current saved server gets a small frameless x (Forget this server) that retains-removes the bookmark + saves config; Add Server re-adds. v0.712.1 = build-game exe stamp + PRIORITIES handoff-block refresh (Files add/remove + widget review marked DONE, field-tests owed + release-signing backlog recorded for Opus).
+
+**Why:** Operator model-handoff priority #1: CHAT for daily use incl connecting to a server. Add existed but switch/forget did not, so the saved-server list was decorative. Plainly-framed non-crypto UX (chose it deliberately to avoid the encryption/privacy content that triggers the Fable->Opus downgrade). Verified DMs + Groups panels are already mature, so Servers was the real gap.
+
+
+## 2026-07-06
+
+**Decision:** v0.713.0 SERVER SWITCH LANDS ON general + HANDOFF SWEEP VERIFICATION. Follow-up to v0.712: switching saved servers now resets chat_active_channel to "general" (the channel every relay seeds) before reconnecting, so switching to a server that lacks your previous channel/DM/group no longer shows an empty view (matches the existing general-fallback on leave-DM/disband-group). Also VERIFIED the operator handoff priorities from this PC: native default server_url is https://united-humanity.us (fresh install reaches the VPS relay with no config); the live relay answered /health (ok, 1 peer, uptime ~3min) and /api/stats version=1be2ddf9 == the v0.712.1 commit SHA, proving the deploy pipeline auto-rebuilt + restarted the relay on the latest push; DMs + Groups sidebar panels are feature-complete (unread dots, active bar, context menu, Send-DM-from-profile, Create/Join groups, per-group notifs); the mod/admin slash-command reference (General/Moderator/Admin) is complete and opened by the composer "?" button.
+
+**Why:** Operator model-handoff: finish CHAT for daily use (DMs/Groups/Servers) + confirm the PC can reach the VPS relay + mod/admin feels complete, before Fable access ends. Kept all work plainly-framed + solo (no crypto/security-jargon workflows) to avoid the Fable->Opus downgrade the operator observed. The deep mod/admin handler audit + owner-auto-admin check are deliberately LEFT for Opus (auth-adjacent, larger, and Opus is unaffected by the downgrade trigger).
+
+
+## 2026-07-06
+
+**Decision:** v0.714.0 ADD SERVER ACCEPTS A BARE HOST -> "Servers" complete for daily use. The Add Server modal required the full https:// scheme, so typing a bare host (server1.example.com) silently greyed out the Add button. Now a bare host (has a dot, no spaces, no scheme) is treated as https://<host> for validation + saving. Together with v0.712 (click-to-switch + forget) and v0.713 (switch lands on general) the saved-servers surface is now add -> switch -> use -> forget, all working, matching the operator model-handoff priority #1 (connect to a server working smoothly on native). This closes the Fable-stretch chat/servers work; the deeper mod/admin handler audit is intentionally left for Opus.
+
+**Why:** Last Fable day; operator wants CHAT (DMs/Groups/Servers) finished for daily use before Fable access ends. Servers had the most incomplete UX (add existed but was inert + strict). Kept everything solo + plainly-framed (UI/UX, no crypto/security jargon) to avoid the Fable->Opus downgrade the operator observed on multi-agent security-dense workflows.
+
+
+## 2026-07-06
+
+**Decision:** v0.715-v0.717 CHAT IMPROVEMENTS BATCH (2 scout subagents + solo implementation). (1) v0.715 DM previews: DM rows grow a preview line (muted, elided, brighter when unread); incoming DMs update/create the sidebar entry with preview + timestamp + unread (skipping the open conversation); own sends show "You: ..."; opening clears unread; snapshot-verified. (2) v0.716 command audit fixes: the slash-command gate rejected any message containing a DOT anywhere, so /server-add <url> and /report with a period posted PUBLICLY instead of executing (now only the command word is dot-checked); /friend-code + /redeem existed only as GUI enum messages while all docs promised typed commands (added text handlers reusing the same fns); /dm removed from help docs (disabled since v0.279). (3) v0.717 group unread: ChatGroup.unread + dot in the group header + clear-on-open + preserved across group_list rebuilds. AUDIT VERDICT: all documented mod/admin/federation commands have real handlers (scout-mapped file:line); admin bootstrap is ADMIN_KEYS env at startup by design (corrected a comment claiming an unimplemented first-user rule, which would be a hostile-takeover vector on a public relay); operator admin on VPS CONFIRMED via PRIORITIES:1280 journal entry (2026-05-21) without touching prod. IMPORTANT design note: web DM sidebar deliberately stays name-only (operator 2026-05-27, opaque E2EE envelopes); native previews are operator-approved 2026-07-06 and decrypt-on-arrival — the chat-dms.js comment now records BOTH so nobody reverts native for parity.
+
+**Why:** Operator directive (2026-07-06 after model reset): stop worrying about model switching, focus on dev, get the chat improvements + other stuff done, subagents allowed. DM previews + mod/admin audit were the two named next items. Scouts (Explore agents) mapped the DM receive path and the full relay command surface; implementation done solo on main.
+
+
+## 2026-07-06
+
+**Decision:** v0.718.0 CHANNEL UNREAD DOTS + v0.719.0 NAV-TAB DOT. ChatChannel.unread: incoming chat for a non-open channel (not ours) flags the channel row; dot + brightened name in the sidebar; clear on open; channel_list rebuilds preserve marks (same preservation pattern as group_list, which would otherwise wipe dots on any admin change). v0.719: the Chat button in the top nav paints a theme.danger() dot at its top-right when ANY dm/group/channel is unread — chat activity visible from every page, not just inside Chat. Lint discipline held: the first draft used the legacy rgb(200,80,80) literal and theme_token_lint correctly FAILED the new file; fixed by using the existing danger token per the add-a-token-not-an-allowlist-entry rule. Snapshot note: the connected-channels section and the nav bar do not render in headless snapshots (need a live ws_client / are drawn outside the page body), so v0.718/719 verify by compile + pattern-identity with the snapshot-verified DM/group dots + operator field test.
+
+**Why:** Completes the operator-requested chat improvements: unread visibility was the last daily-use gap (web already had renderUnreadDots; native had nothing). The nav dot is the capstone — without it, unread only helps while already on the Chat page.
+
+
+## 2026-07-06
+
+**Decision:** v0.720.0 NATIVE SYSTEM-HEALTH PANEL (in-app ops slice 1 parity). Server Settings admin tab, top section: read-only live snapshot of the CONNECTED server via its public /health + /api/stats — status (success/danger colored), deployed build (git commit, makes a stale deploy visible in-app), humanized relay uptime, messages stored, connected peers. Auto-fetch on first view ONLY while ws-connected (no doomed offline requests; snapshot tests unaffected — server_settings is not in the headless registry); manual Refresh always available; ureq on a worker thread + mpsc drain (files.rs pattern). Zero relay changes (public endpoints only). Chose the zero-endpoint version deliberately: the /api/admin/system signed read (disk/cert/watchdog depth) is the documented follow-up, not a prerequisite.
+
+**Why:** Operator named priorities all done; continued into the top actionable TIER-0 backlog item (in-app ops console, GUI-first norm: nobody should HAVE to SSH the VPS to ask "is it up, which build"). Native-first rule note: web shipped slice 1 first historically (v0.287); this restores the native-is-canonical posture.
+
+
+## 2026-07-06
+
+**Decision:** v0.721.0 FOLLOW-DIRECTION BADGES (operator bug report: cannot see one-way follow states). ROOT CAUSE: the relay follow_list has ALWAYS sent following + followers, but native consumed only following and dropped followers; native also ignored the follow_update broadcast entirely — so native never knew who follows you (web had the full feature all along: updateFriendIndicators + myFollowers, and its .peer/.peer-name selectors still match the rebuilt rail, so web was never broken). FIX: GuiState.chat_followers + chat_following_keys (raw key sets — chat_friends filters against ONLINE users and drops offline people); follow_list stores both; new follow_update handler keeps them live; members rows paint a follow-direction arrow (both-ways=friends/success, right=you follow, left=follows-you/warning) with hover explanation; profile modal shows the relationship line + "Follow back" button label; follow/unfollow update local sets immediately. GLYPH LESSON: U+2190 left-arrow TEXT glyph is TOFU in the app font (snapshot-proof) even though CLAUDE.md lists the Arrows block as reliable — added U+2190/U+2194 to icon_glyph_lint BROKEN_GLYPHS, painted the arrows as shapes instead (new icons::paint_arrow_left/paint_arrow_both), fixed the cosmos Reverse tooltip bare arrow char.
+
+**Why:** Operator: "I can not see the badges for someone following me but I am not following them back and the opposite... you might find old code for it that got disabled some how." The old code was web-only; native never had it — the relay data was being dropped on the floor since the beginning.
+
+
+## 2026-07-06
+
+**Decision:** v0.722.0 COMMANDS-TO-BUTTONS: 100% GUI coverage (operator directive "all typeable commands somewhere clickable"). Scout mapped 39 commands -> 21 covered, 18 missing; all 18 closed in one release. Notables: (1) Federation panel in Server Settings admin (list via GET /api/federation/servers worker-thread fetch, add via /server-add [unreachable as typed until the v0.716 dot-gate fix], per-row trust dropdown + confirmed remove, connect-all) — this IS federation-activation Phase 1 admin UI, native-first. (2) Found + fixed a REAL off-by-one: relay PinRemoved broadcasts a 1-based index, native pins.remove()d 0-based — unpin pin 1 locally deleted pin 2; unpin the last did nothing. (3) Destructive commands (wipe, wipe-all, name-release, reports-clear, server-remove) use a click-again-to-confirm pattern via the previously-dormant server_settings_confirm_action field. (4) /users deemed covered-by-equivalence (the members list IS the GUI), same for /help (? button) and /dms (sidebar).
+
+**Why:** Operator directive before leaving on errands. Serves the GUI-first non-negotiable (no-CLI-required) and its in-app-ops north star: the admin action surface is now clickable + enumerable rather than memorized slash syntax.
+
+
+## 2026-07-06
+
+**Decision:** v0.723.0 TOFU SWEEP + COMPOSER TOOLTIPS. The v0.721 glyph lesson exposed a lint blind spot: icon_glyph_lint matched only RAW broken chars, so \u{2190}-style ESCAPES passed — three chat header Back buttons and the construction port-direction markers (<- -> <->) had been rendering tofu boxes in production. Fixed the labels (plain Back + tooltips; ASCII port markers), hardened the lint to match escapes (upper+lower hex), exempted the four legitimate FE0F-stripping filter lines, corrected the lint failure-message advice, and updated the button.rs doc example that RECOMMENDED the broken glyph. Composer buttons (search/pins/help/Attach/Send) got plain-language tooltips (accessibility TIER item, chat page done). TOOL INCIDENT documented in CLAUDE.md gotchas: PS 5.1 Get/Set-Content corrupted chat.rs TWICE (ANSI misdecode of BOM-less UTF-8 + BOM + line-ending churn turned a one-line append into ~570 lines of mojibake); recovered via git checkout + redoing edits with the Edit tool. Rule recorded: never round-trip repo sources through PS file cmdlets; use Edit (replace_all) or node.
+
+**Why:** Direct fallout of investigating the operator-reported follow badges: the same broken glyph family turned out to be shipping in three visible buttons. The lint hardening prevents the whole class.
+
+
+## 2026-07-06
+
+**Decision:** v0.724.0 LIVE MACHINE WALK-UP CARDS (info-window overhaul part 1). Scout-mapped the whole card system first: cards drew MachineLabel.stats copied STATICALLY from home.ron at load (cistern said "33 days" forever; battery "~4 kWh" regardless of charge) while the LIVE state (WaterTank.liters from PlumbingSystem, Battery.charge_wh from ElectricalSystem) already ticked in the ECS, unread. Wiring: new MachineInstanceId(String) component on every home-machine entity (spawn_home_machine_entity); MachineLabel.machine_id at both label-build sites; a per-frame patch pass (after the air-status bridge in lib.rs) that overwrites the matching stat row (keeping the RON author icon kind, appending if absent) with "{l} / {cap} L" / "{wh} / {cap} kWh", status low under 15%. Deliberately NOT per-machine power draw (only home-level aggregates exist in the electrical sim today) — tanks + batteries are the honest per-entity live values.
+
+**Why:** Operator field-session directive #4 (2026-07-04): "every walk-up card shows relevant LIVE info; containers show contents; cistern shows volume." First game-leg increment of tonight loop; the earlier hold-for-Opus was lifted by the operator today ("then move forward with game stuff").
+
+
+## 2026-07-06
+
+**Decision:** v0.725.0 ASSEMBLER VEHICLE SELECTOR + BUILDABLE NOVA (info-windows part 2). The pinned machine card grows an "Auto-build:" dropdown of same-station recipes.csv rows; picking one rewrites the entity AutoRefine.recipe_id (home.ron auto_recipe demoted to default-only — the infinite-of-X violation the 2026-07-04 directive named is dead). Architecture note: the dropdown is its OWN interactable egui Area under the pinned card, NOT inside the HUD layer — hud.rs paints into an .interactable(false) Area with &GuiState by design (the v0.461 click-eating lesson), so the selector takes &mut GuiState separately and lib.rs applies picks via machine_card_recipe_pending. Publish/apply lives beside the v0.724 live-stats pass. DATA: added assemble_nova (steel 14 / iron 6 / rubber 4 / glass 4, 240s, metalworking 3) so the selector ships a real 3-way choice (rover / pickup / Nova).
+
+**Why:** Field-session directive #4 tail: "assembler gets an infinite-of-X vehicle SELECTOR (fixed auto_recipe in RON is an infinite-of-X violation)". The Nova recipe serves directive #2 (the operator first real-life recreation target) — buildable at the factory, not only the prebuilt starter.
+
+
+## 2026-07-06
+
+**Decision:** v0.726.0 MATERIAL-STORAGE STAGE A SLICE 1 (volume data + tracking + display; NO gates yet). items.csv +volume_l for all 496 rows, GENERATED by the new idempotent scripts/gen-item-volumes.js: weight_kg / materials.csv density x per-category packing fraction (clothing 0.05 mostly-air, ingots 0.6, ore 0.5, furniture 0.12...) — Option A+B hybrid the scout recommended (CSV column as source of truth, physics-derived initial values, hand-tunable per row, re-run fills only missing). ItemDef.volume_l (serde-default 0), ItemRegistry.volume_for(); Inventory.volume_current_l recalculated every tick beside weight + volume_capacity_l default 65 L (the real mountaineering pack in the default home); Inventory page Volume tile + per-item Volume detail row. SANITY: t-shirt 2.6 L, steel ingot 0.74 L, Nova-as-item 763 L. Missing densities (7 mats) fall back to water and are journaled for a materials.csv follow-up.
+
+**Why:** Operator directive (field session 3, GO on 2026-07-04): volume-based containers over slots. Slice 1/2 split keeps each release verifiable: tracking+display cannot break gameplay; slice 2 (enforcement in add_item + outputs_fit) changes core semantics + pinned tests and deserves fresh context.
+
+
+## 2026-07-06
+
+**Decision:** v0.726.2 DENSITIES PATCH + CONTAINER FINDING. Added the 7 missing materials.csv rows (carbon 2100, ceramic 2400, lithium 534, plastic 950, silicon 2330, stone 2600, wax 900 kg/m3) and recomputed exactly the 19 affected item volumes via the generator's new RECOMPUTE_MATS switch (graphite 0.87 L, circuit board 0.14 L, small battery 1.87 L). Shipped as the build-game patch so the embedded items.csv carries honest volumes. INVESTIGATION FINDING (journaled to skip re-discovery): the typed-container system (containers.rs — volume caps, content classes, damage) is complete but DISCONNECTED — Container::from_type appears only in tests; no runtime spawn exists, so the "containers show contents" card stat has nothing to read. FEATURES.md now records all of tonight's game systems state including this gap.
+
+**Why:** Data-hygiene follow-up flagged in the v0.726.0 notes; the container investigation was the next queue item and turned out to be a design-pass prerequisite rather than a wiring quickie — recorded instead of half-built.
+
+
+## 2026-07-06
+
+**Decision:** v0.727.0 VOLUME ENFORCEMENT (Stage A slice 2, Stage A COMPLETE). Chose a NEW method add_item_volume_gated over changing add_item's signature: the raw primitive stays for bandolier-like by-count holders, save restore (must never drop items), dev provisioning, and ~30 existing tests. The gate caps accepted qty by remaining litres BEFORE the slot pass and tracks volume_current_l incrementally (multi-add ticks cannot overshoot; per-tick recalc trues it up); unit_volume <= 0 bypasses (unknown items + by-count holders). Gated: GUI transfers, crafting outputs (produce_outputs + outputs_fit volume headroom so auto-machines PAUSE rather than grind inputs into overflow), harvest yields + saved seeds, compost — lost surplus is log-warned. EXPLICITLY NOT gated: the mining drone home delivery — the operator 2026-07-04 ruling ("a hauled load must NEVER vanish", after a full backpack ate an iron haul) outranks the volume directive there until home storage gets Container volumes; documented at the call site as a known tension for the operator to reconcile.
+
+**Why:** Operator GO (2026-07-04): volume-based containers over slots. Completing enforcement makes the Inventory Volume tile honest (it now constrains, not just displays).
+
+
+## 2026-07-06
+
+**Decision:** TEXTURE-BUG INVESTIGATION: scout finding ADJUDICATED AND REFUTED — do NOT apply its proposed shader fix. The scout claimed all 11 noise shaders have an axis-collapse bug in mix(mix(a,b,u.x), mix(c,d,u.x), u.y) and proposed changing the second inner mix to u.y. VERIFIED WRONG by reading the shaders directly: that pattern IS canonical bilinear value noise (corners (0,0),(1,0) blend the BOTTOM edge along X with u.x; (0,1),(1,1) blend the TOP edge along X with u.x; the outer mix blends the two edges along Y with u.y) — procedural_material.wgsl:121-130 and pbr_simple.wgsl:151-162 are textbook-correct, and hash2 is the standard Dave Hoskins hash12. Applying the scout fix would BREAK every procedural surface. The scout even contradicted itself (its buggy-vs-correct example bodies are identical). REMAINING HYPOTHESES for the real colored-lines bug, in order: (1) f32 PRECISION COLLAPSE at world-space UV magnitudes — floors deliberately use uv=[x0,z0] world coordinates (src/ship/fibonacci.rs:525, intentional anti-smearing); fract(p*k) at large |p| quantizes unevenly per axis producing exactly axis-aligned lines — check the homestead world-origin offset + the noise frequency constants callers multiply UVs by; (2) a specific caller passing a near-constant coordinate on one axis (check the wall/ceiling UV builders, not just floors); (3) driver-specific fract() behavior. NEXT SESSION: reproduce in-game with the F-key screenshot tool at known coordinates near/far from origin — if lines worsen with distance from origin, hypothesis 1 is confirmed and the fix is rebasing UVs to a local anchor (e.g. room-local coordinates) before scaling.
+
+**Why:** Field-session directive #3 asked to investigate the texture bug. The investigation produced a negative-result deliverable that PREVENTS a regression: the plausible-but-wrong scout report would have shipped broken noise across 11 shaders if applied unverified. Verification-of-subagent-work norm earned its keep.
+
+
+## 2026-07-06
+
+**Decision:** v0.728.0 TYPED CONTAINERS WIRED ("containers show contents" — the last info-window directive piece). MachineDef.container_type (RON, serde default) -> spawn_home_machine_entity inserts Container::from_type with the ContainerRegistry passed from the DataStore at the in-world call site (menu mode passes None: those entities are despawned + respawned by load_world before cards can render; unknown ids log a warning). Vessels tagged: grain_silo -> NEW grain_silo_bin archetype (types.csv row, 4000 L, solid|dry_goods); fuel_refinery + generator_portable -> steel_fuel_drum. The cistern deliberately stays on the live WaterTank plumbing sim (double-modeling it as a Container would create two competing sources of truth). Walk-up cards: the live-stat pass reads Container -> storage/fuel row shows real fill, a NEW "contents" stat kind (box icon) shows "empty" / "120x Grain" / "BROKEN (spilled)" with names from the item registry. HONEST GAP recorded: nothing fills the vessels yet — the cards read "0 / 4000 L, empty" until the food/fuel loops go live (harvest-to-silo + refinery-output routing, the same live-sim pattern plumbing/electrical follow) — that is a designed arc, not a quickie.
+
+**Why:** Operator evening directive: use the remaining window on ACTUAL development. Container wiring was the queue top once investigated (the earlier finding: containers.rs had zero runtime callers). Completes field-session directive #4 end to end.
+
+
+## 2026-07-06
+
+**Decision:** GLB PIPELINE (directive #7) SPLIT + GUIDE SHIPPED. Investigated the real state: gltf loading is fully implemented (assets/mod.rs load_gltf: caches by path, registers on the renderer, flat-normal + planar-UV fallbacks, geometry-only) but had ZERO call sites — same built-but-unwired pattern as the container system. Wrote docs/game/model-pipeline.md documenting (a) the format decision (GLB for game, STL for print, never FBX), (b) authoring rules that are the LOADER's real behavior not aspiration, (c) where files live (assets/models in the repo; data/models once distributed; chat-attach auto-publish for sharing), (d) the model: Option<String> wiring plan for machines + vehicle kits, and (e) the replace_mesh/shared-cache hazard that makes naive wiring corrupting — found by tracing the construction editor rebuild fast-path before writing any code. Chose guide-now/wiring-later because the hazard makes the wiring a renderer-lifecycle change, not a field addition.
+
+**Why:** Operator evening directive: real development, no waste. The guide is immediately useful (the operator has untracked assets/models/ in his tree — he is authoring already) and prevents mis-authored models; the hazard note prevents the next session from shipping the naive corrupting version.
+
+
+## 2026-07-06
+
+**Decision:** v0.729.0 HARVEST SURPLUS -> GRAIN SILO (first vessel fill path). Design: the v0.727 volume gate collects overflow during the harvest inventory borrow; a post-borrow pass routes it into home Container entities. Compatibility is PRE-CHECKED (registry.check) before try_store because try_store DAMAGES on incompatibility by design — without the pre-check, grain surplus would dent the fuel drum. Un-routable remainder stays log-warned. ItemDef.content_class wired from the items.csv column (defaults "solid"; contract pinned in the parse test with class_for()).
+
+**Why:** Closes the honest gap called out in the v0.728 notes ("nothing FILLS these containers yet") with the smallest real slice: it turns the v0.727 pack-full loss into stored grain, making the silo card meaningful and the whole volume arc feel complete in play.
+
+
+## 2026-07-06
+
+**Decision:** v0.730.0 FIELD-TEST FIXES (operator hands-on with v0.729.1). Screenshots proved the v0.728 live cards WORK for seed machines (fuel refinery showed "0 / 200 L · empty") which isolated the fault to PLACED machines: rebuild_machine_objects explicitly documented "does NOT touch the live power ECS". Fix = sync_machine_entities on every editor commit (placements-vs-entities diff by MachineInstanceId: spawn with full roles incl Container/AutoRefine, despawn orphans, Transforms follow moves so the factory pad tracks; island recompute intentionally still world-entry-only). Pinned card moved to screen-center upper-third (operator: "make the modals appear in the center"); selector threshold 2 -> 1 option; live factory_status line patched into the pinned card progress row (split on the em dash, truncated for the narrow card). Grain silo authored stats replaced (the fake "750 days / 85%" read as real state).
+
+**Why:** Direct operator field report: assembler modal empty, smelter refusing graphite, silo numbers meaningless, cards invisible top-left. Every symptom traced to one of: the visuals-only rebuild, the pinned-card position, the >= 2 selector gate, static RON stats, or the coal-default recipe.
+
+
+## 2026-07-07
+
+**Decision:** v0.731.0 CONTAINER TAKE ACTION. The card interactive panel (formerly recipe-selector-only) now also appears for container machines: contents line + Take button; lib.rs applies the take next frame (volume-gated add to the player pack via add_item_volume_gated, container litres/contents updated, cleared when emptied, partial takes stay). Published per frame alongside the recipe options (machine_card_container + machine_card_take_pending on GuiState).
+
+**Why:** Operator confusion in the field report ("I don't really see a button for silo fill") exposed that vessels had deposits (automatic) but NO withdraw path at all.
+
+
+## 2026-07-16
+
+**Decision:** Removed the web Real/Sim toggle (v0.861.4) and aligned the web accent to native (#FF8811->#ed8c24, v0.861.5-6). Left the dormant contexts.sim block in data/resources.json (authored game-guide content) in place rather than deleting authored content; it is now unread since resources-app.js commits to contexts.real.
+
+**Why:** Operator 2026-07-16 explicitly: do not reintroduce a real/play toggle, separate the two realities by navigation. Native already did this in v0.197.0 (pages commit to Real; game systems live inside the game loop). The accent had drifted because theme.ron moved to #ed8c24 but the web pref-system default stayed on the old #FF8811 and overrode the generated token on every page load.
+
+
+## 2026-07-16
+
+**Decision:** Galaxy background sourced from our own galaxy_glow_ultra.png bake (not a NASA/ESO photo, not procedural): cropped the Sagittarius core region with ffmpeg (scripts/gen-web-galaxy-bg.js documents the u=0.2401/v=0.661 crop math). Landing rebuilt per the judge-synthesized One Breath Per Screen spec; mission essay preserved verbatim at /mission.
+
+**Why:** Operator asked for a galactic-core background using the highest quality settings we got - the ultra bake IS that (real 25M-star integrated starlight, ours, CC0-clean, and it is literally the sky the game renders, so web background = native sky is true parity). Landing: operator said people are overwhelmed by text with zero graphics and invited an entirely different approach.
+
+
+## 2026-07-16
+
+**Decision:** DX12 shader compiler switched to DXC via Dx12Compiler::DynamicDxc (DLLs beside exe, FXC fallback when absent). static-dxc was reverted: its prebuilt lib requires MSVC ATL (atls.lib), absent from plain Build Tools installs. DLLs sourced from the Windows SDK bin dir locally and from the runner SDK in CI.
+
+**Why:** Boot profiling showed ~17-21s of every launch was FXC compiling the PBR megashader. DXC cut boot to ~5s measured. DynamicDxc keeps bare exes working (graceful fallback) unlike a hard static link, and avoids demanding an ATL install from anyone.
+
+
+## 2026-07-17
+
+**Decision:** Tile streamer design: whole-sample fallback (any absent stencil tap -> base grid for that sample) instead of partial blending; no forced patch invalidation on tile arrival (progressive LOD refinement covers it); detail noise gates OFF octaves above the active data floor (8/4/2km + 1km skipped over tiles).
+
+**Why:** Continuity beats partial detail (no cracks at residency borders); invalidation would need GPU-slot-safe cache draining for marginal gain; procedural octaves duplicating real 460 m structure would fight the data rather than enrich it.
+
+
+## 2026-07-17
+
+**Decision:** FTL fly gate rekeyed from camera.surface_mode to a surface_owns_translation flag set only by the co-rotate band; the 100-1000km blend band keeps surface_mode (for the eased up-vector) while translation belongs to the normal fly path.
+
+**Why:** surface_mode now spans 0-1000km for orientation blending; gating FTL on it froze the mouse-wheel warp above the surface cap (operator report). Ownership and orientation are separate concerns.
+
