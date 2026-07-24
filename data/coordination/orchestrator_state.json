@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "2026-07-24 Fable cleanup arc: structure plan + infinite-of-x strikes shipped (v0.931.0-.2). NEXT in this arc: lib.rs Tier A+B extraction (pure fns + registries -> src/engine/, per code-structure-plan.md), then crew/equipment RON migration, then keybinds native/web unification. Graphics LOOP QUEUE still paused behind this: [4] sky-view LUT, LOD ladder rungs 2+, light clustering, audio engine.",
+  "current_focus": "2026-07-24 Fable cleanup arc CONTINUES: shipped v0.931 (reactions+opening styles), v0.932 (lib.rs tiers A+B -> src/engine/), v0.933 (Admin map: ops registry native+web). NEXT: lib.rs tier D (frame-lock/celestial math) + C (IPC pollers); server-tools gaps from ops_registry.json planned[] (first-admin setup, backups panel, restart/logs sans SSH); remaining infinite-of-x queue (crew/equipment RON, keybinds unification). Graphics LOOP QUEUE still paused behind this arc. SIGNING: v0.931.0-v0.933.1 all need operator just sign-release.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -192,6 +192,14 @@
     {
       "when": "2026-07-24",
       "what": "Website (shaostoul.github.io) full once-over: killed Tauri v2 claims, native-client-is-building-next inversion, dead Heron links, five-experiences stale IA, 2 live 404 links (adr-0001, reference/tools), broken security-audit wrapper. SIGNING: v0.930.1 showed UNSIGNED at session start (operator thought latest was signed - may have signed 0.930.0); v0.931.0 + v0.931.2 now also need signing."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "v0.932.x: lib.rs tiers A+B extracted to src/engine/ (geom/color/ipc_parse/registries/home_spawn/dm, 1,040 lines; 22,638 -> 21,624). 1133 lib tests identical pre/post, 0 warnings, boot 0 PANICs. Perf sweep read a uniform exact-30 fps on ALL vantages - discriminated with the archived v0.931.1 exe (same 30) = ENVIRONMENTAL cap (browser pane open / occluded-window throttle), code exonerated; gotcha + discriminator documented in visual-and-perf-sweeps.md. Next tiers: D (frame-lock math) then C (IPC pollers) per code-structure-plan.md."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "v0.933.x: THE ADMIN MAP. 5-agent sweep mapped the complete server-owner surface: 70 actions (32 native-app / 1 web / 2 chat-only / 16 config / 19 vps-shell) + 12 ranked in-app gaps + 9 justified vps-only. Shipped as data/admin/ops_registry.json (the in-app-ops north star READ half) rendered in Server Settings > ADMIN > Admin map (src/gui/ops_registry.rs, registry pattern, tested) + web Ops page mirror (verified live: all 7 groups render). SELF-HOSTING has a what-app-vs-shell section. The gap list in the registry planned[] is now the canonical server-tools backlog; top 3 for a first outside owner: first-admin setup without editing a file, backups panel, restart+logs without the owner SSH key."
     }
   ],
   "active_scopes_to_avoid": [
