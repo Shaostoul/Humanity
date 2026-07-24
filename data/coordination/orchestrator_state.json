@@ -200,6 +200,14 @@
     {
       "when": "2026-07-24",
       "what": "v0.933.x: THE ADMIN MAP. 5-agent sweep mapped the complete server-owner surface: 70 actions (32 native-app / 1 web / 2 chat-only / 16 config / 19 vps-shell) + 12 ranked in-app gaps + 9 justified vps-only. Shipped as data/admin/ops_registry.json (the in-app-ops north star READ half) rendered in Server Settings > ADMIN > Admin map (src/gui/ops_registry.rs, registry pattern, tested) + web Ops page mirror (verified live: all 7 groups render). SELF-HOSTING has a what-app-vs-shell section. The gap list in the registry planned[] is now the canonical server-tools backlog; top 3 for a first outside owner: first-admin setup without editing a file, backups panel, restart+logs without the owner SSH key."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "v0.934: KEYSTONE - EngineState (+grab cluster, history, GrowSpot, SceneDrawLists) to src/engine/state.rs with pub(crate) fields; tier D frame-lock/celestial math + band consts to engine/frame_lock.rs. v0.935: tier C IPC pollers (screenshot/showcase/camera/autopilot/live-broadcast) to engine/ipc.rs. lib.rs 22,638 -> 19,469 this arc (3,169 lines, 10 modules); tiers E/F/G remain. LESSONS: (1) never git add -A while a build-game bump is pending (swept the 0.934.1 stamps into a priorities commit; recovered by tagging that commit v0.934.1 after boot-verify). (2) The stray v0.931.1 auto-release appeared and was marked prerelease per the v0.415 precedent."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "FIRST-ADMIN CLAIM CODE design (server-tools gap #1, next up): no first-user-wins (deliberate, mod.rs admin bootstrap comment). Instead: on startup with zero admins and no ADMIN_KEYS, relay generates a one-time claim code, prints to console + writes beside the DB (host access = ownership proof, same anchor as .env but no hex/env/restart). Server Settings shows Claim-this-server box when relay reports unclaimed; claim_server{code} promotes the sender and burns the code. ADMIN_KEYS stays as the automation path."
     }
   ],
   "active_scopes_to_avoid": [
