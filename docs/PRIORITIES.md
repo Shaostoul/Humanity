@@ -11,7 +11,23 @@
 
 ## Active focus
 
-> **>>> ASSET ARC STATUS (2026-07-20): ground textures SHIPPED (v0.907.0);
+> **>>> CLEANUP/STRUCTURE ARC (2026-07-24, Fable): IN PROGRESS.** Shipped this
+> arc: v0.931 (ONE reaction palette to data/reactions.json, fixed the relay
+> silently dropping native reactions + opening styles to RON), v0.932 (lib.rs
+> tiers A+B to src/engine/: 1,040 lines), v0.933 (THE ADMIN MAP:
+> data/admin/ops_registry.json, 70 code-verified server-owner actions rendered
+> in Server Settings + web Ops; the in-app-ops registry north star READ half),
+> v0.934 (the KEYSTONE: EngineState + tier D frame-lock math to
+> src/engine/{state,frame_lock}.rs; lib.rs 22,638 -> 20,480 so far).
+> NEXT, in order: [1] lib.rs tier C (IPC pollers -> src/engine/ipc.rs,
+> manifest ready in scratchpad), [2] server-tools gap #1 from
+> ops_registry.json planned[] (first-admin setup without hand-editing a server
+> file), [3] remaining infinite-of-x queue (NPC crew/room equipment -> RON,
+> web keybinds -> data/keymaps), [4] lib.rs tiers E/F/G. The graphics LOOP
+> QUEUE below resumes after this arc. SIGNING: v0.931.0-v0.934.x await
+> `just sign-release` (operator-only).
+>
+> Prior arc (for context): **ASSET ARC STATUS (2026-07-20): ground textures SHIPPED (v0.907.0);
 > plants staged.** Done: ambientCG grass/dirt/rock/sand wired as triplanar
 > tiling ground materials in type-12 (8-layer array, group-3 bindings 9/10,
 > mean-normalized so imagery keeps owning color; neutral 1x1 fallback =
