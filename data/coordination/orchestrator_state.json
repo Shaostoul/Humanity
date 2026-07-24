@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "2026-07-24 Fable cleanup arc: v0.931 reactions, v0.932 tiers A+B, v0.933 Admin map, v0.934 KEYSTONE (EngineState+tier D), v0.935 tier C (lib.rs 22,638 -> 19,469), v0.936 /claim first-admin. NEXT: [1] infinite-of-x remainder (NPC crew + room equipment -> RON in relay game_state.rs; web keybinds -> shared data/keymaps), [2] server-tools gap #2 backups panel, [3] lib.rs tiers E/F/G (editor cluster, mesh rebuilds, load_world). Graphics LOOP QUEUE resumes after. SIGNING: v0.931.0-v0.936.x await just sign-release.",
+  "current_focus": "2026-07-24 Fable cleanup arc: v0.931 reactions, v0.932 A+B, v0.933 Admin map, v0.934 keystone, v0.935 tier C, v0.936 /claim, v0.937 crew+equipment RON. NEXT: [1] web keybinds -> shared data (needs settings-app.js free of pending stamps), [2] server-tools gap #2 backups panel, [3] lib.rs tiers E/F/G, [4] glossary merge + cosmetic slots (small). Graphics LOOP QUEUE resumes after the arc. SIGNING: v0.931.0-v0.937.x await just sign-release.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -212,6 +212,10 @@
     {
       "when": "2026-07-24",
       "what": "v0.936.0 /claim shipped (server-tools gap #1): zero-admin relay prints a one-time CSPRNG code to console + data/owner-claim-code.txt; /claim <code> promotes + burns; unclaimed notice to connecting users; ADMIN_KEYS stays as automation path. Rode the /command path so native AND web get it with no UI work (the Server Settings claim box can wrap it later). Registry updated: 71 actions, 11 planned. Live relay unaffected (has admins -> cleanup path only)."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "v0.937.0: starter crew roster (6 NPCs, dialog+greetings) -> data/npc/crew.ron and room equipment (6 rooms, ~27 items) -> data/ships/room_equipment.ron. The 87-line hardcoded match in relay game_state.rs became a 13-line lookup; disk-first + embedded fallback (lock_types pattern); parse-guard test pins coverage of the six starter rooms. The two biggest content-in-code violations from the scan are closed - remaining infinite-of-x queue: web keybinds unification (blocked on settings-app.js being a version-stamp file, do between builds), glossary merge, cosmetic slots."
     }
   ],
   "active_scopes_to_avoid": [
