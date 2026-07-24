@@ -8,7 +8,9 @@
 
 pub mod color;
 pub mod dm;
+pub mod frame_lock;
 pub mod geom;
 pub mod home_spawn;
 pub mod ipc_parse;
 pub mod registries;
+pub mod state;
