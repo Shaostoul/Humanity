@@ -4,6 +4,8 @@
 //! Supports both native (winit window) and WASM (canvas) targets.
 
 pub mod atmosphere;
+/// Atmosphere LUT generators (Hillaire stage 1: transmittance, CPU-side).
+pub mod atmo_luts;
 pub mod bloom;
 pub mod godrays;
 pub mod ssao;
