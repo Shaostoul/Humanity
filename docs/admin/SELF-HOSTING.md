@@ -86,6 +86,25 @@ admins and moderators in-app or with `/mod <name>`. Setting `ADMIN_KEYS` in
 the environment (comma-separated Dilithium3 public keys) still works and
 skips the claim step - useful for scripted deployments.
 
+## Backups and restore
+
+**Taking backups never needs the shell.** In the app: Server Settings > ADMIN >
+Backups lists every snapshot in the server's `backups/` folder and "Back up
+now" takes a consistent snapshot of the live database (SQLite `VACUUM INTO`)
+without stopping the server. Scheduled rotations (cron or a systemd timer
+calling the same folder) simply appear in the list alongside manual ones.
+
+**Restoring IS an attended shell step**, deliberately: swapping the live
+database out from under a running relay is not a button. To restore:
+
+```bash
+systemctl stop humanity-relay
+cp backups/<chosen>.db data/relay.db
+systemctl start humanity-relay
+```
+
+Copy the backup elsewhere first if you want to keep the pre-restore state.
+
 ## What can I do from the app vs the shell?
 
 Almost all day-to-day administration happens INSIDE the app: open **Server

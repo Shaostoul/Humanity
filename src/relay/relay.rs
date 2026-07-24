@@ -765,6 +765,24 @@ pub enum RelayMessage {
     /// Admin → server. Request the current banned-user list. Response
     /// is a `banned_list` sent privately to the requester (unlike
     /// role_list this isn't public — only admins manage bans).
+    /// Admin asks for the backup panel's file list (v0.938 in-app backups).
+    /// Reply is a `backup_list` targeted privately at the requester.
+    #[serde(rename = "backup_list_request")]
+    BackupListRequest {},
+
+    /// The backups/ directory listing, newest first (admin-only, targeted).
+    #[serde(rename = "backup_list")]
+    BackupList {
+        backups: Vec<crate::relay::storage::backups::BackupEntry>,
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        target: Option<String>,
+    },
+
+    /// Admin presses "Back up now": take a VACUUM INTO snapshot, then reply
+    /// with a confirmation Private + a fresh `backup_list`.
+    #[serde(rename = "backup_run")]
+    BackupRun {},
+
     #[serde(rename = "banned_list_request")]
     BannedListRequest {},
 
@@ -3242,6 +3260,16 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                 }
             }
 
+            // BackupList: admin-only. Same targeted-delivery rule - backup
+            // file names/sizes are operator info, never broadcast.
+            if let RelayMessage::BackupList { ref target, .. } = msg {
+                match target {
+                    Some(t) if t != &my_key_for_broadcast => continue,
+                    None => continue,
+                    _ => {}
+                }
+            }
+
             // MutedList: mod-only. Same targeted-delivery rule as the
             // ban list — never broadcast to regular members.
             if let RelayMessage::MutedList { ref target, .. } = msg {
@@ -5418,6 +5446,48 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                 }
                             }
                             // ── Ban management (v0.245, admin-gated) ──
+                            RelayMessage::BackupListRequest {} => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can view backups.".to_string(),
+                                    });
+                                } else {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::BackupList {
+                                        backups: crate::relay::storage::backups::list_backups(),
+                                        target: Some(my_key_for_recv.clone()),
+                                    });
+                                }
+                            }
+                            RelayMessage::BackupRun {} => {
+                                let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
+                                if r != "admin" && r != "owner" {
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: "Only admins can run a backup.".to_string(),
+                                    });
+                                } else {
+                                    let reply = match state_clone.db.backup_now() {
+                                        Ok(e) => {
+                                            tracing::info!("Manual backup by {my_key_for_recv}: {} ({} bytes)", e.file, e.size_bytes);
+                                            format!("Backup complete: {} ({:.1} MB).", e.file, e.size_bytes as f64 / 1_048_576.0)
+                                        }
+                                        Err(e) => {
+                                            tracing::error!("Manual backup failed: {e}");
+                                            format!("Backup FAILED: {e}")
+                                        }
+                                    };
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::Private {
+                                        to: my_key_for_recv.clone(),
+                                        message: reply,
+                                    });
+                                    let _ = state_clone.broadcast_tx.send(RelayMessage::BackupList {
+                                        backups: crate::relay::storage::backups::list_backups(),
+                                        target: Some(my_key_for_recv.clone()),
+                                    });
+                                }
+                            }
                             RelayMessage::BannedListRequest {} => {
                                 let r = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();
                                 if r != "admin" && r != "owner" {

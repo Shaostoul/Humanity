@@ -2126,6 +2126,7 @@ mod pool;
 // Domain method modules — each has its own impl Storage block.
 // Rust supports splitting impl blocks across files via the module system.
 mod assets;
+pub mod backups;
 mod board;
 mod channels;
 mod dms;

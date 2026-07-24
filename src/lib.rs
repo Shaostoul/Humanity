@@ -16645,6 +16645,20 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    Some("backup_list") => {
+                                        // v0.938: admin-targeted reply to
+                                        // backup_list_request / backup_run. Drives the
+                                        // Server Settings -> Backups panel.
+                                        if let Some(arr) = val.get("backups") {
+                                            match serde_json::from_value::<Vec<crate::relay::storage::backups::BackupEntry>>(arr.clone()) {
+                                                Ok(backups) => {
+                                                    log::info!("Received {} backups", backups.len());
+                                                    state.gui_state.backup_list = backups;
+                                                }
+                                                Err(e) => log::warn!("Failed to parse backup_list: {e}"),
+                                            }
+                                        }
+                                    }
                                     Some("banned_list") => {
                                         // v0.245: relay sends this only to admins, in
                                         // reply to banned_list_request + after any
@@ -17990,6 +18004,8 @@ mod native_app {
                         state.gui_state.chat_muted_requested = false;
                         // Same for the Game Admin game-ban list (v0.474).
                         state.gui_state.game_bans_requested = false;
+                        // And the Backups panel (v0.938).
+                        state.gui_state.backup_list_requested = false;
                         if !state.gui_state.ws_manually_disconnected {
                             log::info!("WebSocket disconnected, will reconnect in {}s (attempt {})",
                                 state.gui_state.ws_reconnect_delay as u32,

@@ -917,6 +917,13 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         ui.separator();
         ui.add_space(theme.spacing_sm);
 
+        // ── Backups (v0.938): list + back-up-now ──
+        draw_backups_admin(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
         // ── Registration ──
         widgets::subsection_label(ui, theme, "Registration");
         widgets::body_hint(
@@ -1423,6 +1430,105 @@ fn draw_banned_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     if let Some(key) = unban_key {
         send_unban(state, &key);
         state.server_settings_status = "Sent unban, the ban list will refresh.".into();
+    }
+}
+
+/// Backups panel (v0.938, in-app-ops gap #2): list backups/ + "Back up now".
+/// The button takes a live VACUUM INTO snapshot server-side - works on any
+/// host, no shell scripts. Restore stays an attended host-side procedure
+/// (documented in SELF-HOSTING); this panel is status + take-one.
+fn draw_backups_admin(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    widgets::subsection_label(ui, theme, "Backups");
+    widgets::body_hint(
+        ui, theme,
+        "Snapshots of the server database in its backups folder. Back up now takes a \
+         consistent snapshot while the server keeps running. Restoring one is an \
+         attended step on the host (see the self-hosting guide), so treat these as \
+         your safety net, not an undo button.",
+    );
+    ui.add_space(theme.spacing_xs);
+
+    if !state.backup_list_requested {
+        send_backup_list_request(state);
+        state.backup_list_requested = true;
+    }
+
+    ui.horizontal(|ui| {
+        if widgets::Button::primary("Back up now")
+            .tooltip("Take a consistent snapshot of the live database into backups/. \
+                      The result appears in the list and in your chat as a confirmation.")
+            .show(ui, theme)
+        {
+            if let Some(ref client) = state.ws_client {
+                if client.is_connected() {
+                    client.send(&serde_json::json!({ "type": "backup_run" }).to_string());
+                    state.server_settings_status = "Backup requested, the confirmation arrives in chat.".into();
+                }
+            }
+        }
+        ui.add_space(theme.spacing_sm);
+        if widgets::Button::secondary("Refresh")
+            .tooltip("Re-fetch the backup list from the server.")
+            .show(ui, theme)
+        {
+            send_backup_list_request(state);
+            state.server_settings_status = "Requested the latest backup list.".into();
+        }
+        ui.add_space(theme.spacing_sm);
+        ui.colored_label(
+            theme.text_muted(),
+            format!("{} backup file(s)", state.backup_list.len()),
+        );
+    });
+    ui.add_space(theme.spacing_sm);
+
+    if state.backup_list.is_empty() {
+        widgets::body_hint(
+            ui, theme,
+            "No backups listed yet. On a fresh host that is normal - press Back up now.",
+        );
+        return;
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    for b in &state.backup_list {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.add_sized(
+                [240.0, 22.0],
+                egui::Label::new(
+                    egui::RichText::new(&b.file)
+                        .size(theme.font_size_small)
+                        .color(theme.text_primary()),
+                ),
+            );
+            ui.colored_label(
+                theme.text_muted(),
+                format!("{:.1} MB", b.size_bytes as f64 / 1_048_576.0),
+            );
+            let age_secs = now.saturating_sub(b.modified_epoch);
+            let age = if age_secs < 3600 {
+                format!("{} min ago", age_secs / 60)
+            } else if age_secs < 86_400 {
+                format!("{} h ago", age_secs / 3600)
+            } else {
+                format!("{} d ago", age_secs / 86_400)
+            };
+            ui.colored_label(theme.text_muted(), age);
+        });
+    }
+}
+
+/// Send a `backup_list_request` (admin-gated; relay replies privately).
+fn send_backup_list_request(state: &GuiState) {
+    if let Some(ref client) = state.ws_client {
+        if client.is_connected() {
+            let msg = serde_json::json!({ "type": "backup_list_request" });
+            client.send(&msg.to_string());
+        }
     }
 }
 

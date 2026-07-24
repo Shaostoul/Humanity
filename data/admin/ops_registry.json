@@ -590,15 +590,16 @@
       "also_available": [
         "config-file: ADMIN_KEYS env var (comma-separated Dilithium3 hex), the pre-v0.936 path"
       ]
+    },
+    {
+      "name": "View backups and back up now",
+      "what": "See every database backup with its size and age, and take a fresh consistent snapshot with one click while the server keeps running.",
+      "where": "native-app",
+      "how": "Server Settings > ADMIN > Backups: auto-loads the list; Back up now takes a VACUUM INTO snapshot into backups/ (works on any host, no scripts). Restoring a backup is an attended host-side step, see docs/admin/SELF-HOSTING.md (src/relay/storage/backups.rs; panel in src/gui/pages/server_settings.rs).",
+      "audience": "any-admin"
     }
   ],
   "planned": [
-    {
-      "name": "Backups panel: status, back up now, restore",
-      "today": "Backups run from a systemd timer; taking one manually and especially RESTORING one is raw shell (stop service, cp file, start) with no script (docs/design/in-app-ops.md:39). Restore is exactly the moment a panicked new owner should not be improvising in a terminal.",
-      "proposal": "Server Settings > Backups: last-backup time/size/count, a 'Back up now' button shelling to the same humanity-backup-db script, and a type-to-confirm 'Restore from...' picker that performs the stop/copy/start sequence safely.",
-      "effort": "medium"
-    },
     {
       "name": "Relay restart + log view that works without the owner's SSH key",
       "today": "The in-app Restart and Tail-logs buttons shell out over the operator's personal humanity-vps SSH alias (src/gui/pages/relay_control.rs:448-464), so they only work on that one PC; every other admin needs a terminal (in-app-ops.md:42, 88).",

@@ -3788,6 +3788,12 @@ pub struct GuiState {
     /// the panel doesn't re-request every repaint. Reset on disconnect.
     pub chat_banned_requested: bool,
 
+    /// Backup files from the `backup_list` WS message (admin-targeted).
+    /// Drives the Server Settings -> Backups panel. v0.938.
+    pub backup_list: Vec<crate::relay::storage::backups::BackupEntry>,
+    /// True once a `backup_list_request` was sent this session.
+    pub backup_list_requested: bool,
+
     // ── Game admin: game-world bans, STRUCTURALLY SEPARATE from chat bans
     //    (v0.474). Free speech is a right (chat is never affected); playing on
     //    the shared MMO world is a privilege. These read the relay's
@@ -4889,6 +4895,8 @@ impl Default for GuiState {
             },
             chat_banned_users: Vec::new(),
             chat_banned_requested: false,
+            backup_list: Vec::new(),
+            backup_list_requested: false,
             // Game admin (game-world bans, separate from chat bans)
             game_bans: Vec::new(),
             game_bans_requested: false,
