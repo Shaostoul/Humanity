@@ -267,6 +267,32 @@ impl Pipeline {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    // Atmosphere LUTs (sky arc stage 3a, v0.945): transmittance
+                    // 256x64 + multiple-scattering 32x32, Rgba16Float
+                    // (filterable under default limits, unlike Rgba32Float),
+                    // CPU-generated per planet by renderer/atmo_luts.rs.
+                    // Sampled with the albedo sampler (binding 1, clamp +
+                    // filter). Consumed by the stage-3b sky-view pass.
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 11,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 12,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 

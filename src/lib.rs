@@ -9419,6 +9419,31 @@ mod native_app {
                                 [1.0, 0.97, 0.92],
                             )
                         };
+                        // Sky-arc stage 3a (v0.945): keep the atmosphere LUTs
+                        // in sync with the frame-locked body. Cheap per frame:
+                        // the renderer no-ops unless the params changed.
+                        if let Some((ac, scale, sh, radius)) = state
+                            .frame_lock_body
+                            .as_deref()
+                            .and_then(|b| state.planet_defs.get(b))
+                            .and_then(|d| {
+                                d.atmosphere_color.map(|ac| {
+                                    (ac, d.atmosphere_scale, d.scale_height_or_default(), d.radius)
+                                })
+                            })
+                        {
+                            let (rp, h) =
+                                crate::renderer::atmosphere::shell_packing(scale, sh, radius);
+                            state.renderer.update_atmo_luts(
+                                crate::renderer::atmo_luts::TransLutParams {
+                                    tint: [ac[0], ac[1], ac[2]],
+                                    density_mul: ac[3],
+                                    rp,
+                                    h,
+                                },
+                            );
+                        }
+
                         // Sun transmittance tint (v0.915, research roadmap
                         // item 1): direct sunlight dims AND reddens through
                         // the atmosphere - blue extinguishes first, so a low

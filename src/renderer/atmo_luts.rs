@@ -93,6 +93,59 @@ pub fn transmittance_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
     out
 }
 
+// ── GPU upload helpers (stage 3a) ──
+
+/// f32 -> IEEE 754 half bits (round-to-nearest-even). Hand-rolled because the
+/// crate tree has no `half` dependency and the LUTs are the only f16 need.
+/// LUT values live in [0, ~1], far from every subnormal/overflow edge, but
+/// the conversion is still written correctly for the full range.
+pub fn f32_to_f16_bits(x: f32) -> u16 {
+    let bits = x.to_bits();
+    let sign = ((bits >> 16) & 0x8000) as u16;
+    let exp = ((bits >> 23) & 0xff) as i32;
+    let man = bits & 0x007f_ffff;
+    if exp == 255 {
+        // Inf / NaN
+        return sign | 0x7c00 | if man != 0 { 0x0200 } else { 0 };
+    }
+    let e16 = exp - 127 + 15;
+    if e16 >= 31 {
+        return sign | 0x7c00; // overflow -> inf
+    }
+    if e16 <= 0 {
+        // Subnormal half (or zero): shift the implicit-1 mantissa down.
+        if e16 < -10 {
+            return sign; // underflow to zero
+        }
+        let man_full = man | 0x0080_0000;
+        let shift = (14 - e16) as u32;
+        let half_man = man_full >> shift;
+        // round-to-nearest-even on the dropped bits
+        let rem = man_full & ((1u32 << shift) - 1);
+        let half = (rem > (1u32 << (shift - 1))
+            || (rem == (1u32 << (shift - 1)) && (half_man & 1) == 1))
+            as u32;
+        return sign | (half_man + half) as u16;
+    }
+    let half_man = man >> 13;
+    let rem = man & 0x1fff;
+    let round = (rem > 0x1000 || (rem == 0x1000 && (half_man & 1) == 1)) as u32;
+    let mut out = ((e16 as u32) << 10) | half_man;
+    out += round; // mantissa overflow rolls into the exponent correctly
+    sign | out as u16
+}
+
+/// Pack an rgba-f32 LUT into little-endian Rgba16Float texel bytes.
+pub fn lut_to_f16_bytes(texels: &[[f32; 4]]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(texels.len() * 8);
+    for t in texels {
+        for c in t {
+            out.extend_from_slice(&f32_to_f16_bits(*c).to_le_bytes());
+        }
+    }
+    out
+}
+
 // ── Stage 2: the multiple-scattering LUT (Hillaire 2020 section 5.1) ──
 //
 // Psi_ms(height, sun-zenith): the total multiply-scattered radiance factor,
@@ -322,5 +375,30 @@ mod tests {
             noon[2]
         );
         assert!(top[2] > 0.0, "the shell below must still contribute at altitude");
+    }
+
+    /// The hand-rolled f16 encoder against known IEEE 754 half values.
+    #[test]
+    fn f16_encoding_matches_known_values() {
+        assert_eq!(f32_to_f16_bits(0.0), 0x0000);
+        assert_eq!(f32_to_f16_bits(1.0), 0x3c00);
+        assert_eq!(f32_to_f16_bits(-2.0), 0xc000);
+        assert_eq!(f32_to_f16_bits(0.5), 0x3800);
+        assert_eq!(f32_to_f16_bits(65504.0), 0x7bff); // largest finite half
+        assert_eq!(f32_to_f16_bits(1.0e9), 0x7c00); // overflow -> +inf
+        assert_eq!(f32_to_f16_bits(f32::INFINITY), 0x7c00);
+        // Round-trip precision inside the LUT's [0,1] range: half has 11
+        // mantissa bits, so error <= 2^-11 relative.
+        for i in 0..=100 {
+            let x = i as f32 / 100.0;
+            let bits = f32_to_f16_bits(x) as u32;
+            let (e, m) = ((bits >> 10) & 0x1f, bits & 0x3ff);
+            let back = if e == 0 {
+                (m as f32) * 2f32.powi(-24)
+            } else {
+                (1.0 + m as f32 / 1024.0) * 2f32.powi(e as i32 - 15)
+            };
+            assert!((back - x).abs() <= x.max(0.001) / 1024.0, "x={x} back={back}");
+        }
     }
 }

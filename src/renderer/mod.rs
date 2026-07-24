@@ -201,6 +201,17 @@ pub struct Renderer {
     light_camera_bind_group: wgpu::BindGroup,
     shadow_comparison_sampler: wgpu::Sampler,
     ground_textures: ground_textures::GroundTextures,
+    /// Atmosphere LUT textures (sky arc stage 3a): transmittance +
+    /// multiple-scattering, regenerated per frame-locked body. The views are
+    /// bound at group-3 bindings 11/12; updates rewrite the SAME textures so
+    /// no bind group ever rebuilds for a planet change.
+    atmo_trans_tex: wgpu::Texture,
+    pub atmo_trans_view: wgpu::TextureView,
+    atmo_ms_tex: wgpu::Texture,
+    pub atmo_ms_view: wgpu::TextureView,
+    /// Params of the last LUT upload, so per-frame update calls no-op until
+    /// the frame-locked body (or its atmosphere) actually changes.
+    atmo_lut_params: Option<atmo_luts::TransLutParams>,
     /// Sun shadows on/off (max-graphics default on; zero cost when the sun
     /// is absent - the pass and the shader lookup both self-gate).
     pub sun_shadows: bool,
@@ -694,6 +705,73 @@ impl Renderer {
         // assets/textures/ground/, or a neutral 1x1 fallback that renders
         // identically to the pre-texture look.
         let ground_textures = ground_textures::load(&device, &queue);
+
+        // Atmosphere LUTs (sky arc stage 3a, v0.945): transmittance 256x64 +
+        // multiple-scattering 32x32, CPU-generated (atmo_luts.rs) and uploaded
+        // as Rgba16Float. Seeded with Earth-like params at boot; refreshed per
+        // frame-locked body via update_atmo_luts (no-op when params repeat).
+        let make_lut_tex = |label: &str, w: u32, h: u32| {
+            let tex = device.create_texture(&wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            });
+            let view = tex.create_view(&wgpu::TextureViewDescriptor::default());
+            (tex, view)
+        };
+        let (atmo_trans_tex, atmo_trans_view) = make_lut_tex(
+            "Atmo Transmittance LUT",
+            atmo_luts::TRANS_LUT_W as u32,
+            atmo_luts::TRANS_LUT_H as u32,
+        );
+        let (atmo_ms_tex, atmo_ms_view) = make_lut_tex(
+            "Atmo Multiple-Scattering LUT",
+            atmo_luts::MS_LUT_W as u32,
+            atmo_luts::MS_LUT_H as u32,
+        );
+        {
+            let (rp, h) = atmosphere::shell_packing(0.06, 8500.0, 6.371e6);
+            let params = atmo_luts::TransLutParams {
+                tint: [0.18, 0.42, 1.0],
+                density_mul: 1.0,
+                rp,
+                h,
+            };
+            let write = |tex: &wgpu::Texture, texels: &[[f32; 4]], w: u32, h_px: u32| {
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: tex,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    &atmo_luts::lut_to_f16_bytes(texels),
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(8 * w),
+                        rows_per_image: Some(h_px),
+                    },
+                    wgpu::Extent3d { width: w, height: h_px, depth_or_array_layers: 1 },
+                );
+            };
+            write(
+                &atmo_trans_tex,
+                &atmo_luts::transmittance_lut(&params),
+                atmo_luts::TRANS_LUT_W as u32,
+                atmo_luts::TRANS_LUT_H as u32,
+            );
+            write(
+                &atmo_ms_tex,
+                &atmo_luts::multiple_scattering_lut(&params),
+                atmo_luts::MS_LUT_W as u32,
+                atmo_luts::MS_LUT_H as u32,
+            );
+        }
         let shadow_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Shadow Uniforms"),
             size: 96, // mat4 (64) + params vec4 (16) + params2 vec4 (16)
@@ -785,6 +863,14 @@ impl Renderer {
                     binding: 10,
                     resource: wgpu::BindingResource::Sampler(&ground_textures.sampler),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&atmo_trans_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(&atmo_ms_view),
+                },
             ],
         });
         let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -834,6 +920,14 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 10,
                     resource: wgpu::BindingResource::Sampler(&ground_textures.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&atmo_trans_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(&atmo_ms_view),
                 },
             ],
         });
@@ -895,6 +989,11 @@ impl Renderer {
             light_camera_bind_group,
             shadow_pass_texture_bind_group,
             ground_textures,
+            atmo_trans_tex,
+            atmo_trans_view,
+            atmo_ms_tex,
+            atmo_ms_view,
+            atmo_lut_params: None,
             shadow_comparison_sampler,
             sun_shadows: true,
         }
@@ -1162,6 +1261,14 @@ impl Renderer {
                     binding: 10,
                     resource: wgpu::BindingResource::Sampler(&self.ground_textures.sampler),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 11,
+                    resource: wgpu::BindingResource::TextureView(&self.atmo_trans_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 12,
+                    resource: wgpu::BindingResource::TextureView(&self.atmo_ms_view),
+                },
             ],
         })
     }
@@ -1169,6 +1276,49 @@ impl Renderer {
     /// Upload a fresh live-weather grid (RG8, WEATHER_W x WEATHER_H) into the
     /// persistent weather texture. No bind-group rebuild needed - every group
     /// already references this texture's view.
+    /// Regenerate + upload both atmosphere LUTs for the given planet params.
+    /// Cheap to call per frame: no-ops unless the params changed since the
+    /// last upload (a body switch or a live atmosphere edit). CPU generation
+    /// is ~milliseconds; the textures are rewritten in place so bind groups
+    /// never rebuild.
+    pub fn update_atmo_luts(&mut self, params: atmo_luts::TransLutParams) {
+        let queue = &self.queue;
+        if self.atmo_lut_params == Some(params) {
+            return;
+        }
+        let write = |tex: &wgpu::Texture, texels: &[[f32; 4]], w: u32, h_px: u32| {
+            queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                &atmo_luts::lut_to_f16_bytes(texels),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(8 * w),
+                    rows_per_image: Some(h_px),
+                },
+                wgpu::Extent3d { width: w, height: h_px, depth_or_array_layers: 1 },
+            );
+        };
+        write(
+            &self.atmo_trans_tex,
+            &atmo_luts::transmittance_lut(&params),
+            atmo_luts::TRANS_LUT_W as u32,
+            atmo_luts::TRANS_LUT_H as u32,
+        );
+        write(
+            &self.atmo_ms_tex,
+            &atmo_luts::multiple_scattering_lut(&params),
+            atmo_luts::MS_LUT_W as u32,
+            atmo_luts::MS_LUT_H as u32,
+        );
+        self.atmo_lut_params = Some(params);
+        log::info!("Atmosphere LUTs regenerated (rp={:.4} h={:.6})", params.rp, params.h);
+    }
+
     pub fn update_weather_map(&self, queue: &wgpu::Queue, rg: &[u8]) {
         let (w, h) = (
             WEATHER_MAP_W,
