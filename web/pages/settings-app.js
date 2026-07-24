@@ -436,52 +436,23 @@ function importData(e) {
 
 // ── Keyboard Shortcuts ──
 const KEYBIND_STORAGE = 'hos_keybinds_v1';
-const KEYBIND_DEFS = [
+// Keybinding registry lives in data/keybindings/web.json (infinite-of-x);
+// shell.js dispatches the stored bindings globally. The literal below is only
+// the offline fallback. Rebinds persist per-browser in hos_keybinds_v1.
+let KEYBIND_DEFS = [
   { group: 'Navigation', binds: [
-    { id: 'nav-network',    label: 'Go to Network',    default: '' },
-    { id: 'nav-dashboard',  label: 'Go to Dashboard',  default: '' },
-    { id: 'nav-profile',    label: 'Go to Profile',    default: '' },
-    { id: 'nav-home',       label: 'Go to Home',       default: '' },
-    { id: 'nav-skills',     label: 'Go to Skills',     default: '' },
-    { id: 'nav-inventory',  label: 'Go to Inventory',  default: '' },
-    { id: 'nav-equipment',  label: 'Go to Equipment',  default: '' },
-    { id: 'nav-quests',     label: 'Go to Quests',     default: '' },
-    { id: 'nav-calendar',   label: 'Go to Calendar',   default: '' },
-    { id: 'nav-logbook',    label: 'Go to Logbook',    default: '' },
-    { id: 'nav-notes',      label: 'Go to Notes',      default: '' },
-    { id: 'nav-vault',      label: 'Go to Vault',      default: '' },
-    { id: 'nav-tasks',      label: 'Go to Tasks',      default: '' },
-    { id: 'nav-market',     label: 'Go to Market',     default: '' },
-    { id: 'nav-maps',       label: 'Go to Maps',       default: '' },
-    { id: 'nav-settings',   label: 'Go to Settings',   default: '' },
-  ]},
-  { group: 'Chat', binds: [
-    { id: 'chat-search',     label: 'Open Search',      default: 'Ctrl+K' },
-    { id: 'chat-command',    label: 'Command Palette',   default: 'Ctrl+Shift+P' },
-    { id: 'chat-focus-input',label: 'Focus Chat Input',  default: '' },
-    { id: 'chat-upload',     label: 'Upload File',       default: '' },
-    { id: 'chat-emoji',      label: 'Open Emoji Picker', default: '' },
-  ]},
-  { group: 'Voice', binds: [
-    { id: 'voice-mute',      label: 'Toggle Mute',       default: 'Ctrl+Shift+M' },
-    { id: 'voice-deafen',    label: 'Toggle Deafen',     default: 'Ctrl+Shift+D' },
-    { id: 'voice-ptt',       label: 'Push to Talk',      default: 'KeyV' },
-    { id: 'voice-camera',    label: 'Toggle Camera',     default: '' },
-    { id: 'voice-screen',    label: 'Toggle Screen Share',default: '' },
-    { id: 'voice-leave',     label: 'Leave Voice',       default: '' },
-  ]},
-  { group: 'Media', binds: [
-    { id: 'media-afk',       label: 'Toggle AFK',        default: '' },
-    { id: 'media-brb',       label: 'Toggle BRB',        default: '' },
-    { id: 'media-pip',       label: 'Picture in Picture', default: '' },
-  ]},
-  { group: 'App', binds: [
-    { id: 'app-sidebar',     label: 'Toggle Sidebar',    default: '' },
-    { id: 'app-clear-cache', label: 'Clear Cache',       default: 'Ctrl+Shift+Delete' },
-    { id: 'app-theme',       label: 'Toggle Theme',      default: '' },
-    { id: 'app-fullscreen',  label: 'Toggle Fullscreen', default: 'F11' },
+    { id: 'nav-settings', label: 'Go to Settings', default: '', href: '/settings' },
   ]},
 ];
+fetch('/data/keybindings/web.json')
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (d) {
+    if (d && Array.isArray(d.groups) && d.groups.length) {
+      KEYBIND_DEFS = d.groups;
+      renderKeybinds();
+    }
+  })
+  .catch(function () { /* offline: keep the fallback */ });
 
 let keybinds = {};
 
@@ -738,7 +709,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.937.1 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.937.2 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons

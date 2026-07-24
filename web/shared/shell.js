@@ -1595,7 +1595,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.937.1';
+    var CURRENT_VERSION = '0.937.2';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1728,5 +1728,48 @@
       }
     });
   }
+
+  // ── Keybinding dispatcher (v0.937.2) ──
+  // Executes the user's page shortcuts everywhere. The registry is
+  // data/keybindings/web.json (defaults + hrefs); per-browser rebinds live in
+  // localStorage hos_keybinds_v1 (written by Settings > Keybindings). Before
+  // this existed the settings panel captured bindings NOTHING ran. Combo
+  // format matches the capture: modifiers + e.code, e.g. "Ctrl+KeyK".
+  (function initKeybinds() {
+    var actions = {}; // combo -> href
+    function rebuild(groups) {
+      var stored = {};
+      try { stored = JSON.parse(localStorage.getItem('hos_keybinds_v1')) || {}; } catch (e) { stored = {}; }
+      actions = {};
+      groups.forEach(function (g) {
+        (g.binds || []).forEach(function (b) {
+          var combo = stored[b.id] !== undefined ? stored[b.id] : b.default;
+          if (combo && b.href) actions[combo] = b.href;
+        });
+      });
+    }
+    fetch('/data/keybindings/web.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && Array.isArray(d.groups)) rebuild(d.groups); })
+      .catch(function () { /* offline: no shortcuts, no harm */ });
+
+    document.addEventListener('keydown', function (e) {
+      // Never steal keys from typing surfaces or bare keys without a target.
+      var t = e.target;
+      if (t && (t.closest && t.closest('input, textarea, select, [contenteditable="true"]'))) return;
+      if (['Control', 'Alt', 'Shift', 'Meta'].indexOf(e.key) >= 0) return;
+      var combo = '';
+      if (e.ctrlKey) combo += 'Ctrl+';
+      if (e.altKey) combo += 'Alt+';
+      if (e.shiftKey) combo += 'Shift+';
+      if (e.metaKey) combo += 'Meta+';
+      combo += e.code;
+      var href = actions[combo];
+      if (href) {
+        e.preventDefault();
+        window.location.href = href;
+      }
+    });
+  })();
 
 })();

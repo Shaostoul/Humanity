@@ -1,0 +1,22 @@
+{
+  "_purpose": "Web page-shortcut registry (infinite-of-x, v0.937.2): was a hardcoded KEYBIND_DEFS array in web/pages/settings-app.js - and until v0.937.2 NOTHING executed the stored bindings (the panel captured shortcuts that did nothing). Now: the Settings > Keybindings panel renders this file, users rebind per-browser (localStorage hos_keybinds_v1), and shell.js dispatches matches globally - a nav bind navigates to its href. Add a shortcut by adding a row (id must stay stable; href is where it goes). Entries for pages that were deleted in the 2026-07-05 trim (dashboard, equipment, logbook, vault) were removed; skills points at /profile where skills live. Chat-internal shortcuts (search, command palette) return as their own group once the chat app implements them - listing bindings that do nothing is exactly what this migration fixed. This registry is web-only by design: the native app's data/keymaps.ron is a different thing (the F1 game-controls reference card), not a rebindable page-shortcut table.",
+  "groups": [
+    {
+      "group": "Navigation",
+      "binds": [
+        { "id": "nav-network",   "label": "Go to Chat / Network", "default": "", "href": "/chat" },
+        { "id": "nav-profile",   "label": "Go to Profile",        "default": "", "href": "/profile" },
+        { "id": "nav-home",      "label": "Go to Home",           "default": "", "href": "/home" },
+        { "id": "nav-skills",    "label": "Go to Skills (Profile)", "default": "", "href": "/profile" },
+        { "id": "nav-inventory", "label": "Go to Inventory",      "default": "", "href": "/inventory" },
+        { "id": "nav-quests",    "label": "Go to Quests",         "default": "", "href": "/onboarding" },
+        { "id": "nav-calendar",  "label": "Go to Calendar",       "default": "", "href": "/calendar" },
+        { "id": "nav-notes",     "label": "Go to Notes",          "default": "", "href": "/notes" },
+        { "id": "nav-tasks",     "label": "Go to Tasks",          "default": "", "href": "/tasks" },
+        { "id": "nav-market",    "label": "Go to Market",         "default": "", "href": "/market" },
+        { "id": "nav-maps",      "label": "Go to Maps",           "default": "", "href": "/maps" },
+        { "id": "nav-settings",  "label": "Go to Settings",       "default": "", "href": "/settings" }
+      ]
+    }
+  ]
+}
