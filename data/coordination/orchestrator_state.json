@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "2026-07-25 priorities LOOP (iteration 1 shipping): v0.938.0 Backups panel done, v0.938.1 build in flight (stamp on notification). QUEUE next: [2] lib.rs tier F (mesh rebuilds ~2k, per code-structure-plan.md) then E (editor ~2k) then G (load_world), [3] small infinite-of-x (wallet terms -> glossary.json, showroom cosmetic slots), [4] graphics LOOP QUEUE resumes (sky-view LUT first). Signing status lives here, not in replies.",
+  "current_focus": "2026-07-25 priorities LOOP iteration 2 shipping: v0.939.0 tier F done, v0.939.1 build in flight. QUEUE next: [1] lib.rs tier E (editor pick/drag cluster ~2k: try_pick_*/try_grab_*/apply_*_drag families + construction history, -> src/engine/editor.rs), [2] tier G (route_game_message, load_world), [3] small infinite-of-x (wallet terms -> glossary.json, showroom cosmetic slots), [4] graphics LOOP QUEUE (sky-view LUT first).",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -224,6 +224,10 @@
     {
       "when": "2026-07-25",
       "what": "LOOP resumed on the priorities queue (operator). Iteration 1 = v0.938.0 in-app Backups panel (gap #2): backup_list/backup_run WS messages (admin-gated, targeted delivery like banned_list), Storage::backup_now via VACUUM INTO (in-engine, host-agnostic, round-trip tested), Server Settings > Backups panel (auto-load + Back up now + refresh, reset-on-disconnect), SELF-HOSTING gains its first-ever backup/restore section (restore stays attended by design). Registry: 72 actions, 10 planned. ALSO: operator corrected the repeated signing reminders - state action items ONCE (memory feedback_no_repeat_reminders.md)."
+    },
+    {
+      "when": "2026-07-25",
+      "what": "Loop iteration 2 = v0.939.0 tier F: home mesh/rebuild cluster (14 fns, 1,355 lines) -> src/engine/home_meshes.rs. lib.rs 18,114 (arc: -4,524 across 11 modules). Zero-error-zero-warning first-fix compile; 1137 tests identical. Remaining extractions: tier E (editor pick/drag) then G (route_game_message + load_world)."
     }
   ],
   "active_scopes_to_avoid": [
