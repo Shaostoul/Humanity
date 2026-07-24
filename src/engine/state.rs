@@ -730,3 +730,19 @@ pub(crate) struct ConstructionHistory {
     /// Whether the editor was open last frame (to reset history on open).
     pub(crate) prev_active: bool,
 }
+
+/// Borrowed views of THIS frame's already-built scene draw lists (v0.810).
+/// The hi-res offscreen capture re-runs the exact same passes the live frame
+/// just ran -- sky (galaxy glow, stars, halos, constellations), celestial
+/// bodies + atmospheres, orbit lines, world geometry, glass, gizmos, door
+/// rings -- so the PNG shows precisely what the player sees, only at the
+/// requested resolution. Zero cost when no capture is pending.
+pub(crate) struct SceneDrawLists<'a> {
+    pub(crate) celestial: &'a [RenderObject],
+    pub(crate) celestial_transparent: &'a [RenderObject],
+    pub(crate) orbit_lines: &'a [crate::renderer::line::LineVertex],
+    pub(crate) opaque: &'a [RenderObject],
+    pub(crate) transparent: &'a [RenderObject],
+    pub(crate) overlay: &'a [RenderObject],
+    pub(crate) ring_lines: &'a [crate::renderer::line::LineVertex],
+}
