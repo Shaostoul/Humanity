@@ -1,0 +1,110 @@
+// HumanityOS STARTER CREW roster (infinite-of-x, v0.937: was a hardcoded match in
+// src/relay/handlers/game_state.rs). One entry per room_type; the game world spawns
+// this crew member in every room of that type on the starter ship. Edit or add crew
+// here - dialog lines rotate on interaction, greetings fire on approach. The chore
+// system (data/npc/chores.ron) drives what they DO; this file is who they ARE.
+// Disk-first with an embedded fallback, so a zero-file install still has a crew.
+[
+    (
+        room_type: "bridge",
+        npc_type: "navigator",
+        name: "Helm Officer Vex",
+        role: "navigator",
+        description: "Charts course at the bridge",
+        dialog: [
+            "Course laid in. We're holding orbit at 412 km.",
+            "If you see any unscheduled bursts on the console, flag me immediately.",
+            "Earth looks calm from up here. Don't let it fool you.",
+            "I'd kill for a fresh atlas. Real paper. Stars don't move that fast.",
+        ],
+        greetings: [
+            "Welcome to the bridge. Don't touch the helm.",
+            "Mind the cabling, citizen.",
+        ],
+    ),
+    (
+        room_type: "medbay",
+        npc_type: "medic",
+        name: "Dr. Kel",
+        role: "medical_officer",
+        description: "Tending to the medbay",
+        dialog: [
+            "If you're hurt, sit on the cot. If you're not, don't touch anything.",
+            "Medkits are in the cabinet. They are not snacks.",
+            "Microgravity nausea is normal the first week. Hydrate.",
+            "I patched up worse than you yesterday. Stay still.",
+        ],
+        greetings: [
+            "Welcome to medical. State your symptom, briefly.",
+            "You look pale. Drink some water.",
+        ],
+    ),
+    (
+        room_type: "engineering",
+        npc_type: "engineer",
+        name: "Chief Tan",
+        role: "chief_engineer",
+        description: "Monitoring the reactor",
+        dialog: [
+            "Reactor's at 84% and humming. Don't tap the glass.",
+            "If a panel is hot, I already know. Walk away.",
+            "Plumbing on Deck 3 is fixed. Try it before you complain again.",
+            "We keep this ship alive on duct tape and hope. Mostly hope.",
+        ],
+        greetings: [
+            "Engineering. Keep your hands behind the yellow line.",
+            "Welcome. The reactor whines. That's normal.",
+        ],
+    ),
+    (
+        room_type: "cargo",
+        npc_type: "maintenance_bot",
+        name: "CB-7",
+        role: "maintenance",
+        description: "Autonomous bot patrolling cargo",
+        dialog: [
+            "[CB-7] Manifest reconciled. Variance: zero.",
+            "[CB-7] Bay temperature nominal. Resuming patrol.",
+            "[CB-7] Crate 19-A misaligned. Correcting.",
+            "[CB-7] Greetings, citizen. Please do not block the loaders.",
+        ],
+        greetings: [
+            "[CB-7] Citizen detected. Logging entry.",
+            "[CB-7] Welcome to Cargo. Please mind the loaders.",
+        ],
+    ),
+    (
+        room_type: "hydroponics",
+        npc_type: "botanist",
+        name: "Botanist Yara",
+        role: "botanist",
+        description: "Tending the hydroponic racks",
+        dialog: [
+            "These tomatoes are six weeks ahead of schedule. Look at them.",
+            "Don't touch the green tray. I'm trialing a new nutrient mix.",
+            "Lettuce harvest in three days. Tell the galley.",
+            "Plants do better when you talk to them. I'm not joking.",
+        ],
+        greetings: [
+            "Welcome! Mind the spore filter at the door.",
+            "Quiet, please. The seedlings are sensitive.",
+        ],
+    ),
+    (
+        room_type: "quarters",
+        npc_type: "crewmate",
+        name: "Crewmate Nia",
+        role: "off_duty",
+        description: "Reading on her bunk",
+        dialog: [
+            "Off-shift. Quiet hour. Whisper if you must.",
+            "Cycled through three novels this rotation. Got a recommendation?",
+            "Lights at 30%. The Earthrise is the best lamp anyway.",
+            "Wake me at 06:00 ship-time. Not earlier.",
+        ],
+        greetings: [
+            "Hey. Off-shift, but make yourself at home.",
+            "Bunk's free if you need a nap. Just say so.",
+        ],
+    ),
+]

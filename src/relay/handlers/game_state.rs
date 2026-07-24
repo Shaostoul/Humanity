@@ -77,6 +77,37 @@ pub struct DoorDef {
     pub direction: String,
 }
 
+// ── Crew roster (loaded from data/npc/crew.ron) ──
+
+/// One starter-ship crew member, keyed by room_type (v0.937 infinite-of-x:
+/// was a hardcoded match in spawn). Who they ARE; data/npc/chores.ron drives
+/// what they DO. Disk-first, embedded fallback.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CrewDef {
+    pub room_type: String,
+    pub npc_type: String,
+    pub name: String,
+    pub role: String,
+    pub description: String,
+    pub dialog: Vec<String>,
+    pub greetings: Vec<String>,
+}
+
+fn crew_defs() -> &'static [CrewDef] {
+    static REG: std::sync::OnceLock<Vec<CrewDef>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        let text = std::fs::read_to_string("data/npc/crew.ron")
+            .unwrap_or_else(|_| include_str!("../../../data/npc/crew.ron").to_string());
+        match ron::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("crew.ron parse error ({e}); the starter ship spawns no crew");
+                Vec::new()
+            }
+        }
+    })
+}
+
 // ── Crew chores (loaded from data/npc/chores.ron) ──
 
 /// One chore an ambient crew NPC can perform: walk to `room_id`, dwell there
@@ -229,33 +260,37 @@ fn is_storage_equipment(equip: &str) -> bool {
     )
 }
 
+/// One room type's furniture/equipment list, from data/ships/room_equipment.ron
+/// (v0.937 infinite-of-x: was a hardcoded match here). Disk-first so a server
+/// operator can retheme rooms; embedded fallback so a zero-file install still
+/// furnishes the ship.
+#[derive(Debug, Clone, Deserialize)]
+pub struct RoomEquipmentDef {
+    pub room_type: String,
+    pub items: Vec<String>,
+}
+
+fn room_equipment_defs() -> &'static [RoomEquipmentDef] {
+    static REG: std::sync::OnceLock<Vec<RoomEquipmentDef>> = std::sync::OnceLock::new();
+    REG.get_or_init(|| {
+        let text = std::fs::read_to_string("data/ships/room_equipment.ron")
+            .unwrap_or_else(|_| include_str!("../../../data/ships/room_equipment.ron").to_string());
+        match ron::from_str(&text) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::error!("room_equipment.ron parse error ({e}); rooms spawn unfurnished");
+                Vec::new()
+            }
+        }
+    })
+}
+
 fn room_equipment(room_type: &str) -> Vec<String> {
-    match room_type {
-        "bridge" => vec![
-            "command_chair", "helm_console", "tactical_display",
-            "comms_station", "viewscreen",
-        ],
-        "quarters" => vec![
-            "bunk_bed", "locker", "desk_fold", "curtain_divider",
-        ],
-        "medbay" => vec![
-            "medical_bed", "surgical_table", "medicine_cabinet",
-            "diagnostic_scanner", "defibrillator",
-        ],
-        "cargo" => vec![
-            "cargo_net", "mag_clamp_floor", "inventory_terminal",
-            "freight_elevator",
-        ],
-        "engineering" => vec![
-            "engineering_console", "power_junction", "tool_cabinet",
-            "diagnostic_panel", "spare_parts_bin",
-        ],
-        "hydroponics" => vec![
-            "hydro_rack", "nutrient_tank", "uv_grow_panel",
-            "water_pump", "harvest_bin",
-        ],
-        _ => vec![],
-    }.into_iter().map(String::from).collect()
+    room_equipment_defs()
+        .iter()
+        .find(|d| d.room_type == room_type)
+        .map(|d| d.items.clone())
+        .unwrap_or_default()
 }
 
 // ── GameWorld ──
@@ -466,93 +501,19 @@ impl GameWorld {
         // the wander block remains only as a fallback for an empty catalog.
         let mut npc_seq: u64 = 0;
         for room in &rooms {
-            let (npc_type, npc_name, role, description, dialog, greetings) = match room.room_type.as_str() {
-                "bridge" => (
-                    "navigator", "Helm Officer Vex", "navigator",
-                    "Charts course at the bridge",
-                    vec![
-                        "Course laid in. We're holding orbit at 412 km.",
-                        "If you see any unscheduled bursts on the console, flag me immediately.",
-                        "Earth looks calm from up here. Don't let it fool you.",
-                        "I'd kill for a fresh atlas. Real paper. Stars don't move that fast.",
-                    ],
-                    vec![
-                        "Welcome to the bridge. Don't touch the helm.",
-                        "Mind the cabling, citizen.",
-                    ],
-                ),
-                "medbay" => (
-                    "medic", "Dr. Kel", "medical_officer",
-                    "Tending to the medbay",
-                    vec![
-                        "If you're hurt, sit on the cot. If you're not, don't touch anything.",
-                        "Medkits are in the cabinet. They are not snacks.",
-                        "Microgravity nausea is normal the first week. Hydrate.",
-                        "I patched up worse than you yesterday. Stay still.",
-                    ],
-                    vec![
-                        "Welcome to medical. State your symptom, briefly.",
-                        "You look pale. Drink some water.",
-                    ],
-                ),
-                "engineering" => (
-                    "engineer", "Chief Tan", "chief_engineer",
-                    "Monitoring the reactor",
-                    vec![
-                        "Reactor's at 84% and humming. Don't tap the glass.",
-                        "If a panel is hot, I already know. Walk away.",
-                        "Plumbing on Deck 3 is fixed. Try it before you complain again.",
-                        "We keep this ship alive on duct tape and hope. Mostly hope.",
-                    ],
-                    vec![
-                        "Engineering. Keep your hands behind the yellow line.",
-                        "Welcome. The reactor whines. That's normal.",
-                    ],
-                ),
-                "cargo" => (
-                    "maintenance_bot", "CB-7", "maintenance",
-                    "Autonomous bot patrolling cargo",
-                    vec![
-                        "[CB-7] Manifest reconciled. Variance: zero.",
-                        "[CB-7] Bay temperature nominal. Resuming patrol.",
-                        "[CB-7] Crate 19-A misaligned. Correcting.",
-                        "[CB-7] Greetings, citizen. Please do not block the loaders.",
-                    ],
-                    vec![
-                        "[CB-7] Citizen detected. Logging entry.",
-                        "[CB-7] Welcome to Cargo. Please mind the loaders.",
-                    ],
-                ),
-                "hydroponics" => (
-                    "botanist", "Botanist Yara", "botanist",
-                    "Tending the hydroponic racks",
-                    vec![
-                        "These tomatoes are six weeks ahead of schedule. Look at them.",
-                        "Don't touch the green tray. I'm trialing a new nutrient mix.",
-                        "Lettuce harvest in three days. Tell the galley.",
-                        "Plants do better when you talk to them. I'm not joking.",
-                    ],
-                    vec![
-                        "Welcome! Mind the spore filter at the door.",
-                        "Quiet, please. The seedlings are sensitive.",
-                    ],
-                ),
-                "quarters" => (
-                    "crewmate", "Crewmate Nia", "off_duty",
-                    "Reading on her bunk",
-                    vec![
-                        "Off-shift. Quiet hour. Whisper if you must.",
-                        "Cycled through three novels this rotation. Got a recommendation?",
-                        "Lights at 30%. The Earthrise is the best lamp anyway.",
-                        "Wake me at 06:00 ship-time. Not earlier.",
-                    ],
-                    vec![
-                        "Hey. Off-shift, but make yourself at home.",
-                        "Bunk's free if you need a nap. Just say so.",
-                    ],
-                ),
-                _ => continue,
+            // Crew roster is data (data/npc/crew.ron, v0.937): one crew member
+            // per matching room type. Rooms with no crew entry spawn none.
+            let Some(crew) = crew_defs().iter().find(|c| c.room_type == room.room_type) else {
+                continue;
             };
+            let (npc_type, npc_name, role, description, dialog, greetings) = (
+                crew.npc_type.as_str(),
+                crew.name.as_str(),
+                crew.role.as_str(),
+                crew.description.as_str(),
+                crew.dialog.clone(),
+                crew.greetings.clone(),
+            );
             let center_x = room.position[0] + room.size[0] / 2.0;
             let center_y = room.position[1] + 1.0;
             let center_z = room.position[2] + room.size[2] / 2.0;
@@ -1967,5 +1928,31 @@ mod tests {
         assert_eq!(completed_out, completed);
         assert_eq!(xp, 100);
         assert_eq!(rep, 5);
+    }
+
+    /// The embedded crew + equipment registries (v0.937 infinite-of-x
+    /// migration) must parse and keep covering the six starter-ship room
+    /// types, so the ship never silently spawns empty because of a data typo.
+    #[test]
+    fn crew_and_equipment_registries_parse_and_cover_the_starter_rooms() {
+        let crew: Vec<CrewDef> =
+            ron::from_str(include_str!("../../../data/npc/crew.ron")).expect("crew.ron parses");
+        let equip: Vec<RoomEquipmentDef> =
+            ron::from_str(include_str!("../../../data/ships/room_equipment.ron"))
+                .expect("room_equipment.ron parses");
+        for rt in ["bridge", "medbay", "engineering", "cargo", "hydroponics", "quarters"] {
+            let c = crew.iter().find(|c| c.room_type == rt);
+            assert!(c.is_some(), "no crew member for room type {rt}");
+            let c = c.unwrap();
+            assert!(
+                !c.dialog.is_empty() && !c.greetings.is_empty() && !c.name.is_empty(),
+                "crew for {rt} is missing dialog/greetings/name"
+            );
+            let e = equip.iter().find(|e| e.room_type == rt);
+            assert!(
+                e.is_some() && !e.unwrap().items.is_empty(),
+                "no equipment for room type {rt}"
+            );
+        }
     }
 }

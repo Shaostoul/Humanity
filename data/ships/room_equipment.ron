@@ -1,0 +1,30 @@
+// HumanityOS ROOM EQUIPMENT catalog (infinite-of-x, v0.937: was a hardcoded match in
+// src/relay/handlers/game_state.rs). item ids spawned as furniture/equipment in every
+// room of the given type on the starter ship. Add a room type or a fixture by adding
+// a line here. Disk-first with an embedded fallback.
+[
+    (
+        room_type: "bridge",
+        items: ["command_chair", "helm_console", "tactical_display", "comms_station", "viewscreen"],
+    ),
+    (
+        room_type: "quarters",
+        items: ["bunk_bed", "locker", "desk_fold", "curtain_divider"],
+    ),
+    (
+        room_type: "medbay",
+        items: ["medical_bed", "surgical_table", "medicine_cabinet", "diagnostic_scanner", "defibrillator"],
+    ),
+    (
+        room_type: "cargo",
+        items: ["cargo_net", "mag_clamp_floor", "inventory_terminal", "freight_elevator"],
+    ),
+    (
+        room_type: "engineering",
+        items: ["engineering_console", "power_junction", "tool_cabinet", "diagnostic_panel", "spare_parts_bin"],
+    ),
+    (
+        room_type: "hydroponics",
+        items: ["hydro_rack", "nutrient_tank", "uv_grow_panel", "water_pump", "harvest_bin"],
+    ),
+]
