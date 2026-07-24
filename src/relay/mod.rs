@@ -294,6 +294,43 @@ pub async fn run_relay() {
 
     let mut relay_state = RelayState::new(db);
     relay_state.init_vapid_key();
+
+    // First-admin claim code (v0.936, in-app-ops gap #1): a fresh server with
+    // ZERO admins (and no ADMIN_KEYS above) prints a one-time code to the
+    // console and writes it beside the DB. Whoever controls the host reads it
+    // and types `/claim <code>` in chat to become the first admin - the same
+    // trust anchor as editing .env (host access), with no hex-copying, no env
+    // editing, and no restart. Deliberately NOT first-user-wins: on a public
+    // relay the first stranger to connect would win the server.
+    match relay_state.db.admin_count() {
+        Ok(0) => {
+            use rand::Rng;
+            // 64 bits from the CSPRNG as 16 hex chars: unguessable over the
+            // rate-limited chat path, short enough to type from the console.
+            let code = format!("{:016X}", rand::rng().random::<u64>());
+            let path = "data/owner-claim-code.txt";
+            if let Err(e) = std::fs::write(
+                path,
+                format!(
+                    "HumanityOS server claim code: {code}\nThis server has no admin yet. In the app or web chat, type:\n  /claim {code}\nto become the first admin. The code burns on use and this file is deleted.\n"
+                ),
+            ) {
+                tracing::warn!("Could not write {path}: {e} (the console line below still works)");
+            }
+            tracing::info!("==========================================================");
+            tracing::info!("SERVER OWNER SETUP: this server has no admin yet.");
+            tracing::info!("Type this in chat to claim it:   /claim {code}");
+            tracing::info!("(also saved to {path}; the code burns on first use)");
+            tracing::info!("==========================================================");
+            *relay_state.claim_code.get_mut() = Some(code);
+        }
+        Ok(_) => {
+            // Owned server: make sure no stale code file lingers from before.
+            let _ = std::fs::remove_file("data/owner-claim-code.txt");
+        }
+        Err(e) => tracing::error!("admin_count failed ({e}); claim-code bootstrap skipped"),
+    }
+
     let state = Arc::new(relay_state);
 
     // Federation Phase 2: start outbound connections to verified federated servers.

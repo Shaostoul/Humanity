@@ -580,15 +580,19 @@
       "where": "vps-shell",
       "audience": "owner",
       "how": "Install the .deb, write /etc/litestream.yml + credentials, enable litestream.service; disaster-restore with litestream restore then integrity_check + restart (docs/operations/litestream.md:29-117)."
+    },
+    {
+      "name": "Claim a fresh server (become the first admin)",
+      "what": "On a brand-new server with no admin, the person who controls the machine claims ownership by typing a one-time code, no config editing or restart needed.",
+      "where": "chat-command",
+      "how": "/claim <code>. The code is printed on the server console at startup and saved to data/owner-claim-code.txt on the host; it burns on first use. Connecting users are told the server is unclaimed. ADMIN_KEYS in the environment still works as the automation path (src/relay/mod.rs claim-code bootstrap; /claim handler in src/relay/relay.rs).",
+      "audience": "owner",
+      "also_available": [
+        "config-file: ADMIN_KEYS env var (comma-separated Dilithium3 hex), the pre-v0.936 path"
+      ]
     }
   ],
   "planned": [
-    {
-      "name": "First-admin setup without editing a server file",
-      "today": "The only way to get your first admin is to SSH in, paste a long hex key into ADMIN_KEYS in /opt/Humanity/.env, and restart (src/relay/mod.rs:213-230). A zero-experience owner is stuck at a terminal before they can do anything else in this list.",
-      "proposal": "First-run claim flow: on first boot with no admins, the relay generates a one-time claim code (printed in the log AND shown by the setup page); the first user to enter it in-app becomes admin. Pair it with an in-app admin roster editor that keeps ADMIN_KEYS in sync (the roles editor already exists; in-app-ops.md:45 tracks the roster).",
-      "effort": "medium"
-    },
     {
       "name": "Backups panel: status, back up now, restore",
       "today": "Backups run from a systemd timer; taking one manually and especially RESTORING one is raw shell (stop service, cp file, start) with no script (docs/design/in-app-ops.md:39). Restore is exactly the moment a panicked new owner should not be improvising in a terminal.",

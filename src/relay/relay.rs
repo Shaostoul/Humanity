@@ -177,6 +177,12 @@ pub struct RelayState {
     /// that verifies, and reject a second sighting. Map: short id -> first-seen
     /// Instant; pruned to the window on access + size-capped.
     pub seen_auth_nonces: std::sync::Mutex<HashMap<String, Instant>>,
+    /// One-time server-claim code (v0.936 first-admin setup). Some only while
+    /// the server has NO admins and no ADMIN_KEYS were provided: generated at
+    /// startup, printed to the server console and written beside the DB, so
+    /// only someone with host access can read it. `/claim <code>` promotes the
+    /// sender to admin and burns it. None on any server that has an owner.
+    pub claim_code: RwLock<Option<String>>,
     /// VAPID keypair for WebPush notifications (P-256/ES256).
     pub vapid_key: Option<ES256KeyPair>,
     /// Server configuration loaded from data/server-config.json (funding, membership, etc.).
@@ -322,6 +328,7 @@ impl RelayState {
             object_submit_rate: std::sync::Mutex::new(HashMap::new()),
             announce_rate: std::sync::Mutex::new(Vec::new()),
             seen_auth_nonces: std::sync::Mutex::new(HashMap::new()),
+            claim_code: RwLock::new(None),
             vapid_key: None,
             server_config,
             game_world: RwLock::new(GameWorld::new()),
@@ -2830,6 +2837,18 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
 
                 info!("Peer connected: {public_key} ({:?})", final_name);
 
+                // Unclaimed-server notice (v0.936): while no admin exists, tell
+                // each connecting (non-bot) user how the owner claims it. Tells
+                // a stranger nothing useful - the code itself only exists on
+                // the host's console/disk.
+                if !public_key.starts_with("bot_") && state.claim_code.read().await.is_some() {
+                    let notice = RelayMessage::Private {
+                        to: public_key.clone(),
+                        message: "This server has no admin yet. If this is YOUR server, read the claim code from the server console (or data/owner-claim-code.txt on the host) and type: /claim <code>".to_string(),
+                    };
+                    let _ = state.broadcast_tx.send(notice);
+                }
+
                 // Auto-join server membership: if user has a name and isn't a bot,
                 // auto-register them as a member (open server model).
                 // Skip auto-join for:
@@ -3750,6 +3769,7 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                 "  /friend-code — Generate a friend code to share outside the platform".to_string(),
                                                 "  /redeem <code> — Redeem a friend code (auto-mutual-follow)".to_string(),
                                                 "  /server-list — List federated servers".to_string(),
+                                                "  /claim <code> — Become the first admin of a fresh server (code on the server console)".to_string(),
                                             ];
                                             if role == "admin" || role == "mod" {
                                                 help_text.push("".to_string());
@@ -3976,6 +3996,43 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                                                     }
                                                 }
                                             }
+                                        }
+                                        // First-admin claim (v0.936): on a fresh server the startup
+                                        // code (console + data/owner-claim-code.txt, host access only)
+                                        // promotes its bearer to admin. No role gate - anyone may TRY,
+                                        // only the code holder succeeds; chat rate limiting applies.
+                                        "/claim" => {
+                                            let attempt = trimmed.split_whitespace().nth(1).unwrap_or("");
+                                            let reply = if my_key_for_recv.starts_with("bot_") {
+                                                "Bots cannot claim a server.".to_string()
+                                            } else if attempt.is_empty() {
+                                                "Usage: /claim <code>  (the code is printed on the server console at startup and saved to data/owner-claim-code.txt)".to_string()
+                                            } else {
+                                                let mut slot = state_clone.claim_code.write().await;
+                                                match slot.as_deref() {
+                                                    None => "This server already has an owner - the claim code only exists while a server has no admin.".to_string(),
+                                                    Some(code) if code.eq_ignore_ascii_case(attempt) => {
+                                                        match state_clone.db.set_role(&my_key_for_recv, "admin") {
+                                                            Ok(()) => {
+                                                                *slot = None; // burn the code
+                                                                let _ = std::fs::remove_file("data/owner-claim-code.txt");
+                                                                tracing::info!("Server claimed: {my_key_for_recv} is now the first admin.");
+                                                                "You are now this server's first admin. The claim code is burned. Open Server Settings to manage the server; grant more admins/mods with /mod.".to_string()
+                                                            }
+                                                            Err(e) => {
+                                                                tracing::error!("Claim: set_role failed: {e}");
+                                                                "Claim failed while saving the admin role - check the server logs.".to_string()
+                                                            }
+                                                        }
+                                                    }
+                                                    Some(_) => {
+                                                        tracing::warn!("Failed /claim attempt from {my_key_for_recv}");
+                                                        "Wrong claim code.".to_string()
+                                                    }
+                                                }
+                                            };
+                                            let private = RelayMessage::Private { to: my_key_for_recv.clone(), message: reply };
+                                            let _ = state_clone.broadcast_tx.send(private);
                                         }
                                         "/invite" => {
                                             let role = state_clone.db.get_role(&my_key_for_recv).unwrap_or_default();

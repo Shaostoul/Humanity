@@ -71,6 +71,21 @@ instead, copy your built `web/` files into a `client/` folder beside the binary.
 
 ---
 
+## Becoming the first admin (fresh server)
+
+When the relay starts with NO admin configured, it prints a one-time claim
+code on its console and saves it to `data/owner-claim-code.txt` beside the
+database. Connect with the app or web chat and type:
+
+```
+/claim <code>
+```
+
+You are now the server's first admin (the code burns on use). Grant further
+admins and moderators in-app or with `/mod <name>`. Setting `ADMIN_KEYS` in
+the environment (comma-separated Dilithium3 public keys) still works and
+skips the claim step - useful for scripted deployments.
+
 ## What can I do from the app vs the shell?
 
 Almost all day-to-day administration happens INSIDE the app: open **Server

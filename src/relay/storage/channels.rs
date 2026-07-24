@@ -545,6 +545,18 @@ impl Storage {
         })
     }
 
+    /// Number of admins on this server (the claim-code bootstrap gate:
+    /// a fresh server with zero admins prints a one-time /claim code).
+    pub fn admin_count(&self) -> Result<i64, rusqlite::Error> {
+        self.with_read_conn(|conn| {
+            conn.query_row(
+                "SELECT COUNT(*) FROM user_roles WHERE role = 'admin'",
+                [],
+                |row| row.get(0),
+            )
+        })
+    }
+
     /// Check if a public key is banned.
     pub fn is_banned(&self, public_key: &str) -> Result<bool, rusqlite::Error> {
         // Read-only COUNT (checked on identify/chat). Read pool.
@@ -1227,5 +1239,20 @@ mod channel_message_tests {
         let id = db.store_message_in_channel(&sys, "general").unwrap();
         assert_eq!(id, 0, "System message is not stored via the channel path");
         assert!(db.load_channel_messages("general", 50).unwrap().is_empty());
+    }
+
+    /// The first-admin claim-code bootstrap gates on admin_count: a fresh DB
+    /// must report zero (so the code generates), and promoting a key must
+    /// flip it (so the code never regenerates for an owned server).
+    #[test]
+    fn admin_count_tracks_promotions() {
+        let db = fresh_db();
+        assert_eq!(db.admin_count().unwrap(), 0, "fresh server has no admins");
+        db.set_role("owner_key_hex", "admin").unwrap();
+        assert_eq!(db.admin_count().unwrap(), 1);
+        db.set_role("mod_key_hex", "mod").unwrap();
+        assert_eq!(db.admin_count().unwrap(), 1, "mods are not admins");
+        db.set_role("owner_key_hex", "user").unwrap();
+        assert_eq!(db.admin_count().unwrap(), 0, "demotion counts down");
     }
 }
