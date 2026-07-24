@@ -1,5 +1,5 @@
 {
-  "_purpose": "Wallet education guide content (infinite-of-x: was hardcoded in web/pages/wallet-guide-app.js). sections[].html is trusted first-party HTML rendered by the wallet-guide page; terms are the crypto glossary pairs shown below the guide. Edit here; the page fetches this file at load.",
+  "_purpose": "Wallet education guide content (infinite-of-x: was hardcoded in web/pages/wallet-guide-app.js). sections[].html is trusted first-party HTML rendered by the wallet-guide page. Edit here; the page fetches this file at load.",
   "sections": [
     {
       "id": "what-is-a-wallet",
@@ -41,80 +41,6 @@
       "title": "8. Backup and Security",
       "html": "<p>Your wallet is only as safe as your backup. Here is what you need to know:</p><h3>Your seed phrase IS your backup</h3><p>When you created your HumanityOS identity, you received a <strong>24-word seed phrase</strong>. This phrase can restore your entire identity AND wallet on any device. It is the master key to everything.</p><h3>Rules for your seed phrase</h3><ol class=\"steps\"><li><strong>Write it on paper.</strong> Physical paper cannot be hacked. Store it somewhere safe (fireproof box, safety deposit box).</li><li><strong>Never store it digitally.</strong> Do not save it in a notes app, email, cloud drive, screenshot, or text message. If your device is compromised, so is your wallet.</li><li><strong>Never share it with anyone.</strong> No legitimate service will ever ask for your seed phrase. Anyone who asks is trying to steal your money.</li><li><strong>Make multiple copies.</strong> Store copies in different physical locations in case of fire, flood, or other disasters.</li><li><strong>Test your backup.</strong> Before putting significant money in your wallet, try restoring from your seed phrase on a different device to make sure it works.</li></ol><div class=\"callout callout-danger\"><strong>If you lose your seed phrase AND your device, your funds are gone forever.</strong> There is no \"forgot password\" button. No company can recover it. This is the trade-off for having a wallet that nobody can freeze or censor.</div><h3>Other security tips</h3><ul><li>Lock your device with a strong password or biometrics</li><li>Be careful of fake websites that look like HumanityOS (always check the URL)</li><li>Never click links in emails or messages claiming to be from your wallet</li><li>Start with small amounts until you are comfortable with the process</li></ul>"
     }
-  ],
-  "terms": [
-    [
-      "SOL",
-      "The native currency of the Solana blockchain. Used to pay transaction fees and can be staked for rewards."
-    ],
-    [
-      "USDC",
-      "A stablecoin (token) pegged to the US Dollar. 1 USDC = $1. Issued by Circle. Good for storing value without price volatility."
-    ],
-    [
-      "SPL Token",
-      "Any token that runs on the Solana network. USDC and USDT are examples of SPL tokens. Like how apps run on your phone, tokens run on Solana."
-    ],
-    [
-      "Transaction",
-      "A transfer of crypto from one address to another. Each transaction is recorded permanently on the blockchain."
-    ],
-    [
-      "Gas Fee",
-      "The small cost paid to the network for processing your transaction. On Solana, this is about $0.0003 per transaction."
-    ],
-    [
-      "Block Confirmation",
-      "When the network verifies your transaction and adds it to the permanent record. On Solana, this happens in about 0.4 seconds."
-    ],
-    [
-      "Wallet Address",
-      "Your public identifier on the blockchain. A long string of letters and numbers. Safe to share. Like an email address for money."
-    ],
-    [
-      "Private Key",
-      "The secret key that proves ownership of your wallet. Never share it. Like the password to your bank account."
-    ],
-    [
-      "Public Key",
-      "The counterpart to your private key. Used to generate your wallet address. Safe to share."
-    ],
-    [
-      "Seed Phrase",
-      "A set of 24 words that can restore your entire wallet and identity. Your master backup. Write it on paper and guard it with your life."
-    ],
-    [
-      "On-Ramp",
-      "A service that lets you buy crypto with regular money (USD, EUR, etc.). Examples: Coinbase, MoonPay."
-    ],
-    [
-      "Off-Ramp",
-      "A service that lets you sell crypto for regular money and withdraw to your bank account."
-    ],
-    [
-      "DEX",
-      "Decentralized Exchange. A platform for swapping tokens directly from your wallet, without an intermediary holding your funds. Jupiter is a DEX aggregator."
-    ],
-    [
-      "CEX",
-      "Centralized Exchange. A company that holds your funds while you trade. Examples: Coinbase, Kraken, Binance. You trust them with your money."
-    ],
-    [
-      "Staking",
-      "Locking up SOL to help secure the network. In return, you earn rewards (about 7% per year). Like earning interest at a bank."
-    ],
-    [
-      "Slippage",
-      "The difference between the expected price of a swap and the actual price when it executes. Usually very small (under 1%)."
-    ],
-    [
-      "Validator",
-      "A computer that helps process transactions on Solana. When you stake SOL, you choose a validator to delegate to."
-    ],
-    [
-      "Lamports",
-      "The smallest unit of SOL. 1 SOL = 1 billion lamports. Like how 1 dollar = 100 cents, but much smaller."
-    ]
   ],
   "glossary": {
     "id": "glossary",

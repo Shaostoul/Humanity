@@ -11,7 +11,10 @@ use crate::gui::theme::Theme;
 use crate::gui::widgets;
 use crate::gui::{GuiState, LauncherSel};
 
-const SLOTS: [&str; 6] = ["head", "chest", "legs", "feet", "hands", "back"];
+// Wardrobe slots come from data/inventory/equipment_slots.json (v0.942
+// infinite-of-x: was a hardcoded array duplicating that registry). The
+// inventory page and this wardrobe now share the one slot list via
+// gui_state.equipment_slots (id, label), loaded at startup.
 
 /// Display name for the implicit "no saves yet, enter a fresh homestead" row.
 const NEW_HOMESTEAD: &str = "My Homestead";
@@ -510,7 +513,8 @@ fn draw_appearance(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
 
 fn draw_wardrobe(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     ui.label(RichText::new("Wardrobe").strong().color(theme.text_primary()));
-    for slot in SLOTS {
+    let slot_ids: Vec<String> = state.equipment_slots.iter().map(|(id, _)| id.clone()).collect();
+    for slot in slot_ids.iter().map(|s| s.as_str()) {
         let current = state.outfit.equipped.get(slot).cloned();
         // Cosmetics available for this slot (id, name).
         let items: Vec<(String, String)> = state

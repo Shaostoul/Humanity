@@ -1149,6 +1149,61 @@
       "category": "cosmology",
       "definition": "A gravitational anomaly near the center of the Laniakea Supercluster pulling the Milky Way and ~100,000 nearby galaxies toward it at about 600 km/s. Hidden from direct view by our own galaxy’s disk; mapped by inferring its gravity from galaxy motions.",
       "link": "https://en.wikipedia.org/wiki/Great_Attractor"
+    },
+    "sol": {
+      "term": "SOL",
+      "category": "crypto",
+      "definition": "The native currency of the Solana blockchain. Used to pay transaction fees and can be staked for rewards."
+    },
+    "usdc": {
+      "term": "USDC",
+      "category": "crypto",
+      "definition": "A stablecoin (token) pegged to the US Dollar. 1 USDC = $1. Issued by Circle. Good for storing value without price volatility."
+    },
+    "gas_fee": {
+      "term": "Gas Fee",
+      "category": "crypto",
+      "definition": "The small cost paid to the network for processing your transaction. On Solana, this is about $0.0003 per transaction."
+    },
+    "block_confirmation": {
+      "term": "Block Confirmation",
+      "category": "crypto",
+      "definition": "When the network verifies your transaction and adds it to the permanent record. On Solana, this happens in about 0.4 seconds."
+    },
+    "wallet_address": {
+      "term": "Wallet Address",
+      "category": "crypto",
+      "definition": "Your public identifier on the blockchain. A long string of letters and numbers. Safe to share. Like an email address for money."
+    },
+    "on_ramp": {
+      "term": "On-Ramp",
+      "category": "crypto",
+      "definition": "A service that lets you buy crypto with regular money (USD, EUR, etc.). Examples: Coinbase, MoonPay."
+    },
+    "off_ramp": {
+      "term": "Off-Ramp",
+      "category": "crypto",
+      "definition": "A service that lets you sell crypto for regular money and withdraw to your bank account."
+    },
+    "dex": {
+      "term": "DEX",
+      "category": "crypto",
+      "definition": "Decentralized Exchange. A platform for swapping tokens directly from your wallet, without an intermediary holding your funds. Jupiter is a DEX aggregator."
+    },
+    "cex": {
+      "term": "CEX",
+      "category": "crypto",
+      "definition": "Centralized Exchange. A company that holds your funds while you trade. Examples: Coinbase, Kraken, Binance. You trust them with your money."
+    },
+    "slippage": {
+      "term": "Slippage",
+      "category": "crypto",
+      "definition": "The difference between the expected price of a swap and the actual price when it executes. Usually very small (under 1%)."
+    },
+    "lamports": {
+      "term": "Lamports",
+      "category": "crypto",
+      "definition": "The smallest unit of SOL. 1 SOL = 1 billion lamports. Like how 1 dollar = 100 cents, but much smaller."
     }
   }
 }

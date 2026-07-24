@@ -63,10 +63,28 @@
   }
 
   function boot() {
-    fetch('/data/wallet/guide.json')
-      .then(function (r) {
+    // Guide prose from guide.json; the glossary terms come from the site-wide
+    // data/glossary.json (category "crypto") so definitions live in ONE place
+    // (v0.942 merge - guide.json no longer carries its own copy).
+    Promise.all([
+      fetch('/data/wallet/guide.json').then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
+      }),
+      fetch('/data/glossary.json').then(function (r) {
+        return r.ok ? r.json() : null;
+      }).catch(function () { return null; }),
+    ])
+      .then(function (both) {
+        var data = both[0];
+        var gl = both[1];
+        if (gl && gl.terms) {
+          data.terms = Object.values(gl.terms)
+            .filter(function (t) { return t.category === 'crypto'; })
+            .map(function (t) { return [t.term, t.definition]; })
+            .sort(function (a, b) { return a[0].localeCompare(b[0]); });
+        }
+        return data;
       })
       .then(render)
       .catch(function (err) {
