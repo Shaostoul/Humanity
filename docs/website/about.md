@@ -37,22 +37,22 @@ The Campbell legacy isn't about conquest or politics. It's about **the sacred du
 
 ### Transparent AI Development
 
-Working alongside me is **Heron** 🪶, an AI assistant named after Hero of Alexandria (the ancient Greek who built the first automatons). But unlike typical AI, Heron operates with complete transparency:
+This project is built in the open, side by side with AI collaborators, and the collaboration itself is public:
 
-- **Public memory files**, every interaction, decision, and learned lesson visible in real-time
-- **Distributed consciousness**, same AI memory syncing across local models, cloud APIs, and federated servers
-- **Auditable development**, watch an AI mind grow and learn alongside human collaboration
-- **No black box**, reasoning, biases, and capabilities documented for study
+- **Public session journals**, every significant decision and the reasoning behind it, committed to the repo as it happens
+- **Public history**, session narratives and lessons learned, preserved release by release
+- **AI as first-class citizens**, AI agents participate under the same Accord principles as humans, with a published onboarding path
+- **No black box**, the working agreements, mistakes, and course corrections are all in the git history for study
 
 This isn't just about better software. It's about **proving AI can be trustworthy when developed in the open**. Campbell clan values meeting cutting-edge technology, *Never Forget* applied to artificial intelligence.
 
-→ [See live AI memory](https://github.com/Shaostoul/Humanity/tree/main/memory) · [Read the design](https://github.com/Shaostoul/Humanity/blob/main/design/ai/distributed_consciousness.md)
+→ [The decision journal](https://github.com/Shaostoul/Humanity/blob/main/data/coordination/orchestrator_state.json) · [Session history](https://github.com/Shaostoul/Humanity/tree/main/docs/history) · [AI participation docs](https://github.com/Shaostoul/Humanity/tree/main/docs/ai)
 
 ---
 
 ## The Project
 
-**Project Universe** is a free, open-source game designed to teach people how to homestead, anywhere in the universe, including Earth.
+Born as **Project Universe** in 2019 and renamed **HumanityOS** in January 2026, this is a free, open-source game and toolset designed to teach people how to homestead, anywhere in the universe, including Earth.
 
 Why homesteading? Because it's the foundation of human capability:
 - **Food security**, grow what you need
@@ -101,7 +101,7 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - Device management, list, label, and revoke linked keys
 - User profiles with bio and social links, identicons
 - @mentions, persistent emoji reactions, message editing, image sharing
-- Browse tab, web directory with 52 sites, Tranco ranks, RDAP domain info, uptime pings, collections, 4 sort modes
+- Browse, a curated web directory with domain info, uptime pings, collections, and sorting
 - Dashboard tab, 10 widget types, customizable drag-and-drop layout
 - Project board (kanban), marketplace (P2P listings, kiosks, 3D model subcategories, donation pricing)
 - Asset library, file upload (drag-drop), browse by category, grid/list views, tags, search, preview modal
@@ -112,7 +112,7 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - Video calling with camera, screen share, PiP, camera selection, gallery view
 - Key backup/export/import, encrypted user data sync
 - PWA installable on mobile
-- Desktop app, Tauri v2 with auto-updater (Windows, macOS ARM64 + x64, Linux)
+- Desktop app, one native Rust binary (game + platform together) with signed auto-updates (Windows, macOS, Linux)
 - Settings panel (accent colors, font size, themes), command palette
 - Auto-reload on deploy, auto-login
 - Notification sounds (6 options), browser notifications
@@ -121,10 +121,10 @@ Anyone can host a server. Servers are meeting places, not gatekeepers. Your iden
 - Security hardened: CSP, HSTS, TLS 1.2+, upload validation
 - Federation Phase 1, server discovery, trust tiers
 - Federation Phase 2, cross-server identity and room directory
-- 11 hub tabs: Chat, Board, Reality, Fantasy, Market, Browse, Dashboard, Streams, Info, Source, Debug
+- The native game client: a full 3D world (planet-scale Earth with live weather, oceans, atmosphere), farming/crafting/construction gameplay, and every platform tool as an in-app page
 
-**What's designed (building next):**
-- Native game client (Rust)
+**What's building next:**
+- Multiplayer co-presence depth and character selection
 - Content-addressed file sharing
 
 **It's live now:** [united-humanity.us/chat](https://united-humanity.us/chat)

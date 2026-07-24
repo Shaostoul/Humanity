@@ -13,7 +13,7 @@ This is an open project. It belongs to everyone. Here's how you can help.
 
 **The fastest way to get involved is to show up.**
 
-**[united-humanity.us/chat](https://united-humanity.us/chat)**, Our live chat. No account needed. No tracking. Ed25519 cryptographic identity, encrypted by design. Just open the link and say hello.
+**[united-humanity.us/chat](https://united-humanity.us/chat)**, Our live chat. No account needed. No tracking. Post-quantum cryptographic identity (Dilithium3), encrypted by design. Just open the link and say hello.
 
 **[Discord](https://discord.gg/9XxmmeQnWC)**, Longer-form discussion, community coordination, and voice chat.
 
@@ -25,15 +25,15 @@ This is an open project. It belongs to everyone. Here's how you can help.
 The Accord and documentation need clear, accessible language. Help us refine ideas into words that work.
 
 **Designers & Artists**
-Project Universe needs concept art, UI design, 3D models, and visual identity.
+HumanityOS needs concept art, UI design, 3D models, and visual identity.
 
 **Developers**
-The server is built in Rust (axum + tokio). The client is modular HTML/CSS/JS split into `index.html`, `style.css`, `crypto.js`, and `app.js` for CSP compliance, no build step required. The desktop app uses Tauri v2. If you can code in Rust, JavaScript, HTML/CSS, or TypeScript, there's work to do.
+Everything compiles from one Rust crate into one binary: the desktop app (wgpu 3D renderer + egui UI) and the headless relay server (axum + tokio) are the same `HumanityOS` executable. The website is plain HTML/CSS/JS with no build step, mirroring the native app. If you can code in Rust, JavaScript, or HTML/CSS, there's work to do.
 
 **Current technical needs:**
+- Game client development (Rust: rendering, simulation systems, UI pages)
 - Federation protocol improvements
-- Game client development (Rust)
-- UI/UX refinements across all 11 hub tabs
+- Web mirrors of native app pages
 - Testing and bug reports
 
 **Subject Matter Experts**

@@ -39,28 +39,26 @@ By making capability easy to learn and use.
 
 ## Where the Project Is Headed
 
-We are shaping the platform around five core experiences:
+One app, two sides of the same tools, switched with a **Real/Sim toggle**:
 
-- **Private**, your personal progression (profile, inventory, skills, equipment, quests, logbook)
-- **H Dashboard**, your command center and next best actions
-- **Public**, shared systems (network, systems, maps, market, learn, knowledge, streams)
-- **Ops**, health, deploy, logs, moderation
-- **Utility**, search, settings, data, alerts, account
+- **Real**, life tools you actually use: chat, inventory, tasks, maps, market, notes, health
+- **Sim**, a full 3D game teaching the same skills: homesteading, farming, construction, off-grid systems, on a true-scale Earth and beyond
+- **The native desktop app is the product**; the website mirrors it so everything works in a browser too
+- **Federated and self-hostable**, anyone can run a server; your identity travels with you
 
 ---
 
-## Live Now: HumanityOS Chat & Hub
+## Live Now: HumanityOS
 
-**[united-humanity.us/chat](https://united-humanity.us/chat)**
+**[united-humanity.us/chat](https://united-humanity.us/chat)** (web) · **[Desktop app](https://github.com/Shaostoul/Humanity/releases/latest)** (the full experience)
 
 Current platform includes:
 
-- Real-time chat and collaboration
-- Cryptographic identity (no password trap)
-- Systems explorer UI
-- Embedded knowledge/docs browser
-- Quest/calendar/logbook foundations
-- Desktop + web access
+- Real-time chat, voice/video calls, and collaboration
+- Post-quantum cryptographic identity (no accounts, no password trap)
+- A 3D world with a true-scale Earth: live weather, oceans, atmosphere, day/night
+- Farming, crafting, construction, and skills gameplay
+- Tasks, inventory, marketplace, maps, and a knowledge library, in-app and on the web
 
 ---
 
@@ -80,9 +78,9 @@ Everything is aimed at helping people become capable of helping themselves and e
 
 ---
 
-## Project Universe
+## The Simulation (born as Project Universe)
 
-Project Universe is the long-term simulation/game layer:
+The game layer, started in 2019 as Project Universe and now the Sim side of HumanityOS:
 
 - players as crew in humanity's first interstellar fleet,
 - non-combat systems first,

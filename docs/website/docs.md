@@ -29,4 +29,4 @@ Project documentation, architecture guides, and contributor resources.
 
 ## Decisions
 
-- [ADR-0001: Modular Boundaries](/Humanity/docs/decisions/adr-0001)
+- [ADR-0001: Modular Boundaries](https://github.com/Shaostoul/Humanity/blob/main/docs/history/ADR-0001-modular-boundaries.md) (archived in the repo's history folder)
