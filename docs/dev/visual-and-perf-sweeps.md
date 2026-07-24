@@ -56,7 +56,19 @@ fields `debug/camera_request.json` accepts (`body`, `lat`, `lon`,
 `altitude_km`, `look_offset_deg`, or `aim: "sun"`). Write an honest `expect`
 and list the `regressions` the vantage guards against.
 
-## Gotcha
+## Gotchas
+
+**A uniform, exactly-identical fps across ALL vantages (e.g. every stop reads
+30.0 / 33.3 ms) is an ENVIRONMENTAL cap, not a code regression** - real
+regressions vary per scene. Windows throttles occluded/unfocused windows, and
+a busy compositor (browser pane, OBS) can halve presentation. Discriminate in
+one command: sweep the previous archived exe
+(`just probe-sweep --exe vX.Y.Z_HumanityOS.exe --only blue-marble-12000km`) -
+if it reads the same capped number, the environment is the cause and the new
+build is exonerated (proven 2026-07-24: v0.931.1 and v0.932.1 both read
+exactly 30 with the browser pane open, vs 74-120 on a free desktop).
+
+## Gotcha (rig)
 
 The capture drives one shared game instance, so the fan-out is "one driver
 captures, N judges analyze" - not N game instances. If the exe copy fails with

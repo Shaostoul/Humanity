@@ -64,6 +64,65 @@
 </div>
 <div id=page-app>
 <div class="panel">
+   <h2>Admin map: what lives where</h2>
+   <p>Every server-owner action, grouped by where you do it: in the HumanityOS app,
+   a chat /command, a config file, or the VPS shell. If it is not under "VPS shell",
+   you never need a terminal for it. Mirrors the native Server Settings Admin map;
+   the data is <code>/data/admin/ops_registry.json</code>.</p>
+   <div id="ops-admin-map"><em>Loading the admin map...</em></div>
+</div>
+<script>
+(function () {
+  var ORDER = ['native-app', 'web-page', 'chat-command', 'config-file', 'vps-shell'];
+  var LABEL = {
+    'native-app': 'In the HumanityOS app', 'web-page': 'On the website',
+    'chat-command': 'Chat /commands', 'config-file': 'Server config file',
+    'vps-shell': 'VPS shell only (needs SSH)'
+  };
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  fetch('/data/admin/ops_registry.json')
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (reg) {
+      var el = document.getElementById('ops-admin-map');
+      var h = '';
+      ORDER.forEach(function (surface) {
+        var acts = reg.actions.filter(function (a) { return a.where === surface; });
+        if (!acts.length) return;
+        h += '<details><summary><strong>' + LABEL[surface] + ' (' + acts.length + ')</strong>';
+        if (reg.surfaces && reg.surfaces[surface]) h += ' <small>' + esc(reg.surfaces[surface]) + '</small>';
+        h += '</summary><ul>';
+        acts.forEach(function (a) {
+          h += '<li><strong>' + esc(a.name) + '</strong><br><small>' + esc(a.what) +
+               '</small><br><small><em>How: ' + esc(a.how) + '</em></small></li>';
+        });
+        h += '</ul></details>';
+      });
+      if (reg.planned && reg.planned.length) {
+        h += '<details><summary><strong>Coming to the app (' + reg.planned.length + ')</strong></summary><ul>';
+        reg.planned.forEach(function (p) {
+          h += '<li><strong>' + esc(p.name) + '</strong> [' + esc(p.effort) + ']<br><small>Today: ' +
+               esc(p.today) + ' Planned: ' + esc(p.proposal) + '</small></li>';
+        });
+        h += '</ul></details>';
+      }
+      if (reg.vps_only && reg.vps_only.length) {
+        h += '<details><summary><strong>Stays on the VPS (' + reg.vps_only.length + ')</strong></summary><ul>';
+        reg.vps_only.forEach(function (v) {
+          h += '<li><strong>' + esc(v.name) + '</strong><br><small>' + esc(v.reason) + '</small></li>';
+        });
+        h += '</ul></details>';
+      }
+      el.innerHTML = h;
+    })
+    .catch(function (e) {
+      document.getElementById('ops-admin-map').innerHTML =
+        '<em>Could not load the admin map (' + esc(e.message) + '). It lives at /data/admin/ops_registry.json.</em>';
+    });
+})();
+</script>
+<div class="panel">
    <h2>🔧 System Information</h2>
    <p>Version, connection status, and system diagnostics.</p>
    <dl class="debug-info">
@@ -250,7 +309,7 @@
 (function() {
   // Populate system info
   const el = id => document.getElementById(id);
-  if (el('debug-version')) el('debug-version').textContent = 'v0.932.1';
+  if (el('debug-version')) el('debug-version').textContent = 'v0.933.0';
   if (el('debug-server'))  el('debug-server').textContent  = window.location.origin;
   if (el('debug-ua'))      el('debug-ua').textContent      = navigator.userAgent.slice(0, 120);
   if (el('debug-screen'))  el('debug-screen').textContent  = screen.width + '×' + screen.height + ' · ' + (window.devicePixelRatio||1) + 'x DPR';

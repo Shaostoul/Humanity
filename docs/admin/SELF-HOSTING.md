@@ -71,6 +71,17 @@ instead, copy your built `web/` files into a `client/` folder beside the binary.
 
 ---
 
+## What can I do from the app vs the shell?
+
+Almost all day-to-day administration happens INSIDE the app: open **Server
+Settings** in the HumanityOS desktop app for moderation (mute/kick/ban),
+badges, channels, registration lockdown and invites, federation trust, health,
+and more. The complete map - every admin action, what it does, and whether it
+lives in the app, a /chat-command, a config file, or the server shell - is in
+`data/admin/ops_registry.json`, rendered in the app as **Server Settings >
+Admin map**. If the Admin map says an action is `vps-shell`, only then do you
+need to SSH in; everything else never requires a terminal.
+
 ## Configuration
 
 All configuration is via environment variables. Create a `.env` file or set them directly:

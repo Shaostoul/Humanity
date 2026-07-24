@@ -1182,7 +1182,140 @@ fn draw_admin_section(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
         // privilege. Placed adjacent so an admin manages all bans in one place,
         // but clearly distinct.
         super::game_admin::draw_section(ui, theme, state);
+
+        ui.add_space(theme.spacing_md);
+        ui.separator();
+        ui.add_space(theme.spacing_sm);
+
+        // ── Admin map (v0.933): the full action surface, data-driven ──
+        draw_admin_map(ui, theme);
     });
+}
+
+/// The "Admin map": renders data/admin/ops_registry.json - every server-owner
+/// action grouped by WHERE it lives (this app, chat command, config file, VPS
+/// shell), so a first-time owner never has to wonder whether something needs
+/// SSH. Read-only; the registry JSON is the source of truth
+/// (docs/design/in-app-ops.md).
+fn draw_admin_map(ui: &mut egui::Ui, theme: &Theme) {
+    use crate::gui::ops_registry::{ops_registry, surface_label, SURFACE_ORDER};
+    widgets::subsection_label(ui, theme, "Admin map: what lives where");
+    widgets::body_hint(
+        ui, theme,
+        "Every server-owner action, grouped by where you do it. If it is not under \
+         'VPS shell', you never need a terminal for it. This list is data \
+         (data/admin/ops_registry.json), so it stays current as surfaces move in-app.",
+    );
+    ui.add_space(theme.spacing_xs);
+
+    let reg = ops_registry();
+    for surface in SURFACE_ORDER {
+        let acts: Vec<_> = reg.actions.iter().filter(|a| a.surface == surface).collect();
+        if acts.is_empty() {
+            continue;
+        }
+        let header = format!("{} ({})", surface_label(surface), acts.len());
+        egui::CollapsingHeader::new(
+            egui::RichText::new(header).size(theme.font_size_body).color(theme.text_primary()),
+        )
+        .id_salt(("admin_map", surface))
+        .show(ui, |ui| {
+            if let Some(hint) = reg.surfaces.get(surface) {
+                widgets::body_hint(ui, theme, hint);
+                ui.add_space(theme.spacing_xs);
+            }
+            for a in acts {
+                ui.label(
+                    egui::RichText::new(&a.name)
+                        .size(theme.font_size_body)
+                        .strong()
+                        .color(theme.text_primary()),
+                );
+                ui.label(
+                    egui::RichText::new(&a.what)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.label(
+                    egui::RichText::new(format!("How: {}", a.how))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted())
+                        .italics(),
+                );
+                if let Some(also) = &a.also_available {
+                    for alt in also {
+                        ui.label(
+                            egui::RichText::new(format!("Also: {alt}"))
+                                .size(theme.font_size_small)
+                                .color(theme.text_muted()),
+                        );
+                    }
+                }
+                ui.add_space(theme.spacing_xs);
+            }
+        });
+    }
+
+    if !reg.planned.is_empty() {
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("Coming to the app ({})", reg.planned.len()))
+                .size(theme.font_size_body)
+                .color(theme.text_primary()),
+        )
+        .id_salt("admin_map_planned")
+        .show(ui, |ui| {
+            widgets::body_hint(
+                ui, theme,
+                "Actions that today need the shell or a config file but are planned as \
+                 in-app controls (the tracked CLI debt).",
+            );
+            ui.add_space(theme.spacing_xs);
+            for p in &reg.planned {
+                ui.label(
+                    egui::RichText::new(format!("{} [{}]", p.name, p.effort))
+                        .size(theme.font_size_body)
+                        .strong()
+                        .color(theme.text_primary()),
+                );
+                ui.label(
+                    egui::RichText::new(format!("Today: {}  Planned: {}", p.today, p.proposal))
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+            }
+        });
+    }
+
+    if !reg.vps_only.is_empty() {
+        egui::CollapsingHeader::new(
+            egui::RichText::new(format!("Stays on the VPS ({})", reg.vps_only.len()))
+                .size(theme.font_size_body)
+                .color(theme.text_primary()),
+        )
+        .id_salt("admin_map_vps")
+        .show(ui, |ui| {
+            widgets::body_hint(
+                ui, theme,
+                "Host-level work that genuinely cannot move into the app, with the reason.",
+            );
+            ui.add_space(theme.spacing_xs);
+            for v in &reg.vps_only {
+                ui.label(
+                    egui::RichText::new(&v.name)
+                        .size(theme.font_size_body)
+                        .strong()
+                        .color(theme.text_primary()),
+                );
+                ui.label(
+                    egui::RichText::new(&v.reason)
+                        .size(theme.font_size_small)
+                        .color(theme.text_muted()),
+                );
+                ui.add_space(theme.spacing_xs);
+            }
+        });
+    }
 }
 
 /// Banned-users admin panel. Lists every key in the relay's

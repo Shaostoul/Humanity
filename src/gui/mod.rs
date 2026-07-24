@@ -16,6 +16,9 @@ pub mod glossary;
 
 /// Location-aware rules ("Laws") data loader (v0.496). See pages/laws.rs.
 pub mod laws;
+/// Server-owner action registry (data/admin/ops_registry.json): what every
+/// admin action does and where it lives (app / command / config / VPS shell).
+pub mod ops_registry;
 
 // Headless UI snapshot tests (v0.495): render egui pages to PNGs for review +
 // regression. Test-only; pulls in egui_kittest (a dev-dependency).

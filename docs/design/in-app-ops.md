@@ -1,6 +1,18 @@
 # In-App Ops: design
 
 > **Status:** design + living backlog (2026-05-20). Codifies the "GUI-first configurability (no-CLI-required)" non-negotiable rule from CLAUDE.md and tracks the CLI debt to pay down.
+>
+> **2026-07-24: the registry EXISTS.** `data/admin/ops_registry.json` now holds
+> the complete server-owner action surface (70 actions from a 5-agent
+> code-verified sweep: 32 native-app, 1 web, 2 chat-command-only, 16
+> config-file, 19 vps-shell), plus `planned` (the 12 ranked in-app gaps, which
+> SUPERSEDE the table below as the canonical debt list) and `vps_only` (the 9
+> actions that genuinely stay on the host shell, each with its reason). The
+> native Server Settings page renders it as the "Admin map" section so a
+> first-time owner always knows what is possible in-app vs what needs SSH; the
+> web ops page mirrors it. Update the JSON when an admin surface changes - the
+> pages render whatever is there. (This is the READ half of the north star;
+> the invoke-through-one-endpoint half below is still the destination.)
 
 ## The principle
 

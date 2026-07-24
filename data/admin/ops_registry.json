@@ -1,0 +1,697 @@
+{
+  "_purpose": "The server-owner action registry (docs/design/in-app-ops.md north star): every admin/owner/moderator action, what it does in plain English, and WHERE it lives - in the app, a chat command, a config file, or the VPS shell. The native Server Settings page renders this so a first-time owner always knows what is possible without leaving the app, and an AI can enumerate the full action surface from this one file. Generated from the 2026-07-24 surface map (5-agent sweep, every entry code-verified); update entries when admin surfaces change - the page renders whatever is here.",
+  "surfaces": {
+    "native-app": "Inside the HumanityOS desktop app (usually Server Settings or the Relays page)",
+    "web-page": "On the website (united-humanity.us or your own instance)",
+    "chat-command": "Typed as a /command in any chat box by an admin or moderator",
+    "config-file": "A setting in server-config.json or an environment variable on the server (restart usually required)",
+    "vps-shell": "Requires logging into the server machine itself (SSH); cannot be done from the app"
+  },
+  "actions": [
+    {
+      "name": "Mute or unmute a user",
+      "what": "Stops a member from posting without removing them, or lets them post again; a Muted-users list shows everyone muted with a one-click Unmute.",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > MODERATOR: type the name in Target user, click Mute/Unmute; Muted-users panel auto-loads with per-row Unmute (src/gui/pages/server_settings.rs:398-439, 1347-1459). Buttons drive the relay's /mute and /unmute (src/relay/handlers/broadcast.rs:339-350).",
+      "also_available": [
+        "chat-command: /mute <name> and /unmute <name>, typed in any chat box (web or native)"
+      ]
+    },
+    {
+      "name": "Kick a user (disconnect)",
+      "what": "Instantly disconnects every device a user is signed in on; they can come right back (it is not a ban).",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > MODERATOR > Kick button (src/gui/pages/server_settings.rs:398-439); sends /kick (src/relay/relay.rs:4286 -> src/relay/handlers/broadcast.rs:264).",
+      "also_available": [
+        "chat-command: /kick <name>"
+      ]
+    },
+    {
+      "name": "Ban or unban a user (chat)",
+      "what": "Blocks someone from the server entirely and disconnects them; a Banned-users list shows every ban with a one-click Unban.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > User management Ban button + Banned-users panel with per-row Unban (src/gui/pages/server_settings.rs:981-1064, 1195-1314); relay side src/relay/handlers/broadcast.rs:285-312.",
+      "also_available": [
+        "chat-command: /ban <name> and /unban <name>"
+      ]
+    },
+    {
+      "name": "Ban a player from the 3D game world only",
+      "what": "Stops someone playing in the shared game world while leaving their chat and messages untouched; includes a list with dates and reasons and per-row Unban.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Game world bans: enter public key + optional reason, Game-ban player; list auto-loads (src/gui/pages/game_admin.rs:28-233, embedded at server_settings.rs:1184; game_ban/game_unban WS messages)."
+    },
+    {
+      "name": "Promote or demote a moderator",
+      "what": "Gives a user moderator powers, or takes them away.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > User management: Promote to mod / Remove mod buttons (src/gui/pages/server_settings.rs:981-1064); relay side src/relay/handlers/broadcast.rs:321-330.",
+      "also_available": [
+        "chat-command: /mod <name> and /unmod <name>"
+      ]
+    },
+    {
+      "name": "Grant or remove verified / donor badges",
+      "what": "Marks a user as verified or as a donor (a visible badge), or removes those badges.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > User management: Verify / Mark as donor / Remove verified buttons (src/gui/pages/server_settings.rs:981-1064); relay handlers at src/relay/relay.rs:4070-4133.",
+      "also_available": [
+        "chat-command: /verify <name>, /donor <name>, /unverify <name>"
+      ]
+    },
+    {
+      "name": "Release a registered name",
+      "what": "Unlinks every device from a name so it can be claimed fresh; the account-recovery and squatted-name tool. Destructive, so it asks twice.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > User management > Release name, then confirm (src/gui/pages/server_settings.rs:1065-1088); sends /name-release (src/relay/relay.rs:4023).",
+      "also_available": [
+        "chat-command: /name-release <name>"
+      ]
+    },
+    {
+      "name": "Clean up inactive names",
+      "what": "Frees up names that have not been used for 90+ days so new people can claim them.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Server maintenance > Clean up names (src/gui/pages/server_settings.rs:1156-1165); sends /gc (src/relay/relay.rs:4258).",
+      "also_available": [
+        "chat-command: /gc"
+      ]
+    },
+    {
+      "name": "Review the report queue",
+      "what": "Shows the 20 most recent complaints users have filed against other users, with who, why, and when.",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > MODERATOR > Reports > View reports (results appear in the active chat channel) (src/gui/pages/server_settings.rs:474-521); sends /reports (src/relay/relay.rs:4366).",
+      "also_available": [
+        "chat-command: /reports"
+      ]
+    },
+    {
+      "name": "Clear all reports",
+      "what": "Empties the whole complaint queue. Asks twice before doing it.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > MODERATOR > Reports > Clear all reports, two-click confirm (src/gui/pages/server_settings.rs:474-521); sends /reports-clear (src/relay/relay.rs:4404).",
+      "also_available": [
+        "chat-command: /reports-clear"
+      ]
+    },
+    {
+      "name": "Toggle registration lockdown",
+      "what": "Blocks or unblocks anyone new from joining the server; existing members are unaffected. Note: by default a restart re-opens registration unless REGISTRATION_DEFAULT_OPEN=false is set (see the config row).",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Registration > Toggle lockdown (src/gui/pages/server_settings.rs:929-937); sends /lockdown (src/relay/relay.rs:4049).",
+      "also_available": [
+        "chat-command: /lockdown"
+      ]
+    },
+    {
+      "name": "Generate a one-time invite code",
+      "what": "Creates a single-use code (valid 24 hours) that lets one new person join even while lockdown is on.",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > ADMIN > Registration > Generate invite code (src/gui/pages/server_settings.rs:938-946); sends /invite (src/relay/relay.rs:3980).",
+      "also_available": [
+        "chat-command: /invite"
+      ]
+    },
+    {
+      "name": "Create a channel",
+      "what": "Adds a new chat channel, optionally read-only, with an optional description.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Channels grid > '+ New channel' row > Create (channel_create WS message) (src/gui/pages/server_settings.rs:1466-1691).",
+      "also_available": [
+        "chat-command: /channel-create <name> [--readonly] [description] (src/relay/relay.rs:3806)"
+      ]
+    },
+    {
+      "name": "Edit a channel (name, description, read-only, voice, federated flags)",
+      "what": "A spreadsheet of every channel where you can rename it, change its description, and flip whether it is read-only, a voice channel, or shared with other servers.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Channels grid: edit cells, click the row's Save (channel_update WS message) (src/gui/pages/server_settings.rs:1466-1691).",
+      "also_available": [
+        "chat-command: /channel-edit <old> name <new> (rename only, src/relay/relay.rs:3838)",
+        "chat-command: /channel-readonly <name> (src/relay/relay.rs:3921)",
+        "chat-command: /server-federate <channel> (src/relay/relay.rs:4769)"
+      ]
+    },
+    {
+      "name": "Delete a channel",
+      "what": "Removes a channel (the general channel is protected). Quirk: the code allows moderators, though /help lists it as admin-only (src/relay/relay.rs:3895-3897 vs 3782).",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > ADMIN > Channels grid > per-row Delete (channel_delete WS message) (src/gui/pages/server_settings.rs:1466-1691).",
+      "also_available": [
+        "chat-command: /channel-delete <name>"
+      ]
+    },
+    {
+      "name": "Reorder channels",
+      "what": "Moves a channel up or down in the sidebar list.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Channels grid > per-row Up/Down buttons (src/gui/pages/server_settings.rs:1556-1581); each sends /channel-reorder (src/relay/relay.rs:3950).",
+      "also_available": [
+        "chat-command: /channel-reorder <name> <position>"
+      ]
+    },
+    {
+      "name": "Manage channel categories",
+      "what": "Creates, renames, or deletes the category headings that group channels in the sidebar, and moves channels between them. No GUI yet; chat commands only.",
+      "where": "chat-command",
+      "audience": "any-admin",
+      "how": "/category-create <name>, /category-delete <name>, /category-rename <old> <new>, /channel-category <channel> <category> (src/relay/relay.rs:4817-4883)."
+    },
+    {
+      "name": "Pin and unpin messages",
+      "what": "Pins the newest message in the current channel so everyone can find it later; /pins lists them and /unpin removes one by number.",
+      "where": "native-app",
+      "audience": "moderator",
+      "how": "Server Settings > MODERATOR > Channel moderation > Pin last message (src/gui/pages/server_settings.rs:459-468); sends /pin (src/relay/relay.rs:4464). Unpin is chat-only: /unpin <number> (relay.rs:4516); /pins (any user) lists them (relay.rs:4551).",
+      "also_available": [
+        "chat-command: /pin, /pins, /unpin <number>"
+      ]
+    },
+    {
+      "name": "Wipe message history (one channel or all)",
+      "what": "Permanently deletes all messages in the open channel, or in every channel on the server. Both ask twice.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Server maintenance: Wipe active channel / Wipe ALL channels, each with a confirm step (src/gui/pages/server_settings.rs:1116-1155); send /wipe and /wipe-all (src/relay/relay.rs:4164-4199).",
+      "also_available": [
+        "chat-command: /wipe (current channel), /wipe-all"
+      ]
+    },
+    {
+      "name": "List federated servers",
+      "what": "Shows the other servers this one knows about, with online status and trust badges.",
+      "where": "native-app",
+      "how": "Server Settings > ADMIN > Federation list, reads GET /api/federation/servers (src/gui/pages/server_settings.rs:525-747).",
+      "also_available": [
+        "chat-command: /server-list (any user, src/relay/relay.rs:4703)"
+      ]
+    },
+    {
+      "name": "Add a federated server",
+      "what": "Registers another server to share messages with; the relay fetches its name and details automatically.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation > Add-server row (src/gui/pages/server_settings.rs:525-747); sends /server-add <url> [name] (src/relay/relay.rs:4616).",
+      "also_available": [
+        "chat-command: /server-add <url> [name]"
+      ]
+    },
+    {
+      "name": "Remove a federated server",
+      "what": "Stops federating with a server (confirm step in the app).",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation > Remove, then 'Really remove?' (src/gui/pages/server_settings.rs:525-747); sends /server-remove (src/relay/relay.rs:4676).",
+      "also_available": [
+        "chat-command: /server-remove <server_id or url>"
+      ]
+    },
+    {
+      "name": "Set a federated server's trust tier",
+      "what": "Rates how much you trust another server, from 0 (unverified) to 3 (verified + Accord).",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation > per-row trust dropdown (src/gui/pages/server_settings.rs:525-747); sends /server-trust <id> <0-3> (src/relay/relay.rs:4733).",
+      "also_available": [
+        "chat-command: /server-trust <server_id> <0-3>"
+      ]
+    },
+    {
+      "name": "Connect to all federated servers",
+      "what": "Tries to open live connections to every registered peer server at once.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Federation > 'Connect to all verified' (src/gui/pages/server_settings.rs:525-747); sends /server-connect (src/relay/relay.rs:4801).",
+      "also_available": [
+        "chat-command: /server-connect"
+      ]
+    },
+    {
+      "name": "Set server name, description, upload disk cap, and allowed file types",
+      "what": "Sets the server's public name and blurb, the total upload storage cap in MB, and which file types people may upload. The in-app value is saved to the database and wins over the config file.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Server policy > Save Changes (server_settings_update WS broadcast) (src/gui/pages/server_settings.rs:1706-1866, payload 2333-2378).",
+      "also_available": [
+        "config-file: boot defaults 'server_name'/'server_description' in data/server-config.json, restart to apply; resolution order DB > json > SERVER_NAME env (src/relay/relay.rs:241-253; src/relay/api.rs:1532-1555). Caveat: announcements/federation gossip use the SERVER_NAME env directly (src/relay/handlers/announce.rs:36-37, federation.rs:120,238)"
+      ]
+    },
+    {
+      "name": "Server-wide kill switches (streaming, voice, images, files)",
+      "what": "Emergency master toggles that instantly turn off video streaming, voice, image sharing, or file sharing for everyone, regardless of role.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Roles table, top 'Server master' row: four checkboxes + Save (server_settings_update) (src/gui/pages/server_settings.rs:1937-1998)."
+    },
+    {
+      "name": "Edit roles and create custom roles",
+      "what": "Per-role permissions (stream/upload/voice/image/file) plus label, color, message-length and upload limits; create new roles like 'family' and delete custom ones.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Roles grid: edit + per-row Save (role_upsert WS), Delete on custom roles (role_delete); 'Add a custom role' row with preset Prefill (src/gui/pages/server_settings.rs:1873-2161)."
+    },
+    {
+      "name": "Services: feature gates and daemon start/stop",
+      "what": "Turn a whole feature (voice, peer-to-peer file sharing) off at the server, and start or stop the background programs behind them (TURN voice, torrent) to free memory, all without a terminal.",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > Services table: soft-gate checkboxes + 'Save feature toggles' (server_settings_update); per-row Start/Stop (service_control WS, relay allowlists service+action via the sudoers bridge scripts/sudoers.d/humanity-relay-services); 'Refresh status' (src/gui/pages/server_settings.rs:2174-2322)."
+    },
+    {
+      "name": "View server health, stats, and activity",
+      "what": "See whether the server is up, which build it runs, uptime, user and message counts, database and upload sizes, disk space, watchdog state, and backup age; the web dashboard adds a 24-hour activity chart, top channels, and recent joins (view-only, refreshes every 30s).",
+      "where": "native-app",
+      "audience": "any-admin",
+      "how": "Server Settings > ADMIN > System health (public /health + /api/stats) (src/gui/pages/server_settings.rs:749-900); richer signed snapshot in Relays > Health via Dilithium3-signed POST to /api/admin/stats (src/gui/pages/relay_control.rs:87-157, 346-408).",
+      "also_available": [
+        "web-page: /pages/admin.html read-only dashboard (web/pages/admin-app.js:74-263); wrapped-only identities are told to 'Sign in via Chat first'",
+        "vps-shell: just status / just vps-health / just relay-status (Justfile:173-216, 247-248, 260-261)"
+      ]
+    },
+    {
+      "name": "Restart the relay service",
+      "what": "Bounces the server program with one click when it is stuck. Today this works by remote-controlling the server over the owner's SSH key, so it only functions on the owner's own PC; there is no server-side restart button yet.",
+      "where": "native-app",
+      "audience": "owner",
+      "how": "Relays > Control > 'Restart relay' runs `sudo systemctl restart humanity-relay` via `ssh -o BatchMode=yes humanity-vps` (src/gui/pages/relay_control.rs:448-456, 589-630).",
+      "also_available": [
+        "vps-shell: just restart (Justfile:243-244); tracked as CLI debt in docs/design/in-app-ops.md:42"
+      ]
+    },
+    {
+      "name": "Read the relay's logs",
+      "what": "Shows the server's recent log output to see what it has been doing or why something failed. Same SSH-key limitation as restart.",
+      "where": "native-app",
+      "audience": "owner",
+      "how": "Relays > Control > 'Tail logs' runs `journalctl -u humanity-relay -n 100 --no-pager` over SSH (src/gui/pages/relay_control.rs:457-464).",
+      "also_available": [
+        "vps-shell: just logs (follow), just log-tail (last 80), just log-errors (Justfile:227-236)"
+      ]
+    },
+    {
+      "name": "In-app server console (SSH)",
+      "what": "Run commands on the server machine without leaving the app: five one-click checks (relay status, disk, memory, nginx test, uptime) plus a free-form command box with a copyable transcript. Only works on the machine holding the owner's SSH key.",
+      "where": "native-app",
+      "audience": "owner",
+      "how": "Relays > Console: quick buttons and 'Run a command' both shell to `ssh -o BatchMode=yes -o ConnectTimeout=10 humanity-vps <command>` (src/gui/pages/relay_control.rs:479-648).",
+      "also_available": [
+        "vps-shell: the same commands directly over ssh humanity-vps"
+      ]
+    },
+    {
+      "name": "Account and device self-service (owner included)",
+      "what": "Copy the server invite link, link a new device with a one-time code, remove a lost or stolen device, create and redeem friend codes, and disconnect or leave; available to every member.",
+      "where": "native-app",
+      "how": "Server Settings > USER section (src/gui/pages/server_settings.rs:206-385); buttons send /link, /revoke <keyprefix>, /friend-code, /redeem <code>.",
+      "also_available": [
+        "chat-command: /link (src/relay/relay.rs:3720), /revoke (relay.rs:4000), /friend-code (relay.rs:4449), /redeem (relay.rs:4455)"
+      ]
+    },
+    {
+      "name": "Everyday chat utilities (any user, owner included)",
+      "what": "/help shows the command list (mod/admin sections appear per your role); /users lists everyone with roles and devices; /report flags a user and alerts staff; /dms lists your conversations; /edit fixes your last message; /pins lists pinned messages; /server-list shows federated servers. /dm itself is deliberately disabled and points you at the DM panel.",
+      "where": "chat-command",
+      "how": "Typed in any chat box. Dispatch gate at src/relay/relay.rs:3715-3719; /help 3738, /users 4223, /report 4310, /dms 4445, /dm stub 4423-4443, /edit 4576, /pins 4551; unknown commands get a private reply (relay.rs:4906-4912)."
+    },
+    {
+      "name": "Web ops/diagnostics page (read-only)",
+      "what": "A browser page showing your client version, the server address, live connection status, and a printed cheat sheet of developer commands. It cannot change anything on the server. Note: its cheat sheet still lists stale Tauri-era commands.",
+      "where": "web-page",
+      "how": "Open /pages/ops.html; its only network call is an unauthenticated fetch of /api/stats (web/pages/ops.html:65-263)."
+    },
+    {
+      "name": "Tune connection and history capacity",
+      "what": "Sets how many people can connect at once (default 500), how many recent messages the server keeps in fast memory (default 500), and the internal delivery buffer size (default 256).",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "Add max_connections / max_history / broadcast_capacity to data/server-config.json, then restart the relay (src/relay/relay.rs:28-32 defaults, 256-264 read; file read once at boot, relay.rs:239-264)."
+    },
+    {
+      "name": "Configure the donations/funding panel",
+      "what": "Turns on a donations section (goal, label, crypto addresses, sponsor links) that clients show on the Donate page.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "Edit the 'funding' object in data/server-config.json ({enabled, goal_usd, goal_label, addresses, sources}), restart the relay (data/server-config.json:8-64; src/relay/api.rs:1562-1565; native consumption src/gui/mod.rs:63,152,244)."
+    },
+    {
+      "name": "Publish the owner key (informational)",
+      "what": "Advertises which public key owns this server in /api/server-info. It is a label only; real admin power comes from ADMIN_KEYS.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "Edit 'owner_key' in data/server-config.json, restart (data/server-config.json:4; src/relay/api.rs:1556-1559,1577)."
+    },
+    {
+      "name": "Bootstrap the first admin (ADMIN_KEYS)",
+      "what": "Lists the public keys that become admin at every boot. This is the ONLY automatic way to get your first admin; there is deliberately no first-user-wins rule.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "ADMIN_KEYS=<hex_key1>,<hex_key2> in /opt/Humanity/.env (loaded by systemd's EnvironmentFile), then restart the relay (src/relay/mod.rs:213-230; docs/admin/SELF-HOSTING.md:80,151-156)."
+    },
+    {
+      "name": "Set the bot API secret (API_SECRET)",
+      "what": "The shared password that lets bots talk to the server; without it all bot endpoints reject everything. The server warns at boot if it is too short.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "API_SECRET=$(openssl rand -hex 32) in /opt/Humanity/.env, restart (src/relay/api.rs:36-38; src/relay/relay.rs:2556-2560 bot identify; boot validation src/relay/mod.rs:141-163)."
+    },
+    {
+      "name": "Set a new-message webhook",
+      "what": "Makes the server notify an outside URL every time a person sends a message (for bridges and integrations).",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "WEBHOOK_URL=... and optional WEBHOOK_TOKEN=... in /opt/Humanity/.env, restart (src/relay/relay.rs:227-237; docs/admin/SELF-HOSTING.md:84-85)."
+    },
+    {
+      "name": "Set the GitHub webhook secret",
+      "what": "The secret that proves commit announcements really come from GitHub; unset means the endpoint rejects everything (safe default).",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "WEBHOOK_SECRET=<random hex> in /opt/Humanity/.env, matching the GitHub webhook config; restart (src/relay/api.rs:685-700; src/relay/mod.rs:164-166)."
+    },
+    {
+      "name": "Change the listen port (PORT)",
+      "what": "Which internal door the server listens on (default 3210); nginx forwards traffic to it and the port itself is never exposed publicly.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "PORT=<port> in /opt/Humanity/.env, restart (src/relay/mod.rs:118-124; docs/admin/SELF-HOSTING.md:253)."
+    },
+    {
+      "name": "Move the database (DATABASE_PATH)",
+      "what": "Where the server's database file lives (default data/relay.db); the folder is created automatically.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "DATABASE_PATH=/path/to/relay.db (or DB_PATH) in /opt/Humanity/.env, restart (src/relay/mod.rs:111-116,126-132)."
+    },
+    {
+      "name": "Declare Accord compliance (ACCORD_COMPLIANT)",
+      "what": "Announces that this server follows the Humanity Accord, which feeds the federation trust badges other servers show.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "ACCORD_COMPLIANT=true in /opt/Humanity/.env, restart (src/relay/api.rs:1560,1575; trust tiers docs/admin/SELF-HOSTING.md:298-304)."
+    },
+    {
+      "name": "Registration open-by-default policy (REGISTRATION_DEFAULT_OPEN)",
+      "what": "By default a restart re-opens registration. Set false to make lockdown survive restarts AND to auto-lock the doors when the last admin or mod goes offline.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "REGISTRATION_DEFAULT_OPEN=false in /opt/Humanity/.env, restart (src/relay/relay.rs:46-53 parse, 281-291 boot override, 6066 auto-lockdown gate)."
+    },
+    {
+      "name": "Set the asset-scan root (WEB_ROOT)",
+      "what": "Which folder the server scans when clients ask for downloadable asset and web-file listings.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "WEB_ROOT=/opt/Humanity in /opt/Humanity/.env, restart (src/relay/api.rs:2838, 2957)."
+    },
+    {
+      "name": "Point the Solana balance proxy elsewhere (SOLANA_RPC_URL)",
+      "what": "Which Solana network the read-only wallet-balance lookup uses (default mainnet; set devnet for testing).",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "SOLANA_RPC_URL=https://api.devnet.solana.com in /opt/Humanity/.env, restart (src/relay/api_v2_solana.rs:20-26)."
+    },
+    {
+      "name": "Configure and rotate voice TURN (TURN_SERVER_HOST, TURN_STATIC_SECRET)",
+      "what": "Points voice calls at your own relay host and, with the shared secret set, lets calls work behind strict home routers. Rotating the secret is a two-place edit (relay env + coturn config) plus restarts.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "TURN_SERVER_HOST=your-domain.com and TURN_STATIC_SECRET=<same secret as coturn static-auth-secret> in /opt/Humanity/.env, restart relay (+ coturn) (src/relay/turn.rs:57-92; rotation recipe docs/admin/turn-rotation.md)."
+    },
+    {
+      "name": "Set log verbosity (RUST_LOG)",
+      "what": "Documented as the logging knob and honored by the desktop app; caveat: the headless server never initializes a log subscriber, so this appears inert for the relay today (documented-but-drifted).",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "RUST_LOG=info|debug|warn in /opt/Humanity/.env per docs/admin/SELF-HOSTING.md:87; desktop path src/lib.rs:562 (env_logger); headless enters run_relay with no logging setup (src/main.rs:78-84)."
+    },
+    {
+      "name": "Rotate the web-push (VAPID) key",
+      "what": "Replaces the key that signs browser push notifications; it is auto-generated on first boot, and deleting the file makes a fresh one (existing browser subscriptions break). Note: the VAPID_PRIVATE_KEY env var only prints a boot warning and is never actually used.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "rm /opt/Humanity/data/vapid_private.key && sudo systemctl restart humanity-relay (src/relay/relay.rs:334-363; misleading env warning src/relay/mod.rs:138-140)."
+    },
+    {
+      "name": "Serve the website from the relay itself",
+      "what": "The server can serve the web pages directly from a client/ folder beside it, if you do not want a separate nginx web root; it ships empty.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "cp -r web/* /opt/Humanity/client/ (picked up per-request, no restart) (src/relay/mod.rs:699-701 ServeDir fallback; docs/admin/SELF-HOSTING.md:66-70)."
+    },
+    {
+      "name": "Deploy or update the server's code",
+      "what": "Getting new code onto the live server: the flagship operator's one-liners commit/push/rebuild/restart, and a generic self-hoster pulls, rebuilds, and restarts by hand; clients auto-detect the new version and reload.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "Operator PC: just ship \"msg\" / just sync / just sync-web (Justfile:39-44, 97-104, 116-166). Any self-hoster: cd /opt/Humanity && git pull && cargo build --release --features relay --no-default-features && sudo systemctl restart humanity-relay (docs/admin/SELF-HOSTING.md:330-339)."
+    },
+    {
+      "name": "Direct database access",
+      "what": "Open the live database and read or change anything in it, bypassing the app entirely; the raw escape hatch.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "just db (interactive sqlite3 /opt/Humanity/data/relay.db) or just sql \"<query>\" (Justfile:251-257)."
+    },
+    {
+      "name": "Fresh-slate database wipe (pq-wipe)",
+      "what": "Destroys ALL accounts and message history back to a clean slate (backing up first and re-seeding #announcements); everyone re-onboards from their seed phrase. Refuses to run without an explicit yes.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "just pq-wipe yes, or on the VPS bash scripts/pq-wipe.sh --yes (Justfile:110-112; scripts/pq-wipe.sh:34-75 safety checks)."
+    },
+    {
+      "name": "Database hot backup",
+      "what": "Takes a safe snapshot of the live database without stopping the server and keeps the newest 15; normally runs itself every 30 minutes.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps '/usr/local/bin/humanity-backup-db' (scripts/humanity-backup-db.sh:5-6,76,88; timer installed by deploy.yml); in-app Backups panel is tracked debt (docs/design/in-app-ops.md:39)."
+    },
+    {
+      "name": "Restore the database from a backup",
+      "what": "Bringing data back from a snapshot is fully manual: stop the server, copy the backup file over the live one, start again. No script and no in-app flow exist.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps; systemctl stop humanity-relay; cp /opt/Humanity/backups/relay-<ts>.db /opt/Humanity/data/relay.db; chown humanity:humanity; systemctl start humanity-relay (listed as CLI debt in docs/design/in-app-ops.md:39)."
+    },
+    {
+      "name": "Off-site backup pull to the owner's PC",
+      "what": "Copies the newest server snapshots down to the owner's home computer (the third copy in the 3-2-1 backup scheme); runs as a hidden Windows scheduled task or by hand.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "powershell -File scripts/backup-relay-from-vps.ps1 (scp to %USERPROFILE%\\HumanityBackups, keep 60; S4U+Hidden task recipe at scripts/backup-relay-from-vps.ps1:20-29)."
+    },
+    {
+      "name": "Disk-guard run and retention tuning",
+      "what": "The automatic disk janitor (every 20 min) rotates old backups and logs and reclaims build cache when the disk fills; its thresholds are only changeable as environment variables on its systemd unit.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "Manual: ssh humanity-vps '/opt/Humanity/scripts/humanity-disk-guard.sh'; tune HUMANITY_DISK_WARN_PCT / _CRIT_PCT / _BIN_BACKUP_KEEP / _DEPLOY_LOG_KEEP / _JOURNAL_MAX / _DB_BACKUP_KEEP (scripts/humanity-disk-guard.sh:14-57; debt at docs/design/in-app-ops.md:46)."
+    },
+    {
+      "name": "Watchdog history inspection",
+      "what": "The self-healing watchdog checks the server every 2 minutes and restarts it if hung; the app shows its current state, but reading its history requires the journal.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps 'journalctl -t humanity-relay-watchdog -n 50' (scripts/humanity-relay-watchdog.sh:14-31; in-app chip + CLI-fallback per docs/design/in-app-ops.md:88)."
+    },
+    {
+      "name": "Configure external alert channels (ntfy/Discord/Telegram/webhook)",
+      "what": "Where emergency alerts go is a hand-edited secrets file on the server; if it is never created, alerts silently go nowhere.",
+      "where": "config-file",
+      "audience": "owner",
+      "how": "ssh humanity-vps, copy data/alert-channels.example.json to /opt/Humanity/data/alert-channels.secrets.json and fill in tokens; test with node scripts/humanity-alert.js \"test\" info (scripts/humanity-alert.js:12-26; called the freshest debt in docs/design/in-app-ops.md:38)."
+    },
+    {
+      "name": "View and lift network-level IP bans (fail2ban)",
+      "what": "Automatic network bans for abusive IPs can only be listed or lifted with a shell tool; separate from in-app user bans.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps 'fail2ban-client status nginx-limit-req' / 'fail2ban-client set nginx-limit-req unbanip <ip>' (jails from scripts/fail2ban/nginx.local:1-15; debt at docs/design/in-app-ops.md:41)."
+    },
+    {
+      "name": "Verify a deploy (smoke check, drift detector, last-deploy report)",
+      "what": "Three read-only checks: that the service is running and served files are healthy, that deployed files byte-match the repo (catches silent drift), and what the last deploy actually did. Caution: the smoke check still greps a pre-v0.90 path and that step fails as written.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps 'bash /opt/Humanity/scripts/humanity-smoke-check.sh' (stale path at line 14); '/usr/local/bin/humanity-verify-runtime-sync' (scripts/humanity-verify-runtime-sync.sh:1-29); 'bash /opt/Humanity/scripts/humanity-deploy-last-report.sh' (lines 1-9)."
+    },
+    {
+      "name": "First-time production install",
+      "what": "Setting up a brand-new server is entirely shell work: create a dedicated system user, download and build the program, register it as a background service, create its settings file, and start it.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "Follow docs/admin/SELF-HOSTING.md:102-162 (useradd, git clone + cargo build --release --features relay --no-default-features, systemd unit, .env, systemctl enable + start)."
+    },
+    {
+      "name": "Set up and tune the public front door (nginx, TLS, firewall)",
+      "what": "HTTPS, per-IP rate limits, the 10MB upload cap, and the long WebSocket timeout all live in the nginx config in front of the app, plus certbot for certificates and ufw for the firewall.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "Edit /etc/nginx/sites-available/humanity, certbot --nginx -d your-domain.com, ufw allow 22/80/443 (docs/admin/SELF-HOSTING.md:164-253; never expose port 3210)."
+    },
+    {
+      "name": "Provision the release-signing keypair (one-time)",
+      "what": "Creates the signing keys the auto-updater trusts: the public halves are committed into every build, the encrypted private key stays only on the owner's machine.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "export HUMANITY_SIGNING_PASSPHRASE='...' && just gen-release-key on the operator's PC (Justfile:398-404; docs/admin/release-signing.md:32-58)."
+    },
+    {
+      "name": "Sign a published release",
+      "what": "After CI uploads the binaries, the owner signs the release locally so desktop auto-update will offer it; an unsigned release is simply invisible to updaters. CI cannot sign by design.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "export HUMANITY_SIGNING_PASSPHRASE='...' && just sign-release vX.Y.Z on the operator's PC (Justfile:410-423; docs/admin/release-signing.md:60-74)."
+    },
+    {
+      "name": "Independently verify a release signature",
+      "what": "Anyone can check a release against the committed public keys using a different crypto implementation than the signer; no private key needed.",
+      "where": "vps-shell",
+      "audience": "any-admin",
+      "how": "just verify-release vX.Y.Z; quick overview just check-signing (Justfile:430-435, 200-201; scripts/verify-release-signature.mjs)."
+    },
+    {
+      "name": "Forgejo git-mirror operations",
+      "what": "Everything about the self-hosted git mirror (service control, logs, settings file, backups, upgrades) is shell work on the server; it is a separate program with its own web admin.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "ssh humanity-vps 'systemctl status forgejo' / restart / journalctl -u forgejo / edit /etc/forgejo/app.ini / DB copy backup; upgrade = replace binary + restart (docs/admin/forgejo-setup.md:102-171)."
+    },
+    {
+      "name": "Litestream streaming replication (optional, not deployed)",
+      "what": "Continuous off-site database replication to cloud storage is a documented optional layer, installed and restored from entirely via shell; the live server verified 2026-07-03 does NOT run it.",
+      "where": "vps-shell",
+      "audience": "owner",
+      "how": "Install the .deb, write /etc/litestream.yml + credentials, enable litestream.service; disaster-restore with litestream restore then integrity_check + restart (docs/operations/litestream.md:29-117)."
+    }
+  ],
+  "planned": [
+    {
+      "name": "First-admin setup without editing a server file",
+      "today": "The only way to get your first admin is to SSH in, paste a long hex key into ADMIN_KEYS in /opt/Humanity/.env, and restart (src/relay/mod.rs:213-230). A zero-experience owner is stuck at a terminal before they can do anything else in this list.",
+      "proposal": "First-run claim flow: on first boot with no admins, the relay generates a one-time claim code (printed in the log AND shown by the setup page); the first user to enter it in-app becomes admin. Pair it with an in-app admin roster editor that keeps ADMIN_KEYS in sync (the roles editor already exists; in-app-ops.md:45 tracks the roster).",
+      "effort": "medium"
+    },
+    {
+      "name": "Backups panel: status, back up now, restore",
+      "today": "Backups run from a systemd timer; taking one manually and especially RESTORING one is raw shell (stop service, cp file, start) with no script (docs/design/in-app-ops.md:39). Restore is exactly the moment a panicked new owner should not be improvising in a terminal.",
+      "proposal": "Server Settings > Backups: last-backup time/size/count, a 'Back up now' button shelling to the same humanity-backup-db script, and a type-to-confirm 'Restore from...' picker that performs the stop/copy/start sequence safely.",
+      "effort": "medium"
+    },
+    {
+      "name": "Relay restart + log view that works without the owner's SSH key",
+      "today": "The in-app Restart and Tail-logs buttons shell out over the operator's personal humanity-vps SSH alias (src/gui/pages/relay_control.rs:448-464), so they only work on that one PC; every other admin needs a terminal (in-app-ops.md:42, 88).",
+      "proposal": "Extend the existing sudo-gated service_control bridge with a supervised restart action and a log ring-buffer read endpoint, so the Relays > Control tab's honest CLI-fallback cards become real buttons for any signed-in admin.",
+      "effort": "medium"
+    },
+    {
+      "name": "Alert channels editor",
+      "today": "Where emergency alerts go (ntfy/Discord/Telegram) is a hand-created secrets JSON on the VPS; if it is never created, alerts silently go nowhere (scripts/humanity-alert.js:12-26).",
+      "proposal": "Server Settings > Alerts: list/add/edit/remove channels plus a 'send test alert' button, backed by an admin-signed GET/PUT endpoint reading the same file the watchdog uses. Already flagged as the freshest debt and best first slice (in-app-ops.md:38).",
+      "effort": "small"
+    },
+    {
+      "name": "One-click server update",
+      "today": "Updating a self-hosted server is git pull + cargo build + systemctl restart over SSH (docs/admin/SELF-HOSTING.md:330-339); the flagship uses the operator-only just recipes.",
+      "proposal": "Relays > Control 'Update server' button that runs the documented pull/build/restart sequence via the sudo bridge with streamed progress and a version before/after check; falls back to showing the manual commands on failure.",
+      "effort": "large"
+    },
+    {
+      "name": "Secrets rotation panel (API_SECRET, webhook secrets, VAPID, TURN)",
+      "today": "Rotating any shared secret means editing /opt/Humanity/.env (and for TURN, also coturn's config) over SSH plus restarts (docs/admin/SELF-HOSTING.md:76-98; docs/admin/turn-rotation.md).",
+      "proposal": "Server Settings > Security: per-secret 'rotate' buttons that generate, write, and restart with type-to-confirm; steps that cannot be automated (the GitHub-side secret, coturn's config) render as an explicit checklist (in-app-ops.md:44).",
+      "effort": "medium"
+    },
+    {
+      "name": "Boot-default config editor (capacity knobs + donations panel)",
+      "today": "max_connections, max_history, broadcast_capacity, and the entire donations/funding section are hand-edits to data/server-config.json plus a restart (src/relay/relay.rs:239-264).",
+      "proposal": "Extend the existing Server policy editor with the three capacity fields and a Donations form (goal, addresses, links), written through an admin endpoint to the same file or its DB override.",
+      "effort": "small"
+    },
+    {
+      "name": "Registration persistence toggle",
+      "today": "Whether lockdown survives a restart (and auto-locks when no staff are online) is the REGISTRATION_DEFAULT_OPEN env var plus restart (src/relay/relay.rs:46-53, 281-291, 6066).",
+      "proposal": "A checkbox beside the existing in-app lockdown toggle ('keep lockdown across restarts / auto-lock when no staff online'), persisted in the database instead of the environment.",
+      "effort": "small"
+    },
+    {
+      "name": "Network (IP) ban panel",
+      "today": "Automatic fail2ban IP bans can only be listed or lifted via fail2ban-client over SSH (scripts/fail2ban/nginx.local; in-app-ops.md:41), invisible next to the in-app user-ban list.",
+      "proposal": "Read-mostly Security panel listing currently banned IPs with an Unban button, via a sudo-gated helper following the existing humanity-relay-services bridge pattern.",
+      "effort": "medium"
+    },
+    {
+      "name": "Disk-guard and retention knobs",
+      "today": "Backup keep-counts and disk warning thresholds are env vars on the disk-guard systemd unit, only editable over SSH (scripts/humanity-disk-guard.sh:14-57; in-app-ops.md:46).",
+      "proposal": "Editable threshold/keep-count fields in a System panel, persisted where the script reads them, with the current disk % (already fetched by admin stats) shown alongside.",
+      "effort": "small"
+    },
+    {
+      "name": "Watchdog history view",
+      "today": "The watchdog's up/suspect/healing/down history is only readable via journalctl over SSH (scripts/humanity-relay-watchdog.sh:14-31); the app shows only the current chip.",
+      "proposal": "Have the watchdog append a small state-history JSON the relay serves to admins; the Control tab renders a simple timeline of recent checks and heals.",
+      "effort": "small"
+    },
+    {
+      "name": "Backup mirror to the owner's PC from inside the app",
+      "today": "The off-site third copy is a hidden Windows scheduled task running an scp script (scripts/backup-relay-from-vps.ps1), invisible and fragile for a non-technical owner.",
+      "proposal": "Native app 'Mirror backups to this PC' setting: an admin-authenticated endpoint serves the newest snapshot and the desktop app downloads it on a schedule, showing last-mirrored age.",
+      "effort": "medium"
+    }
+  ],
+  "vps_only": [
+    {
+      "name": "nginx front door, TLS certificates, firewall",
+      "reason": "The front door sits outside and in front of the app process; when it is broken the app is unreachable, so no in-app control could exist to fix it."
+    },
+    {
+      "name": "First-time production install (system user, build, systemd unit)",
+      "reason": "The app cannot install itself or grant itself a service account before it exists and runs; the fix is a better guided installer script, not an in-app control."
+    },
+    {
+      "name": "Release signing (gen-release-key, sign-release)",
+      "reason": "The private key must live only on the operator's machine, off the server and out of CI, or the auto-updater's trust model collapses."
+    },
+    {
+      "name": "Direct SQLite surgery (just db / just sql)",
+      "reason": "Arbitrary raw database writes bypass every application invariant by definition; it exists precisely as the escape hatch below the app."
+    },
+    {
+      "name": "Fresh-slate pq-wipe",
+      "reason": "It destroys the very accounts (including the admin's) that any in-app authentication would ride on mid-operation; deliberately attended and out-of-band."
+    },
+    {
+      "name": "Host-down recovery (restart/triage when the relay process is dead or the disk is full)",
+      "reason": "Every in-app control depends on the relay answering; the shell is the only path when it is not, in-app-ops.md:104 codifies 'the CLI stays too' for exactly this."
+    },
+    {
+      "name": "Listen port and database location (PORT, DATABASE_PATH)",
+      "reason": "Host-topology choices tied to the nginx proxy and filesystem layout; changing them from inside the running process would sever its own connection mid-change."
+    },
+    {
+      "name": "Forgejo mirror administration",
+      "reason": "A separate product with its own service, database, and web admin UI; not part of the HumanityOS binary's domain."
+    },
+    {
+      "name": "Litestream replication",
+      "reason": "An optional host-level daemon holding cloud credentials beside the app; infrastructure around the app, not behavior of it (and not currently deployed)."
+    }
+  ]
+}
