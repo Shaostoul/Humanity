@@ -7,15 +7,17 @@
   if (window.__HOS_TOUR_INIT__) return;
   window.__HOS_TOUR_INIT__ = true;
 
+  // Steps live in data/onboarding/tour.json (infinite-of-x); the literal below
+  // is only the offline fallback shown if the fetch fails.
   var TOUR_STEPS = [
-    { target: null, title: 'Welcome to HumanityOS!', text: 'A cooperative platform to end poverty and unite humanity. Let\'s show you around.' },
-    { target: 'a[href="/chat"]', title: 'Network', text: 'Chat with others, join voice channels, and send encrypted DMs.' },
-    { target: 'a[href="/tasks"]', title: 'Tasks', text: 'Track projects with the kanban board. Create tasks, assign them, and organize by project.' },
-    { target: 'a[href="/market"]', title: 'Marketplace', text: 'Buy, sell, and trade with other members. Zero middleman fees.' },
-    { target: 'a[href="/wallet"]', title: 'Wallet', text: 'Your identity IS your wallet. Send, receive, and manage crypto.' },
-    { target: 'a[href="/settings"]', title: 'Settings', text: 'Customize your experience, manage your identity, and configure notifications.' },
-    { target: null, title: 'You\'re all set!', text: 'Start by chatting in the Network tab, or explore at your own pace. Your identity is secured with Ed25519 cryptography \u2014 back up your seed phrase in Settings!' }
+    { target: null, title: 'Welcome to HumanityOS!', text: 'A cooperative platform to end poverty and unite humanity.' }
   ];
+  var stepsLoaded = fetch('/data/onboarding/tour.json')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (d && Array.isArray(d.steps) && d.steps.length) TOUR_STEPS = d.steps;
+    })
+    .catch(function () { /* offline: keep the fallback welcome */ });
 
   var currentStep = 0;
   var overlay = null;
@@ -311,6 +313,12 @@
 
   // ── Public API ──
   function startTour() {
+    // Wait for the data-driven steps (resolves immediately once loaded; falls
+    // back to the minimal welcome if the fetch failed).
+    stepsLoaded.then(startTourNow);
+  }
+
+  function startTourNow() {
     if (overlay) return; // already running
     currentStep = 0;
     injectStyles();

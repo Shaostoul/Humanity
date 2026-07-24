@@ -1,0 +1,15 @@
+{
+  "_purpose": "The Fibonacci scope taxonomy for tasks (infinite-of-x: was hardcoded in web/pages/tasks-app.js). n is the Fibonacci community size the scope represents; key is what task labels store; color/desc drive the scope tabs and badges. Edit here; the tasks page fetches this file at boot. Native has no scope UI yet; when it grows one it should read this same file.",
+  "scopes": [
+    { "n": 1,  "key": "self",    "label": "Self",    "color": "#ff6b6b", "desc": "Personal health, body, daily needs" },
+    { "n": 1,  "key": "mind",    "label": "Mind",    "color": "#ff9f43", "desc": "Learning, mental health, personal skills" },
+    { "n": 2,  "key": "hearth",  "label": "Hearth",  "color": "#ffd32a", "desc": "Home, close relationships, household" },
+    { "n": 3,  "key": "circle",  "label": "Circle",  "color": "#0be881", "desc": "Friend group / small team (3-8 people)" },
+    { "n": 5,  "key": "village", "label": "Village", "color": "#05c46b", "desc": "Neighborhood / working group (8-21 people)" },
+    { "n": 8,  "key": "city",    "label": "City",    "color": "#0fbcf9", "desc": "Project level, HumanityOS (default)" },
+    { "n": 13, "key": "region",  "label": "Region",  "color": "#7f8fa6", "desc": "Large organization / national / bioregional" },
+    { "n": 21, "key": "world",   "label": "World",   "color": "#a29bfe", "desc": "Civilization-wide, planetary goals" },
+    { "n": 34, "key": "solar",   "label": "Solar",   "color": "#74b9ff", "desc": "Solar System, space stations, Mars colony" },
+    { "n": 55, "key": "cosmos",  "label": "Cosmos",  "color": "#dfe6e9", "desc": "Interstellar civilization" }
+  ]
+}

@@ -1,16 +1,18 @@
-/* ── Fibonacci scope definitions ── */
-const SCOPES = [
-  { n:1,  key:'self',    label:'Self',    color:'#ff6b6b', desc:'Personal health, body, daily needs' },
-  { n:1,  key:'mind',    label:'Mind',    color:'#ff9f43', desc:'Learning, mental health, personal skills' },
-  { n:2,  key:'hearth',  label:'Hearth',  color:'#ffd32a', desc:'Home, close relationships, household' },
-  { n:3,  key:'circle',  label:'Circle',  color:'#0be881', desc:'Friend group / small team (3–8 people)' },
-  { n:5,  key:'village', label:'Village', color:'#05c46b', desc:'Neighborhood / working group (8–21 people)' },
-  { n:8,  key:'city',    label:'City',    color:'#0fbcf9', desc:'Project level, HumanityOS (default)' },
-  { n:13, key:'region',  label:'Region',  color:'#7f8fa6', desc:'Large organization / national / bioregional' },
-  { n:21, key:'world',   label:'World',   color:'#a29bfe', desc:'Civilization-wide, planetary goals' },
-  { n:34, key:'solar',   label:'Solar',   color:'#74b9ff', desc:'Solar System, space stations, Mars colony' },
-  { n:55, key:'cosmos',  label:'Cosmos',  color:'#dfe6e9', desc:'Interstellar civilization' },
+/* ── Fibonacci scope definitions ──
+ * The taxonomy lives in data/tasks/scopes.json (infinite-of-x); boot() fetches
+ * it before init(). The literal below is only the offline emergency fallback. */
+let SCOPES = [
+  { n:1,  key:'self',   label:'Self',   color:'#ff6b6b', desc:'Personal health, body, daily needs' },
+  { n:8,  key:'city',   label:'City',   color:'#0fbcf9', desc:'Project level, HumanityOS (default)' },
+  { n:55, key:'cosmos', label:'Cosmos', color:'#dfe6e9', desc:'Interstellar civilization' },
 ];
+function defaultScope() {
+  return SCOPES.find(s => s.key === 'city') || SCOPES[SCOPES.length - 1];
+}
+
+/* ── Skill XP curve (data/skills/xp_curve.json; fallback if fetch fails) ── */
+let XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
+let MAX_LEVEL = 10;
 
 let allTasks = [];
 let activeScope = 'cosmos';
@@ -132,7 +134,7 @@ function renderBoard() {
 }
 
 function renderControls() {
-  const scope = SCOPES.find(s => s.key === activeScope) || SCOPES[5];
+  const scope = SCOPES.find(s => s.key === activeScope) || defaultScope();
   document.getElementById('scope-desc').innerHTML =
     `<strong style="color:${scope.color}">${scope.n}·${scope.label}</strong> &mdash; ${scope.desc}`;
   const tasks = scopedTasks();
@@ -147,7 +149,7 @@ function renderControls() {
 }
 
 function renderCard(task) {
-  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || SCOPES[5];
+  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || defaultScope();
   const labels = getNonScopeLabels(task);
   // Test tally for testing-column cards
   let testTally = '';
@@ -357,7 +359,7 @@ function openDetail(id) {
   const task = allTasks.find(t => t.id === id);
   if (!task) return;
 
-  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || SCOPES[5];
+  const scope = SCOPES.find(s => s.key === getTaskScope(task)) || defaultScope();
   const labels = getNonScopeLabels(task);
 
   document.getElementById('detail-id').textContent = '#' + task.id;
@@ -1079,7 +1081,20 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') quest_saveQuest();
 });
 
-init();
+/* ── Boot: hydrate the data-driven registries, then init. Both files are
+ * same-origin static JSON; on failure the embedded fallbacks keep the page
+ * functional offline. ── */
+Promise.allSettled([
+  fetch('/data/tasks/scopes.json').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && Array.isArray(d.scopes) && d.scopes.length) SCOPES = d.scopes;
+  }),
+  fetch('/data/skills/xp_curve.json').then(r => r.ok ? r.json() : null).then(d => {
+    if (d && Array.isArray(d.xp_per_level) && d.xp_per_level.length) {
+      XP_PER_LEVEL = d.xp_per_level;
+      MAX_LEVEL = d.max_level || XP_PER_LEVEL.length;
+    }
+  }),
+]).then(init);
 
 /* ═══════════════════════════════════════════════════════════════
    View tab switching (Kanban / Quests)
@@ -1197,8 +1212,6 @@ function quest_toggleDone(id) {
  * Applies level-ups automatically using the same XP table as skills.html.
  */
 function awardSkillXp(skillId, amount) {
-  const XP_PER_LEVEL = [100,150,225,338,507,760,1140,1710,2565,3848];
-  const MAX_LEVEL = 10;
   try {
     const data = JSON.parse(localStorage.getItem('hos_skills_v1') || '{}');
     if (!data[skillId]) data[skillId] = { level: 0, xp: 0 };

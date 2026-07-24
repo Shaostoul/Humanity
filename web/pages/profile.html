@@ -1434,8 +1434,19 @@
       },
     ];
 
+    // XP curve lives in data/skills/xp_curve.json (shared with the tasks page);
+    // the literals below are only the offline fallback.
     var SKILL_XP_PER_LEVEL = [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848];
     var SKILL_MAX_LEVEL = 10;
+    fetch('/data/skills/xp_curve.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && Array.isArray(d.xp_per_level) && d.xp_per_level.length) {
+          SKILL_XP_PER_LEVEL = d.xp_per_level;
+          SKILL_MAX_LEVEL = d.max_level || d.xp_per_level.length;
+        }
+      })
+      .catch(function () { /* offline: keep the fallback */ });
     var SKILL_STORAGE_KEY = 'hos_skills_v1';
 
     var skillData = {};

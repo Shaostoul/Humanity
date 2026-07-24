@@ -1,0 +1,5 @@
+{
+  "_purpose": "The skill XP progression curve (infinite-of-x: was duplicated as hardcoded arrays in web/pages/tasks-app.js and web/pages/profile.html). xp_per_level[i] is the XP needed to advance FROM level i; max_level caps progression. Edit here; the web pages fetch this file. If native skill leveling ever needs the same curve, read this file rather than adding a third copy.",
+  "max_level": 10,
+  "xp_per_level": [100, 150, 225, 338, 507, 760, 1140, 1710, 2565, 3848]
+}
