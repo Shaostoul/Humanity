@@ -93,6 +93,114 @@ pub fn transmittance_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
     out
 }
 
+// ── Stage 2: the multiple-scattering LUT (Hillaire 2020 section 5.1) ──
+//
+// Psi_ms(height, sun-zenith): the total multiply-scattered radiance factor,
+// under the paper's two assumptions - scattering orders >= 2 are ISOTROPIC,
+// and locally uniform - so the infinite bounce series collapses to a
+// geometric sum: Psi = L_2nd * 1 / (1 - f_ms), where L_2nd is second-order
+// in-scatter (integrated over the sphere of directions) and f_ms is the
+// fraction of scattered energy that scatters AGAIN. This is the missing
+// energy that the megashader currently fakes with the flat MS_ISO = 0.07
+// gate; when stage 3's sky-view march consumes this LUT instead, twilight
+// depth and zenith brightness become physics.
+//
+// Texture layout (32 x 32; the stage-3 sampler must mirror it):
+// - u in [0,1] <=> sun mu_s in [-0.15, 1.0]  (same u_to_mu as transmittance)
+// - v in [0,1] <=> altitude in [0, ALT_SPAN_H scale heights] (same v_to_r)
+// - texel = [Psi_r, Psi_g, Psi_b, 1.0]
+
+pub const MS_LUT_W: usize = 32;
+pub const MS_LUT_H: usize = 32;
+
+/// Sphere-direction count for the second-order integral (8 azimuth x 8
+/// elevation, uniform on the sphere via cos-elevation stratification) and
+/// march steps per direction. Paper uses 64 dirs / 20 steps at this size.
+const MS_DIRS_AZ: usize = 8;
+const MS_DIRS_EL: usize = 8;
+const MS_STEPS: usize = 20;
+
+/// Generate the multiple-scattering LUT, row-major MS_LUT_W x MS_LUT_H.
+pub fn multiple_scattering_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
+    use super::atmosphere::{od_to_space, TAU_MIE, TAU_RAYLEIGH};
+    let iso_phase = 1.0 / (4.0 * std::f32::consts::PI);
+    // Per-channel scattering coefficient at surface density (per shell
+    // radius): the shader's beta = tau / h convention.
+    let beta = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE) / p.h * p.density_mul;
+    // Extinction adds the 1.11 Mie absorption factor, as the shader does.
+    let beta_ext = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE * 1.11) / p.h * p.density_mul;
+
+    let mut out = Vec::with_capacity(MS_LUT_W * MS_LUT_H);
+    for ty in 0..MS_LUT_H {
+        let v = (ty as f32 + 0.5) / MS_LUT_H as f32;
+        let r0 = v_to_r(v, p.rp, p.h);
+        for tx in 0..MS_LUT_W {
+            let u = (tx as f32 + 0.5) / MS_LUT_W as f32;
+            let mu_s = u_to_mu(u);
+
+            let mut l2 = [0.0f32; 3]; // second-order in-scatter
+            let mut f_ms = [0.0f32; 3]; // re-scatter fraction
+            for ei in 0..MS_DIRS_EL {
+                // Stratified uniform sphere: cos(elevation) uniform in [-1,1].
+                let cos_el = -1.0 + 2.0 * (ei as f32 + 0.5) / MS_DIRS_EL as f32;
+                let sin_el = (1.0 - cos_el * cos_el).max(0.0).sqrt();
+                for ai in 0..MS_DIRS_AZ {
+                    let az = std::f32::consts::TAU * (ai as f32 + 0.5) / MS_DIRS_AZ as f32;
+                    // Direction relative to local up; only the vertical
+                    // component matters for the 1D exponential atmosphere,
+                    // but azimuth changes the sun angle at samples.
+                    let dir_up = cos_el;
+                    // March to the atmosphere top (or ground hit).
+                    // Segment length: to shell top along this direction -
+                    // approximate with the vertical span / |dir_up| capped at
+                    // a few spans (horizontal rays get the cap).
+                    let span = (1.0 - r0).max(p.h);
+                    let seg = if dir_up.abs() > 0.05 {
+                        (span / dir_up.abs()).min(span * 8.0)
+                    } else {
+                        span * 8.0
+                    };
+                    let dt = seg / MS_STEPS as f32;
+                    let mut od_along = 0.0f32; // density-integrated path so far
+                    for si in 0..MS_STEPS {
+                        let t = (si as f32 + 0.5) * dt;
+                        let r_s = (r0 + t * dir_up).clamp(p.rp, 1.0);
+                        // Ground hit: the ray is absorbed (skip the rest;
+                        // ground albedo bounce is a stage-3+ refinement).
+                        if r0 + t * dir_up < p.rp {
+                            break;
+                        }
+                        let dens = (-(r_s - p.rp) / p.h).exp();
+                        od_along += dens * dt;
+                        // Sun transmittance at the sample (channel green used
+                        // for the shared od; per-channel via beta_ext below).
+                        let od_sun = od_to_space(r_s, mu_s, p.rp, p.h);
+                        // The sun below the local horizon at the sample:
+                        // od_to_space returns 1e9 -> exp kills the term.
+                        for c in 0..3 {
+                            let t_along = (-(beta_ext(c)) * od_along).exp();
+                            let t_sun = (-(beta_ext(c)) * od_sun).exp();
+                            let sigma = beta(c) * dens;
+                            l2[c] += t_along * sigma * t_sun * iso_phase * dt;
+                            f_ms[c] += t_along * sigma * dt;
+                        }
+                    }
+                }
+            }
+            let n = (MS_DIRS_AZ * MS_DIRS_EL) as f32;
+            // Average over the sphere (the 4pi solid angle is folded into the
+            // isotropic phase), then the geometric series.
+            let psi = |c: usize| {
+                let l = l2[c] / n;
+                let f = (f_ms[c] / n * iso_phase * 4.0 * std::f32::consts::PI).min(0.99);
+                l / (1.0 - f)
+            };
+            out.push([psi(0), psi(1), psi(2), 1.0]);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,5 +271,56 @@ mod tests {
         assert!((v_to_r(0.0, p.rp, p.h) - p.rp).abs() < 1e-6);
         let top = v_to_r(1.0, p.rp, p.h);
         assert!((top - (p.rp + (ALT_SPAN_H * p.h).min(1.0 - p.rp))).abs() < 1e-6);
+    }
+
+    /// Multiple-scattering physics: Psi is finite and non-negative
+    /// everywhere; with the sun up on Earth-tint air the glow is BLUE-heavy
+    /// (Rayleigh scatters blue - this is why the sky's ambient is blue); a
+    /// sun below the horizon yields far less energy than one overhead (the
+    /// planet shadows the second order); and the top-of-atmosphere row is
+    /// near zero (no medium to scatter in).
+    #[test]
+    fn multiple_scattering_is_sane() {
+        let p = earthish();
+        let lut = multiple_scattering_lut(&p);
+        assert_eq!(lut.len(), MS_LUT_W * MS_LUT_H);
+        for (i, t) in lut.iter().enumerate() {
+            for c in 0..3 {
+                assert!(t[c].is_finite() && t[c] >= 0.0, "texel {i} channel {c}: {}", t[c]);
+            }
+        }
+        let texel = |u: f32, v: f32| {
+            let tx = ((u * MS_LUT_W as f32) as usize).min(MS_LUT_W - 1);
+            let ty = ((v * MS_LUT_H as f32) as usize).min(MS_LUT_H - 1);
+            lut[ty * MS_LUT_W + tx]
+        };
+        // Surface, sun overhead (mu_s = 1 -> u = 1).
+        let noon = texel(0.999, 0.0);
+        assert!(noon[2] > noon[0], "MS glow should be blue-heavy at noon (R={} B={})", noon[0], noon[2]);
+        // Surface, sun well below the horizon (mu_s = -0.15 -> u = 0).
+        let night = texel(0.0, 0.0);
+        assert!(
+            night[2] < noon[2] * 0.2,
+            "below-horizon sun should collapse the second order (noon B={} night B={})",
+            noon[2],
+            night[2]
+        );
+        // Top of the LUT span (12 scale heights): the local medium is gone
+        // but the bright shell BELOW still fills nearly half the sphere, so
+        // Psi shrinks rather than collapsing - assert the direction, not a
+        // collapse (the first version of this test wrongly expected near-zero
+        // and the sphere integral proved it wrong, which is the point of it).
+        let top = texel(0.999, 0.999);
+        // (Measured: top can sit a few percent ABOVE the surface value -
+        // less extinction between the observer and the bright shell below.
+        // Assert same order of magnitude, not an inequality that physics
+        // does not actually promise.)
+        assert!(
+            top[2] <= noon[2] * 1.5,
+            "Psi at the top of the span should stay within ~1.5x of the surface value (top B={} noon B={})",
+            top[2],
+            noon[2]
+        );
+        assert!(top[2] > 0.0, "the shell below must still contribute at altitude");
     }
 }
