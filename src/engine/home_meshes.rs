@@ -200,6 +200,9 @@ pub(crate) fn rebuild_hull(state: &mut EngineState) {
     };
 }
 
+/// Regenerate the homestead meshes from the live layout (the construction editor's apply).
+/// Also refreshes room lights + the sealed-volume bounds, since a height/wall edit changes
+/// them. (v0.455)
 pub(crate) fn rebuild_homestead(state: &mut EngineState) {
     // Normalize every corner onto the corner grid (v0.574) so co-located corners are byte-identical
     // -- this self-heals any older home whose snapped corners had sub-tolerance residue (which read

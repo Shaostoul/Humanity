@@ -8,6 +8,7 @@
 
 pub mod color;
 pub mod dm;
+pub mod editor;
 pub mod frame_lock;
 pub mod geom;
 pub mod home_meshes;
