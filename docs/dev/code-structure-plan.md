@@ -33,7 +33,7 @@ big-bang rewrite is needed or wanted.
 Everything else is under 3.5k and domain-shaped. Web JS is healthy (largest
 real file ~2.4k).
 
-## lib.rs staged extraction (safest first)
+## lib.rs staged extraction (safest first) - COMPLETE 2026-07-25 (v0.932-v0.941): tiers A-G all shipped; lib.rs 22,638 -> 14,937 (7,701 lines across 14 src/engine/ modules). What remains in lib.rs by design: module decls, init (resumed), the frame loop dispatch, and the scene-assembly block (which owns wgpu surface/encoder lifetimes). Line numbers below are historical.
 
 Shape today: `#[cfg(feature = "native")] mod native_app` spans nearly the whole
 file. EngineState (~100+ fields, def at ~7935-8529) is the god-struct; almost

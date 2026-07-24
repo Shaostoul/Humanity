@@ -15,5 +15,7 @@ pub mod home_meshes;
 pub mod home_spawn;
 pub mod ipc;
 pub mod ipc_parse;
+pub mod net_route;
 pub mod registries;
 pub mod state;
+pub mod world_load;
