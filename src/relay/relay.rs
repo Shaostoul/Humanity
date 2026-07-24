@@ -20,8 +20,10 @@ use crate::relay::handlers::game_state::GameWorld;
 // Re-export start_federation_connections so main.rs can call relay::start_federation_connections.
 pub use crate::relay::handlers::start_federation_connections;
 
-/// Allowed emoji reactions (whitelist).
-const ALLOWED_REACTIONS: &[&str] = &["❤️", "😂", "👍", "👎", "🔥", "😮", "😢", "🎉"];
+// Reaction allowlist now lives in data/reactions.json via crate::reactions
+// (one source for native picker + relay + web). Incoming reactions are
+// normalized (FE0F stripped) before validation and storage, so the bare
+// native form and the FE0F web form of the same emoji count as one reaction.
 
 /// Default broadcast channel capacity (overridden by server-config.json "broadcast_capacity").
 const DEFAULT_BROADCAST_CAPACITY: usize = 256;
@@ -5104,10 +5106,13 @@ pub async fn handle_connection(socket: WebSocket, state: Arc<RelayState>, client
                             }
                             // Reaction — persist and broadcast to all peers.
                             RelayMessage::Reaction { target_from, target_timestamp, emoji, channel: reaction_channel, .. } => {
-                                // L-5: Whitelist-only emoji reactions.
-                                if !ALLOWED_REACTIONS.contains(&emoji.as_str()) {
+                                // L-5: Whitelist-only emoji reactions (data/reactions.json).
+                                if !crate::reactions::is_allowed(&emoji) {
                                     continue; // Silently drop reactions not in whitelist
                                 }
+                                // Canonical bare form: web sends FE0F variants, native sends
+                                // bare; store/broadcast ONE form so pickers and pills agree.
+                                let emoji = crate::reactions::normalize(&emoji);
                                 let peer = state_clone.peers.read().await.get(&my_key_for_recv).cloned();
                                 let display = peer.as_ref().and_then(|p| p.display_name.clone());
                                 let ch = if reaction_channel.is_empty() { "general".to_string() } else { reaction_channel };

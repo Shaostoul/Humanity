@@ -43,6 +43,10 @@ pub mod dev_travel;
 pub mod surface_walk;
 /// Curated named viewpoints (data/scenic_views.ron) for the camera-hub arc.
 pub mod scenic_views;
+/// Reaction emoji palette (data/reactions.json): one source for the native
+/// picker, the relay allowlist, and (via HTTP) the web picker. Ungated - both
+/// feature sets consume it.
+pub mod reactions;
 /// Boot-phase timing -> log summary + debug/boot_timing.json (dev tooling).
 pub mod boot_timing;
 

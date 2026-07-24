@@ -5,7 +5,17 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── Emoji Reactions ──
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉', '🔥', '👀'];
+// The palette lives in data/reactions.json (one source shared with the native
+// picker and the relay allowlist; served by nginx at /data/reactions.json).
+// The literal below is only the offline fallback. Entries are BARE (no U+FE0F)
+// to match the relay's canonical stored form.
+let REACTION_EMOJIS = ['👍', '❤', '😂', '😮', '😢', '🎉', '🔥', '👀'];
+fetch('/data/reactions.json')
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (d) {
+    if (d && Array.isArray(d.top) && d.top.length) REACTION_EMOJIS = d.top;
+  })
+  .catch(function () { /* offline: keep the fallback */ });
 // Track reactions: key = "fromKey:timestamp", value = { emoji: Set(reactorKeys) }
 const messageReactions = {};
 

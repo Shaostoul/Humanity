@@ -1,0 +1,15 @@
+// HumanityOS OPENING STYLES -- door/window animation styles the construction editor offers.
+// The opening stores the chosen string; a later stage animates from it. Add a style by adding
+// a line here (infinite-of-x): the editor lists every entry, and an AI can enumerate them, so
+// this file IS the source of truth for "what opening styles exist". Compile-time embedded
+// (same registry pattern as lock_types.ron); a change here needs a rebuild.
+[
+    "swing",
+    "slide",
+    "iris",
+    "rotate",
+    "fold",
+    "energy",
+    "nanowall",
+    "fixed",
+]

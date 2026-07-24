@@ -3126,22 +3126,10 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         // plane, so we can use a real reaction palette here.
                         // The icon_glyph_lint test still catches U+FE0F
                         // variation selectors and known-broken glyphs.
-                        const TOP_REACTIONS: &[&str] = &[
-                            "❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐",
-                        ];
-                        const ALL_REACTIONS: &[&str] = &[
-                            // Hearts (colored) — system font supplies these.
-                            "❤", "🧡", "💛", "💚", "💙", "💜", "🤍", "🖤", "🤎",
-                            // Faces — laughs, cries, surprises, anger, love.
-                            "😂", "🤣", "😢", "😭", "😡", "🤬", "😮", "😱", "🥰", "😍",
-                            "🤔", "🙄", "😴", "🤯", "🥳", "😎",
-                            // Hands & gestures.
-                            "👍", "👎", "👏", "🙌", "🙏", "🤝", "✊", "💪",
-                            // Symbols / objects.
-                            "🔥", "💯", "⭐", "🎉", "✨", "💡", "🚀", "💀", "👀",
-                            // Picker handle.
-                            "∞",
-                        ];
+                        // Palette lives in data/reactions.json (one source for
+                        // native, relay allowlist, and web) via crate::reactions.
+                        let top_reactions: &'static [String] = crate::reactions::top();
+                        let all_reactions: &'static [String] = crate::reactions::all();
                         let is_own = msg.sender_key == state.profile_public_key;
 
                         // Estimated popup geometry — needed for the sticky
@@ -3154,7 +3142,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         let est_popup_w =
                             func_w
                             + 18.0                       // Þ separator
-                            + TOP_REACTIONS.len() as f32 * 28.0 // top-10 reactions
+                            + top_reactions.len() as f32 * 28.0 // quick-row reactions
                             + 30.0                       // ∞ button
                             + 16.0;                      // padding
                         // Popup rect adjacent to the pill (no gap so cursor
@@ -3343,7 +3331,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                 // any U+FE0F variation selector — it ends up
                                                 // as a tofu square next to ❤ in fonts that
                                                 // don't honor the emoji presentation hint.
-                                                for emoji in TOP_REACTIONS {
+                                                for emoji in top_reactions {
                                                     let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
                                                     if ui.add(
                                                         egui::Button::new(RichText::new(&clean).size(theme.font_size_body))
@@ -3370,7 +3358,7 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                                     |ui| {
                                                         ui.set_min_width(280.0);
                                                         ui.horizontal_wrapped(|ui| {
-                                                            for emoji in ALL_REACTIONS {
+                                                            for emoji in all_reactions {
                                                                 let clean: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect(); // glyph-exempt: stripping the selector, not rendering it
                                                                 if ui.button(&clean).clicked() {
                                                                     pending_reactions.push((target_from.clone(), target_ts, clean.clone()));

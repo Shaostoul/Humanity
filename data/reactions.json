@@ -1,0 +1,12 @@
+{
+  "_purpose": "The ONE reaction emoji palette (infinite-of-x). Consumed by native chat (src/reactions.rs, compile-time embedded), the relay's reaction allowlist (same module), and the web chat picker (fetched at runtime). Before 2026-07-24 these were three divergent hardcoded lists and the relay silently dropped most native reactions. Entries are stored in BARE form (no U+FE0F variation selector): the loader strips FE0F defensively, the relay normalizes incoming reactions the same way, and egui renders FE0F as tofu. Add a reaction by adding it to 'all' (and 'top' if it belongs on the quick row); native + relay pick it up on the next build, web on the next page load.",
+  "top": ["❤", "👍", "👎", "😂", "🤣", "😢", "😡", "🔥", "💯", "⭐"],
+  "all": [
+    "❤", "🧡", "💛", "💚", "💙", "💜", "🤍", "🖤", "🤎",
+    "😂", "🤣", "😢", "😭", "😡", "🤬", "😮", "😱", "🥰", "😍",
+    "🤔", "🙄", "😴", "🤯", "🥳", "😎",
+    "👍", "👎", "👏", "🙌", "🙏", "🤝", "✊", "💪",
+    "🔥", "💯", "⭐", "🎉", "✨", "💡", "🚀", "💀", "👀",
+    "∞"
+  ]
+}
