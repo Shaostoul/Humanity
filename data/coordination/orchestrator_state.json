@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "2026-07-24 Fable cleanup arc CONTINUES: shipped v0.931 (reactions+opening styles), v0.932 (lib.rs tiers A+B -> src/engine/), v0.933 (Admin map: ops registry native+web). NEXT: lib.rs tier D (frame-lock/celestial math) + C (IPC pollers); server-tools gaps from ops_registry.json planned[] (first-admin setup, backups panel, restart/logs sans SSH); remaining infinite-of-x queue (crew/equipment RON, keybinds unification). Graphics LOOP QUEUE still paused behind this arc. SIGNING: v0.931.0-v0.933.1 all need operator just sign-release.",
+  "current_focus": "2026-07-24 Fable cleanup arc: v0.931 reactions, v0.932 tiers A+B, v0.933 Admin map, v0.934 KEYSTONE (EngineState+tier D), v0.935 tier C (lib.rs 22,638 -> 19,469), v0.936 /claim first-admin. NEXT: [1] infinite-of-x remainder (NPC crew + room equipment -> RON in relay game_state.rs; web keybinds -> shared data/keymaps), [2] server-tools gap #2 backups panel, [3] lib.rs tiers E/F/G (editor cluster, mesh rebuilds, load_world). Graphics LOOP QUEUE resumes after. SIGNING: v0.931.0-v0.936.x await just sign-release.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -208,6 +208,10 @@
     {
       "when": "2026-07-24",
       "what": "FIRST-ADMIN CLAIM CODE design (server-tools gap #1, next up): no first-user-wins (deliberate, mod.rs admin bootstrap comment). Instead: on startup with zero admins and no ADMIN_KEYS, relay generates a one-time claim code, prints to console + writes beside the DB (host access = ownership proof, same anchor as .env but no hex/env/restart). Server Settings shows Claim-this-server box when relay reports unclaimed; claim_server{code} promotes the sender and burns the code. ADMIN_KEYS stays as the automation path."
+    },
+    {
+      "when": "2026-07-24",
+      "what": "v0.936.0 /claim shipped (server-tools gap #1): zero-admin relay prints a one-time CSPRNG code to console + data/owner-claim-code.txt; /claim <code> promotes + burns; unclaimed notice to connecting users; ADMIN_KEYS stays as automation path. Rode the /command path so native AND web get it with no UI work (the Server Settings claim box can wrap it later). Registry updated: 71 actions, 11 planned. Live relay unaffected (has admins -> cleanup path only)."
     }
   ],
   "active_scopes_to_avoid": [
