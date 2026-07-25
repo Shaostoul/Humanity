@@ -612,6 +612,13 @@ pub struct CameraController {
     /// E held (v0.890): bank right while flying. On foot E stays the game's
     /// interact key (handled in lib.rs, not here).
     roll_right: bool,
+    /// Synced from lib.rs's `surface_owns_translation` each frame (v0.962,
+    /// the liftoff fix): in the CO-ROTATE band the frame-lock integrates all
+    /// movement and this controller must not double-move; in the 100-1000 km
+    /// BLEND band surface_mode stays true for the up-vector ease but nothing
+    /// else owns translation, so the local fly path must run (below the FTL
+    /// cap it used to freeze entirely there).
+    pub surface_translation_owned: bool,
 }
 
 impl CameraController {
@@ -648,6 +655,7 @@ impl CameraController {
             fly_speed_mult: 1.0,
             roll_left: false,
             roll_right: false,
+            surface_translation_owned: true,
         }
     }
 
@@ -962,12 +970,13 @@ impl CameraController {
         }
 
         // ── Planetary surface FPS (task #76 increment 1) ── When the main
-        // loop has engaged surface mode (camera near a body's ground while
-        // frame-locked to it), ALL translation is owned by the frame-lock in
-        // lib.rs: it walks along the tangent plane and applies gravity by
-        // moving the co-rotating anchor, so the ground never slides. Here we
-        // only take the mouse look (done above) and leave position alone.
-        if camera.surface_mode {
+        // loop's frame-lock OWNS translation (co-rotate band: walk + gravity
+        // move the anchor so the ground never slides), leave position alone;
+        // only the mouse look above applies. v0.962: the ownership flag, not
+        // surface_mode - surface_mode stays true through the 100-1000 km
+        // blend band purely for the up-vector ease, and below the FTL cap
+        // this early-return used to FREEZE all movement there.
+        if camera.surface_mode && self.surface_translation_owned {
             self.vertical_velocity = 0.0;
             self.is_grounded = false;
             return;
@@ -979,7 +988,16 @@ impl CameraController {
         // ground snap. Status-effect / gear speed modifiers are deliberately
         // ignored -- this is a dev inspection tool, not gameplay movement.
         if self.fly_mode {
-            let wish = self.fly_wish_dir(camera);
+            // v0.962 (operator: "I can't seem to go straight up off the
+            // planet"): in the blend band Space must thrust along the SAME
+            // eased up the camera basis uses (radial at 100 km -> world Y at
+            // 1000 km), not raw world +Y. At southern latitudes +Y points
+            // mostly sideways-and-DOWN relative to the ground, which read as
+            // zooming laterally at fixed altitude until the equator flipped
+            // the sign. camera.up carries the eased axis while surface_mode
+            // is on; elsewhere it is world Y by construction.
+            let up_axis = if camera.surface_mode { camera.up } else { Vec3::Y };
+            let wish = self.fly_wish_dir_up(camera, up_axis);
             // Only the LOCAL share of the multiplier is applied to the f32
             // camera position; the world-scale share (above the cap) moves
             // ship_world_pos in lib.rs (see LOCAL_FLY_MULT_MAX). When the
@@ -1181,5 +1199,61 @@ impl CameraController {
             pan = pan.normalize() * pan_speed * dt;
             camera.orbit_target += pan;
         }
+    }
+}
+
+#[cfg(test)]
+mod liftoff_tests {
+    use super::*;
+
+    /// v0.962 liftoff fix: with ONLY ascend held, the fly wish must point
+    /// along the SUPPLIED up axis - in the blend band that is the eased
+    /// radial, so Space leaves the planet perpendicularly. The old world-Y
+    /// axis at 35 degrees south had dot(radial, Y) = sin(-35) < 0: Space
+    /// pushed toward the ground and slid you sideways at fixed altitude
+    /// (the operator's "can't leave the planet perpendicularly").
+    #[test]
+    fn ascend_thrusts_along_supplied_up() {
+        let mut cam = Camera::new();
+        let lat: f32 = (-35.0_f32).to_radians();
+        let radial = Vec3::new(lat.cos(), lat.sin(), 0.0).normalize();
+        cam.set_surface_up(radial);
+        let mut ctl = CameraController::new(5.0, 1.0);
+        ctl.ascend = true;
+        let wish = ctl.fly_wish_dir_up(&cam, cam.up);
+        assert!(
+            wish.dot(radial) > 0.999,
+            "Space must thrust along the eased up (got dot {})",
+            wish.dot(radial)
+        );
+        // The OLD behavior this guards against: world-Y ascend at southern
+        // latitude has a NEGATIVE radial component (into the ground).
+        let old = ctl.fly_wish_dir_up(&cam, Vec3::Y);
+        assert!(old.dot(radial) < 0.0, "regression baseline sanity");
+    }
+
+    /// v0.962: the controller freezes translation only while the frame-lock
+    /// actually OWNS it (co-rotate band), not for the whole surface_mode
+    /// lifetime - below the FTL cap, blend-band flight used to be frozen.
+    #[test]
+    fn blend_band_local_fly_moves_when_unowned() {
+        let mut cam = Camera::new();
+        cam.set_surface_up(Vec3::Y);
+        cam.mode = CameraMode::FirstPerson;
+        let mut ctl = CameraController::new(5.0, 1.0);
+        ctl.fly_mode = true;
+        ctl.ascend = true;
+        let start = cam.position;
+        // Owned (co-rotate band): frozen.
+        ctl.surface_translation_owned = true;
+        ctl.update_camera(&mut cam, 0.1);
+        assert_eq!(cam.position, start, "owned translation must not move here");
+        // Unowned (blend band): the local fly path moves the camera.
+        ctl.surface_translation_owned = false;
+        ctl.update_camera(&mut cam, 0.1);
+        assert!(
+            (cam.position - start).length() > 0.01,
+            "unowned blend-band flight must move"
+        );
     }
 }

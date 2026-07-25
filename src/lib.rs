@@ -3129,6 +3129,12 @@ mod native_app {
 
                     // Update camera from input (capture the pre-move position for swept collision).
                     let prev_cam_pos = state.camera.position;
+                    // v0.962: tell the controller whether the frame-lock owns
+                    // translation this frame (last frame's flag - bands change
+                    // over km, one frame of lag is nothing). In the blend band
+                    // surface_mode is on but nothing owns translation, and the
+                    // controller used to freeze all below-FTL-cap movement.
+                    state.controller.surface_translation_owned = state.surface_owns_translation;
                     state.controller.update_camera(&mut state.camera, dt);
 
                     // Dev FTL flight, world-scale share (v0.791.x): above
@@ -3157,7 +3163,19 @@ mod native_app {
                         // adjusting based on my mouse wheel warp speed").
                         && !state.surface_owns_translation
                     {
-                        let wish = state.controller.fly_wish_dir(&state.camera);
+                        // v0.962 liftoff fix: Space thrusts along the camera's
+                        // EASED up while surface_mode rides the blend band
+                        // (radial at 100 km -> world Y at 1000 km). Raw world
+                        // +Y at southern latitudes points sideways-and-down
+                        // relative to the ground - the operator's "can't leave
+                        // the planet perpendicularly": lateral zoom at fixed
+                        // altitude until the equator flipped sin(lat)'s sign.
+                        let up_axis = if state.camera.surface_mode {
+                            state.camera.up
+                        } else {
+                            Vec3::Y
+                        };
+                        let wish = state.controller.fly_wish_dir_up(&state.camera, up_axis);
                         if wish.length_squared() > 0.0 {
                             // First world-scale departure stashes home so the
                             // Dev page's "Return home" can restore it.
