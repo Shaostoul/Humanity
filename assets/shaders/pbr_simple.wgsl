@@ -149,6 +149,9 @@ struct ShadowUniforms {
 // Sky-view LUT (stage 3c): per-frame distant-sky radiance, sampled by the
 // near-surface sky hybrid in atmosphere_scattering.
 @group(3) @binding(13) var sky_view_tex: texture_2d<f32>;
+// Tree-card sprite atlas (v0.961): 3x2 grid of baked conifer sprites the
+// type-12 sprite-card branch samples (gated by material.params.w bit 2).
+@group(3) @binding(14) var tree_atlas_tex: texture_2d<f32>;
 
 // 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
 // Fragments outside the ortho box (or with shadows off) return fully lit,
@@ -3082,6 +3085,42 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // below). lib.rs rewrites the value every frame, so the toggle
         // applies live. It never doubles as emissive here:
         emissive_strength = 0.0;
+        // ── Sprite tree cards (v0.961, billboard bake increment 2) ──
+        // uv.x < -0.5 marks a card textured from the baked conifer atlas
+        // (group 3 binding 14): |uv.x| = (1 + tile) + u01 * 0.5 (the small
+        // base keeps u01 interpolation sub-texel), uv.y = v01 (0 ground,
+        // 1 top). Lighting normal is the interpolated radial up, same as
+        // the legacy colored cards. params.w bit 2 = atlas resident; until
+        // the bake lands the card shades flat conifer green (never
+        // invisible).
+        if (in.uv.x < -0.5) {
+            let card_dist = length(camera.view_pos.xyz - in.world_position);
+            // Same LOD window as legacy cards: models own the near field,
+            // the far cutoff ends the card stage.
+            if (card_dist < shadow_u.params.w || card_dist > shadow_u.params2.x) {
+                discard;
+            }
+            let pw_bits_card = u32(round(max(material.params.w, 0.0)));
+            if ((pw_bits_card & 4u) != 0u) {
+                let a_enc = -in.uv.x;
+                let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 5u);
+                let u01 = clamp(fract(a_enc) * 2.0, 0.0, 1.0);
+                let v01 = clamp(in.uv.y, 0.0, 1.0);
+                let tuv = vec2<f32>(
+                    (f32(tile % 3u) + u01) / 3.0,
+                    (f32(tile / 3u) + (1.0 - v01)) / 2.0,
+                );
+                let spr = textureSampleLevel(tree_atlas_tex, albedo_sampler, tuv, 0.0);
+                if (spr.a < 0.5) {
+                    discard;
+                }
+                albedo = spr.rgb;
+            } else {
+                albedo = vec3<f32>(0.10, 0.16, 0.07);
+            }
+            roughness = 0.9;
+            metallic = 0.0;
+        } else {
         let packed = u32(round(max(in.uv.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
@@ -3352,6 +3391,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 proc_emissive = old_glint;
             }
         }
+        } // close the sprite-card / packed-color split (v0.961)
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
         // oversized transparent sphere. Nearly invisible looking straight

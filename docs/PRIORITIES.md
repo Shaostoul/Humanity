@@ -11,6 +11,54 @@
 
 ## Active focus
 
+> **>>> OVERNIGHT BACKLOG (2026-07-25 ~01:00, operator heading to bed,
+> given verbatim then ranked here): IN PROGRESS.** Standing frame: MAX
+> GRAPHICS first, then optimize relentlessly without sacrificing fidelity;
+> efficiency = more creatures/players on screen (goal: thousands of
+> concurrent players in one scene, beating the ~100-player Fortnite bar).
+> Ranked queue:
+> 1. LIFTOFF BUG (operator-experienced): spacebar ascent from the surface
+>    does not leave perpendicularly - climbs a bit, flattens into
+>    surface-flight-like lateral motion at constant altitude, then
+>    suddenly resumes climbing. Unify the surface-to-space flight
+>    transition (v0.923 blend-band suspect). Descent is fine.
+> 2. DENSE FORESTS: raise tree density to find the ceiling ("I want to
+>    see what we can get away with") - perf-verified via probe sweeps.
+> 3. WATER NEAR-FIELD LOD: raise WATER_MAX_PATCH_DEPTH toward depth 20
+>    (0.6 m verts; ladder is 17=4.8m, 18=2.4m, 19=1.2m, 20=0.6m, 21=0.3m).
+>    Selection is already pixel-driven like terrain - the cap is the limit.
+>    Operator target: ~0.5 m near-field, no need below ~0.1 m ever.
+> 4. LOD SETTINGS SECTION: per-ITEM-TYPE LOD registry (planet, tree,
+>    furniture, animal, water...) with distance bands (LOD0 0-30 m, LOD1
+>    30-100, LOD2 100-500, per-type-appropriate), data-driven
+>    (data/vegetation/lod_categories.ron is the seed - generalize), full
+>    Settings section rendering it. Tree OBJECTS become data too (fir +
+>    variants 1-3 as entries, not code) until procedural plants arrive.
+> 5. CONTENT-CREATION DOCS, ZERO-PRIOR-KNOWLEDGE AUDIENCE: one doc per
+>    content type (planet, vehicle, spaceship, furniture, plant, 3D model,
+>    audio file, room/structure, quest, recipe...) - assume the reader has
+>    never used a game, social media, or possibly a computer. Good
+>    workflow fan-out candidate.
+> 6. LIBRARY = ALL DOCS: the in-app Library page (native + web mirror)
+>    should carry the full docs tree, not just the Accord
+>    (scripts/build-library.js currently syncs docs/accord only).
+>    HumanityOS as the only app people need to open.
+> 7. ARCHIVED-TASKS EVALUATION: find + review archived task lists
+>    (journal archives, docs/history) for still-relevant work.
+> 8. PARTICLES: (a) leaves drifting through the air near trees; (b) space
+>    motion-reference dust (velocity-streak particles so movement reads
+>    against black space). particles.ron system exists, data-driven.
+> 9. MEGASHADER MODULARIZATION R&D: split pbr_simple.wgsl into per-domain
+>    source files concatenated at load (naga has no include; one module
+>    per pipeline is a wgpu reality, but file-level organization + the
+>    hot-reload unit can both survive a build-time concat).
+> 10. HOMESTEAD DESIGN ARC: fully-fledged player home - walls placed
+>     properly, doors, windows, rooms, plumbing, electrical, lighting,
+>     rugs, chairs, tables, desks, tools, machines - all data-driven.
+>     AFTER it: NPC-AI stress testing (peaceful AI capability ceiling,
+>     many NPCs completing real tasks at once) in public spaces
+>     (mall/hangar).
+>
 > **>>> FIELD-REPORT QUEUE (2026-07-25, Fable loop): IN PROGRESS.** Operator
 > evening reports rank the queue: [1] trees-near-render DONE v0.955.0 (root
 > cause: the green-dominance biome gate rejected brown-green Blue Marble

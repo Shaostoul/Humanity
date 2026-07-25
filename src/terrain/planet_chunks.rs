@@ -1499,6 +1499,51 @@ pub fn build_patch_mesh(
                 }
             }
         };
+        // Sprite tree card (v0.961): one two-sided SQUARE quad (the baked
+        // sprite frame is square, height-dominant) textured from the conifer
+        // atlas. Transport: the color channel carries a sentinel the mesh
+        // uploader converts to the shader's negative-uv encoding
+        // (color[0] = -1, color[1] = -(1 + tile + u01*0.5), color[2] = v01;
+        // see Mesh::from_planet_surface + the type-12 uv.x < -0.5 branch).
+        // The tiny |uv.x| base keeps f32 interpolation of u01 sub-texel.
+        // Normal stays the radial up - sprite cards light like the ground,
+        // exactly as the colored cards did.
+        let mut emit_sprite_card = |base: glam::Vec3,
+                                    up: glam::Vec3,
+                                    side: glam::Vec3,
+                                    h: f32,
+                                    tile: u8,
+                                    vertices: &mut Vec<SurfaceVertexData>,
+                                    indices: &mut Vec<u32>| {
+            let w = h; // square sprite frame
+            let corner = |u01: f32, v01: f32| -> (glam::Vec3, [f32; 3]) {
+                let p = base + up * (h * v01) + side * (w * (u01 - 0.5));
+                let enc_x = -((1 + tile) as f32 + u01 * 0.5);
+                (p, [-1.0, enc_x, v01])
+            };
+            let c00 = corner(0.0, 0.0);
+            let c10 = corner(1.0, 0.0);
+            let c01 = corner(0.0, 1.0);
+            let c11 = corner(1.0, 1.0);
+            let nrm = up.to_array();
+            for tri in [
+                [c00, c10, c11],
+                [c00, c11, c01],
+                [c00, c11, c10],
+                [c00, c01, c11],
+            ] {
+                for (p, col) in tri {
+                    indices.push(vertices.len() as u32);
+                    vertices.push(SurfaceVertexData {
+                        position: p.to_array(),
+                        normal: nrm,
+                        color: col,
+                        water: false,
+                        tree_card: true,
+                    });
+                }
+            }
+        };
         let want_trees = id.depth >= TREE_MIN_DEPTH;
         let want_grass = id.depth >= GRASS_MIN_DEPTH;
         // Spherical point-in-triangle: a direction is inside the patch when
@@ -1655,16 +1700,32 @@ pub fn build_patch_mesh(
                             // pine ~16 m. BOTH stream sites stay identical.
                             let jitter = 0.88 + (r3 % 100) as f32 / 100.0 * 0.24;
                             let h = if species_fir { 22.0 * jitter } else { 16.0 * jitter };
-                            let trunk = [0.30, 0.22, 0.13];
-                            let canopy = [
-                                0.08 + (r4 % 60) as f32 / 1000.0,
-                                0.26 + (r5 % 80) as f32 / 1000.0,
-                                0.10,
-                            ];
-                            emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
-                            emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
-                            emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
-                            emit_card(base, up, side_b, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                            if albedo.is_some() {
+                                // Sprite cards (v0.961, billboard bake
+                                // increment 2): on imagery planets the card
+                                // is ONE crossed pair of quads textured from
+                                // the baked conifer atlas - the same tile
+                                // the near 3D model was baked from, so the
+                                // LOD handoff keeps the exact silhouette.
+                                // Variant picks match near_tree_instances
+                                // exactly ((r5 >> 11) % 3).
+                                let tile = if species_fir { 0 } else { 3 } + ((r5 >> 11) % 3) as u8;
+                                emit_sprite_card(base, up, side_a, h, tile, &mut vertices, &mut indices);
+                                emit_sprite_card(base, up, side_b, h, tile, &mut vertices, &mut indices);
+                            } else {
+                                // Noise planets (no imagery, no atlas):
+                                // the legacy colored trunk + canopy cards.
+                                let trunk = [0.30, 0.22, 0.13];
+                                let canopy = [
+                                    0.08 + (r4 % 60) as f32 / 1000.0,
+                                    0.26 + (r5 % 80) as f32 / 1000.0,
+                                    0.10,
+                                ];
+                                emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                                emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
+                                emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                                emit_card(base, up, side_b, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
+                            }
                         }
                     }
                 }

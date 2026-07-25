@@ -67,6 +67,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+/// Atlas geometry shared by the baker and the type-12 shader branch:
+/// 3 columns x 2 rows of TILE_PX sprites (fir v1-3 = tiles 0-2,
+/// pine v1-3 = tiles 3-5).
+pub const ATLAS_COLS: u32 = 3;
+pub const ATLAS_ROWS: u32 = 2;
+pub const ATLAS_TILE_PX: u32 = 512;
+
 impl Renderer {
     /// Bake `parts` into a `size` x `size` sprite and write it as a PNG
     /// (transparent background). Returns the sprite's world-space footprint
@@ -77,6 +84,61 @@ impl Renderer {
         size: u32,
         path: &std::path::Path,
     ) -> Result<(f32, f32), String> {
+        let (color, footprint) = self.bake_billboard_texture(parts, size)?;
+        self.read_texture_to_png(&color, size, size, path)?;
+        Ok(footprint)
+    }
+
+    /// Bake all six conifer sprites into the persistent tree-card atlas
+    /// (increment 2): each entry in `trees` is one stem's parts (crown +
+    /// bark), baked at ATLAS_TILE_PX and copied into its 3x2 grid slot.
+    /// The atlas texture was created at init and is referenced by every
+    /// group-3 bind group, so this is an in-place rewrite - no rebuilds.
+    pub fn bake_tree_atlas(&mut self, trees: &[Vec<BakePart<'_>>]) -> Result<(), String> {
+        for (i, parts) in trees.iter().enumerate().take((ATLAS_COLS * ATLAS_ROWS) as usize) {
+            let (tex, _fp) = self.bake_billboard_texture(parts, ATLAS_TILE_PX)?;
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("tree_atlas_copy"),
+                });
+            encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &tex,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.tree_atlas_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: (i as u32 % ATLAS_COLS) * ATLAS_TILE_PX,
+                        y: (i as u32 / ATLAS_COLS) * ATLAS_TILE_PX,
+                        z: 0,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: ATLAS_TILE_PX,
+                    height: ATLAS_TILE_PX,
+                    depth_or_array_layers: 1,
+                },
+            );
+            self.queue.submit([encoder.finish()]);
+        }
+        self.tree_atlas_ready = true;
+        Ok(())
+    }
+
+    /// Render `parts` side-on into a fresh `size` x `size` texture
+    /// (swapchain format, transparent clear, COPY_SRC). The core the PNG
+    /// dump and the atlas builder share.
+    pub fn bake_billboard_texture(
+        &self,
+        parts: &[BakePart<'_>],
+        size: u32,
+    ) -> Result<(wgpu::Texture, (f32, f32)), String> {
         if parts.is_empty() {
             return Err("no parts to bake".to_string());
         }
@@ -328,7 +390,6 @@ impl Renderer {
         }
         self.queue.submit([encoder.finish()]);
 
-        self.read_texture_to_png(&color, size, size, path)?;
-        Ok((2.0 * half, 2.0 * half))
+        Ok((color, (2.0 * half, 2.0 * half)))
     }
 }

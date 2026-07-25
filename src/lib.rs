@@ -1564,6 +1564,7 @@ mod native_app {
                     "data",
                 )),
                 audio_volumes_applied: (-1.0, -1.0, -1.0),
+                tree_atlas_attempted: false,
                 debug_test_light_count: 0,
                 debug_test_light_intensity: 3.0,
                 window,
@@ -7848,7 +7849,7 @@ mod native_app {
                                 // detail" toggle (ocean waves + land
                                 // micro-texture). Rewritten every frame, so
                                 // flipping the toggle applies LIVE.
-                                let surf_flags = if state
+                                let mut surf_flags = if state
                                     .gui_state
                                     .settings
                                     .planet_surface_detail
@@ -7857,6 +7858,12 @@ mod native_app {
                                 } else {
                                     1.0
                                 };
+                                // bit 2 (v0.961): tree-card sprite atlas
+                                // resident - sprite cards sample it; until
+                                // then they shade flat conifer green.
+                                if state.renderer.tree_atlas_ready {
+                                    surf_flags += 4.0;
+                                }
                                 state.renderer.update_material_full(
                                     mi,
                                     [
@@ -8474,6 +8481,65 @@ mod native_app {
                                                     name.to_string(),
                                                     (usize::MAX, usize::MAX),
                                                 );
+                                            }
+                                        }
+                                    }
+                                    // Sprite atlas bake (v0.961, billboard
+                                    // increment 2): once per session, render
+                                    // all six conifers side-on into the
+                                    // tree-card atlas so the terrain card
+                                    // stage textures its quads with the SAME
+                                    // trees the near field draws in 3D. One
+                                    // ~1-2 s parse+bake, same lifecycle as
+                                    // the model lazy-load above.
+                                    if !state.renderer.tree_atlas_ready && !state.tree_atlas_attempted {
+                                        state.tree_atlas_attempted = true;
+                                        let t0 = std::time::Instant::now();
+                                        let mut stems: Vec<Vec<(crate::assets::GltfCpuMesh, Option<(Vec<u8>, u32, u32)>)>> = Vec::new();
+                                        for base in ["fir_sapling", "pine_sapling_small"] {
+                                            for v in 1..=3 {
+                                                let mut parts = Vec::new();
+                                                for suffix in ["", "_bark"] {
+                                                    let rel = format!(
+                                                        "assets/models/plants/{base}/{base}_v{v}{suffix}.gltf"
+                                                    );
+                                                    if let Ok(pair) = state
+                                                        .asset_manager
+                                                        .parse_gltf_mesh_with_texture(&rel)
+                                                    {
+                                                        parts.push(pair);
+                                                    }
+                                                }
+                                                stems.push(parts);
+                                            }
+                                        }
+                                        let tree_parts: Vec<Vec<crate::renderer::billboard_bake::BakePart>> = stems
+                                            .iter()
+                                            .map(|parts| {
+                                                parts
+                                                    .iter()
+                                                    .map(|(cpu, tex)| crate::renderer::billboard_bake::BakePart {
+                                                        vertices: &cpu.vertices,
+                                                        indices: &cpu.indices,
+                                                        texture: tex.as_ref().map(|(b, w, h)| {
+                                                            (b.as_slice(), *w, *h)
+                                                        }),
+                                                    })
+                                                    .collect()
+                                            })
+                                            .collect();
+                                        match state.renderer.bake_tree_atlas(&tree_parts) {
+                                            Ok(()) => log::info!(
+                                                "[Bake] tree-card atlas ready ({} stems, {:.1}s)",
+                                                tree_parts.len(),
+                                                t0.elapsed().as_secs_f32()
+                                            ),
+                                            Err(e) => {
+                                                // attempted-flag guards the
+                                                // retry, ready stays false ->
+                                                // cards keep the flat-green
+                                                // fallback for the session.
+                                                log::error!("[Bake] tree atlas FAILED: {e}");
                                             }
                                         }
                                     }

@@ -249,6 +249,14 @@ pub struct Renderer {
     /// Tree-card FAR cutoff (v0.924 vegetation LOD): the silhouette stage's
     /// outer distance in metres (the Settings slider). Cards past it discard.
     pub tree_card_far_m: f32,
+    /// Tree-card sprite atlas (v0.961, billboard bake increment 2): 3x2 grid
+    /// of side-on baked conifer sprites, bound at group-3 binding 14. Created
+    /// zeroed at init (bind groups never rebuild); bake_tree_atlas rewrites
+    /// it in place and flips `tree_atlas_ready` (mirrored into the planet
+    /// material's params.w bit 2 by lib.rs each frame).
+    pub tree_atlas_texture: wgpu::Texture,
+    pub tree_atlas_view: wgpu::TextureView,
+    pub tree_atlas_ready: bool,
     /// Aerial perspective (v0.916): extinction per metre at the CAMERA's
     /// altitude (strength + height falloff folded in by lib.rs; 0 = off).
     pub aerial_sigma: f32,
@@ -773,6 +781,24 @@ impl Renderer {
             atmo_luts::MS_LUT_H as u32,
         );
         let sky_view_pass = sky_view::SkyViewPass::new(&device, &atmo_trans_view, &atmo_ms_view);
+        // Tree-card sprite atlas (v0.961): fixed-size, zero-filled (alpha 0 =
+        // sprite branch discards until the bake lands), swapchain format so
+        // bake targets copy_texture_to_texture straight in.
+        let tree_atlas_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Tree Card Sprite Atlas"),
+            size: wgpu::Extent3d {
+                width: billboard_bake::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX,
+                height: billboard_bake::ATLAS_ROWS * billboard_bake::ATLAS_TILE_PX,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: config.format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let tree_atlas_view = tree_atlas_texture.create_view(&Default::default());
         {
             let (rp, h) = atmosphere::shell_packing(0.06, 8500.0, 6.371e6);
             let params = atmo_luts::TransLutParams {
@@ -922,6 +948,10 @@ impl Renderer {
                     binding: 13,
                     resource: wgpu::BindingResource::TextureView(&sky_view_pass.target_view),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 14,
+                    resource: wgpu::BindingResource::TextureView(&tree_atlas_view),
+                },
             ],
         });
         let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -984,6 +1014,10 @@ impl Renderer {
                     binding: 13,
                     resource: wgpu::BindingResource::TextureView(&sky_view_pass.target_view),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 14,
+                    resource: wgpu::BindingResource::TextureView(&tree_atlas_view),
+                },
             ],
         });
 
@@ -1006,6 +1040,9 @@ impl Renderer {
             tile_counts_buffer,
             tile_indices_buffer,
             tile_px: (0.0, 0.0),
+            tree_atlas_texture,
+            tree_atlas_view,
+            tree_atlas_ready: false,
             lights_capacity,
             object_buffer,
             object_bind_group,
@@ -1332,6 +1369,10 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 13,
                     resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 14,
+                    resource: wgpu::BindingResource::TextureView(&self.tree_atlas_view),
                 },
             ],
         })

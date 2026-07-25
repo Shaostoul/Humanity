@@ -123,6 +123,9 @@ pub(crate) struct EngineState {
     /// Last (master, music, sfx) volumes pushed into the audio engine, so
     /// the per-frame sync only touches kira when a slider actually moved.
     pub(crate) audio_volumes_applied: (f32, f32, f32),
+    /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
+    /// must log once and stop, not re-parse 12 GLTFs every frame.
+    pub(crate) tree_atlas_attempted: bool,
     /// Dev test-light COUNT from the showcase lights:N hook (clustering
     /// dev-aid). The grid REGENERATES around the camera every frame - render
     /// space rebases with the floating origin, so stored positions go stale

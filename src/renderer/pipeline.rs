@@ -330,6 +330,20 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Tree-card sprite atlas (v0.961, billboard bake increment
+                    // 2): 3x2 grid of side-on baked conifer sprites the
+                    // type-12 tree-card branch textures its quads with.
+                    // Gated by material.params.w bit 2 (atlas resident).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 14,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 

@@ -167,11 +167,20 @@ impl Mesh {
             .map(|v| Vertex {
                 position: v.position,
                 normal: v.normal,
-                uv: crate::terrain::planet_surface::pack_color_to_uv_flags(
-                    v.color,
-                    v.water,
-                    v.tree_card,
-                ),
+                // Sprite-card sentinel (v0.961): color[0] < 0 marks a
+                // textured tree card - color[1] is the pre-encoded NEGATIVE
+                // uv.x (tile + horizontal coord, see planet_chunks
+                // emit_sprite_card) and color[2] the vertical coord. The
+                // type-12 shader branches on uv.x < -0.5.
+                uv: if v.color[0] < 0.0 {
+                    [v.color[1], v.color[2]]
+                } else {
+                    crate::terrain::planet_surface::pack_color_to_uv_flags(
+                        v.color,
+                        v.water,
+                        v.tree_card,
+                    )
+                },
             })
             .collect();
         Self::from_vertices(device, &vertices, &data.indices)
