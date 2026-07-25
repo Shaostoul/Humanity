@@ -2062,6 +2062,9 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // Labels come from the LOD category registry (rung 2a): the tree row is
         // live today; further categories (grass/shrubs/creatures) gain rows as
         // their ladder stages activate (rungs 2b-2d).
+        if widgets::toggle(ui, theme, "Tiled light lists (EXPERIMENTAL, higher light counts)", &mut state.settings.lights_tiled) {
+            state.settings_dirty = true;
+        }
         let tree_label = crate::veg_lod::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
         if widgets::labeled_slider(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=300.0) {
             state.settings_dirty = true;

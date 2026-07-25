@@ -6629,6 +6629,9 @@ pub struct SettingsState {
     /// draws. See pbr_simple.wgsl cloud_layer + renderer::clouds.
     pub cloud_quality: String,
     // Audio
+    /// Tiled light lists (clustering L1b): bounds per-pixel light cost by
+    /// screen tile, lifting the light cap 256 -> 2048. Off = classic loop.
+    pub lights_tiled: bool,
     pub master_volume: f32,
     pub music_volume: f32,
     pub sfx_volume: f32,
@@ -6722,6 +6725,7 @@ impl Default for SettingsState {
             track_station: true,
             planet_surface_detail: true,
             cloud_quality: "high".to_string(),
+            lights_tiled: false,
             master_volume: 0.8,
             music_volume: 0.5,
             sfx_volume: 0.7,

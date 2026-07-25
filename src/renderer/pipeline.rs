@@ -91,6 +91,30 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Light-tile lists (clustering L1b, v0.952): per-screen-tile
+                    // counts + light indices from renderer/light_tiles.rs. The
+                    // fragment loop reads only its tile's list when tiling is
+                    // on (shadow_u.params2.z > 0 carries the tile pixel width).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(4),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 3,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(4),
+                        },
+                        count: None,
+                    },
                 ],
             });
 

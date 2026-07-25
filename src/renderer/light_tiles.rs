@@ -71,10 +71,19 @@ pub fn bin_lights(
             continue; // behind the camera and not enclosing: invisible
         }
         let ndc = clip.xyz() / clip.w;
-        // Projected radius in NDC: the sphere subtends ~range/w at this
-        // depth; view_proj's [0][0] and [1][1] carry the focal scales.
-        let rx = l.range / clip.w * view_proj.col(0).x.abs().max(1e-4) * 1.2;
-        let ry = l.range / clip.w * view_proj.col(1).y.abs().max(1e-4) * 1.2;
+        // Projected SILHOUETTE radius in NDC, exact tangent form: for a
+        // camera at euclidean distance d OUTSIDE the sphere (the wrap test
+        // above guarantees d > range), the silhouette's angular tangent is
+        // range / sqrt(d^2 - range^2). Two wrong versions preceded this:
+        // dividing by clip.w (center depth) under-included near lights (hard
+        // tile seams cutting light pools in the first lit capture), and
+        // clip.w - range exploded for lights BESIDE the camera (small axis
+        // depth, large lateral distance), flooding every tile past TILE_CAP
+        // and dropping the visible lights (the second capture's black frame).
+        let d = cam_pos.distance(l.pos);
+        let tangent = l.range / (d * d - l.range * l.range).max(1e-4).sqrt();
+        let rx = (tangent * view_proj.col(0).x.abs().max(1e-4) * 1.2).min(2.5);
+        let ry = (tangent * view_proj.col(1).y.abs().max(1e-4) * 1.2).min(2.5);
         // NDC -> pixel rect (y flips).
         let x0 = (ndc.x - rx) * 0.5 + 0.5;
         let x1 = (ndc.x + rx) * 0.5 + 0.5;

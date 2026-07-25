@@ -87,6 +87,14 @@ struct GpuLight {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> scene_lights: array<GpuLight>;
+// Light-tile lists (clustering L1b): per-screen-tile counts + indices into
+// scene_lights, from renderer/light_tiles.rs. Active when shadow_u.params2.z
+// (the tile pixel width) is non-zero; zero = the classic full loop.
+@group(0) @binding(2) var<storage, read> tile_counts: array<u32>;
+@group(0) @binding(3) var<storage, read> tile_indices: array<u32>;
+const TILE_COLS: u32 = 16u;
+const TILE_ROWS: u32 = 9u;
+const TILE_CAP: u32 = 64u;
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
 @group(2) @binding(0) var<uniform> material: MaterialUniforms;
 // Per-pixel planet albedo imagery (v0.811): an equirectangular sRGB texture
@@ -3338,7 +3346,26 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // rejection keeps far lights nearly free, so the practical ceiling is GPU
     // fill cost, not a software cap.
     let num_lights = i32(camera.light_count.x);
-    for (var i = 0; i < num_lights; i = i + 1) {
+    // Clustering L1b: when tiling is on, loop ONLY this fragment's tile
+    // list (bounded by local overlap, not the global count - what lifts
+    // the 256 cap to 2048). The light body below is untouched: only the
+    // index it evaluates comes from the tile list.
+    let tile_w_px = shadow_u.params2.z;
+    let use_tiles = tile_w_px > 0.5;
+    var tile_base = 0u;
+    var loop_n = num_lights;
+    if (use_tiles) {
+        let tx = min(u32(in.clip_position.x / tile_w_px), TILE_COLS - 1u);
+        let ty = min(u32(in.clip_position.y / shadow_u.params2.w), TILE_ROWS - 1u);
+        let tile = ty * TILE_COLS + tx;
+        tile_base = tile * TILE_CAP;
+        loop_n = i32(min(tile_counts[tile], TILE_CAP));
+    }
+    for (var j = 0; j < loop_n; j = j + 1) {
+        var i = j;
+        if (use_tiles) {
+            i = i32(tile_indices[tile_base + u32(j)]);
+        }
         var light_pos = scene_lights[i].pos_intensity.xyz;
         let intensity = scene_lights[i].pos_intensity.w;
         let light_color = scene_lights[i].color_range.xyz;

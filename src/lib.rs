@@ -1553,7 +1553,7 @@ mod native_app {
             }
 
             self.state = Some(EngineState {
-                debug_test_lights: Vec::new(),
+                debug_test_light_count: 0,
                 window,
                 renderer,
                 camera,
@@ -13973,8 +13973,6 @@ mod native_app {
                                     // (distance minus range - a big far light
                                     // outranks a small near one) and keep a
                                     // generous 64.
-                                    // Dev test lights (showcase lights:N).
-                                    lights.extend(state.debug_test_lights.iter().copied());
                                     lights.sort_by(|a, b| {
                                         let da = ((a.pos - cam_pos).length() - a.range).max(0.0);
                                         let db = ((b.pos - cam_pos).length() - b.range).max(0.0);
@@ -13988,12 +13986,42 @@ mod native_app {
                                     // 256 is safe on midrange GPUs; 1000+
                                     // needs screen-tile light clustering -
                                     // queued as its own arc in PRIORITIES.
-                                    lights.truncate(256);
+                                    let tiled = state.gui_state.settings.lights_tiled;
+                                    lights.truncate(if tiled { 2048 } else { 256 });
                                     // Home lights ride the station (v0.881).
                                     for l in lights.iter_mut() {
                                         l.pos += state.station_off;
                                     }
+                                    // Dev test lights (showcase lights:N): regenerated
+                                    // around the CURRENT camera position every frame,
+                                    // because render space rebases with the floating
+                                    // origin - stored positions went stale in seconds.
+                                    if state.debug_test_light_count > 0 {
+                                        let n = state.debug_test_light_count;
+                                        let cam = state.camera.position;
+                                        let side = (n as f32).cbrt().ceil() as i32;
+                                        let mut count = 0usize;
+                                        'lgrid: for y in 0..side {
+                                            for z in 0..side {
+                                                for x in 0..side {
+                                                    if count >= n { break 'lgrid; }
+                                                    let p = cam + Vec3::new(
+                                                        (x - side / 2) as f32 * 4.0,
+                                                        (y % 3) as f32 * 2.5 + 1.0,
+                                                        (z - side / 2) as f32 * 4.0,
+                                                    );
+                                                    let hue = (count as f32 * 0.618_034) % 1.0;
+                                                    let (r, g, b) = hsv_to_rgb(hue, 0.85, 1.0);
+                                                    lights.push(crate::renderer::light::RoomLight::point(p, [r, g, b], 3.0, 6.0));
+                                                    count += 1;
+                                                }
+                                            }
+                                        }
+                                    }
                                     state.renderer.set_point_lights(&lights);
+                                    let vp = state.camera.view_projection_matrix();
+                                    let screen = state.renderer.surface_size();
+                                    state.renderer.update_light_tiles(&lights, &vp, state.camera.position, screen, tiled);
                                 }
 
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)

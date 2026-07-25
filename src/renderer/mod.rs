@@ -132,6 +132,10 @@ pub struct Renderer {
     /// entries; grows by doubling (bind group recreated) when the count exceeds
     /// capacity. The shader loops over `light_count` of these.
     lights_buffer: wgpu::Buffer,
+    tile_counts_buffer: wgpu::Buffer,
+    tile_indices_buffer: wgpu::Buffer,
+    /// Tile pixel sizes for the shadow-uniform poke (0 = tiling off).
+    tile_px: (f32, f32),
     lights_capacity: usize,
     /// Pre-allocated object uniform buffer, reused each frame via write_buffer.
     object_buffer: wgpu::Buffer,
@@ -517,6 +521,20 @@ impl Renderer {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        // Light-tile lists (clustering L1b): fixed-size, rewritten per frame
+        // by update_light_tiles when tiling is enabled.
+        let tile_counts_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Light Tile Counts"),
+            size: (light_tiles::TILE_COUNT * 4) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let tile_indices_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Light Tile Indices"),
+            size: (light_tiles::TILE_COUNT * light_tiles::TILE_CAP * 4) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
 
         let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Camera Bind Group"),
@@ -529,6 +547,14 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: lights_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: tile_counts_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: tile_indices_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -811,6 +837,14 @@ impl Renderer {
                     binding: 1,
                     resource: lights_buffer.as_entire_binding(),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: tile_counts_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: tile_indices_buffer.as_entire_binding(),
+                },
             ],
         });
 
@@ -968,6 +1002,9 @@ impl Renderer {
             camera_buffer,
             camera_bind_group,
             lights_buffer,
+            tile_counts_buffer,
+            tile_indices_buffer,
+            tile_px: (0.0, 0.0),
             lights_capacity,
             object_buffer,
             object_bind_group,
@@ -1465,6 +1502,50 @@ impl Renderer {
     /// loop. Each light is a point light or a spot with a real cone (v0.639).
     /// There is deliberately no software cap: the practical ceiling is GPU
     /// fill cost, visible in the F2 overlay's live light count + FPS.
+    /// Rebuild + upload the per-tile light lists (clustering L1b). Call after
+    /// `set_point_lights` with the SAME light slice (tile indices index into
+    /// it). `enabled = false` zeroes the tile-pixel poke, which sends the
+    /// shader down the classic full-loop path.
+    pub fn update_light_tiles(
+        &mut self,
+        lights: &[light::RoomLight],
+        view_proj: &glam::Mat4,
+        cam_pos: glam::Vec3,
+        screen: (u32, u32),
+        enabled: bool,
+    ) {
+        if !enabled || lights.is_empty() {
+            self.tile_px = (0.0, 0.0);
+            return;
+        }
+        let bins: Vec<light_tiles::BinLight> = lights
+            .iter()
+            .map(|l| {
+                if l.cos_outer <= -1.5 {
+                    // LINE light (sentinel -2.0): the whole segment pos..dir
+                    // emits. Bin the enclosing sphere: midpoint + half-length
+                    // added to the range (conservative).
+                    let mid = (l.pos + l.dir) * 0.5;
+                    light_tiles::BinLight {
+                        pos: mid,
+                        range: l.range + (l.dir - l.pos).length() * 0.5,
+                    }
+                } else {
+                    light_tiles::BinLight { pos: l.pos, range: l.range }
+                }
+            })
+            .collect();
+        let (counts, indices) = light_tiles::bin_lights(&bins, view_proj, cam_pos, screen);
+        self.queue
+            .write_buffer(&self.tile_counts_buffer, 0, bytemuck::cast_slice(&counts));
+        self.queue
+            .write_buffer(&self.tile_indices_buffer, 0, bytemuck::cast_slice(&indices));
+        self.tile_px = (
+            (screen.0 as f32 / light_tiles::TILE_COLS as f32).max(1.0),
+            (screen.1 as f32 / light_tiles::TILE_ROWS as f32).max(1.0),
+        );
+    }
+
     pub fn set_point_lights(&mut self, lights: &[light::RoomLight]) {
         // Grow the storage buffer by doubling if needed (bind groups are
         // immutable, so a grow recreates the camera bind group too).
@@ -1487,6 +1568,14 @@ impl Renderer {
                     wgpu::BindGroupEntry {
                         binding: 0,
                         resource: self.camera_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.tile_counts_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: self.tile_indices_buffer.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -2380,6 +2469,10 @@ impl Renderer {
             // table only re-renders near an atmosphere body; elsewhere it is
             // stale and the megashader must not blend it in.
             su[21] = if self.sky_view_uniform.is_some() { 1.0 } else { 0.0 };
+            // params2.zw = light-tile pixel sizes (clustering L1b); zero = the
+            // classic full light loop.
+            su[22] = self.tile_px.0;
+            su[23] = self.tile_px.1;
             self.queue
                 .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
         }
