@@ -231,6 +231,10 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.debug_test_light_count = n.min(2048);
         log::info!("Test lights: {} (camera-pinned)", state.debug_test_light_count);
     }
+    if let Some(iv) = grab("lights_intensity").and_then(|v| v.parse::<f32>().ok()) {
+        state.debug_test_light_intensity = iv.clamp(0.1, 200.0);
+        log::info!("Test light intensity: {}", state.debug_test_light_intensity);
+    }
     if let Some(t) = grab("lights_tiled") {
         state.gui_state.settings.lights_tiled = t == "1";
         log::info!("Tiled light lists: {}", state.gui_state.settings.lights_tiled);

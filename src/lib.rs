@@ -1554,6 +1554,7 @@ mod native_app {
 
             self.state = Some(EngineState {
                 debug_test_light_count: 0,
+                debug_test_light_intensity: 3.0,
                 window,
                 renderer,
                 camera,
@@ -13998,21 +13999,33 @@ mod native_app {
                                     // origin - stored positions went stale in seconds.
                                     if state.debug_test_light_count > 0 {
                                         let n = state.debug_test_light_count;
-                                        let cam = state.camera.position;
+                                        // The RENDER eye (effective_position), not
+                                        // .position: third-person/orbit modes offset
+                                        // the eye, and lights must hug what the view
+                                        // actually renders from.
+                                        let cam = state.camera.effective_position();
+                                        // Grid in the CAMERA-LOCAL frame: in frame-locked
+                                        // surface mode the local vertical is the planet
+                                        // RADIAL, not +Y - a Y-up grid plane cuts through
+                                        // tilted terrain and buries most lights (why the
+                                        // ship interior lit at boot but the sahara vantage
+                                        // stayed dark: ships ARE Y-up).
+                                        let fwd = state.camera.forward();
+                                        let right = state.camera.right();
+                                        let up_l = right.cross(fwd).normalize_or_zero();
                                         let side = (n as f32).cbrt().ceil() as i32;
                                         let mut count = 0usize;
                                         'lgrid: for y in 0..side {
                                             for z in 0..side {
                                                 for x in 0..side {
                                                     if count >= n { break 'lgrid; }
-                                                    let p = cam + Vec3::new(
-                                                        (x - side / 2) as f32 * 4.0,
-                                                        (y % 3) as f32 * 2.5 + 1.0,
-                                                        (z - side / 2) as f32 * 4.0,
-                                                    );
+                                                    let p = cam
+                                                        + right * ((x - side / 2) as f32 * 4.0)
+                                                        + up_l * ((y % 3) as f32 * 2.5 - 1.0)
+                                                        + fwd * ((z - side / 2) as f32 * 4.0 + 20.0);
                                                     let hue = (count as f32 * 0.618_034) % 1.0;
                                                     let (r, g, b) = hsv_to_rgb(hue, 0.85, 1.0);
-                                                    lights.push(crate::renderer::light::RoomLight::point(p, [r, g, b], 3.0, 6.0));
+                                                    lights.push(crate::renderer::light::RoomLight::point(p, [r, g, b], state.debug_test_light_intensity, 6.0));
                                                     count += 1;
                                                 }
                                             }
@@ -14028,10 +14041,11 @@ mod native_app {
                                         let n = DIAG.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                                         if n % 120 == 0 {
                                             let cam = state.camera.position;
+                                            let eye = state.camera.effective_position();
                                             let last = lights.last().map(|l| l.pos).unwrap_or(Vec3::ZERO);
                                             log::info!(
-                                                "[lights-diag] assembled={} cam=({:.1},{:.1},{:.1}) last_light=({:.1},{:.1},{:.1}) tiled={} station_off=({:.1},{:.1},{:.1})",
-                                                lights.len(), cam.x, cam.y, cam.z,
+                                                "[lights-diag] assembled={} cam=({:.1},{:.1},{:.1}) eye=({:.1},{:.1},{:.1}) last_light=({:.1},{:.1},{:.1}) tiled={} station_off=({:.1},{:.1},{:.1})",
+                                                lights.len(), cam.x, cam.y, cam.z, eye.x, eye.y, eye.z,
                                                 last.x, last.y, last.z, tiled,
                                                 state.station_off.x, state.station_off.y, state.station_off.z
                                             );
@@ -14040,7 +14054,7 @@ mod native_app {
                                     state.renderer.set_point_lights(&lights);
                                     let vp = state.camera.view_projection_matrix();
                                     let screen = state.renderer.surface_size();
-                                    state.renderer.update_light_tiles(&lights, &vp, state.camera.position, screen, tiled);
+                                    state.renderer.update_light_tiles(&lights, &vp, state.camera.effective_position(), screen, tiled);
                                 }
 
                                 // Pass 1.5: celestial bodies (planet + Sun + solar bodies)

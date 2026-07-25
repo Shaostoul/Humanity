@@ -119,6 +119,9 @@ pub(crate) struct EngineState {
     /// space rebases with the floating origin, so stored positions go stale
     /// within seconds (the lit-then-dark capture mystery). 0 in play.
     pub(crate) debug_test_light_count: usize,
+    /// Test-light intensity (lights_intensity IPC field; default 3.0). The
+    /// outdoor-attenuation suspect: interiors lit at 3.0, open ground may not.
+    pub(crate) debug_test_light_intensity: f32,
     pub(crate) window: Arc<Window>,
     pub(crate) renderer: Renderer,
     pub(crate) camera: Camera,
