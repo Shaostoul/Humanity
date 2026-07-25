@@ -293,6 +293,19 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // Sky-view LUT target (stage 3c): the per-frame distant-sky
+                    // radiance table the near-surface sky samples. Gated by
+                    // shadow_u.params2.y (stale when not near an atmosphere).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 13,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 

@@ -138,6 +138,9 @@ struct ShadowUniforms {
 // that render identically to the pre-texture look.
 @group(3) @binding(9) var ground_tex: texture_2d_array<f32>;
 @group(3) @binding(10) var ground_samp: sampler;
+// Sky-view LUT (stage 3c): per-frame distant-sky radiance, sampled by the
+// near-surface sky hybrid in atmosphere_scattering.
+@group(3) @binding(13) var sky_view_tex: texture_2d<f32>;
 
 // 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
 // Fragments outside the ortho box (or with shadows off) return fully lit,
@@ -984,6 +987,10 @@ const ATMO_NEAR_HAZE: f32 = 0.45;
 // the 400 km limb glow and every from-orbit look stay bit-identical.
 // Mirror + tests: renderer::atmosphere::EXPOSURE_DOME.
 const ATMO_EXPOSURE_DOME: f32 = 1.7;
+// Sky-view LUT radiance -> scene-radiance scale (stage 3c). The LUT is in
+// sun-irradiance-=-1 units (CPU-twin tests: noon zenith green ~ 0.02); this
+// lifts it into the ACES range the dome path lives in. Tuned on the rig.
+const SKY_LUT_EXPOSURE: f32 = 15.0;
 // Isotropic multiple-scatter bounce (v0.918): single scattering alone leaves
 // the dimmer dome starved where the phase functions de-weight it (zenith away
 // from the sun). One extra-bounce term with a flat phase rides the SAME
@@ -1198,6 +1205,37 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     let trans = exp(-beta_ext * od_view);
     let alpha = clamp(1.0 - (trans.r + trans.g + trans.b) / 3.0, 0.0, 1.0);
 
+    // ── Sky-view LUT hybrid (stage 3c, v0.948) ── near the surface the sky
+    // radiance comes from the per-frame Hillaire table (sky_view_lut.wgsl,
+    // transcribed from the TESTED CPU twin) instead of this function's coarse
+    // dome march. Blended PRE-tonemap so sky_lum (star occlusion) and the
+    // alpha logic key off the real sky automatically - daytime star hiding
+    // becomes physics. Gate: zero from orbit (w_alt / w_far, the approved
+    // space look is untouched) and zero when the table is stale
+    // (shadow_u.params2.y = rendered-this-frame flag).
+    let w_lut = (1.0 - max(w_alt, w_far)) * shadow_u.params2.y;
+    var radiance_sky = radiance;
+    if (w_lut > 0.001) {
+        let sun_lut = normalize(camera.sun_direction.xyz);
+        let up_c = normalize(ro);
+        let l_elev = asin(clamp(dot(rd, up_c), -1.0, 1.0));
+        // Hillaire's non-linear latitude (texels packed at the horizon).
+        let v_lut = clamp(0.5 + 0.5 * sign(l_elev) * sqrt(abs(l_elev) / (PI * 0.5)), 0.0, 1.0);
+        // Azimuth from the sun, symmetric half-circle (seam-free with the
+        // clamping sampler): u = acos(cos_phi) / 2pi covers cos fully.
+        let sun_h = sun_lut - up_c * dot(sun_lut, up_c);
+        let view_h = rd - up_c * dot(rd, up_c);
+        let sh_len = length(sun_h);
+        let vh_len = length(view_h);
+        var u_lut = 0.25;
+        if (sh_len > 1e-4 && vh_len > 1e-4) {
+            let cphi = clamp(dot(sun_h / sh_len, view_h / vh_len), -1.0, 1.0);
+            u_lut = acos(cphi) / (2.0 * PI);
+        }
+        let lut_rgb = textureSampleLevel(sky_view_tex, albedo_sampler, vec2<f32>(u_lut, v_lut), 0.0).rgb;
+        radiance_sky = mix(radiance, lut_rgb * SKY_LUT_EXPOSURE, w_lut);
+    }
+
     // Tone-map the in-scattered light with the SAME ACES curve as the rest
     // of the pipeline; all math above is linear. The render target is an
     // sRGB view, so writing linear values is the honest handoff -- the
@@ -1211,8 +1249,8 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     let aces_d = 0.59;
     let aces_e = 0.14;
     let mapped = clamp(
-        (radiance * (aces_a * radiance + vec3<f32>(aces_b)))
-            / (radiance * (aces_c * radiance + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        (radiance_sky * (aces_a * radiance_sky + vec3<f32>(aces_b)))
+            / (radiance_sky * (aces_c * radiance_sky + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
         vec3<f32>(0.0),
         vec3<f32>(1.0),
     );

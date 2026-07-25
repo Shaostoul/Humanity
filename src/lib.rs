@@ -9442,10 +9442,14 @@ mod native_app {
                                     h,
                                 },
                             );
-                            // Stage 3b-2: this frame's sky-view inputs (same
-                            // camera-radius + sun-elevation math as the v0.915
-                            // tint block below).
-                            let shell_r_m = radius * scale as f64;
+                            // Stage 3b-2: this frame's sky-view inputs. The
+                            // shell radius is radius * (1 + 2*scale) - the
+                            // drawn shell-mesh expression shell_packing pairs
+                            // with. (The v0.915 tint block below divides by
+                            // radius*scale, which pegs ITS cam_r at 1.0; that
+                            // path is approved-looking so it is left alone,
+                            // flagged for a separate look.)
+                            let shell_r_m = radius * (1.0 + scale.max(0.005) as f64 * 2.0);
                             let cam_r = ((state.frame_lock_anchor.length()
                                 / shell_r_m.max(1.0))
                                 as f32)

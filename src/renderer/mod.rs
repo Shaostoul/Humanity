@@ -881,6 +881,10 @@ impl Renderer {
                     binding: 12,
                     resource: wgpu::BindingResource::TextureView(&atmo_ms_view),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::TextureView(&sky_view_pass.target_view),
+                },
             ],
         });
         let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -938,6 +942,10 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 12,
                     resource: wgpu::BindingResource::TextureView(&atmo_ms_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::TextureView(&sky_view_pass.target_view),
                 },
             ],
         });
@@ -1280,6 +1288,10 @@ impl Renderer {
                 wgpu::BindGroupEntry {
                     binding: 12,
                     resource: wgpu::BindingResource::TextureView(&self.atmo_ms_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 13,
+                    resource: wgpu::BindingResource::TextureView(&self.sky_view.target_view),
                 },
             ],
         })
@@ -2362,6 +2374,10 @@ impl Renderer {
             su[19] = self.tree_card_hide_m;
             // params2.x (v0.924): tree-card far cutoff (vegetation LOD slider).
             su[20] = self.tree_card_far_m.max(1.0);
+            // params2.y = sky-view LUT valid this frame (stage 3c gate): the
+            // table only re-renders near an atmosphere body; elsewhere it is
+            // stale and the megashader must not blend it in.
+            su[21] = if self.sky_view_uniform.is_some() { 1.0 } else { 0.0 };
             self.queue
                 .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
         }
