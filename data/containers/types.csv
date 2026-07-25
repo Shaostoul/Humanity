@@ -44,3 +44,9 @@ cryo_pressure_tank,Cryogenic Pressure Tank,steel,500.0,25.0,40.0,-200.0,liquid_c
 hazmat_box,Hazmat Containment Box,hdpe,100.0,1.5,80.0,-30.0,solid|hazmat|toxic|corrosive,Sealed chemical-resistant box for hazardous solids and toxic or corrosive materials
 dairy_food_tank,Dairy Food Tank,steel,2000.0,1.0,40.0,0.0,liquid|food,Food-grade stainless tank for milk and potable food liquids
 grain_silo_bin,Grain Silo Bin,steel,4000.0,1.0,60.0,-30.0,solid|dry_goods,Vertical bulk storage bin for grain and dry staples
+furniture_drawer,Furniture Drawer,pine,60.0,1.0,60.0,-20.0,solid|dry_goods,Built-in drawer of a desk or nightstand for small dry items
+wardrobe_cabinet,Wardrobe,pine,600.0,1.0,60.0,-20.0,solid|dry_goods,Tall clothing cabinet with rail and shelves
+bookshelf_bin,Bookshelf,pine,300.0,1.0,60.0,-20.0,solid|dry_goods,Open shelving for books and boxed dry goods
+pantry_cabinet_bin,Pantry Cabinet,pine,700.0,1.0,60.0,-20.0,solid|dry_goods|food,Sealed kitchen cabinet for dry and jarred food
+tool_cabinet,Tool Rack,steel,250.0,1.0,120.0,-40.0,solid,Wall rack and bins for hand tools and hardware
+freezer_chest,Freezer Chest,steel,400.0,1.0,10.0,-30.0,solid|food,Insulated chest freezer holding food well below zero
