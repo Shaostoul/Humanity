@@ -1565,6 +1565,12 @@ mod native_app {
                 )),
                 audio_volumes_applied: (-1.0, -1.0, -1.0),
                 tree_atlas_attempted: false,
+                particle_system: {
+                    let mut ps = crate::renderer::particles::ParticleSystem::new();
+                    ps.load_defs(std::path::Path::new("data"));
+                    ps
+                },
+                prev_ship_world_pos: glam::DVec3::ZERO,
                 debug_test_light_count: 0,
                 debug_test_light_intensity: 3.0,
                 window,
@@ -3136,6 +3142,58 @@ mod native_app {
                     // controller used to freeze all below-FTL-cap movement.
                     state.controller.surface_translation_owned = state.surface_owns_translation;
                     state.controller.update_camera(&mut state.camera, dt);
+
+                    // ── Ambient particles (v0.966): leaves among trees, dust
+                    // in the void ── tick + emitter management. Particles
+                    // live in RENDER space, so each frame they ride the
+                    // floating-origin rebase (shift by -delta ship pos); an
+                    // FTL-scale jump just clears them.
+                    {
+                        let delta = state.prev_ship_world_pos - state.ship_world_pos;
+                        let d32 = Vec3::new(delta.x as f32, delta.y as f32, delta.z as f32);
+                        if d32.length() > 2000.0 {
+                            state.particle_system.clear();
+                        } else if d32.length_squared() > 0.0 {
+                            state.particle_system.shift_all(d32);
+                        }
+                        state.prev_ship_world_pos = state.ship_world_pos;
+                        // Leaves drift while standing among real trees.
+                        let want_leaves =
+                            state.camera.surface_mode && !state.near_trees.is_empty();
+                        let leaf_pos = state.camera.position + state.camera.up * 6.0;
+                        match state.particle_system.emitter_by_type_mut("leaf_drift") {
+                            Some(e) => {
+                                e.active = want_leaves;
+                                if want_leaves {
+                                    e.position = leaf_pos;
+                                }
+                            }
+                            None => {
+                                if want_leaves {
+                                    let _ = state.particle_system.spawn("leaf_drift", leaf_pos);
+                                }
+                            }
+                        }
+                        // Space dust: a sparse world-anchored mote field ahead
+                        // of the camera so motion reads against black space.
+                        let want_dust =
+                            !state.camera.surface_mode && state.controller.fly_mode;
+                        let dust_pos = state.camera.position + state.camera.forward() * 12.0;
+                        match state.particle_system.emitter_by_type_mut("space_dust") {
+                            Some(e) => {
+                                e.active = want_dust;
+                                if want_dust {
+                                    e.position = dust_pos;
+                                }
+                            }
+                            None => {
+                                if want_dust {
+                                    let _ = state.particle_system.spawn("space_dust", dust_pos);
+                                }
+                            }
+                        }
+                        state.particle_system.tick(dt);
+                    }
 
                     // Dev FTL flight, world-scale share (v0.791.x): above
                     // LOCAL_FLY_MULT_MAX one frame of travel reaches km-to-
@@ -14253,6 +14311,13 @@ mod native_app {
                                 state.renderer.render_overlay_onto(&state.camera, &overlay_objects, &view);
                                 // Pass 2.7: door auto-open rings as constant-width lines (v0.565).
                                 state.renderer.draw_lines_onto(&state.camera, &ring_lines, &view);
+                                // Pass 2.8: particle billboards (v0.966) -
+                                // drifting leaves, space dust - blended over
+                                // everything, depth-tested, no depth write.
+                                {
+                                    let (pa, pad) = state.particle_system.collect_split();
+                                    state.renderer.draw_particles_onto(&state.camera, &pa, &pad, &view);
+                                }
                                 Ok((output, view))
                             }
                             Err(e) => Err(e),

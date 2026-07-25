@@ -43,6 +43,10 @@ struct EmitterDefRon {
     #[serde(default = "default_clear4")] color_end: (f32, f32, f32, f32),
     #[serde(default)] emissive: f32,
     #[serde(default = "default_alpha")] blend_mode: String,
+    /// Spawn positions jitter inside this radius around the emitter (v0.966:
+    /// area effects like drifting leaves and space dust need a volume, not a
+    /// point source). 0 = the classic point emitter.
+    #[serde(default)] spawn_radius: f32,
 }
 fn default_100() -> usize { 100 }
 fn default_20f() -> f32 { 20.0 }
@@ -77,6 +81,7 @@ impl EmitterDefRon {
             color_end: [self.color_end.0, self.color_end.1, self.color_end.2, self.color_end.3],
             emissive: self.emissive,
             blend_additive: self.blend_mode == "additive",
+            spawn_radius: self.spawn_radius,
         }
     }
 }
@@ -99,6 +104,7 @@ pub struct EmitterDef {
     pub color_end: [f32; 4],
     pub emissive: f32,
     pub blend_additive: bool,
+    pub spawn_radius: f32,
 }
 
 impl Default for EmitterDef {
@@ -119,6 +125,7 @@ impl Default for EmitterDef {
             color_end: [1.0, 1.0, 1.0, 0.0],
             emissive: 0.0,
             blend_additive: false,
+            spawn_radius: 0.0,
         }
     }
 }
@@ -205,8 +212,19 @@ impl Emitter {
             (right * local_dir.x + up * local_dir.y + forward * local_dir.z).normalize() * speed
         };
 
+        // Volume jitter (v0.966): random point in a cube of spawn_radius
+        // (slight corner bias is fine for ambience).
+        let jitter = if def.spawn_radius > 0.0 {
+            Vec3::new(
+                self.rand() * 2.0 - 1.0,
+                self.rand() * 2.0 - 1.0,
+                self.rand() * 2.0 - 1.0,
+            ) * def.spawn_radius
+        } else {
+            Vec3::ZERO
+        };
         self.particles.push(Particle {
-            position: self.position,
+            position: self.position + jitter,
             velocity,
             age: 0.0,
             lifetime,
@@ -319,6 +337,47 @@ impl ParticleSystem {
         self.emitters.iter().map(|e| e.particles.len()).sum()
     }
 
+    /// First live emitter of a type (the ambient leaf/dust emitters are
+    /// singletons managed by type, because emitter INDICES are unstable
+    /// across tick()'s retain).
+    pub fn emitter_by_type_mut(&mut self, t: &str) -> Option<&mut Emitter> {
+        self.emitters.iter_mut().find(|e| e.emitter_type == t)
+    }
+
+    /// Shift every particle + emitter by a render-space delta (v0.966): the
+    /// floating origin rebases render space around the camera, so
+    /// world-anchored ambience must move opposite the ship each frame or it
+    /// teleports with you (the camera-pinned test-light lesson).
+    pub fn shift_all(&mut self, delta: Vec3) {
+        for e in &mut self.emitters {
+            e.position += delta;
+            for p in &mut e.particles {
+                p.position += delta;
+            }
+        }
+    }
+
+    /// Drop everything (an FTL jump moved render space too far to shift).
+    pub fn clear(&mut self) {
+        self.emitters.clear();
+    }
+
+    /// Collect vertices split by blend mode: (alpha, additive).
+    pub fn collect_split(&self) -> (Vec<ParticleVertexData>, Vec<ParticleVertexData>) {
+        let mut alpha = Vec::new();
+        let mut additive = Vec::new();
+        for e in &self.emitters {
+            let add = self
+                .emitter_defs
+                .get(&e.emitter_type)
+                .map(|d| d.blend_additive)
+                .unwrap_or(false);
+            let out = if add { &mut additive } else { &mut alpha };
+            out.extend(e.collect_vertices());
+        }
+        (alpha, additive)
+    }
+
     /// Collect all particle vertices for GPU upload.
     pub fn collect_all_vertices(&self) -> Vec<ParticleVertexData> {
         let mut verts = Vec::with_capacity(self.particle_count());
@@ -329,3 +388,125 @@ impl ParticleSystem {
     }
 }
 
+
+impl ParticleVertexData {
+    /// Per-INSTANCE vertex layout for the billboard pipeline (v0.966): one
+    /// instance per particle; the quad corners come from vertex_index.
+    pub fn instance_layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<ParticleVertexData>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: 12,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 28,
+                    shader_location: 2,
+                    format: wgpu::VertexFormat::Float32x2,
+                },
+            ],
+        }
+    }
+}
+
+/// Build the particle billboard pipeline pair (alpha, additive) + the
+/// frame-uniform bind group layout. Mirrors build_line_pipeline's shape:
+/// reverse-Z depth test, no depth write, drawn as a post-pass onto the
+/// rendered frame.
+pub fn build_particle_pipelines(
+    device: &wgpu::Device,
+    surface_format: wgpu::TextureFormat,
+    camera_bgl: &wgpu::BindGroupLayout,
+) -> (wgpu::RenderPipeline, wgpu::RenderPipeline, wgpu::BindGroupLayout) {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Particle Shader"),
+        source: wgpu::ShaderSource::Wgsl(include_str!("../../assets/shaders/particles.wgsl").into()),
+    });
+    let frame_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("Particle Frame BGL"),
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+    });
+    let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("Particle Pipeline Layout"),
+        bind_group_layouts: &[camera_bgl, &frame_bgl],
+        push_constant_ranges: &[],
+    });
+    let build = |label: &str, blend: wgpu::BlendState| {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[ParticleVertexData::instance_layout()],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(blend),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                ..Default::default()
+            },
+            // Reverse-Z like the line pipeline: test against the scene,
+            // never write (particles must not occlude each other).
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: false,
+                depth_compare: wgpu::CompareFunction::Greater,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        })
+    };
+    let alpha = build(
+        "Particle Pipeline (alpha)",
+        wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent::OVER,
+        },
+    );
+    let additive = build(
+        "Particle Pipeline (additive)",
+        wgpu::BlendState {
+            color: wgpu::BlendComponent {
+                src_factor: wgpu::BlendFactor::SrcAlpha,
+                dst_factor: wgpu::BlendFactor::One,
+                operation: wgpu::BlendOperation::Add,
+            },
+            alpha: wgpu::BlendComponent::OVER,
+        },
+    );
+    (alpha, additive, frame_bgl)
+}

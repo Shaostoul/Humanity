@@ -126,6 +126,13 @@ pub(crate) struct EngineState {
     /// One-shot guard for the tree-card atlas bake (v0.961): a FAILED bake
     /// must log once and stop, not re-parse 12 GLTFs every frame.
     pub(crate) tree_atlas_attempted: bool,
+    /// Ambient particle simulation (v0.966): drifting leaves near trees,
+    /// space dust for motion reference in the void. CPU-ticked each frame,
+    /// drawn by the renderer's particle post-pass.
+    pub(crate) particle_system: crate::renderer::particles::ParticleSystem,
+    /// Last frame's ship_world_pos, for riding particles through
+    /// floating-origin rebases (render space moves opposite the ship).
+    pub(crate) prev_ship_world_pos: glam::DVec3,
     /// Dev test-light COUNT from the showcase lights:N hook (clustering
     /// dev-aid). The grid REGENERATES around the camera every frame - render
     /// space rebases with the floating origin, so stored positions go stale

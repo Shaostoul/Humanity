@@ -127,6 +127,13 @@ pub struct Renderer {
     /// World-space thin-line pipeline (orbit paths). Shares the main
     /// camera bind group; reverse-Z depth-test, no depth-write.
     line_pipeline: wgpu::RenderPipeline,
+    /// Particle billboard pipelines (v0.966): alpha + additive blend pair,
+    /// drawn as a post-pass (draw_particles_onto). The frame uniform holds
+    /// the camera right/up axes for billboard expansion.
+    particle_pipeline_alpha: wgpu::RenderPipeline,
+    particle_pipeline_additive: wgpu::RenderPipeline,
+    particle_frame_buffer: wgpu::Buffer,
+    particle_frame_bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
     /// Uncapped scene-light list (v0.782): a storage buffer of 64-byte GpuLight
@@ -495,6 +502,26 @@ impl Renderer {
         let pipeline = Pipeline::new(&device, surface_format, &shader);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
+        let (particle_pipeline_alpha, particle_pipeline_additive, particle_frame_bgl) =
+            particles::build_particle_pipelines(
+                &device,
+                config.format,
+                &pipeline.camera_bind_group_layout,
+            );
+        let particle_frame_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Particle Frame UB"),
+            size: 32,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let particle_frame_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Particle Frame BG"),
+            layout: &particle_frame_bgl,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: particle_frame_buffer.as_entire_binding(),
+            }],
+        });
         let line_pipeline = line::build_line_pipeline(
             &device,
             surface_format,
@@ -1034,6 +1061,10 @@ impl Renderer {
             #[cfg(feature = "native")]
             shader_hot_checked: std::time::Instant::now(),
             line_pipeline,
+            particle_pipeline_alpha,
+            particle_pipeline_additive,
+            particle_frame_buffer,
+            particle_frame_bind_group,
             camera_buffer,
             camera_bind_group,
             lights_buffer,
@@ -2772,6 +2803,82 @@ impl Renderer {
             rp.set_bind_group(0, &self.camera_bind_group, &[]);
             rp.set_vertex_buffer(0, vbuf.slice(..));
             rp.draw(0..verts.len() as u32, 0..1);
+        }
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Draw particle billboards onto an already-rendered frame (v0.966).
+    /// Same post-pass shape as draw_lines_onto: transient instance buffer,
+    /// reverse-Z depth TEST against the scene, no depth write. Billboard
+    /// axes come from the camera basis, uploaded to the frame uniform.
+    pub fn draw_particles_onto(
+        &self,
+        camera: &Camera,
+        alpha: &[particles::ParticleVertexData],
+        additive: &[particles::ParticleVertexData],
+        view: &wgpu::TextureView,
+    ) {
+        if alpha.is_empty() && additive.is_empty() {
+            return;
+        }
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
+        );
+        let right = camera.right();
+        let up = right.cross(camera.forward()).normalize_or_zero() * -1.0;
+        let frame: [f32; 8] = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0];
+        self.queue
+            .write_buffer(&self.particle_frame_buffer, 0, bytemuck::cast_slice(&frame));
+        let make_vb = |data: &[particles::ParticleVertexData]| {
+            self.device
+                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Particle Instance VB"),
+                    contents: bytemuck::cast_slice(data),
+                    usage: wgpu::BufferUsages::VERTEX,
+                })
+        };
+        let vb_alpha = (!alpha.is_empty()).then(|| make_vb(alpha));
+        let vb_add = (!additive.is_empty()).then(|| make_vb(additive));
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Particle Encoder"),
+            });
+        {
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Particle Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            rp.set_bind_group(0, &self.camera_bind_group, &[]);
+            rp.set_bind_group(1, &self.particle_frame_bind_group, &[]);
+            if let Some(vb) = &vb_alpha {
+                rp.set_pipeline(&self.particle_pipeline_alpha);
+                rp.set_vertex_buffer(0, vb.slice(..));
+                rp.draw(0..4, 0..alpha.len() as u32);
+            }
+            if let Some(vb) = &vb_add {
+                rp.set_pipeline(&self.particle_pipeline_additive);
+                rp.set_vertex_buffer(0, vb.slice(..));
+                rp.draw(0..4, 0..additive.len() as u32);
+            }
         }
         self.queue.submit(std::iter::once(encoder.finish()));
     }

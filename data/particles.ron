@@ -210,4 +210,48 @@
         emissive: 10.0,
         blend_mode: "additive",
     ),
+    // Drifting leaves (v0.966): ambient foliage around the player while
+    // standing among trees. Spawned in a wide volume overhead, blown
+    // sideways with a gentle sink - the emitter follows the camera.
+    "leaf_drift": (
+        max_particles: 160,
+        spawn_rate: 10.0,
+        lifetime_min: 5.0,
+        lifetime_max: 10.0,
+        speed_min: 0.4,
+        speed_max: 1.2,
+        direction: (0.7, -0.1, 0.4),  // a prevailing breeze
+        spread_angle_deg: 55.0,
+        gravity: (0.0, -0.30, 0.0),   // slow flutter-sink
+        size_start: 0.09,
+        size_end: 0.07,
+        color_start: (0.45, 0.52, 0.18, 0.9),  // autumn green-gold
+        color_end: (0.40, 0.32, 0.12, 0.0),
+        emissive: 0.0,
+        blend_mode: "alpha",
+        spawn_radius: 16.0,
+    ),
+    // Space dust (v0.966, operator: "particle effects that help me tell
+    // which direction I'm moving in the blackness of space"): a sparse
+    // field of near-static motes around the flight path. World-anchored
+    // (the engine shifts them with the floating origin), so flying past
+    // them reads as motion streaks against black space.
+    "space_dust": (
+        max_particles: 500,
+        spawn_rate: 160.0,
+        lifetime_min: 1.5,
+        lifetime_max: 3.5,
+        speed_min: 0.0,
+        speed_max: 0.05,
+        direction: (0.0, 0.0, 0.0),   // omnidirectional (near-static)
+        spread_angle_deg: 180.0,
+        gravity: (0.0, 0.0, 0.0),
+        size_start: 0.03,
+        size_end: 0.02,
+        color_start: (0.75, 0.82, 1.0, 0.55),  // faint starlit blue-white
+        color_end: (0.75, 0.82, 1.0, 0.0),
+        emissive: 0.6,
+        blend_mode: "alpha",
+        spawn_radius: 30.0,
+    ),
 }
