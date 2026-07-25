@@ -30,9 +30,9 @@ pub const TRAINS: [WaveTrain; 6] = [
     WaveTrain { dir: [0.7071068, 0.0, 0.7071068], lambda_m: 2000.0, cps: 0.028, height_m: 1.1 },
     WaveTrain { dir: [0.2672612, 0.5345225, 0.8017837], lambda_m: 360.0, cps: 0.07, height_m: 0.7 },
     WaveTrain { dir: [-0.5773503, 0.5773503, 0.5773503], lambda_m: 150.0, cps: 0.105, height_m: 0.45 },
-    WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.22 },
-    WaveTrain { dir: [0.9622504, 0.1924501, 0.1924501], lambda_m: 18.0, cps: 0.30, height_m: 0.12 },
-    WaveTrain { dir: [0.4082483, -0.8164966, 0.4082483], lambda_m: 6.0, cps: 0.52, height_m: 0.05 },
+    WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.45 },
+    WaveTrain { dir: [0.9622504, 0.1924501, 0.1924501], lambda_m: 18.0, cps: 0.30, height_m: 0.35 },
+    WaveTrain { dir: [0.4082483, -0.8164966, 0.4082483], lambda_m: 6.0, cps: 0.52, height_m: 0.1 },
 ];
 
 /// The water surface floats this far ABOVE the nominal sea sphere
@@ -45,7 +45,26 @@ pub const SURFACE_LIFT_M: f32 = 1.2;
 
 /// Worst-case |wave height|: the sum of every train's amplitude. Useful for
 /// conservative bounds (patch radial bands, "am I possibly submerged").
-pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.22 + 0.12 + 0.05;
+/// v0.957 (field report "no actual wave height"): chop trains 4-6 lifted to
+/// Beaufort-4-ish amplitudes now that the water mesh is fine enough to
+/// actually draw them (WATER_MAX_PATCH_DEPTH 17).
+pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.45 + 0.35 + 0.1;
+
+/// Shoal damping for the GEOMETRIC wave height: full amplitude in open
+/// water, fading to zero as the sea shallows so bigger waves never stab
+/// through beach terrain (the drawn waterline stays clean). Mirrors the
+/// vertex shader's smoothstep(0.4, 7.0, depth_m) exactly (drawn == sampled).
+pub fn shoal_factor(depth_m: f32) -> f32 {
+    let t = ((depth_m - 0.4) / (7.0 - 0.4)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Wave height with shoal damping applied, for callers that know the local
+/// water depth (the player float clamp). `wave_height_m` stays the
+/// open-deep form for callers without bathymetry.
+pub fn wave_height_shoaled_m(p_m: glam::Vec3, t: f32, depth_m: f32) -> f32 {
+    wave_height_m(p_m, t) * shoal_factor(depth_m)
+}
 
 const TAU: f32 = std::f32::consts::TAU;
 

@@ -320,6 +320,10 @@
     {
       "date": "2026-07-25",
       "decision": "Atmosphere-limb fix (field report #2, southern Australia hidden from space): the v0.912/0.913 daylight star-occlusion boost (alpha_occ = max(alpha, sky_lum*4.5, day)) applied to EVERY type-14 shell fragment, including rays that hit the planet. Near the disc edge the bright limb in-scatter saturated alpha to 1.0 and painted flat blue over the continent. Stars only sit behind rays that MISS the planet, so the boost is now gated by !hits_surface; surface-hitting rays keep pure transmittance alpha (~0.5 at those angles = readable land through physically blue haze, like real limb photos). NEW permanent vantage australia-limb-12000km (showcase time 4.2 lights 130E) guards this. Blue-marble + limb-400km compared before/after: approved look preserved. Ships v0.956.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "Ocean wave height (field report #3, still just a flat 2D shape): root cause was mesh resolution, not shading - WATER_MAX_PATCH_DEPTH 14 gave ~38 m vertices, so the 6-50 m chop trains could not exist as geometry and ALL visible wave detail was fragment fiction. Fix: depth cap 14->17 (~4.8 m verts near the eye, pixel-driven so only near-camera refines), WATER_MAX_LEAVES 144->256 (MAX_OBJECTS is 16384, the small-slice comment was stale), chop amplitudes to Beaufort-4-ish (W4 0.22->0.45, W5 0.12->0.35, W6 0.05->0.1), and NEW shoal damping (smoothstep 0.4..7 m of baked depth) in the vertex stage + CPU twin (wave_height_shoaled_m; float clamp passes drawn-seafloor depth) so taller chop never stabs through beaches. Lockstep test enforced both sides. VERIFIED: storm capture shows real wave bodies + foam; calm shows fine relief; fps 84-88 at the grazing vantage. KNOWN + PRE-EXISTING (A/B proven, NOT from this change): a white/black sheet band at the horizon at grazing angle - present in 07-23 and 07-25-morning captures with OLD code, unchanged when amplitudes reverted live via hot-reload. Filed as next ocean queue item. Ships v0.957.0."
     }
   ],
   "active_scopes_to_avoid": [

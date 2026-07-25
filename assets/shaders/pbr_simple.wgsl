@@ -217,19 +217,24 @@ const OCEAN_W3_CPS: f32 = 0.105;
 const OCEAN_W3_HEIGHT: f32 = 0.45;
 const OCEAN_W4_LAMBDA: f32 = 50.0;
 const OCEAN_W4_CPS: f32 = 0.18;
-const OCEAN_W4_HEIGHT: f32 = 0.22;
+const OCEAN_W4_HEIGHT: f32 = 0.45;
 // v0.912 (operator: "add fake geometry to the ocean to simulate the
 // smaller waves... right now the waves seem exclusively texture
 // related"): two SHORT geometric trains give near water real moving
 // chop. Speeds follow deep-water dispersion (c ~ 1.25 sqrt(lambda)).
 // Faded out by ~800 m in the vertex shader - beyond that they are
 // sub-vertex and shading owns the detail.
+// v0.957 (operator: "still just look like a flat 2D shape. No actual
+// wave height"): trains 4-6 lifted to Beaufort-4-ish amplitudes now that
+// WATER_MAX_PATCH_DEPTH 17 gives ~4.8 m vertices near the camera - the
+// chop is real displaced geometry with silhouettes, not shading fiction.
+// CPU twin: terrain::ocean_waves::TRAINS (lockstep-tested).
 const OCEAN_W5_LAMBDA: f32 = 18.0;
 const OCEAN_W5_CPS: f32 = 0.30;
-const OCEAN_W5_HEIGHT: f32 = 0.12;
+const OCEAN_W5_HEIGHT: f32 = 0.35;
 const OCEAN_W6_LAMBDA: f32 = 6.0;
 const OCEAN_W6_CPS: f32 = 0.52;
-const OCEAN_W6_HEIGHT: f32 = 0.05;
+const OCEAN_W6_HEIGHT: f32 = 0.1;
 
 // One train's vertical height contribution at planet-local point p_m.
 // Phase = distance along the fixed 3D direction in wavelengths, wrapped
@@ -289,7 +294,14 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
             let cam_dist = length(camera.view_pos.xyz - world_pos.xyz);
             let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);
             if (fade > 0.001) {
-                let h = ocean_wave_height(dir * r, camera.sun_color.w, cam_dist) * fade;
+                // Shoal damping (v0.957): the packed UV carries the baked
+                // water depth (see build_water_patch_mesh - low 16 bits =
+                // decimetres), so the taller chop dies smoothly toward the
+                // waterline instead of stabbing through beach terrain.
+                // CPU twin: ocean_waves::shoal_factor (drawn == sampled).
+                let depth_m = f32(u32(round(max(vertex.uv.x, 0.0))) & 65535u) / 10.0;
+                let shoal = smoothstep(0.4, 7.0, depth_m);
+                let h = ocean_wave_height(dir * r, camera.sun_color.w, cam_dist) * fade * shoal;
                 world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
             }
         }

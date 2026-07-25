@@ -3594,7 +3594,15 @@ mod native_app {
                                         let t = state.start_time.elapsed().as_secs_f32();
                                         let p =
                                             (dir1 * d.radius).as_vec3();
-                                        let wave = crate::terrain::ocean_waves::wave_height_m(p, t)
+                                        // Shoaled twin (v0.957): g is the drawn
+                                        // seafloor here, so radius - g is the
+                                        // local depth - the float height dies
+                                        // toward the waterline exactly like the
+                                        // vertex displacement (drawn == sampled).
+                                        let depth_m = (d.radius - g).max(0.0) as f32;
+                                        let wave = crate::terrain::ocean_waves::wave_height_shoaled_m(
+                                            p, t, depth_m,
+                                        )
                                             as f64;
                                         g = g.max(
                                             d.radius
