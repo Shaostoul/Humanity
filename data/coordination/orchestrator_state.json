@@ -352,6 +352,14 @@
     {
       "date": "2026-07-25",
       "decision": "DENSE FORESTS shipped (overnight backlog #2): TREES_PER_CELL 100 -> 800 (~2k -> ~16k trees/km^2, real temperate-forest range). Measured at fuji: 400/cell 93.5 fps, 800/cell 87.8 fps - sprite cards (v0.961, 2 quads/tree) make card density nearly free; the near 3D-model band (64-model cap) is the actual frame cost and is unchanged. The 600-tree harvest cap now covers a smaller model radius in dense stands, and the v0.914 covered-radius card-hide logic handles that correctly by design. Ships v0.963.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "WATER NEAR-FIELD LOD shipped (overnight backlog #3): WATER_MAX_PATCH_DEPTH 17 -> 20 (~0.6 m vertices at the eye, the operator-suggested ~0.5 m scale; ladder 18=2.4m 19=1.2m 20=0.6m), WATER_MAX_LEAVES 256 -> 512. Pixel-driven selection keeps deep tiers within tens of metres, so far-ocean cost is unchanged: ocean sweeps 89.4/84.1 fps (was 84-92 at depth 17). Even the 6 m ripple train is true geometry at the waterline now. Ships v0.964.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "CONTENT-CREATION DOCS shipped (overnight backlog #5, first Workflow of the night: 21 agents, ~1.56M tokens, 6.2 min): docs/user/creating/ with 10 zero-prior-knowledge guides (planet, vehicle, spaceship, furniture, plant, 3d-model, audio-file, recipe, quest, room-structure) + index; router linked; check-doc-links 0 broken across 358 docs. Spot-checked audio-file + planet: real paths only, honest about gaps (e.g. sounds.toml hot-reload comment is aspirational - restart required; ambient/music folders not on disk yet). All 10 types turned out to be data-driven already. Ships as the docs patch after the v0.964.1 stamp."
     }
   ],
   "active_scopes_to_avoid": [

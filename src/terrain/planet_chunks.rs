@@ -1800,17 +1800,19 @@ pub fn build_patch_mesh(
 /// that steady motion always has the next ring of detail ready.
 pub const MAX_PREFETCH_REQUESTS: usize = 12;
 
-/// Water-shell patch cap (v0.957, field report "no actual wave height"):
-/// depth 17 = ~4.8 m vertex spacing near the camera, so the 18 m and 50 m
-/// chop trains exist as REAL displaced geometry with silhouettes instead
-/// of fragment-shading fiction. The old cap of 14 (~38 m spacing) could
-/// only mesh the long swells, whose 1.1 m over 2 km reads as dead flat.
-/// Selection is pixel-driven, so the deep tiers only refine near the eye.
-pub const WATER_MAX_PATCH_DEPTH: u8 = 17;
+/// Water-shell patch cap. History: 14 (~38 m verts - only km swells were
+/// meshable, the "flat 2D shape" report); 17 (v0.957, ~4.8 m - the 18-50 m
+/// chop became real); 20 (v0.964, operator: "I imagine we wouldn't need
+/// resolution for water any lower than 0.1m... maybe 0.5m") = ~0.6 m
+/// vertices right at the eye, so even the 6 m ripple train is true
+/// geometry at the waterline. Selection stays pixel-driven, so the deep
+/// tiers exist only within tens of metres of the camera - the far ocean
+/// costs exactly what it did.
+pub const WATER_MAX_PATCH_DEPTH: u8 = 20;
 
-/// Water-shell leaf budget: three deeper tiers need more near-camera
-/// leaves; MAX_OBJECTS is 16384 today, so 256 is still a small slice.
-pub const WATER_MAX_LEAVES: usize = 256;
+/// Water-shell leaf budget: six deeper tiers need more near-camera
+/// leaves; MAX_OBJECTS is 16384 today, so 512 is still a small slice.
+pub const WATER_MAX_LEAVES: usize = 512;
 
 /// One near-field tree from the planet-fixed vegetation stream (v0.911):
 /// the same cell hash the patch bake emits silhouette cards from,
