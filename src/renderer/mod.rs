@@ -8,6 +8,8 @@ pub mod atmosphere;
 pub mod atmo_luts;
 /// Sky-view LUT offscreen pass (sky arc stage 3b-2).
 pub mod sky_view;
+/// Screen-tile light binning (clustering L1).
+pub mod light_tiles;
 pub mod bloom;
 pub mod godrays;
 pub mod ssao;
