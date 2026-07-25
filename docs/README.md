@@ -16,7 +16,8 @@ This folder is organized by **who you are**. Pick the path that fits you.
 ### I want to use the app
 You are a **user**. You want to chat, organize, learn, and build, and you want it to
 just work. Go to **[user/](user/)**, start with
-**[user/getting-started.md](user/getting-started.md)**.
+**[user/getting-started.md](user/getting-started.md)**. Want to make your own
+planets, ships, plants, or quests? See **[user/creating/README.md](user/creating/README.md)**.
 
 ### I want to run a server
 You are an **admin**. You want to host HumanityOS for yourself or a community, on your
