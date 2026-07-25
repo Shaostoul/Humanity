@@ -47,6 +47,56 @@ const CATEGORIES = [
     { title: 'Scope and Boundaries', src: 'docs/accord/scope_boundaries.md' },
     { title: 'Knowledge Sources', src: 'docs/accord/knowledge_sources.md' },
   ]},
+  // v0.965.x expansion (operator: "can we get the library page filled with
+  // all the docs, not just the accord? We essentially want to make it so
+  // the only app people ever need to open again is HumanityOS").
+  { name: 'Getting Started', docs: [
+    { title: 'Welcome', src: 'docs/user/README.md' },
+    { title: 'Getting Started', src: 'docs/user/getting-started.md' },
+    { title: 'Onboarding Walkthrough', src: 'docs/user/ONBOARDING.md' },
+  ]},
+  { name: 'Creating Content', docs: [
+    { title: 'What You Can Make', src: 'docs/user/creating/README.md' },
+    { title: 'Add a Planet', src: 'docs/user/creating/planet.md' },
+    { title: 'Add a Vehicle', src: 'docs/user/creating/vehicle.md' },
+    { title: 'Add a Spaceship', src: 'docs/user/creating/spaceship.md' },
+    { title: 'Add Furniture', src: 'docs/user/creating/furniture.md' },
+    { title: 'Add a Plant', src: 'docs/user/creating/plant.md' },
+    { title: 'Add a 3D Model', src: 'docs/user/creating/3d-model.md' },
+    { title: 'Add a Sound', src: 'docs/user/creating/audio-file.md' },
+    { title: 'Add a Recipe', src: 'docs/user/creating/recipe.md' },
+    { title: 'Add a Quest', src: 'docs/user/creating/quest.md' },
+    { title: 'Add a Room or Structure', src: 'docs/user/creating/room-structure.md' },
+  ]},
+  { name: 'Running Your Own Server', docs: [
+    { title: 'Overview', src: 'docs/admin/README.md' },
+    { title: 'Self-Hosting Guide', src: 'docs/admin/SELF-HOSTING.md' },
+    { title: 'Distribution Mirrors', src: 'docs/admin/distribution-mirrors.md' },
+    { title: 'Torrent Infrastructure', src: 'docs/admin/torrent-infrastructure.md' },
+  ]},
+  { name: 'For Contributors', docs: [
+    { title: 'Start Here', src: 'docs/contributor/00-START-HERE.md' },
+    { title: 'The Vision', src: 'docs/contributor/01-VISION.md' },
+    { title: 'Architecture', src: 'docs/contributor/02-ARCHITECTURE.md' },
+    { title: 'Module Map', src: 'docs/contributor/03-MODULE-MAP.md' },
+    { title: 'Contributing', src: 'docs/contributor/04-CONTRIBUTING.md' },
+    { title: 'Source of Truth Map', src: 'docs/contributor/06-SOURCE-OF-TRUTH-MAP.md' },
+    { title: 'Development Loop', src: 'docs/contributor/development_loop.md' },
+    { title: 'Validating Data Files', src: 'docs/contributor/validate_data.md' },
+  ]},
+  { name: 'How It Is Designed', docs: [
+    { title: 'Design Overview', src: 'docs/design/DESIGN.md' },
+    { title: 'Two Realities (Real and Sim)', src: 'docs/design/two-realities.md' },
+    { title: 'Infinite of Everything', src: 'docs/design/infinite-of-x.md' },
+    { title: 'The UI System', src: 'docs/design/ui-system.md' },
+    { title: 'Gameplay Loop Map', src: 'docs/design/gameplay-loop-map.md' },
+    { title: 'Progression, Skills, and Gear', src: 'docs/design/progression-skills-gear.md' },
+    { title: 'The Cosmos', src: 'docs/design/cosmos-architecture.md' },
+  ]},
+  { name: 'Project', docs: [
+    { title: 'Roadmap', src: 'docs/ROADMAP.md' },
+    { title: 'AI Participation', src: 'docs/ai/onboarding.md' },
+  ]},
 ];
 
 fs.mkdirSync(LIB, { recursive: true });
@@ -56,11 +106,18 @@ const manifest = {
 };
 let copied = 0;
 const missing = [];
+const used = new Set();
 for (const cat of CATEGORIES) {
   const entry = { name: cat.name, docs: [] };
   for (const d of cat.docs) {
     if (!fs.existsSync(d.src)) { missing.push(d.src); continue; }
-    const file = path.basename(d.src);
+    // Collision-safe target name: basename first; if taken (README.md
+    // exists in four source folders), fall back to the full path slug.
+    let file = path.basename(d.src);
+    if (used.has(file)) {
+      file = d.src.replace(/^docs\//, '').replace(/[\/\\]/g, '-');
+    }
+    used.add(file);
     fs.copyFileSync(d.src, path.join(LIB, file));
     entry.docs.push({ title: d.title, file });
     copied++;

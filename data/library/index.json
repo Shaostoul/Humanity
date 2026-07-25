@@ -102,6 +102,176 @@
           "file": "knowledge_sources.md"
         }
       ]
+    },
+    {
+      "name": "Getting Started",
+      "docs": [
+        {
+          "title": "Welcome",
+          "file": "README.md"
+        },
+        {
+          "title": "Getting Started",
+          "file": "getting-started.md"
+        },
+        {
+          "title": "Onboarding Walkthrough",
+          "file": "ONBOARDING.md"
+        }
+      ]
+    },
+    {
+      "name": "Creating Content",
+      "docs": [
+        {
+          "title": "What You Can Make",
+          "file": "user-creating-README.md"
+        },
+        {
+          "title": "Add a Planet",
+          "file": "planet.md"
+        },
+        {
+          "title": "Add a Vehicle",
+          "file": "vehicle.md"
+        },
+        {
+          "title": "Add a Spaceship",
+          "file": "spaceship.md"
+        },
+        {
+          "title": "Add Furniture",
+          "file": "furniture.md"
+        },
+        {
+          "title": "Add a Plant",
+          "file": "plant.md"
+        },
+        {
+          "title": "Add a 3D Model",
+          "file": "3d-model.md"
+        },
+        {
+          "title": "Add a Sound",
+          "file": "audio-file.md"
+        },
+        {
+          "title": "Add a Recipe",
+          "file": "recipe.md"
+        },
+        {
+          "title": "Add a Quest",
+          "file": "quest.md"
+        },
+        {
+          "title": "Add a Room or Structure",
+          "file": "room-structure.md"
+        }
+      ]
+    },
+    {
+      "name": "Running Your Own Server",
+      "docs": [
+        {
+          "title": "Overview",
+          "file": "admin-README.md"
+        },
+        {
+          "title": "Self-Hosting Guide",
+          "file": "SELF-HOSTING.md"
+        },
+        {
+          "title": "Distribution Mirrors",
+          "file": "distribution-mirrors.md"
+        },
+        {
+          "title": "Torrent Infrastructure",
+          "file": "torrent-infrastructure.md"
+        }
+      ]
+    },
+    {
+      "name": "For Contributors",
+      "docs": [
+        {
+          "title": "Start Here",
+          "file": "00-START-HERE.md"
+        },
+        {
+          "title": "The Vision",
+          "file": "01-VISION.md"
+        },
+        {
+          "title": "Architecture",
+          "file": "02-ARCHITECTURE.md"
+        },
+        {
+          "title": "Module Map",
+          "file": "03-MODULE-MAP.md"
+        },
+        {
+          "title": "Contributing",
+          "file": "04-CONTRIBUTING.md"
+        },
+        {
+          "title": "Source of Truth Map",
+          "file": "06-SOURCE-OF-TRUTH-MAP.md"
+        },
+        {
+          "title": "Development Loop",
+          "file": "development_loop.md"
+        },
+        {
+          "title": "Validating Data Files",
+          "file": "validate_data.md"
+        }
+      ]
+    },
+    {
+      "name": "How It Is Designed",
+      "docs": [
+        {
+          "title": "Design Overview",
+          "file": "DESIGN.md"
+        },
+        {
+          "title": "Two Realities (Real and Sim)",
+          "file": "two-realities.md"
+        },
+        {
+          "title": "Infinite of Everything",
+          "file": "infinite-of-x.md"
+        },
+        {
+          "title": "The UI System",
+          "file": "ui-system.md"
+        },
+        {
+          "title": "Gameplay Loop Map",
+          "file": "gameplay-loop-map.md"
+        },
+        {
+          "title": "Progression, Skills, and Gear",
+          "file": "progression-skills-gear.md"
+        },
+        {
+          "title": "The Cosmos",
+          "file": "cosmos-architecture.md"
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "docs": [
+        {
+          "title": "Roadmap",
+          "file": "ROADMAP.md"
+        },
+        {
+          "title": "AI Participation",
+          "file": "onboarding.md"
+        }
+      ]
     }
   ]
 }

@@ -364,6 +364,10 @@
     {
       "date": "2026-07-25",
       "decision": "PER-TYPE LOD SETTINGS increment 1 (overnight backlog #4): NEW Settings > Graphics block Detail distances by item type - rows rendered from the LOD category registry, live sliders only for shipped stages (honest-UI rule: tree model/card moved in; NEW water wave-mesh-detail slider 14..20 wired live to the water ChunkParams depth cap, WATER_MAX_PATCH_DEPTH becomes ceiling+default; grass/shrub/creature categories listed muted as not-shipped). Full generic registry driving every draw path stays the arc goal - next increments: move registry to data/lod/ with per-type schemas (vegetation bands do not fit planets/water - forcing one schema would be fake uniformity), wire furniture/NPC draw distances as those systems get distance controls. theme_editor_coverage + all lints green; settings snapshot renders. Ships v0.965.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "LIBRARY ALL-DOCS shipped (overnight backlog #6): build-library.js curation expanded from the Accord (18 docs, 6 categories) to 53 docs / 12 categories - Getting Started (user tree), Creating Content (all 11 new guides), Running Your Own Server (admin), For Contributors (numbered sequence), How It Is Designed (7 core design docs), Project (ROADMAP + AI onboarding). Collision-safe copy names (four README.md sources now slug by path). The native Library page is manifest-driven so the new tree rendered with zero Rust changes (snapshot-verified). Web mirror note: the web Library reads the same data/library via the site sync. Ships v0.965.2."
     }
   ],
   "active_scopes_to_avoid": [
