@@ -2065,6 +2065,15 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         if widgets::toggle(ui, theme, "Tiled light lists (EXPERIMENTAL, higher light counts)", &mut state.settings.lights_tiled) {
             state.settings_dirty = true;
         }
+        // ── Detail distances by item type (v0.965, operator: "a settings
+        // section dedicated to the LODs of everything organized by type of
+        // item") ── every row a live control; categories whose ladder
+        // stages have not shipped yet are listed muted rather than given
+        // lying sliders (honest-UI rule). Rows and labels come from the
+        // LOD category registry (data/vegetation/lod_categories.ron).
+        ui.add_space(6.0);
+        ui.label(RichText::new("Detail distances by item type").color(theme.text_primary()).size(theme.font_size_body).strong());
+        ui.label(RichText::new("How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.").color(theme.text_muted()).size(theme.font_size_small));
         let tree_label = crate::veg_lod::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
         if widgets::labeled_slider(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=300.0) {
             state.settings_dirty = true;
@@ -2074,6 +2083,21 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Water: wave mesh detail (14-20)", &mut state.settings.water_detail_depth, 14.0..=20.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How finely the water surface is meshed near you: 17 = ~5 m wave vertices, 20 = ~0.6 m (every ripple is real geometry). Only the closest water refines, so the open ocean costs the same at any setting.").color(theme.text_muted()).size(theme.font_size_small));
+        for cat in crate::veg_lod::categories() {
+            if cat.id == "tree" {
+                continue; // live sliders above
+            }
+            ui.label(
+                RichText::new(format!("{}: detail stages not shipped yet", cat.label))
+                    .color(theme.text_muted())
+                    .size(theme.font_size_small)
+                    .italics(),
+            );
+        }
         // Lighting passes (v0.907): the three surface-lighting features
         // gained user controls. All apply live next frame.
         if widgets::toggle(ui, theme, "Sun shadows", &mut state.settings.sun_shadows) {

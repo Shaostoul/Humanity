@@ -8724,7 +8724,18 @@ mod native_app {
                                     let wparams = chunks::ChunkParams {
                                         radius_m: d.radius,
                                         band: chunks::water_band(d.radius),
-                                        max_depth: chunks::WATER_MAX_PATCH_DEPTH,
+                                        // Per-type LOD control (v0.965): the
+                                        // Settings water-detail slider owns
+                                        // the near-field depth cap live;
+                                        // WATER_MAX_PATCH_DEPTH is its
+                                        // ceiling + the default.
+                                        max_depth: (state
+                                            .gui_state
+                                            .settings
+                                            .water_detail_depth
+                                            .round()
+                                            .clamp(14.0, chunks::WATER_MAX_PATCH_DEPTH as f32))
+                                            as u8,
                                         split_px,
                                         px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
                                         max_leaves: chunks::WATER_MAX_LEAVES,

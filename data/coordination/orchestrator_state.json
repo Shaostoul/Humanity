@@ -360,6 +360,10 @@
     {
       "date": "2026-07-25",
       "decision": "CONTENT-CREATION DOCS shipped (overnight backlog #5, first Workflow of the night: 21 agents, ~1.56M tokens, 6.2 min): docs/user/creating/ with 10 zero-prior-knowledge guides (planet, vehicle, spaceship, furniture, plant, 3d-model, audio-file, recipe, quest, room-structure) + index; router linked; check-doc-links 0 broken across 358 docs. Spot-checked audio-file + planet: real paths only, honest about gaps (e.g. sounds.toml hot-reload comment is aspirational - restart required; ambient/music folders not on disk yet). All 10 types turned out to be data-driven already. Ships as the docs patch after the v0.964.1 stamp."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "PER-TYPE LOD SETTINGS increment 1 (overnight backlog #4): NEW Settings > Graphics block Detail distances by item type - rows rendered from the LOD category registry, live sliders only for shipped stages (honest-UI rule: tree model/card moved in; NEW water wave-mesh-detail slider 14..20 wired live to the water ChunkParams depth cap, WATER_MAX_PATCH_DEPTH becomes ceiling+default; grass/shrub/creature categories listed muted as not-shipped). Full generic registry driving every draw path stays the arc goal - next increments: move registry to data/lod/ with per-type schemas (vegetation bands do not fit planets/water - forcing one schema would be fake uniformity), wire furniture/NPC draw distances as those systems get distance controls. theme_editor_coverage + all lints green; settings snapshot renders. Ships v0.965.0."
     }
   ],
   "active_scopes_to_avoid": [

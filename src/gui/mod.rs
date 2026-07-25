@@ -6573,6 +6573,10 @@ pub struct SettingsState {
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff in metres -
     /// the card stage's outer distance. More ladder stages follow.
     pub veg_tree_card_m: f32,
+    /// Water near-field mesh depth cap (v0.965, per-type LOD section):
+    /// 17 = ~4.8 m wave vertices at the eye, 20 = ~0.6 m. Selection stays
+    /// pixel-driven, so this only shapes the closest tens of metres.
+    pub water_detail_depth: f32,
     /// Sun shadow map on/off (v0.907, Settings > Planets).
     pub sun_shadows: bool,
     /// Aerial perspective strength (v0.916): how strongly distant land and
@@ -6712,6 +6716,7 @@ impl Default for SettingsState {
             terrain_builds_per_frame: 64.0,
             tree_model_distance: crate::veg_lod::category("tree").map(|c| c.model_m).unwrap_or(120.0),
             veg_tree_card_m: crate::veg_lod::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
+            water_detail_depth: 20.0,
             sun_shadows: true,
             aerial_strength: 1.0,
             godray_intensity: 0.55,
