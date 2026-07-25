@@ -2059,11 +2059,15 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         // sliders "like LOD0, LOD1, LOD2"). Stage 1 = full 3D models,
         // stage 2 = silhouette cards, then bare terrain. Billboard mid-stage
         // + grass/shrub categories are the next rungs.
-        if widgets::labeled_slider(ui, theme, "Tree detail: 3D models within (m)", &mut state.settings.tree_model_distance, 0.0..=300.0) {
+        // Labels come from the LOD category registry (rung 2a): the tree row is
+        // live today; further categories (grass/shrubs/creatures) gain rows as
+        // their ladder stages activate (rungs 2b-2d).
+        let tree_label = crate::veg_lod::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
+        if widgets::labeled_slider(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=300.0) {
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The closest, prettiest tree stage: real photoscanned trees stand within this range. Lower if forests cost too much GPU; 0 turns the stage off (silhouettes only).").color(theme.text_muted()).size(theme.font_size_small));
-        if widgets::labeled_slider(ui, theme, "Tree detail: silhouettes out to (m)", &mut state.settings.veg_tree_card_m, 100.0..=3000.0) {
+        if widgets::labeled_slider(ui, theme, &format!("{tree_label}: silhouettes out to (m)"), &mut state.settings.veg_tree_card_m, 100.0..=3000.0) {
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));

@@ -47,6 +47,8 @@ pub mod scenic_views;
 /// picker, the relay allowlist, and (via HTTP) the web picker. Ungated - both
 /// feature sets consume it.
 pub mod reactions;
+/// Vegetation/creature LOD category registry (data/vegetation/lod_categories.ron).
+pub mod veg_lod;
 /// Extracted satellites of the native main loop (pure math, parsers, data
 /// registries, home spawn helpers) - see docs/dev/code-structure-plan.md.
 #[cfg(feature = "native")]

@@ -1,0 +1,55 @@
+// HumanityOS VEGETATION/CREATURE LOD CATEGORIES (the LOD ladder, rung 2a).
+// One row per SIZE CATEGORY of placeable life (operator design 2026-07-21:
+// "per-size-category render distance sliders - grass short, trees miles, ant
+// vs beast same idea"). Distances are the DEFAULTS for the ladder stages:
+//   model_m     full 3D models within this range
+//   card_m      flat silhouette cards out to this range (0 = no card stage)
+//   billboard_m alpha-textured billboard mid-stage ceiling (rung 2c; 0 = none yet)
+//   fade_s      crossfade seconds between stages (rides RenderObject.fade)
+// The Settings page renders a slider row per category AS ITS STAGES COME
+// ALIVE (a slider that does nothing is a lying UI): tree is live today;
+// grass activates with the packed-UV grass bit (rung 2b), shrub + animals
+// with their content/hookup (rung 2d). Add a category by adding a row -
+// embedded-registry pattern (lock_types), rebuild to apply.
+[
+    (
+        id: "grass",
+        label: "Grass",
+        model_m: 0.0,
+        card_m: 60.0,
+        billboard_m: 0.0,
+        fade_s: 0.25,
+    ),
+    (
+        id: "shrub",
+        label: "Shrubs",
+        model_m: 40.0,
+        card_m: 300.0,
+        billboard_m: 0.0,
+        fade_s: 0.3,
+    ),
+    (
+        id: "tree",
+        label: "Trees",
+        model_m: 120.0,
+        card_m: 1500.0,
+        billboard_m: 0.0,
+        fade_s: 0.3,
+    ),
+    (
+        id: "animal_small",
+        label: "Small creatures",
+        model_m: 60.0,
+        card_m: 0.0,
+        billboard_m: 0.0,
+        fade_s: 0.25,
+    ),
+    (
+        id: "animal_large",
+        label: "Large creatures",
+        model_m: 400.0,
+        card_m: 1200.0,
+        billboard_m: 0.0,
+        fade_s: 0.3,
+    ),
+]
