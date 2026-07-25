@@ -14018,6 +14018,25 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    // Clustering diagnostics (throttled): the
+                                    // lit-then-dark dev-light mystery needs a
+                                    // deterministic answer - what actually
+                                    // reaches the GPU and where.
+                                    if state.debug_test_light_count > 0 {
+                                        static DIAG: std::sync::atomic::AtomicU32 =
+                                            std::sync::atomic::AtomicU32::new(0);
+                                        let n = DIAG.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                        if n % 120 == 0 {
+                                            let cam = state.camera.position;
+                                            let last = lights.last().map(|l| l.pos).unwrap_or(Vec3::ZERO);
+                                            log::info!(
+                                                "[lights-diag] assembled={} cam=({:.1},{:.1},{:.1}) last_light=({:.1},{:.1},{:.1}) tiled={} station_off=({:.1},{:.1},{:.1})",
+                                                lights.len(), cam.x, cam.y, cam.z,
+                                                last.x, last.y, last.z, tiled,
+                                                state.station_off.x, state.station_off.y, state.station_off.z
+                                            );
+                                        }
+                                    }
                                     state.renderer.set_point_lights(&lights);
                                     let vp = state.camera.view_projection_matrix();
                                     let screen = state.renderer.surface_size();
