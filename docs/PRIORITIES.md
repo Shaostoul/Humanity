@@ -11,7 +11,23 @@
 
 ## Active focus
 
-> **>>> CLEANUP/STRUCTURE ARC (2026-07-24, Fable): IN PROGRESS.** Shipped this
+> **>>> FIELD-REPORT QUEUE (2026-07-25, Fable loop): IN PROGRESS.** Operator
+> evening reports rank the queue: [1] trees-near-render DONE v0.955.0 (root
+> cause: the green-dominance biome gate rejected brown-green Blue Marble
+> texels; shared veg_biome_ok() now gates bake + harvest identically, gate
+> autopsy logging + 2 albedo regression tests added), [2] atmosphere limb
+> hides terrain from space (southern Australia invisible at the disc edge;
+> thin type-14 limb opacity at mid-disc incidence, verify against blue-marble
+> + limb-400km goldens), [3] ocean wave HEIGHT (real vertex displacement,
+> "still just a flat 2D shape"). THEN two operator-unblocked arcs (2026-07-25
+> decisions): billboard sprite BAKE-OUR-OWN tool (automated 3D-model-to-card
+> render, the alpha-card LOD rung; benefits modders, zero manual art per
+> model) and the AUDIO ARC (CC0 Kenney.nl download APPROVED; kira engine has
+> zero callers today; operator sourcing music separately). Parked: tiled
+> light lists dark-grid mystery (shipped default-off EXPERIMENTAL v0.954),
+> sky froxels stage 4.
+>
+> Prior arc: **>>> CLEANUP/STRUCTURE ARC (2026-07-24, Fable): IN PROGRESS.** Shipped this
 > arc: v0.931 (ONE reaction palette to data/reactions.json, fixed the relay
 > silently dropping native reactions + opening styles to RON), v0.932 (lib.rs
 > tiers A+B to src/engine/: 1,040 lines), v0.933 (THE ADMIN MAP:

@@ -366,6 +366,22 @@ impl DetailNoise {
 /// (normalized elevation, sampled_from_tile) so callers pick the matching
 /// detail-noise gate. THE one elevation entry point for tile-aware callers
 /// (mesh builder + the ground clamp) - drawn == sampled stays inviolate.
+/// Vegetation biome gate, shared VERBATIM by the card bake and the
+/// near-model harvest (the model must hide its card, so the two streams may
+/// never disagree). Vegetation = green not badly beaten by red, and green
+/// clearly above blue (rejects water, ice, snow). Raw Blue Marble linear
+/// vegetation is often BROWN-green - Tasmania forest r/g 1.09, Kansas
+/// prairie 1.01, the operator's bare hills 1.08 - and the old strict
+/// green-dominance test (green > red * 1.04) rejected all of those, so
+/// distant texels grew cards while the ground underfoot grew NOTHING
+/// (field report 2026-07-25: "trees still won't render near me"). Barren
+/// stays barren with a wide margin: Gobi r/g 1.44, Tibet 1.47, Spain
+/// meseta 1.55, Sahara 1.69, Outback 3.12 (see biome_gate_separates_
+/// vegetated_from_barren, measured over the shipped albedo).
+pub fn veg_biome_ok(sc: [f32; 3]) -> bool {
+    sc[0] < sc[1] * 1.25 && sc[1] > sc[2] * 1.04
+}
+
 pub fn tile_or_base(
     hm: &PlanetHeightmap,
     tiles: Option<&super::terrain_tiles::TerrainTiles>,
@@ -1595,12 +1611,12 @@ pub fn build_patch_mesh(
                         if elev_m < 3.0 || elev_m > TREELINE_M {
                             continue;
                         }
-                        // Biome gate (v0.896): vegetation only where the
-                        // surface COLOR is green-dominant - the same
+                        // Biome gate (v0.896, loosened v0.955): vegetation
+                        // where the surface COLOR reads vegetated - the same
                         // imagery/ramp the ground renders with. Real Earth
                         // imagery is the planet-wide biome map for free.
                         let sc = surface_color(def, albedo, dir.as_vec3(), e);
-                        if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
+                        if !veg_biome_ok(sc) {
                             continue;
                         }
                         let r = radius_m
@@ -1769,6 +1785,15 @@ pub fn near_tree_instances(
     if lat_c.abs() > 1.5 {
         return out;
     }
+    // Gate diagnostics (operator field report 2026-07-25: every recompute
+    // returned 0 while cards rendered): count WHY candidates die so the
+    // run.log names the guilty gate instead of just "0 trees".
+    let mut n_total = 0u32;
+    let mut n_out = 0u32;
+    let mut n_elev = 0u32;
+    let mut n_green = 0u32;
+    let mut elev_samples: Vec<f32> = Vec::new();
+    let mut green_samples: Vec<[f32; 3]> = Vec::new();
     let lon_c = (-center.z).atan2(center.x);
     let ang = radius_m / def.radius.max(1.0);
     let cos_ang = ang.cos();
@@ -1814,11 +1839,13 @@ pub fn near_tree_instances(
                 if out.len() >= max_n {
                     return out;
                 }
+                n_total += 1;
                 let lat = (iy as f64 + (r0 % 4096) as f64 / 4096.0) * cell;
                 let lon = (ix as f64 + (r1 % 4096) as f64 / 4096.0) * cell;
                 let cl = lat.cos();
                 let dir = DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
                 if dir.dot(center) < cos_ang {
+                    n_out += 1;
                     continue;
                 }
                 let (e, _tile) = match source {
@@ -1831,10 +1858,18 @@ pub fn near_tree_instances(
                 };
                 let elev_m = (e - sea) * range_m;
                 if elev_m < 3.0 || elev_m > TREELINE_M {
+                    n_elev += 1;
+                    if elev_samples.len() < 4 {
+                        elev_samples.push(elev_m);
+                    }
                     continue;
                 }
                 let sc = surface_color(def, albedo, dir.as_vec3(), e);
-                if !(sc[1] > sc[0] * 1.04 && sc[1] > sc[2] * 1.04) {
+                if !veg_biome_ok(sc) {
+                    n_green += 1;
+                    if green_samples.len() < 4 {
+                        green_samples.push(sc);
+                    }
                     continue;
                 }
                 let r = def.radius
@@ -1865,6 +1900,20 @@ pub fn near_tree_instances(
                 });
             }
         }
+    }
+    // Gate autopsy in the log whenever the harvest comes back empty-handed
+    // but candidates existed - names the guilty gate with sample values.
+    if out.is_empty() && n_total > 0 {
+        log::info!(
+            "[NearTree] gates: {} candidates, {} outside radius, {} elev-gated \
+             (samples {:?} m), {} green-gated (samples {:?})",
+            n_total,
+            n_out,
+            n_elev,
+            elev_samples,
+            n_green,
+            green_samples
+        );
     }
     // Nearest-first so the caller's draw cap keeps the trees beside the
     // camera, not whichever cell enumerated first.
@@ -3402,5 +3451,107 @@ mod tests {
             evicted.iter().all(|(id, _)| *id != parent),
             "mid-fade parent was evicted"
         );
+    }
+
+    /// The vegetation biome gate must separate real vegetated biomes from
+    /// real barren ones ON THE SHIPPED ALBEDO. The vegetated list includes
+    /// the brown-green cases the old strict green-dominance test wrongly
+    /// rejected (Tasmania forest r/g 1.09, Kansas prairie 1.01 - the
+    /// 2026-07-25 "no trees near me" field report); the barren list pins
+    /// deserts and high plateaus bare. If imagery or grading changes shift
+    /// these ratios, this fails and the threshold gets re-measured.
+    #[test]
+    fn biome_gate_separates_vegetated_from_barren() {
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let hm = crate::terrain::planet_heightmap::PlanetHeightmap::load(
+            &base.join("earth_heightmap.bin"),
+        )
+        .unwrap();
+        let albedo =
+            crate::terrain::planet_albedo::PlanetAlbedo::load(&base.join("earth_albedo.bin"))
+                .unwrap();
+        let mut def = earth_like();
+        def.sea_level = hm.sea_level_normalized();
+        let sample = |lat_deg: f64, lon_deg: f64| -> [f32; 3] {
+            let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+            let cl = lat.cos();
+            let dir = glam::DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
+            let e = hm.normalized_at(dir.as_vec3());
+            surface_color(&def, Some(&albedo), dir.as_vec3(), e)
+        };
+        let vegetated = [
+            ("amazon", -3.0, -60.0),
+            ("black_forest", 48.2, 8.2),
+            ("siberia", 58.0, 98.0),
+            ("fuji", 35.3, 138.8),
+            ("congo", -1.0, 22.0),
+            ("appalachia", 37.5, -81.0),
+            ("scotland", 57.0, -4.5),
+            ("se_australia", -36.5, 146.5),
+            ("tasmania", -42.0, 146.5),
+            ("kansas", 38.5, -98.0),
+        ];
+        let barren = [
+            ("sahara", 23.0, 13.0),
+            ("outback", -25.0, 133.0),
+            ("spain_meseta", 40.0, -3.0),
+            ("gobi", 43.0, 105.0),
+            ("tibet", 33.0, 90.0),
+        ];
+        for (name, lat, lon) in vegetated {
+            let sc = sample(lat, lon);
+            assert!(veg_biome_ok(sc), "{name} must pass the vegetation gate, got {sc:?}");
+        }
+        for (name, lat, lon) in barren {
+            let sc = sample(lat, lon);
+            assert!(!veg_biome_ok(sc), "{name} must stay barren, got {sc:?}");
+        }
+    }
+
+    /// Operator field report 2026-07-25: "trees still won't render near me
+    /// within like 50 meters" - the [NearTree] log showed EVERY harvest
+    /// returning 0 trees (93 recomputes, alt 275 m down to 4 m) while the
+    /// card stream clearly plants trees at the same spots. This test runs
+    /// the REAL harvest over the SHIPPED Earth data at three famously
+    /// forested places; any of them returning zero reproduces the bug.
+    #[test]
+    fn near_tree_harvest_finds_trees_in_real_forests() {
+        let base = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let hm = crate::terrain::planet_heightmap::PlanetHeightmap::load(
+            &base.join("earth_heightmap.bin"),
+        )
+        .expect("earth heightmap loads");
+        let albedo =
+            crate::terrain::planet_albedo::PlanetAlbedo::load(&base.join("earth_albedo.bin"))
+                .expect("earth albedo loads");
+        let mut def = earth_like();
+        // The REAL Earth sea level (the shipped grid's), not the synthetic one.
+        def.sea_level = hm.sea_level_normalized();
+
+        let spots = [
+            ("amazon", -3.0_f64, -60.0_f64),
+            ("black_forest", 48.2, 8.2),
+            ("siberian_taiga", 58.0, 98.0),
+            // Brown-green texels the old gate starved (field report):
+            ("tasmania", -42.0, 146.5),
+            ("fuji_descent", 35.29, 138.79),
+        ];
+        let detail = DetailNoise::new(7);
+        for (name, lat_deg, lon_deg) in spots {
+            let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+            let cl = lat.cos();
+            let dir = glam::DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
+            let src = ElevationSource::Heightmap {
+                hm: &hm,
+                detail: &detail,
+                tiles: None,
+                ocean: None,
+            };
+            let trees = near_tree_instances(&def, &src, Some(&albedo), dir, 360.0, 600);
+            assert!(
+                !trees.is_empty(),
+                "harvest found ZERO trees at {name} ({lat_deg},{lon_deg}) - reproduces the operator's bare-ground report"
+            );
+        }
     }
 }

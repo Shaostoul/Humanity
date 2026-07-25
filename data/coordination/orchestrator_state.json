@@ -308,6 +308,14 @@
     {
       "when": "2026-07-25",
       "what": "OPERATOR FIELD REPORT (evening): SKY APPROVED (dawn/noon/dusk look so much better). Three new graphics reports take the queue top: [1] TREES still not rendering within ~50m of the player at ground level (their screenshot: cards on far hills, bare near ground; sweep fuji at 30m alt DOES show models - investigate true ground level + their FTL-gear context); [2] ATMOSPHERE LIMB HIDES TERRAIN from space (southern Australia unreadable at the disc edge - the type-14 shell over-occludes oblique terrain; tune the limb opacity ramp against the approved marble/limb goldens); [3] WATER IS FLAT - no real wave height (correct: W1-3 displacement is subtle; real fix = the research-doc ocean displacement arc: bigger near-field vertex displacement + finer tessellation). Clustering dev-light mystery parked gated-off after the camera-local-frame fix ALSO rendered dark (v0.954.0 diagnostics shipped; upload+placement verified innocent; remaining suspect list exhausted for blind captures - next tool is RenderDoc-style inspection or an in-home lit-scene test)."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "Trees-near-render root cause: the vegetation green-dominance gate (green > red*1.04) rejected brown-green Blue Marble texels. Raw linear vegetation is often brown-green (Tasmania forest r/g 1.09, Kansas prairie 1.01, operator hills 1.08) while barren is r/g >= 1.44 (Gobi..Outback). Fix: shared veg_biome_ok() helper (red < green*1.25 AND green > blue*1.04) used verbatim by BOTH the card bake and the near-model harvest so the streams cannot drift. Found via new per-gate rejection autopsy in the [NearTree] log (permanent diagnostics) + biome_gate_separates_vegetated_from_barren regression test over the shipped albedo. Ships as v0.955.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "Operator decisions: (1) billboard textures = BAKE OUR OWN from 3D models (automated Total Annihilation-style sprite bake; benefits modders, zero manual art per new model) - alpha-card LOD rung unblocked; (2) CC0 audio APPROVED - Kenney.nl download greenlit, audio arc unblocked (operator sourcing music from others separately). Both queue AFTER the three field reports (trees DONE-pending-verify, atmosphere limb, ocean waves)."
     }
   ],
   "active_scopes_to_avoid": [
