@@ -61,7 +61,15 @@
 >    source files concatenated at load (naga has no include; one module
 >    per pipeline is a wgpu reality, but file-level organization + the
 >    hot-reload unit can both survive a build-time concat).
-> 10. NEXT UP (the remaining item) - HOMESTEAD DESIGN ARC: fully-fledged player home - walls placed
+> 10. DESIGN ACCEPTED (docs/design/homestead.md, 2026-07-25): house-within-
+>     the-greenhouse beside the corridor mouth, 10-room program on the
+>     EXISTING InteriorWall/Opening model (equal 0.10 m thickness sidesteps
+>     the deferred corner-seam bug), furniture = machine-catalog entries
+>     (category Furniture; the layer already gives placement, persistence,
+>     cards, containers, GLB slot), fixtures split the aggregate water/power
+>     nodes (first HotWater user), ~20 PlacedLights. SIX increments,
+>     1-4 data-only; INCREMENT 1 (shell walls in ship_structure.ron) is the
+>     next build item. HOMESTEAD DESIGN ARC: fully-fledged player home - walls placed
 >     properly, doors, windows, rooms, plumbing, electrical, lighting,
 >     rugs, chairs, tables, desks, tools, machines - all data-driven.
 >     AFTER it: NPC-AI stress testing (peaceful AI capability ceiling,
