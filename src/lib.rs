@@ -1572,6 +1572,9 @@ mod native_app {
                 },
                 prev_ship_world_pos: glam::DVec3::ZERO,
                 house_light_consumer: None,
+                stride_accum: 0.0,
+                prev_stride_anchor: glam::DVec3::ZERO,
+                prev_stride_cam: Vec3::ZERO,
                 debug_test_light_count: 0,
                 debug_test_light_intensity: 3.0,
                 window,
@@ -14722,6 +14725,53 @@ mod native_app {
                                     audio.set_music_volume(vols.1 as f64);
                                     audio.set_sfx_volume(vols.2 as f64);
                                     state.audio_volumes_applied = vols;
+                                }
+                                // ── Footsteps (v0.968, audio increment 2):
+                                // a stride meter over whichever channel is
+                                // actually walking - the planet walk band
+                                // moves the frame-lock anchor, home walking
+                                // moves the camera. Fly mode is silent. ──
+                                {
+                                    let on_planet = state.surface_owns_translation
+                                        && state.surface_walk_band
+                                        && !state.controller.fly_mode;
+                                    let aboard = state.aboard_station
+                                        && !state.controller.fly_mode
+                                        && state.camera.mode
+                                            == crate::renderer::camera::CameraMode::FirstPerson;
+                                    let d_anchor = (state.frame_lock_anchor
+                                        - state.prev_stride_anchor)
+                                        .length() as f32;
+                                    let d_cam =
+                                        (state.camera.position - state.prev_stride_cam).length();
+                                    state.prev_stride_anchor = state.frame_lock_anchor;
+                                    state.prev_stride_cam = state.camera.position;
+                                    let step = if on_planet {
+                                        d_anchor
+                                    } else if aboard {
+                                        d_cam
+                                    } else {
+                                        0.0
+                                    };
+                                    // Teleports and band handoffs produce huge
+                                    // one-frame deltas - never a footstep.
+                                    if step > 0.001 && step < 2.0 {
+                                        state.stride_accum += step;
+                                        if state.stride_accum >= 0.75 {
+                                            state.stride_accum = 0.0;
+                                            let surface = if on_planet {
+                                                crate::audio::sounds::SurfaceType::Grass
+                                            } else {
+                                                crate::audio::sounds::SurfaceType::Metal
+                                            };
+                                            let rel =
+                                                surface.footstep_sound_from(&state.sound_catalog);
+                                            let path = format!("assets/{rel}");
+                                            let _ = audio.play_sound(&path);
+                                        }
+                                    } else if step >= 2.0 {
+                                        state.stride_accum = 0.0;
+                                    }
                                 }
                                 // UI click: any press that egui consumed. The
                                 // catalog drives the file (data/sounds.toml).

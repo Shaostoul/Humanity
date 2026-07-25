@@ -137,6 +137,13 @@ pub(crate) struct EngineState {
     /// light's wattage (v0.967, homestead increment 5) - spawned lazily,
     /// draw updated each frame so flipping a light changes the power bill.
     pub(crate) house_light_consumer: Option<hecs::Entity>,
+    /// Footstep stride meter (v0.968, audio increment 2): distance walked
+    /// since the last step sound. Planet walking moves the frame-lock
+    /// anchor (not the camera), home walking moves the camera - both
+    /// deltas are measured against the prev_* twins below.
+    pub(crate) stride_accum: f32,
+    pub(crate) prev_stride_anchor: glam::DVec3,
+    pub(crate) prev_stride_cam: glam::Vec3,
     /// Dev test-light COUNT from the showcase lights:N hook (clustering
     /// dev-aid). The grid REGENERATES around the camera every frame - render
     /// space rebases with the floating origin, so stored positions go stale
