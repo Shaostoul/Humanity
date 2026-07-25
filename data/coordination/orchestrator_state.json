@@ -332,6 +332,10 @@
     {
       "date": "2026-07-25",
       "decision": "Billboard bake increment 1 SHIPPED (operator call: bake our own, automated TA-style): src/renderer/billboard_bake.rs renders any model parts side-on (unlit albedo + 0.5 cutout alpha, transparent background, ortho framed on joint AABB, swapchain-format target so read_texture_to_png applies unchanged) and returns the world footprint for card sizing. IPC bake:trees bakes all 6 conifers (crown+_bark) to debug/bakes/*.png in <1s total. Verified: pine sprites are perfect billboards; fir reads sparse but is FAITHFUL to the wispy model (same cutout threshold as type-19). Deliberate: lighting stays with the consumer (baking it would freeze one sun angle into every card); one side view since the card stream yaws randomly. Increment 2 = atlas upload + textured alpha-cards replacing the colored-quad silhouettes, where resolution/threshold tuning belongs. Ships v0.959.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "AUDIO ARC increment 1 SHIPPED (operator approved the CC0 download): 26 Kenney CC0 sounds (Interface/UI/Impact/RPG packs, ~3 MB total) imported to assets/audio/{ui,sfx} under the catalog names data/sounds.toml already defined (the catalog machinery existed with ZERO files + zero call sites). Wired: AudioManager::try_new (graceful None on no-audio-device machines - the old new() panicked), constructed in EngineState; Settings master/music/sfx sliders now HONEST (pushed to kira on change, not placebos); first real call site = UI click sound on egui-consumed presses via the catalog; [sfx.mining_hit] catalog entry added (impactMining). Verified: 1150 lib tests including NEW shipped_sounds_decode_through_kira (catalog loads 103 entries, every shipped file decodes through kira ogg - a silent first-click failure surfaces in CI not headphones), boot 0 panics + clean device init. NEXT audio increments: footsteps into the movement system (SurfaceType plumbing exists), menu open/close + notification call sites, ambient loops (need nature sources - Kenney has none), music when operator-sourced tracks arrive. Ships v0.960.0."
     }
   ],
   "active_scopes_to_avoid": [

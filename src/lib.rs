@@ -1553,6 +1553,17 @@ mod native_app {
             }
 
             self.state = Some(EngineState {
+                audio: match crate::audio::AudioManager::try_new() {
+                    Ok(a) => Some(a),
+                    Err(e) => {
+                        log::warn!("[Audio] disabled: {e}");
+                        None
+                    }
+                },
+                sound_catalog: crate::audio::sounds::SoundCatalog::load(std::path::Path::new(
+                    "data",
+                )),
+                audio_volumes_applied: (-1.0, -1.0, -1.0),
                 debug_test_light_count: 0,
                 debug_test_light_intensity: 3.0,
                 window,
@@ -14491,6 +14502,43 @@ mod native_app {
                                     event_loop.exit();
                                 }
                             });
+
+                            // ── Game audio frame sync (v0.960, first CC0 sounds) ──
+                            if let Some(audio) = state.audio.as_mut() {
+                                // Honest volume sliders: push Settings values
+                                // into kira only when one actually moved.
+                                let vols = (
+                                    state.gui_state.settings.master_volume,
+                                    state.gui_state.settings.music_volume,
+                                    state.gui_state.settings.sfx_volume,
+                                );
+                                if vols != state.audio_volumes_applied {
+                                    audio.set_master_volume(vols.0 as f64);
+                                    audio.set_music_volume(vols.1 as f64);
+                                    audio.set_sfx_volume(vols.2 as f64);
+                                    state.audio_volumes_applied = vols;
+                                }
+                                // UI click: any press that egui consumed. The
+                                // catalog drives the file (data/sounds.toml).
+                                let clicked = state.egui_ctx.input(|i| {
+                                    i.pointer.any_pressed()
+                                        && i.pointer.primary_pressed()
+                                }) && state.egui_ctx.wants_pointer_input();
+                                if clicked {
+                                    let path = format!(
+                                        "assets/{}",
+                                        state.sound_catalog.path_or(
+                                            "sfx.button_click",
+                                            "audio/ui/button_click.ogg"
+                                        )
+                                    );
+                                    if let Err(e) = audio.play_sound(&path) {
+                                        // Once per session is plenty.
+                                        static WARNED: std::sync::Once = std::sync::Once::new();
+                                        WARNED.call_once(|| log::warn!("[Audio] ui click: {e}"));
+                                    }
+                                }
+                            }
 
                             // Handle egui platform output (cursor changes, clipboard, etc.)
                             state.egui_state.handle_platform_output(&state.window, full_output.platform_output);

@@ -200,3 +200,36 @@ impl SurfaceType {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shipped CC0 sound files (v0.960, Kenney packs) must load through
+    /// the catalog AND decode through kira's actual ogg path - a silent
+    /// first-click failure (missing vorbis feature, bad copy, wrong path
+    /// base) surfaces here instead of in the operator's headphones.
+    #[test]
+    fn shipped_sounds_decode_through_kira() {
+        let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let cat = SoundCatalog::load(&repo.join("data"));
+        assert!(
+            cat.len() >= 100,
+            "catalog should load its ~103 entries, got {}",
+            cat.len()
+        );
+        let mut decoded = 0;
+        for (id, e) in cat.entries() {
+            let p = repo.join("assets").join(&e.path);
+            if p.exists() {
+                kira::sound::static_sound::StaticSoundData::from_file(&p)
+                    .unwrap_or_else(|err| panic!("{id} ({}) failed to decode: {err}", e.path));
+                decoded += 1;
+            }
+        }
+        assert!(
+            decoded >= 25,
+            "expected the shipped CC0 files to decode, got {decoded}"
+        );
+    }
+}

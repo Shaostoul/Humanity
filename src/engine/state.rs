@@ -114,6 +114,15 @@ pub(crate) struct ConstructionGizmoGrab {
 }
 
 pub(crate) struct EngineState {
+    /// Game audio (v0.960, first CC0 sounds): None when the machine has no
+    /// audio device (headless rig, some VMs) - play sites skip gracefully.
+    pub(crate) audio: Option<crate::audio::AudioManager>,
+    /// Data-driven sound catalog (data/sounds.toml, ids like
+    /// "sfx.button_click" -> assets/audio paths).
+    pub(crate) sound_catalog: crate::audio::sounds::SoundCatalog,
+    /// Last (master, music, sfx) volumes pushed into the audio engine, so
+    /// the per-frame sync only touches kira when a slider actually moved.
+    pub(crate) audio_volumes_applied: (f32, f32, f32),
     /// Dev test-light COUNT from the showcase lights:N hook (clustering
     /// dev-aid). The grid REGENERATES around the camera every frame - render
     /// space rebases with the floating origin, so stored positions go stale

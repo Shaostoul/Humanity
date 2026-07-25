@@ -28,19 +28,27 @@ pub struct AudioManager {
 #[cfg(feature = "native")]
 impl AudioManager {
     pub fn new() -> Self {
+        Self::try_new().expect("Failed to create audio manager")
+    }
+
+    /// Fallible construction (v0.960): a machine with no audio device
+    /// (headless rig, some VMs) must degrade to silence, not crash at
+    /// startup - the engine stores Option<AudioManager> and skips play
+    /// calls when None.
+    pub fn try_new() -> Result<Self, String> {
         let manager = kira::manager::AudioManager::<kira::manager::backend::DefaultBackend>::new(
             kira::manager::AudioManagerSettings::default(),
         )
-        .expect("Failed to create audio manager");
+        .map_err(|e| format!("audio device init failed: {e}"))?;
 
-        Self {
+        Ok(Self {
             manager,
             sound_cache: HashMap::new(),
             music_handle: None,
             master_volume: 1.0,
             music_volume: 0.7,
             sfx_volume: 1.0,
-        }
+        })
     }
 
     /// Play a one-shot sound effect.

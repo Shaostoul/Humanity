@@ -525,6 +525,15 @@ tags = ["interface", "inventory"]
 #  SFX: BUILDING (8), construction and interaction
 # =============================================================================
 
+[sfx.mining_hit]
+path = "audio/sfx/mining_hit.ogg"
+volume = 0.6
+spatial = true
+falloff_min = 2.0
+falloff_max = 25.0
+bus = "sfx"
+tags = ["mining", "impact"]
+
 [sfx.hammer]
 path = "audio/sfx/hammer.ogg"
 volume = 0.6
