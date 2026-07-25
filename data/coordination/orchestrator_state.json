@@ -368,6 +368,10 @@
     {
       "date": "2026-07-25",
       "decision": "LIBRARY ALL-DOCS shipped (overnight backlog #6): build-library.js curation expanded from the Accord (18 docs, 6 categories) to 53 docs / 12 categories - Getting Started (user tree), Creating Content (all 11 new guides), Running Your Own Server (admin), For Contributors (numbered sequence), How It Is Designed (7 core design docs), Project (ROADMAP + AI onboarding). Collision-safe copy names (four README.md sources now slug by path). The native Library page is manifest-driven so the new tree rendered with zero Rust changes (snapshot-verified). Web mirror note: the web Library reads the same data/library via the site sync. Ships v0.965.2."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "ARCHIVED-TASKS AUDIT complete (overnight backlog #7, Explore agent, 13 archives cross-checked against the live tree): report at docs/history/2026-07-25-archived-tasks-audit.md. Top survivors: signing backlog (operator-only), Identity/Recovery native pages UNBLOCKED-but-stub (v2 endpoints shipped, pages never wired - highest leverage), backup-restore drill never run, dependency audit overdue, web proposal-creation form missing, no native block/report pipeline (gates inviting strangers), voice tail, distribution steps 2/5/6/7, wall-corner seam, hosToast/hosConfirm. CORRECTED IN PLACE: two flat-wrong PRIORITIES TIER 2 claims (native voice and Studio transport both claimed missing but shipped v0.485-0.495 / v0.853-0.854). TIER 2 renumbering deferred (STATUS.md cross-references the numbers). Ships v0.965.3 (docs patch)."
     }
   ],
   "active_scopes_to_avoid": [
