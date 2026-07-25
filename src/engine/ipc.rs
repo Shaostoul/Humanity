@@ -222,6 +222,44 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             sea.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
         };
     }
+    // Optional "lights":"500" spawns a grid of N colored test point lights
+    // around the camera (dev-aid for the light-clustering arc: fps at
+    // 100/500/1000 lights is measurable before AND after the tiled path).
+    // "lights":"0" clears them. Test lights ride the normal per-frame light
+    // assembly, so they exercise the exact production path.
+    if let Some(n) = grab("lights").and_then(|v| v.parse::<usize>().ok()) {
+        state.debug_test_lights.clear();
+        if n > 0 {
+            let cam = state.camera.position;
+            let side = (n as f32).cbrt().ceil() as i32;
+            let spacing = 4.0;
+            let mut count = 0usize;
+            'outer: for y in 0..side {
+                for z in 0..side {
+                    for x in 0..side {
+                        if count >= n {
+                            break 'outer;
+                        }
+                        let p = cam
+                            + glam::Vec3::new(
+                                (x - side / 2) as f32 * spacing,
+                                (y % 3) as f32 * 2.5 + 1.0,
+                                (z - side / 2) as f32 * spacing,
+                            );
+                        let hue = (count as f32 * 0.618_034) % 1.0;
+                        let (r, g, b) = crate::engine::color::hsv_to_rgb(hue, 0.85, 1.0);
+                        state.debug_test_lights.push(
+                            crate::renderer::light::RoomLight::point(p, [r, g, b], 3.0, 6.0),
+                        );
+                        count += 1;
+                    }
+                }
+            }
+            log::info!("Test lights: {count} spawned around the camera");
+        } else {
+            log::info!("Test lights cleared");
+        }
+    }
     // Optional "enter":"default" mimics the Play button: load the default
     // character into the world (machines + garden come alive), falling
     // back to the character picker when no default is set.

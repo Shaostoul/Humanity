@@ -1553,6 +1553,7 @@ mod native_app {
             }
 
             self.state = Some(EngineState {
+                debug_test_lights: Vec::new(),
                 window,
                 renderer,
                 camera,
@@ -13972,6 +13973,8 @@ mod native_app {
                                     // (distance minus range - a big far light
                                     // outranks a small near one) and keep a
                                     // generous 64.
+                                    // Dev test lights (showcase lights:N).
+                                    lights.extend(state.debug_test_lights.iter().copied());
                                     lights.sort_by(|a, b| {
                                         let da = ((a.pos - cam_pos).length() - a.range).max(0.0);
                                         let db = ((b.pos - cam_pos).length() - b.range).max(0.0);

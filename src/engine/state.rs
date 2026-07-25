@@ -114,6 +114,9 @@ pub(crate) struct ConstructionGizmoGrab {
 }
 
 pub(crate) struct EngineState {
+    /// Dev test lights spawned by the showcase lights:N hook (light-clustering
+    /// arc dev-aid). Appended to the per-frame light assembly; empty in play.
+    pub(crate) debug_test_lights: Vec<crate::renderer::light::RoomLight>,
     pub(crate) window: Arc<Window>,
     pub(crate) renderer: Renderer,
     pub(crate) camera: Camera,
