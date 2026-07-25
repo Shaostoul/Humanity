@@ -254,6 +254,95 @@ pub fn multiple_scattering_lut(p: &TransLutParams) -> Vec<[f32; 4]> {
     out
 }
 
+// ── Stage 3b reference: the sky-view march (CPU twin of the GPU pass) ──
+//
+// One texel of the sky-view LUT: from a camera at shell radius r0, march the
+// view ray (given by cos-elevation mu_v and the azimuth angle to the sun)
+// through the atmosphere, accumulating single-scattered sun light plus the
+// multiple-scattering term, attenuated by extinction along the view path.
+// The WGSL pass in sky_view_lut.wgsl is a transcription of THIS function;
+// its physics tests below are the contract (same pattern as the ocean's CPU
+// twin + lockstep tests).
+
+/// March step count (the paper ships 30 at 200x100).
+pub const SKY_VIEW_STEPS: usize = 30;
+
+/// In-scattered radiance (relative units, sun irradiance = 1) for one view
+/// direction. `mu_v`: cos view elevation (+1 = zenith). `cos_az`: cosine of
+/// the horizontal azimuth between view and sun. `mu_s`: cos sun elevation.
+/// `ms_lut`: the stage-2 LUT for the multiple-scatter term (sampled nearest).
+pub fn sky_view_radiance(
+    p: &TransLutParams,
+    r0: f32,
+    mu_v: f32,
+    cos_az: f32,
+    mu_s: f32,
+    ms_lut: &[[f32; 4]],
+) -> [f32; 3] {
+    use super::atmosphere::{hg_phase, od_to_space, rayleigh_phase, MIE_G, TAU_MIE, TAU_RAYLEIGH};
+    let beta_s = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE) / p.h * p.density_mul;
+    let beta_e = |c: usize| (p.tint[c] * TAU_RAYLEIGH + TAU_MIE * 1.11) / p.h * p.density_mul;
+
+    // cos of the sun-view angle (for the phase functions): combine the
+    // vertical components and the horizontal azimuth.
+    let sin_v = (1.0 - mu_v * mu_v).max(0.0).sqrt();
+    let sin_s = (1.0 - mu_s * mu_s).max(0.0).sqrt();
+    let cos_theta = (mu_v * mu_s + sin_v * sin_s * cos_az).clamp(-1.0, 1.0);
+    let ph_r = rayleigh_phase(cos_theta);
+    let ph_m = hg_phase(cos_theta, MIE_G);
+    let iso = 1.0 / (4.0 * std::f32::consts::PI);
+
+    // Segment length: to the shell top (or ground). Same approximation the
+    // MS integral uses; the GPU pass mirrors it.
+    let span = (1.0 - r0).max(p.h);
+    let seg = if mu_v.abs() > 0.05 { (span / mu_v.abs()).min(span * 8.0) } else { span * 8.0 };
+    let dt = seg / SKY_VIEW_STEPS as f32;
+
+    let ms_sample = |r: f32, mu: f32| -> [f32; 3] {
+        let u = ((mu + 0.15) / 1.15).clamp(0.0, 1.0);
+        let span_v = (ALT_SPAN_H * p.h).min(1.0 - p.rp);
+        let v = (((r - p.rp) / span_v).clamp(0.0, 1.0) * (MS_LUT_H as f32 - 1.0)) as usize;
+        let uu = (u * (MS_LUT_W as f32 - 1.0)) as usize;
+        let t = ms_lut[v.min(MS_LUT_H - 1) * MS_LUT_W + uu.min(MS_LUT_W - 1)];
+        [t[0], t[1], t[2]]
+    };
+
+    let mut out = [0.0f32; 3];
+    let mut od_before = 0.0f32;
+    for si in 0..SKY_VIEW_STEPS {
+        let t_mid = (si as f32 + 0.5) * dt;
+        let r_s = r0 + t_mid * mu_v;
+        if r_s < p.rp {
+            break; // ground hit
+        }
+        let r_s = r_s.min(1.0);
+        let dens = (-(r_s - p.rp) / p.h).exp();
+        let od_after = od_before + dens * dt;
+        let od_sun = od_to_space(r_s, mu_s, p.rp, p.h);
+        let psi = ms_sample(r_s, mu_s);
+        for c in 0..3 {
+            // ANALYTIC per-step integration (Hillaire): integral of
+            // sigma * T_view over the step = (sigma/beta_ext) * (T_start -
+            // T_end), exact for constant density within the step. Without
+            // this, optically-thick horizon paths under-integrate badly
+            // (the first draft read the horizon 7x DIMMER than the zenith).
+            let t_start = (-(beta_e(c)) * od_before).exp();
+            let t_end = (-(beta_e(c)) * od_after).exp();
+            let t_sun = (-(beta_e(c)) * od_sun).exp();
+            // Density-independent scattering/extinction ratios (dens cancels).
+            let sig_r_ratio = (p.tint[c] * TAU_RAYLEIGH / p.h * p.density_mul) / beta_e(c);
+            let sig_m_ratio = (TAU_MIE / p.h * p.density_mul) / beta_e(c);
+            let step_energy = t_start - t_end;
+            let single = (sig_r_ratio * ph_r + sig_m_ratio * ph_m) * step_energy * t_sun;
+            let ms = (sig_r_ratio + sig_m_ratio) * step_energy * psi[c] * iso;
+            out[c] += single + ms;
+        }
+        od_before = od_after;
+        let _ = beta_s; // (beta_s folded into the ratio split above)
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +464,46 @@ mod tests {
             noon[2]
         );
         assert!(top[2] > 0.0, "the shell below must still contribute at altitude");
+    }
+
+    /// Sky-view reference physics: at noon the zenith sky is BLUE and the
+    /// horizon is BRIGHTER than the zenith (more air in the path); at sunset
+    /// looking toward the sun the sky REDDENS relative to noon-zenith blue;
+    /// with the sun far below the horizon everything collapses toward black.
+    #[test]
+    fn sky_view_reference_behaves_like_a_sky() {
+        let p = earthish();
+        let ms = multiple_scattering_lut(&p);
+        let ground = p.rp + 0.0002;
+        // Noon, zenith view.
+        let zen = sky_view_radiance(&p, ground, 1.0, 1.0, 0.95, &ms);
+        assert!(zen[2] > zen[0], "noon zenith must be blue (R={} B={})", zen[0], zen[2]);
+        // Noon, horizon view (any azimuth).
+        let hor = sky_view_radiance(&p, ground, 0.02, 0.3, 0.95, &ms);
+        assert!(
+            hor[1] > zen[1],
+            "horizon should be brighter than zenith (G {} vs {})",
+            hor[1],
+            zen[1]
+        );
+        // Sunset: sun near the horizon, looking toward it.
+        let set = sky_view_radiance(&p, ground, 0.05, 1.0, 0.03, &ms);
+        let noon_ratio = zen[0] / zen[2].max(1e-6);
+        let set_ratio = set[0] / set[2].max(1e-6);
+        assert!(
+            set_ratio > noon_ratio * 1.5,
+            "sunset toward the sun must redden vs noon zenith (ratios {} vs {})",
+            set_ratio,
+            noon_ratio
+        );
+        // Deep night.
+        let night = sky_view_radiance(&p, ground, 0.5, 0.0, -0.15, &ms);
+        assert!(
+            night[1] < zen[1] * 0.05,
+            "night sky must collapse toward black (G {} vs noon {})",
+            night[1],
+            zen[1]
+        );
     }
 
     /// The hand-rolled f16 encoder against known IEEE 754 half values.
