@@ -316,6 +316,10 @@
     {
       "date": "2026-07-25",
       "decision": "Operator decisions: (1) billboard textures = BAKE OUR OWN from 3D models (automated Total Annihilation-style sprite bake; benefits modders, zero manual art per new model) - alpha-card LOD rung unblocked; (2) CC0 audio APPROVED - Kenney.nl download greenlit, audio arc unblocked (operator sourcing music from others separately). Both queue AFTER the three field reports (trees DONE-pending-verify, atmosphere limb, ocean waves)."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "Atmosphere-limb fix (field report #2, southern Australia hidden from space): the v0.912/0.913 daylight star-occlusion boost (alpha_occ = max(alpha, sky_lum*4.5, day)) applied to EVERY type-14 shell fragment, including rays that hit the planet. Near the disc edge the bright limb in-scatter saturated alpha to 1.0 and painted flat blue over the continent. Stars only sit behind rays that MISS the planet, so the boost is now gated by !hits_surface; surface-hitting rays keep pure transmittance alpha (~0.5 at those angles = readable land through physically blue haze, like real limb photos). NEW permanent vantage australia-limb-12000km (showcase time 4.2 lights 130E) guards this. Blue-marble + limb-400km compared before/after: approved look preserved. Ships v0.956.0."
     }
   ],
   "active_scopes_to_avoid": [

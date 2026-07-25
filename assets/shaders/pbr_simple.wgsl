@@ -1171,6 +1171,7 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // rp BEFORE tca changes sign as the ray tilts from down to up, so the
     // hit gate never introduces a visible seam.
     let b_impact = sqrt(d2);
+    let hits_surface = tca > 0.0 && b_impact < rp;
     let cam_r = length(ro);
     let w_far = smoothstep(ATMO_NEAR_R, ATMO_FAR_R, cam_r);
     // v0.918 three-tier rework (see ATMO_EXPOSURE_DOME): the SKY tier is the
@@ -1185,7 +1186,7 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     let sky_base = mix(ATMO_EXPOSURE_DOME, ATMO_EXPOSURE, max(w_alt, w_far));
     var base = sky_base;
     var edge_surf = 0.0;
-    if (tca > 0.0 && b_impact < rp) {
+    if (hits_surface) {
         let w_edge = smoothstep(rp - (1.0 - rp) * 0.5, rp, b_impact);
         base = mix(ATMO_EXPOSURE_NEAR, sky_base, w_edge);
         edge_surf = clamp(1.0 - max(w_edge, w_far), 0.0, 1.0);
@@ -1297,7 +1298,18 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // luminance-driven twilight occlusion needs a stronger gain to keep
     // stars hidden through civil dusk. Daytime is owned by the `day` term
     // (0.985 dominates) and night sky_lum ~ 0, so only twilight shifts.
-    var alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
+    // v0.956 (operator: "the blue of the atmosphere completely hides the
+    // terrain on the edges" - southern Australia read as open water from
+    // 12,000 km): stars only ever sit behind rays that MISS the planet, so
+    // the occlusion boost must not touch surface-hitting rays. Near the
+    // disc edge the limb in-scatter is bright enough that sky_lum * 4.5
+    // saturated alpha to 1.0 and painted flat sky over the continent; the
+    // pure transmittance alpha (~0.5 at those angles) keeps the land
+    // readable through physically blue haze, exactly like real limb photos.
+    var alpha_occ = alpha;
+    if (!hits_surface) {
+        alpha_occ = max(alpha, max(clamp(sky_lum * 4.5, 0.0, 1.0), day * 0.985));
+    }
     alpha_occ = mix(alpha_occ, alpha, toward_sun);
     // ALPHA_BLENDING computes src.rgb * src.a + dst * (1 - src.a); divide
     // the radiance back out of the alpha so exactly `mapped` lands on

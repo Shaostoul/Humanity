@@ -132,6 +132,26 @@
       "perf_floor_fps": 30
     },
     {
+      "id": "australia-limb-12000km",
+      "desc": "Australia near the disc edge from 12,000 km - terrain must stay readable through the limb haze (2026-07-25 field report)",
+      "camera": {
+        "body": "earth",
+        "lat": -5,
+        "lon": 130,
+        "altitude_km": 12000
+      },
+      "settle_s": 8,
+      "expect": "Earth disc with Australia in the lower part, its southern coastline visible toward the disc edge through progressively bluer haze. The continent must read as LAND (tan/brown) well toward the limb, not vanish into flat atmosphere blue.",
+      "regressions": [
+        "southern Australia readable as land, not replaced by uniform blue",
+        "atmosphere rim itself still present and soft"
+      ],
+      "perf_floor_fps": 30,
+      "showcase": {
+        "time": "4.2"
+      }
+    },
+    {
       "id": "moon-surface-200m",
       "desc": "200 m over the Moon's cratered surface, sunlit",
       "camera": {
