@@ -1733,6 +1733,23 @@ fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
 }
 
 // Increment-1 fallback: one field sample at the fragment, painted-on deck.
+// Aerial-perspective fade for a camera under the deck (v0.958): a deck
+// fragment at the visual horizon sits behind ~160 km of air (slant =
+// sqrt(2 R h) for a 2 km deck) - real clouds dissolve into the horizon
+// haze there, but ours arrived as stark white/black SHEET BANDS riding
+// the horizon line at grazing angles (the ocean-vantage slab artifact;
+// clouds-off A/B proved the deck was the source). Slant fade 30..80 km,
+// active ONLY when the camera is inside the deck shell - from orbit the
+// far deck is the blue marble's face and must not fade. Shared by all
+// three quality variants so Low/Medium/High agree.
+fn cloud_low_cam_haze(world_position: vec3<f32>, cam_inside: bool) -> f32 {
+    if (!cam_inside) {
+        return 1.0;
+    }
+    let slant = length(world_position - camera.view_pos.xyz);
+    return 1.0 - smoothstep(30000.0, 80000.0, slant);
+}
+
 fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
     // Shell center + radius recovered from the object transform, same trick
     // as the atmosphere shell: unit icosphere placed via Vec3::splat(scale),
@@ -1842,7 +1859,8 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // ring; ease the deck off as the view grazes the sphere.
     let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    return vec4<f32>(mapped, body * density * limb * CLOUD_MAX_ALPHA);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    return vec4<f32>(mapped, body * density * limb * low_haze * CLOUD_MAX_ALPHA);
 }
 
 // Increment-2 raymarch: real thickness, parallax, and volumetric
@@ -2007,7 +2025,8 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     // own limb brightening at grazing view angles; ease it off there.
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    return vec4<f32>(mapped, body_total * limb * CLOUD_MAX_ALPHA);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    return vec4<f32>(mapped, body_total * limb * low_haze * CLOUD_MAX_ALPHA);
 }
 
 // ── Increment-3 volumetric helpers (Rust mirrors: renderer::clouds) ──
@@ -2559,7 +2578,8 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let n_frag = normalize(world_position - center);
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    return vec4<f32>(mapped, body_total * limb * CLOUD_HI_MAX_ALPHA);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    return vec4<f32>(mapped, body_total * limb * low_haze * CLOUD_HI_MAX_ALPHA);
 }
 
 // ── Cook-Torrance BRDF Evaluation ──

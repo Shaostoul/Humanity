@@ -44,7 +44,8 @@
       "regressions": [
         "NO black/white zebra banding (v0.921 analytic-wave aliasing)",
         "no concentric moire interference rings",
-        "no white-out sheet at the grazing angle"
+        "no white-out sheet at the grazing angle",
+        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
       ],
       "perf_floor_fps": 20
     },
@@ -67,7 +68,8 @@
       "regressions": [
         "no full-white ocean (v0.906 whiteout)",
         "foam on crests only, not flat areas",
-        "no zebra banding even in chop"
+        "no zebra banding even in chop",
+        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
       ],
       "perf_floor_fps": 18
     },

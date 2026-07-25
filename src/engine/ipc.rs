@@ -239,6 +239,13 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.gui_state.settings.lights_tiled = t == "1";
         log::info!("Tiled light lists: {}", state.gui_state.settings.lights_tiled);
     }
+    // Optional "clouds":"0"/"1" flips the planet cloud layer live - the
+    // A/B knob that separates cloud-deck artifacts from water/sky ones
+    // (v0.958, the grazing horizon sheet-band hunt).
+    if let Some(c) = grab("clouds") {
+        state.gui_state.settings.planet_clouds = c == "1";
+        log::info!("Planet clouds: {}", state.gui_state.settings.planet_clouds);
+    }
     // Optional "enter":"default" mimics the Play button: load the default
     // character into the world (machines + garden come alive), falling
     // back to the character picker when no default is set.
