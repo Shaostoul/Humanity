@@ -9442,6 +9442,24 @@ mod native_app {
                                     h,
                                 },
                             );
+                            // Stage 3b-2: this frame's sky-view inputs (same
+                            // camera-radius + sun-elevation math as the v0.915
+                            // tint block below).
+                            let shell_r_m = radius * scale as f64;
+                            let cam_r = ((state.frame_lock_anchor.length()
+                                / shell_r_m.max(1.0))
+                                as f32)
+                                .clamp(rp, 1.0);
+                            let up_world = glam::DQuat::from_rotation_y(state.current_spin)
+                                * state.frame_lock_anchor.normalize_or_zero();
+                            let mu_s = up_world.dot(sun_dir) as f32;
+                            state.renderer.sky_view_uniform =
+                                Some(crate::renderer::sky_view::SkyViewUniform {
+                                    tint_density: ac,
+                                    geom: [cam_r, mu_s, rp, h],
+                                });
+                        } else {
+                            state.renderer.sky_view_uniform = None;
                         }
 
                         // Sun transmittance tint (v0.915, research roadmap

@@ -6,6 +6,8 @@
 pub mod atmosphere;
 /// Atmosphere LUT generators (Hillaire stage 1: transmittance, CPU-side).
 pub mod atmo_luts;
+/// Sky-view LUT offscreen pass (sky arc stage 3b-2).
+pub mod sky_view;
 pub mod bloom;
 pub mod godrays;
 pub mod ssao;
@@ -212,6 +214,13 @@ pub struct Renderer {
     /// Params of the last LUT upload, so per-frame update calls no-op until
     /// the frame-locked body (or its atmosphere) actually changes.
     atmo_lut_params: Option<atmo_luts::TransLutParams>,
+    /// The per-frame sky-view LUT pass (stage 3b-2). Encoded before the main
+    /// passes whenever the camera is frame-locked near an atmosphere body;
+    /// stage 3c samples its target for the near-surface sky.
+    pub sky_view: sky_view::SkyViewPass,
+    /// This frame's sky-view inputs, stashed by the lib.rs atmosphere hook.
+    /// None = not near an atmosphere body = the pass is skipped.
+    pub sky_view_uniform: Option<sky_view::SkyViewUniform>,
     /// Sun shadows on/off (max-graphics default on; zero cost when the sun
     /// is absent - the pass and the shader lookup both self-gate).
     pub sun_shadows: bool,
@@ -734,6 +743,7 @@ impl Renderer {
             atmo_luts::MS_LUT_W as u32,
             atmo_luts::MS_LUT_H as u32,
         );
+        let sky_view_pass = sky_view::SkyViewPass::new(&device, &atmo_trans_view, &atmo_ms_view);
         {
             let (rp, h) = atmosphere::shell_packing(0.06, 8500.0, 6.371e6);
             let params = atmo_luts::TransLutParams {
@@ -989,6 +999,8 @@ impl Renderer {
             light_camera_bind_group,
             shadow_pass_texture_bind_group,
             ground_textures,
+            sky_view: sky_view_pass,
+            sky_view_uniform: None,
             atmo_trans_tex,
             atmo_trans_view,
             atmo_ms_tex,
@@ -2427,6 +2439,14 @@ impl Renderer {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Celestial Encoder"),
             });
+
+        // Sky-view LUT (stage 3b-2): refresh the distant-sky table first so
+        // everything later in the frame could sample this frame's sky. Only
+        // runs frame-locked near an atmosphere body (the uniform is stashed
+        // by the lib.rs atmosphere hook; None elsewhere = zero cost).
+        if let Some(u) = self.sky_view_uniform {
+            self.sky_view.encode(&self.queue, &mut encoder, &u);
+        }
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
