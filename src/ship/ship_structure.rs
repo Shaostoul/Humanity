@@ -229,6 +229,20 @@ pub fn zone_origin(ship: &Option<ShipStructure>, idx: usize) -> Vec3 {
 }
 
 impl ShipStructure {
+    /// Total electrical draw of every switched-ON placed light, in watts
+    /// (v0.967, homestead increment 5). `watts_of` maps a light type id to
+    /// its draw (the caller passes the light_types.ron lookup; taking a
+    /// closure keeps this module renderer-free and unit-testable). Lights
+    /// with `on: false` cost nothing - flipping a switch changes the bill.
+    pub fn lighting_watts(&self, watts_of: impl Fn(&str) -> f32) -> f32 {
+        self.zones
+            .iter()
+            .flat_map(|z| z.body.lights.iter())
+            .filter(|l| l.on)
+            .map(|l| watts_of(&l.type_id))
+            .sum()
+    }
+
     /// Structural sanity: at least one zone, every id non-empty and unique, every corridor
     /// resolvable (zones exist, from != to, a clear axis gap between the boxes, the door mouth
     /// inside both zones' shared lateral span). Run on every load so a hand-edited file fails
@@ -1745,6 +1759,36 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod lighting_watts_tests {
+    use super::*;
+
+    /// v0.967 (homestead increment 5): the shipped structure's switched-on
+    /// lights must sum to a sane, NONZERO wattage through the shipped
+    /// light-type table - the house lighting is real load on the power
+    /// meter, and a light-type rename that silently zeroes the bill fails
+    /// here instead of in the HUD.
+    #[test]
+    fn shipped_lights_draw_real_watts() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data/blueprints/ship_structure.ron");
+        let text = std::fs::read_to_string(&path).expect("structure readable");
+        let s: ShipStructure = ron::from_str(&text).expect("structure parses");
+        let watts = s.lighting_watts(|id| {
+            crate::renderer::light::light_type(id).map(|t| t.watts).unwrap_or(0.0)
+        });
+        assert!(
+            (100.0..2000.0).contains(&watts),
+            "shipped lighting should draw a realistic LED-household load, got {watts} W"
+        );
+        // Every shipped light type must carry a wattage (a new entry with
+        // watts omitted defaults to 0 = free power, which is a lie).
+        for t in crate::renderer::light::light_types() {
+            assert!(t.watts > 0.0, "light type {} has no wattage", t.id);
         }
     }
 }

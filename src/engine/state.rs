@@ -133,6 +133,10 @@ pub(crate) struct EngineState {
     /// Last frame's ship_world_pos, for riding particles through
     /// floating-origin rebases (render space moves opposite the ship).
     pub(crate) prev_ship_world_pos: glam::DVec3,
+    /// The aggregate PowerConsumer entity carrying every switched-on placed
+    /// light's wattage (v0.967, homestead increment 5) - spawned lazily,
+    /// draw updated each frame so flipping a light changes the power bill.
+    pub(crate) house_light_consumer: Option<hecs::Entity>,
     /// Dev test-light COUNT from the showcase lights:N hook (clustering
     /// dev-aid). The grid REGENERATES around the camera every frame - render
     /// space rebases with the floating origin, so stored positions go stale

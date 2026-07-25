@@ -51,6 +51,11 @@ pub struct LightType {
     pub length_m: f32,
     #[serde(default)]
     pub note: String,
+    /// Electrical draw in watts while switched on (v0.967, homestead
+    /// increment 5): summed into ElectricalSystem demand so house lighting
+    /// is honest on the power meter. 0 = free (legacy entries).
+    #[serde(default)]
+    pub watts: f32,
 }
 
 /// The light catalog, parsed once from the embedded RON.

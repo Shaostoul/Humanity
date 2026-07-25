@@ -1571,6 +1571,7 @@ mod native_app {
                     ps
                 },
                 prev_ship_world_pos: glam::DVec3::ZERO,
+                house_light_consumer: None,
                 debug_test_light_count: 0,
                 debug_test_light_intensity: 3.0,
                 window,
@@ -3193,6 +3194,50 @@ mod native_app {
                             }
                         }
                         state.particle_system.tick(dt);
+                    }
+
+                    // ── House lighting on the power meter (v0.967, homestead
+                    // increment 5): every switched-on placed light draws its
+                    // light_types.ron wattage through ONE aggregate
+                    // PowerConsumer entity (island 0, the home machines'
+                    // default) - flipping a light switch changes the bill. ──
+                    {
+                        let watts = state
+                            .gui_state
+                            .ship_structure
+                            .as_ref()
+                            .map(|s| {
+                                s.lighting_watts(|id| {
+                                    crate::renderer::light::light_type(id)
+                                        .map(|t| t.watts)
+                                        .unwrap_or(0.0)
+                                })
+                            })
+                            .unwrap_or(0.0);
+                        match state.house_light_consumer {
+                            Some(e) => {
+                                if let Ok(mut c) = state
+                                    .game_world
+                                    .world
+                                    .get::<&mut crate::ecs::components::PowerConsumer>(e)
+                                {
+                                    c.draw_watts = watts;
+                                }
+                            }
+                            None => {
+                                if watts > 0.0 {
+                                    let e = state.game_world.world.spawn((
+                                        crate::ecs::components::PowerConsumer {
+                                            draw_watts: watts,
+                                            priority: 3,
+                                            enabled: true,
+                                        },
+                                        crate::ecs::components::PowerCircuit { island: 0 },
+                                    ));
+                                    state.house_light_consumer = Some(e);
+                                }
+                            }
+                        }
                     }
 
                     // Dev FTL flight, world-scale share (v0.791.x): above
