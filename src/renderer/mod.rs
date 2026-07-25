@@ -4,6 +4,7 @@
 //! Supports both native (winit window) and WASM (canvas) targets.
 
 pub mod atmosphere;
+pub mod billboard_bake;
 /// Atmosphere LUT generators (Hillaire stage 1: transmittance, CPU-side).
 pub mod atmo_luts;
 /// Sky-view LUT offscreen pass (sky arc stage 3b-2).

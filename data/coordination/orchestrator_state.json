@@ -328,6 +328,10 @@
     {
       "date": "2026-07-25",
       "decision": "Grazing horizon sheet band ROOT-CAUSED + FIXED: the white/black slabs riding the horizon in every ocean vantage were the CLOUD DECK seen edge-on - proven by the new clouds:0/1 showcase IPC knob (clouds off = clean horizon, on = slabs). A deck fragment at the visual horizon sits behind ~160 km of air (sqrt(2Rh)) and should dissolve into haze, but all three cloud variants only had a limb fade flooring at 0.55. Fix: shared cloud_low_cam_haze() - slant-distance fade 30..80 km, active ONLY when the camera is inside the deck shell, so the from-orbit blue marble + limb-400km cloud faces are bit-untouched (verified by sweep). Hot-reload A/B verified at the artifact conditions (time 10.7): clean horizon with clouds ON. The clouds knob is a permanent dev-aid. Ships v0.958.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "Billboard bake increment 1 SHIPPED (operator call: bake our own, automated TA-style): src/renderer/billboard_bake.rs renders any model parts side-on (unlit albedo + 0.5 cutout alpha, transparent background, ortho framed on joint AABB, swapchain-format target so read_texture_to_png applies unchanged) and returns the world footprint for card sizing. IPC bake:trees bakes all 6 conifers (crown+_bark) to debug/bakes/*.png in <1s total. Verified: pine sprites are perfect billboards; fir reads sparse but is FAITHFUL to the wispy model (same cutout threshold as type-19). Deliberate: lighting stays with the consumer (baking it would freeze one sun angle into every card); one side view since the card stream yaws randomly. Increment 2 = atlas upload + textured alpha-cards replacing the colored-quad silhouettes, where resolution/threshold tuning belongs. Ships v0.959.0."
     }
   ],
   "active_scopes_to_avoid": [
