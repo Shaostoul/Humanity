@@ -194,11 +194,13 @@ pub const GRASS_MIN_DEPTH: u8 = 18;
 /// operator reported, and why grass seemed to vanish near the player.)
 /// Cell size is radians of arc on the unit sphere.
 pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
-/// Expected trees per tree cell at the equator (~2000 trees per km^2 as of
-/// v0.913 - operator: "it looks like we're in a fairly open plain, can we
-/// see about making the forest dense"); scaled by cos(lat) so density
-/// stays constant per square km.
-pub const TREES_PER_CELL: u32 = 100;
+/// Expected trees per tree cell at the equator; scaled by cos(lat) so
+/// density stays constant per square km. History: 100 (~2,000/km^2,
+/// v0.913 "can we see about making the forest dense"); 400 (~8,000/km^2,
+/// v0.963 - operator: "try to make the forests dense. I want to see what
+/// we can get away with"). Real temperate forest runs 20k-80k/km^2; the
+/// sprite cards (2 quads/tree since v0.961) are what buys the headroom.
+pub const TREES_PER_CELL: u32 = 800;
 /// Grass cell size (~33 m) and tufts per cell (v0.913: ~0.073 per m^2).
 pub const GRASS_CELL_RAD: f64 = 5.2e-6;
 pub const GRASS_PER_CELL: u32 = 160;

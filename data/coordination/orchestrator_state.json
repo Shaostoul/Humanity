@@ -348,6 +348,10 @@
     {
       "date": "2026-07-25",
       "decision": "LIFTOFF BUG FIXED (overnight backlog #1): two defects in the surface-to-space transition. (1) In the 100-1000 km blend band, translation hands to the fly/FTL integration whose Space axis was raw world +Y - at southern latitudes dot(radial, Y) = sin(lat) < 0, so Space pushed toward the ground and slid the player laterally at governed constant altitude until crossing the equator flipped the sign (the operator ascended from Australia: up a bit -> lateral zoom -> sudden climb, exactly this). Both the world-scale (lib.rs) and local (camera.rs) fly paths now thrust along camera.up, which already carries the eased radial-to-Y blend while surface_mode rides the band. (2) The controller froze ALL below-FTL-cap movement in the blend band (early return on surface_mode while nothing owned translation) - now gated on the new surface_translation_owned flag synced from lib.rs. Two regression tests pin the axis math and the ownership gate. Ships v0.962.0."
+    },
+    {
+      "date": "2026-07-25",
+      "decision": "DENSE FORESTS shipped (overnight backlog #2): TREES_PER_CELL 100 -> 800 (~2k -> ~16k trees/km^2, real temperate-forest range). Measured at fuji: 400/cell 93.5 fps, 800/cell 87.8 fps - sprite cards (v0.961, 2 quads/tree) make card density nearly free; the near 3D-model band (64-model cap) is the actual frame cost and is unchanged. The 600-tree harvest cap now covers a smaller model radius in dense stands, and the v0.914 covered-radius card-hide logic handles that correctly by design. Ships v0.963.0."
     }
   ],
   "active_scopes_to_avoid": [
