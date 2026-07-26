@@ -115,6 +115,23 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         "quest_registry",
         QuestRegistry::from_ron_dir(&data_dir.join("quests")),
     );
+    // Travel destinations (v0.979): named world places whose arrival radius
+    // fires "travel_<id>" quest events. Read by QuestSystem::tick.
+    match crate::embedded_data::read_data_or_embedded(data_dir, "entities/destinations.ron") {
+        Some(text) => match crate::systems::quests::DestinationList::from_ron(text.as_bytes()) {
+            Ok(list) => {
+                log::info!(
+                    "Loaded {} travel destinations from entities/destinations.ron",
+                    list.destinations.len()
+                );
+                store.insert("quest_destinations", list);
+            }
+            Err(e) => log::warn!("Failed to parse entities/destinations.ron: {e}"),
+        },
+        None => log::warn!(
+            "entities/destinations.ron not found (no embedded copy); Travel objectives cannot advance"
+        ),
+    }
     // BlueprintRegistry: read by ConstructionSystem::tick (registered 2026-07-01, see
     // lib.rs's system_runner.register list) -- basic.ron already ships a real
     // foundation/wall/door/window/roof/furniture/machine catalog that had nothing

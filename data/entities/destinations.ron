@@ -1,0 +1,21 @@
+// Travel destinations (v0.979): named world places for quest Travel
+// objectives. The QuestSystem fires "travel_<id>" the moment the player
+// enters `radius` metres of `pos` (XZ, homestead-world frame - the same
+// frame entities/wild_spawns.ron uses). Leaving and returning re-fires, so
+// a quest accepted after a first visit still completes on the next
+// walk-through.
+//
+// Adding a landmark = adding a row here; reference it from any quest file
+// as Travel(destination: "<id>").
+(
+    destinations: [
+        // The outdoor crop fields just south of the house.
+        (id: "outdoor_fields", label: "the outdoor fields", pos: (29.0, 63.0), radius: 10.0),
+        // The berry thicket northeast of the fields (wild_spawns berry_bush cluster).
+        (id: "wild_thicket", label: "the berry thicket", pos: (52.0, 82.0), radius: 8.0),
+        // The flax stand near the wetter ground west of the thicket.
+        (id: "flax_hollow", label: "the flax hollow", pos: (18.0, 88.0), radius: 8.0),
+        // The ridge northeast where the wolves den (hostile wildlife setting).
+        (id: "wolf_ridge", label: "the northeast ridge", pos: (75.0, 100.0), radius: 12.0),
+    ],
+)

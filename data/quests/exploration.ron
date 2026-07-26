@@ -1,10 +1,12 @@
 // HumanityOS Quest Chain: Exploration
 // Quests that drive players to explore the surrounding environment.
 //
-// NOTE (2026-07-20 quest-data audit): the original Travel(destination: ...)
-// objectives were replaced with Gather/Craft steps because no game system
-// emits "travel_<destination>" quest events yet — a Travel objective can
-// never advance. Restore Travel steps once a navigation system pushes them.
+// Travel objectives WORK as of v0.979: the QuestSystem fires
+// "travel_<id>" when the player enters a destination's radius (ids +
+// positions in data/entities/destinations.ron). The 2026-07-20 audit had
+// stripped Travel steps because nothing emitted those events; they are
+// restored below. Accept the quest BEFORE walking there - leaving and
+// returning re-fires, so a missed first visit just means walking back.
 
 [
     (
@@ -15,6 +17,10 @@
             (
                 description: "Craft a compass to guide your survey",
                 objective: Craft(recipe_id: "craft_compass", quantity: 1),
+            ),
+            (
+                description: "Walk your grounds: visit the outdoor fields",
+                objective: Travel(destination: "outdoor_fields"),
             ),
             (
                 description: "Gather ore samples from the local terrain (5)",
@@ -43,6 +49,14 @@
             (
                 description: "Assemble a rover kit for overland travel",
                 objective: Craft(recipe_id: "assemble_rover_kit", quantity: 1),
+            ),
+            (
+                description: "Scout the berry thicket northeast of the fields",
+                objective: Travel(destination: "wild_thicket"),
+            ),
+            (
+                description: "Push on to the northeast ridge",
+                objective: Travel(destination: "wolf_ridge"),
             ),
             (
                 description: "Stock refined fuel for the long journey (5)",

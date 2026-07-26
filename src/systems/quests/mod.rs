@@ -90,6 +90,64 @@ impl QuestRegistry {
     }
 }
 
+// ── Travel destinations (v0.979, the Travel-objective emitter) ──────
+
+/// One named world destination a Travel objective can point at. Positions are
+/// XZ in the homestead-world frame (the same frame `entities/wild_spawns.ron`
+/// uses), so a destination can mark a spawn cluster, a field, or any landmark.
+#[derive(Debug, Clone, Deserialize)]
+pub struct DestinationDef {
+    /// The id Travel(destination: ...) references; the emitter fires
+    /// "travel_<id>" when the player enters the radius.
+    pub id: String,
+    /// Player-facing name (quest journal copy can reference it).
+    pub label: String,
+    /// World XZ centre.
+    pub pos: (f32, f32),
+    /// Arrival radius in metres.
+    pub radius: f32,
+}
+
+/// The destination list. DataStore: `"quest_destinations"`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct DestinationList {
+    pub destinations: Vec<DestinationDef>,
+}
+
+impl DestinationList {
+    pub fn from_ron(bytes: &[u8]) -> Result<Self, String> {
+        let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
+        ron::from_str(text).map_err(|e| e.to_string())
+    }
+}
+
+/// Edge-triggered arrival detection, pure for tests: returns the ids of
+/// destinations the player just ENTERED this tick (fired as
+/// "travel_<id>" events by the caller), updating `inside` (the set of
+/// destinations the player currently stands in). Leaving removes the id, so
+/// walking out and back re-fires - a quest accepted after a first visit still
+/// completes on the next walk-through (quest progress only records events
+/// while the quest is active).
+pub fn travel_transitions(
+    player_xz: (f32, f32),
+    dests: &DestinationList,
+    inside: &mut std::collections::HashSet<String>,
+) -> Vec<String> {
+    let mut entered = Vec::new();
+    for d in &dests.destinations {
+        let dx = player_xz.0 - d.pos.0;
+        let dz = player_xz.1 - d.pos.1;
+        let in_radius = dx * dx + dz * dz <= d.radius * d.radius;
+        if in_radius && !inside.contains(&d.id) {
+            inside.insert(d.id.clone());
+            entered.push(d.id.clone());
+        } else if !in_radius {
+            inside.remove(&d.id);
+        }
+    }
+    entered
+}
+
 /// Push a quest-progress event key (e.g. `"craft_smelt_iron"`, `"harvest_potato"`)
 /// onto the shared `"quest_events"` DataStore channel. Action systems call this on
 /// completion; [`QuestSystem`] drains it each tick and bumps matching progress
@@ -165,13 +223,15 @@ pub struct PendingReward {
 
 /// Checks active quest objectives each tick, advances steps, awards rewards.
 pub struct QuestSystem {
-    _initialized: bool,
+    /// Destinations the player is currently standing inside (edge-trigger
+    /// state for the Travel emitter, v0.979).
+    inside_destinations: std::collections::HashSet<String>,
 }
 
 impl QuestSystem {
     pub fn new() -> Self {
         Self {
-            _initialized: false,
+            inside_destinations: std::collections::HashSet::new(),
         }
     }
 
@@ -227,6 +287,26 @@ impl System for QuestSystem {
             Some(r) => r,
             None => return, // No quests loaded yet
         };
+
+        // Travel emitter (v0.979): fire "travel_<id>" the moment the player
+        // steps into a destination radius (data/entities/destinations.ron).
+        // Runs before the drain below, so an arrival advances its Travel
+        // objective in the SAME tick.
+        if let Some(dests) = data.get::<DestinationList>("quest_destinations") {
+            let player_xz = world
+                .query::<(
+                    &crate::ecs::components::Transform,
+                    &crate::ecs::components::Controllable,
+                )>()
+                .iter()
+                .next()
+                .map(|(_, (tf, _))| (tf.position.x, tf.position.z));
+            if let Some(xz) = player_xz {
+                for id in travel_transitions(xz, dests, &mut self.inside_destinations) {
+                    push_quest_event(data, format!("travel_{id}"));
+                }
+            }
+        }
 
         // Drain quest-progress events the action systems pushed this frame
         // ("craft_<recipe>", "harvest_<crop>", ...). Applied to every active
@@ -367,7 +447,6 @@ impl System for QuestSystem {
             }
         }
 
-        self._initialized = true;
     }
 }
 
@@ -438,6 +517,61 @@ mod quest_tests {
         let reg = QuestRegistry::from_ron_dir(&dir);
         assert!(reg.get("gs_first_steps").is_some(), "the getting-started chain loads");
         assert!(reg.quests.len() >= 4, "all quest files merged, got {}", reg.quests.len());
+    }
+
+    /// Travel emitter (v0.979): the edge trigger fires exactly on entry,
+    /// stays quiet while standing inside, and re-fires after leave + return
+    /// (a quest accepted after a first visit completes on the next pass).
+    #[test]
+    fn travel_transitions_edge_trigger() {
+        let dests = DestinationList {
+            destinations: vec![DestinationDef {
+                id: "fields".into(),
+                label: "the fields".into(),
+                pos: (10.0, 10.0),
+                radius: 5.0,
+            }],
+        };
+        let mut inside = std::collections::HashSet::new();
+        // Approach from outside: no fire.
+        assert!(travel_transitions((30.0, 30.0), &dests, &mut inside).is_empty());
+        // Entry fires once.
+        assert_eq!(travel_transitions((11.0, 11.0), &dests, &mut inside), vec!["fields"]);
+        // Standing inside stays quiet.
+        assert!(travel_transitions((9.0, 12.0), &dests, &mut inside).is_empty());
+        // Leave, then return: fires again.
+        assert!(travel_transitions((30.0, 30.0), &dests, &mut inside).is_empty());
+        assert_eq!(travel_transitions((10.0, 10.0), &dests, &mut inside), vec!["fields"]);
+    }
+
+    /// Lockstep guard: every Travel(destination) referenced by any shipped
+    /// quest exists in data/entities/destinations.ron - a quest pointing at a
+    /// nonexistent place could never advance and would fail here, not in play.
+    #[test]
+    fn shipped_travel_destinations_all_exist() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let dests = DestinationList::from_ron(
+            &std::fs::read(root.join("data/entities/destinations.ron")).unwrap(),
+        )
+        .unwrap();
+        assert!(dests.destinations.len() >= 4, "shipped destination list loads");
+        let ids: std::collections::HashSet<&str> =
+            dests.destinations.iter().map(|d| d.id.as_str()).collect();
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        let mut travel_steps = 0;
+        for q in reg.quests.values() {
+            for s in &q.steps {
+                if let QuestObjective::Travel { destination } = &s.objective {
+                    travel_steps += 1;
+                    assert!(
+                        ids.contains(destination.as_str()),
+                        "quest {} references unknown destination {destination}",
+                        q.id
+                    );
+                }
+            }
+        }
+        assert!(travel_steps >= 3, "the restored Travel steps load, got {travel_steps}");
     }
 
     #[test]
