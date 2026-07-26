@@ -432,6 +432,11 @@
     {
       "date": "2026-07-26",
       "decision": "MEGASHADER SOURCE SPLIT SHIPPED: pbr_simple.wgsl (3561 lines) split into 7 CONTIGUOUS numbered parts under assets/shaders/pbr/ - byte-identical concatenation proven at split time (zero semantic risk; the thematic regrouping from the design doc can happen gradually within the split structure). shader_loader.rs owns PBR_PARTS (include_str embed) + assembled_pbr_source() + from_dir + parts_mtime; the hot-reload poll tracks the newest part mtime and reassembles (verified live: part save -> reassembled + 4 PSOs in 1.3 s); all source-scanning lockstep tests (atmosphere, clouds, water, ocean_waves) read the concatenation so moved constants cannot dodge them. v0.782 verification bar met: 1153 tests + naga validation, relay clean, boot 0 panics, 4-vantage sweep renders identical to the approved captures. Merge-funnel relief: parallel agents can now edit disjoint shader domains without 3-way-merge hazards. Ships v0.973.0."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.974.0 BUG-048: cloud deck invisible from ground since v0.958 (cloud shadows under clear sky). The v0.958 horizon-slab fade used ABSOLUTE slant 30-80km tuned for a 2km deck, but CLOUD_SHELL_SCALE 1.008 puts the drawn shell at 51km - zenith 40pct faded, below ~50deg elevation gone. Rewrote cloud_low_cam_haze to grazing RATIO (slant/radial-gap ~ 1/sin(elev), dimensionless): full deck above ~10deg, dissolved below ~4deg, slabs (ratio 15+) stay dead. Found while hunting the underside-BANDING polish item: three ground look-ups (Sahara/Congo-Rain/Pacific) showed NO deck at all - the real bug was bigger than the polish. Banding itself still unreproduced (needs a thick daylit deck sighting now that undersides render); per-pixel march jitter remains queued if it ever shows. Verified via shader hot-reload in the rig: Congo overhead deck visible, ocean horizon clean, orbit disc unchanged. Faint sky arcs in ground captures = dev orbit-line overlay, not clouds.",
+      "why": "A fade tuned in absolute units silently breaks when the assumed geometry is wrong; dimensionless ratios survive retunes. Verify sweeps for any fade-X-out change must include a vantage where X should still be VISIBLE."
     }
   ],
   "active_scopes_to_avoid": [

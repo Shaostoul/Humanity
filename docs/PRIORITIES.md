@@ -166,9 +166,12 @@
 >    stages) for the 134-crop coverage; potted_plant_01_v1 (176k tris)
 >    as an interior hero pot. The type-19 + decorations.ron pipeline is
 >    ready; crops need growth-stage swap wiring in the farming visuals.
-> 4. Cloud raymarch polish: underside shows banded step artifacts from
->    below; deck-interior FPS dips to 10-16 (march cost). Consider step
->    jitter + early-out tuning.
+> 4. Cloud raymarch polish: underside banding UNREPRODUCED as of
+>    v0.974.0 - the "invisible underside" turned out to be BUG-048 (the
+>    v0.958 absolute-slant fade hid the whole deck from the ground;
+>    fixed with a grazing-ratio fade). Now that undersides render at
+>    all, re-judge banding under a thick daylit deck before adding step
+>    jitter. Deck-interior FPS dips to 10-16 (march cost) still stand.
 > 5. Grazing-angle texture smear: explicit-LOD sampling bypasses the
 >    aniso sampler; use textureSampleGrad or footprint-anisotropy bias.
 > 6. Forage flora spawns: stationary-creature flag so berry-bush/wild-
