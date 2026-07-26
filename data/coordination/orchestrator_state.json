@@ -467,6 +467,11 @@
       "date": "2026-07-26",
       "decision": "v0.978.0 forage flora (v0.909 item 6): new ai_behavior value stationary in creatures.csv -> behavior_type_for maps it through -> spawn paths attach AIBehavior(stationary) -> graze amble skips (has AIBehavior) + AISystem idles unknown types at zero velocity = rooted. Berry Bush (fruit_berries_0 x2 / 600s) + Wild Flax (fiber_flax_0 x1 / 900s) rows added; wild_spawns.ron thicket of 4 at (52,82) + flax stand of 6 at (18,88). ALSO fixed: the wild-spawn bundle never attached Harvestable, so NO wild renewable species was collectable (only dev-spawned + placed); now attaches ready-to-harvest, mirroring spawn_creature_at. Regression test forage_flora_spawns_rooted_and_collectable. Visual note: flora render as tinted creature primitives for now - hero models ride the pending Quaternius/operator-GLB decision (same question as furniture).",
       "why": "The renewable_product + [E]-collect loop already did everything forage needs; the only real gaps were the one missing behavior mapping and the wild-spawn Harvestable omission. Reusing the creature pipeline = zero new systems."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.979.0 Travel objective emitter (v0.909 item 7): QuestSystem now fires travel_<id> quest events on destination ENTRY (edge-triggered via pure travel_transitions; leave+return re-fires so late-accepted quests complete on the next pass). Destinations are data (data/entities/destinations.ron: id/label/XZ/radius, wild_spawns frame; 4 shipped: outdoor_fields, wild_thicket, flax_hollow, wolf_ridge). Exploration chain got its Travel steps restored (survey -> fields; expeditions -> thicket -> ridge), tying v0.978 forage into quests. Lockstep test shipped_travel_destinations_all_exist prevents quests referencing nonexistent places. Also removed the dead _initialized field on QuestSystem (replaced by the inside_destinations edge state).",
+      "why": "The quest side was fully plumbed since forever (check_objective reads travel_<dest> progress); the ONLY missing piece was one emitter. Data-driven destinations mean quest authors add landmarks without code."
     }
   ],
   "active_scopes_to_avoid": [
