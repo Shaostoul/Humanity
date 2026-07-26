@@ -297,6 +297,14 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 - **Fix**: Both shell meshes use a fixed level 5 (20,480 tris - trivial on any GPU), independent of `planet_max_subdiv` ([lib.rs](../src/lib.rs), the two `let shell_level = 5;` sites). The cap still bounds the body meshes it was written for.
 - **Lesson**: The probe rig's `config.json` accumulates experiment state across sessions. Before attributing a visual bug to code, dump the rig's graphics toggles against `src/config.rs` defaults (`planet_max_subdiv` 6, `planet_lod_px` 10, `planet_clouds` true) - a five-minute check that would have saved an hour of exe bisection.
 
+### BUG-048: Cloud deck invisible from the ground (cloud shadows under a clear sky)
+- **Status**: Fixed
+- **Version Found**: v0.958.0 (latent since that release; caught 2026-07-26 while hunting the separate underside-banding polish item)
+- **Version Fixed**: v0.974.0
+- **Description**: The v0.958 low-camera haze fade (`cloud_low_cam_haze` in the megashader) removed the ocean-vantage horizon slab artifact by fading deck fragments on ABSOLUTE slant distance, 30 km to 80 km, tuned from a comment assuming a 2 km deck height. The drawn cloud shell actually sits at `CLOUD_SHELL_SCALE` 1.008, which is 51 km altitude, so from the ground even the zenith fragment sat at 51 km slant (40 percent faded) and every fragment below roughly 50 degrees elevation exceeded 80 km slant and vanished entirely. Net effect for a player standing on the planet: cloud ground shadows sweeping the terrain under a visually clear sky, at three probed locations including one with an active Rain HUD. From orbit everything looked normal (the fade only engages when the camera is inside the shell), which is why 16 releases of from-space captures never caught it.
+- **Fix**: Fade on the grazing RATIO instead: slant divided by the camera's radial gap to the shell, which is ~1/sin(elevation) regardless of shell height. Full deck above ~10 degrees elevation (ratio 6), dissolved below ~4 degrees (ratio 14). The horizon slabs sat at ratio 15+ and stay dead. Verified live via shader hot-reload in the probe rig: deck visible overhead from under the Congo canopy, ocean-grazing horizon still clean, from-orbit disc unchanged ([40-clouds.wgsl](../assets/shaders/pbr/40-clouds.wgsl) `cloud_low_cam_haze`).
+- **Lesson**: A fade tuned in absolute units silently breaks when the geometry it assumed changes (or was never measured). Dimensionless ratios survive retunes. Also: a fix verified only at the artifact site (the ocean vantage) can delete far more than the artifact; the verify sweep for any "fade X out" change must include a vantage where X should still be VISIBLE.
+
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues

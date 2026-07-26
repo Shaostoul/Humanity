@@ -406,12 +406,28 @@ fn cloud_layer(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
 // active ONLY when the camera is inside the deck shell - from orbit the
 // far deck is the blue marble's face and must not fade. Shared by all
 // three quality variants so Low/Medium/High agree.
-fn cloud_low_cam_haze(world_position: vec3<f32>, cam_inside: bool) -> f32 {
+fn cloud_low_cam_haze(
+    world_position: vec3<f32>,
+    cam_inside: bool,
+    center: vec3<f32>,
+    shell_r: f32,
+) -> f32 {
     if (!cam_inside) {
         return 1.0;
     }
+    // v0.974 rewrite: the v0.958 form faded on ABSOLUTE slant (30..80 km),
+    // tuned for a 2 km deck -- but the drawn shell sits at 51 km altitude
+    // (CLOUD_SHELL_SCALE 1.008), so from the ground even the ZENITH fragment
+    // was 40% faded and everything below ~50 degrees elevation vanished:
+    // cloud shadows swept the ground under a visually clear sky. Fade on the
+    // GRAZING RATIO instead: slant divided by the camera's radial gap to the
+    // shell is ~1/sin(elevation) for any shell height, so "grazing" is pure
+    // geometry. Full deck above ~10 degrees elevation (ratio 6), dissolved
+    // below ~4 degrees (ratio 14) -- the ocean-vantage horizon slabs sat at
+    // ratio 15+ and stay dead, while the sky dome gets its clouds back.
     let slant = length(world_position - camera.view_pos.xyz);
-    return 1.0 - smoothstep(30000.0, 80000.0, slant);
+    let gap = max(shell_r - length(camera.view_pos.xyz - center), 1.0);
+    return 1.0 - smoothstep(6.0, 14.0, slant / gap);
 }
 
 fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
@@ -523,7 +539,7 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // ring; ease the deck off as the view grazes the sphere.
     let mu = clamp(abs(dot(rd, n)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside, center, shell_r);
     return vec4<f32>(mapped, body * density * limb * low_haze * CLOUD_MAX_ALPHA);
 }
 
@@ -689,7 +705,7 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     // own limb brightening at grazing view angles; ease it off there.
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside, center, shell_r);
     return vec4<f32>(mapped, body_total * limb * low_haze * CLOUD_MAX_ALPHA);
 }
 
@@ -1242,7 +1258,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let n_frag = normalize(world_position - center);
     let mu = clamp(abs(dot(rd_w, n_frag)), 0.0, 1.0);
     let limb = mix(0.55, 1.0, smoothstep(0.0, 0.35, mu));
-    let low_haze = cloud_low_cam_haze(world_position, cam_inside);
+    let low_haze = cloud_low_cam_haze(world_position, cam_inside, center, shell_r);
     return vec4<f32>(mapped, body_total * limb * low_haze * CLOUD_HI_MAX_ALPHA);
 }
 
