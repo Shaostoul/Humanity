@@ -412,6 +412,10 @@
     {
       "date": "2026-07-26",
       "decision": "TREES-NEVER-NEAR round 2 FIXED (operator morning report: shadows visible, trees never close): near_tree_instances filled its 600 cap ROW-MAJOR from the search disc south-west corner - harmless at 2k trees/km2 but at v0.963 8x density the cap filled before the walk reached the camera cell, so all drawn models sat in a southern stripe, the covered-radius card-hide still engaged, and card SHADOWS persisted because the shadow pass camera is the sun (hide-discard keys on view distance). A/B PROVEN: old walk = nearest harvested tree 142 m away at the Amazon; fix = nearest-cell-first walk (cos-lat-weighted distance sort over the ~50-100 cells) + regression asserts (nearest tree < 60 m, >= 3 of 4 quadrants populated) that FAIL on the old walk. Probe: 600/600 harvested around the camera, canopies overhead at fuji. Ships v0.969.0; operator must restart the app to get it."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "BILLBOARD ATLAS POLISH increment: bake-side alpha cutout 0.5 -> 0.3 (billboard_bake.rs inline shader). A sprite texel covers many source texels at card scale, so needles that pass 0.5 up close alias away in the bake - the fir sprites were nearly bare. 0.3 keeps the sub-texel needle mass; card-side alpha-testing is unchanged (sprite alpha is binary coverage). Rebaked comparison: fir_v1 went from bare twigs to full needle foliage per branch tier. Ships v0.970.0. Remaining polish ideas parked: supersampled bake (2048->512 with alpha averaging), multi-angle imposters."
     }
   ],
   "active_scopes_to_avoid": [

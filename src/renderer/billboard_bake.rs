@@ -58,9 +58,13 @@ fn vs_main(@location(0) pos: vec3<f32>, @location(1) nrm: vec3<f32>, @location(2
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureSample(tex, samp, in.uv);
-    // Foliage cutout: the same 0.5 coverage threshold the type-19 path
-    // uses, so the sprite's silhouette matches the real model's.
-    if (c.a < 0.5) {
+    // Foliage cutout, SOFTER than the model's 0.5 (v0.970 atlas polish):
+    // a sprite texel covers many source texels once the tree is card-sized,
+    // so thin needles that pass 0.5 up close alias away at sprite scale -
+    // the fir baked nearly bare. 0.3 keeps sub-texel needle mass; the card
+    // still alpha-tests at 0.5 against the SPRITE's alpha, which is 1.0
+    // wherever anything drew, so silhouettes stay crisp.
+    if (c.a < 0.3) {
         discard;
     }
     return vec4<f32>(c.rgb, 1.0);
