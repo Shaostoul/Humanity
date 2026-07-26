@@ -428,6 +428,10 @@
     {
       "date": "2026-07-26",
       "decision": "CHAT FOCUS-LOSS FIXED (operator live report: the is-typing indicator appearing made the DM input lose focus): egui auto-generated widget ids derive from layout position; the typing indicator row (which deliberately shows across channels) grows the input bar and shifts the composer, so the focused id changed under the caret. Fix: stable explicit egui Ids on all three chat text inputs (chat_composer_input, chat_overlay_input, chat_edit_input - the edit row also gained protection against incoming messages shifting the scroll list mid-edit). Ships v0.972.0."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "MEGASHADER SOURCE SPLIT SHIPPED: pbr_simple.wgsl (3561 lines) split into 7 CONTIGUOUS numbered parts under assets/shaders/pbr/ - byte-identical concatenation proven at split time (zero semantic risk; the thematic regrouping from the design doc can happen gradually within the split structure). shader_loader.rs owns PBR_PARTS (include_str embed) + assembled_pbr_source() + from_dir + parts_mtime; the hot-reload poll tracks the newest part mtime and reassembles (verified live: part save -> reassembled + 4 PSOs in 1.3 s); all source-scanning lockstep tests (atmosphere, clouds, water, ocean_waves) read the concatenation so moved constants cannot dodge them. v0.782 verification bar met: 1153 tests + naga validation, relay clean, boot 0 panics, 4-vantage sweep renders identical to the approved captures. Merge-funnel relief: parallel agents can now edit disjoint shader domains without 3-way-merge hazards. Ships v0.973.0."
     }
   ],
   "active_scopes_to_avoid": [

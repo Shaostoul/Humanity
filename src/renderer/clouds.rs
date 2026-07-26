@@ -712,7 +712,7 @@ mod tests {
         // source so the Rust mirror and the WGSL can never drift silently
         // (the atmosphere module relies on a comment asking nicely; clouds
         // get enforcement).
-        let wgsl = include_str!("../../assets/shaders/pbr_simple.wgsl");
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
         let expect: &[(&str, f32)] = &[
             ("CLOUD_MAX_ALPHA", CLOUD_MAX_ALPHA),
             ("CLOUD_FIELD_LO", CLOUD_FIELD_LO),

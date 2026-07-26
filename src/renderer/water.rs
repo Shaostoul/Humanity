@@ -557,7 +557,7 @@ mod tests {
         // Parse every constant straight out of the shipped shader source so
         // the Rust mirror and the WGSL can never drift silently (same
         // enforcement pattern as renderer::clouds).
-        let wgsl = include_str!("../../assets/shaders/pbr_simple.wgsl");
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
         let parse_f32 = |name: &str| -> f32 {
             let needle = format!("const {name}: f32 = ");
             let start = wgsl

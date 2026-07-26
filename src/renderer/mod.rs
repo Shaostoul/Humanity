@@ -494,10 +494,12 @@ impl Renderer {
         let shader = shader_loader.load_embedded_pbr(&device);
         #[cfg(feature = "native")]
         let shader_hot = shader_loader::find_shaders_dir().and_then(|dir| {
-            let path = dir.join("pbr_simple.wgsl");
-            let mtime = std::fs::metadata(&path).ok()?.modified().ok()?;
-            log::info!("[HotReload] armed: polling mtime of {path:?}");
-            Some((path, mtime))
+            // v0.973 source split: the megashader is assembled from the
+            // numbered parts under assets/shaders/pbr/; the poll tracks the
+            // NEWEST part mtime so saving any part triggers a rebuild.
+            let mtime = shader_loader::pbr_parts_mtime(&dir)?;
+            log::info!("[HotReload] armed: polling part mtimes under {:?}", dir.join("pbr"));
+            Some((dir, mtime))
         });
         let pipeline = Pipeline::new(&device, surface_format, &shader);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
@@ -1187,40 +1189,38 @@ impl Renderer {
             return;
         }
         self.shader_hot_checked = std::time::Instant::now();
-        let Some((path, last_mtime)) = self.shader_hot.as_mut() else {
+        let Some((shaders_dir, last_mtime)) = self.shader_hot.as_mut() else {
             return;
         };
-        let Some(mtime) = std::fs::metadata(&*path).ok().and_then(|m| m.modified().ok())
-        else {
+        // v0.973 source split: the change signal is the newest mtime across
+        // the parts under shaders/pbr/; the reload reassembles them all.
+        let Some(mtime) = shader_loader::pbr_parts_mtime(shaders_dir) else {
             return;
         };
         if mtime == *last_mtime {
             return;
         }
         *last_mtime = mtime;
-        let path = path.clone();
-        let source = match std::fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("[HotReload] read {path:?} failed: {e}");
-                return;
-            }
+        let shaders_dir = shaders_dir.clone();
+        let Some(source) = shader_loader::assembled_pbr_source_from_dir(&shaders_dir) else {
+            log::error!("[HotReload] failed to assemble shader parts under {shaders_dir:?}");
+            return;
         };
         if let Err(e) = shader_loader::validate_wgsl(&source) {
-            log::error!("[HotReload] pbr_simple.wgsl REJECTED (old pipelines kept): {e}");
+            log::error!("[HotReload] megashader REJECTED (old pipelines kept): {e}");
             return;
         }
         let t0 = std::time::Instant::now();
         let module = self
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("pbr_simple.wgsl (hot-reload)"),
+                label: Some("pbr megashader (hot-reload)"),
                 source: wgpu::ShaderSource::Wgsl(source.into()),
             });
         let format = self.config.format;
         self.pipeline.recreate_pipelines(&self.device, format, &module);
         log::info!(
-            "[HotReload] pbr_simple.wgsl recompiled + 4 PSOs rebuilt in {:.1}s",
+            "[HotReload] megashader reassembled + 4 PSOs rebuilt in {:.1}s",
             t0.elapsed().as_secs_f32()
         );
     }

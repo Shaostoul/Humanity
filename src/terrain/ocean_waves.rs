@@ -125,11 +125,21 @@ mod tests {
     /// A shader retune that forgets this module fails here, not in-game.
     #[test]
     fn shader_constants_match_cpu_twin() {
-        let wgsl = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("assets/shaders/pbr_simple.wgsl"),
-        )
-        .expect("shader readable");
+        // v0.973 source split: scan the CONCATENATION of the megashader's
+        // parts, so a constant moved between parts can never dodge this
+        // lockstep check.
+        let parts_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/shaders/pbr");
+        let mut names: Vec<std::path::PathBuf> = std::fs::read_dir(&parts_dir)
+            .expect("shader parts dir readable")
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .collect();
+        names.sort();
+        let wgsl: String = names
+            .iter()
+            .map(|p| std::fs::read_to_string(p).expect("shader part readable"))
+            .collect();
         let grab = |name: &str| -> f32 {
             let pat = format!("const {name}: f32 = ");
             let at = wgsl.find(&pat).unwrap_or_else(|| panic!("{name} missing in WGSL"));

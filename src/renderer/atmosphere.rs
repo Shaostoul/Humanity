@@ -549,7 +549,7 @@ mod tests {
         // each ATMO_* constant straight out of the shipped shader source so
         // the Rust mirror and the WGSL can never drift silently. (Before
         // v0.815 this module relied on a comment asking nicely.)
-        let wgsl = include_str!("../../assets/shaders/pbr_simple.wgsl");
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
         let expect: &[(&str, f32)] = &[
             ("ATMO_TAU_RAYLEIGH", TAU_RAYLEIGH),
             ("ATMO_TAU_MIE", TAU_MIE),

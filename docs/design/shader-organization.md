@@ -1,7 +1,13 @@
 # Shader organization: why one megashader, and the plan to split its SOURCE
 
-Status: design accepted 2026-07-25 (overnight backlog #9), implementation
-deferred to a dedicated session. Operator question: "Is there any particular
+Status: SHIPPED v0.973.0 (2026-07-26). Implemented as CONTIGUOUS slices of
+the original file (byte-identical concatenation, zero semantic risk) rather
+than the thematic regrouping sketched below; regrouping can happen gradually
+WITHIN the split structure now that each part is its own file. Part names:
+00-bindings-vertex, 10-lighting-patterns, 20-surface-detail, 30-atmosphere,
+40-clouds, 50-brdf, 90-fragment-main. Verified per the v0.782 bar: full
+battery + boot + 4-vantage probe sweep (renders identical) + hot-reload
+exercise (part save reassembles in 1.3 s). Operator question: "Is there any particular
 reason you didn't break each shader down to its own file? Wouldn't a bunch of
 individual shader files be better than a single monolithic file?"
 

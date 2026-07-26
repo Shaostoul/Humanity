@@ -8,8 +8,68 @@ use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Embedded fallback shader used when the on-disk shader can't be loaded.
-const FALLBACK_SHADER: &str = include_str!("../../assets/shaders/pbr_simple.wgsl");
+/// The megashader's SOURCE PARTS (v0.973, docs/design/shader-organization.md):
+/// contiguous numbered slices of the former pbr_simple.wgsl, concatenated in
+/// name order into the ONE module every PBR pipeline compiles. The split is
+/// file-level organization only - the assembled source is byte-identical to
+/// the pre-split monolith, proven by the round-trip check at split time and
+/// pinned by `assembled_parts_form_a_valid_module` below. Add a part by
+/// adding it HERE and on disk; order is the tuple order (name-sorted).
+pub const PBR_PARTS: &[(&str, &str)] = &[
+    ("00-bindings-vertex.wgsl", include_str!("../../assets/shaders/pbr/00-bindings-vertex.wgsl")),
+    ("10-lighting-patterns.wgsl", include_str!("../../assets/shaders/pbr/10-lighting-patterns.wgsl")),
+    ("20-surface-detail.wgsl", include_str!("../../assets/shaders/pbr/20-surface-detail.wgsl")),
+    ("30-atmosphere.wgsl", include_str!("../../assets/shaders/pbr/30-atmosphere.wgsl")),
+    ("40-clouds.wgsl", include_str!("../../assets/shaders/pbr/40-clouds.wgsl")),
+    ("50-brdf.wgsl", include_str!("../../assets/shaders/pbr/50-brdf.wgsl")),
+    ("90-fragment-main.wgsl", include_str!("../../assets/shaders/pbr/90-fragment-main.wgsl")),
+];
+
+/// The assembled megashader source (embedded parts, joined). THE single
+/// source both the pipelines and every source-scanning test read, so a
+/// constant moved between parts can never dodge a lockstep check.
+pub fn assembled_pbr_source() -> &'static str {
+    static SRC: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SRC.get_or_init(|| PBR_PARTS.iter().map(|(_, s)| *s).collect::<String>())
+}
+
+/// Assemble the megashader from ON-DISK parts (dev checkout / portable rig):
+/// every .wgsl under `shaders_dir/pbr/`, joined in name order. None when the
+/// directory is absent or empty (stripped install) - the embedded assembly
+/// rules then, exactly like the old single-file fallback.
+#[cfg(feature = "native")]
+pub fn assembled_pbr_source_from_dir(shaders_dir: &std::path::Path) -> Option<String> {
+    let dir = shaders_dir.join("pbr");
+    let mut names: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map_or(false, |x| x == "wgsl"))
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    names.sort();
+    let mut out = String::new();
+    for p in names {
+        out.push_str(&std::fs::read_to_string(p).ok()?);
+    }
+    Some(out)
+}
+
+/// Newest modification time across the on-disk parts - the hot-reload
+/// poll's change signal (any part saved = the assembly is stale).
+#[cfg(feature = "native")]
+pub fn pbr_parts_mtime(shaders_dir: &std::path::Path) -> Option<std::time::SystemTime> {
+    let dir = shaders_dir.join("pbr");
+    std::fs::read_dir(&dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map_or(false, |x| x == "wgsl"))
+        .filter_map(|p| std::fs::metadata(&p).ok()?.modified().ok())
+        .max()
+}
 
 /// Loads and caches WGSL shader modules, recompiling on file change (native only).
 pub struct ShaderLoader {
@@ -102,7 +162,7 @@ impl ShaderLoader {
         if !self.shaders.contains_key(&canonical) {
             let source = std::fs::read_to_string(path).unwrap_or_else(|e| {
                 log::warn!("Failed to load shader {:?}: {}, using fallback", path, e);
-                FALLBACK_SHADER.to_string()
+                assembled_pbr_source().to_string()
             });
             let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(path.to_str().unwrap_or("shader")),
@@ -118,7 +178,7 @@ impl ShaderLoader {
     pub fn load_embedded_pbr(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("pbr_simple (embedded)"),
-            source: wgpu::ShaderSource::Wgsl(FALLBACK_SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(assembled_pbr_source().into()),
         })
     }
 
@@ -194,8 +254,8 @@ mod tests {
         // FIRST BOOT with "Unable to find entry point". validate_wgsl (the
         // hot-reload gate, v0.924) carries all three checks now - this test
         // pins the EMBEDDED shader through the same gate.
-        if let Err(e) = super::validate_wgsl(super::FALLBACK_SHADER) {
-            panic!("pbr_simple.wgsl failed validation: {e}");
+        if let Err(e) = super::validate_wgsl(super::assembled_pbr_source()) {
+            panic!("assembled megashader failed validation: {e}");
         }
     }
 
