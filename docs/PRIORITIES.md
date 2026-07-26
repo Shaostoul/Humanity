@@ -156,11 +156,11 @@
 > v0.909 items: sea states + whiteout fix, plants
 > in-world w/ type-19 textured meshes, cloud density contrast, planet-
 > scaled bands + hysteresis + aim preservation, settings truth pass):
-> 1. TELEPORT-OVER-DEEP-OCEAN lands km off (found 2026-07-20 probing):
->    camera_request altitude vs the HUD Alt disagree over deep water -
->    the placement and readout use different ground conventions since the
->    diving change (drawn/exaggerated vs true bathymetry). Make both use
->    sea level over has_water oceans.
+> 1. TELEPORT-OVER-DEEP-OCEAN: CLOSED as already-fixed (verified live
+>    2026-07-26): placement parks on sea level since v0.896, the HUD Alt
+>    + band reference since v0.909.x (alt = dist - max(ground, sea)).
+>    Rig proof: mid-Pacific park at 10 m reads Alt 5 m - the km-scale
+>    disagreement is gone; the residual is wave/lift convention (fine).
 > 2. AUDIO ENGINE INTEGRATION: AudioManager (src/audio/) has ZERO callers
 >    - no game sound exists, and the Settings volume sliders are honest
 >    placebos. Integrate kira playback + wire set_master/music/sfx.

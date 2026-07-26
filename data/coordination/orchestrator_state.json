@@ -452,6 +452,11 @@
       "date": "2026-07-26",
       "decision": "v0.976.2 queue item [d]: NPC crowd stress groundwork DESIGN NOTE shipped (docs/design/npc-crowd-stress.md, design only, no content). Inventory verified in code: creature AISystem behavior trees + flow fields are LOCAL; crew NPCs are RELAY-driven RemoteNpc (crowd tests must attribute client vs relay cost separately); NPCs have no wall collision client-side (expected first finding: walkers stream through walls). Build order defined: (1) showcase npcs:N camera-local walker knob (lights:N pattern), (3) [npc-diag] perf counters incl. nameplate_ms (v0.975 sight tests are O(plates x segments)), (2) data-driven idle/wander/queue/work micro-roster; counters before tasks. Gate: 100 NPCs at 60+ FPS on the RTX 4070, 250 aspirational. Parked queue [a]-[d] from the overnight backlog now fully dispatched: [a] became BUG-048 (v0.974), [b] sightline occlusion (v0.975), [c] dark-grid solved (v0.976), [d] this note.",
       "why": "The operator queued groundwork-not-content; the note pins the smallest measurable crowd test so a future arc starts from agreed knobs instead of re-deriving scope."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.976.3 PRIORITIES v0.909 item 1 (teleport-over-deep-ocean lands km off) CLOSED as already-fixed, no code change: reading both paths showed placement parks on sea level since v0.896 (surface_radius < radius_m -> radius_m + SURFACE_LIFT) and the HUD Alt + band reference uses max(ground_r, sea_r) since v0.909.x. Live rig proof: mid-Pacific (lat 0 lon -150) park at requested 10 m reads Alt 5 m - meters-scale wave/lift convention residue, not the reported km. The 2026-07-20 observation predated the v0.909.x readout fix. Never re-fix this; if someone reports it again, first check they are on >= v0.909.",
+      "why": "Verify-before-implement on stale queue items: five minutes of code reading + one rig park beat re-implementing a fix that already shipped."
     }
   ],
   "active_scopes_to_avoid": [
