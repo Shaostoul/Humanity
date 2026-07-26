@@ -1878,10 +1878,39 @@ pub fn near_tree_instances(
     let yhi = ((lat_c / cell).floor() as i64) + lat_span.ceil() as i64 + 1;
     let xlo = ((lon_c / cell).floor() as i64) - lon_span.ceil() as i64 - 1;
     let xhi = ((lon_c / cell).floor() as i64) + lon_span.ceil() as i64 + 1;
+    // Walk cells NEAREST-FIRST (v0.969, operator: "I see their shadows, but
+    // I can never get close"): the old row-major walk filled the max_n cap
+    // from the disc's south-west corner, which was harmless at the old
+    // density but at 8x (v0.963) the cap fills before the walk ever reaches
+    // the camera's own cell - every drawn model sat in a southern stripe,
+    // the card-hide radius engaged anyway, and the player stood on
+    // shadowed-but-treeless ground (card shadows persist because the shadow
+    // pass's "camera" is the sun, so the hide-discard never fires there).
+    // Distance-sorted cells make the cap collect the trees AROUND the
+    // camera; lon distance is cos(lat)-weighted to keep rings round.
+    let cy = lat_c / cell;
+    let cx = lon_c / cell;
+    let coslat = lat_c.cos().max(0.05);
+    let mut cells: Vec<(i64, i64)> = Vec::with_capacity(
+        ((yhi - ylo + 1) * (xhi - xlo + 1)).max(0) as usize,
+    );
     for iy in ylo..=yhi {
+        for ix in xlo..=xhi {
+            cells.push((iy, ix));
+        }
+    }
+    cells.sort_by(|a, b| {
+        let d = |c: &(i64, i64)| {
+            let dy = c.0 as f64 + 0.5 - cy;
+            let dx = (c.1 as f64 + 0.5 - cx) * coslat;
+            dy * dy + dx * dx
+        };
+        d(a).partial_cmp(&d(b)).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    for (iy, ix) in cells {
         let cell_lat = (iy as f64 + 0.5) * cell;
         let count = ((TREES_PER_CELL as f64) * cell_lat.cos().max(0.0)).round() as u32;
-        for ix in xlo..=xhi {
+        {
             // Identical stream to the bake: 6 randoms per item BEFORE any
             // gate, so positions/looks agree exactly with the cards.
             let mut s = (ix as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
@@ -3618,6 +3647,35 @@ mod tests {
             assert!(
                 !trees.is_empty(),
                 "harvest found ZERO trees at {name} ({lat_deg},{lon_deg}) - reproduces the operator's bare-ground report"
+            );
+            // v0.969 regression (operator: "I see their shadows, but I can
+            // never get close"): at 8x density the row-major cell walk
+            // filled the cap from the disc's corner, so the NEAREST
+            // returned tree could be hundreds of metres away and whole
+            // quadrants around the camera were empty. Nearest-first cells
+            // must put a tree within ~60 m of a dense-forest center and
+            // populate at least 3 of the 4 quadrants.
+            let nearest_m = trees
+                .iter()
+                .map(|t| t.dir.dot(dir.normalize()).clamp(-1.0, 1.0).acos() * def.radius)
+                .fold(f64::MAX, f64::min);
+            assert!(
+                nearest_m < 60.0,
+                "{name}: nearest harvested tree is {nearest_m:.0} m away - the cap filled far from the camera"
+            );
+            let east = glam::DVec3::Y.cross(dir).normalize();
+            let north = dir.normalize().cross(east).normalize();
+            let mut quads = [false; 4];
+            for t in &trees {
+                let rel = t.dir - dir.normalize();
+                let e = rel.dot(east);
+                let n = rel.dot(north);
+                let q = (if e >= 0.0 { 0 } else { 1 }) + (if n >= 0.0 { 0 } else { 2 });
+                quads[q] = true;
+            }
+            assert!(
+                quads.iter().filter(|q| **q).count() >= 3,
+                "{name}: trees cover only {quads:?} - the harvest is spatially lopsided"
             );
         }
     }

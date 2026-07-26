@@ -408,6 +408,10 @@
     {
       "date": "2026-07-25",
       "decision": "AUDIO INCREMENT 2 SHIPPED - FOOTSTEPS: a stride meter over whichever channel actually walks (planet walk band = frame_lock_anchor delta since the camera stays put there; aboard home = camera delta), 0.75 m stride plays the surface-matched catalog sound (grass on planets, metal aboard - biome-matched surfaces are the follow-up), fly mode silent, >=2 m one-frame deltas (teleports/band handoffs) reset instead of clicking. Battery 1153, relay clean, boot 0 panics; audible verification is the operator morning walk. Ships v0.968.0. Session settling to blocked cadence after the stamp: remaining arcs (billboard polish, LOD registry generalization, megashader split, homestead GLB assets) are fresh-session material."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "TREES-NEVER-NEAR round 2 FIXED (operator morning report: shadows visible, trees never close): near_tree_instances filled its 600 cap ROW-MAJOR from the search disc south-west corner - harmless at 2k trees/km2 but at v0.963 8x density the cap filled before the walk reached the camera cell, so all drawn models sat in a southern stripe, the covered-radius card-hide still engaged, and card SHADOWS persisted because the shadow pass camera is the sun (hide-discard keys on view distance). A/B PROVEN: old walk = nearest harvested tree 142 m away at the Amazon; fix = nearest-cell-first walk (cos-lat-weighted distance sort over the ~50-100 cells) + regression asserts (nearest tree < 60 m, >= 3 of 4 quadrants populated) that FAIL on the old walk. Probe: 600/600 harvested around the camera, canopies overhead at fuji. Ships v0.969.0; operator must restart the app to get it."
     }
   ],
   "active_scopes_to_avoid": [
