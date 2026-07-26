@@ -161,9 +161,10 @@
 >    + band reference since v0.909.x (alt = dist - max(ground, sea)).
 >    Rig proof: mid-Pacific park at 10 m reads Alt 5 m - the km-scale
 >    disagreement is gone; the residual is wave/lift convention (fine).
-> 2. AUDIO ENGINE INTEGRATION: AudioManager (src/audio/) has ZERO callers
->    - no game sound exists, and the Settings volume sliders are honest
->    placebos. Integrate kira playback + wire set_master/music/sfx.
+> 2. AUDIO ENGINE INTEGRATION: CLOSED as shipped (v0.960 CC0 sounds +
+>    honest volume sliders synced to kira; v0.968 footsteps). Remaining
+>    audio wants are new scope: broader SFX coverage + music playback
+>    when the operator sources tracks.
 > 3. Garden crop hero models: Quaternius Ultimate Crops (CC0, growth
 >    stages) for the 134-crop coverage; potted_plant_01_v1 (176k tris)
 >    as an interior hero pot. The type-19 + decorations.ron pipeline is

@@ -185,22 +185,32 @@ fn micro_noise(p: vec3<f32>, period: f32) -> f32 {
 // Triplanar sample of one ground_tex layer in the camera-relative
 // planet-pinned metre domain (micro_noise's anchor domain, so tiles stay
 // seamless across the 64 m anchor jumps -- GROUND_TILE_M divides 64).
-// Explicit LOD from the analytic footprint, matching the shader's
-// no-implicit-derivative convention, so mips work in non-uniform flow.
 const GROUND_TILE_M: f32 = 2.0;
 
-fn ground_lod(footprint_m: f32) -> f32 {
-    // Ground texel = tile / 2048 px; LOD = log2(footprint / texel).
-    return clamp(log2(max(footprint_m * 2048.0 / GROUND_TILE_M, 1.0)), 0.0, 11.0);
-}
-
-fn ground_triplanar(layer: i32, p: vec3<f32>, w: vec3<f32>, lod: f32) -> vec3<f32> {
+// Gradient sampling (v0.977, the grazing-angle smear fix): the old
+// explicit-LOD form picked ONE isotropic mip from the analytic footprint,
+// which bypasses the sampler's anisotropy entirely - a flat sightline
+// footprint is metres long along the view but centimetres across it, so
+// the isotropic mip smeared the across-view detail into mush. Passing the
+// true per-plane UV gradients via textureSampleGrad lets the hardware
+// anisotropic filter (x8, ground_textures.rs) take multiple taps along
+// the long axis instead. Gradients come from dpdx/dpdy of world_position
+// taken at the TOP of fs_main (uniform control flow, always valid) and
+// rotated into the pinned domain by the caller - pt is anchor + inv_m *
+// (wp - eye), both constant per draw, so d(pt) = inv_m * d(wp) exactly.
+fn ground_triplanar_grad(
+    layer: i32,
+    p: vec3<f32>,
+    w: vec3<f32>,
+    gx: vec3<f32>,
+    gy: vec3<f32>,
+) -> vec3<f32> {
     let uv_x = p.yz / GROUND_TILE_M;
     let uv_y = p.xz / GROUND_TILE_M;
     let uv_z = p.xy / GROUND_TILE_M;
-    return textureSampleLevel(ground_tex, ground_samp, uv_x, layer, lod).rgb * w.x
-        + textureSampleLevel(ground_tex, ground_samp, uv_y, layer, lod).rgb * w.y
-        + textureSampleLevel(ground_tex, ground_samp, uv_z, layer, lod).rgb * w.z;
+    return textureSampleGrad(ground_tex, ground_samp, uv_x, layer, gx.yz / GROUND_TILE_M, gy.yz / GROUND_TILE_M).rgb * w.x
+        + textureSampleGrad(ground_tex, ground_samp, uv_y, layer, gx.xz / GROUND_TILE_M, gy.xz / GROUND_TILE_M).rgb * w.y
+        + textureSampleGrad(ground_tex, ground_samp, uv_z, layer, gx.xy / GROUND_TILE_M, gy.xy / GROUND_TILE_M).rgb * w.z;
 }
 
 fn surface_detail_noise(dir: vec3<f32>, freq: f32, seed: f32) -> f32 {

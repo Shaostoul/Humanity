@@ -347,7 +347,10 @@ pub fn load(device: &wgpu::Device, queue: &wgpu::Queue) -> GroundTextures {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         mipmap_filter: wgpu::FilterMode::Linear,
-        anisotropy_clamp: 4,
+        // x8 (v0.977): actually engaged now that the shader samples with
+        // textureSampleGrad - the old explicit-LOD path bypassed aniso
+        // entirely, which was the grazing-angle ground smear.
+        anisotropy_clamp: 8,
         ..Default::default()
     });
 

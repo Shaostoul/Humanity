@@ -206,6 +206,12 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    // Screen-space derivatives of the world position, taken FIRST - before
+    // the Bayer discard below or any non-uniform branch - so they are valid
+    // wherever they are later consumed (v0.977: the ground textures rotate
+    // these into the pinned domain for textureSampleGrad anisotropy).
+    let wp_dx = dpdx(in.world_position);
+    let wp_dy = dpdy(in.world_position);
     // LOD crossfade (v0.920): model[0].w carries the per-object fade (see
     // RenderObject::fade). 0 = normal. Positive f = fading IN: keep pixels
     // whose 4x4 Bayer threshold is below f. Negative -f = fading OUT: keep
@@ -642,19 +648,23 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                     // on every slope change).
                     let aw = pow(abs(dir), vec3<f32>(4.0));
                     let tw = aw / max(aw.x + aw.y + aw.z, 0.0001);
-                    let lodg = ground_lod(footprint);
+                    // Pinned-domain gradients: pt = anchor + inv_m*(wp - eye)
+                    // with anchor/eye constant per draw, so d(pt) is exactly
+                    // inv_m * d(wp) - the fs_main-top derivatives rotated.
+                    let g_x = (inv_m * vec4<f32>(wp_dx, 0.0)).xyz;
+                    let g_y = (inv_m * vec4<f32>(wp_dy, 0.0)).xyz;
                     var det = vec3<f32>(0.0);
                     if (w_grass > 0.01) {
-                        det = det + w_grass * ground_triplanar(0, pt, tw, lodg);
+                        det = det + w_grass * ground_triplanar_grad(0, pt, tw, g_x, g_y);
                     }
                     if (w_dirt > 0.01) {
-                        det = det + w_dirt * ground_triplanar(1, pt, tw, lodg);
+                        det = det + w_dirt * ground_triplanar_grad(1, pt, tw, g_x, g_y);
                     }
                     if (w_rock > 0.01) {
-                        det = det + w_rock * ground_triplanar(2, pt, tw, lodg);
+                        det = det + w_rock * ground_triplanar_grad(2, pt, tw, g_x, g_y);
                     }
                     if (w_sand > 0.01) {
-                        det = det + w_sand * ground_triplanar(3, pt, tw, lodg);
+                        det = det + w_sand * ground_triplanar_grad(3, pt, tw, g_x, g_y);
                     }
                     // Detail-albedo modulation: tex * 2 around its neutral
                     // 0.5 grey keeps the photo's large-scale color
@@ -672,7 +682,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                     if (w_dirt > wmax) { dom = 1; wmax = w_dirt; }
                     if (w_rock > wmax) { dom = 2; wmax = w_rock; }
                     if (w_sand > wmax) { dom = 3; wmax = w_sand; }
-                    let nm = ground_triplanar(4 + dom, pt, tw, lodg) * 2.0 - 1.0;
+                    let nm = ground_triplanar_grad(4 + dom, pt, tw, g_x, g_y) * 2.0 - 1.0;
                     let ref_a = select(
                         vec3<f32>(0.0, 1.0, 0.0),
                         vec3<f32>(1.0, 0.0, 0.0),
