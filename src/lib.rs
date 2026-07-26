@@ -14267,15 +14267,22 @@ mod native_app {
                                         // the eye, and lights must hug what the view
                                         // actually renders from.
                                         let cam = state.camera.effective_position();
-                                        // Grid in the CAMERA-LOCAL frame: in frame-locked
-                                        // surface mode the local vertical is the planet
-                                        // RADIAL, not +Y - a Y-up grid plane cuts through
-                                        // tilted terrain and buries most lights (why the
-                                        // ship interior lit at boot but the sahara vantage
-                                        // stayed dark: ships ARE Y-up).
-                                        let fwd = state.camera.forward();
-                                        let right = state.camera.right();
-                                        let up_l = right.cross(fwd).normalize_or_zero();
+                                        // Grid in the RENDERED-VIEW frame (v0.976): the
+                                        // v0.954 "camera-local" fix used camera.forward()/
+                                        // right(), which are the raw Y-up yaw/pitch
+                                        // formulas - in frame-locked SURFACE mode the real
+                                        // view runs through the surface basis, so the grid
+                                        // spawned ~20 m ABOVE the view line at any aim
+                                        // (the [lights-diag] smoking gun: last_light y
+                                        // +19..23 m over the eye no matter the pitch,
+                                        // 6 m radius never touching terrain). Deriving the
+                                        // basis from the view matrix's inverse rows is
+                                        // mode-proof: what the view renders is what the
+                                        // grid hugs, on ships AND planet surfaces.
+                                        let inv_view = state.camera.view_matrix().inverse();
+                                        let right = (inv_view * glam::Vec4::new(1.0, 0.0, 0.0, 0.0)).truncate().normalize_or_zero();
+                                        let up_l = (inv_view * glam::Vec4::new(0.0, 1.0, 0.0, 0.0)).truncate().normalize_or_zero();
+                                        let fwd = (inv_view * glam::Vec4::new(0.0, 0.0, -1.0, 0.0)).truncate().normalize_or_zero();
                                         let side = (n as f32).cbrt().ceil() as i32;
                                         let mut count = 0usize;
                                         'lgrid: for y in 0..side {

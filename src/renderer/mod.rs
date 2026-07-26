@@ -2467,6 +2467,16 @@ impl Renderer {
             if cloud_shadow.2 { 1.0_f32 } else { 0.0 },
         ];
         self.queue.write_buffer(&self.camera_buffer, 596, bytemuck::cast_slice(&cs));
+        // Point lights reach the CELESTIAL pass too (v0.976, the v0.953/954
+        // dark-grid mystery): `Camera::uniforms()` hardcodes light_count.x = 0
+        // and `celestial_uniforms()` inherits it, so every fragment drawn in
+        // this pass - the planet TERRAIN, and everything riding it - looped
+        // over zero lights while the storage buffer sat full. The ship
+        // interior lit because the scene pass rewrites the uniform with the
+        // real count. Poke the live count (light_count.x, offset 592) exactly
+        // like the yzw pads above.
+        let lc = self.cur_lights.len() as f32;
+        self.queue.write_buffer(&self.camera_buffer, 592, bytemuck::bytes_of(&lc));
         // Micro-detail anchor in light0_cone_inner.yzw (offset 464 + 4).
         self.queue
             .write_buffer(&self.camera_buffer, 468, bytemuck::cast_slice(&ground_anchor));
