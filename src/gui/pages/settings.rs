@@ -2074,7 +2074,7 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
         ui.add_space(6.0);
         ui.label(RichText::new("Detail distances by item type").color(theme.text_primary()).size(theme.font_size_body).strong());
         ui.label(RichText::new("How far each kind of thing keeps its detail. Planet terrain has its own sliders above; more types appear here as their detail stages ship.").color(theme.text_muted()).size(theme.font_size_small));
-        let tree_label = crate::veg_lod::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
+        let tree_label = crate::lod_registry::category("tree").map(|c| c.label.as_str()).unwrap_or("Trees");
         if widgets::labeled_slider(ui, theme, &format!("{tree_label}: 3D models within (m)"), &mut state.settings.tree_model_distance, 0.0..=300.0) {
             state.settings_dirty = true;
         }
@@ -2087,12 +2087,20 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("How finely the water surface is meshed near you: 17 = ~5 m wave vertices, 20 = ~0.6 m (every ripple is real geometry). Only the closest water refines, so the open ocean costs the same at any setting.").color(theme.text_muted()).size(theme.font_size_small));
-        for cat in crate::veg_lod::categories() {
-            if cat.id == "tree" {
-                continue; // live sliders above
+        for cat in crate::lod_registry::categories() {
+            if cat.id == "tree" || cat.id == "water" {
+                continue; // live sliders above own these
             }
+            // v0.971: types whose live controls sit elsewhere say WHERE;
+            // types with no shipped stages say so. Nothing is omitted and
+            // nothing gets a dead slider (honest-UI rule).
+            let line = if cat.controls_note.is_empty() {
+                format!("{}: detail stages not shipped yet", cat.label)
+            } else {
+                format!("{}: {}", cat.label, cat.controls_note)
+            };
             ui.label(
-                RichText::new(format!("{}: detail stages not shipped yet", cat.label))
+                RichText::new(line)
                     .color(theme.text_muted())
                     .size(theme.font_size_small)
                     .italics(),

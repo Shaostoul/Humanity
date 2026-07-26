@@ -48,7 +48,7 @@ pub mod scenic_views;
 /// feature sets consume it.
 pub mod reactions;
 /// Vegetation/creature LOD category registry (data/vegetation/lod_categories.ron).
-pub mod veg_lod;
+pub mod lod_registry;
 /// Extracted satellites of the native main loop (pure math, parsers, data
 /// registries, home spawn helpers) - see docs/dev/code-structure-plan.md.
 #[cfg(feature = "native")]

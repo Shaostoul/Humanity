@@ -1,4 +1,5 @@
-// HumanityOS VEGETATION/CREATURE LOD CATEGORIES (the LOD ladder, rung 2a).
+// HumanityOS PER-ITEM-TYPE LOD CATEGORIES (v0.971 generalization; was the
+// vegetation/creature registry at data/vegetation/lod_categories.ron).
 // One row per SIZE CATEGORY of placeable life (operator design 2026-07-21:
 // "per-size-category render distance sliders - grass short, trees miles, ant
 // vs beast same idea"). Distances are the DEFAULTS for the ladder stages:
@@ -51,5 +52,23 @@
         card_m: 1200.0,
         billboard_m: 0.0,
         fade_s: 0.3,
+    ),
+    (
+        id: "water",
+        label: "Water",
+        model_m: 0.0,
+        card_m: 0.0,
+        billboard_m: 0.0,
+        fade_s: 0.25,
+        controls_note: "Water: wave mesh detail slider (this section, above)",
+    ),
+    (
+        id: "planet",
+        label: "Planet terrain",
+        model_m: 0.0,
+        card_m: 0.0,
+        billboard_m: 0.0,
+        fade_s: 0.25,
+        controls_note: "Terrain sharpness, patch budget, and detail distance sliders (above)",
     ),
 ]

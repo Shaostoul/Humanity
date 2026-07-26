@@ -1,9 +1,10 @@
-//! Vegetation/creature LOD category registry (the LOD ladder, rung 2a):
-//! per-size-category stage distances loaded from
-//! `data/vegetation/lod_categories.ron` (embedded-registry pattern, like
-//! `lock_types`). The Settings sliders and the draw-path cutoffs read their
-//! DEFAULTS from here, so "grass short, trees miles, ant vs beast" is one
-//! data file rather than scattered constants - a modded category is a row.
+//! Per-ITEM-TYPE LOD category registry (v0.971 generalization of the
+//! vegetation rung-2a registry): every kind of thing with detail stages -
+//! vegetation, creatures, water, planet terrain - gets a row in
+//! `data/lod/categories.ron` (embedded-registry pattern, like lock_types).
+//! Rows whose stages are live carry real distances; rows whose controls
+//! live elsewhere carry a controls_note the Settings block renders, so the
+//! "Detail distances by item type" section lists EVERY type honestly.
 //! Ungated (pure serde) so every feature set compiles it.
 
 use serde::Deserialize;
@@ -20,17 +21,22 @@ pub struct LodCategory {
     pub billboard_m: f32,
     /// Crossfade seconds between stages (rides RenderObject.fade).
     pub fade_s: f32,
+    /// Where this type's live controls are, when they are NOT the generic
+    /// model/card sliders (e.g. water's mesh-detail slider, the planet
+    /// terrain sliders). Empty = the stage distances above are the story.
+    #[serde(default)]
+    pub controls_note: String,
 }
 
 /// The category table, parsed once from the embedded RON.
 pub fn categories() -> &'static [LodCategory] {
     static REG: std::sync::OnceLock<Vec<LodCategory>> = std::sync::OnceLock::new();
     REG.get_or_init(|| {
-        const SRC: &str = include_str!("../data/vegetation/lod_categories.ron");
+        const SRC: &str = include_str!("../data/lod/categories.ron");
         match ron::from_str::<Vec<LodCategory>>(SRC) {
             Ok(v) if !v.is_empty() => v,
             Ok(_) | Err(_) => {
-                log::error!("lod_categories.ron missing/invalid; using a tree-only fallback");
+                log::error!("data/lod/categories.ron missing/invalid; using a tree-only fallback");
                 vec![LodCategory {
                     id: "tree".into(),
                     label: "Trees".into(),
@@ -38,6 +44,7 @@ pub fn categories() -> &'static [LodCategory] {
                     card_m: 1500.0,
                     billboard_m: 0.0,
                     fade_s: 0.3,
+                    controls_note: String::new(),
                 }]
             }
         }
@@ -60,7 +67,7 @@ mod tests {
     #[test]
     fn registry_parses_and_tree_matches_the_legacy_defaults() {
         let cats = categories();
-        assert!(cats.len() >= 5, "expected the five starter categories, got {}", cats.len());
+        assert!(cats.len() >= 7, "expected the seven categories (five vegetation/creature + water + planet), got {}", cats.len());
         for c in cats {
             assert!(!c.label.is_empty() && c.fade_s > 0.0, "category {:?} incomplete", c.id);
         }
@@ -68,5 +75,14 @@ mod tests {
         assert_eq!(tree.model_m, 120.0, "tree model distance must match the legacy default");
         assert_eq!(tree.card_m, 1500.0, "tree card distance must match the legacy default");
         assert!(category("grass").is_some(), "grass category present (rung 2b consumes it)");
+        // v0.971: the non-vegetation types are listed with their control
+        // locations so the Settings section covers everything honestly.
+        for id in ["water", "planet"] {
+            let c = category(id).expect("generalized category present");
+            assert!(
+                !c.controls_note.is_empty(),
+                "{id} must say where its live controls are"
+            );
+        }
     }
 }
