@@ -88,9 +88,11 @@
 > decisions): billboard sprite BAKE-OUR-OWN tool (automated 3D-model-to-card
 > render, the alpha-card LOD rung; benefits modders, zero manual art per
 > model) and the AUDIO ARC (CC0 Kenney.nl download APPROVED; kira engine has
-> zero callers today; operator sourcing music separately). Parked: tiled
-> light lists dark-grid mystery (shipped default-off EXPERIMENTAL v0.954),
-> sky froxels stage 4.
+> zero callers today; operator sourcing music separately). Parked: sky
+> froxels stage 4. (The tiled-light dark-grid mystery is SOLVED, v0.976.0:
+> the celestial pass zeroed light_count so terrain looped zero lights on
+> both paths; lights_tiled stays EXPERIMENTAL default-off pending a
+> high-count parity + perf pass, no longer mystery-blocked.)
 >
 > Prior arc: **>>> CLEANUP/STRUCTURE ARC (2026-07-24, Fable): IN PROGRESS.** Shipped this
 > arc: v0.931 (ONE reaction palette to data/reactions.json, fixed the relay
