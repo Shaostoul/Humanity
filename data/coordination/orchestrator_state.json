@@ -462,6 +462,11 @@
       "date": "2026-07-26",
       "decision": "v0.977.0 grazing-angle ground smear fixed (v0.909 item 5): the triplanar ground path used textureSampleLevel with an isotropic analytic LOD, which bypasses sampler anisotropy entirely - the whole cause. New ground_triplanar_grad passes per-plane UV gradients to textureSampleGrad (hardware aniso, raised x4->x8 in ground_textures.rs). Gradients = dpdx/dpdy(world_position) taken as fs_main FIRST statements (before the Bayer discard, uniform-flow safe) rotated by inv_m into the pinned domain (exact: pt is affine in wp). A/B same-vantage sahara noon: mid-distance granularity retained vs washed out, FPS 86->92. Also closed two stale v0.909 items as already-shipped: item 2 audio (v0.960 sliders+sounds, v0.968 footsteps) and item 1 ocean-teleport altitude (v0.896 placement + v0.909.x readout; rig-verified Alt 5 m at a 10 m mid-Pacific park).",
       "why": "The no-implicit-derivative convention was cargo-culted past its reason: derivatives taken at the top of the entry point are always uniform-valid, and SampleGrad is the only way to reach the aniso hardware from an analytic-UV path."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.978.0 forage flora (v0.909 item 6): new ai_behavior value stationary in creatures.csv -> behavior_type_for maps it through -> spawn paths attach AIBehavior(stationary) -> graze amble skips (has AIBehavior) + AISystem idles unknown types at zero velocity = rooted. Berry Bush (fruit_berries_0 x2 / 600s) + Wild Flax (fiber_flax_0 x1 / 900s) rows added; wild_spawns.ron thicket of 4 at (52,82) + flax stand of 6 at (18,88). ALSO fixed: the wild-spawn bundle never attached Harvestable, so NO wild renewable species was collectable (only dev-spawned + placed); now attaches ready-to-harvest, mirroring spawn_creature_at. Regression test forage_flora_spawns_rooted_and_collectable. Visual note: flora render as tinted creature primitives for now - hero models ride the pending Quaternius/operator-GLB decision (same question as furniture).",
+      "why": "The renewable_product + [E]-collect loop already did everything forage needs; the only real gaps were the one missing behavior mapping and the wild-spawn Harvestable omission. Reusing the creature pipeline = zero new systems."
     }
   ],
   "active_scopes_to_avoid": [
