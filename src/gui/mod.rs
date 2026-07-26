@@ -6651,12 +6651,9 @@ pub struct SettingsState {
     // Appearance
     pub dark_mode: bool,
     pub font_size: f32,
-    // Notifications
-    pub notify_dm: bool,
-    pub notify_mentions: bool,
-    pub notify_tasks: bool,
-    pub dnd_start: String,
-    pub dnd_end: String,
+    // Notifications: no Settings fields - the live prefs are relay-synced
+    // (GuiState::notif_*, edited by Settings > Notifications AND the chat DM
+    // cog; v0.980 removed the dead notify_*/dnd_* placebos nothing read).
     // Gameplay
     /// Which home design loads (2026-07-01): `"home"` (default, family-scale) or
     /// `"home_solo"` (one-person self-sufficient design, see
@@ -6682,9 +6679,9 @@ pub struct SettingsState {
     /// pre-launch default (the operator IS the dev); flips to Normal at
     /// launch.
     pub play_mode: crate::config::PlayMode,
-    // Wallet
-    pub wallet_network: WalletNetwork,
-    pub custom_rpc_url: String,
+    // Wallet: no Settings fields - the live selector state is
+    // GuiState::wallet_network (shared by the Wallet page and Settings >
+    // Wallet; v0.980 removed the dead duplicates nothing read).
     // Privacy
     pub profile_visible: bool,
     pub online_status_visible: bool,
@@ -6744,17 +6741,10 @@ impl Default for SettingsState {
             invert_y: false,
             dark_mode: true,
             font_size: 14.0,
-            notify_dm: true,
-            notify_mentions: true,
-            notify_tasks: true,
-            dnd_start: String::new(),
-            dnd_end: String::new(),
             home_variant: "home".to_string(),
             hostile_wildlife: false,
             vitals_drain: 1.0,
             play_mode: crate::config::PlayMode::default(),
-            wallet_network: WalletNetwork::Devnet,
-            custom_rpc_url: String::new(),
             profile_visible: true,
             online_status_visible: true,
             seed_phrase_visible: false,

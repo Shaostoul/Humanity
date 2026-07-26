@@ -1684,28 +1684,75 @@ pub(crate) fn draw_widgets_content(ui: &mut egui::Ui, theme: &mut Theme, state: 
 }
 
 pub(crate) fn draw_notifications_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
+    // v0.980 (the 2026-07-20 dead-fields audit): this card used to edit
+    // Settings fields NOTHING read - the real notification prefs live on the
+    // RELAY (notification_prefs table), mirrored in state.notif_* and edited
+    // by the chat DM cog. The card now edits that same live state and syncs
+    // it to the server, making Settings and the cog two views of one truth.
+    let connected = state.ws_client.as_ref().map_or(false, |c| c.is_connected());
+    // Lazy fetch, same rule as the DM cog: the first time this card renders
+    // while connected, pull the stored prefs so toggles show reality.
+    if connected && !state.notif_prefs_loaded {
+        if let Some(ref client) = state.ws_client {
+            client.send(&serde_json::json!({ "type": "get_notification_prefs" }).to_string());
+            state.notif_prefs_loaded = true;
+        }
+    }
+    let mut changed = false;
     widgets::card(ui, theme, |ui| {
-        widgets::toggle(ui, theme, "Direct Messages", &mut state.settings.notify_dm);
-        widgets::toggle(ui, theme, "Mentions", &mut state.settings.notify_mentions);
-        widgets::toggle(ui, theme, "Task Updates", &mut state.settings.notify_tasks);
+        changed |= widgets::toggle(ui, theme, "Direct Messages", &mut state.notif_dm_enabled);
+        changed |= widgets::toggle(ui, theme, "Mentions", &mut state.notif_mentions_enabled);
+        changed |= widgets::toggle(ui, theme, "Task Updates", &mut state.notif_tasks_enabled);
         ui.label(RichText::new("Which events notify you: private messages, someone naming you in chat, and changes to tasks you are on.").color(theme.text_muted()).size(theme.font_size_small));
 
         ui.add_space(theme.spacing_md);
         ui.label(RichText::new("Do Not Disturb").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
+        // The live fields are Option<String>; edit through plain buffers and
+        // store trimmed non-empty values back as Some.
+        let mut dnd_start = state.notif_dnd_start.clone().unwrap_or_default();
+        let mut dnd_end = state.notif_dnd_end.clone().unwrap_or_default();
         widgets::form_row(ui, theme, "Quiet hours start", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut state.settings.dnd_start)
-                .desired_width(80.0)
-                .hint_text("22:00"));
+            if ui
+                .add(egui::TextEdit::singleline(&mut dnd_start).desired_width(80.0).hint_text("22:00"))
+                .lost_focus()
+            {
+                changed = true;
+            }
         });
         widgets::form_row(ui, theme, "Quiet hours end", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut state.settings.dnd_end)
-                .desired_width(80.0)
-                .hint_text("08:00"));
+            if ui
+                .add(egui::TextEdit::singleline(&mut dnd_end).desired_width(80.0).hint_text("08:00"))
+                .lost_focus()
+            {
+                changed = true;
+            }
         });
+        state.notif_dnd_start = Some(dnd_start.trim().to_string()).filter(|s| !s.is_empty());
+        state.notif_dnd_end = Some(dnd_end.trim().to_string()).filter(|s| !s.is_empty());
         ui.label(RichText::new("Notifications stay silent between these times. 24-hour clock, e.g. 22:00 to 08:00 keeps nights quiet.").color(theme.text_muted()).size(theme.font_size_small));
+
+        if !connected {
+            ui.add_space(theme.spacing_xs);
+            ui.label(RichText::new("Sign in to chat to sync these to the server - they apply across your devices once saved.").color(theme.text_muted()).size(theme.font_size_small));
+        }
     });
+    if changed && connected {
+        if let Some(ref client) = state.ws_client {
+            client.send(
+                &serde_json::json!({
+                    "type": "update_notification_prefs",
+                    "dm": state.notif_dm_enabled,
+                    "mentions": state.notif_mentions_enabled,
+                    "tasks": state.notif_tasks_enabled,
+                    "dnd_start": state.notif_dnd_start,
+                    "dnd_end": state.notif_dnd_end,
+                })
+                .to_string(),
+            );
+        }
+    }
 }
 
 pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
@@ -1734,36 +1781,26 @@ pub(crate) fn draw_wallet_content(ui: &mut egui::Ui, theme: &Theme, state: &mut 
         ui.label(RichText::new("Network").color(theme.text_secondary()).strong());
         ui.add_space(theme.spacing_xs);
 
-        let mut net = state.settings.wallet_network;
-        let mut changed = false;
+        // v0.980 (dead-fields audit): this selector used to edit a Settings
+        // field nothing read; the Wallet PAGE drives its own live
+        // state.wallet_network. Both selectors now edit that one live field.
+        // (The dead "Custom RPC URL" row is gone outright - no code ever
+        // consumed it; it returns when the native wallet actually makes RPC
+        // calls.)
         ui.horizontal(|ui| {
             for n in [WalletNetwork::Mainnet, WalletNetwork::Devnet, WalletNetwork::Testnet] {
-                let is_sel = net == n;
+                let is_sel = state.wallet_network == n;
                 let text_color = if is_sel { theme.text_on_accent() } else { theme.text_secondary() };
                 let fill = if is_sel { theme.accent() } else { Color32::TRANSPARENT };
                 let btn = egui::Button::new(RichText::new(n.label()).color(text_color).size(theme.font_size_body))
                     .fill(fill)
                     .rounding(Rounding::same(4));
                 if ui.add(btn).clicked() && !is_sel {
-                    net = n;
-                    changed = true;
+                    state.wallet_network = n;
                 }
             }
         });
-        if changed {
-            state.settings.wallet_network = net;
-            state.settings_dirty = true;
-        }
         ui.label(RichText::new("Mainnet is the real Solana network where coins have value. Devnet and Testnet are free practice networks for trying things safely.").color(theme.text_muted()).size(theme.font_size_small));
-
-        ui.add_space(theme.spacing_md);
-
-        widgets::form_row(ui, theme, "Custom RPC URL", |ui| {
-            ui.add(egui::TextEdit::singleline(&mut state.settings.custom_rpc_url)
-                .desired_width(280.0)
-                .hint_text("https://..."));
-        });
-        ui.label(RichText::new("Advanced, optional: route wallet requests through a specific Solana server. Leave empty to use the network's default.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
 
