@@ -1655,6 +1655,7 @@ mod native_app {
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
+                sight_colliders: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
                 connection_flow_sphere: None,
@@ -11514,6 +11515,48 @@ mod native_app {
                                     cstatus,
                                 );
                             }
+                        }
+                    }
+
+                    // ── HUD sight blockers (v0.975, nameplate-through-wall polish):
+                    // the static sight spans (windows open) + live CLOSED opaque
+                    // doors, translated into the frame the HUD projects labels in
+                    // (label.pos + station_off). The HUD hides a machine card or
+                    // crew nameplate whose camera->anchor line crosses one of
+                    // these, so cards no longer bleed through the house walls.
+                    // Skipped in the build editor: its orbit camera is above the
+                    // roofline and the 2D test would wrongly hide everything.
+                    state.gui_state.sight_blockers.clear();
+                    if !state.gui_state.construction_active
+                        && !state.sight_colliders.is_empty()
+                        && (!state.gui_state.machine_labels.is_empty()
+                            || !state.gui_state.crew_labels.is_empty())
+                    {
+                        // Engine-side station_off: updated earlier THIS frame (the
+                        // gui_state copy syncs later, with the crew labels).
+                        let off = state.station_off;
+                        state.gui_state.sight_blockers.extend(
+                            state.sight_colliders.iter().map(|s| {
+                                [s.a.0 + off.x, s.a.1 + off.z, s.b.0 + off.x, s.b.1 + off.z]
+                            }),
+                        );
+                        let door_locks = state.door_locks.clone();
+                        for (i, (p, open)) in state.door_panels.iter().enumerate() {
+                            // Same blocking rule as the collision doors, except
+                            // window PANES never block sight (glass).
+                            let locked = door_locked_now(p, door_locks.get(i));
+                            if p.is_window || (*open >= 0.5 && !locked) {
+                                continue;
+                            }
+                            let half_w = p.size.x * 0.5;
+                            let dir = p.rotation * Vec3::new(1.0, 0.0, 0.0);
+                            let c = p.center + off;
+                            state.gui_state.sight_blockers.push([
+                                c.x - dir.x * half_w,
+                                c.z - dir.z * half_w,
+                                c.x + dir.x * half_w,
+                                c.z + dir.z * half_w,
+                            ]);
                         }
                     }
 

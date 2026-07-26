@@ -368,6 +368,11 @@ pub(crate) struct EngineState {
     /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
     /// from the home_structure on every structural edit + on world load. Doors collide live.
     pub(crate) wall_colliders: Vec<crate::ship::wall_collision::WallSegment>,
+    /// Static SIGHT-blocking segments (v0.975): the collision spans with window apertures cut
+    /// open, so nameplates/machine cards hide behind solid walls but stay visible through glass
+    /// and doorways. Rebuilt alongside `wall_colliders`; live closed doors are appended per
+    /// frame when the HUD blocker list is assembled.
+    pub(crate) sight_colliders: Vec<crate::ship::wall_collision::WallSegment>,
     /// Home machine CONNECTIONS as live colored cylinders (v0.530): (mesh, material, position,
     /// rotation, scale). Replaces the static routed pipes so connections appear immediately +
     /// follow rooms in the editor. Rebuilt with the machines; uses one cached unit cylinder mesh

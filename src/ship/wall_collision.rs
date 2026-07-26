@@ -37,6 +37,20 @@ pub fn wall_segments(home: &HomeStructure) -> Vec<WallSegment> {
 /// box, the perimeter gets a door-width walk-through gap instead of a solid wall. With no cuts
 /// this is exactly the pre-B path.
 pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
+    segments_impl(home, shell_cuts, false)
+}
+
+/// SIGHT blockers for one home (v0.975, nameplate-through-wall polish): same spans as
+/// `wall_segments_with_shell_cuts` but with WINDOW apertures cut out too -- you can't walk
+/// through glass, but you can SEE through it, so a machine card behind a window stays
+/// visible while one behind a solid pier hides. Door apertures are open here exactly as in
+/// the collision spans; a CLOSED door blocks sight via the live door list the caller adds
+/// (the same split `resolve` uses).
+pub fn sight_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCut]) -> Vec<WallSegment> {
+    segments_impl(home, shell_cuts, true)
+}
+
+fn segments_impl(home: &HomeStructure, shell_cuts: &[ShellCut], see_through_windows: bool) -> Vec<WallSegment> {
     let mut segs = Vec::new();
     let (w, d) = (home.width.max(1.0), home.depth.max(1.0));
     let st = home.shell_resolved_thickness() * 0.5;
@@ -83,11 +97,12 @@ pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCu
             continue;
         }
         let (ux, uz) = ((bx - ax) / len, (bz - az) / len);
-        // DOOR cut intervals along the wall (windows are NOT cut -- glass blocks), clamped + sorted.
+        // DOOR cut intervals along the wall, clamped + sorted. For COLLISION windows are NOT
+        // cut (glass blocks the walker); for SIGHT they are (glass is transparent).
         let mut cuts: Vec<(f32, f32)> = wall
             .openings
             .iter()
-            .filter(|o| o.kind == OpeningKind::Door)
+            .filter(|o| o.kind == OpeningKind::Door || (see_through_windows && o.kind == OpeningKind::Window))
             .map(|o| (o.at.clamp(0.0, len), (o.at + o.width).clamp(0.0, len)))
             .collect();
         cuts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -118,12 +133,22 @@ pub fn wall_segments_with_shell_cuts(home: &HomeStructure, shell_cuts: &[ShellCu
 /// SIDE walls as blocking rails -- and NOTHING across its open ends, so the player walks down the
 /// hallway but not through its sides.
 pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
+    ship_segments_impl(ship, false)
+}
+
+/// SIGHT blockers for the whole ship (v0.975): window apertures open, everything else as
+/// `ship_wall_segments`. Corridor side rails stay opaque (they are solid hull, not glass).
+pub fn ship_sight_segments(ship: &crate::ship::ship_structure::ShipStructure) -> Vec<WallSegment> {
+    ship_segments_impl(ship, true)
+}
+
+fn ship_segments_impl(ship: &crate::ship::ship_structure::ShipStructure, sight: bool) -> Vec<WallSegment> {
     use crate::ship::ship_structure::{CorridorAxis, CORRIDOR_WALL_THICKNESS};
     let mut segs = Vec::new();
     for (zi, zone) in ship.zones.iter().enumerate() {
         let (ox, oz) = (zone.origin.0, zone.origin.2);
         let cuts = ship.shell_cuts_for_zone(zi);
-        segs.extend(wall_segments_with_shell_cuts(&zone.body, &cuts).into_iter().map(|s| WallSegment {
+        segs.extend(segments_impl(&zone.body, &cuts, sight).into_iter().map(|s| WallSegment {
             a: (s.a.0 + ox, s.a.1 + oz),
             b: (s.b.0 + ox, s.b.1 + oz),
             half_thickness: s.half_thickness,
@@ -152,6 +177,28 @@ pub fn ship_wall_segments(ship: &crate::ship::ship_structure::ShipStructure) -> 
         }
     }
     segs
+}
+
+/// True when the straight XZ line camera -> target crosses any blocker segment
+/// (v0.975 nameplate occlusion). Blockers are packed [ax, az, bx, bz] -- the flat form
+/// GuiState carries per frame so the HUD never imports ship types. Proper-crossing test
+/// only (strict sign flips): grazing an endpoint or running along a wall does NOT block,
+/// which errs toward showing a label at a doorway edge rather than blinking it.
+pub fn sight_blocked(cam: (f32, f32), target: (f32, f32), blockers: &[[f32; 4]]) -> bool {
+    let orient = |ax: f32, az: f32, bx: f32, bz: f32, cx: f32, cz: f32| -> f32 {
+        (bx - ax) * (cz - az) - (bz - az) * (cx - ax)
+    };
+    for s in blockers {
+        let (ax, az, bx, bz) = (s[0], s[1], s[2], s[3]);
+        let d1 = orient(cam.0, cam.1, target.0, target.1, ax, az);
+        let d2 = orient(cam.0, cam.1, target.0, target.1, bx, bz);
+        let d3 = orient(ax, az, bx, bz, cam.0, cam.1);
+        let d4 = orient(ax, az, bx, bz, target.0, target.1);
+        if d1 * d2 < 0.0 && d3 * d4 < 0.0 {
+            return true;
+        }
+    }
+    false
 }
 
 /// Closest point on segment a..b to (px,pz), and the distance to it. (cx, cz, dist).
@@ -265,6 +312,57 @@ mod tests {
     // For a static push-out test (no movement), prev == pos.
     fn at(p: Vec3, segs: &[WallSegment], doors: &[WallSegment]) -> Vec3 {
         resolve(p, p, PLAYER_RADIUS, segs, doors)
+    }
+
+    /// `home()` with a WINDOW at x=7..8.5 added to the interior wall, for the sight tests.
+    fn home_with_window() -> HomeStructure {
+        use crate::ship::home_structure::{Opening, OpeningKind};
+        let mut h = home();
+        h.walls[0].openings.push(Opening {
+            kind: OpeningKind::Window,
+            at: 7.0,
+            width: 1.5,
+            sill: 0.9,
+            height: 1.2,
+            style: "fixed".into(),
+            open_dist: 0.0,
+            locked: false,
+            auto_open: false,
+            control_panel: false,
+            locks: Vec::new(),
+        });
+        h
+    }
+
+    fn flat(segs: &[WallSegment]) -> Vec<[f32; 4]> {
+        segs.iter().map(|s| [s.a.0, s.a.1, s.b.0, s.b.1]).collect()
+    }
+
+    #[test]
+    fn sight_passes_windows_and_doors_but_not_piers() {
+        let h = home_with_window();
+        let sight = flat(&sight_segments_with_shell_cuts(&h, &[]));
+        // Through the solid pier (x=1): blocked.
+        assert!(sight_blocked((1.0, 3.0), (1.0, 7.0), &sight), "pier must block sight");
+        // Through the door gap (x=5): clear.
+        assert!(!sight_blocked((5.0, 3.0), (5.0, 7.0), &sight), "door gap must pass sight");
+        // Through the window (x=7.75): clear for SIGHT...
+        assert!(!sight_blocked((7.75, 3.0), (7.75, 7.0), &sight), "window must pass sight");
+        // ...but the COLLISION spans keep that window solid (glass blocks the walker).
+        let walk = flat(&wall_segments(&h));
+        assert!(sight_blocked((7.75, 3.0), (7.75, 7.0), &walk), "window stays solid for collision");
+    }
+
+    #[test]
+    fn sight_blocked_handles_misses_and_closed_doors() {
+        // A segment fully to one side never blocks.
+        let wall = [[0.0f32, 5.0, 4.0, 5.0]];
+        assert!(!sight_blocked((6.0, 3.0), (6.0, 7.0), &wall), "beside the wall: clear");
+        // A live closed-door segment (the caller appends these) blocks the doorway line.
+        let door = [[4.0f32, 5.0, 6.0, 5.0]];
+        assert!(sight_blocked((5.0, 3.0), (5.0, 7.0), &door), "closed door blocks sight");
+        // Endpoint graze (ray passes exactly through a segment end) does NOT block.
+        assert!(!sight_blocked((4.0, 3.0), (4.0, 7.0), &door), "endpoint graze shows the label");
     }
 
     #[test]

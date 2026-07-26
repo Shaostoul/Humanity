@@ -241,6 +241,10 @@ pub(crate) fn rebuild_homestead(state: &mut EngineState) {
         Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
         None => Vec::new(),
     };
+    state.sight_colliders = match &state.gui_state.ship_structure {
+        Some(ship) => crate::ship::wall_collision::ship_sight_segments(ship),
+        None => Vec::new(),
+    };
     apply_homestead_meshes(state, homestead);
     // The hull wrap follows the structure (increment D): a zone add/move/resize or a roof
     // material change regrows the exterior shell in the same rebuild.

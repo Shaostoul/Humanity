@@ -112,6 +112,10 @@ pub(crate) fn load_world(state: &mut EngineState) {
         Some(ship) => crate::ship::wall_collision::ship_wall_segments(ship),
         None => Vec::new(),
     };
+    state.sight_colliders = match &state.gui_state.ship_structure {
+        Some(ship) => crate::ship::wall_collision::ship_sight_segments(ship),
+        None => Vec::new(),
+    };
     apply_homestead_meshes(state, homestead);
     // The hull wrap (ship-superstructure increment D): the exterior shell around the zone
     // cluster, generated from data/blueprints/hull_profile.ron. Ships with the world load;

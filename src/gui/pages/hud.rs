@@ -328,11 +328,14 @@ pub fn draw(
                 );
             }
 
-            // ── Machine labels (world-space, distance LOD + room occlusion) ──
+            // ── Machine labels (world-space, distance LOD + sightline occlusion) ──
             // dot within dot_dist -> +name within name_dist -> +card within card_dist.
-            // By default ONLY machines in the room you are in show (walls occlude the
-            // rest). Hold Tab to reveal markers through walls across all owned/explored
-            // rooms at x3 distance. v0.429.
+            // A label hides when a wall stands between the camera and the machine
+            // (v0.975 sightline test against gui_state.sight_blockers: solid piers and
+            // closed doors block; doorways and window glass pass). Hold Tab to reveal
+            // markers through walls at x3 distance. v0.429 room filter retired: its
+            // containment box was the whole house, so every card bled through the
+            // interior partitions (homestead increment 1 field note).
             let mul = if state.reveal_held { 3.0 } else { 1.0 };
             let dot_dist = state.machine_label_dot_dist.max(0.5) * mul;
             let name_dist = state.machine_label_name_dist.max(0.5) * mul;
@@ -381,17 +384,6 @@ pub fn draw(
                 }
             }
             for (i, label) in state.machine_labels.iter().enumerate() {
-                // Occlusion (v0.538): show a label only when its machine PHYSICALLY sits in the
-                // camera's current room (geometric x/z containment), not by the machine's stored
-                // room id -- which is advisory/stale in a HomeStructure box home, so an id compare
-                // would wrongly hide a machine you're standing next to. Tab still reveals all.
-                let in_current_room = current_room_info.map_or(false, |r| {
-                    label.pos.x >= r.min.x && label.pos.x <= r.max.x
-                        && label.pos.z >= r.min.z && label.pos.z <= r.max.z
-                });
-                if !state.reveal_held && !in_current_room {
-                    continue;
-                }
                 // Project at the label's WORLD position: home content rides
                 // the orbital station, so the scene pass shifts it by
                 // station_off - a label projected at the raw local position
@@ -400,6 +392,17 @@ pub fn draw(
                 let cam_dist = (wpos - cam_pos).length();
                 if cam_dist > dot_dist {
                     continue; // beyond the coarsest level of detail
+                }
+                // Sightline occlusion (v0.975): a wall or closed door between the
+                // camera and the machine hides the label. Tab still reveals all.
+                if !state.reveal_held
+                    && crate::ship::wall_collision::sight_blocked(
+                        (cam_pos.x, cam_pos.z),
+                        (wpos.x, wpos.z),
+                        &state.sight_blockers,
+                    )
+                {
+                    continue;
                 }
                 let Some(sp) = world_to_screen(wpos, view_proj, screen) else { continue };
                 let is_target = state.targeted_machine == Some(i);
@@ -422,9 +425,11 @@ pub fn draw(
             // ── Crew NPC nameplates (v0.667): name + live chore over each crew member ──
             // Same world_to_screen + text_shadowed path as machine labels. The name shows
             // within CREW_NAME_DIST; the activity line joins within CREW_ACTIVITY_DIST so
-            // the HUD stays quiet at range. No room occlusion on purpose: crew WALK between
-            // rooms (a room filter would blink the plate at every doorway), and the amber
-            // figure itself is the far-range marker, so no dot LOD either.
+            // the HUD stays quiet at range. Sightline occlusion (v0.975) applies here too:
+            // unlike the retired v0.429 ROOM filter (which would have blinked the plate at
+            // every doorway), the segment test keeps a plate visible straight through an
+            // open door or a window, and only hides it behind solid wall - matching the
+            // amber figure itself, which walls also hide. No dot LOD on purpose.
             // ── Tracked target markers (v0.885, operator design) ── an
             // encapsulating ring + label for map-selected objects; v1 = the
             // orbital home station. Always visible when tracked (that is the
@@ -463,6 +468,15 @@ pub fn draw(
                 let Some((name, activity)) = crew_label_lines(&label.name, &label.activity, cam_dist) else {
                     continue;
                 };
+                if !state.reveal_held
+                    && crate::ship::wall_collision::sight_blocked(
+                        (cam_pos.x, cam_pos.z),
+                        (label.pos.x, label.pos.z),
+                        &state.sight_blockers,
+                    )
+                {
+                    continue;
+                }
                 let Some(sp) = world_to_screen(label.pos, view_proj, screen) else { continue };
                 // Name above the anchor, activity below it: the pair stays centered on the
                 // head no matter how long the chore text is.
