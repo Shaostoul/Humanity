@@ -617,7 +617,7 @@ pub(crate) fn load_world(state: &mut EngineState) {
                     let a = i as f32 * 2.399_963 + si as f32 * 1.7;
                     let r = s.radius * (0.4 + 0.6 * (i as f32 + 1.0) / s.count.max(1) as f32);
                     let pos = center + Vec3::new(a.cos() * r, 0.0, a.sin() * r);
-                    bundles.push((
+                    bundles.push(((
                         crate::ecs::components::Creature {
                             def_id: def.id.clone(),
                             anchor: center,
@@ -646,13 +646,27 @@ pub(crate) fn load_world(state: &mut EngineState) {
                             target: None,
                         },
                         Velocity::default(),
-                    ));
+                    ), def.renewable()));
                 }
             }
         }
         let packs = bundles.len();
-        for b in bundles {
-            state.game_world.world.spawn(b);
+        for (b, renewable) in bundles {
+            let e = state.game_world.world.spawn(b);
+            // Renewable-yield wild species (v0.978: berry bush, wild flax -
+            // same Harvestable the placed hen/goat carry) support walk-up
+            // [E] collection. Spawn ready-to-harvest, like spawn_creature_at.
+            if let Some(p) = renewable {
+                let _ = state.game_world.world.insert_one(
+                    e,
+                    crate::ecs::components::Harvestable {
+                        resource: p.item,
+                        amount: p.amount as f32,
+                        regrow_time: p.regrow_s,
+                        time_since_harvest: p.regrow_s,
+                    },
+                );
+            }
         }
         if packs > 0 {
             log::info!("Wild creatures: spawned {packs} in the wilds");

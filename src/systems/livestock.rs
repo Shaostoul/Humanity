@@ -302,6 +302,13 @@ pub fn behavior_type_for(def: &CreatureDef) -> &'static str {
         "hunt" => "predator",
         "ambush" | "swarm" => "aggressive",
         "guard" | "patrol" => "guard",
+        // Rooted forage flora (v0.978, the 2026-07-20 data-agent gap): a
+        // berry bush is a Creature row (renewable_product drives the same
+        // [E]-collect loop as eggs/milk/wool) that must never move. The
+        // AISystem has no "stationary" arm, so it idles at zero velocity,
+        // and every spawn path attaches AIBehavior for non-passive types,
+        // which exempts it from the LivestockSystem graze amble too.
+        "stationary" => "stationary",
         _ => "passive",
     }
 }
@@ -482,6 +489,31 @@ mod tests {
         let e_wolf = spawn_creature_at(&mut world, wolf, Some(&items), Vec3::ZERO, [1.0; 3]);
         let ai = world.get::<&AIBehavior>(e_wolf).expect("hunt species get AIBehavior");
         assert_eq!(ai.behavior_type, "predator");
+    }
+
+    /// Forage flora (v0.978): stationary rows must get AIBehavior "stationary"
+    /// (which exempts them from the graze amble AND idles at zero velocity in
+    /// the AISystem - rooted forever) plus a ready Harvestable so walk-up [E]
+    /// collection works from the first encounter.
+    #[test]
+    fn forage_flora_spawns_rooted_and_collectable() {
+        use crate::ecs::components::{AIBehavior, Harvestable};
+        let reg = shipped_registry();
+        let items = shipped_items();
+        let mut world = hecs::World::new();
+        for (id, product) in [("berry_bush", "fruit_berries_0"), ("wild_flax", "fiber_flax_0")] {
+            let def = reg.get(id).unwrap_or_else(|| panic!("{id} in creatures.csv"));
+            assert_eq!(behavior_type_for(def), "stationary", "{id} must be stationary");
+            let e = spawn_creature_at(&mut world, def, Some(&items), Vec3::ZERO, [1.0; 3]);
+            let ai = world.get::<&AIBehavior>(e).expect("stationary flora get AIBehavior");
+            assert_eq!(ai.behavior_type, "stationary");
+            let h = world.get::<&Harvestable>(e).expect("flora carry a Harvestable");
+            assert_eq!(h.resource, product, "{id} renewable product");
+            assert!(
+                h.time_since_harvest + f32::EPSILON >= h.regrow_time,
+                "flora spawn ready to collect"
+            );
+        }
     }
 
     /// The shipped creatures.csv parses whole: all 92 species survive the

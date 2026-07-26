@@ -13,5 +13,11 @@
         // A small wolf pack in the wilds northeast of the homestead - far
         // enough that they must be sought out (or wander in hungry).
         (creature: "wolf", count: 2, pos: (75.0, 100.0), radius: 10.0, tint: (0.42, 0.42, 0.48)),
+        // Forage flora (v0.978): rooted renewable pickups a short walk past
+        // the outdoor fields (fields sit ~x 27-31, z 61-65). Berry bushes in
+        // a loose thicket; a flax stand nearer the wetter ground. Both are
+        // stationary rows - they collect via walk-up [E] and regrow.
+        (creature: "berry_bush", count: 4, pos: (52.0, 82.0), radius: 6.0, tint: (0.18, 0.34, 0.15)),
+        (creature: "wild_flax", count: 6, pos: (18.0, 88.0), radius: 5.0, tint: (0.55, 0.58, 0.30)),
     ],
 )

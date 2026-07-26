@@ -126,3 +126,11 @@ war_mech,War Mech,robot,bellum_machina,500,60,0,large,2000,5.0,walk|run,energy,a
 android_worker,Worker Android,robot,android_operarius,80,70,0,medium,75,4.0,walk|run|climb,energy,passive,any_settlement|ruins|asteroid,scrap_metal:80:1:3|circuit_board:60:1:2|synthetic_skin:40:1:1|battery:50:1:1|data_chip:30:1:1,wander,false,30,Humanoid service robot built for general labor,
 security_turret,Security Turret,robot,turris_defensio,200,0,0,medium,150,0,walk,energy,aggressive,ruins|any_settlement|dungeon,scrap_metal:80:2:3|circuit_board:60:1:2|weapon_core:50:1:1|battery:40:1:2|armor_plate:40:1:2,guard,false,20,Stationary automated defense emplacement,
 nano_swarm,Nano Swarm,robot,nanus_examen,60,50,0,small,2,4.0,walk|fly,energy,aggressive,ruins|asteroid|deep_space,nanite_cluster:80:1:3|circuit_board:40:1:1|data_chip:30:1:1|rare_alloy:15:1:1,swarm,false,15,Cloud of microscopic machines that consumes materials to replicate,
+# === FORAGE FLORA (v0.978) ===
+# Rooted plants using the creature pipeline: renewable_product drives the same
+# walk-up [E] collect loop as eggs/milk/wool; ai_behavior "stationary" pins
+# them (AISystem idles the type at zero velocity, and having AIBehavior at all
+# exempts them from the livestock graze amble). loot_table = what destroying
+# the plant yields; renewable_product = the sustainable pick-and-regrow path.
+berry_bush,Berry Bush,plant,rubus_fruticosus,30,0,0,small,15,0,walk,photosynthetic,passive,forest|grassland|farmland,fiber_bundle_0:80:1:2|fruit_berries_0:60:1:2,stationary,false,70,Thorny wild bush heavy with seasonal berries,fruit_berries_0:2:600
+wild_flax,Wild Flax,plant,linum_usitatissimum,12,0,0,tiny,2,0,walk,photosynthetic,passive,grassland|farmland|wetland,fiber_flax_0:100:1:2,stationary,false,75,Slender wild fiber plant with pale blue flowers,fiber_flax_0:1:900
