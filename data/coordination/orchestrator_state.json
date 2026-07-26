@@ -457,6 +457,11 @@
       "date": "2026-07-26",
       "decision": "v0.976.3 PRIORITIES v0.909 item 1 (teleport-over-deep-ocean lands km off) CLOSED as already-fixed, no code change: reading both paths showed placement parks on sea level since v0.896 (surface_radius < radius_m -> radius_m + SURFACE_LIFT) and the HUD Alt + band reference uses max(ground_r, sea_r) since v0.909.x. Live rig proof: mid-Pacific (lat 0 lon -150) park at requested 10 m reads Alt 5 m - meters-scale wave/lift convention residue, not the reported km. The 2026-07-20 observation predated the v0.909.x readout fix. Never re-fix this; if someone reports it again, first check they are on >= v0.909.",
       "why": "Verify-before-implement on stale queue items: five minutes of code reading + one rig park beat re-implementing a fix that already shipped."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.977.0 grazing-angle ground smear fixed (v0.909 item 5): the triplanar ground path used textureSampleLevel with an isotropic analytic LOD, which bypasses sampler anisotropy entirely - the whole cause. New ground_triplanar_grad passes per-plane UV gradients to textureSampleGrad (hardware aniso, raised x4->x8 in ground_textures.rs). Gradients = dpdx/dpdy(world_position) taken as fs_main FIRST statements (before the Bayer discard, uniform-flow safe) rotated by inv_m into the pinned domain (exact: pt is affine in wp). A/B same-vantage sahara noon: mid-distance granularity retained vs washed out, FPS 86->92. Also closed two stale v0.909 items as already-shipped: item 2 audio (v0.960 sliders+sounds, v0.968 footsteps) and item 1 ocean-teleport altitude (v0.896 placement + v0.909.x readout; rig-verified Alt 5 m at a 10 m mid-Pacific park).",
+      "why": "The no-implicit-derivative convention was cargo-culted past its reason: derivatives taken at the top of the entry point are always uniform-valid, and SampleGrad is the only way to reach the aniso hardware from an analytic-UV path."
     }
   ],
   "active_scopes_to_avoid": [
