@@ -2888,6 +2888,13 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                                 ui.add_space(40.0);
                                 let resp = ui.add(
                                     egui::TextEdit::multiline(draft)
+                                        // Stable id (v0.972): the edit row
+                                        // lives inside the scrolling message
+                                        // list, where new messages shift
+                                        // layout constantly - without a
+                                        // fixed id an incoming message
+                                        // dropped focus mid-edit.
+                                        .id(egui::Id::new("chat_edit_input"))
                                         .desired_width(ui.available_width() - 130.0)
                                         .desired_rows(2),
                                 );
@@ -3699,8 +3706,15 @@ fn draw_center_panel(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                     // Reserve room for the FOUR trailing widgets on this row —
                     // search, pins, help, and the Send button. 104px only fit the
                     // three icons, clipping Send off the right edge; ~210 fits all.
+                    // Stable id (v0.972, operator: the "is typing" indicator
+                    // appearing made the box lose focus): egui auto-ids
+                    // derive from layout position, and the indicator row
+                    // shifts the composer, so the focused id changed under
+                    // the caret. A fixed id keeps focus across any layout
+                    // shift (typing rows, reply banners, resizes).
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut state.chat_input)
+                            .id(egui::Id::new("chat_composer_input"))
                             .desired_width((ui.available_width() - 210.0).max(120.0))
                             .hint_text(hint),
                     );
@@ -4483,6 +4497,9 @@ pub(crate) fn draw_ingame_chat(ctx: &egui::Context, theme: &Theme, state: &mut G
                         ui.horizontal(|ui| {
                             let resp = ui.add(
                                 egui::TextEdit::singleline(&mut state.chat_input)
+                                    // Stable id (v0.972): same focus-loss
+                                    // protection as the main composer.
+                                    .id(egui::Id::new("chat_overlay_input"))
                                     .desired_width(390.0)
                                     .hint_text("Message... (Enter to send, Esc to close)"),
                             );

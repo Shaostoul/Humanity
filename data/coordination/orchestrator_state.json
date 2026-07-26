@@ -424,6 +424,10 @@
     {
       "date": "2026-07-26",
       "decision": "OPERATOR BUG (live, jumps queue after v0.971 ships): the X-user-is-typing indicator appearing in server general chat makes the DM input box LOSE FOCUS mid-typing (classic egui id/layout instability - the indicator row likely reorders widgets and re-ids the TextEdit, or something requests focus). Fix next as its own release: stable explicit egui Id on the chat/DM inputs so layout shifts never re-id them, verify no request_focus theft."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "CHAT FOCUS-LOSS FIXED (operator live report: the is-typing indicator appearing made the DM input lose focus): egui auto-generated widget ids derive from layout position; the typing indicator row (which deliberately shows across channels) grows the input bar and shifts the composer, so the focused id changed under the caret. Fix: stable explicit egui Ids on all three chat text inputs (chat_composer_input, chat_overlay_input, chat_edit_input - the edit row also gained protection against incoming messages shifting the scroll list mid-edit). Ships v0.972.0."
     }
   ],
   "active_scopes_to_avoid": [
