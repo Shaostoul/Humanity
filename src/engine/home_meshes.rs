@@ -1290,6 +1290,10 @@ pub(crate) fn render_door_panels(
     // Snapshot the per-door manual-open flags (v0.567) so the loop can read them while it holds a
     // &mut on door_panels (a disjoint-field borrow the checker won't always see through).
     let manual = state.door_manual_open.clone();
+    // Local SFX buffer: the panel loop holds &mut door_panels, so edge sounds
+    // collect here and land on state.pending_sfx after the borrow ends.
+    let mut sfx: Vec<(&'static str, &'static str)> = Vec::new();
+    let state_cam = state.camera.position;
     let locks_live = state.door_locks.clone();
     for (di, (p, open)) in state.door_panels.iter_mut().enumerate() {
         // An operable DOOR opens on approach; a window or a "fixed"-styled opening stays shut
@@ -1364,7 +1368,24 @@ pub(crate) fn render_door_panels(
         };
         // Frame-rate-independent exponential ease toward the target: smooth open/close, ~0.4 s
         // to settle, no snapping (v0.540, pure + tested in door_anim since v0.795).
+        let open_before = *open;
         *open = crate::systems::door_anim::ease_open(*open, target, dt);
+        // Door SFX (v0.983): fire on the swing's START edges - rising off
+        // fully-closed plays the open sound, dropping off fully-open plays
+        // the close. Mid-swing reversals stay quiet (no re-trigger spam when
+        // a player hovers at an auto-door's radius), and doors beyond
+        // earshot stay silent (a REMOTE actor can open doors far from you;
+        // play_sound is non-spatial, so gate by distance until the spatial
+        // path is wired).
+        let within_earshot =
+            (p.center - state_cam).length_squared() < 25.0 * 25.0;
+        if within_earshot {
+            if open_before <= 0.02 && *open > 0.02 {
+                sfx.push(("sfx.door_open", "audio/sfx/door_open.ogg"));
+            } else if open_before >= 0.98 && *open < 0.98 {
+                sfx.push(("sfx.door_close", "audio/sfx/door_close.ogg"));
+            }
+        }
         let m = crate::systems::door_anim::panel_motion(&p.style, *open, p.size.x, p.size.y);
         if m.hidden {
             continue;
@@ -1395,4 +1416,5 @@ pub(crate) fn render_door_panels(
             opaque.push(obj);
         }
     }
+    state.pending_sfx.extend(sfx);
 }

@@ -368,6 +368,11 @@ pub(crate) struct EngineState {
     /// is pushed out of these in first person so you can no longer walk through walls. Rebuilt
     /// from the home_structure on every structural edit + on world load. Doors collide live.
     pub(crate) wall_colliders: Vec<crate::ship::wall_collision::WallSegment>,
+    /// One-shot SFX queue (v0.983): gameplay sites push (catalog id, fallback
+    /// path) pairs; the audio frame-sync block drains and plays them through
+    /// the kira sfx bus. Keeps action code free of audio borrows and gives
+    /// every sound one catalog-driven play path.
+    pub(crate) pending_sfx: Vec<(&'static str, &'static str)>,
     /// Static SIGHT-blocking segments (v0.975): the collision spans with window apertures cut
     /// open, so nameplates/machine cards hide behind solid walls but stay visible through glass
     /// and doorways. Rebuilt alongside `wall_colliders`; live closed doors are appended per

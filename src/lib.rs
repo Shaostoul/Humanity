@@ -1655,6 +1655,7 @@ mod native_app {
                 machine_pick: Vec::new(),
                 port_pick: Vec::new(),
                 wall_colliders: Vec::new(),
+                pending_sfx: Vec::new(),
                 sight_colliders: Vec::new(),
                 connection_objects: Vec::new(),
                 connection_flow_paths: Vec::new(),
@@ -10024,6 +10025,12 @@ mod native_app {
                                 });
                             match yielded {
                                 Some((item, n)) => {
+                                    // Collect SFX (v0.983): eggs, milk, berries,
+                                    // stone - every successful [E] gather clicks.
+                                    state.pending_sfx.push((
+                                        "sfx.inventory_pickup",
+                                        "audio/ui/inventory_pickup.ogg",
+                                    ));
                                     let mut player: Option<hecs::Entity> = None;
                                     for (e, _c) in
                                         state.game_world.world.query::<&Controllable>().iter()
@@ -14838,6 +14845,20 @@ mod native_app {
                                         }
                                     } else if step >= 2.0 {
                                         state.stride_accum = 0.0;
+                                    }
+                                }
+                                // One-shot gameplay SFX queue (v0.983): drain
+                                // whatever action sites pushed this frame
+                                // (collect pickup, door open/close edges) -
+                                // each id resolves through the catalog.
+                                for (id, fallback) in state.pending_sfx.drain(..) {
+                                    let path = format!(
+                                        "assets/{}",
+                                        state.sound_catalog.path_or(id, fallback)
+                                    );
+                                    if let Err(e) = audio.play_sound(&path) {
+                                        static WARNED: std::sync::Once = std::sync::Once::new();
+                                        WARNED.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
                                 }
                                 // UI click: any press that egui consumed. The
