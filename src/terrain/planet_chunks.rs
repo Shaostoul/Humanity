@@ -2165,8 +2165,14 @@ pub fn build_water_patch_mesh(
 // plain indices so this module stays GPU-free and testable) ──
 
 pub struct PatchEntry {
-    /// Index into Renderer::meshes.
+    /// Index into Renderer::meshes. usize::MAX when the patch lives in the
+    /// mega-buffer arena instead (slot below) -- the arena is the normal
+    /// path since draw-batching increment 1; a classic mesh handle only
+    /// appears when the arena was full at build time.
     pub mesh: usize,
+    /// Arena ranges when this patch is batched (plain data - keeps this
+    /// module GPU-free and testable; the engine owns the actual buffers).
+    pub slot: Option<crate::renderer::patch_arena::PatchSlot>,
     /// GPU byte estimate for the LRU cap.
     pub bytes: usize,
     /// Patch anchor: planet-local unrotated frame, meters (f64). The draw
@@ -2377,9 +2383,23 @@ impl ChunkState {
     }
 
     pub fn insert(&mut self, id: PatchId, mesh: usize, bytes: usize, anchor: DVec3, band: RadialBand) {
+        self.insert_slotted(id, mesh, None, bytes, anchor, band);
+    }
+
+    /// Insert with optional arena ranges (draw-batching increment 1).
+    /// `mesh` should be usize::MAX when `slot` is Some.
+    pub fn insert_slotted(
+        &mut self,
+        id: PatchId,
+        mesh: usize,
+        slot: Option<crate::renderer::patch_arena::PatchSlot>,
+        bytes: usize,
+        anchor: DVec3,
+        band: RadialBand,
+    ) {
         if let Some(old) = self.cache.insert(
             id,
-            PatchEntry { mesh, bytes, anchor, band, last_used: self.frame },
+            PatchEntry { mesh, slot, bytes, anchor, band, last_used: self.frame },
         ) {
             // Should not happen (selection never requests a built patch),
             // but never leak the byte count if it does.
@@ -2388,11 +2408,15 @@ impl ChunkState {
         self.total_bytes += bytes;
     }
 
-    /// Pop LRU entries until under the byte cap. Returns the (id, mesh
-    /// index) pairs removed so the engine can recycle the renderer slots.
+    /// Pop LRU entries until under the byte cap. Returns (id, mesh index,
+    /// arena slot) triples so the engine can recycle renderer mesh slots
+    /// AND return arena ranges to the free lists.
     /// Never evicts roots (depth 0: the permanent whole-planet fallback)
     /// or anything used this frame.
-    pub fn collect_evictions(&mut self, byte_cap: usize) -> Vec<(PatchId, usize)> {
+    pub fn collect_evictions(
+        &mut self,
+        byte_cap: usize,
+    ) -> Vec<(PatchId, usize, Option<crate::renderer::patch_arena::PatchSlot>)> {
         let mut evicted = Vec::new();
         // Recency guard (v0.898): never evict anything used in the last ~2
         // seconds. When the working set genuinely exceeds the cap, evicting
@@ -2453,7 +2477,7 @@ impl ChunkState {
             }
             if let Some(e) = self.cache.remove(&id) {
                 freed += bytes;
-                evicted.push((id, e.mesh));
+                evicted.push((id, e.mesh, e.slot));
             }
         }
         self.total_bytes = self.total_bytes.saturating_sub(freed);
@@ -3480,7 +3504,7 @@ mod tests {
         let evicted = cs.collect_evictions(bytes * 4);
         assert!(!evicted.is_empty());
         // Roots never evict.
-        for (id, _) in &evicted {
+        for (id, _, _) in &evicted {
             assert!(id.depth > 0, "evicted a pinned root {id:?}");
         }
         assert!(cs.total_bytes <= bytes * 4);
@@ -3575,7 +3599,7 @@ mod tests {
         cs.ingest_lod_swaps(&kids, &[parent], 0.0);
         let evicted = cs.collect_evictions(0); // cap 0 = evict everything legal
         assert!(
-            evicted.iter().all(|(id, _)| *id != parent),
+            evicted.iter().all(|(id, _, _)| *id != parent),
             "mid-fade parent was evicted"
         );
     }

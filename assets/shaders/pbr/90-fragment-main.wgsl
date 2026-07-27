@@ -14,7 +14,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Planet-local frame via the same center + inverse-rotation trick as
     // the planet imagery branch (material.base_color.xyz = planet center in
     // render space; transpose(normal_matrix) = model^-1).
-    let inv_model = transpose(object.normal_matrix);
+    let inv_model = transpose(obj_normal_matrix());
     let dir_world = in.world_position - material.base_color.xyz;
     let r_render = max(length(dir_world), 1.0);
     let n_geo = dir_world / r_render;
@@ -106,7 +106,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         var crest = 0.0;
         let tex_reach = 1.0 - smoothstep(4.0, 14.0, footprint);
         if (tex_reach > 0.003) {
-            let inv_mw = transpose(object.normal_matrix);
+            let inv_mw = transpose(obj_normal_matrix());
             let dvw =
                 (inv_mw * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
             let anchw = vec3<f32>(
@@ -147,7 +147,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             * foam_reach
             * presence;
         let n_pert_local = normalize(dir - grad * presence);
-        n_pert = normalize((object.model * vec4<f32>(n_pert_local, 0.0)).xyz);
+        n_pert = normalize((obj_model() * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
     var rgb = water_shade(deep, n_geo, n_pert, view_dir);
     // Foam is scattered froth - and froth is DIFFUSE, so it is SUNLIT like
@@ -206,6 +206,9 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
+    // Route the instance index to the obj_* accessors (flat varying; 0 for
+    // classic draws, the patch-instance slot for terrain-batch draws).
+    g_inst = in.inst;
     // Screen-space derivatives of the world position, taken FIRST - before
     // the Bayer discard below or any non-uniform branch - so they are valid
     // wherever they are later consumed (v0.977: the ground textures rotate
@@ -218,7 +221,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // pixels at/above f. A rising patch at t and its falling partner at -t
     // partition the screen per-pixel, so terrain LOD swaps dissolve instead
     // of popping - with opaque depth intact and zero overdraw holes.
-    let lod_fade = object.model[0].w;
+    let lod_fade = obj_lod_fade();
     if (lod_fade != 0.0) {
         let px = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
         // 4x4 Bayer matrix via bit interleaving: thresholds (0.5..15.5)/16.
@@ -280,7 +283,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // 2 uranus, 3 neptune - also finally un-ochres the ice giants).
         // Falls through to the shared sun-lit path, so the day/night
         // terminator and eclipse shading come free.
-        let gg_center = object.model[3].xyz;
+        let gg_center = obj_model()[3].xyz;
         let gg_p = normalize(in.world_position - gg_center);
         let gg_lat = clamp(gg_p.y, -1.0, 1.0);
         let gg_lon = atan2(-gg_p.z, gg_p.x);
@@ -327,8 +330,8 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // disc center, 1 at the silhouette), so the glow is center-bright
         // and melts softly into space - no more hard-edged white blob.
         // base_color.rgb = glow tint, .a = peak alpha, params.w = intensity.
-        let center = object.model[3].xyz;
-        let radius = length(object.model[0].xyz);
+        let center = obj_model()[3].xyz;
+        let radius = length(obj_model()[0].xyz);
         let cam = camera.view_pos.xyz;
         let vdir = normalize(in.world_position - cam);
         let to_c = center - cam;
@@ -556,17 +559,17 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // as the planet CENTER in render space (lib.rs updates it every
             // frame -- the floating origin moves it), because the chunked
             // patch meshes are anchored at their own patch centers, so
-            // object.model[3] is NOT the planet center for them the way it
+            // obj_model()[3] is NOT the planet center for them the way it
             // is for the uniform sphere. From the center, the planet-local
             // unit direction is exact for BOTH mesh paths:
             //   dir_world = fragment - center        (world space)
             //   dir_local = model^-1 * dir_world     (w=0: rotation only)
-            // transpose(object.normal_matrix) IS model.inverse() exactly
+            // transpose(obj_normal_matrix()) IS model.inverse() exactly
             // (normal_matrix is inverse-transpose -- same trick as the
             // type-15 cloud shell), and any uniform scale in it washes out
             // in the normalize. This rides the planet's spin by
             // construction: the imagery is pinned to the rotating body.
-            let inv_model = transpose(object.normal_matrix);
+            let inv_model = transpose(obj_normal_matrix());
             let dir_world = in.world_position - material.base_color.xyz;
             dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
             // Planet-local metric frame for the wave math: |dir_world| is
@@ -624,7 +627,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // still zeroes it at its correct range.
             let ddk_g = select(1.0, max(camera.view_pos.w, 0.05), camera.view_pos.w > 0.01);
             if (footprint < 8.0 * ddk_g) {
-                let inv_m = transpose(object.normal_matrix);
+                let inv_m = transpose(obj_normal_matrix());
                 let dv =
                     (inv_m * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
                 let anchor = vec3<f32>(
@@ -784,7 +787,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 let grad = water_wave_gradient(p_local, dir, t_wave, footprint);
                 let n_pert_local = normalize(dir - grad);
                 let n_pert = normalize(
-                    (object.model * vec4<f32>(n_pert_local, 0.0)).xyz,
+                    (obj_model() * vec4<f32>(n_pert_local, 0.0)).xyz,
                 );
                 let water_rgb = water_shade(albedo, normal, n_pert, view_dir);
                 proc_emissive = mix(old_glint, water_rgb, presence);

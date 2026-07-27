@@ -161,8 +161,19 @@ impl Mesh {
         device: &wgpu::Device,
         data: &crate::terrain::planet_surface::SurfaceMeshData,
     ) -> Self {
-        let vertices: Vec<Vertex> = data
-            .vertices
+        let vertices = Self::planet_surface_vertices(data);
+        Self::from_vertices(device, &vertices, &data.indices)
+    }
+
+    /// The CPU-side vertex conversion from_planet_surface performs, exposed
+    /// separately so the patch-arena path (draw-batching increment 1) can
+    /// upload the same bytes into the shared mega-buffer WITHOUT creating
+    /// per-patch GPU buffers. Both paths must stay byte-identical -- the
+    /// arena's fallback IS from_planet_surface.
+    pub fn planet_surface_vertices(
+        data: &crate::terrain::planet_surface::SurfaceMeshData,
+    ) -> Vec<Vertex> {
+        data.vertices
             .iter()
             .map(|v| Vertex {
                 position: v.position,
@@ -183,8 +194,7 @@ impl Mesh {
                     )
                 },
             })
-            .collect();
-        Self::from_vertices(device, &vertices, &data.indices)
+            .collect()
     }
 
     /// Minimal degenerate mesh (one zero-area triangle at the origin) used

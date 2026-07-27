@@ -6107,6 +6107,11 @@ mod native_app {
                     // pass with a huge far plane (v0.450), since they sit at astronomical
                     // distances the ~500 m gameplay far would clip.
                     let mut celestial_objects: Vec<RenderObject> = Vec::new();
+                    // Batched terrain patches are rebuilt fresh each frame by
+                    // the chunked-LOD block below; clearing HERE (not there)
+                    // guarantees no stale draws referencing freed arena
+                    // ranges survive a frame where chunked mode drops out.
+                    state.renderer.patch_draws.clear();
                     // Transparent celestial shells (planet atmospheres, v0.763): alpha-blended
                     // after the opaque bodies inside the SAME celestial pass, so they share
                     // its far plane and depth-test against the planets.
@@ -8494,28 +8499,60 @@ mod native_app {
                                         cs.sel_dirty = true; // v0.928 parked skip
                                     }
                                     for (id, pm) in built {
-                                        let mesh = Mesh::from_planet_surface(
-                                            &state.renderer.device,
-                                            &pm.mesh,
-                                        );
-                                        // Recycle an eviction-freed renderer
-                                        // slot when one exists so the mesh Vec
-                                        // stays bounded over long flights.
-                                        let slot = if let Some(idx) =
-                                            state.planet_patch_free_slots.pop()
+                                        // Mega-buffer arena first (draw-
+                                        // batching increment 1): geometry
+                                        // uploads into the shared buffers,
+                                        // no per-patch GPU buffer at all.
+                                        // REAL byte accounting (vegetation
+                                        // cards make patches bigger than
+                                        // the old flat estimate), so the
+                                        // LRU cap now tracks true VRAM.
+                                        let verts =
+                                            Mesh::planet_surface_vertices(&pm.mesh);
+                                        let real_bytes = verts.len()
+                                            * std::mem::size_of::<
+                                                crate::renderer::mesh::Vertex,
+                                            >()
+                                            + pm.mesh.indices.len() * 4;
+                                        if let Some(aslot) = state
+                                            .renderer
+                                            .patch_arena_upload(&verts, &pm.mesh.indices)
                                         {
-                                            state.renderer.replace_mesh(idx, mesh);
-                                            idx
+                                            cs.insert_slotted(
+                                                id,
+                                                usize::MAX,
+                                                Some(aslot),
+                                                real_bytes,
+                                                pm.anchor,
+                                                pm.band,
+                                            );
                                         } else {
-                                            state.renderer.add_mesh(mesh)
-                                        };
-                                        cs.insert(
-                                            id,
-                                            slot,
-                                            chunks::PATCH_MESH_BYTES,
-                                            pm.anchor,
-                                            pm.band,
-                                        );
+                                            // Arena full: classic per-patch
+                                            // mesh fallback (logged by the
+                                            // arena; recycles a freed slot
+                                            // when one exists).
+                                            let mesh = Mesh::from_vertices(
+                                                &state.renderer.device,
+                                                &verts,
+                                                &pm.mesh.indices,
+                                            );
+                                            let slot = if let Some(idx) =
+                                                state.planet_patch_free_slots.pop()
+                                            {
+                                                state.renderer.replace_mesh(idx, mesh);
+                                                idx
+                                            } else {
+                                                state.renderer.add_mesh(mesh)
+                                            };
+                                            cs.insert_slotted(
+                                                id,
+                                                slot,
+                                                None,
+                                                real_bytes,
+                                                pm.anchor,
+                                                pm.band,
+                                            );
+                                        }
                                         patch_builds_this_frame += 1;
                                     }
                                 }
@@ -8539,12 +8576,18 @@ mod native_app {
                                 if !evicted.is_empty() {
                                     cs.sel_dirty = true; // v0.928 parked skip
                                 }
-                                for (_, mesh_idx) in evicted {
-                                    state.renderer.replace_mesh(
-                                        mesh_idx,
-                                        Mesh::placeholder(&state.renderer.device),
-                                    );
-                                    state.planet_patch_free_slots.push(mesh_idx);
+                                for (_, mesh_idx, aslot) in evicted {
+                                    if let Some(s) = aslot {
+                                        // Batched patch: return its arena
+                                        // ranges to the free lists.
+                                        state.renderer.patch_arena_release(s);
+                                    } else if mesh_idx != usize::MAX {
+                                        state.renderer.replace_mesh(
+                                            mesh_idx,
+                                            Mesh::placeholder(&state.renderer.device),
+                                        );
+                                        state.planet_patch_free_slots.push(mesh_idx);
+                                    }
                                 }
                                 // Draw patches only once the visible surface
                                 // is FULLY covered; until then (the first
@@ -8555,32 +8598,46 @@ mod native_app {
                                     // Per-patch crossfade values (v0.920):
                                     // positive = rising, absent = normal.
                                     let fade_map = cs.fade_values();
-                                    for id in &selection.draws {
-                                        if let Some(e) = cs.cache.get(id) {
-                                            // Per-patch translation composed in
-                                            // f64 (render offset + rotated
-                                            // anchor), narrowed to f32 at the
-                                            // END: the patch's own vertices are
-                                            // small offsets, so nothing here
-                                            // ever puts planet-radius magnitudes
-                                            // through f32 math.
-                                            let anchor_render = render_off + rot_d * e.anchor;
-                                            celestial_objects.push(RenderObject {
-                                                // A drawn patch can only be
-                                                // rising (falling ids are purged
-                                                // from the drawn set); clamp
-                                                // keeps a stray negative from
-                                                // hiding a normal draw.
-                                                fade: fade_map
-                                                    .get(id)
-                                                    .copied()
-                                                    .unwrap_or(0.0)
-                                                    .max(0.0),
-                                                position: Vec3::new(
-                                                    anchor_render.x as f32,
-                                                    anchor_render.y as f32,
-                                                    anchor_render.z as f32,
-                                                ),
+                                    // Draw-batching increment 1: arena
+                                    // patches go into the batched list (one
+                                    // draw each, shared bind state); only
+                                    // arena-overflow patches still ride
+                                    // celestial_objects. patch_material /
+                                    // rot are shared batch state.
+                                    let patch_material = textured_mat
+                                        .unwrap_or(state.planet_surface_material);
+                                    let mut push_patch = |e: &chunks::PatchEntry,
+                                                          fade: f32,
+                                                          batched: &mut Vec<
+                                        crate::renderer::PatchDraw,
+                                    >,
+                                                          classic: &mut Vec<
+                                        RenderObject,
+                                    >| {
+                                        // Per-patch translation composed in
+                                        // f64 (render offset + rotated
+                                        // anchor), narrowed to f32 at the
+                                        // END: the patch's own vertices are
+                                        // small offsets, so nothing here
+                                        // ever puts planet-radius magnitudes
+                                        // through f32 math.
+                                        let anchor_render =
+                                            render_off + rot_d * e.anchor;
+                                        let position = Vec3::new(
+                                            anchor_render.x as f32,
+                                            anchor_render.y as f32,
+                                            anchor_render.z as f32,
+                                        );
+                                        if let Some(slot) = e.slot {
+                                            batched.push(crate::renderer::PatchDraw {
+                                                slot,
+                                                position,
+                                                fade,
+                                            });
+                                        } else {
+                                            classic.push(RenderObject {
+                                                fade,
+                                                position,
                                                 rotation,
                                                 scale: Vec3::ONE,
                                                 mesh: e.mesh,
@@ -8588,9 +8645,31 @@ mod native_app {
                                                 // (v0.811), per-face fallback
                                                 // otherwise -- same choice as
                                                 // the uniform sphere below.
-                                                material: textured_mat
-                                                    .unwrap_or(state.planet_surface_material),
+                                                material: patch_material,
                                             });
+                                        }
+                                    };
+                                    let classic_before = celestial_objects.len();
+                                    let mut batched: Vec<crate::renderer::PatchDraw> =
+                                        Vec::with_capacity(selection.draws.len());
+                                    for id in &selection.draws {
+                                        if let Some(e) = cs.cache.get(id) {
+                                            // A drawn patch can only be
+                                            // rising (falling ids are purged
+                                            // from the drawn set); clamp
+                                            // keeps a stray negative from
+                                            // hiding a normal draw.
+                                            let fade = fade_map
+                                                .get(id)
+                                                .copied()
+                                                .unwrap_or(0.0)
+                                                .max(0.0);
+                                            push_patch(
+                                                e,
+                                                fade,
+                                                &mut batched,
+                                                &mut celestial_objects,
+                                            );
                                         }
                                     }
                                     // Falling patches (v0.920): the outgoing
@@ -8601,25 +8680,51 @@ mod native_app {
                                     for (id, f) in fade_map.iter() {
                                         if *f < 0.0 && !cs.last_drawn.contains(id) {
                                             if let Some(e) = cs.cache.get(id) {
-                                                let anchor_render =
-                                                    render_off + rot_d * e.anchor;
-                                                celestial_objects.push(RenderObject {
-                                                    fade: *f,
-                                                    position: Vec3::new(
-                                                        anchor_render.x as f32,
-                                                        anchor_render.y as f32,
-                                                        anchor_render.z as f32,
-                                                    ),
-                                                    rotation,
-                                                    scale: Vec3::ONE,
-                                                    mesh: e.mesh,
-                                                    material: textured_mat.unwrap_or(
-                                                        state.planet_surface_material,
-                                                    ),
-                                                });
+                                                push_patch(
+                                                    e,
+                                                    *f,
+                                                    &mut batched,
+                                                    &mut celestial_objects,
+                                                );
                                             }
                                         }
                                     }
+                                    // Hand the batch to the renderer. Only
+                                    // one planet is ever chunk-active, so a
+                                    // plain assign is safe; patch_draws was
+                                    // cleared at the top of this frame's
+                                    // celestial build.
+                                    // Front-to-back sort (near first): with
+                                    // reverse-Z Greater + depth write, early-z
+                                    // then rejects far-patch fragments hiding
+                                    // behind near terrain -- at horizon looks
+                                    // the type-12 fragment is the frame's most
+                                    // expensive shader and overdraw was eating
+                                    // multiple ms. ~12k-element sort is well
+                                    // under 0.5 ms; instance indices stay
+                                    // consistent because the storage upload
+                                    // happens AFTER this handoff.
+                                    let cam_eff = state.camera.effective_position();
+                                    batched.sort_unstable_by(|a, b| {
+                                        let da = (a.position - cam_eff).length_squared();
+                                        let db = (b.position - cam_eff).length_squared();
+                                        da.partial_cmp(&db)
+                                            .unwrap_or(std::cmp::Ordering::Equal)
+                                    });
+                                    state.renderer.patch_batch_rot =
+                                        glam::Mat4::from_quat(rotation);
+                                    state.renderer.patch_batch_material = patch_material;
+                                    // 5 s diag: batched vs classic-fallback
+                                    // split (fallback should be 0 unless the
+                                    // arena overflowed; see [PatchArena]).
+                                    if cs.frame % 300 == 0 {
+                                        log::info!(
+                                            "[PatchBatch] {} batched, {} classic-fallback",
+                                            batched.len(),
+                                            celestial_objects.len() - classic_before,
+                                        );
+                                    }
+                                    state.renderer.patch_draws = batched;
                                     chunked_drawn = true;
                                 }
                                 // ── Near-field REAL trees (v0.911, operator:
@@ -9171,12 +9276,20 @@ mod native_app {
                                     if !wevicted.is_empty() {
                                         ws.sel_dirty = true;
                                     }
-                                    for (_, mesh_idx) in wevicted {
-                                        state.renderer.replace_mesh(
-                                            mesh_idx,
-                                            Mesh::placeholder(&state.renderer.device),
-                                        );
-                                        state.planet_patch_free_slots.push(mesh_idx);
+                                    // Water patches stay on the classic mesh
+                                    // path (transparent pipeline), so slots
+                                    // are always None here; the arm exists
+                                    // for signature parity only.
+                                    for (_, mesh_idx, aslot) in wevicted {
+                                        if let Some(s) = aslot {
+                                            state.renderer.patch_arena_release(s);
+                                        } else if mesh_idx != usize::MAX {
+                                            state.renderer.replace_mesh(
+                                                mesh_idx,
+                                                Mesh::placeholder(&state.renderer.device),
+                                            );
+                                            state.planet_patch_free_slots.push(mesh_idx);
+                                        }
                                     }
                                     if wsel.fully_covered && !wsel.draws.is_empty() {
                                         for id in &wsel.draws {
@@ -9260,12 +9373,16 @@ mod native_app {
                                         evicted.len(),
                                         cs.total_bytes as f64 / (1024.0 * 1024.0),
                                     );
-                                    for (_, mesh_idx) in evicted {
-                                        state.renderer.replace_mesh(
-                                            mesh_idx,
-                                            Mesh::placeholder(&state.renderer.device),
-                                        );
-                                        state.planet_patch_free_slots.push(mesh_idx);
+                                    for (_, mesh_idx, aslot) in evicted {
+                                        if let Some(s) = aslot {
+                                            state.renderer.patch_arena_release(s);
+                                        } else if mesh_idx != usize::MAX {
+                                            state.renderer.replace_mesh(
+                                                mesh_idx,
+                                                Mesh::placeholder(&state.renderer.device),
+                                            );
+                                            state.planet_patch_free_slots.push(mesh_idx);
+                                        }
                                     }
                                 }
                             }

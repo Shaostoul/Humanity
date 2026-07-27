@@ -95,7 +95,22 @@ struct GpuLight {
 const TILE_COLS: u32 = 16u;
 const TILE_ROWS: u32 = 9u;
 const TILE_CAP: u32 = 64u;
+// BEGIN OBJECT-SOURCE. Everything between these markers is the CLASSIC
+// per-draw object plumbing (one uniform slot per draw, dynamic offset).
+// The terrain-batch pipeline compiles a SECOND module where
+// shader_loader::batched_variant_of() replaces this whole block with a
+// storage-array version indexed by @builtin(instance_index) -- that is how
+// 12k patch draws share one bind group with zero per-draw rebinds. Shared
+// code must therefore NEVER touch `object.` directly: go through
+// obj_model() / obj_normal_matrix() / obj_lod_fade(), which both variants
+// define. g_inst is set at the top of vs_main (instance index) and fs_main
+// (flat varying) so the accessors work identically in both stages.
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
+var<private> g_inst: u32 = 0u;
+fn obj_model() -> mat4x4<f32> { return object.model; }
+fn obj_normal_matrix() -> mat4x4<f32> { return object.normal_matrix; }
+fn obj_lod_fade() -> f32 { return object.model[0].w; }
+// END OBJECT-SOURCE
 @group(2) @binding(0) var<uniform> material: MaterialUniforms;
 // Per-pixel planet albedo imagery (v0.811): an equirectangular sRGB texture
 // (sampling returns LINEAR automatically) with the orbital-look grading
@@ -193,6 +208,11 @@ struct VertexOutput {
     @location(0) world_position: vec3<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    // Instance index carried to the fragment stage (flat = no
+    // interpolation). Classic draws always use instance range 0..1 so this
+    // is 0 there; the terrain-batch variant's fragment accessors index the
+    // patch-instance storage array with it.
+    @location(3) @interpolate(flat) inst: u32,
 };
 
 // ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
@@ -268,9 +288,10 @@ fn ocean_wave_height(p_m: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput) -> VertexOutput {
+fn vs_main(vertex: VertexInput, @builtin(instance_index) iid: u32) -> VertexOutput {
+    g_inst = iid;
     var out: VertexOutput;
-    var world_pos = object.model * vec4<f32>(vertex.position, 1.0);
+    var world_pos = obj_model() * vec4<f32>(vertex.position, 1.0);
     // The model matrix's w ROW carries per-object metadata (model[0].w =
     // LOD crossfade, v0.920), so rebuild the homogeneous w explicitly. For
     // an ordinary TRS matrix this is a no-op; with metadata present it is
@@ -283,7 +304,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     // transpose(normal_matrix) = model^-1). Skirt vertices displace with
     // their parent edge (same dir), so LOD seams stay sealed.
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
-        let inv_model = transpose(object.normal_matrix);
+        let inv_model = transpose(obj_normal_matrix());
         let dir_world = world_pos.xyz - material.base_color.xyz;
         let r = length(dir_world);
         if (r > 1.0) {
@@ -311,8 +332,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     }
     out.world_position = world_pos.xyz;
     out.clip_position = camera.view_proj * world_pos;
-    out.world_normal = normalize((object.normal_matrix * vec4<f32>(vertex.normal, 0.0)).xyz);
+    out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
     out.uv = vertex.uv;
+    out.inst = iid;
     return out;
 }
 

@@ -181,8 +181,8 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // mesh is a UNIT icosphere placed via Vec3::splat(scale), so column 0's
     // length IS the shell radius and column 3 is the planet center. Nothing
     // extra to plumb through the material uniforms.
-    let center = object.model[3].xyz;
-    let shell_r = length(object.model[0].xyz);
+    let center = obj_model()[3].xyz;
+    let shell_r = length(obj_model()[0].xyz);
     let rp = clamp(material.params.x, 0.01, 0.9999); // planet radius (shell units)
     let h = max(material.params.y, 1.0e-6);          // scale height (shell units)
 

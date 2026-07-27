@@ -457,8 +457,8 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // Shell center + radius recovered from the object transform, same trick
     // as the atmosphere shell: unit icosphere placed via Vec3::splat(scale),
     // so column 0's length IS the shell radius and column 3 the center.
-    let center = object.model[3].xyz;
-    let shell_r = length(object.model[0].xyz);
+    let center = obj_model()[3].xyz;
+    let shell_r = length(obj_model()[0].xyz);
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -476,7 +476,7 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // drift constants are true weather motion relative to the ground.
     // transpose(normal_matrix) IS model.inverse() exactly (normal_matrix is
     // inverse-transpose), so no matrix inversion is needed in the shader.
-    let inv_model = transpose(object.normal_matrix);
+    let inv_model = transpose(obj_normal_matrix());
     let dir = normalize((inv_model * vec4<f32>(world_position, 1.0)).xyz);
 
     let t = camera.sun_color.w; // the cloud clock (see header comment)
@@ -571,8 +571,8 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
 // drawn shell = radius 1): the model transform is rotation + uniform scale,
 // so directions transfer with one normalize and dot products are preserved.
 fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
-    let center = object.model[3].xyz;
-    let shell_r = length(object.model[0].xyz);
+    let center = obj_model()[3].xyz;
+    let shell_r = length(obj_model()[0].xyz);
 
     // Exactly ONE shell layer, same rule as the flat path and the
     // atmosphere: front faces when the camera is outside the drawn shell,
@@ -585,7 +585,7 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
 
     // transpose(normal_matrix) IS model.inverse() exactly (see the flat
     // path); it maps world points into the unit-icosphere local frame.
-    let inv_model = transpose(object.normal_matrix);
+    let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
     let rd_w = normalize(world_position - camera.view_pos.xyz);
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);
@@ -1089,8 +1089,8 @@ fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
 // Beer-Lambert light march with Beer-powder, dual-lobe HG phase, height-
 // proportional ambient.
 fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> {
-    let center = object.model[3].xyz;
-    let shell_r = length(object.model[0].xyz);
+    let center = obj_model()[3].xyz;
+    let shell_r = length(obj_model()[0].xyz);
 
     // Exactly ONE shell layer (same rule as every other cloud path).
     let ro_w = (camera.view_pos.xyz - center) / shell_r;
@@ -1099,7 +1099,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         discard;
     }
 
-    let inv_model = transpose(object.normal_matrix);
+    let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
     let rd_w = normalize(world_position - camera.view_pos.xyz);
     let rd = normalize((inv_model * vec4<f32>(rd_w, 0.0)).xyz);

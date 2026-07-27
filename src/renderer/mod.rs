@@ -32,6 +32,7 @@ pub mod light;
 pub mod line;
 pub mod mesh;
 pub mod multi_scale;
+pub mod patch_arena;
 pub mod plant_mesh;
 pub mod particles;
 pub mod pipeline;
@@ -56,6 +57,16 @@ use pipeline::{MaterialUniforms, ObjectUniforms, Pipeline};
 // cheaper on the CPU, so the patch-budget ceiling rose to 6144 for
 // tomorrow's GPUs. Cost is one 2 MB dynamic uniform buffer - nothing.
 const MAX_OBJECTS: usize = 16384;
+
+/// One batched terrain-patch draw for this frame: arena ranges + the
+/// per-instance data (anchor translation in render space + LOD fade, the
+/// same fade encoding the classic path smuggles through model[0].w).
+#[derive(Clone, Copy, Debug)]
+pub struct PatchDraw {
+    pub slot: patch_arena::PatchSlot,
+    pub position: Vec3,
+    pub fade: f32,
+}
 use wgpu::util::DeviceExt;
 
 /// Describes one object to render in the scene.
@@ -255,6 +266,19 @@ pub struct Renderer {
     /// from the camera-local daylight while inside an atmosphere; 1.0 in
     /// space keeps the approved orbital look.
     pub fill_scale: f32,
+    /// Terrain patch mega-buffer arena (draw-batching increment 1). Lazy:
+    /// created on the first patch upload (a planet approach), so sessions
+    /// that never activate chunked terrain pay zero VRAM for it.
+    pub patch_arena: Option<patch_arena::PatchArena>,
+    /// This frame's batched patch draws, set by the engine before the
+    /// celestial render and consumed by it. Instance i in the storage
+    /// buffer is draws[i]; the shadow pass reuses the SAME indices, so a
+    /// culled shadow subset still addresses its instances correctly.
+    pub patch_draws: Vec<PatchDraw>,
+    /// Shared model rotation for every batched patch this frame (planet
+    /// rotation; patches never scale) + the material they all share.
+    pub patch_batch_rot: Mat4,
+    pub patch_batch_material: usize,
     /// Tree-card hide radius in metres (v0.912): terrain silhouette cards
     /// within this range of the camera discard (the real 3D tree models
     /// stand there). Mirrors the Settings tree-model distance; 0 = off.
@@ -498,6 +522,15 @@ impl Renderer {
         // and editor write strategy. See poll_shader_reload.
         let shader_loader = shader_loader::ShaderLoader::new();
         let shader = shader_loader.load_embedded_pbr(&device);
+        // Terrain-batch variant module (draw-batching increment 1): same
+        // assembled source with the OBJECT-SOURCE block swapped for the
+        // storage-array version (see shader_loader::batched_variant_of).
+        let batch_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("pbr_simple (terrain-batch variant)"),
+            source: wgpu::ShaderSource::Wgsl(
+                shader_loader::assembled_pbr_batch_source().into(),
+            ),
+        });
         #[cfg(feature = "native")]
         let shader_hot = shader_loader::find_shaders_dir().and_then(|dir| {
             // v0.973 source split: the megashader is assembled from the
@@ -507,7 +540,7 @@ impl Renderer {
             log::info!("[HotReload] armed: polling part mtimes under {:?}", dir.join("pbr"));
             Some((dir, mtime))
         });
-        let pipeline = Pipeline::new(&device, surface_format, &shader);
+        let pipeline = Pipeline::new(&device, surface_format, &shader, &batch_shader);
         // World-space thin-line pipeline — reuses the SAME camera BGL so
         // it can bind the existing camera_bind_group (full view-proj).
         let (particle_pipeline_alpha, particle_pipeline_additive, particle_frame_bgl) =
@@ -1097,6 +1130,10 @@ impl Renderer {
             detail_distance: 1.0,
             sea_state: 0.35,
             fill_scale: 1.0,
+            patch_arena: None,
+            patch_draws: Vec::new(),
+            patch_batch_rot: Mat4::IDENTITY,
+            patch_batch_material: 0,
             tree_card_hide_m: 0.0,
             tree_card_far_m: 1500.0,
             aerial_sigma: 0.0,
@@ -1217,6 +1254,20 @@ impl Renderer {
             log::error!("[HotReload] megashader REJECTED (old pipelines kept): {e}");
             return;
         }
+        // The terrain-batch variant derives from the SAME on-disk source,
+        // so shader edits keep applying to both pipeline families. Validate
+        // it separately: a marker rename breaks only the variant.
+        let Some(batch_source) = shader_loader::batched_variant_of(&source) else {
+            log::error!(
+                "[HotReload] OBJECT-SOURCE markers missing (old pipelines kept) - \
+                 did 00-bindings-vertex.wgsl lose its BEGIN/END OBJECT-SOURCE comments?"
+            );
+            return;
+        };
+        if let Err(e) = shader_loader::validate_wgsl(&batch_source) {
+            log::error!("[HotReload] terrain-batch variant REJECTED (old pipelines kept): {e}");
+            return;
+        }
         let t0 = std::time::Instant::now();
         let module = self
             .device
@@ -1224,10 +1275,17 @@ impl Renderer {
                 label: Some("pbr megashader (hot-reload)"),
                 source: wgpu::ShaderSource::Wgsl(source.into()),
             });
+        let batch_module = self
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("pbr megashader (terrain-batch, hot-reload)"),
+                source: wgpu::ShaderSource::Wgsl(batch_source.into()),
+            });
         let format = self.config.format;
-        self.pipeline.recreate_pipelines(&self.device, format, &module);
+        self.pipeline
+            .recreate_pipelines(&self.device, format, &module, &batch_module);
         log::info!(
-            "[HotReload] megashader reassembled + 4 PSOs rebuilt in {:.1}s",
+            "[HotReload] megashader reassembled + 6 PSOs rebuilt in {:.1}s",
             t0.elapsed().as_secs_f32()
         );
     }
@@ -1242,6 +1300,33 @@ impl Renderer {
         let idx = self.meshes.len();
         self.meshes.push(mesh);
         idx
+    }
+
+    /// Upload a terrain patch into the mega-buffer arena (creating the
+    /// arena on first use). None = arena full; the caller falls back to a
+    /// classic per-patch Mesh (graceful, logged inside the arena).
+    pub fn patch_arena_upload(
+        &mut self,
+        vertices: &[mesh::Vertex],
+        indices: &[u32],
+    ) -> Option<patch_arena::PatchSlot> {
+        if self.patch_arena.is_none() {
+            self.patch_arena = Some(patch_arena::PatchArena::new(
+                &self.device,
+                &self.pipeline.patch_bind_group_layout,
+            ));
+        }
+        self.patch_arena
+            .as_mut()
+            .expect("just created")
+            .upload(&self.queue, vertices, indices)
+    }
+
+    /// Return a patch's arena ranges to the free lists (eviction).
+    pub fn patch_arena_release(&mut self, slot: patch_arena::PatchSlot) {
+        if let Some(arena) = self.patch_arena.as_mut() {
+            arena.release(slot);
+        }
     }
 
     /// Register a material and return its handle (index).
@@ -2572,6 +2657,31 @@ impl Renderer {
             self.queue
                 .write_buffer(&self.shadow_uniform_buffer, 0, bytemuck::cast_slice(&su));
         }
+        // Batched patch instances (draw-batching increment 1): uploaded ONCE
+        // ahead of both encoders -- the shadow pass and the celestial pass
+        // index the same storage buffer, so a culled shadow subset still
+        // addresses its instances by their full-list position.
+        let patch_batch_n = if let Some(arena) = self.patch_arena.as_ref() {
+            let n = self.patch_draws.len().min(patch_arena::MAX_PATCH_DRAWS);
+            if n > 0 {
+                let inst: Vec<patch_arena::PatchInstance> = self.patch_draws[..n]
+                    .iter()
+                    .map(|d| patch_arena::PatchInstance {
+                        pos_fade: [d.position.x, d.position.y, d.position.z, d.fade],
+                    })
+                    .collect();
+                self.queue
+                    .write_buffer(&arena.instance_buf, 0, bytemuck::cast_slice(&inst));
+                self.queue.write_buffer(
+                    &arena.batch_buf,
+                    0,
+                    bytemuck::bytes_of(&self.patch_batch_rot.to_cols_array_2d()),
+                );
+            }
+            n
+        } else {
+            0
+        };
         if shadow_on {
             // Object uniforms uploaded HERE cover both the shadow pass and
             // the main pass below (same list, same offsets).
@@ -2636,6 +2746,31 @@ impl Renderer {
                     pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+                // Batched patch casters: same 6 km cull, one bind, one
+                // draw per near patch. Instance index = full-list position
+                // (the storage buffer holds ALL of this frame's draws).
+                if patch_batch_n > 0 {
+                    let arena = self.patch_arena.as_ref().expect("patch_batch_n > 0");
+                    pass.set_pipeline(&self.pipeline.patch_shadow_pipeline);
+                    pass.set_bind_group(1, &arena.bind_group, &[]);
+                    // Group 2 explicitly: the classic caster loop above may
+                    // not have bound any material (zero classic casters).
+                    if let Some(material) = self.materials.get(self.patch_batch_material) {
+                        pass.set_bind_group(2, &material.bind_group, &[]);
+                    }
+                    pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                    pass.set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
+                        if (d.position - cast_center).length_squared() > 6_000.0_f32 * 6_000.0 {
+                            continue;
+                        }
+                        pass.draw_indexed(
+                            d.slot.istart..d.slot.istart + d.slot.icount,
+                            d.slot.vstart as i32,
+                            (i as u32)..(i as u32 + 1),
+                        );
+                    }
                 }
             }
             self.queue.submit(std::iter::once(senc.finish()));
@@ -2727,6 +2862,42 @@ impl Renderer {
                 render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                 render_pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+            }
+
+            // ── Batched terrain patches (draw-batching increment 1) ──
+            // The 12k-patch working set that used to be 12k RenderObjects
+            // (each with a dynamic-offset bind + two buffer binds) is now:
+            // bind everything ONCE, then one draw_indexed per patch with
+            // instance range i..i+1 -- the instance index routes the shader
+            // to that patch's translation + fade in the storage array.
+            // Opaque + depth-written, so ordering against the classic
+            // opaque loop above is irrelevant; runs BEFORE the transparent
+            // shells below, which is the order transparency needs.
+            if patch_batch_n > 0 {
+                let arena = self.patch_arena.as_ref().expect("patch_batch_n > 0");
+                render_pass.set_pipeline(&self.pipeline.patch_render_pipeline);
+                render_pass.set_bind_group(1, &arena.bind_group, &[]);
+                if let Some(material) = self.materials.get(self.patch_batch_material) {
+                    render_pass.set_bind_group(2, &material.bind_group, &[]);
+                    render_pass.set_bind_group(
+                        3,
+                        material
+                            .albedo_bind_group
+                            .as_ref()
+                            .unwrap_or(&self.default_texture_bind_group),
+                        &[],
+                    );
+                }
+                render_pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                render_pass
+                    .set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
+                    render_pass.draw_indexed(
+                        d.slot.istart..d.slot.istart + d.slot.icount,
+                        d.slot.vstart as i32,
+                        (i as u32)..(i as u32 + 1),
+                    );
+                }
             }
 
             // Atmosphere shells etc.: alpha-blended over the bodies, depth-TESTED

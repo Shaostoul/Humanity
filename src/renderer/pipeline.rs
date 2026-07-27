@@ -35,8 +35,20 @@ pub struct Pipeline {
     /// (depth_compare Always) so build-mode gizmos (corner orbs, the avatar, rings) draw ON TOP of
     /// the world -- visible through walls + floors. No depth write either.
     pub overlay_pipeline: wgpu::RenderPipeline,
+    /// Terrain-batch opaque variant (draw-batching increment 1): compiled
+    /// from the BATCH shader module (storage-array object source), group 1
+    /// is `patch_bind_group_layout`. Same blend/cull/depth as the opaque
+    /// pipeline -- only where per-draw data comes from differs.
+    pub patch_render_pipeline: wgpu::RenderPipeline,
+    /// Depth-only shadow variant of the terrain-batch path (near-field
+    /// patch casters render into the sun map without per-draw rebinds).
+    pub patch_shadow_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
+    /// Group-1 layout for the terrain-batch pipelines: binding 0 = the
+    /// per-patch instance storage array, binding 1 = the shared batch
+    /// uniform (planet rotation). No dynamic offsets -- the whole point.
+    pub patch_bind_group_layout: wgpu::BindGroupLayout,
     pub material_bind_group_layout: wgpu::BindGroupLayout,
     /// Group 3 (v0.811): albedo texture + sampler for per-pixel planet
     /// imagery. Added to the SHARED layout (not a dedicated pipeline
@@ -52,11 +64,13 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    /// Create the PBR-lite pipeline from a shader module.
+    /// Create the PBR-lite pipeline set from the classic shader module plus
+    /// the terrain-batch variant module (same source, batch OBJECT-SOURCE).
     pub fn new(
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
+        batch_shader: &wgpu::ShaderModule,
     ) -> Self {
         // Group 0: Camera uniforms + the UNCAPPED light list (v0.782). Lights
         // moved from fixed [8] uniform arrays to a read-only STORAGE buffer so
@@ -347,6 +361,40 @@ impl Pipeline {
                 ],
             });
 
+        // Group 1 for the terrain-batch pipelines: the per-patch instance
+        // storage array + the shared batch uniform. FRAGMENT visibility on
+        // both because the fragment-stage obj_* accessors read them (the
+        // v0.807 lesson: widen the layout in the same commit as the shader
+        // use, and boot-verify -- naga cannot see layout mismatches).
+        let patch_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Patch Batch Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            // One PatchInstance = vec4<f32> = 16 bytes.
+                            min_binding_size: wgpu::BufferSize::new(16),
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            // One mat4x4<f32> = 64 bytes.
+                            min_binding_size: wgpu::BufferSize::new(64),
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PBR-lite Pipeline Layout"),
             bind_group_layouts: &[
@@ -357,17 +405,33 @@ impl Pipeline {
             ],
             push_constant_ranges: &[],
         });
+        let patch_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Patch Batch Pipeline Layout"),
+                bind_group_layouts: &[
+                    &camera_bind_group_layout,
+                    &patch_bind_group_layout,
+                    &material_bind_group_layout,
+                    &texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
 
         let (render_pipeline, transparent_pipeline, overlay_pipeline, shadow_pipeline) =
             Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
+        let (patch_render_pipeline, patch_shadow_pipeline) =
+            Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
 
         Self {
             render_pipeline,
             shadow_pipeline,
             transparent_pipeline,
             overlay_pipeline,
+            patch_render_pipeline,
+            patch_shadow_pipeline,
             camera_bind_group_layout,
             object_bind_group_layout,
+            patch_bind_group_layout,
             material_bind_group_layout,
             texture_bind_group_layout,
         }
@@ -384,6 +448,7 @@ impl Pipeline {
         device: &wgpu::Device,
         surface_format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
+        batch_shader: &wgpu::ShaderModule,
     ) {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("PBR-lite Pipeline Layout (hot-reload)"),
@@ -395,12 +460,112 @@ impl Pipeline {
             ],
             push_constant_ranges: &[],
         });
+        let patch_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Patch Batch Pipeline Layout (hot-reload)"),
+                bind_group_layouts: &[
+                    &self.camera_bind_group_layout,
+                    &self.patch_bind_group_layout,
+                    &self.material_bind_group_layout,
+                    &self.texture_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
         let (render, transparent, overlay, shadow) =
             Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
+        let (patch_render, patch_shadow) =
+            Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
         self.render_pipeline = render;
         self.transparent_pipeline = transparent;
         self.overlay_pipeline = overlay;
         self.shadow_pipeline = shadow;
+        self.patch_render_pipeline = patch_render;
+        self.patch_shadow_pipeline = patch_shadow;
+    }
+
+    /// The two terrain-batch PSOs (opaque + depth-only shadow), compiled
+    /// from the BATCH shader module. Kept separate from build_pipeline_set
+    /// because they use a different module and pipeline layout.
+    fn build_patch_pipelines(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        batch_shader: &wgpu::ShaderModule,
+        layout: &wgpu::PipelineLayout,
+    ) -> (wgpu::RenderPipeline, wgpu::RenderPipeline) {
+        let render = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Patch Batch Render Pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: batch_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: batch_shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                // Back-face cull, matching the classic opaque pipeline these
+                // patches drew through until now (vegetation cards are
+                // emitted double-sided, so they survive culling either way).
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Greater, // reverse-Z
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        });
+        // Depth-only shadow variant: STANDARD z (light ortho maps near->0),
+        // no cull (vegetation cards cast from both sides), no fragment.
+        let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Patch Batch Shadow Pipeline"),
+            layout: Some(layout),
+            vertex: wgpu::VertexState {
+                module: batch_shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: None,
+            primitive: wgpu::PrimitiveState {
+                cull_mode: None,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+        (render, shadow)
     }
 
     /// The four PSO compiles shared by `new` and `recreate_pipelines`.

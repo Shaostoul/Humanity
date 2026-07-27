@@ -33,6 +33,79 @@ pub fn assembled_pbr_source() -> &'static str {
     SRC.get_or_init(|| PBR_PARTS.iter().map(|(_, s)| *s).collect::<String>())
 }
 
+/// The terrain-batch OBJECT-SOURCE block: swapped in for the classic
+/// per-draw object uniform by `batched_variant_of`. Every patch draw in a
+/// batch shares one bind group; per-patch data (anchor translation + LOD
+/// fade) lives in a storage array indexed by @builtin(instance_index),
+/// which the batched draw loop feeds via draw_indexed(.., i..i+1) -- DIRECT
+/// draws, deliberately: this machine's DX12 adapter reports the
+/// VERTEX_AND_INSTANCE_INDEX_RESPECTS_RESPECTIVE_FIRST_VALUE_IN_INDIRECT_DRAW
+/// downlevel flag MISSING, so the indirect-draw first_instance trick is not
+/// portable here, while first_instance in direct draws is core WebGPU.
+pub const BATCH_OBJECT_SOURCE: &str = r#"// BEGIN OBJECT-SOURCE (terrain-batch variant, injected by
+// shader_loader::batched_variant_of; the classic block lives in
+// 00-bindings-vertex.wgsl).
+struct PatchInstance {
+    // xyz = patch anchor translation (render space), w = LOD crossfade
+    // (same metadata contract as the classic model[0].w slot).
+    pos_fade: vec4<f32>,
+};
+struct BatchUniforms {
+    // The rotation-only model matrix every patch in the batch shares this
+    // frame (planet rotation; patches never scale). Per-patch translation
+    // rides the instance array.
+    rot: mat4x4<f32>,
+};
+@group(1) @binding(0) var<storage, read> patch_instances: array<PatchInstance>;
+@group(1) @binding(1) var<uniform> batch: BatchUniforms;
+var<private> g_inst: u32 = 0u;
+fn obj_model() -> mat4x4<f32> {
+    var m = batch.rot;
+    let p = patch_instances[g_inst].pos_fade;
+    m[3] = vec4<f32>(p.xyz, 1.0);
+    m[0].w = p.w;
+    return m;
+}
+fn obj_normal_matrix() -> mat4x4<f32> {
+    // Pure rotation at unit scale: inverse-transpose == the rotation
+    // itself, and transpose(obj_normal_matrix()) == the model's inverse
+    // rotation -- exactly the property the planet-local fragment math
+    // (and the water vertex branch) relies on.
+    return batch.rot;
+}
+fn obj_lod_fade() -> f32 { return patch_instances[g_inst].pos_fade.w; }
+// END OBJECT-SOURCE"#;
+
+/// Derive the terrain-batch shader variant from an assembled classic
+/// source by replacing the marked OBJECT-SOURCE block. Works on both the
+/// embedded assembly and a hot-reloaded on-disk assembly, so shader edits
+/// keep applying to BOTH pipelines. None when the markers are missing
+/// (someone renamed them in 00-bindings-vertex.wgsl -- the caller logs and
+/// keeps the classic-only pipeline set rather than crashing).
+pub fn batched_variant_of(classic: &str) -> Option<String> {
+    let begin = classic.find("// BEGIN OBJECT-SOURCE")?;
+    let end_marker = "// END OBJECT-SOURCE";
+    let end = classic.find(end_marker)? + end_marker.len();
+    if begin >= end {
+        return None;
+    }
+    Some(format!(
+        "{}{}{}",
+        &classic[..begin],
+        BATCH_OBJECT_SOURCE,
+        &classic[end..]
+    ))
+}
+
+/// The assembled terrain-batch megashader variant (embedded).
+pub fn assembled_pbr_batch_source() -> &'static str {
+    static SRC: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    SRC.get_or_init(|| {
+        batched_variant_of(assembled_pbr_source())
+            .expect("OBJECT-SOURCE markers missing from 00-bindings-vertex.wgsl")
+    })
+}
+
 /// Assemble the megashader from ON-DISK parts (dev checkout / portable rig):
 /// every .wgsl under `shaders_dir/pbr/`, joined in name order. None when the
 /// directory is absent or empty (stripped install) - the embedded assembly
@@ -256,6 +329,26 @@ mod tests {
         // pins the EMBEDDED shader through the same gate.
         if let Err(e) = super::validate_wgsl(super::assembled_pbr_source()) {
             panic!("assembled megashader failed validation: {e}");
+        }
+    }
+
+    /// The terrain-batch variant must ALSO validate: it is a real second
+    /// module compiled at boot (patch pipelines), derived by marker
+    /// substitution -- a marker rename or a batch-block typo would
+    /// otherwise only surface as a boot-time pipeline panic.
+    #[test]
+    fn batched_variant_parses_and_validates() {
+        let src = super::assembled_pbr_batch_source();
+        assert!(
+            src.contains("patch_instances"),
+            "batch substitution did not take (markers missing?)"
+        );
+        assert!(
+            !src.contains("var<uniform> object:"),
+            "classic object uniform leaked into the batch variant"
+        );
+        if let Err(e) = super::validate_wgsl(src) {
+            panic!("terrain-batch megashader variant failed validation: {e}");
         }
     }
 
