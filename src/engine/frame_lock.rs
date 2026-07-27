@@ -13,12 +13,16 @@ pub(crate) const SURFACE_ENGAGE_ALT: f64 = 10_000.0;
 /// At 4/s a drop from tens of metres settles onto the ground in ~1-2 s.
 pub(crate) const SURFACE_SETTLE_RATE: f64 = 4.0;
 
-/// Upper bound on the mouse-wheel speed multiplier while ON a surface
-/// (2026-07-12). With base speed 5 m/s this tops surface travel out at
-/// ~10 km/s -- fast enough to cross a continent or fly around, but bounded
-/// so a tap can never fling the player off the planet (the world-scale FTL
-/// fly integration is separately gated off in surface mode).
-pub(crate) const SURFACE_SPEED_MULT_MAX: f64 = 2000.0;
+/// Upper bound on the mouse-wheel speed multiplier while inside the WALK
+/// band. v0.1006 (operator flight report + the [Dive] diag showing 333 m
+/// PER FRAME of lateral speed near the ground): the old 2000x cap meant
+/// ~15 km/s in ground-level flight - every W tap read as a teleport and
+/// any tangential whisper dwarfed the ramped vertical thrust (the "I move
+/// parallel to the Earth on takeoff" report). ~50x tops walk-band flight
+/// out around Mach 1 near the deck - fast, controllable, and REAL (jets
+/// at low altitude); the FLIGHT band (10-100 km) keeps the full wheel the
+/// moment you climb past the walk ceiling, and FTL lives above that.
+pub(crate) const SURFACE_SPEED_MULT_MAX: f64 = 50.0;
 
 /// Co-rotation ceiling (v0.872, operator: "when I desync from Earth once I
 /// get like 10 miles up my camera resets... I'm still very close to

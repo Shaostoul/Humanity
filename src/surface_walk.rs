@@ -138,6 +138,12 @@ pub const TERMINAL_FALL_MPS: f64 = 55.0;
 /// reading as a spool-up rather than a teleport.
 pub const THRUST_ACCEL_G_MULT: f64 = 3.0;
 pub const THRUST_ACCEL_MIN: f64 = 20.0;
+/// The ramp must also SCALE with the commanded rate (v0.1006, operator:
+/// "space bar seems fixed speed now... the mouse wheel doesn't seem to
+/// work"): a fixed 3g toward a geared 400 m/s target made the gear
+/// irrelevant for the first half minute. Whatever the target, the spool
+/// reaches it in about this many seconds.
+pub const THRUST_RAMP_S: f64 = 1.5;
 
 /// One step of real vertical ballistics (v0.1005, operator: "It's not
 /// remotely like gravity. The up speed is super slow while the down speed
@@ -174,8 +180,12 @@ pub fn vertical_step(
     let mut v = v_r;
     if thrust_mps.abs() > 1e-9 {
         // Powered: ramp toward the commanded rate from EITHER side (also
-        // how an upward burn arrests a fall).
-        let accel = (g * THRUST_ACCEL_G_MULT).max(THRUST_ACCEL_MIN);
+        // how an upward burn arrests a fall). The rate scales with the
+        // command so a geared-up target is reached in ~THRUST_RAMP_S
+        // seconds instead of pinning everything to the 3g floor.
+        let accel = (g * THRUST_ACCEL_G_MULT)
+            .max(THRUST_ACCEL_MIN)
+            .max(thrust_mps.abs() / THRUST_RAMP_S.max(1e-6));
         let dv = accel * dt;
         if v < thrust_mps {
             v = (v + dv).min(thrust_mps);

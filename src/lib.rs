@@ -3664,7 +3664,13 @@ mod native_app {
                             // entering the WALK band specifically (v0.872: the
                             // co-rotate band now reaches 100 km, where a gear
                             // reset would be premature).
-                            if in_walk_band && !state.surface_walk_band {
+                            if in_walk_band && (!state.surface_walk_band || just_engaged) {
+                                // v0.1006: also fires when SPAWNING directly
+                                // into the band (just_engaged) - the operator
+                                // spawned at 1.5 km with the wheel still at
+                                // 1e9 from FTL, and the edge-only reset never
+                                // saw an edge ([Dive] diag: gear=1000000000
+                                // inside the walk band).
                                 state.controller.fly_speed_mult = 1.0;
                             }
                             state.surface_walk_band = in_walk_band;
@@ -3736,7 +3742,17 @@ mod native_app {
                             // exactly like FTL above it: W with the nose down
                             // descends, no separate descend key needed.
                             let dir0 = anchor.normalize_or_zero();
-                            let wish = if in_walk_band && !submerged {
+                            // v0.1006 (operator: "I'm flying perpendicularly
+                            // to the surface but I seem to just be in
+                            // constant freefall"): DEV FLY MODE flies where
+                            // you look in EVERY band - the tangent-plane
+                            // walking wish is for feet on the ground, and
+                            // forcing it below 10 km made nose-down + W do
+                            // nothing vertical while gravity pulled.
+                            let wish = if in_walk_band
+                                && !submerged
+                                && !state.controller.fly_mode
+                            {
                                 state.controller.surface_wish_dir(&state.camera)
                             } else {
                                 // Flight band above, SWIMMING below (v0.903):
