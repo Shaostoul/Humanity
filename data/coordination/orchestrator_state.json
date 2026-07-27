@@ -517,6 +517,11 @@
       "date": "2026-07-26",
       "decision": "v0.986.0 mid-disc atmospheric veil (Active-focus graphics want 2): new ATMO_MID_VEIL=0.55 in 30-atmosphere.wgsl scales surface-hitting transmittance alpha across the b/rp 0.30..0.90 incidence ramp, gated by max(w_alt,w_far) so only space cameras see it - nadir, limb ring, ground views, and non-surface star rays untouched by construction. Hot-reload A/B: blue marble gains the classic photo veil gradient (before: photo-sharp to the last few percent then a limb jump); 400 km Sahara keeps near-nadir sharpness with natural horizon haze. The knob is a named const for operator retune.",
       "why": "The march was already physical; the veil is a presentation-side gain on an operator-wanted look, kept surgical (one gated multiply) so every previously approved view is bit-identical where the gate is zero."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.987.0 mention ding: live WS chat broadcasts containing the user display name (case-insensitive, not our own sends) push chat_message through pending_sfx, gated notif_mentions_enabled. History-safe by construction: reconnect history arrives via REST, never through the Some(chat) WS handler. HONEST CLOSE on the light-switch sound: the only light toggle today is the build-editor checkbox, which already sounds via the v0.960 global egui click - a dedicated switch_toggle would be inaudible duplication; it ships with a future walk-up wall-switch interaction instead. SFX wish list from the audio arc is now fully dispatched at current interaction surface.",
+      "why": "Every sound should map to a distinct player action; doubling a click that already clicks is noise, not feedback."
     }
   ],
   "active_scopes_to_avoid": [
