@@ -313,11 +313,11 @@ pub fn cloud_field(dir: [f32; 3], t: f32, seed: f32) -> f32 {
         .max(1e-9);
     let da = [stretched[0] / len, stretched[1] / len, stretched[2] / len];
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    let mut f = 0.5 * cloud_noise(da, 5.0, seed);
-    f += 0.25 * cloud_noise(da, 11.0, seed + 19.0);
-    f += 0.125 * cloud_noise(da, 23.0, seed + 47.0);
-    f += 0.0625 * cloud_noise(da, 47.0, seed + 83.0);
-    f += 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    let mut f = 0.5 * cloud_noise(da, 9.0, seed);
+    f += 0.25 * cloud_noise(da, 19.0, seed + 19.0);
+    f += 0.125 * cloud_noise(da, 41.0, seed + 47.0);
+    f += 0.0625 * cloud_noise(da, 83.0, seed + 83.0);
+    f += 0.35 * cloud_noise(db, 13.0, seed + 101.0);
     smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.2875)
 }
 
@@ -356,13 +356,31 @@ pub fn cloud_altitude_envelope(r: f32) -> f32 {
 /// local frame (planet-fixed, drawn shell = radius 1).
 pub fn cloud_density(p: [f32; 3], t: f32, seed: f32, coverage: f32) -> f32 {
     let r = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
-    let env = cloud_altitude_envelope(r);
-    if env <= 0.0 {
-        return 0.0;
+    if cloud_altitude_envelope(r) <= 0.0 {
+        return 0.0; // outside the slab entirely
     }
     let inv = 1.0 / r.max(1e-9);
     let dir = [p[0] * inv, p[1] * inv, p[2] * inv];
     let a_h = cloud_alpha_from_field(cloud_field(dir, t, seed), coverage);
+    if a_h <= 0.001 {
+        return 0.0;
+    }
+    // Height squash (v0.999.x): deck top scales with horizontal density so
+    // skirts are low and cores tower - see the WGSL twin's comment. Keep
+    // the FORMULA in lockstep with 40-clouds.wgsl cloud_density.
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let u = ((r - base) / (top - base)).clamp(0.0, 1.0);
+    let squash = 0.30 + 0.70 * a_h;
+    let uq = u / squash;
+    if uq > 1.0 {
+        return 0.0;
+    }
+    let ss = |e0: f32, e1: f32, x: f32| -> f32 {
+        let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+    let env = ss(0.0, 0.4, uq) * (1.0 - ss(0.6, 1.0, uq));
     a_h * a_h * env
 }
 
@@ -403,9 +421,9 @@ pub fn cloud_weather(dir: [f32; 3], t: f32, seed: f32) -> f32 {
         .max(1e-9);
     let da = [stretched[0] / len, stretched[1] / len, stretched[2] / len];
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    let mut f = 0.5 * cloud_noise(da, 5.0, seed);
-    f += 0.25 * cloud_noise(da, 11.0, seed + 19.0);
-    f += 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    let mut f = 0.5 * cloud_noise(da, 9.0, seed);
+    f += 0.25 * cloud_noise(da, 19.0, seed + 19.0);
+    f += 0.35 * cloud_noise(db, 13.0, seed + 101.0);
     smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.10)
 }
 
@@ -1089,20 +1107,51 @@ mod tests {
         // Beer-response shaping documented on cloud_density.
         let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
         let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+        let ss = |e0: f32, e1: f32, x: f32| -> f32 {
+            let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        };
         for (i, dir) in sample_dirs(32).into_iter().enumerate() {
             let r = base + (top - base) * (i as f32 + 0.5) / 32.0;
             let p = [dir[0] * r, dir[1] * r, dir[2] * r];
             let a_h = cloud_alpha_from_field(cloud_field(dir, 33.0, 42.0), 0.55);
-            let expect = a_h * a_h * cloud_altitude_envelope(r);
+            // v0.999.x height squash: the envelope evaluates at
+            // u / (0.30 + 0.70 * a_h) - skirts low, cores tall.
+            let u = ((r - base) / (top - base)).clamp(0.0, 1.0);
+            let uq = u / (0.30 + 0.70 * a_h);
+            let expect = if a_h <= 0.001 || uq > 1.0 {
+                0.0
+            } else {
+                a_h * a_h * (ss(0.0, 0.4, uq) * (1.0 - ss(0.6, 1.0, uq)))
+            };
             let got = cloud_density(p, 33.0, 42.0, 0.55);
+            // 1e-4: the squash division amplifies the dir*r round-trip noise.
             assert!(
-                (got - expect).abs() < 1e-5,
+                (got - expect).abs() < 1e-4,
                 "density decomposition broke at r {r}: {got} vs {expect}"
             );
         }
         // Outside the slab: zero regardless of the horizontal field.
         assert_eq!(cloud_density([0.0, base - 0.005, 0.0], 33.0, 42.0, 1.0), 0.0);
         assert_eq!(cloud_density([top + 0.005, 0.0, 0.0], 33.0, 42.0, 1.0), 0.0);
+        // Varied roofs (the whole point of the squash): near the slab TOP a
+        // weak column must already be zero while a saturated column still
+        // has body - thin skirts sit low, dense cores tower.
+        let r_high = base + (top - base) * 0.75;
+        let mut weak_zero = false;
+        let mut strong_body = false;
+        for dir in sample_dirs(128) {
+            let a_h = cloud_alpha_from_field(cloud_field(dir, 33.0, 42.0), 0.55);
+            let d = cloud_density([dir[0] * r_high, dir[1] * r_high, dir[2] * r_high], 33.0, 42.0, 0.55);
+            if a_h > 0.05 && a_h < 0.4 && d == 0.0 {
+                weak_zero = true;
+            }
+            if a_h > 0.95 && d > 0.0 {
+                strong_body = true;
+            }
+        }
+        assert!(weak_zero, "no weak column had a lowered roof at u=0.75");
+        assert!(strong_body, "no saturated column kept body at u=0.75");
     }
 
     #[test]

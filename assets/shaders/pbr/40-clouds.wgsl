@@ -320,11 +320,17 @@ fn cloud_field(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     // weights in cloud_noise still see a unit direction.
     let da = normalize(vec3<f32>(da0.x, da0.y * CLOUD_BAND_STRETCH, da0.z));
     let db = cloud_rot_x(dir, t * CLOUD_DRIFT_CROSS);
-    var f = 0.5 * cloud_noise(da, 5.0, seed);
-    f = f + 0.25 * cloud_noise(da, 11.0, seed + 19.0);
-    f = f + 0.125 * cloud_noise(da, 23.0, seed + 47.0);
-    f = f + 0.0625 * cloud_noise(da, 47.0, seed + 83.0);
-    f = f + 0.35 * cloud_noise(db, 7.0, seed + 101.0);
+    // v0.999.x cell-size retune (operator: "the big cloud patches are so
+    // big that they can cover whole continents"): the octave ladder rises
+    // from 5 cycles/planet (~2,500 km features) to 9 (~1,400 km synoptic
+    // systems) with matching upper octaves, so the deck breaks into
+    // mesoscale structure instead of continent slabs. BOTH stream sites
+    // (this + renderer::clouds mirror) must stay identical.
+    var f = 0.5 * cloud_noise(da, 9.0, seed);
+    f = f + 0.25 * cloud_noise(da, 19.0, seed + 19.0);
+    f = f + 0.125 * cloud_noise(da, 41.0, seed + 47.0);
+    f = f + 0.0625 * cloud_noise(da, 83.0, seed + 83.0);
+    f = f + 0.35 * cloud_noise(db, 13.0, seed + 101.0);
     return smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, f / 1.2875);
 }
 
@@ -372,11 +378,28 @@ fn cloud_altitude_envelope(r: f32) -> f32 {
 // the mesh's LOCAL frame (planet-fixed, drawn shell = radius 1).
 fn cloud_density(p: vec3<f32>, t: f32, seed: f32, coverage: f32) -> f32 {
     let r = length(p);
-    let env = cloud_altitude_envelope(r);
-    if (env <= 0.0) {
-        return 0.0;
+    if (cloud_altitude_envelope(r) <= 0.0) {
+        return 0.0; // outside the slab entirely - skip the field lookup
     }
     let a_h = cloud_alpha_from_field(cloud_field(normalize(p), t, seed), coverage);
+    if (a_h <= 0.001) {
+        return 0.0;
+    }
+    // Height squash (v0.999.x, operator: "the cloud edges ... are kind of
+    // like sheer cliffs instead of gradual like real clouds with varying
+    // height"): the deck TOP now scales with the horizontal density, so
+    // thin skirts are LOW and cores tower - edges slope down into wisps
+    // instead of ending as full-height walls, and the deck's roof gains
+    // real height variation. Mirrored in renderer::clouds.
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+    let u = clamp((r - base) / (top - base), 0.0, 1.0);
+    let squash = 0.30 + 0.70 * a_h;
+    let uq = u / squash;
+    if (uq > 1.0) {
+        return 0.0;
+    }
+    let env = smoothstep(0.0, 0.4, uq) * (1.0 - smoothstep(0.6, 1.0, uq));
     return a_h * a_h * env;
 }
 
