@@ -11,3 +11,9 @@ domain dedication - https://creativecommons.org/publicdomain/zero/1.0/).
   glTF with a palette texture carrying the material colors)
 - No attribution is required by CC0; this file credits the author anyway
   because being remembered is the point. Thank you, Quaternius.
+
+# Kenney Furniture Kit (CC0)
+
+The `assets/models/furniture/` folders are converted from the **Furniture
+Kit** by **Kenney** (https://kenney.nl/assets/furniture-kit), CC0 1.0
+Universal. Same converter, same thanks. Support them at kenney.nl.

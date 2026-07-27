@@ -898,7 +898,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/beddouble/beddouble.gltf"),
         ),
         "nightstand": (
             shape: "box",
@@ -919,7 +919,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("furniture_drawer"),
-            model: None,
+            model: Some("assets/models/furniture/cabinetbeddrawertable/cabinetbeddrawertable.gltf"),
         ),
         "wardrobe": (
             shape: "box",
@@ -940,7 +940,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("wardrobe_cabinet"),
-            model: None,
+            model: Some("assets/models/furniture/bookcasecloseddoors/bookcasecloseddoors.gltf"),
         ),
         "couch": (
             shape: "box",
@@ -961,7 +961,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/loungesofa/loungesofa.gltf"),
         ),
         "chair": (
             shape: "box",
@@ -982,7 +982,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/chaircushion/chaircushion.gltf"),
         ),
         "dining_table": (
             shape: "box",
@@ -1003,7 +1003,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/table/table.gltf"),
         ),
         "side_table": (
             shape: "box",
@@ -1024,7 +1024,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/tablecoffee/tablecoffee.gltf"),
         ),
         "bookshelf": (
             shape: "box",
@@ -1045,7 +1045,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("bookshelf_bin"),
-            model: None,
+            model: Some("assets/models/furniture/bookcaseopen/bookcaseopen.gltf"),
         ),
         "desk": (
             shape: "box",
@@ -1066,7 +1066,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("furniture_drawer"),
-            model: None,
+            model: Some("assets/models/furniture/desk/desk.gltf"),
         ),
         "shelf": (
             shape: "box",
@@ -1087,7 +1087,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("dry_goods_crate"),
-            model: None,
+            model: Some("assets/models/furniture/bookcaseopenlow/bookcaseopenlow.gltf"),
         ),
         "pantry_cabinet": (
             shape: "box",
@@ -1108,7 +1108,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("pantry_cabinet_bin"),
-            model: None,
+            model: Some("assets/models/furniture/kitchencabinet/kitchencabinet.gltf"),
         ),
         "rug": (
             shape: "box",
@@ -1129,7 +1129,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/rugrectangle/rugrectangle.gltf"),
         ),
         "mirror": (
             shape: "box",
@@ -1150,7 +1150,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: None,
-            model: None,
+            model: Some("assets/models/furniture/bathroommirror/bathroommirror.gltf"),
         ),
         "tool_rack": (
             shape: "box",
@@ -1171,7 +1171,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("tool_cabinet"),
-            model: None,
+            model: Some("assets/models/furniture/coatrackstanding/coatrackstanding.gltf"),
         ),
         "freezer": (
             shape: "box",
@@ -1192,7 +1192,7 @@
             rf_emission: 0.0,
             auto_recipe: None,
             container_type: Some("freezer_chest"),
-            model: None,
+            model: Some("assets/models/furniture/kitchenfridge/kitchenfridge.gltf"),
         ),
         "irrigation_system": (
             shape: "box",
