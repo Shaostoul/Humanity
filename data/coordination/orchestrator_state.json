@@ -502,6 +502,11 @@
       "date": "2026-07-26",
       "decision": "v0.984.0 underwater residue closed (post-audit item 6 fully done): swim speed cap 2.5 m/s while submerged (applies to the shared step so radial swim caps too; dev fly mode exempt - noclip stays noclip) + dive_bubbles ambient emitter (data/particles.ron, buoyant negative-gravity trickle at the submerged camera, same emitter-management pattern as leaf_drift/space_dust). The 2026-07-19 post-audit queue is now FULLY dispatched: every item shipped, closed-stale, or blocked on the single open operator question (GLB sourcing). In-water visual proof rides the operator next dive - the emitter mechanism is the proven leaves/dust path and the def parses in validate-data.",
       "why": "Small honest closes beat leaving a 90 percent-done queue item open; the cap reuses the existing step variable so one line covers tangential and radial swimming alike."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.985.0 SFX wave 2: sfx_events DataStore channel (registered beside quest_events; helper systems::push_sfx_event lives OUTSIDE the native-gated audio module so relay compiles - first attempt in audio::sounds broke the relay check, caught immediately). Wired: construction complete -> place_block thunk, craft complete -> hammer (both in on-complete hooks beside their quest events), incoming DM ding (chat_message; gated !is_from_me + !dm_is_open + notif_dm_enabled; quiet hours stay a server-push concern). Audio block drains both pending_sfx and the channel.",
+      "why": "The channel pattern lets any ECS system emit sound in two lines with zero audio coupling; the relay-gate lesson is the same native-gate gotcha as the v0.416 save_load incident, caught this time by the mandatory relay check."
     }
   ],
   "active_scopes_to_avoid": [
