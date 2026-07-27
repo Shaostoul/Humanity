@@ -134,3 +134,12 @@ nano_swarm,Nano Swarm,robot,nanus_examen,60,50,0,small,2,4.0,walk|fly,energy,agg
 # the plant yields; renewable_product = the sustainable pick-and-regrow path.
 berry_bush,Berry Bush,plant,rubus_fruticosus,30,0,0,small,15,0,walk,photosynthetic,passive,forest|grassland|farmland,fiber_bundle_0:80:1:2|fruit_berries_0:60:1:2,stationary,false,70,Thorny wild bush heavy with seasonal berries,fruit_berries_0:2:600
 wild_flax,Wild Flax,plant,linum_usitatissimum,12,0,0,tiny,2,0,walk,photosynthetic,passive,grassland|farmland|wetland,fiber_flax_0:100:1:2,stationary,false,75,Slender wild fiber plant with pale blue flowers,fiber_flax_0:1:900
+# === RESOURCE NODES (v0.982, the forage faucet) ===
+# Stationary harvestables giving the raw-material tree a non-vendor source:
+# walk-up [E] collect on a regrow cooldown (abstracted gathering; the real
+# chop/quarry tool verbs are a future arc and will deepen these same nodes).
+fallen_log,Fallen Log,plant,lignum_mortuum,40,0,0,medium,80,0,walk,none,passive,forest|taiga|grassland,wood_log_0:100:1:3|fiber_bundle_0:40:1:1,stationary,false,65,Weathered deadfall good for firewood and lumber,wood_log_0:2:480
+stone_outcrop,Stone Outcrop,mineral,saxum_expositum,120,0,0,medium,400,0,walk,none,passive,mountain|grassland|desert,stone_raw_0:100:2:4,stationary,false,60,Fractured bedrock shedding workable stone,stone_raw_0:3:600
+clay_pit,Clay Deposit,mineral,argilla_cruda,60,0,0,small,150,0,walk,none,passive,wetland|river|grassland,clay_raw_0:100:1:3,stationary,false,55,Damp bank of fine sculptable clay,clay_raw_0:2:600
+salt_flat,Salt Crust,mineral,sal_evaporitum,30,0,0,small,60,0,walk,none,passive,desert|wetland,salt_food_0:100:1:2,stationary,false,45,Evaporite crust of harvestable salt,salt_food_0:2:900
+sand_pit,Sand Drift,mineral,arena_sicca,25,0,0,small,90,0,walk,none,passive,desert|beach|river,sand_0:100:2:4,stationary,false,55,Loose drift of clean building sand,sand_0:3:480

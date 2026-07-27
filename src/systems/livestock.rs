@@ -501,7 +501,16 @@ mod tests {
         let reg = shipped_registry();
         let items = shipped_items();
         let mut world = hecs::World::new();
-        for (id, product) in [("berry_bush", "fruit_berries_0"), ("wild_flax", "fiber_flax_0")] {
+        for (id, product) in [
+            ("berry_bush", "fruit_berries_0"),
+            ("wild_flax", "fiber_flax_0"),
+            // Resource nodes (v0.982): the forage faucet rides the same rails.
+            ("fallen_log", "wood_log_0"),
+            ("stone_outcrop", "stone_raw_0"),
+            ("clay_pit", "clay_raw_0"),
+            ("salt_flat", "salt_food_0"),
+            ("sand_pit", "sand_0"),
+        ] {
             let def = reg.get(id).unwrap_or_else(|| panic!("{id} in creatures.csv"));
             assert_eq!(behavior_type_for(def), "stationary", "{id} must be stationary");
             let e = spawn_creature_at(&mut world, def, Some(&items), Vec3::ZERO, [1.0; 3]);

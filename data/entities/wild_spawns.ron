@@ -19,5 +19,14 @@
         // stationary rows - they collect via walk-up [E] and regrow.
         (creature: "berry_bush", count: 4, pos: (52.0, 82.0), radius: 6.0, tint: (0.18, 0.34, 0.15)),
         (creature: "wild_flax", count: 6, pos: (18.0, 88.0), radius: 5.0, tint: (0.55, 0.58, 0.30)),
+        // Resource nodes (v0.982, the forage faucet): raw-material sources so
+        // the tech tree stops hanging off the vendor. Scattered in a working
+        // ring beyond the fields - each a stationary [E]-collect on a regrow
+        // timer. Tints double as material color until hero models land.
+        (creature: "fallen_log", count: 3, pos: (60.0, 70.0), radius: 8.0, tint: (0.38, 0.26, 0.14)),
+        (creature: "stone_outcrop", count: 3, pos: (70.0, 55.0), radius: 7.0, tint: (0.52, 0.52, 0.54)),
+        (creature: "clay_pit", count: 2, pos: (12.0, 78.0), radius: 5.0, tint: (0.58, 0.36, 0.24)),
+        (creature: "salt_flat", count: 2, pos: (80.0, 40.0), radius: 5.0, tint: (0.88, 0.88, 0.84)),
+        (creature: "sand_pit", count: 2, pos: (88.0, 60.0), radius: 5.0, tint: (0.80, 0.70, 0.48)),
     ],
 )
