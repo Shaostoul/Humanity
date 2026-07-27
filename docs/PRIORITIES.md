@@ -11,6 +11,50 @@
 
 ## Active focus
 
+> **>>> BEDTIME DIRECTIVE QUEUE (2026-07-26 late evening, operator verbatim
+> list; worked overnight into 2026-07-27, releases v0.996.0-v0.1002.1).**
+> Status per item:
+> - DONE footsteps trio (v0.996): airborne-silent, 1.5 m stride, real
+>   volume path (play_sound_vol; catalog volumes were structurally ignored).
+> - DONE clouds visible from surface (v0.997): view-dependent transparent
+>   ORDER (inside atmosphere = dome then deck; outside = deck then dome).
+> - DONE night-lit trees (v0.998): fill light now scales with daylight in
+>   the walk band (fill_scale poke at 652), rig-proven at local midnight.
+> - DONE light-line glitch (v0.999): grass-field hard edge at the patch
+>   boundary; bit-18 grass cards now Bayer-dissolve over 30-45 m.
+> - DONE cloud subdivision + cliff edges (v0.1000.0): coverage octave
+>   ladder 9/19/41/83 + cross 13 (mesoscale cells from orbit) + height
+>   squash (weak columns top out low; sloped skirts, rig-proven). The
+>   pillowy/cauliflower + self-shadowing want = the VOLUMETRIC CLOUDS ARC
+>   (real raymarched self-occlusion), queued below.
+> - DONE terrain-gen proper fix increments 1+2 (v0.1001.0 + v0.1002.0):
+>   patch mega-buffer arena + batch shader variant + real-byte cache
+>   accounting + one multi_draw_indexed_indirect submit
+>   (docs/design/terrain-draw-batching.md). MEASURED HONESTLY: at budget
+>   12,288 the remaining frame cost is GPU vertex throughput (~9.2M
+>   unshared flat-shaded verts), so the visible FPS gain rig-side was
+>   small; CPU-side staging/bind churn is gone (bigger relief on the
+>   operator's loaded session). NEXT LEVER (new arc, not a tweak): shared
+>   terrain vertices with FS-derived per-face data, or bigger patches
+>   (PATCH_TESS 16 -> 32 = 1/4 the draws at equal quality). Practical
+>   note for the operator: budgets 2048-4096 run 60+ FPS today.
+> - DONE voxel-terrain direction doc (docs/design/voxel-terrain.md):
+>   Dover cliffs/overhangs/caves/digging as sparse ico-prism voxel
+>   OVERLAY on the heightmap + impact-crater ladder; increment 1 =
+>   data model + persistence, not yet started.
+> - OPEN trenches at highest fidelity (character bobs): hunted at rig
+>   vantages (alpine hillside, Seattle spawn at walking height, noon +
+>   grazing) - terrain reads SMOOTH everywhere I sampled; cannot
+>   reproduce blind. NEEDS the operator's location/screenshot; suspects
+>   remain 1 m tile seams (bicubic overshoot) and physics-vs-drawn-mesh
+>   divergence (bobbing = collider following the analytic curve between
+>   drawn verts?).
+> - OPEN varied tree species / bushes / denser grass: deliberately folded
+>   into the reserved BILLBOARD-BAKE + TREE INSTANCING arc (fresh
+>   session): species variety needs matching far-field cards + atlas
+>   entries or the card handoff pops; models are already on disk
+>   (bamboo/cactus/bushberries stages under assets/models/plants/).
+>
 > **>>> OVERNIGHT BACKLOG (2026-07-25 ~01:00, operator heading to bed,
 > given verbatim then ranked here): IN PROGRESS.** Standing frame: MAX
 > GRAPHICS first, then optimize relentlessly without sacrificing fidelity;
