@@ -185,8 +185,15 @@
 >    page state); either wire or remove (2026-07-20 audit, journal).
 > Perf headroom: the operator is vsync-capped at 120 FPS - push quality.
 >
-> **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave;
-> reports summarized in the journal). Ranked:**
+> **>>> POST-AUDIT QUEUE (2026-07-19 late; from the 4-subagent audit wave).
+> STATUS SWEEP 2026-07-26: 1 CLOSED (mostly stale; Talk emitter + id
+> lockstep shipped v0.981), 2 CLOSED (resource nodes v0.982), 3 CLOSED
+> (stale - shipped v0.905.0 same day as the audit), 4 BLOCKED on the
+> operator GLB answer, 5 CLOSED (sawmill/grain_mill shipped v0.907;
+> vehicle_assembler placed v0.982.2 - vehicle recipes now craftable),
+> 6 PARTIAL (tint + HUD depth shipped v0.903/v0.907; residue = swim speed
+> cap + bubbles, polish-tier). Lesson recorded: audit findings fixed
+> same-day were never struck from this queue - strike on ship, always.**
 > 1. QUEST REWRITE: tutorial/construction/exploration/farming.ron are
 >    ~80% dead ids (items/recipes/blueprints that do not exist; the 20
 >    Build objectives match none of the 12 real blueprints). Rewrite to

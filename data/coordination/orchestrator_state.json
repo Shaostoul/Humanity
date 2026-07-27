@@ -487,6 +487,11 @@
       "date": "2026-07-26",
       "decision": "v0.982.0 forage faucet (post-audit item 2, verified REAL first): five resource nodes on the v0.978 stationary rails - fallen_log (wood_log_0 x2/480s), stone_outcrop (stone_raw_0 x3/600s), clay_pit (clay_raw_0 x2/600s), salt_flat (salt_food_0 x2/900s), sand_pit (sand_0 x3/480s) - placed in a working ring beyond the fields via wild_spawns.ron. Hides were already sourced (animal loot). Oil deferred by design (machine-tier). Kind column values plant/mineral are free-form (nothing reads CreatureDef.kind). The forage regression test now loops all 7 stationary node types. The abstracted [E]-gather is the honest MVP; real chop/quarry tool verbs remain a future arc deepening the SAME nodes (no rework).",
       "why": "The audit claim held up here (unlike items 1 and the ocean-teleport): consumed-everywhere produced-nowhere confirmed by scrape. Riding proven rails made the whole faucet a data increment."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.982.2 post-audit queue STATUS SWEEP + item 5 residue: vehicle_assembler placed (home.ron vehicle_assembler_1, factory pad in the yard east of the house at 58,30) - the def existed since v0.690 but was never placed, so rover/truck/nova recipes (station vehicle_assembler_0) were uncraftable. Sweep verdicts: item 3 planet textures was FULLY shipped v0.905.0 the day after the audit (bins on disk, pluto.ron, type-18 bands - third stale item today); item 5 sawmill/grain_mill shipped v0.907 placed; item 6 underwater is PARTIAL (tint + HUD depth shipped v0.903/907; residue swim-speed cap + bubbles). PRIORITIES post-audit block rewritten with per-item verdicts. Meta-lesson recorded in PRIORITIES: strike queue items ON SHIP - the 2026-07-20 wave fixed several audit findings same-day and never updated the queue, costing three verify-first investigations today (each cheap, but the queue lied for a week).",
+      "why": "A queue that does not get struck on ship becomes a generator of phantom work. The sweep converts it back into truth and the lesson line should prevent the recurrence."
     }
   ],
   "active_scopes_to_avoid": [
