@@ -97,15 +97,15 @@ const SKY_LUT_EXPOSURE: f32 = 15.0;
 // exactly zero wherever the exposure is unchanged.
 const ATMO_MS_ISO: f32 = 0.07;
 
-// Mid-disc veil gain (v0.986, PRIORITIES graphics want 2: "thin type-14
-// limb opacity at mid-disc incidence"). Real from-space photos show the
-// blue haze building steadily from ~mid-disc outward; our transmittance
-// alpha stayed photo-sharp until the last few percent of the radius and
-// then jumped at the limb ring. This gain scales the SURFACE-hitting
-// alpha by up to +55% across the b/rp 0.30..0.90 ramp, gated to cameras
-// outside the shell - nadir clarity, the limb ring itself, every ground
-// view, and the star-background band (non-surface rays) are untouched.
-const ATMO_MID_VEIL: f32 = 0.55;
+// NOTE (v0.988): v0.986 briefly added an ATMO_MID_VEIL gain here that
+// RAISED surface-ray alpha from mid-disc outward, chasing the classic
+// blue-marble photo veil. Reverted same-day: the PRIORITIES want it
+// implemented actually asked to THIN the mid-disc opacity (the operator's
+// v0.956 correction - "the blue of the atmosphere completely hides the
+// terrain on the edges" - and v0.956's surface-ray fix already shipped
+// that direction). If a photo-style veil is ever wanted, re-propose it to
+// the operator as a question first; the v0.986 release notes hold the
+// implementation sketch.
 
 // Scaled complementary error function erfcx(z) = exp(z^2) * erfc(z) for
 // z >= 0, the kernel of the Chapman function below. Two branches, both
@@ -312,14 +312,7 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // express. The surface stays readable at every angle because this path
     // only ever alpha-blends over it.
     let trans = exp(-beta_ext * od_view);
-    var alpha = clamp(1.0 - (trans.r + trans.g + trans.b) / 3.0, 0.0, 1.0);
-    // Mid-disc veil (see ATMO_MID_VEIL): haze builds from mid-disc toward
-    // the limb on surface-hitting rays, space cameras only.
-    if (hits_surface) {
-        let inc = clamp(b_impact / rp, 0.0, 1.0);
-        let veil = smoothstep(0.30, 0.90, inc);
-        alpha = clamp(alpha * (1.0 + ATMO_MID_VEIL * veil * max(w_alt, w_far)), 0.0, 1.0);
-    }
+    let alpha = clamp(1.0 - (trans.r + trans.g + trans.b) / 3.0, 0.0, 1.0);
 
     // ── Sky-view LUT hybrid (stage 3c, v0.948) ── near the surface the sky
     // radiance comes from the per-frame Hillaire table (sky_view_lut.wgsl,

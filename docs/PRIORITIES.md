@@ -81,10 +81,11 @@
 > cause: the green-dominance biome gate rejected brown-green Blue Marble
 > texels; shared veg_biome_ok() now gates bake + harvest identically, gate
 > autopsy logging + 2 albedo regression tests added), [2] atmosphere limb
-> hides terrain from space (southern Australia invisible at the disc edge;
-> thin type-14 limb opacity at mid-disc incidence, verify against blue-marble
-> + limb-400km goldens), [3] ocean wave HEIGHT (real vertex displacement,
-> "still just a flat 2D shape"). THEN two operator-unblocked arcs (2026-07-25
+> hides terrain: SHIPPED v0.956 (surface-hitting rays keep pure
+> transmittance alpha; land readable through blue haze). NOTE 2026-07-26:
+> v0.986 misread this want and briefly ADDED a mid-disc veil; reverted
+> v0.988 same-day - if a photo-style veil is ever wanted, ask the operator
+> first. [3] ocean wave HEIGHT: SHIPPED v0.957 (real vertex displacement). THEN two operator-unblocked arcs (2026-07-25
 > decisions): billboard sprite BAKE-OUR-OWN tool (automated 3D-model-to-card
 > render, the alpha-card LOD rung; benefits modders, zero manual art per
 > model) and the AUDIO ARC (CC0 Kenney.nl download APPROVED; kira engine has
