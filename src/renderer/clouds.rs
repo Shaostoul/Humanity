@@ -106,7 +106,16 @@ pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
 /// lit view sample.
 pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 /// Mirrors `CLOUD_LIGHT_STEP`: base light-march step, drawn-shell units.
-pub const CLOUD_LIGHT_STEP: f32 = 0.0012;
+/// Halved 2026-07-27 (flat-lighting root cause): the first tap used to
+/// jump ~15% of the slab, overshooting thin stratus bands entirely.
+pub const CLOUD_LIGHT_STEP: f32 = 0.0006;
+/// Mirrors `CLOUD_LIGHT_SIGMA_MULT`: light-march extinction multiplier
+/// over the view sigma. The view sigma is calibrated for deck ALPHA
+/// (feathered edges); reusing it for the sun path capped every shadow at
+/// ~e^-0.5, which the 2026-07-27 tau heat-map probe exposed as tau ~0.1
+/// across a solid noon overcast -- structurally flat lighting. The
+/// boosted shadow sigma is the standard view/light extinction split.
+pub const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
 /// Mirrors `CLOUD_HI_SIGMA_T`: extinction per drawn-shell unit at density 1
 /// for the High path (higher than Medium's -- the noise-carved density
 /// field averages far lower, and cores must still saturate).
@@ -755,6 +764,7 @@ mod tests {
             // Increment-3 volumetric constants.
             ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
             ("CLOUD_LIGHT_STEP", CLOUD_LIGHT_STEP),
+            ("CLOUD_LIGHT_SIGMA_MULT", CLOUD_LIGHT_SIGMA_MULT),
             ("CLOUD_HI_SIGMA_T", CLOUD_HI_SIGMA_T),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
             ("CLOUD_SHAPE_FREQ", CLOUD_SHAPE_FREQ),

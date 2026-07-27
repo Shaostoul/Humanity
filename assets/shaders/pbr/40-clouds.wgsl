@@ -155,7 +155,21 @@ const CLOUD_HI_STEP_EXP: f32 = 1.6;
 // each tap (near taps catch self-shadowing detail, far taps the big mass).
 const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
 // Base light-march step, drawn-shell units (slab thickness is ~0.0079).
-const CLOUD_LIGHT_STEP: f32 = 0.0012;
+// Halved 0.0012 -> 0.0006 (2026-07-27 tau-heat-map probe): the first tap
+// used to jump ~15% of the slab, overshooting thin stratus bands entirely
+// (every tap above the band -> tau 0 -> flat white lighting).
+const CLOUD_LIGHT_STEP: f32 = 0.0006;
+// Light-march extinction multiplier over the view sigma (2026-07-27, the
+// flat-lighting root cause): CLOUD_HI_SIGMA_T is calibrated for VIEW
+// opacity (kept low so deck edges feather instead of reading as carved
+// stencils), but reusing it for the SUN path made every shadow shallower
+// than e^-0.5 -- the tau heat-map probe showed tau ~0.1 across a solid
+// overcast deck at noon, i.e. structurally flat lighting. Real cloud media
+// are optically far thicker than the view calibration pretends; a separate
+// stronger shadow extinction is the standard production split (view sigma
+// for alpha, boosted sigma for the light march), with the multi-scatter
+// octaves in cloud_scatter_energy keeping deep shadows luminous, not black.
+const CLOUD_LIGHT_SIGMA_MULT: f32 = 6.0;
 // Extinction per drawn-shell unit at density 1 for the High path. Tuned so
 // dense cores saturate but thin edges stay translucent -- too high (the
 // first 1400 value) turned every density onset into a hard opaque cliff, so
@@ -1059,7 +1073,7 @@ fn cloud_sun_tau(
         prev_d = dist;
         let lp = p + sun_local * dist;
         let dens = cloud_density_light(lp, t, seed, weather_a, reg);
-        tau = tau + CLOUD_HI_SIGMA_T * dens * seg;
+        tau = tau + CLOUD_HI_SIGMA_T * CLOUD_LIGHT_SIGMA_MULT * dens * seg;
         // v0.911 (perf audit #3): once the sun path is this optically deep
         // every scatter octave is effectively zero - later taps cannot
         // change the pixel. Saves up to half the light taps inside dense
