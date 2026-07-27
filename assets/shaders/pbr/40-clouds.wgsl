@@ -197,6 +197,25 @@ const CLOUD_DETAIL_ERODE: f32 = 0.38;
 // NEAR ~0.03 R = ~190 km; FAR ~0.35 R = ~2200 km.
 const CLOUD_DETAIL_FADE_NEAR: f32 = 0.03;
 const CLOUD_DETAIL_FADE_FAR: f32 = 0.70;
+// ── PUFF band (v0.1011, clouds STRUCTURE arc: "real clouds are pillowy /
+// cauliflower-like") ── a THIRD erosion band at ~4x the fine-detail
+// frequency. The existing ladder bottomed out at ~2.2 km features, so
+// everything smaller rendered smooth - but cauliflower lobes read at
+// 100-700 m. This band carves ~0.5-1.8 km cavities into mass edges (which
+// is what makes lobes) and only exists NEAR the camera: full within ~50 km
+// (the deck overhead when standing on the surface), gone by ~290 km, so
+// the orbital marble and the horizon-distance deck pay nothing.
+// Shader-only tuning (texture-sampling path; not mirrorable).
+const CLOUD_PUFF_FREQ: f32 = 140.0;
+const CLOUD_PUFF_ERODE: f32 = 0.38;
+const CLOUD_PUFF_FADE_NEAR: f32 = 0.008;
+const CLOUD_PUFF_FADE_FAR: f32 = 0.045;
+// Crevice occlusion from the SAME puff noise (already sampled for the
+// erosion, so this shading is free): surviving density next to a carved
+// cavity darkens, which is what makes individual lobes read as 3D bumps
+// even though the light march steps (~4 km) are far coarser than the
+// lobes themselves. Fraction of ambient+scatter removed at full cavity.
+const CLOUD_PUFF_AO: f32 = 0.60;
 // Coverage carve thresholds (shader-only tuning; not mirrored -- the density
 // function they live in samples textures and cannot be mirrored). The shape
 // noise must clear a weather-driven threshold to become cloud: where the
@@ -987,6 +1006,9 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
 // coarse fray band is always on, which is what gives the ORBITAL marble its
 // wispy frayed edges (the fix for the "giant blotches": before, all erosion
 // faded with distance and orbit saw only smooth round blobs).
+// Returns (density, puff cavity 0..1). The cavity channel is the puff
+// noise that carved this neighborhood - the march turns it into crevice
+// occlusion so lobes shade individually (v0.1011).
 fn cloud_density_hi(
     p: vec3<f32>,
     t: f32,
@@ -994,11 +1016,12 @@ fn cloud_density_hi(
     weather_a: f32,
     reg: CloudRegime,
     detail_amt: f32,
-) -> f32 {
+    puff_amt: f32,
+) -> vec2<f32> {
     let cs = cloud_carve(p, t, seed, weather_a, reg);
     var base = cs.carve;
     if (base <= 0.003) {
-        return 0.0;
+        return vec2<f32>(0.0, 0.0);
     }
     // COARSE fray (always on -> orbit wispiness): erode edges with the detail
     // volume's Worley FBM sampled at a LOW world frequency (~88 km features,
@@ -1016,7 +1039,7 @@ fn cloud_density_hi(
     let fmask = smoothstep(CLOUD_FIL_LO, CLOUD_FIL_HI, fr.a);
     base = base * mix(1.0, fmask, reg.filament);
     if (base <= 0.003) {
-        return 0.0;
+        return vec2<f32>(0.0, 0.0);
     }
     // FINE cauliflower (near only): high-frequency Worley erosion, phase
     // flipping with height (wispy bases, billowy tops). Fades out with
@@ -1029,10 +1052,30 @@ fn cloud_density_hi(
             * CLOUD_DETAIL_ERODE * reg.fine * detail_amt;
         base = clamp(cloud_remap(base, dmod, 1.0, 0.0, 1.0), 0.0, 1.0);
     }
+    // PUFF band (v0.1011): the cauliflower-lobe scale the ladder was
+    // missing (~0.5-1.8 km cavities). Edge-weighted like the coarse fray
+    // (1-base) so cores stay solid while mass surfaces break into lobes;
+    // same wispy-base / billowy-top height phase as the fine band. Only
+    // near the camera (puff_amt fades by ~290 km).
+    var cavity = 0.0;
+    if (puff_amt > 0.01 && base > 0.003) {
+        let pu = textureSampleLevel(
+            cloud_detail_tex, cloud_tile_sampler, cs.ps * CLOUD_PUFF_FREQ, 0.0);
+        let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
+        let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));
+        let pmod = phased
+            * CLOUD_PUFF_ERODE * reg.fine * puff_amt
+            * (0.30 + 0.70 * (1.0 - base));
+        base = clamp(cloud_remap(base, pmod, 1.0, 0.0, 1.0), 0.0, 1.0);
+        // Cavity field for crevice occlusion: the same phased noise,
+        // regime- and distance-weighted, independent of the edge weight
+        // so even solid cores shade lobe-by-lobe.
+        cavity = clamp(phased * reg.fine, 0.0, 1.0) * puff_amt;
+    }
     // Thin-edge shaping: pow > 1 makes low densities translucent (see-through
     // skirts) while cores stay opaque, then the regime opacity scales the whole
     // (cirrus faint, cumulus solid).
-    return pow(base, CLOUD_DENSITY_POW) * reg.opacity;
+    return vec2<f32>(pow(base, CLOUD_DENSITY_POW) * reg.opacity, cavity);
 }
 
 // The LIGHT-march density: carved body only (no fray/detail taps -- edges err
@@ -1232,7 +1275,12 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         // cauliflower. The COARSE fray band inside cloud_density_hi is always
         // on, so orbit keeps its wispy frayed edges.
         let detail_amt = 1.0 - smoothstep(CLOUD_DETAIL_FADE_NEAR, CLOUD_DETAIL_FADE_FAR, tm);
-        let dens = cloud_density_hi(p, t, seed, weather_a, reg, detail_amt);
+        // Puff-band fade (v0.1011): full cauliflower within ~50 km of the
+        // camera, gone by ~290 km - surface and fly-through views get the
+        // lobes, the orbital marble never pays for them.
+        let puff_amt = 1.0 - smoothstep(CLOUD_PUFF_FADE_NEAR, CLOUD_PUFF_FADE_FAR, tm);
+        let dc = cloud_density_hi(p, t, seed, weather_a, reg, detail_amt, puff_amt);
+        let dens = dc.x;
         if (dens <= 0.001) {
             continue;
         }
@@ -1253,8 +1301,15 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         let h = clamp((length(p) - CLOUD_RB) / (CLOUD_RT - CLOUD_RB), 0.0, 1.0);
         let amb = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h);
 
+        // Crevice occlusion (v0.1011): the puff cavity field darkens the
+        // sample - lobes shade individually even though the light march
+        // is far coarser than the lobe scale. Direct takes half the
+        // occlusion (crevices still catch some sun), ambient the full.
+        let ao = 1.0 - CLOUD_PUFF_AO * dc.y;
+        let lit = direct * mix(1.0, ao, 0.5) + amb * ao;
+
         let c_i = material.base_color.rgb
-            * (sun_energy * (direct + amb) * day + vec3<f32>(CLOUD_NIGHT_FLOOR));
+            * (sun_energy * lit * day + vec3<f32>(CLOUD_NIGHT_FLOOR));
         acc = acc + c_i * (trans * a_i);
         acc_w = acc_w + trans * a_i;
         trans = trans * (1.0 - a_i);
