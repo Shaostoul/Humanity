@@ -512,6 +512,11 @@
       "date": "2026-07-26",
       "decision": "v0.985.2 billboard-bake generalization DESIGN NOTE (docs/design/billboard-bake-generalization.md): code-read-grounded increment plan extending the shipped conifer baker to any decorations.ron model - dynamic atlas registry (HashMap model->tile over 2048sq, bake uniques at world load), decoration card rung beyond a deco_card_m slider reusing the type-12 sprite branch (uv encoding carries dozens of tiles fine), modder path = decorations.ron names it and the engine bakes it. Deferred: multi-angle imposters, supersampled bakes, normal capture. Implementation deliberately deferred to a fresh session per the megashader-split discipline - renderer+shader+draw-path surgery does not belong at the tail of a 14-release day.",
       "why": "The conifer pipeline proved every stage; writing the map while the code read is fresh makes the next session start at implementation, not archaeology."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.986.0 mid-disc atmospheric veil (Active-focus graphics want 2): new ATMO_MID_VEIL=0.55 in 30-atmosphere.wgsl scales surface-hitting transmittance alpha across the b/rp 0.30..0.90 incidence ramp, gated by max(w_alt,w_far) so only space cameras see it - nadir, limb ring, ground views, and non-surface star rays untouched by construction. Hot-reload A/B: blue marble gains the classic photo veil gradient (before: photo-sharp to the last few percent then a limb jump); 400 km Sahara keeps near-nadir sharpness with natural horizon haze. The knob is a named const for operator retune.",
+      "why": "The march was already physical; the veil is a presentation-side gain on an operator-wanted look, kept surgical (one gated multiply) so every previously approved view is bit-identical where the gate is zero."
     }
   ],
   "active_scopes_to_avoid": [
