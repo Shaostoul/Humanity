@@ -517,6 +517,28 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 discard;
             }
         }
+        // Grass distance dissolve (v0.999, operator: "a line of light
+        // perpendicular to me like 10 meters away"): grass tufts only bake
+        // on the deepest terrain patches, so their field ended at a hard
+        // patch boundary that ringed the camera and lit up at grazing sun.
+        // Bit 18 marks grass cards; they Bayer-dissolve over 30..45 m so
+        // the field fades out well inside the guaranteed-grass region and
+        // the moving edge disappears.
+        if ((packed & 262144u) != 0u) {
+            let tuft_dist = length(camera.view_pos.xyz - in.world_position);
+            let fade = smoothstep(30.0, 45.0, tuft_dist);
+            if (fade > 0.0) {
+                let gpx = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
+                let gbx = gpx.x % 4u;
+                let gby = gpx.y % 4u;
+                let gbits = (gbx & 1u) | ((gby & 1u) << 1u) | (((gbx >> 1u) & 1u) << 2u) | (((gby >> 1u) & 1u) << 3u);
+                let ginter = ((gbits & 1u) << 3u) | (((gbits >> 1u) & 1u) << 2u) | (((gbits >> 2u) & 1u) << 1u) | ((gbits >> 3u) & 1u);
+                let gthresh = (f32(ginter) + 0.5) / 16.0;
+                if (fade >= gthresh) {
+                    discard;
+                }
+            }
+        }
         let pw_bits = u32(round(max(material.params.w, 0.0)));
         let has_tex = (pw_bits & 1u) != 0u;
         let detail_on = (pw_bits & 2u) != 0u;

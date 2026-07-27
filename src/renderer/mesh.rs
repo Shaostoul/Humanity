@@ -175,10 +175,11 @@ impl Mesh {
                 uv: if v.color[0] < 0.0 {
                     [v.color[1], v.color[2]]
                 } else {
-                    crate::terrain::planet_surface::pack_color_to_uv_flags(
+                    crate::terrain::planet_surface::pack_color_to_uv_flags2(
                         v.color,
                         v.water,
                         v.tree_card,
+                        v.grass_card,
                     )
                 },
             })

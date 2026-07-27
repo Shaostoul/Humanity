@@ -1399,7 +1399,8 @@ pub fn build_patch_mesh(
                     normal: dirs[i].as_vec3().to_array(),
                     color,
                     water: true,
-                        tree_card: false,
+                    tree_card: false,
+                    grass_card: false,
                 });
             }
         } else {
@@ -1424,6 +1425,7 @@ pub fn build_patch_mesh(
                     color,
                     water: false,
                         tree_card: false,
+                        grass_card: false,
                 });
             }
         }
@@ -1469,6 +1471,7 @@ pub fn build_patch_mesh(
         // unmarked (no model replaces them). A Cell because the pass loop
         // flips it while the closure holds its capture.
         let marking_trees = std::cell::Cell::new(false);
+        let marking_grass = std::cell::Cell::new(false);
         let mut emit_card = |base: glam::Vec3,
                              up: glam::Vec3,
                              side: glam::Vec3,
@@ -1497,6 +1500,7 @@ pub fn build_patch_mesh(
                         color,
                         water: false,
                         tree_card: marking_trees.get(),
+                        grass_card: marking_grass.get(),
                     });
                 }
             }
@@ -1542,6 +1546,7 @@ pub fn build_patch_mesh(
                         color: col,
                         water: false,
                         tree_card: true,
+                        grass_card: false,
                     });
                 }
             }
@@ -1598,6 +1603,7 @@ pub fn build_patch_mesh(
                 continue;
             }
             marking_trees.set(is_tree);
+            marking_grass.set(!is_tree);
             let cell = if is_tree { TREE_CELL_RAD } else { GRASS_CELL_RAD };
             let per_cell = if is_tree { TREES_PER_CELL } else { GRASS_PER_CELL };
             let salt: u64 = if is_tree { 0x51F0_A11C } else { 0x9A55_77EE };
@@ -1776,6 +1782,7 @@ pub fn build_patch_mesh(
                     color,
                     water: skirt_water,
                         tree_card: false,
+                        grass_card: false,
                 });
             }
         }
@@ -2111,6 +2118,7 @@ pub fn build_water_patch_mesh(
                 color: depth_colors[i],
                 water: true,
                 tree_card: false,
+                grass_card: false,
             });
         }
     };
