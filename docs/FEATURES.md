@@ -453,9 +453,13 @@ Local-first note editor with auto-save, search, markdown preview, export.
 45 curated real-world resource links (education, health, housing, etc.) + in-game guides.
 - Web: `web/pages/resources.html`, `web/pages/resources-app.js`
 
-### Glossary System
-150+ terms with definitions, searchable tooltip overlay on all pages.
+### Glossary / Dictionary System
+150+ terms with definitions. Web: searchable tooltip overlay on all pages.
+Native (v0.989): a Dictionary section in the Library (search + category
+filters + term cards) plus a "Define words" toggle on every Library
+document - click any word for its definition, dictionary hits underlined.
 - Web: `web/shared/glossary.js`
+- Native: `src/gui/glossary.rs`, Dictionary + define mode in `src/gui/pages/library.rs`
 - Data: `data/glossary.json`
 
 ### Admin Dashboard

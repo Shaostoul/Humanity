@@ -57,10 +57,42 @@ impl Glossary {
         self.terms.get(&term.to_lowercase())
     }
 
+    /// Look up a single word as clicked in running text (v0.989, the
+    /// Library define mode): trims surrounding punctuation and tries the
+    /// bare word. Multi-word terms ("semi-major axis") stay reachable via
+    /// the Dictionary search; a single click can only carry one word.
+    pub fn lookup_word(&self, raw: &str) -> Option<&GlossaryEntry> {
+        let w = raw.trim_matches(|c: char| !c.is_alphanumeric());
+        if w.is_empty() {
+            return None;
+        }
+        self.lookup(w)
+    }
+
     /// Total term count — useful for diagnostics / Settings page status.
     #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.terms.len()
+    }
+
+    /// Every entry, sorted by display term - the Dictionary browser's
+    /// backing list (v0.989).
+    pub fn entries_sorted(&self) -> Vec<&GlossaryEntry> {
+        let mut v: Vec<&GlossaryEntry> = self.terms.values().collect();
+        v.sort_by(|a, b| a.term.to_lowercase().cmp(&b.term.to_lowercase()));
+        v
+    }
+
+    /// Category id -> human display name ("space" -> "Space & Astronomy").
+    pub fn category_name(&self, id: &str) -> Option<&str> {
+        self.categories.get(id).map(|s| s.as_str())
+    }
+
+    /// Category ids in display-name order, for the filter chips.
+    pub fn category_ids(&self) -> Vec<&str> {
+        let mut v: Vec<&str> = self.categories.keys().map(|s| s.as_str()).collect();
+        v.sort_by_key(|id| self.categories.get(*id).cloned().unwrap_or_default());
+        v
     }
 }
 
