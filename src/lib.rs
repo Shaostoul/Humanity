@@ -10054,10 +10054,11 @@ mod native_app {
                             // Stage 3b-2: this frame's sky-view inputs. The
                             // shell radius is radius * (1 + 2*scale) - the
                             // drawn shell-mesh expression shell_packing pairs
-                            // with. (The v0.915 tint block below divides by
-                            // radius*scale, which pegs ITS cam_r at 1.0; that
-                            // path is approved-looking so it is left alone,
-                            // flagged for a separate look.)
+                            // with. (The v0.915 tint block below used to
+                            // divide by radius*scale, pegging ITS cam_r at
+                            // 1.0 - fixed v0.1004 after the operator's
+                            // floodlit-ground-at-night screenshot traced to
+                            // exactly that peg.)
                             let shell_r_m = radius * (1.0 + scale.max(0.005) as f64 * 2.0);
                             let cam_r = ((state.frame_lock_anchor.length()
                                 / shell_r_m.max(1.0))
@@ -10097,7 +10098,25 @@ mod native_app {
                                         d.scale_height_or_default(),
                                         d.radius,
                                     );
-                                    let shell_r_m = d.radius * d.atmosphere_scale as f64;
+                                    // v0.1004 (operator night screenshot, the
+                                    // "floodlit ground pool at 05:30" bug): this
+                                    // used radius * scale as the shell radius -
+                                    // a tiny number that pegged cam_r at 1.0,
+                                    // the TOP of the atmosphere. Transmittance
+                                    // was then evaluated where below-horizon
+                                    // sun rays still graze past the planet's
+                                    // limb, so direct sun kept lighting
+                                    // terrain until ~12 degrees below the
+                                    // horizon: any east-tilted slope glowed
+                                    // like a floodlight pool before dawn. The
+                                    // REAL shell radius (same expression as
+                                    // the sky-view block above) puts cam_r at
+                                    // the surface, where a below-horizon ray
+                                    // strikes the planet and od_to_space
+                                    // returns infinite depth -> the sun now
+                                    // dies AT the geometric horizon.
+                                    let shell_r_m = d.radius
+                                        * (1.0 + d.atmosphere_scale.max(0.005) as f64 * 2.0);
                                     let cam_r = ((state.frame_lock_anchor.length()
                                         / shell_r_m.max(1.0))
                                         as f32)

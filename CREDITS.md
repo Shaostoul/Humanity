@@ -7,7 +7,7 @@ If you contributed and are missing, tell us - being remembered is the point.
 
 ## Creator
 
-- **Shaostoul (Michael)** - vision, direction, design, testing, and seven
+- **Michael Boisson (Shaostoul)** - vision, direction, design, testing, and seven
   years of refusing to give up on the idea that a game can help end poverty.
 
 ## AI development partners

@@ -446,6 +446,40 @@ mod tests {
         assert!((thin - 1.0 / 1.01).abs() < 1.0e-5);
     }
 
+    /// v0.1004 regression (operator night screenshot: floodlit ground pool
+    /// at 05:30): the sun-light tint block used to evaluate transmittance
+    /// with cam_r pegged at 1.0 (the top of the atmosphere), where rays
+    /// from a below-horizon sun still graze past the planet's limb - so
+    /// direct sun kept lighting terrain until ~12 degrees below the
+    /// horizon. From the SURFACE (cam_r = rp, what lib.rs computes now), a
+    /// below-horizon ray strikes the planet and the transmittance must be
+    /// exactly black.
+    #[test]
+    fn below_horizon_sun_is_black_at_the_surface_but_was_alive_at_the_old_peg() {
+        let (rp, h) = shell_packing(0.015, 8_500.0, 6_371_000.0);
+        let ac = [0.35_f32, 0.55, 1.0, 1.0];
+        // Sun ~7.5 degrees below the local horizon (the operator's 05:30).
+        let mu = -0.13_f32;
+        let fixed = sun_transmittance(rp, mu, rp, h, ac);
+        assert_eq!(
+            fixed,
+            [0.0, 0.0, 0.0],
+            "surface transmittance must be black below the horizon"
+        );
+        // The OLD pegged geometry (cam_r = 1.0) let real light through -
+        // this is the bug the fix removes; if this ever goes black too the
+        // test above stops proving anything, so pin it.
+        let pegged = sun_transmittance(1.0, mu, rp, h, ac);
+        assert!(
+            pegged[0] > 1.0e-4,
+            "top-of-atmosphere ray at mu={mu} should still clear the limb (got {pegged:?})"
+        );
+        // Sanity: daytime surface sun stays alive and warm-shifted (red
+        // survives at least as well as blue).
+        let noon = sun_transmittance(rp, 0.8, rp, h, ac);
+        assert!(noon[0] > 0.5 && noon[0] >= noon[2]);
+    }
+
     #[test]
     fn exposure_blend_keeps_far_and_limb_looks_and_calms_the_near_disc() {
         // Far camera (the approved 12,000 km Earth view is ~2.88 shell
