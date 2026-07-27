@@ -2204,6 +2204,23 @@ mod native_app {
                                 }
                                 if opened {
                                     state.gui_state.npc_talk_target = Some(npc_id);
+                                    // Talk quest emitter (v0.981, the second half of
+                                    // the v0.979 Travel pair): opening the dialogue
+                                    // IS "talked to them". Keyed by the stable name
+                                    // slug so quests reference people, not
+                                    // session-scoped entity ids. Re-opens re-fire,
+                                    // which is harmless (Talk objectives latch at 1)
+                                    // and lets a later-accepted quest complete on
+                                    // the next chat.
+                                    crate::systems::quests::push_quest_event(
+                                        &state.data_store,
+                                        format!(
+                                            "talk_{}",
+                                            crate::systems::quests::npc_talk_key(
+                                                &state.gui_state.npc_talk_name
+                                            )
+                                        ),
+                                    );
                                     // No greetings authored -> lead with the first
                                     // dialog line instead of an empty card.
                                     if state.gui_state.npc_talk_line.is_empty() {

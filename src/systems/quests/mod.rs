@@ -148,6 +148,28 @@ pub fn travel_transitions(
     entered
 }
 
+/// Stable quest key for an NPC display name: lowercase, every non-alphanumeric
+/// run collapsed to one underscore, trimmed. "Mira Chen" -> "mira_chen", so a
+/// quest authors Talk(npc_id: "mira_chen") no matter how the relay styles the
+/// name. The talk emitter (lib.rs dialogue-open) fires "talk_<this>".
+pub fn npc_talk_key(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut last_us = true; // suppress a leading underscore
+    for c in name.chars() {
+        if c.is_alphanumeric() {
+            out.extend(c.to_lowercase());
+            last_us = false;
+        } else if !last_us {
+            out.push('_');
+            last_us = true;
+        }
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    out
+}
+
 /// Push a quest-progress event key (e.g. `"craft_smelt_iron"`, `"harvest_potato"`)
 /// onto the shared `"quest_events"` DataStore channel. Action systems call this on
 /// completion; [`QuestSystem`] drains it each tick and bumps matching progress
@@ -542,6 +564,92 @@ mod quest_tests {
         // Leave, then return: fires again.
         assert!(travel_transitions((30.0, 30.0), &dests, &mut inside).is_empty());
         assert_eq!(travel_transitions((10.0, 10.0), &dests, &mut inside), vec!["fields"]);
+    }
+
+    #[test]
+    fn npc_talk_key_slugs_names_stably() {
+        assert_eq!(npc_talk_key("Mira Chen"), "mira_chen");
+        assert_eq!(npc_talk_key("  D'Arcy-Lou  "), "d_arcy_lou");
+        assert_eq!(npc_talk_key("R2"), "r2");
+        assert_eq!(npc_talk_key("___"), "");
+    }
+
+    /// THE quest-data lockstep (v0.981, post-audit item 1 made permanent):
+    /// every id any shipped quest objective references must exist in its
+    /// source-of-truth data file. The 2026-07-20 audit found quests ~80%
+    /// dead-id; the rewrite fixed them, and this test keeps them fixed - a
+    /// quest naming a nonexistent item/recipe/blueprint/crop/destination can
+    /// never advance and now fails the build instead of failing the player.
+    /// (Talk ids are exempt: crew names come from the RELAY at runtime, not
+    /// from static data - the npc_talk_key convention is their contract.)
+    #[test]
+    fn shipped_quest_objective_ids_all_resolve() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let csv_ids = |rel: &str| -> std::collections::HashSet<String> {
+            std::fs::read_to_string(root.join(rel))
+                .unwrap_or_else(|e| panic!("{rel} readable: {e}"))
+                .lines()
+                .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+                .filter_map(|l| l.split(',').next().map(|s| s.trim().to_string()))
+                .collect()
+        };
+        let items = csv_ids("data/items.csv");
+        let recipes = csv_ids("data/recipes.csv");
+        let plants = csv_ids("data/plants.csv");
+        let blueprints = crate::systems::construction::BlueprintRegistry::from_ron(
+            &std::fs::read(root.join("data/blueprints/basic.ron")).unwrap(),
+        )
+        .expect("blueprints parse");
+        let dests = DestinationList::from_ron(
+            &std::fs::read(root.join("data/entities/destinations.ron")).unwrap(),
+        )
+        .expect("destinations parse");
+        let dest_ids: std::collections::HashSet<&str> =
+            dests.destinations.iter().map(|d| d.id.as_str()).collect();
+
+        let reg = QuestRegistry::from_ron_dir(&root.join("data/quests"));
+        assert!(reg.quests.len() >= 10, "quest chains load, got {}", reg.quests.len());
+        for q in reg.quests.values() {
+            for s in &q.steps {
+                match &s.objective {
+                    QuestObjective::Gather { item_id, .. } => assert!(
+                        items.contains(item_id),
+                        "quest {}: Gather names unknown item {item_id}",
+                        q.id
+                    ),
+                    QuestObjective::Craft { recipe_id, .. } => assert!(
+                        recipes.contains(recipe_id),
+                        "quest {}: Craft names unknown recipe {recipe_id}",
+                        q.id
+                    ),
+                    QuestObjective::Harvest { crop_id, .. } => assert!(
+                        plants.contains(crop_id),
+                        "quest {}: Harvest names unknown crop {crop_id}",
+                        q.id
+                    ),
+                    QuestObjective::Build { blueprint_id } => assert!(
+                        blueprints.blueprints.contains_key(blueprint_id),
+                        "quest {}: Build names unknown blueprint {blueprint_id}",
+                        q.id
+                    ),
+                    QuestObjective::Travel { destination } => assert!(
+                        dest_ids.contains(destination.as_str()),
+                        "quest {}: Travel names unknown destination {destination}",
+                        q.id
+                    ),
+                    QuestObjective::Talk { .. } => {} // relay-runtime names, see doc
+                }
+                // Reward items must exist too - a completed quest that grants
+                // a phantom item would vanish the reward silently.
+            }
+            for (item_id, _) in &q.rewards {
+                assert!(
+                    items.contains(item_id),
+                    "quest {}: reward names unknown item {item_id}",
+                    q.id
+                );
+            }
+        }
     }
 
     /// Lockstep guard: every Travel(destination) referenced by any shipped
