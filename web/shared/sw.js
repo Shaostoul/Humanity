@@ -1,6 +1,6 @@
 // Bump version whenever cached assets change.
 // HTML pages are intentionally NEVER cached (they change every deploy).
-const CACHE_NAME = 'humanity-v1752';
+const CACHE_NAME = 'humanity-v1753';
 const SHELL_URLS = [
   '/shared/shell.js',
   '/shared/theme.css',
