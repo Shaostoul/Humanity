@@ -8855,6 +8855,30 @@ mod native_app {
                                     // cover the full radius), else the actual
                                     // reach of the drawn set, slightly shrunk
                                     // so boundary trees keep their cards.
+                                    // Handoff diag (v0.994.1, the sparse-ring field
+                                    // report): covered radius vs slider vs drawn,
+                                    // 1 Hz - the numbers the model/card boundary
+                                    // work needs (density math says the 600 cap
+                                    // covers ~107 m of the 180 m window at bake
+                                    // density; the ring lives in that gap).
+                                    {
+                                        use std::sync::atomic::{AtomicU64, Ordering};
+                                        static LASTT: AtomicU64 = AtomicU64::new(0);
+                                        let now = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|d| d.as_secs())
+                                            .unwrap_or(0);
+                                        if LASTT.swap(now, Ordering::Relaxed) != now {
+                                            log::info!(
+                                                "[TreeHandoff] near={} drawn={} covered={:.0}m window={:.0}m hide={:.0}m",
+                                                state.near_trees.len(),
+                                                drawn,
+                                                covered_r2.sqrt(),
+                                                tree_dist + 60.0,
+                                                if drawn == 0 { 0.0 } else if drawn < 64 { tree_dist as f32 } else { (covered_r2.sqrt() as f32 - 8.0).max(0.0) },
+                                            );
+                                        }
+                                    }
                                     state.renderer.tree_card_hide_m = if drawn == 0 {
                                         // v0.923 (operator: "the plants aren't
                                         // rendering close to me again"): if NO
