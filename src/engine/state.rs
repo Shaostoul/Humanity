@@ -345,6 +345,12 @@ pub(crate) struct EngineState {
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
+    /// True while the surface-locked player actually stands ON the ground
+    /// (v0.996: radial height within a boot's reach of the rest height).
+    /// Footsteps gate on this - jumping/thrusting through the air must be
+    /// silent (operator: "as I'm jumping through the air it's still making
+    /// the footstep noise").
+    pub(crate) on_ground_planet: bool,
     /// Parallel to `near_trees` (v0.995): true = this tree was NOT in the
     /// previous set - it dissolves in over ~a third of a second instead of
     /// blinking into existence (the operator's "trees blink into existence

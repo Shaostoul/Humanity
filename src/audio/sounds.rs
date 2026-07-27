@@ -140,6 +140,13 @@ impl SoundCatalog {
             .unwrap_or_else(|| fallback.to_string())
     }
 
+    /// The catalog volume for a sound ID (0.5 when the id is unknown - the
+    /// same default the TOML parser applies). Feed this to
+    /// `AudioManager::play_sound_vol` so authored volumes actually apply.
+    pub fn volume_or_default(&self, id: &str) -> f64 {
+        self.entries.get(id).map(|e| e.volume as f64).unwrap_or(0.5)
+    }
+
     /// Get all sound IDs in this catalog.
     pub fn ids(&self) -> impl Iterator<Item = &String> {
         self.entries.keys()
@@ -186,6 +193,18 @@ impl SurfaceType {
             SurfaceType::Metal => catalog.path_or("sfx.footstep_metal", FOOTSTEP_METAL),
             SurfaceType::Dirt => catalog.path_or("sfx.footstep_dirt", FOOTSTEP_DIRT),
             SurfaceType::Wood => catalog.path_or("sfx.footstep_wood", FOOTSTEP_WOOD),
+        }
+    }
+
+    /// The catalog id for this surface's footstep - pair with
+    /// `SoundCatalog::volume_or_default` so authored volumes apply (v0.996).
+    pub fn footstep_id(&self) -> &'static str {
+        match self {
+            SurfaceType::Grass => "sfx.footstep_grass",
+            SurfaceType::Stone => "sfx.footstep_stone",
+            SurfaceType::Metal => "sfx.footstep_metal",
+            SurfaceType::Dirt => "sfx.footstep_dirt",
+            SurfaceType::Wood => "sfx.footstep_wood",
         }
     }
 

@@ -53,9 +53,18 @@ impl AudioManager {
 
     /// Play a one-shot sound effect.
     pub fn play_sound(&mut self, path: &str) -> Result<(), String> {
+        self.play_sound_vol(path, 1.0)
+    }
+
+    /// Play a one-shot at a per-sound volume (v0.996): the catalog's
+    /// `volume` field finally applies - before this every effect played at
+    /// full master*sfx amplitude and the operator's "footsteps are kind of
+    /// loud and jarring" was structural, not a tuning miss.
+    pub fn play_sound_vol(&mut self, path: &str, vol: f64) -> Result<(), String> {
         let data = self.load_sound(path)?;
-        let settings = kira::sound::static_sound::StaticSoundSettings::default()
-            .volume(kira::Volume::Amplitude(self.master_volume * self.sfx_volume));
+        let settings = kira::sound::static_sound::StaticSoundSettings::default().volume(
+            kira::Volume::Amplitude(self.master_volume * self.sfx_volume * vol.clamp(0.0, 2.0)),
+        );
         let data_with_settings = data.with_settings(settings);
         self.manager
             .play(data_with_settings)

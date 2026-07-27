@@ -225,7 +225,7 @@ tags = ["market", "social"]
 
 [sfx.footstep_grass]
 path = "audio/sfx/footstep_grass.ogg"
-volume = 0.4
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -236,7 +236,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_stone]
 path = "audio/sfx/footstep_stone.ogg"
-volume = 0.5
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -247,7 +247,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_metal]
 path = "audio/sfx/footstep_metal.ogg"
-volume = 0.55
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -258,7 +258,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_wood]
 path = "audio/sfx/footstep_wood.ogg"
-volume = 0.45
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -269,7 +269,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_sand]
 path = "audio/sfx/footstep_sand.ogg"
-volume = 0.3
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -280,7 +280,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_snow]
 path = "audio/sfx/footstep_snow.ogg"
-volume = 0.35
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -291,7 +291,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_water]
 path = "audio/sfx/footstep_water.ogg"
-volume = 0.5
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0
@@ -302,7 +302,7 @@ tags = ["movement", "surface"]
 
 [sfx.footstep_dirt]
 path = "audio/sfx/footstep_dirt.ogg"
-volume = 0.4
+volume = 0.25
 loop = false
 spatial = true
 falloff_min = 1.0

@@ -1656,6 +1656,7 @@ mod native_app {
                 hero_plant_objects: Vec::new(),
                 hero_plant_missing: std::collections::HashSet::new(),
                 near_tree_new: Vec::new(),
+                on_ground_planet: false,
                 near_tree_born_s: 0.0,
                 machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
@@ -3885,6 +3886,11 @@ mod native_app {
                             anchor = dir1 * r;
                             state.frame_lock_anchor = anchor;
                             state.frame_lock_last_spin = spin;
+                            // Grounded = standing within a boot's reach of the
+                            // rest height (v0.996): the footstep gate. Airborne
+                            // (jump thrust, falling, swimming) is silent.
+                            state.on_ground_planet =
+                                in_walk_band && !submerged && (r - rest).abs() < 0.35;
                             state.gui_state.underwater = submerged && lock_body == "earth";
                             // v0.907: metres below sea level for the tint's
                             // depth grading + HUD readout (planet def radius
@@ -15032,18 +15038,29 @@ mod native_app {
                                         (state.camera.position - state.prev_stride_cam).length();
                                     state.prev_stride_anchor = state.frame_lock_anchor;
                                     state.prev_stride_cam = state.camera.position;
+                                    // v0.996: airborne is SILENT - a jump or a
+                                    // thrust arc used to keep clicking heels
+                                    // (the anchor still moves horizontally).
+                                    // The accumulator also resets so landing
+                                    // doesn't fire an instant catch-up step.
                                     let step = if on_planet {
-                                        d_anchor
+                                        if state.on_ground_planet { d_anchor } else { 0.0 }
                                     } else if aboard {
                                         d_cam
                                     } else {
                                         0.0
                                     };
+                                    if on_planet && !state.on_ground_planet {
+                                        state.stride_accum = 0.0;
+                                    }
                                     // Teleports and band handoffs produce huge
                                     // one-frame deltas - never a footstep.
                                     if step > 0.001 && step < 2.0 {
                                         state.stride_accum += step;
-                                        if state.stride_accum >= 0.75 {
+                                        // 1.5 m per step (v0.996, was 0.75:
+                                        // "the footsteps sound way too fast" -
+                                        // a real walking stride, half the rate).
+                                        if state.stride_accum >= 1.5 {
                                             state.stride_accum = 0.0;
                                             let surface = if on_planet {
                                                 crate::audio::sounds::SurfaceType::Grass
@@ -15052,8 +15069,11 @@ mod native_app {
                                             };
                                             let rel =
                                                 surface.footstep_sound_from(&state.sound_catalog);
+                                            let vol = state
+                                                .sound_catalog
+                                                .volume_or_default(surface.footstep_id());
                                             let path = format!("assets/{rel}");
-                                            let _ = audio.play_sound(&path);
+                                            let _ = audio.play_sound_vol(&path, vol);
                                         }
                                     } else if step >= 2.0 {
                                         state.stride_accum = 0.0;
@@ -15068,7 +15088,8 @@ mod native_app {
                                         "assets/{}",
                                         state.sound_catalog.path_or(id, fallback)
                                     );
-                                    if let Err(e) = audio.play_sound(&path) {
+                                    let vol = state.sound_catalog.volume_or_default(id);
+                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
                                         static WARNED: std::sync::Once = std::sync::Once::new();
                                         WARNED.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
@@ -15086,7 +15107,8 @@ mod native_app {
                                         "assets/{}",
                                         state.sound_catalog.path_or(&id, &fallback)
                                     );
-                                    if let Err(e) = audio.play_sound(&path) {
+                                    let vol = state.sound_catalog.volume_or_default(&id);
+                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
                                         static WARNED2: std::sync::Once = std::sync::Once::new();
                                         WARNED2.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
@@ -15105,7 +15127,10 @@ mod native_app {
                                             "audio/ui/button_click.ogg"
                                         )
                                     );
-                                    if let Err(e) = audio.play_sound(&path) {
+                                    let vol = state
+                                        .sound_catalog
+                                        .volume_or_default("sfx.button_click");
+                                    if let Err(e) = audio.play_sound_vol(&path, vol) {
                                         // Once per session is plenty.
                                         static WARNED: std::sync::Once = std::sync::Once::new();
                                         WARNED.call_once(|| log::warn!("[Audio] ui click: {e}"));
