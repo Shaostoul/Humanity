@@ -19,6 +19,7 @@ use crate::systems::weather::Weather;
 use crate::terrain::planet::PlanetDef;
 
 /// One placed machine's world anchor for the plant pass (v0.863).
+#[derive(Clone)]
 pub(crate) struct GrowSpot {
     pub(crate) ty: String,
     pub(crate) id: String,
@@ -336,6 +337,14 @@ pub(crate) struct EngineState {
     /// pos, yaw deg, uniform scale) scattered from
     /// data/entities/decorations.ron at home build.
     pub(crate) decoration_objects: Vec<(usize, usize, Vec3, f32, f32)>,
+    /// Hero crop models (v0.992): planted crops whose species has a converted
+    /// Quaternius stage model (assets/models/plants/<crop>_<1..4>/) render as
+    /// real 3D models instead of joining the procedural plant mesh. Same
+    /// tuple shape as decoration_objects; rebuilt inside rebuild_plant_meshes.
+    pub(crate) hero_plant_objects: Vec<(usize, usize, Vec3, f32, f32)>,
+    /// Crop model names that failed to load once - skipped on later rebuilds
+    /// so ~114 modelless species never re-attempt a parse per growth tick.
+    pub(crate) hero_plant_missing: std::collections::HashSet<String>,
     /// Mesh/material cache for decoration models so world reloads reuse
     /// GPU resources instead of re-appending them.
     pub(crate) decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,

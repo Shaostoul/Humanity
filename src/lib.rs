@@ -1653,6 +1653,8 @@ mod native_app {
                 placeholder_objects: Vec::new(),
                 machine_objects: Vec::new(),
                 decoration_objects: Vec::new(),
+                hero_plant_objects: Vec::new(),
+                hero_plant_missing: std::collections::HashSet::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
                 near_trees: Vec::new(),
                 near_trees_center: glam::DVec3::splat(f64::MAX),
@@ -6325,6 +6327,18 @@ mod native_app {
                         // Photoscanned decoration plants (v0.909): CC0 models
                         // scattered from data/entities/decorations.ron.
                         for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.decoration_objects {
+                            all_objects.push(RenderObject { fade: 0.0,
+                                position: pos,
+                                rotation: Quat::from_rotation_y(yaw.to_radians()),
+                                scale: Vec3::splat(scl),
+                                mesh: mesh_idx,
+                                material: mat_idx,
+                            });
+                        }
+                        // Hero crop models (v0.992): planted crops with a
+                        // converted Quaternius stage model; rebuilt alongside
+                        // the procedural plants in rebuild_plant_meshes.
+                        for &(mesh_idx, mat_idx, pos, yaw, scl) in &state.hero_plant_objects {
                             all_objects.push(RenderObject { fade: 0.0,
                                 position: pos,
                                 rotation: Quat::from_rotation_y(yaw.to_radians()),

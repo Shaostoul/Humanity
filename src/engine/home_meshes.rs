@@ -623,10 +623,39 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         return;
     }
     state.plant_mesh_sig = sig;
+    // Hero crop models rebuild with the procedural plants (v0.992): the list
+    // regenerates below from the same CropInstance query.
+    state.hero_plant_objects.clear();
 
-    let plant_reg = state
-        .data_store
-        .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+    // Stage lists resolved UP FRONT into owned strings (v0.992): holding the
+    // PlantRegistry borrow across the crop loop would forbid the &mut state
+    // call the hero-model loader needs.
+    let stage_map: std::collections::HashMap<String, Vec<String>> = {
+        let plant_reg = state
+            .data_store
+            .get::<crate::systems::farming::PlantRegistry>("plant_registry");
+        let mut m = std::collections::HashMap::new();
+        for (_e, c) in state
+            .game_world
+            .world
+            .query::<&crate::ecs::components::CropInstance>()
+            .iter()
+        {
+            if !m.contains_key(&c.crop_def_id) {
+                let stages: Vec<String> = plant_reg
+                    .and_then(|r| r.get(&c.crop_def_id))
+                    .map(|d| d.stages().iter().map(|s| s.to_string()).collect())
+                    .unwrap_or_else(|| {
+                        crate::ecs::components::DEFAULT_GROWTH_STAGES
+                            .iter()
+                            .map(|s| s.to_string())
+                            .collect()
+                    });
+                m.insert(c.crop_def_id.clone(), stages);
+            }
+        }
+        m
+    };
     // Visual defs: read fresh from disk each rebuild (rebuilds are rare and
     // this is what makes live-editing plants_visual.ron work), with the
     // committed file as the only source (no embedded fallback yet).
@@ -662,6 +691,9 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         // - tower INSTANCE id ("ntower_5", from the showcase auto-seed):
         //   dress that exact column;
         // - bed/field/rack INSTANCE id: grid across the machine footprint.
+        // grid_spot is CLONED out of state (v0.992): the hero-model branch
+        // below needs &mut state mid-loop, which a live &GrowSpot borrow
+        // would forbid. GrowSpot is a few strings + floats; rebuilds are rare.
         let (helix_cfg, base, grid_spot) = if let Some(cfg) =
             tower_cfgs.iter().find(|t| t.id == *cfg_id)
         {
@@ -670,18 +702,20 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                 Some(g) => (Some(cfg), g.pos, None),
                 None => continue,
             }
-        } else if let Some(g) = state.grow_positions.iter().find(|g| g.id == *cfg_id) {
+        } else if let Some(g) = state.grow_positions.iter().find(|g| g.id == *cfg_id).cloned() {
             if let Some(cfg_key) = g.ty.strip_prefix("aeroponic_tower_") {
                 match tower_cfgs.iter().find(|t| t.id == cfg_key) {
                     Some(cfg) => (Some(cfg), g.pos, None),
                     None => continue,
                 }
             } else {
-                (None, g.pos, Some(g))
+                let pos = g.pos;
+                (None, pos, Some(g))
             }
         } else {
             continue;
         };
+        let grid_spot = grid_spot.as_ref();
         let slots = helix_cfg.map(|c| c.slots.max(1)).unwrap_or(1);
         let radius = helix_cfg.map(|c| c.diameter_m * 0.5).unwrap_or(0.0);
         let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
@@ -702,12 +736,11 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
                 }
             };
             // Stage index -> growth t (same bucketing the GUI shows).
-            let stages: Vec<&str> = plant_reg
-                .and_then(|r| r.get(def_id))
-                .map(|d| d.stages())
-                .unwrap_or_else(|| {
-                    crate::ecs::components::DEFAULT_GROWTH_STAGES.iter().copied().collect()
-                });
+            let default_stages: Vec<String> = crate::ecs::components::DEFAULT_GROWTH_STAGES
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
+            let stages: &Vec<String> = stage_map.get(def_id).unwrap_or(&default_stages);
             let dead = stage.as_str() == crate::ecs::components::STAGE_DEAD;
             let t = if dead {
                 0.6
@@ -748,6 +781,23 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
             } else {
                 continue;
             };
+            // Hero crop models (v0.992, the Quaternius growth stages):
+            // convention over config - a species whose lowercased id has a
+            // converted stage model (assets/models/plants/<id>_<1..4>/) uses
+            // the real 3D model at the stage quartile instead of the
+            // procedural recipe. Beds/fields only: tower net cups keep the
+            // scaled procedural look, and dead crops keep the procedural
+            // wilt. Everything else falls through unchanged.
+            if grid_spot.is_some() && !dead {
+                let q = ((t * 4.0).ceil() as u32).clamp(1, 4);
+                let model = format!("{}_{q}", def_id.to_lowercase());
+                if let Some((mi, ma)) = load_hero_plant_model(state, &model) {
+                    // Deterministic per-slot yaw so replanting never spins.
+                    let yaw = ((*slot).wrapping_mul(2_654_435_761) % 360) as f32;
+                    state.hero_plant_objects.push((mi, ma, Vec3::from(pos), yaw, 1.0));
+                    continue;
+                }
+            }
             // Tower plants render at reduced scale so a tree in a net cup
             // reads as a dwarf/espalier rather than a full orchard tree.
             // Bed/field plants grow full size.
@@ -791,6 +841,46 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
         }
     }
     state.plant_objects = objs;
+}
+
+/// Load (and cache) one hero crop stage model by name ("carrot_3"). Shares
+/// `decoration_mesh_cache` with the decorations loader - same folder
+/// convention, same type-19 textured material - and remembers failures in
+/// `hero_plant_missing` so species without converted models cost one attempt
+/// per session, not one per growth rebuild. (v0.992)
+fn load_hero_plant_model(state: &mut EngineState, model: &str) -> Option<(usize, usize)> {
+    if let Some(&mm) = state.decoration_mesh_cache.get(model) {
+        return Some(mm);
+    }
+    if state.hero_plant_missing.contains(model) {
+        return None;
+    }
+    let rel = format!("assets/models/plants/{model}/{model}.gltf");
+    match state.asset_manager.parse_gltf_mesh_textured(&state.renderer.device, &rel) {
+        Ok((mesh, tex)) => {
+            let mesh_idx = state.renderer.add_mesh(mesh);
+            let mat_idx = match tex {
+                Some((rgba, w, h)) => state.renderer.add_textured_material(
+                    [1.0, 1.0, 1.0, 1.0],
+                    0.0,
+                    0.9,
+                    19.0,
+                    0.0,
+                    &rgba,
+                    w,
+                    h,
+                ),
+                None => state.renderer.add_material_full([0.35, 0.5, 0.3, 1.0], 0.0, 0.9, 0.0, 0.0),
+            };
+            state.decoration_mesh_cache.insert(model.to_string(), (mesh_idx, mat_idx));
+            Some((mesh_idx, mat_idx))
+        }
+        Err(_) => {
+            // Not an error: most species simply have no converted model yet.
+            state.hero_plant_missing.insert(model.to_string());
+            None
+        }
+    }
 }
 
 /// Rebuild the home connection cylinders from the live machine layout (gui_state.home_machines
