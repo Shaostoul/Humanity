@@ -507,6 +507,11 @@
       "date": "2026-07-26",
       "decision": "v0.985.0 SFX wave 2: sfx_events DataStore channel (registered beside quest_events; helper systems::push_sfx_event lives OUTSIDE the native-gated audio module so relay compiles - first attempt in audio::sounds broke the relay check, caught immediately). Wired: construction complete -> place_block thunk, craft complete -> hammer (both in on-complete hooks beside their quest events), incoming DM ding (chat_message; gated !is_from_me + !dm_is_open + notif_dm_enabled; quiet hours stay a server-push concern). Audio block drains both pending_sfx and the channel.",
       "why": "The channel pattern lets any ECS system emit sound in two lines with zero audio coupling; the relay-gate lesson is the same native-gate gotcha as the v0.416 save_load incident, caught this time by the mandatory relay check."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.985.2 billboard-bake generalization DESIGN NOTE (docs/design/billboard-bake-generalization.md): code-read-grounded increment plan extending the shipped conifer baker to any decorations.ron model - dynamic atlas registry (HashMap model->tile over 2048sq, bake uniques at world load), decoration card rung beyond a deco_card_m slider reusing the type-12 sprite branch (uv encoding carries dozens of tiles fine), modder path = decorations.ron names it and the engine bakes it. Deferred: multi-angle imposters, supersampled bakes, normal capture. Implementation deliberately deferred to a fresh session per the megashader-split discipline - renderer+shader+draw-path surgery does not belong at the tail of a 14-release day.",
+      "why": "The conifer pipeline proved every stage; writing the map while the code read is fresh makes the next session start at implementation, not archaeology."
     }
   ],
   "active_scopes_to_avoid": [
