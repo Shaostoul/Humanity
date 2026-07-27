@@ -13,15 +13,14 @@ pub(crate) const SURFACE_ENGAGE_ALT: f64 = 10_000.0;
 /// At 4/s a drop from tens of metres settles onto the ground in ~1-2 s.
 pub(crate) const SURFACE_SETTLE_RATE: f64 = 4.0;
 
-/// Upper bound on the mouse-wheel speed multiplier while inside the WALK
-/// band. v0.1006 (operator flight report + the [Dive] diag showing 333 m
-/// PER FRAME of lateral speed near the ground): the old 2000x cap meant
-/// ~15 km/s in ground-level flight - every W tap read as a teleport and
-/// any tangential whisper dwarfed the ramped vertical thrust (the "I move
-/// parallel to the Earth on takeoff" report). ~50x tops walk-band flight
-/// out around Mach 1 near the deck - fast, controllable, and REAL (jets
-/// at low altitude); the FLIGHT band (10-100 km) keeps the full wheel the
-/// moment you climb past the walk ceiling, and FTL lives above that.
+/// Upper bound on the mouse-wheel speed multiplier while WALKING in the
+/// walk band (fly mode OFF). v0.1006 cut this 2000x -> 50x after the
+/// [Dive] diag showed 333 m PER FRAME of ground-level speed; v0.1007
+/// narrowed the cap to walking only (operator: "I liked moving fast when
+/// I had the speed maxed out") - DEV FLY keeps the full wheel at every
+/// altitude and is bounded by the approach governor instead (per-frame
+/// step <= half the height above ground), which is what actually prevents
+/// teleport-taps and ground clipping.
 pub(crate) const SURFACE_SPEED_MULT_MAX: f64 = 50.0;
 
 /// Co-rotation ceiling (v0.872, operator: "when I desync from Earth once I

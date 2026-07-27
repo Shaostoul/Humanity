@@ -3787,7 +3787,18 @@ mod native_app {
                             // 100 km) while one wheel notch past the boundary
                             // resumed FTL at a billion-x - the fast/slow
                             // oscillation that kept the surface unreachable.
-                            let surface_mult = if in_walk_band {
+                            // v0.1007 (operator: "I liked moving fast when I
+                            // had the speed maxed out... now I have to
+                            // teleport off Earth to get speed again"): the
+                            // walk-band gear cap applies to WALKING only.
+                            // Dev fly mode keeps the full wheel at every
+                            // altitude; safety comes from the approach
+                            // governor below (step <= half the height above
+                            // ground per frame), which makes climb-outs
+                            // exponential-fast and descents auto-glide
+                            // instead of clipping in - the same mental
+                            // model as the flight band and FTL.
+                            let surface_mult = if in_walk_band && !state.controller.fly_mode {
                                 (state.controller.fly_speed_mult as f64)
                                     .clamp(1.0, SURFACE_SPEED_MULT_MAX)
                             } else {
@@ -3797,8 +3808,16 @@ mod native_app {
                                 * state.controller.speed_multiplier)
                                 .max(0.0) as f64
                                 * surface_mult;
-                            let step_cap = if in_walk_band {
+                            let step_cap = if in_walk_band && !state.controller.fly_mode {
+                                // Walking: the 50x gear clamp above already
+                                // bounds speed; no per-frame cap needed.
                                 f64::MAX
+                            } else if in_walk_band {
+                                // Fly mode near the ground: the approach
+                                // governor with a tighter floor (50 m/frame
+                                // ~ 3 km/s hugging the deck) - huge steps
+                                // high up, exponential glide-in low down.
+                                (alt * 0.5).max(50.0)
                             } else {
                                 (alt * 0.5).max(200.0)
                             };
