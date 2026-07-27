@@ -497,6 +497,11 @@
       "date": "2026-07-26",
       "decision": "v0.983.0 audio arc continuation: one-shot SFX queue (EngineState.pending_sfx: Vec of (catalog id, fallback) pairs; action sites push, the audio frame-sync block drains through sound_catalog.path_or + play_sound - no audio borrows in gameplay code). Wired: [E]-collect success (inventory_pickup; covers eggs/milk/wool + all v0.978/v0.982 forage+resource nodes) and door open/close on the swing START edges (edge-detected around ease_open in render_door_panels; local buffer extends pending_sfx after the &mut door_panels borrow ends; 25 m earshot gate because play_sound is non-spatial and remote actors open far doors). Light-switch toggle sfx deferred - the inc-5 switch site was not quickly findable; ride a later pass. Full 1160-test battery green.",
       "why": "The queue pattern makes every future sound a two-line change at the action site; the START-edge rule prevents auto-door radius hover spam, the honest failure mode found by thinking through remote actors."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.984.0 underwater residue closed (post-audit item 6 fully done): swim speed cap 2.5 m/s while submerged (applies to the shared step so radial swim caps too; dev fly mode exempt - noclip stays noclip) + dive_bubbles ambient emitter (data/particles.ron, buoyant negative-gravity trickle at the submerged camera, same emitter-management pattern as leaf_drift/space_dust). The 2026-07-19 post-audit queue is now FULLY dispatched: every item shipped, closed-stale, or blocked on the single open operator question (GLB sourcing). In-water visual proof rides the operator next dive - the emitter mechanism is the proven leaves/dust path and the def parses in validate-data.",
+      "why": "Small honest closes beat leaving a 90 percent-done queue item open; the cap reuses the existing step variable so one line covers tangential and radial swimming alike."
     }
   ],
   "active_scopes_to_avoid": [
