@@ -14,5 +14,13 @@
 // Example row (grass around a field plot):
 //   (model: "grass_medium_02_v1", near: "grain_field_1", count: 8, spread: 5.0),
 (
-    decorations: [],
+    decorations: [
+        // First Quaternius CC0 crops (v0.991, operator GLB approval
+        // 2026-07-26): converted from the pack's OBJs by
+        // scripts/obj-to-plant-gltf.js (palette-texture trick, type-19
+        // pipeline). Mature carrots by the irrigation line as the
+        // pipeline proof; growth-stage swap wiring is the next increment.
+        (model: "carrot_4", near: "irrigation_1", count: 3, spread: 2.0),
+        (model: "tomato_4", near: "composter_1", count: 2, spread: 1.5),
+    ],
 )
