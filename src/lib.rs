@@ -12218,6 +12218,23 @@ mod native_app {
                                                 c.unread = true;
                                             }
                                         }
+                                        // Mention ding (v0.987): someone ELSE names us in a
+                                        // live channel message. Case-insensitive contains on
+                                        // the display name; this handler only sees live WS
+                                        // broadcasts (history arrives via REST), so old
+                                        // mentions never re-ding.
+                                        if sender_key != state.gui_state.profile_public_key
+                                            && state.gui_state.notif_mentions_enabled
+                                            && !state.gui_state.user_name.is_empty()
+                                            && content
+                                                .to_lowercase()
+                                                .contains(&state.gui_state.user_name.to_lowercase())
+                                        {
+                                            state.pending_sfx.push((
+                                                "sfx.chat_message",
+                                                "audio/ui/chat_message.ogg",
+                                            ));
+                                        }
                                         state.gui_state.chat_messages.push(
                                             crate::gui::ChatMessage {
                                                 sender_name,
