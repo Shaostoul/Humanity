@@ -50,7 +50,12 @@ pub(crate) fn ground_radius_m(
     hm: Option<&crate::terrain::planet_heightmap::PlanetHeightmap>,
     detail: Option<&crate::terrain::planet_chunks::DetailNoise>,
     tiles: Option<&crate::terrain::terrain_tiles::TerrainTiles>,
-    unit_dir: glam::Vec3,
+    // f64 unit dir (v0.1012, the operator f32 audit): an f32 UNIT vector
+    // quantizes ground positions at ~0.4-0.8 m - the same defect class as
+    // the v0.1010 tile-grid fix, but on the CLAMP side. The coarse base
+    // heightmap downcasts internally; the tile + detail samplers get the
+    // full double.
+    unit_dir: glam::DVec3,
 ) -> f64 {
     match def {
         Some(d) => {
@@ -69,7 +74,7 @@ pub(crate) fn ground_radius_m(
                             h, d, dn, tiles, unit_dir,
                         )
                     }
-                    None => h.normalized_at(unit_dir),
+                    None => h.normalized_at(unit_dir.as_vec3()),
                 },
                 None => d.sea_level.clamp(0.0, 1.0),
             };

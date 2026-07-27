@@ -805,7 +805,7 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
             state.planet_heightmaps.get(&body_id).map(|a| a.as_ref()),
             detail.as_ref(),
             tiles,
-            unit,
+            unit.as_dvec3(),
         )
     } else {
         radius_m

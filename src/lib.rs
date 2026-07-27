@@ -3586,7 +3586,7 @@ mod native_app {
                         let def = state.planet_defs.get(&lock_body);
                         let hm = state.planet_heightmaps.get(&lock_body).map(|a| a.as_ref());
                         let ground_r =
-                            ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero().as_vec3());
+                            ground_radius_m(def, hm, None, None, anchor_pre.normalize_or_zero());
                         // Altitude bands (v0.872; per-body scaled v0.909,
                         // operator: "the distances for any planet are fixed
                         // to Earth's settings"): walk/gravity, co-rotating
@@ -3859,7 +3859,7 @@ mod native_app {
                             let dir1 = anchor.normalize_or_zero();
                             let tiles_for_clamp =
                                 (lock_body == "earth").then_some(&state.terrain_tiles);
-                            let mut g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1.as_vec3());
+                            let mut g = ground_radius_m(def, hm, detail.as_ref(), tiles_for_clamp, dir1);
                             // Real water (v0.876 Stage 1): over connected
                             // ocean the terrain mesh is the SEAFLOOR, but the
                             // player floats on the drawn water shell -- sea
@@ -5008,7 +5008,7 @@ mod native_app {
                                 state.planet_heightmaps.get(&target).map(|a| a.as_ref()),
                                 None,
                                 None,
-                                unit,
+                                unit.as_dvec3(),
                             );
                             let vantage =
                                 body_rel_earth + dir_out * (surface_radius + altitude_km * 1000.0);

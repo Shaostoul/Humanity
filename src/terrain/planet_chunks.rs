@@ -420,9 +420,10 @@ pub fn drawn_elevation_normalized(
     def: &PlanetDef,
     detail: &DetailNoise,
     tiles: Option<&super::terrain_tiles::TerrainTiles>,
-    dir: glam::Vec3,
+    // f64 (v0.1012): f32 unit dirs quantize ground sampling at ~0.4-0.8 m.
+    dir: glam::DVec3,
 ) -> f32 {
-    let (base, from_tile) = tile_or_base(hm, tiles, dir.as_dvec3(), FINEST_DETAIL_DEPTH);
+    let (base, from_tile) = tile_or_base(hm, tiles, dir, FINEST_DETAIL_DEPTH);
     let range_m = hm.max_meters() - hm.min_meters();
     if range_m <= 0.0 {
         return base.clamp(0.0, 1.0);
@@ -432,9 +433,9 @@ pub fn drawn_elevation_normalized(
     let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
     let e = if mask > 0.0 {
         let dm = if from_tile {
-            detail.sample_m_tile_gated(dir.as_dvec3(), FINEST_DETAIL_DEPTH)
+            detail.sample_m_tile_gated(dir, FINEST_DETAIL_DEPTH)
         } else {
-            detail.sample_m(dir.as_dvec3(), FINEST_DETAIL_DEPTH)
+            detail.sample_m(dir, FINEST_DETAIL_DEPTH)
         };
         base + (dm * mask) / range_m
     } else {
