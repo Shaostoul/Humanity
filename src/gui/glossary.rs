@@ -23,8 +23,19 @@ pub struct GlossaryEntry {
     #[serde(default)]
     pub category: String,
     pub definition: String,
-    #[serde(default)]
+    /// Optional external reference. `null` in the JSON must behave like
+    /// absent (v0.989.1: five authored `"link": null` entries poisoned the
+    /// whole parse, and the loader's degrade-to-empty design turned that
+    /// into a silently BLANK dictionary since the entries landed - the new
+    /// shipped-data test caught it).
+    #[serde(default, deserialize_with = "null_as_empty")]
     pub link: String,
+}
+
+/// Deserialize a string field treating JSON `null` as "".
+fn null_as_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    use serde::Deserialize;
+    Ok(Option::<String>::deserialize(d)?.unwrap_or_default())
 }
 
 /// Top-level shape of glossary.json.
@@ -131,4 +142,31 @@ pub fn install() -> &'static Glossary {
 /// Get the cached glossary, initializing if needed.
 pub fn glossary() -> &'static Glossary {
     install()
+}
+
+#[cfg(test)]
+mod tests {
+    /// The shipped glossary must parse and carry its full term set - the
+    /// runtime loader degrades to an EMPTY dictionary on any parse error
+    /// (by design, so the app never dies over a bad JSON edit), which means
+    /// only this test stands between a malformed edit and a silently blank
+    /// Dictionary page (v0.989).
+    #[test]
+    fn shipped_glossary_parses_with_terms() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/glossary.json");
+        let bytes = std::fs::read(&path).expect("data/glossary.json readable");
+        let parsed: super::GlossaryFile =
+            serde_json::from_slice(&bytes).expect("glossary.json parses");
+        assert!(parsed.terms.len() >= 150, "term count {}", parsed.terms.len());
+        assert!(!parsed.categories.is_empty(), "categories present");
+        // Every term's category id must exist in the categories map, so the
+        // Dictionary's filter chips cover every card.
+        for (k, e) in &parsed.terms {
+            assert!(
+                parsed.categories.contains_key(&e.category),
+                "term {k} names unknown category {}",
+                e.category
+            );
+        }
+    }
 }

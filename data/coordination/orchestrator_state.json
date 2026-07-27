@@ -198,6 +198,11 @@
       "date": "2026-07-26",
       "decision": "OPERATOR REPLIED: (1) CC0 GLB downloads APPROVED (keep using/downloading) - unblocks homestead inc 6 furniture + garden hero crops; (2) dictionary ask - assume people do not know words, in-app lookup, click-a-word for definitions. v0.989.0 shipped the dictionary: the v0.195 glossary foundation (150+ terms, 4 tooltip call sites, NO browsable surface - why the operator never saw it) now has a Dictionary section in the Library (search + category chips + cards; glossary.rs gained entries_sorted/category_name/category_ids/lookup_word) and a Define-words toggle on every Library doc (markdown render_markdown_defining: word-by-word clickable layout only while toggled, glossary hits underlined accent, click pops the definition Window; unknown words honestly say not-defined-yet + one-tap Dictionary search jump). NEXT: the GLB asset arc (downloads now approved).",
       "why": "The operator asked for this exact thing on 2026-05-08 and v0.195 built only the plumbing - the browsable page never followed. Perpetual-dev lesson: a foundation without a surface is invisible; this time the surface shipped first-class in the Library where people already look for knowledge."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.990.0 BUG: the entire glossary has been silently EMPTY at runtime - five authored link:null entries in data/glossary.json made serde reject the whole file, and the loaders degrade-to-empty design (correct for resilience) turned that into blank Alt+hover tooltips ever since the entries landed, and would have blanked the new Dictionary page too. Caught by the new shipped_glossary_parses_with_terms test WITHIN THE HOUR of the Dictionary shipping - the exact only-guard scenario the test comment describes. Fixed both sides: nulls -> empty strings in the data AND a null_as_empty deserializer so a future null never poisons the parse. 201 terms actually load (the 150+ claim undersold). Lesson: graceful-degradation loaders NEED a shipped-data parse test, because their failure mode is invisible by design - swept the other degrade-to-empty loaders for the same gap would be a worthwhile future pass.",
+      "why": "A loader that fails silent is a loader whose data rots silent; the test converts invisible rot into a red build."
     }
   ],
   "active_scopes_to_avoid": [

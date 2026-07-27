@@ -968,7 +968,7 @@
       "term": "Batch Rendering",
       "category": "gaming",
       "definition": "Combining multiple objects that share the same material/shader into a single draw call. Reduces CPU-GPU communication overhead and dramatically improves frame rates.",
-      "link": null
+      "link": ""
     },
     "ed25519": {
       "term": "Ed25519",
@@ -1004,19 +1004,19 @@
       "term": "Self-Custody",
       "category": "crypto",
       "definition": "Holding your own cryptographic keys rather than entrusting them to a third party. Gives full control over assets and identity but requires personal responsibility for key security.",
-      "link": null
+      "link": ""
     },
     "custodial": {
       "term": "Custodial",
       "category": "crypto",
       "definition": "A service where a third party holds and manages your cryptographic keys on your behalf (like a bank holding your money). Convenient but introduces counterparty risk.",
-      "link": null
+      "link": ""
     },
     "noncustodial": {
       "term": "Non-Custodial",
       "category": "crypto",
       "definition": "A wallet or service where only you hold the private keys. No third party can access, freeze, or move your funds. Requires safeguarding your own seed phrase or key file.",
-      "link": null
+      "link": ""
     },
     "solana": {
       "term": "Solana",
@@ -1028,7 +1028,7 @@
       "term": "SPL Token",
       "category": "crypto",
       "definition": "Solana Program Library token standard, equivalent to Ethereum's ERC-20. Defines how fungible and non-fungible tokens are created and transferred on the Solana blockchain.",
-      "link": null
+      "link": ""
     },
     "staking": {
       "term": "Staking",
