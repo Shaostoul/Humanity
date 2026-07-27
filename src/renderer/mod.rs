@@ -249,6 +249,12 @@ pub struct Renderer {
     /// Sea state 0..1 (v0.909): glassy -> ripples -> storm. Poked into the
     /// fill_color.w uniform pad each celestial pass.
     pub sea_state: f32,
+    /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
+    /// "trees were still being illuminated at night"): the default cool fill
+    /// never dimmed after sunset, so night forests glowed. lib.rs sets this
+    /// from the camera-local daylight while inside an atmosphere; 1.0 in
+    /// space keeps the approved orbital look.
+    pub fill_scale: f32,
     /// Tree-card hide radius in metres (v0.912): terrain silhouette cards
     /// within this range of the camera discard (the real 3D tree models
     /// stand there). Mirrors the Settings tree-model distance; 0 = off.
@@ -1090,6 +1096,7 @@ impl Renderer {
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
+            fill_scale: 1.0,
             tree_card_hide_m: 0.0,
             tree_card_far_m: 1500.0,
             aerial_sigma: 0.0,
@@ -2489,6 +2496,12 @@ impl Renderer {
         // at the player (lib.rs) or the showcase {"sea":x} dev override.
         self.queue
             .write_buffer(&self.camera_buffer, 668, bytemuck::bytes_of(&self.sea_state));
+        // Fill intensity scaled by the camera-local daylight (v0.998):
+        // fill_direction.w at offset 640 + 12. The full write stamps the
+        // default 0.6; night on a surface dims it so forests stop glowing.
+        let fill_w = 0.6_f32 * self.fill_scale.clamp(0.0, 1.0);
+        self.queue
+            .write_buffer(&self.camera_buffer, 652, bytemuck::bytes_of(&fill_w));
         // Aerial perspective params (v0.916) in the unused per-light cone
         // pads: [1].y sigma (484), [1].z slant cap (488), [2].yzw sky color
         // (500), [3].yzw camera radial up (516). The interior passes'

@@ -3627,6 +3627,29 @@ mod native_app {
                         state.gui_state.underwater = false;
                         state.gui_state.underwater_depth_m = 0.0;
                         let in_blend_band = alt < inertial_blend_max_alt;
+                        // Night fill dimming (v0.998, operator: "trees were
+                        // still being illuminated at night"): the cool fill
+                        // light is a camera-frame constant that never set with
+                        // the sun, so night forests glowed. Scale it by the
+                        // camera-local daylight while near a body; a whisper
+                        // (0.10) stays so night is readable, not void-black.
+                        // Space keeps 1.0 (the approved orbital look) via the
+                        // blend to 1.0 across the inertial handoff band.
+                        {
+                            let sun_d =
+                                (state.sun_world_pos - state.ship_world_pos).normalize_or_zero();
+                            let sun_f = Vec3::new(sun_d.x as f32, sun_d.y as f32, sun_d.z as f32);
+                            let elev = radial.dot(sun_f);
+                            let t = ((elev + 0.05) / 0.20).clamp(0.0, 1.0);
+                            let daylight = t * t * (3.0 - 2.0 * t);
+                            let near_scale = 0.10 + 0.90 * daylight;
+                            // Fade the dimming back out across the blend band so
+                            // the inertial/orbit regime sees the full fill.
+                            let w_space = ((alt - co_rotate_max_alt)
+                                / (inertial_blend_max_alt - co_rotate_max_alt))
+                                .clamp(0.0, 1.0) as f32;
+                            state.renderer.fill_scale = near_scale * (1.0 - w_space) + w_space;
+                        }
 
                         if in_corotate_band {
                             // Was surface mode already engaged last frame? MUST be
@@ -4029,6 +4052,8 @@ mod native_app {
                         // ensure the surface FPS basis is released so the ship /
                         // space camera uses world-Y up again.
                         state.camera.clear_surface();
+                        // No body context: full fill (the orbital/ship look).
+                        state.renderer.fill_scale = 1.0;
                     }
 
                     // Wall collision (v0.556): the player IS the camera, so push it out of the home's
