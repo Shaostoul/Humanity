@@ -356,6 +356,12 @@ pub(crate) struct EngineState {
     /// landing zeroes it). Only meaningful while the surface branch owns
     /// translation inside the walk band; every other regime zeroes it.
     pub(crate) surface_vr: f64,
+    /// Ground-reference pop filter memory (v0.1008): the previous frame's
+    /// sampled ground direction + radius. When the player is essentially
+    /// stationary, a multi-metre jump in the sample is detail-tile
+    /// residency churn, not terrain - the clamp eases instead of popping.
+    pub(crate) last_ground_dir: glam::DVec3,
+    pub(crate) last_ground_r: f64,
     /// Parallel to `near_trees` (v0.995): true = this tree was NOT in the
     /// previous set - it dissolves in over ~a third of a second instead of
     /// blinking into existence (the operator's "trees blink into existence

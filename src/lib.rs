@@ -1658,6 +1658,8 @@ mod native_app {
                 near_tree_new: Vec::new(),
                 on_ground_planet: false,
                 surface_vr: 0.0,
+                last_ground_dir: glam::DVec3::ZERO,
+                last_ground_r: 0.0,
                 near_tree_born_s: 0.0,
                 machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
@@ -3870,9 +3872,11 @@ mod native_app {
                             // pierces it; once submerged the floors are the
                             // real seafloor from the bathymetry sampler.
                             let pierce = submerged || radial_wish < -0.05;
+                            let mut wave_float = false;
                             if lock_body == "earth" && !pierce {
                                 if let (Some(om), Some(d)) = (state.ocean_mask.as_ref(), def) {
                                     if om.is_ocean(dir1.as_vec3()) {
+                                        wave_float = true;
                                         // Same clock the shader's vertex
                                         // displacement runs on (sun_color.w
                                         // = start-relative seconds).
@@ -3912,6 +3916,40 @@ mod native_app {
                                             + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
                                     }
                                 }
+                            }
+                            // ── Ground-reference pop filter (v0.1008,
+                            // operator "terrain trenches / character bobs"
+                            // + the [Dive] diag showing g-R swinging -0.8
+                            // to +3.4 m at a near-fixed spot) ── detail
+                            // tiles streaming in/out change the SAMPLED
+                            // elevation by metres while the DRAWN terrain
+                            // crossfades smoothly, so the standing clamp
+                            // yanked the player up/down with every
+                            // residency change. When essentially
+                            // stationary (< ~3 m/s of lateral motion), a
+                            // ground jump is a data pop, not terrain: ease
+                            // toward it at 2 m/s. Real slopes while moving
+                            // stay instant, and wave floating keeps its
+                            // live bob (drawn == sampled).
+                            {
+                                let radius_m =
+                                    def.map(|d| d.radius).unwrap_or(6.371e6);
+                                let moved_m = ((dir1 - state.last_ground_dir)
+                                    * radius_m)
+                                    .length();
+                                if state.last_ground_r > 0.0
+                                    && !wave_float
+                                    && moved_m < 0.05
+                                {
+                                    let max_dv = 2.0 * dt as f64;
+                                    let dgap = g - state.last_ground_r;
+                                    if dgap.abs() > max_dv {
+                                        g = state.last_ground_r
+                                            + dgap.signum() * max_dv;
+                                    }
+                                }
+                                state.last_ground_dir = dir1;
+                                state.last_ground_r = g;
                             }
                             let rest = crate::surface_walk::rest_radius(
                                 g,
