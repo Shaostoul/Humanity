@@ -345,6 +345,14 @@ pub(crate) struct EngineState {
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
+    /// Parallel to `near_trees` (v0.995): true = this tree was NOT in the
+    /// previous set - it dissolves in over ~a third of a second instead of
+    /// blinking into existence (the operator's "trees blink into existence
+    /// in front of me" report).
+    pub(crate) near_tree_new: Vec<bool>,
+    /// Session-seconds when the current near-tree set was computed - the
+    /// shared clock for the new-tree fade-in.
+    pub(crate) near_tree_born_s: f32,
     /// Textured MACHINE model materials, cached per model path (v0.993):
     /// shared across every instance of the same model and never mutated by
     /// the machine rebuild's slot-reuse path (update_material_typed on a

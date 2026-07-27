@@ -1655,6 +1655,8 @@ mod native_app {
                 decoration_objects: Vec::new(),
                 hero_plant_objects: Vec::new(),
                 hero_plant_missing: std::collections::HashSet::new(),
+                near_tree_new: Vec::new(),
+                near_tree_born_s: 0.0,
                 machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
                 near_trees: Vec::new(),
@@ -8609,13 +8611,37 @@ mod native_app {
                                 if chunked_drawn && tree_dist > 1.0 && alt_over < 2500.0 {
                                     let moved =
                                         (state.near_trees_center - cam_local).length();
-                                    if moved > 40.0 {
+                                    // v0.995 (operator: "I'll turn, walk a bit,
+                                    // then some trees blink into existence in
+                                    // front of me"): 40 m of hysteresis kept the
+                                    // model set centered well BEHIND a walking
+                                    // player - thin coverage ahead, then a whole
+                                    // batch popping on the threshold. 12 m keeps
+                                    // the set centered on you; the stream walk
+                                    // is sub-millisecond, so eager is cheap.
+                                    if moved > 12.0 {
                                         let src = chunks::ElevationSource::Heightmap {
                                             hm,
                                             detail: &cs.detail,
                                             tiles: tiles_ref,
                                             ocean: ocean_ref,
                                         };
+                                        // Previous set's identity keys (quantized
+                                        // planet-local base), so recompute can
+                                        // tell survivors from newcomers - only
+                                        // NEW trees fade in (v0.995).
+                                        let prev_keys: std::collections::HashSet<u64> = state
+                                            .near_trees
+                                            .iter()
+                                            .map(|t| {
+                                                let p = t.dir * t.r_m;
+                                                ((p.x * 2.0).round() as i64 as u64)
+                                                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                                                    ^ ((p.y * 2.0).round() as i64 as u64)
+                                                        .wrapping_mul(0xBF58_476D_1CE4_E5B9)
+                                                    ^ ((p.z * 2.0).round() as i64 as u64)
+                                            })
+                                            .collect();
                                         state.near_trees = chunks::near_tree_instances(
                                             d,
                                             &src,
@@ -8624,6 +8650,21 @@ mod native_app {
                                             tree_dist + 60.0,
                                             600,
                                         );
+                                        state.near_tree_new = state
+                                            .near_trees
+                                            .iter()
+                                            .map(|t| {
+                                                let p = t.dir * t.r_m;
+                                                let k = ((p.x * 2.0).round() as i64 as u64)
+                                                    .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                                                    ^ ((p.y * 2.0).round() as i64 as u64)
+                                                        .wrapping_mul(0xBF58_476D_1CE4_E5B9)
+                                                    ^ ((p.z * 2.0).round() as i64 as u64);
+                                                !prev_keys.contains(&k)
+                                            })
+                                            .collect();
+                                        state.near_tree_born_s =
+                                            state.start_time.elapsed().as_secs_f32();
                                         state.near_trees_center = cam_local;
                                         log::info!(
                                             "[NearTree] recompute: {} trees within {:.0} m (alt {:.0} m)",
@@ -8791,8 +8832,22 @@ mod native_app {
                                     // far the drawn models actually reach and
                                     // hide cards only inside that.
                                     let mut covered_r2: f64 = 0.0;
-                                    for tr in &state.near_trees {
-                                        if drawn >= 64 {
+                                    // Draw budget (v0.995, the sparse-ring fix):
+                                    // was 64 - the nearest-first sort (v0.969)
+                                    // made those 64 hug the player in a ~35 m
+                                    // circle, and the old drawn<64 heuristic
+                                    // then hid cards across the WHOLE window
+                                    // whenever half the set was behind the
+                                    // camera. 256 nearest trees draw now,
+                                    // VIEW-INDEPENDENT, so coverage is a stable
+                                    // ~70 m ring and cards take over exactly
+                                    // where the models end.
+                                    const NEAR_TREE_DRAW_BUDGET: u32 = 256;
+                                    let now_s = state.start_time.elapsed().as_secs_f32();
+                                    let fade_in =
+                                        ((now_s - state.near_tree_born_s) / 0.35).clamp(0.0, 1.0);
+                                    for (ti, tr) in state.near_trees.iter().enumerate() {
+                                        if drawn >= NEAR_TREE_DRAW_BUDGET {
                                             break;
                                         }
                                         let base_local = tr.dir * tr.r_m;
@@ -8800,6 +8855,15 @@ mod native_app {
                                         if d2 > td2 {
                                             continue;
                                         }
+                                        // New trees dissolve in; survivors and
+                                        // fully-faded sets draw normally.
+                                        let obj_fade = if fade_in < 1.0
+                                            && state.near_tree_new.get(ti).copied().unwrap_or(false)
+                                        {
+                                            fade_in.max(1.0 / 32.0)
+                                        } else {
+                                            0.0
+                                        };
                                         let sp = (tr.species % 2) as usize;
                                         let va = (tr.variant % 3) as usize;
                                         let stem = if sp == 0 {
@@ -8831,7 +8895,7 @@ mod native_app {
                                                 continue;
                                             }
                                             any = true;
-                                            celestial_objects.push(RenderObject { fade: 0.0,
+                                            celestial_objects.push(RenderObject { fade: obj_fade,
                                                 position: Vec3::new(
                                                     pos_render.x as f32,
                                                     pos_render.y as f32,
@@ -8855,12 +8919,36 @@ mod native_app {
                                     // cover the full radius), else the actual
                                     // reach of the drawn set, slightly shrunk
                                     // so boundary trees keep their cards.
-                                    // Handoff diag (v0.994.1, the sparse-ring field
-                                    // report): covered radius vs slider vs drawn,
-                                    // 1 Hz - the numbers the model/card boundary
-                                    // work needs (density math says the 600 cap
-                                    // covers ~107 m of the 180 m window at bake
-                                    // density; the ring lives in that gap).
+                                    // Card-hide radius (v0.995 rebuild): the old
+                                    // rule keyed on the VIEW-culled drawn count -
+                                    // "drawn < 64 means sparse, hide across the
+                                    // whole window" - but with half the set
+                                    // always behind the camera that misfired
+                                    // constantly, hiding cards over ground the
+                                    // 64-tree budget never covered: the
+                                    // operator's bare ring. Coverage now comes
+                                    // from the SET, view-independent: the
+                                    // nearest-sorted set's budget-th tree marks
+                                    // where models genuinely end; a set smaller
+                                    // than the budget means the stream ran dry,
+                                    // so models really do cover the window.
+                                    let set_n = state.near_trees.len();
+                                    let hide_m: f32 = if drawn == 0 {
+                                        // v0.923: no model drew at all (meshes
+                                        // failed / none in range) - cards keep
+                                        // the forest, never bare the ground.
+                                        0.0
+                                    } else if set_n < NEAR_TREE_DRAW_BUDGET as usize {
+                                        tree_dist as f32
+                                    } else {
+                                        let last = &state.near_trees[NEAR_TREE_DRAW_BUDGET as usize - 1];
+                                        let reach =
+                                            ((last.dir * last.r_m) - cam_local).length() as f32;
+                                        (reach - 8.0).max(0.0)
+                                    };
+                                    state.renderer.tree_card_hide_m = hide_m;
+                                    // Handoff diag (v0.994.1): 1 Hz numbers for
+                                    // the model/card boundary.
                                     {
                                         use std::sync::atomic::{AtomicU64, Ordering};
                                         static LASTT: AtomicU64 = AtomicU64::new(0);
@@ -8871,29 +8959,14 @@ mod native_app {
                                         if LASTT.swap(now, Ordering::Relaxed) != now {
                                             log::info!(
                                                 "[TreeHandoff] near={} drawn={} covered={:.0}m window={:.0}m hide={:.0}m",
-                                                state.near_trees.len(),
+                                                set_n,
                                                 drawn,
                                                 covered_r2.sqrt(),
                                                 tree_dist + 60.0,
-                                                if drawn == 0 { 0.0 } else if drawn < 64 { tree_dist as f32 } else { (covered_r2.sqrt() as f32 - 8.0).max(0.0) },
+                                                hide_m,
                                             );
                                         }
                                     }
-                                    state.renderer.tree_card_hide_m = if drawn == 0 {
-                                        // v0.923 (operator: "the plants aren't
-                                        // rendering close to me again"): if NO
-                                        // model actually drew - every mesh
-                                        // failed to load, or none were in
-                                        // range - hiding cards would leave
-                                        // BARE GROUND where the forest is.
-                                        // Cards keep the forest until models
-                                        // truly replace them.
-                                        0.0
-                                    } else if drawn < 64 {
-                                        tree_dist as f32
-                                    } else {
-                                        (covered_r2.sqrt() as f32 - 8.0).max(0.0)
-                                    };
                                 } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
                                     state.near_trees.clear();
                                     state.near_trees_center = glam::DVec3::splat(f64::MAX);

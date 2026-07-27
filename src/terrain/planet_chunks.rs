@@ -2194,6 +2194,11 @@ pub struct ChunkState {
     /// dissolves over FADE_SECONDS instead of popping. Selection is
     /// untouched - this is pure presentation on top of the drawn-set diff.
     pub fades: Vec<FadePair>,
+    /// Every patch id ever drawn this session (v0.995): re-entering the
+    /// frustum after the camera looked away must POP, not fade up from
+    /// nothing (the "ground vanishes as I look around" report). Bounded by
+    /// the ids visited near a body; cleared with the cache on world swaps.
+    pub ever_drawn: std::collections::HashSet<PatchId>,
     /// Parked-selection skip (v0.928): the last full selection + the local
     /// pose/params it was computed at. While the camera is parked in
     /// surface mode (planet-local pose static) and nothing invalidated it,
@@ -2234,7 +2239,11 @@ pub const MAX_FADE_PAIRS: usize = 192;
 /// orphans (fresh stream-ins) rise from nothing as one batch; vanished
 /// orphans (culled off-screen) pop instantly - fading something the frustum
 /// already rejected would draw it for nothing.
-pub fn classify_lod_swaps(appeared: &[PatchId], vanished: &[PatchId]) -> Vec<FadePair> {
+pub fn classify_lod_swaps(
+    appeared: &[PatchId],
+    vanished: &[PatchId],
+    seen_before: &dyn Fn(&PatchId) -> bool,
+) -> Vec<FadePair> {
     use std::collections::HashSet;
     let vanished_set: HashSet<PatchId> = vanished.iter().cloned().collect();
     let appeared_set: HashSet<PatchId> = appeared.iter().cloned().collect();
@@ -2274,10 +2283,16 @@ pub fn classify_lod_swaps(appeared: &[PatchId], vanished: &[PatchId]) -> Vec<Fad
         used_appeared.insert(parent);
         pairs.push(FadePair { rising: vec![parent], falling: kids, t: 0.0 });
     }
-    // Orphan rises (fresh stream-ins): one shared-clock batch.
+    // Orphan rises (fresh stream-ins): one shared-clock batch. v0.995
+    // (operator: "as I look around the ground just vanishes"): a patch
+    // RE-ENTERING the frustum after the camera looked away is NOT a fresh
+    // stream-in - fading it up from nothing leaves a visible hole in ground
+    // that was there a second ago. `seen_before` says whether an id has ever
+    // been drawn this session; re-entries skip the rise and pop instantly,
+    // exactly like culled-off-screen patches pop on the way OUT.
     let orphans: Vec<PatchId> = appeared
         .iter()
-        .filter(|a| !used_appeared.contains(a))
+        .filter(|a| !used_appeared.contains(a) && !seen_before(a))
         .cloned()
         .collect();
     if !orphans.is_empty() {
@@ -2297,6 +2312,7 @@ impl ChunkState {
             last_drawn: std::collections::HashSet::new(),
             last_saturation_log: 0,
             fades: Vec::new(),
+            ever_drawn: std::collections::HashSet::new(),
             last_selection: None,
             last_sel_cam: DVec3::ZERO,
             last_sel_fwd: DVec3::ZERO,
@@ -2324,7 +2340,14 @@ impl ChunkState {
         self.fades
             .retain(|f| f.t < 1.0 && (!f.rising.is_empty() || !f.falling.is_empty()));
         if (!appeared.is_empty() || !vanished.is_empty()) && self.fades.len() < MAX_FADE_PAIRS {
-            self.fades.append(&mut classify_lod_swaps(appeared, vanished));
+            let ever = &self.ever_drawn;
+            self.fades
+                .append(&mut classify_lod_swaps(appeared, vanished, &|id| ever.contains(id)));
+        }
+        // Record AFTER classification so a genuinely fresh patch still rises
+        // this frame and only its future re-entries pop.
+        for a in appeared {
+            self.ever_drawn.insert(*a);
         }
     }
 
@@ -3485,26 +3508,26 @@ mod tests {
         let parent = PatchId::root(3).child(1);
         let kids: Vec<PatchId> = (0..4).map(|i| parent.child(i)).collect();
         // Split: parent vanished, its 4 children appeared.
-        let pairs = classify_lod_swaps(&kids, &[parent]);
+        let pairs = classify_lod_swaps(&kids, &[parent], &|_| false);
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].rising.len(), 4);
         assert_eq!(pairs[0].falling, vec![parent]);
         // Merge: children vanished, parent appeared.
-        let pairs = classify_lod_swaps(&[parent], &kids);
+        let pairs = classify_lod_swaps(&[parent], &kids, &|_| false);
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].rising, vec![parent]);
         assert_eq!(pairs[0].falling.len(), 4);
         // Orphan appear (fresh stream-in): rises alone, nothing falls.
         let stray = PatchId::root(7).child(0).child(2);
-        let pairs = classify_lod_swaps(&[stray], &[]);
+        let pairs = classify_lod_swaps(&[stray], &[], &|_| false);
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].rising, vec![stray]);
         assert!(pairs[0].falling.is_empty());
         // Orphan vanish (culled off-screen): pops instantly, no pair.
-        let pairs = classify_lod_swaps(&[], &[stray]);
+        let pairs = classify_lod_swaps(&[], &[stray], &|_| false);
         assert!(pairs.is_empty());
         // Mixed frame: one split + one culled orphan = exactly one pair.
-        let pairs = classify_lod_swaps(&kids, &[parent, stray]);
+        let pairs = classify_lod_swaps(&kids, &[parent, stray], &|_| false);
         assert_eq!(pairs.len(), 1);
     }
 
