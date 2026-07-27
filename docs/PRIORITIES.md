@@ -153,9 +153,9 @@
 >     singletons into StructureInstance, data/structures.ron frames
 >     (orbit/surface/free), player as independent FrameRef entity.
 >     Steps 1-2 (current-frame docking + label offsets) shipped v0.911.
-> v0.909 items: sea states + whiteout fix, plants
-> in-world w/ type-19 textured meshes, cloud density contrast, planet-
-> scaled bands + hysteresis + aim preservation, settings truth pass):
+> v0.909 items (ALL DISPATCHED as of v0.980, 2026-07-26 - kept for the
+> paper trail; 1 stale-closed, 2 shipped-closed, 3 blocked on the operator
+> GLB answer, 4 re-scoped post-BUG-048, 5-8 shipped v0.977-v0.980):
 > 1. TELEPORT-OVER-DEEP-OCEAN: CLOSED as already-fixed (verified live
 >    2026-07-26): placement parks on sea level since v0.896, the HUD Alt
 >    + band reference since v0.909.x (alt = dist - max(ground, sea)).

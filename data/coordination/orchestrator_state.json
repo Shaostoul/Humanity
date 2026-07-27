@@ -472,6 +472,11 @@
       "date": "2026-07-26",
       "decision": "v0.979.0 Travel objective emitter (v0.909 item 7): QuestSystem now fires travel_<id> quest events on destination ENTRY (edge-triggered via pure travel_transitions; leave+return re-fires so late-accepted quests complete on the next pass). Destinations are data (data/entities/destinations.ron: id/label/XZ/radius, wild_spawns frame; 4 shipped: outdoor_fields, wild_thicket, flax_hollow, wolf_ridge). Exploration chain got its Travel steps restored (survey -> fields; expeditions -> thicket -> ridge), tying v0.978 forage into quests. Lockstep test shipped_travel_destinations_all_exist prevents quests referencing nonexistent places. Also removed the dead _initialized field on QuestSystem (replaced by the inside_destinations edge state).",
       "why": "The quest side was fully plumbed since forever (check_objective reads travel_<dest> progress); the ONLY missing piece was one emitter. Data-driven destinations mean quest authors add landmarks without code."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.980.0 settings dead-fields cleanup (v0.909 item 8, closes the whole v0.909 list): Settings > Notifications rewired from 5 placebo Settings fields (never persisted, never read) to the LIVE relay-synced state.notif_* prefs - lazy get_notification_prefs on first card view, update_notification_prefs on change, offline sign-in hint; the chat DM cog and Settings now edit one truth. Settings > Wallet network selector rewired to the live state.wallet_network the Wallet page uses; dead custom_rpc_url row REMOVED outright (zero consumers; returns when native wallet does real RPC). Dead fields deleted from the Settings struct (serde ignores unknown keys, old configs load fine). NOTE: wallet network remains session-scoped (was never persisted); persisting via AppConfig is a small follow-up nicety. v0.909 list now FULLY dispatched: 1 closed-stale, 2 closed-shipped, 3 blocked-on-operator-GLB, 4 re-scoped post-BUG-048, 5 v0.977, 6 v0.978, 7 v0.979, 8 v0.980.",
+      "why": "Honest UI: a control must edit something real. Rewiring to the live relay state beat deletion because the card is genuinely useful - Settings is the GUI-first discoverable surface, the cog is the in-context shortcut."
     }
   ],
   "active_scopes_to_avoid": [
