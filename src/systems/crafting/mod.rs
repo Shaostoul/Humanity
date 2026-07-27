@@ -499,6 +499,8 @@ impl CraftingSystem {
             crate::systems::skills::award_skill_xp(data, skill, 10 + recipe.skill_level * 5);
         }
         crate::systems::quests::push_quest_event(data, format!("craft_{}", recipe.id));
+        // Craft-complete thunk (v0.985): the workbench hammer lands.
+        crate::systems::push_sfx_event(data, "sfx.hammer", "audio/sfx/hammer.ogg");
     }
 
     /// Tech-unlock gate: does the crafter meet the recipe's `skill_level`?

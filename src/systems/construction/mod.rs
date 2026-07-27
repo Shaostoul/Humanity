@@ -239,6 +239,12 @@ impl System for ConstructionSystem {
             // Build objectives finally advance, and building trains the builder.
             crate::systems::quests::push_quest_event(data, format!("build_{bp_id}"));
             crate::systems::skills::award_skill_xp(data, "shelter_building", 15);
+            // Placement thunk (v0.985): a finished structure lands audibly.
+            crate::systems::push_sfx_event(
+                data,
+                "sfx.place_block",
+                "audio/sfx/place_block.ogg",
+            );
             status = Some(format!("{name} complete"));
         }
 

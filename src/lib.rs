@@ -1133,6 +1133,13 @@ mod native_app {
             // "harvest_<crop>" keys; QuestSystem (registered after them) drains them
             // each frame to advance count-based Craft/Harvest objectives.
             data_store.insert("quest_events", std::sync::Mutex::new(Vec::<String>::new()));
+            // One-shot SFX channel for ECS systems (v0.985): construction /
+            // crafting completions ding through here; see audio::sounds::
+            // push_sfx_event + the drain in the audio frame-sync block.
+            data_store.insert(
+                "sfx_events",
+                std::sync::Mutex::new(Vec::<(String, String)>::new()),
+            );
             system_runner.register(InteractionSystem::new());
             system_runner.register(FarmingSystem::new());
             system_runner.register(InventorySystem::new());
@@ -12892,6 +12899,20 @@ mod native_app {
                                         // preview + unread mark current (v0.715). Done
                                         // before the push below moves content/from_name.
                                         let dm_is_open = state.gui_state.chat_active_channel == dm_channel;
+                                        // DM notify ding (v0.985): someone ELSE's
+                                        // message, conversation not on screen, DM
+                                        // notifications enabled. Quiet hours stay a
+                                        // server-push concern - an in-app ding only
+                                        // fires while actively playing.
+                                        if !is_from_me
+                                            && !dm_is_open
+                                            && state.gui_state.notif_dm_enabled
+                                        {
+                                            state.pending_sfx.push((
+                                                "sfx.chat_message",
+                                                "audio/ui/chat_message.ogg",
+                                            ));
+                                        }
                                         let preview = if is_from_me {
                                             format!("You: {}", content)
                                         } else {
@@ -14889,6 +14910,24 @@ mod native_app {
                                     if let Err(e) = audio.play_sound(&path) {
                                         static WARNED: std::sync::Once = std::sync::Once::new();
                                         WARNED.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
+                                    }
+                                }
+                                // ECS-system SFX channel (v0.985): construction
+                                // and crafting completions arrive here (systems
+                                // have no engine state - see push_sfx_event).
+                                let system_sfx: Vec<(String, String)> = state
+                                    .data_store
+                                    .get::<std::sync::Mutex<Vec<(String, String)>>>("sfx_events")
+                                    .and_then(|m| m.lock().ok().map(|mut e| e.drain(..).collect()))
+                                    .unwrap_or_default();
+                                for (id, fallback) in system_sfx {
+                                    let path = format!(
+                                        "assets/{}",
+                                        state.sound_catalog.path_or(&id, &fallback)
+                                    );
+                                    if let Err(e) = audio.play_sound(&path) {
+                                        static WARNED2: std::sync::Once = std::sync::Once::new();
+                                        WARNED2.call_once(|| log::warn!("[Audio] sfx {id}: {e}"));
                                     }
                                 }
                                 // UI click: any press that egui consumed. The

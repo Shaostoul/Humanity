@@ -46,3 +46,23 @@ pub mod genetics;
 pub mod transportation;
 pub mod offline;
 pub mod self_sufficiency;
+
+/// Push a one-shot SFX request onto the shared `"sfx_events"` DataStore
+/// channel (v0.985): ECS systems (construction, crafting) have no engine
+/// state, so they emit (catalog id, fallback path) pairs here; the native
+/// client's audio frame-sync drains the channel alongside
+/// `EngineState::pending_sfx`. Lives HERE (not in the native-gated audio
+/// module) so relay builds compile: on a headless relay the channel is
+/// simply never registered and this no-ops - the same degradation contract
+/// as `quests::push_quest_event`.
+pub fn push_sfx_event(
+    data: &crate::hot_reload::data_store::DataStore,
+    id: &str,
+    fallback: &str,
+) {
+    if let Some(lock) = data.get::<std::sync::Mutex<Vec<(String, String)>>>("sfx_events") {
+        if let Ok(mut events) = lock.lock() {
+            events.push((id.to_string(), fallback.to_string()));
+        }
+    }
+}
