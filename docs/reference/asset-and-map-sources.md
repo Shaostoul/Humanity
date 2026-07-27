@@ -2,9 +2,11 @@
 
 Research pass for two needs: real plant models for the gardens, and real
 planetary imagery for Moon/Mars/Pluto. Every license below was verified
-against the live page on 2026-07-19. NOTHING here has been downloaded -
-links only, per the operator's instruction; the operator reviews and
-downloads personally.
+against the live page on 2026-07-19. UPDATE 2026-07-26: the operator
+approved CC0 downloads ("keep using/downloading the CC0 GLBs"), and
+scripts/obj-to-plant-gltf.js now converts any flat-colored OBJ pack into
+the engine loader shape - the Quaternius Nature Crops Pack (all 102
+models) landed in assets/models/plants/ in v0.991.
 
 ## Plant / crop 3D asset packs (commercial use OK)
 
