@@ -40,6 +40,26 @@ impl Vertex {
             ],
         }
     }
+
+    /// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2).
+    /// One vec4 per instance -- xyz = batched-patch translation, w = LOD
+    /// fade (shader location 4, `inst_pos_fade`). Every PBR pipeline
+    /// declares this slot; classic draws bind a 16-byte zero dummy, the
+    /// terrain-batch draws bind the arena's instance buffer. Attribute
+    /// fetch (unlike the instance_index builtin) respects first_instance
+    /// in BOTH direct and indirect draws on every backend, which is what
+    /// makes one multi_draw_indexed_indirect over 12k patches portable.
+    pub fn instance_layout() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: 16,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &[wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4,
+            }],
+        }
+    }
 }
 
 /// GPU-resident mesh with vertex and index buffers.

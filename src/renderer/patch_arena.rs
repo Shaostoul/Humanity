@@ -7,18 +7,24 @@
 //! matrix inversions staging them. The operator's 12,288-budget config ran at
 //! 13 FPS in an empty desert on that submission cost alone.
 //!
-//! THE FIX: all batched patches live in ONE shared vertex buffer + ONE shared
-//! index buffer (range-allocated), per-patch data (anchor translation + LOD
-//! fade) rides a storage array indexed by @builtin(instance_index), and the
-//! draw loop becomes: bind everything once, then one
-//! `draw_indexed(irange, base_vertex, i..i+1)` per patch. DIRECT draws, not
-//! multi_draw_indexed_indirect, deliberately: this project's primary DX12
-//! adapter is missing the
+//! THE FIX (increment 1): all batched patches live in ONE shared vertex
+//! buffer + ONE shared index buffer (range-allocated), per-patch data
+//! (anchor translation + LOD fade) rides an instance-rate VERTEX ATTRIBUTE
+//! (slot 1), and the draw loop becomes: bind everything once, then one
+//! `draw_indexed(irange, base_vertex, i..i+1)` per patch.
+//!
+//! Increment 2: measurement showed wgpu's ~1.5 us per draw_indexed encoding
+//! still dominated (2,049 draws = 15.8 ms vs 8,718 draws = 25.8 ms, same
+//! scene), so when the device has MULTI_DRAW_INDIRECT +
+//! INDIRECT_FIRST_INSTANCE the whole batch collapses into ONE
+//! multi_draw_indexed_indirect over `indirect_buf`. The per-instance data
+//! deliberately rides an ATTRIBUTE and not the instance_index builtin:
+//! this project's primary DX12 adapter is missing the
 //! VERTEX_AND_INSTANCE_INDEX_RESPECTS_RESPECTIVE_FIRST_VALUE_IN_INDIRECT_DRAW
-//! downlevel flag (boot log, 2026-07-27), so instance_index would not see
-//! first_instance from indirect args there -- while first_instance in direct
-//! draws is core WebGPU on every backend. Indirect can layer on later for
-//! adapters that support it; the buffers and shader are already shaped for it.
+//! downlevel flag (boot log, 2026-07-27), so the BUILTIN would not see
+//! first_instance from indirect args there -- while instance-attribute
+//! fetch honors first_instance in hardware everywhere. Devices without the
+//! features keep the per-draw loop (same shaders, same buffers).
 //!
 //! Patch geometry VARIES in size (the base grid is a fixed 1056 vertices, but
 //! vegetation cards are appended into the same mesh), so slots are variable
@@ -110,12 +116,24 @@ impl RangeAlloc {
     }
 }
 
-/// One per-patch instance record as the shader sees it (PatchInstance in
-/// the batch OBJECT-SOURCE): xyz = anchor translation, w = LOD fade.
+/// One per-patch instance record as the shader sees it (the inst_pos_fade
+/// vertex attribute, slot 1): xyz = anchor translation, w = LOD fade.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PatchInstance {
     pub pos_fade: [f32; 4],
+}
+
+/// One multi_draw_indexed_indirect entry (wgpu arg order: index_count,
+/// instance_count, first_index, base_vertex, first_instance).
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct IndirectArgs {
+    pub index_count: u32,
+    pub instance_count: u32,
+    pub first_index: u32,
+    pub base_vertex: i32,
+    pub first_instance: u32,
 }
 
 /// Max batched patch draws per frame (instance buffer capacity). Matches
@@ -128,6 +146,7 @@ pub struct PatchArena {
     pub vertex_buf: wgpu::Buffer,
     pub index_buf: wgpu::Buffer,
     pub instance_buf: wgpu::Buffer,
+    pub indirect_buf: wgpu::Buffer,
     pub batch_buf: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub valloc: RangeAlloc,
@@ -174,10 +193,23 @@ impl PatchArena {
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        // Instance data is a VERTEX buffer (slot 1, step_mode Instance) --
+        // attribute fetch respects first_instance in both direct and
+        // indirect draws on every backend, unlike the instance_index
+        // builtin (broken for indirect on this DX12 adapter).
         let instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Patch Instance Storage"),
+            label: Some("Patch Instance Data"),
             size: (MAX_PATCH_DRAWS * std::mem::size_of::<PatchInstance>()) as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        // Indirect draw args (increment 2): 20 bytes per patch draw, one
+        // multi_draw_indexed_indirect submits them all when the device
+        // supports it (the per-draw loop is the fallback).
+        let indirect_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Patch Indirect Args"),
+            size: (MAX_PATCH_DRAWS * 20) as u64,
+            usage: wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let batch_buf = device.create_buffer(&wgpu::BufferDescriptor {
@@ -189,21 +221,16 @@ impl PatchArena {
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Patch Batch Bind Group"),
             layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: instance_buf.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: batch_buf.as_entire_binding(),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: batch_buf.as_entire_binding(),
+            }],
         });
         Self {
             vertex_buf,
             index_buf,
             instance_buf,
+            indirect_buf,
             batch_buf,
             bind_group,
             valloc: RangeAlloc::new(vcap),

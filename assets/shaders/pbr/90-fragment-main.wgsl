@@ -206,9 +206,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
 
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
-    // Route the instance index to the obj_* accessors (flat varying; 0 for
-    // classic draws, the patch-instance slot for terrain-batch draws).
-    g_inst = in.inst;
+    // Route the per-instance data to the obj_* accessors (flat varying;
+    // zero for classic draws, the batched patch's translation + fade for
+    // terrain-batch draws).
+    g_inst_data = in.inst_data;
     // Screen-space derivatives of the world position, taken FIRST - before
     // the Bayer discard below or any non-uniform branch - so they are valid
     // wherever they are later consumed (v0.977: the ground textures rotate

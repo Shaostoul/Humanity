@@ -270,6 +270,13 @@ pub struct Renderer {
     /// created on the first patch upload (a planet approach), so sessions
     /// that never activate chunked terrain pay zero VRAM for it.
     pub patch_arena: Option<patch_arena::PatchArena>,
+    /// Whether MULTI_DRAW_INDIRECT + INDIRECT_FIRST_INSTANCE were granted
+    /// (increment 2): true = the celestial batch is one indirect submit.
+    pub patch_indirect: bool,
+    /// 16-byte zero buffer bound at vertex slot 1 for every CLASSIC draw
+    /// (the pipelines declare the per-instance attribute; non-batched
+    /// draws read element 0 = zeros, which the classic accessors ignore).
+    dummy_instance_buf: wgpu::Buffer,
     /// This frame's batched patch draws, set by the engine before the
     /// celestial render and consumed by it. Instance i in the storage
     /// buffer is draws[i]; the shadow pass reuses the SAME indices, so a
@@ -458,11 +465,19 @@ impl Renderer {
         let mut required_limits =
             wgpu::Limits::default().using_resolution(adapter_limits.clone());
         required_limits.max_buffer_size = adapter_limits.max_buffer_size;
+        // Draw-batching increment 2: request the indirect-draw features IF
+        // the adapter has them (intersection = grantable by construction,
+        // never a boot risk). When granted, the 12k-patch terrain batch
+        // submits as ONE multi_draw_indexed_indirect; when not, the
+        // per-draw loop runs on the exact same buffers and shaders.
+        let indirect_features = wgpu::Features::MULTI_DRAW_INDIRECT
+            | wgpu::Features::INDIRECT_FIRST_INSTANCE;
+        let granted_indirect = adapter.features() & indirect_features;
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("HumanityOS Renderer"),
-                    required_features: wgpu::Features::empty(),
+                    required_features: granted_indirect,
                     required_limits,
                     ..Default::default()
                 },
@@ -470,6 +485,11 @@ impl Renderer {
             )
             .await
             .expect("Failed to create device");
+        let patch_indirect = granted_indirect == indirect_features;
+        log::info!(
+            "[PatchBatch] indirect multi-draw: {}",
+            if patch_indirect { "SUPPORTED (one submit per batch)" } else { "unsupported (per-draw loop)" }
+        );
 
         // Surface configuration
         let surface_caps = surface.get_capabilities(&adapter);
@@ -644,6 +664,14 @@ impl Renderer {
             size: uniform_align * MAX_OBJECTS as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
+        });
+
+        // Zero per-instance data for classic draws (vertex slot 1; see the
+        // dummy_instance_buf field doc).
+        let dummy_instance_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Dummy Instance Data"),
+            contents: &[0u8; 16],
+            usage: wgpu::BufferUsages::VERTEX,
         });
 
         let object_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1131,6 +1159,8 @@ impl Renderer {
             sea_state: 0.35,
             fill_scale: 1.0,
             patch_arena: None,
+            patch_indirect,
+            dummy_instance_buf,
             patch_draws: Vec::new(),
             patch_batch_rot: Mat4::IDENTITY,
             patch_batch_material: 0,
@@ -2144,6 +2174,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             // One batched object-uniform upload (v0.891).
@@ -2236,6 +2268,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             // One batched object-uniform upload (v0.891).
@@ -2332,6 +2366,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             // One batched object-uniform upload (v0.891).
@@ -2404,6 +2440,8 @@ impl Renderer {
                 ..Default::default()
             });
             render_pass.set_pipeline(&self.pipeline.overlay_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             // One batched object-uniform upload (v0.891).
             let uniform_align = 256_u64;
@@ -2677,6 +2715,24 @@ impl Renderer {
                     0,
                     bytemuck::bytes_of(&self.patch_batch_rot.to_cols_array_2d()),
                 );
+                // Increment 2: indirect args for the one-submit path. Each
+                // entry's first_instance selects the instance-attribute
+                // element (honored in hardware; the builtin would not be).
+                if self.patch_indirect {
+                    let args: Vec<patch_arena::IndirectArgs> = self.patch_draws[..n]
+                        .iter()
+                        .enumerate()
+                        .map(|(i, d)| patch_arena::IndirectArgs {
+                            index_count: d.slot.icount,
+                            instance_count: 1,
+                            first_index: d.slot.istart,
+                            base_vertex: d.slot.vstart as i32,
+                            first_instance: i as u32,
+                        })
+                        .collect();
+                    self.queue
+                        .write_buffer(&arena.indirect_buf, 0, bytemuck::cast_slice(&args));
+                }
             }
             n
         } else {
@@ -2706,6 +2762,8 @@ impl Renderer {
                     ..Default::default()
                 });
                 pass.set_pipeline(&self.pipeline.shadow_pipeline);
+                // Slot 1: zero per-instance data for classic draws (increment 2).
+                pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 pass.set_bind_group(0, &self.light_camera_bind_group, &[]);
                 // ONE group-3 for the whole pass: the dummy-depth variant
                 // (the real shadow map is this pass's write target and must
@@ -2760,7 +2818,11 @@ impl Renderer {
                         pass.set_bind_group(2, &material.bind_group, &[]);
                     }
                     pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                    pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
                     pass.set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
+                    // Per-draw loop stays here even with indirect support:
+                    // the 6 km caster cull keeps this to a few dozen draws,
+                    // and a separate culled args buffer isn't worth it.
                     for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
                         if (d.position - cast_center).length_squared() > 6_000.0_f32 * 6_000.0 {
                             continue;
@@ -2813,6 +2875,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             // Opaque bodies + transparent shells (atmospheres) share one
@@ -2889,14 +2953,26 @@ impl Renderer {
                     );
                 }
                 render_pass.set_vertex_buffer(0, arena.vertex_buf.slice(..));
+                render_pass.set_vertex_buffer(1, arena.instance_buf.slice(..));
                 render_pass
                     .set_index_buffer(arena.index_buf.slice(..), wgpu::IndexFormat::Uint32);
-                for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
-                    render_pass.draw_indexed(
-                        d.slot.istart..d.slot.istart + d.slot.icount,
-                        d.slot.vstart as i32,
-                        (i as u32)..(i as u32 + 1),
+                if self.patch_indirect {
+                    // Increment 2: the whole batch in ONE command. This is
+                    // what removes the ~1.5 us x N draw-encoding cost that
+                    // still dominated after increment 1.
+                    render_pass.multi_draw_indexed_indirect(
+                        &arena.indirect_buf,
+                        0,
+                        patch_batch_n as u32,
                     );
+                } else {
+                    for (i, d) in self.patch_draws[..patch_batch_n].iter().enumerate() {
+                        render_pass.draw_indexed(
+                            d.slot.istart..d.slot.istart + d.slot.icount,
+                            d.slot.vstart as i32,
+                            (i as u32)..(i as u32 + 1),
+                        );
+                    }
                 }
             }
 
@@ -2906,6 +2982,8 @@ impl Renderer {
             // apart, so no depth sorting needed. (v0.763)
             if !transparent.is_empty() {
                 render_pass.set_pipeline(&self.pipeline.transparent_pipeline);
+                // Slot 1: zero per-instance data for classic draws (increment 2).
+                render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 let mut bound_material = usize::MAX;
                 for (i, obj) in transparent.iter().enumerate() {
                     let slot = objects.len() + i;
@@ -3198,6 +3276,8 @@ impl Renderer {
             });
 
             render_pass.set_pipeline(&self.pipeline.render_pipeline);
+            // Slot 1: zero per-instance data for classic draws (increment 2).
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
 
             let mut bound_material = usize::MAX;

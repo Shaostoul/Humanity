@@ -35,19 +35,20 @@ pub struct Pipeline {
     /// (depth_compare Always) so build-mode gizmos (corner orbs, the avatar, rings) draw ON TOP of
     /// the world -- visible through walls + floors. No depth write either.
     pub overlay_pipeline: wgpu::RenderPipeline,
-    /// Terrain-batch opaque variant (draw-batching increment 1): compiled
-    /// from the BATCH shader module (storage-array object source), group 1
-    /// is `patch_bind_group_layout`. Same blend/cull/depth as the opaque
-    /// pipeline -- only where per-draw data comes from differs.
+    /// Terrain-batch opaque variant (draw-batching increments 1+2):
+    /// compiled from the BATCH shader module (per-instance attribute
+    /// object source), group 1 is `patch_bind_group_layout`. Same
+    /// blend/cull/depth as the opaque pipeline -- only where per-draw
+    /// data comes from differs.
     pub patch_render_pipeline: wgpu::RenderPipeline,
     /// Depth-only shadow variant of the terrain-batch path (near-field
     /// patch casters render into the sun map without per-draw rebinds).
     pub patch_shadow_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
-    /// Group-1 layout for the terrain-batch pipelines: binding 0 = the
-    /// per-patch instance storage array, binding 1 = the shared batch
-    /// uniform (planet rotation). No dynamic offsets -- the whole point.
+    /// Group-1 layout for the terrain-batch pipelines: one shared batch
+    /// uniform (planet rotation). Per-patch data rides the instance-rate
+    /// vertex attribute. No dynamic offsets -- the whole point.
     pub patch_bind_group_layout: wgpu::BindGroupLayout,
     pub material_bind_group_layout: wgpu::BindGroupLayout,
     /// Group 3 (v0.811): albedo texture + sampler for per-pixel planet
@@ -361,38 +362,27 @@ impl Pipeline {
                 ],
             });
 
-        // Group 1 for the terrain-batch pipelines: the per-patch instance
-        // storage array + the shared batch uniform. FRAGMENT visibility on
-        // both because the fragment-stage obj_* accessors read them (the
-        // v0.807 lesson: widen the layout in the same commit as the shader
-        // use, and boot-verify -- naga cannot see layout mismatches).
+        // Group 1 for the terrain-batch pipelines: ONE shared batch uniform
+        // (the planet rotation). Per-patch data rides the instance-rate
+        // vertex attribute (Vertex::instance_layout), not a binding.
+        // FRAGMENT visibility because the fragment-stage obj_* accessors
+        // read the uniform too (the v0.807 lesson: widen the layout in the
+        // same commit as the shader use, and boot-verify -- naga cannot see
+        // pipeline-layout mismatches, only booting can).
         let patch_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Patch Batch Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
-                            has_dynamic_offset: false,
-                            // One PatchInstance = vec4<f32> = 16 bytes.
-                            min_binding_size: wgpu::BufferSize::new(16),
-                        },
-                        count: None,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        // One mat4x4<f32> = 64 bytes.
+                        min_binding_size: wgpu::BufferSize::new(64),
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            // One mat4x4<f32> = 64 bytes.
-                            min_binding_size: wgpu::BufferSize::new(64),
-                        },
-                        count: None,
-                    },
-                ],
+                    count: None,
+                }],
             });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -498,7 +488,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
+                buffers: &[Vertex::layout(), Vertex::instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
@@ -546,7 +536,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: batch_shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
+                buffers: &[Vertex::layout(), Vertex::instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: None,
@@ -603,7 +593,7 @@ impl Pipeline {
                 vertex: wgpu::VertexState {
                     module: shader,
                     entry_point: Some("vs_main"),
-                    buffers: &[Vertex::layout()],
+                    buffers: &[Vertex::layout(), Vertex::instance_layout()],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
                 fragment: Some(wgpu::FragmentState {
@@ -691,7 +681,7 @@ impl Pipeline {
             vertex: wgpu::VertexState {
                 module: shader,
                 entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout()],
+                buffers: &[Vertex::layout(), Vertex::instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: None,

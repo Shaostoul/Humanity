@@ -1,6 +1,7 @@
 # Terrain draw batching
 
-Status: increment 1 SHIPPED (v0.1001.0, 2026-07-27). Owner: renderer.
+Status: increment 1 SHIPPED (v0.1001.0) + increment 2 SHIPPED (v0.1002.0,
+both 2026-07-27). Owner: renderer.
 Operator approval: "Let's do the proper fix for the terrain gen" (2026-07-26,
 after the 13 FPS empty-desert report at patch budget 12,288).
 
@@ -96,15 +97,34 @@ which also keeps the arena and the cache cap in agreement by construction.
   not worth it yet.
 - All non-patch celestial objects (bodies, atmo shells, cloud shells).
 
+## Increment 2 (v0.1002.0): one indirect submit
+
+Increment 1 A/B measurement showed the remaining scaler was wgpu's ~1.5 us
+per draw_indexed ENCODING cost (2,049 draws = 15.8 ms vs 8,718 draws =
+25.8 ms, same scene, sort made no difference). Increment 2 collapses the
+loop into ONE `multi_draw_indexed_indirect`:
+
+- Per-instance data moved from a storage array indexed by the
+  instance_index BUILTIN to an instance-rate VERTEX ATTRIBUTE
+  (`inst_pos_fade`, slot 1, `Vertex::instance_layout()`). Attribute fetch
+  honors first_instance in hardware for both direct and indirect draws on
+  every backend, which sidesteps exactly the downlevel flag this DX12
+  adapter is missing. All six PBR PSOs declare the slot; classic draws
+  bind a 16-byte zero dummy buffer once per pass.
+- The arena gains an indirect-args buffer (20 bytes per draw); the
+  per-frame instance upload also writes the args when the device granted
+  MULTI_DRAW_INDIRECT + INDIRECT_FIRST_INSTANCE (requested as the
+  intersection with adapter.features(), so the request can never fail a
+  boot). Without the features the per-draw loop runs on the same buffers
+  and shaders.
+- The shadow pass keeps the per-draw loop: the 6 km caster cull leaves a
+  few dozen draws, not worth a second culled args buffer.
+
 ## Future increments
 
-1. `multi_draw_indexed_indirect` behind a feature check (Vulkan or any
-   adapter with INDIRECT_FIRST_INSTANCE + the downlevel flag): the per-patch
-   loop becomes one command. Args buffer is a trivial extension of the
-   current instance upload.
-2. GPU frustum culling of patches (compute pass writes the indirect args),
+1. GPU frustum culling of patches (compute pass writes the indirect args),
    removing the CPU selection's draw-list cost at very high budgets.
-3. Tree instancing rides the same arena pattern (reserved billboard-bake
+2. Tree instancing rides the same arena pattern (reserved billboard-bake
    arc; see PRIORITIES).
 
 ## Verification

@@ -99,14 +99,21 @@ const TILE_CAP: u32 = 64u;
 // per-draw object plumbing (one uniform slot per draw, dynamic offset).
 // The terrain-batch pipeline compiles a SECOND module where
 // shader_loader::batched_variant_of() replaces this whole block with a
-// storage-array version indexed by @builtin(instance_index) -- that is how
-// 12k patch draws share one bind group with zero per-draw rebinds. Shared
-// code must therefore NEVER touch `object.` directly: go through
-// obj_model() / obj_normal_matrix() / obj_lod_fade(), which both variants
-// define. g_inst is set at the top of vs_main (instance index) and fs_main
-// (flat varying) so the accessors work identically in both stages.
+// version that rebuilds the model matrix from the per-INSTANCE vertex
+// attribute (inst_pos_fade, vertex buffer slot 1) plus one shared batch
+// uniform -- that is how 12k patch draws share one bind group with zero
+// per-draw rebinds, and it works for BOTH direct draws (i..i+1 ranges)
+// and multi_draw_indexed_indirect, because instance-rate ATTRIBUTE fetch
+// respects first_instance everywhere (unlike the instance_index builtin,
+// which this DX12 adapter reports broken for indirect draws). Shared code
+// must therefore NEVER touch `object.` directly: go through obj_model() /
+// obj_normal_matrix() / obj_lod_fade(), which both variants define.
+// g_inst_data is set at the top of vs_main (the attribute) and fs_main
+// (flat varying) so the accessors work identically in both stages; the
+// classic variant ignores it (classic draws bind a 16-byte zero dummy at
+// slot 1).
 @group(1) @binding(0) var<uniform> object: ObjectUniforms;
-var<private> g_inst: u32 = 0u;
+var<private> g_inst_data: vec4<f32> = vec4<f32>(0.0);
 fn obj_model() -> mat4x4<f32> { return object.model; }
 fn obj_normal_matrix() -> mat4x4<f32> { return object.normal_matrix; }
 fn obj_lod_fade() -> f32 { return object.model[0].w; }
@@ -201,6 +208,11 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
+    // Per-INSTANCE data from vertex buffer slot 1 (step_mode Instance):
+    // xyz = batched-patch translation, w = LOD fade. Classic draws bind a
+    // 16-byte zero dummy here and never read it; the terrain-batch
+    // variant's accessors are built from it.
+    @location(4) inst_pos_fade: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -208,11 +220,10 @@ struct VertexOutput {
     @location(0) world_position: vec3<f32>,
     @location(1) world_normal: vec3<f32>,
     @location(2) uv: vec2<f32>,
-    // Instance index carried to the fragment stage (flat = no
-    // interpolation). Classic draws always use instance range 0..1 so this
-    // is 0 there; the terrain-batch variant's fragment accessors index the
-    // patch-instance storage array with it.
-    @location(3) @interpolate(flat) inst: u32,
+    // Per-instance data carried to the fragment stage (flat = no
+    // interpolation): the terrain-batch variant's fragment accessors
+    // rebuild the model matrix from it. Zero for classic draws.
+    @location(3) @interpolate(flat) inst_data: vec4<f32>,
 };
 
 // ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
@@ -288,8 +299,8 @@ fn ocean_wave_height(p_m: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
 }
 
 @vertex
-fn vs_main(vertex: VertexInput, @builtin(instance_index) iid: u32) -> VertexOutput {
-    g_inst = iid;
+fn vs_main(vertex: VertexInput) -> VertexOutput {
+    g_inst_data = vertex.inst_pos_fade;
     var out: VertexOutput;
     var world_pos = obj_model() * vec4<f32>(vertex.position, 1.0);
     // The model matrix's w ROW carries per-object metadata (model[0].w =
@@ -334,7 +345,7 @@ fn vs_main(vertex: VertexInput, @builtin(instance_index) iid: u32) -> VertexOutp
     out.clip_position = camera.view_proj * world_pos;
     out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
     out.uv = vertex.uv;
-    out.inst = iid;
+    out.inst_data = vertex.inst_pos_fade;
     return out;
 }
 

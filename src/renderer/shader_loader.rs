@@ -45,25 +45,20 @@ pub fn assembled_pbr_source() -> &'static str {
 pub const BATCH_OBJECT_SOURCE: &str = r#"// BEGIN OBJECT-SOURCE (terrain-batch variant, injected by
 // shader_loader::batched_variant_of; the classic block lives in
 // 00-bindings-vertex.wgsl).
-struct PatchInstance {
-    // xyz = patch anchor translation (render space), w = LOD crossfade
-    // (same metadata contract as the classic model[0].w slot).
-    pos_fade: vec4<f32>,
-};
 struct BatchUniforms {
     // The rotation-only model matrix every patch in the batch shares this
     // frame (planet rotation; patches never scale). Per-patch translation
-    // rides the instance array.
+    // + fade arrive through the inst_pos_fade instance attribute, captured
+    // into g_inst_data by vs_main (attribute) and fs_main (flat varying).
     rot: mat4x4<f32>,
 };
-@group(1) @binding(0) var<storage, read> patch_instances: array<PatchInstance>;
-@group(1) @binding(1) var<uniform> batch: BatchUniforms;
-var<private> g_inst: u32 = 0u;
+@group(1) @binding(0) var<uniform> batch: BatchUniforms;
+var<private> g_inst_data: vec4<f32> = vec4<f32>(0.0);
 fn obj_model() -> mat4x4<f32> {
     var m = batch.rot;
-    let p = patch_instances[g_inst].pos_fade;
-    m[3] = vec4<f32>(p.xyz, 1.0);
-    m[0].w = p.w;
+    m[3] = vec4<f32>(g_inst_data.xyz, 1.0);
+    // Keep the classic metadata contract: model[0].w carries the fade.
+    m[0].w = g_inst_data.w;
     return m;
 }
 fn obj_normal_matrix() -> mat4x4<f32> {
@@ -73,7 +68,7 @@ fn obj_normal_matrix() -> mat4x4<f32> {
     // (and the water vertex branch) relies on.
     return batch.rot;
 }
-fn obj_lod_fade() -> f32 { return patch_instances[g_inst].pos_fade.w; }
+fn obj_lod_fade() -> f32 { return g_inst_data.w; }
 // END OBJECT-SOURCE"#;
 
 /// Derive the terrain-batch shader variant from an assembled classic
@@ -340,7 +335,7 @@ mod tests {
     fn batched_variant_parses_and_validates() {
         let src = super::assembled_pbr_batch_source();
         assert!(
-            src.contains("patch_instances"),
+            src.contains("BatchUniforms"),
             "batch substitution did not take (markers missing?)"
         );
         assert!(
