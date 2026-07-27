@@ -3197,6 +3197,27 @@ mod native_app {
                                 }
                             }
                         }
+                        // Dive bubbles (v0.984): a rising trickle around the
+                        // submerged camera - the same manage-an-ambient-
+                        // emitter pattern as the leaves.
+                        let want_bubbles = state.gui_state.underwater;
+                        let bubble_pos =
+                            state.camera.position + state.camera.forward() * 1.5;
+                        match state.particle_system.emitter_by_type_mut("dive_bubbles") {
+                            Some(e) => {
+                                e.active = want_bubbles;
+                                if want_bubbles {
+                                    e.position = bubble_pos;
+                                }
+                            }
+                            None => {
+                                if want_bubbles {
+                                    let _ = state
+                                        .particle_system
+                                        .spawn("dive_bubbles", bubble_pos);
+                                }
+                            }
+                        }
                         // Space dust: a sparse world-anchored mote field ahead
                         // of the camera so motion reads against black space.
                         let want_dust =
@@ -3711,7 +3732,16 @@ mod native_app {
                             } else {
                                 (alt * 0.5).max(200.0)
                             };
-                            let step = (walk_speed * dt as f64).min(step_cap);
+                            // Swim speed cap (v0.984, post-audit item 6 residue):
+                            // water is DENSE - underwater the fly gear no longer
+                            // applies, capping motion at a strong-swimmer ~2.5 m/s
+                            // (dev fly mode is exempt: noclip stays noclip). Ends
+                            // the geared torpedo through the Marianas.
+                            let step = if submerged && !state.controller.fly_mode {
+                                (walk_speed * dt as f64).min(2.5 * dt as f64)
+                            } else {
+                                (walk_speed * dt as f64).min(step_cap)
+                            };
                             // Detail-inclusive ground sampler (see-through-ground
                             // fix): the planet's sub-grid detail noise so the clamp
                             // stands the eye on the DRAWN mesh, not the base

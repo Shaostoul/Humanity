@@ -213,6 +213,28 @@
     // Drifting leaves (v0.966): ambient foliage around the player while
     // standing among trees. Spawned in a wide volume overhead, blown
     // sideways with a gentle sink - the emitter follows the camera.
+    // Dive bubbles (v0.984, post-audit item 6 residue): a sparse trickle of
+    // rising air around the submerged camera. Buoyancy = negative gravity;
+    // bubbles grow slightly as they rise (pressure) and fade before they
+    // would visibly pop through the surface plane.
+    "dive_bubbles": (
+        max_particles: 120,
+        spawn_rate: 14.0,
+        lifetime_min: 1.6,
+        lifetime_max: 3.2,
+        speed_min: 0.2,
+        speed_max: 0.6,
+        direction: (0.0, 1.0, 0.0),   // rise
+        spread_angle_deg: 25.0,
+        gravity: (0.0, 0.55, 0.0),    // buoyant acceleration
+        size_start: 0.02,
+        size_end: 0.05,
+        color_start: (0.75, 0.88, 0.95, 0.55),  // airy blue-white
+        color_end: (0.85, 0.94, 1.0, 0.0),
+        emissive: 0.0,
+        blend_mode: "alpha",
+        spawn_radius: 2.5,
+    ),
     "leaf_drift": (
         max_particles: 160,
         spawn_rate: 10.0,
