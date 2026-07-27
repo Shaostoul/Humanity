@@ -24,9 +24,18 @@
 >   boundary; bit-18 grass cards now Bayer-dissolve over 30-45 m.
 > - DONE cloud subdivision + cliff edges (v0.1000.0): coverage octave
 >   ladder 9/19/41/83 + cross 13 (mesoscale cells from orbit) + height
->   squash (weak columns top out low; sloped skirts, rig-proven). The
->   pillowy/cauliflower + self-shadowing want = the VOLUMETRIC CLOUDS ARC
->   (real raymarched self-occlusion), queued below.
+>   squash (weak columns top out low; NOTE the squash lives in the
+>   Medium/Low cloud_density path; the High tier's height shaping is its
+>   own towering mechanism in cloud_carve).
+> - DONE cloud self-shadowing (v0.1003.0): "clouds don't block light from
+>   each other" was a real BUG, not missing machinery - a tau heat-map
+>   shader probe showed the High-tier light march reused the view-alpha
+>   sigma, capping every shadow at ~e^-0.5 (tau ~0.1 across solid noon
+>   overcast), and its first tap overshot thin stratus bands entirely.
+>   Fixed with the standard view/light extinction split
+>   (CLOUD_LIGHT_SIGMA_MULT 6x + halved first-tap step); undersides now
+>   carry real gray weight. The pillowy/cauliflower STRUCTURE want remains
+>   the VOLUMETRIC CLOUDS ARC below.
 > - DONE terrain-gen proper fix increments 1+2 (v0.1001.0 + v0.1002.0):
 >   patch mega-buffer arena + batch shader variant + real-byte cache
 >   accounting + one multi_draw_indexed_indirect submit
