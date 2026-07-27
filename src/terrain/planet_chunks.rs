@@ -392,7 +392,10 @@ pub fn tile_or_base(
 ) -> (f32, bool) {
     if depth >= TILE_MIN_DEPTH {
         if let Some(t) = tiles {
-            let (lat, lon) = super::planet_heightmap::dir_to_latlon_deg(dir.as_vec3());
+            // f64 all the way to the grid coordinate (v0.1010): the old
+            // .as_vec3() downcast quantized sample positions at ~3.6 m,
+            // drawing staircase ripples on smooth slopes (bm-7 report).
+            let (lat, lon) = super::planet_heightmap::dir_to_latlon_deg_f64(dir);
             if let Some(m) = t.sample_meters_smooth(lat, lon) {
                 let range = hm.max_meters() - hm.min_meters();
                 if range > 0.0 {

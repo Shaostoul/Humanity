@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "v0.1009.1 shipped (ground-pop filter). Flight arc largely closed pending operator confirmation. Next: volumetric clouds STRUCTURE arc, then terrain vertex sharing. Open minors: transient mouse-look freeze (needs repro), 100 km handoff feel, trees-from-altitude.",
+  "current_focus": "v0.1010.1 shipped (terrain ripples root cause). Flight + terrain field reports all closed pending operator confirmation. Next: volumetric clouds STRUCTURE arc, then terrain vertex sharing.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -270,6 +270,10 @@
     {
       "date": "2026-07-27",
       "decision": "v0.1009.1 BOBBING/TRENCH root cause fixed: detail-tile residency churn changes the physics ground sample by metres at a fixed spot (diag-proven g-R swings) while drawn terrain crossfades - the standing clamp popped the player with every change. Ground-reference pop filter: stationary player (<3 m/s lateral) eases ground changes at 2 m/s; moving players and wave floats stay instant/live. Operator confirmed travel great post-v0.1007/1008; transient mouse-look freeze still needs repro."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1010.1 RIPPLES/TRENCH TERRAIN ROOT CAUSE (operator bm-7 bookmark = the repro): f32 quantization in the tile elevation sampler - dir downcast to f32 + f32 global-grid coordinate = ~3.6 m horizontal sample snapping at high longitudes -> staircase terraces on smooth slopes, drawn AND clamped (the bob). Fixed f64 end-to-end (dir_to_latlon_deg_f64 + f64 fx/fy); regression test at the bm-7 longitude; rig-verified at the exact bookmark. METHOD NOTE: operator F6 bookmarks + copying debug/bookmarks.json to the rig + camera_request bookmark restore = exact-spot repro loop, keep using it. The v0.1009 ground-pop filter remains valid for tile RESIDENCY churn (a separate mechanism)."
     }
   ],
   "active_scopes_to_avoid": [

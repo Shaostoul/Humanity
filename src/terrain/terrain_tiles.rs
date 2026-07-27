@@ -226,7 +226,16 @@ impl TerrainTiles {
 
     /// Bicubic elevation in meters at (lat, lon), or None when any stencil
     /// tap's tile is not resident (caller falls back to the base grid).
-    pub fn sample_meters_smooth(&self, lat_deg: f32, lon_deg: f32) -> Option<f32> {
+    ///
+    /// f64 COORDINATES ARE LOAD-BEARING (v0.1010, operator's bm-7 "ripples
+    /// in the land" + character bobbing): the global grid coordinate is
+    /// lon-derived and reaches ~72,000 cells, where an f32 has a ~0.008
+    /// cell ulp - about 3.6 METRES of horizontal quantization. Every
+    /// sample position snapped to that grid, so smooth slopes rendered
+    /// (and clamped) as staircase terraces following the terrain. The
+    /// fractional cell coordinate must be computed in f64 and only the
+    /// SUB-CELL fraction (small, exact) drops to f32 for the weights.
+    pub fn sample_meters_smooth(&self, lat_deg: f64, lon_deg: f64) -> Option<f32> {
         if self.resident.is_empty() {
             return None;
         }
@@ -237,13 +246,13 @@ impl TerrainTiles {
                     + t * (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3
                         + t * (3.0 * (p1 - p2) + p3 - p0)))
         }
-        // Global virtual-grid fractional coordinates (cell-centered).
-        let fx = (lon_deg + 180.0) / 360.0 * GLOBAL_W as f32 - 0.5;
-        let fy = (90.0 - lat_deg) / 180.0 * GLOBAL_H as f32 - 0.5;
+        // Global virtual-grid fractional coordinates (cell-centered), f64.
+        let fx = (lon_deg + 180.0) / 360.0 * GLOBAL_W as f64 - 0.5;
+        let fy = (90.0 - lat_deg) / 180.0 * GLOBAL_H as f64 - 0.5;
         let x0 = fx.floor() as i64;
         let y0 = fy.floor() as i64;
-        let tx = fx - x0 as f32;
-        let ty = fy - y0 as f32;
+        let tx = (fx - x0 as f64) as f32;
+        let ty = (fy - y0 as f64) as f32;
         let mut rows = [0.0f32; 4];
         for (i, row) in rows.iter_mut().enumerate() {
             let y = y0 + i as i64 - 1;
@@ -303,6 +312,62 @@ fn load_tile(path: &std::path::Path) -> Option<Tile> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// v0.1010 regression (operator's bm-7 "ripples in the land"): sampling
+    /// a smooth synthetic slope at sub-cell steps around a HIGH-magnitude
+    /// grid coordinate must yield strictly increasing values. Under the old
+    /// f32 grid math the fractional coordinate near cell ~72,600 had a
+    /// ~0.008-cell ulp (~3.6 m of ground), so consecutive sub-metre steps
+    /// snapped to the same quantized position and the profile came back as
+    /// a staircase (plateaus + jumps) - the drawn ripples and the walking
+    /// bob. f64 keeps every step distinct and monotone.
+    #[test]
+    fn sub_cell_sampling_is_smooth_not_staircase_at_high_longitude() {
+        let mut tt = TerrainTiles::new(std::path::PathBuf::from("/nonexistent"));
+        // Synthetic tile at the bm-7 key (N15E120): a pure east-west ramp,
+        // 1 quantum per cell column.
+        let mut samples = vec![0u16; TILE_PX * TILE_PX];
+        for y in 0..TILE_PX {
+            for x in 0..TILE_PX {
+                samples[y * TILE_PX + x] = (x % 65536) as u16;
+            }
+        }
+        tt.resident.insert(
+            (15, 120),
+            Tile { samples, min_m: 0.0, max_m: 65535.0 }, // 1 m per quantum
+        );
+        // Also make the 8 neighbors resident (the bicubic stencil clamps y
+        // but wraps x within the same virtual grid; near mid-tile only the
+        // one tile is tapped, so a single tile suffices at this latitude).
+        // Walk east at ~0.9 m ground steps (0.002 cells) near lon 122.58.
+        let lat = 12.4541_f64;
+        let mut prev: Option<f32> = None;
+        let mut distinct = 0;
+        for i in 0..200 {
+            let lon = 122.5800_f64 + i as f64 * (0.002 * 360.0 / GLOBAL_W as f64);
+            let m = tt
+                .sample_meters_smooth(lat, lon)
+                .expect("synthetic tile resident");
+            if let Some(p) = prev {
+                assert!(
+                    m >= p - 1.0e-3,
+                    "ramp went backwards at step {i}: {p} -> {m}"
+                );
+                if (m - p).abs() > 1.0e-4 {
+                    distinct += 1;
+                }
+            }
+            prev = Some(m);
+        }
+        // 200 samples over 0.4 cells of a 1 m/cell ramp: virtually every
+        // sub-step must land on a DIFFERENT interpolated value. The f32
+        // staircase collapsed runs of ~4 consecutive samples to identical
+        // values (>25% duplicates); demand near-full distinctness.
+        assert!(
+            distinct > 190,
+            "staircase quantization is back: only {distinct}/199 distinct steps"
+        );
+    }
 
     #[test]
     fn keys_and_names_round_the_globe() {

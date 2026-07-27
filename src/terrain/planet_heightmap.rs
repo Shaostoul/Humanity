@@ -59,6 +59,16 @@ pub fn dir_to_latlon_deg(unit: Vec3) -> (f32, f32) {
     (lat, lon)
 }
 
+/// f64 twin of `dir_to_latlon_deg` (v0.1010): the terrain-tile sampler
+/// needs full double precision - an f32 longitude quantizes the 86,400-cell
+/// global grid at ~3.6 m ground steps, which drew staircase ripples on
+/// smooth slopes (operator's bm-7 report). Same handedness, same formula.
+pub fn dir_to_latlon_deg_f64(unit: glam::DVec3) -> (f64, f64) {
+    let lat = unit.y.clamp(-1.0, 1.0).asin().to_degrees();
+    let lon = (-unit.z).atan2(unit.x).to_degrees();
+    (lat, lon)
+}
+
 /// Inverse of `dir_to_latlon_deg`: (lat, lon) in degrees -> unit direction in
 /// the body's UNROTATED local frame. Used to pin a scenic camera (v0.824) to a
 /// real coordinate on the surface instead of a random sunlit vantage. Kept
