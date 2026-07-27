@@ -9497,6 +9497,17 @@ mod native_app {
                                     // hazing the deck near the horizon. Data-driven:
                                     // only defs with cloud_coverage spawn one
                                     // (earth.ron ~0.55; Mars deliberately None).
+                                    // v0.997 (operator: "clouds are still
+                                    // invisible while on the surface"): the
+                                    // shell OBJECTS build here but the PUSH
+                                    // order is decided below - from INSIDE the
+                                    // atmosphere the daytime dome is the blue
+                                    // sky itself (alpha ~0.985) and painting it
+                                    // after the deck erased the clouds; from
+                                    // space the deck must stay under the limb
+                                    // haze. Order is view-dependent now.
+                                    let mut cloud_shell_obj: Option<RenderObject> = None;
+                                    let mut atmo_shell_obj: Option<RenderObject> = None;
                                     let clouds_on = state.gui_state.settings.planet_clouds;
                                     if let Some(cov) = d.cloud_coverage.filter(|c| *c > 0.0 && clouds_on) {
                                         // Quality tier (clouds increment 3):
@@ -9579,7 +9590,7 @@ mod native_app {
                                         // in the mesh's LOCAL frame, so the deck
                                         // rides the planet's spin and the drift
                                         // constants are true weather motion.
-                                        celestial_transparent.push(RenderObject { fade: 0.0,
+                                        cloud_shell_obj = Some(RenderObject { fade: 0.0,
                                             position,
                                             rotation,
                                             scale: Vec3::splat(
@@ -9669,7 +9680,7 @@ mod native_app {
                                                 state.planet_mesh_cache.insert(skey, m);
                                                 m
                                             };
-                                            celestial_transparent.push(RenderObject { fade: 0.0,
+                                            atmo_shell_obj = Some(RenderObject { fade: 0.0,
                                                 position,
                                                 rotation,
                                                 scale: Vec3::splat(
@@ -9680,6 +9691,32 @@ mod native_app {
                                                 material: amat,
                                             });
                                         }
+                                    }
+                                    // View-dependent composite order (v0.997).
+                                    // INSIDE the atmosphere: dome first, deck
+                                    // on top - the clouds finally show against
+                                    // the daytime sky. OUTSIDE: deck first,
+                                    // dome after - the approved space look
+                                    // (blue limb hazing the deck) unchanged.
+                                    let inside_atmo = atmo_shell_obj
+                                        .as_ref()
+                                        .map(|a| {
+                                            (state.camera.effective_position() - position).length()
+                                                < a.scale.x
+                                        })
+                                        .unwrap_or(false);
+                                    match (cloud_shell_obj, atmo_shell_obj) {
+                                        (Some(c), Some(a)) if inside_atmo => {
+                                            celestial_transparent.push(a);
+                                            celestial_transparent.push(c);
+                                        }
+                                        (Some(c), Some(a)) => {
+                                            celestial_transparent.push(c);
+                                            celestial_transparent.push(a);
+                                        }
+                                        (Some(c), None) => celestial_transparent.push(c),
+                                        (None, Some(a)) => celestial_transparent.push(a),
+                                        (None, None) => {}
                                     }
                                 }
                             }
