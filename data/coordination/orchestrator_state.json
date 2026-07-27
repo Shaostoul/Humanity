@@ -482,6 +482,11 @@
       "date": "2026-07-26",
       "decision": "v0.981.0 post-audit item 1 (quest rewrite) closed: MOSTLY STALE - node scrape of all 5 quest chains found ZERO dead ids (the 2026-07-20 wave that stripped Travel steps also rewrote Gather/Craft/Build/Harvest to real ids; the audit claim of ~80% dead described the PRE-rewrite state). Shipped the genuinely-missing halves: (1) Talk emitter - dialogue-card open fires talk_<npc_talk_key(name)> (stable slug: Mira Chen -> mira_chen; entity ids are session-scoped so names are the contract; re-opens re-fire harmlessly, latch semantics). Every objective kind now advances. (2) Permanent lockstep test shipped_quest_objective_ids_all_resolve: every objective id + reward item in every shipped quest checked against items/recipes/plants CSVs + BlueprintRegistry + DestinationList at build time. Talk exempt (crew names are relay-runtime).",
       "why": "Verify-before-implement caught the second stale audit item today (after ocean-teleport). The pattern: 2026-07-20 audit findings were partially fixed the same day and the queue entries never updated. The lockstep test converts a point-in-time audit into a standing invariant."
+    },
+    {
+      "date": "2026-07-26",
+      "decision": "v0.982.0 forage faucet (post-audit item 2, verified REAL first): five resource nodes on the v0.978 stationary rails - fallen_log (wood_log_0 x2/480s), stone_outcrop (stone_raw_0 x3/600s), clay_pit (clay_raw_0 x2/600s), salt_flat (salt_food_0 x2/900s), sand_pit (sand_0 x3/480s) - placed in a working ring beyond the fields via wild_spawns.ron. Hides were already sourced (animal loot). Oil deferred by design (machine-tier). Kind column values plant/mineral are free-form (nothing reads CreatureDef.kind). The forage regression test now loops all 7 stationary node types. The abstracted [E]-gather is the honest MVP; real chop/quarry tool verbs remain a future arc deepening the SAME nodes (no rework).",
+      "why": "The audit claim held up here (unlike items 1 and the ocean-teleport): consumed-everywhere produced-nowhere confirmed by scrape. Riding proven rails made the whole faucet a data increment."
     }
   ],
   "active_scopes_to_avoid": [
