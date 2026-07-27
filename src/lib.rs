@@ -1655,6 +1655,7 @@ mod native_app {
                 decoration_objects: Vec::new(),
                 hero_plant_objects: Vec::new(),
                 hero_plant_missing: std::collections::HashSet::new(),
+                machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
                 near_trees: Vec::new(),
                 near_trees_center: glam::DVec3::splat(f64::MAX),

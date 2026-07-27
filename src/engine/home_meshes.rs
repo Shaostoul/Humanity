@@ -527,28 +527,80 @@ pub(crate) fn rebuild_machine_objects(state: &mut EngineState) {
         // INSTANCE (no shared cache), so the replace/reuse slot logic
         // below stays safe — each machine owns its mesh slot. Primitive
         // fallback on any load error, so a bad file never blanks it.
+        // v0.993 (textured machine models): the TEXTURED parse runs first;
+        // a model that carries an albedo texture (the Kenney furniture
+        // palettes) gets a type-19 textured material from the per-model
+        // cache instead of the def's flat color.
+        let mut model_tex: Option<(Vec<u8>, u32, u32)> = None;
+        let mut model_path: Option<String> = None;
         let mesh = p
             .model
             .as_deref()
             .and_then(|m| {
                 state
                     .asset_manager
-                    .parse_gltf_mesh(&state.renderer.device, m)
+                    .parse_gltf_mesh_textured(&state.renderer.device, m)
                     .map_err(|e| {
                         log::warn!("machine {} model '{m}' failed: {e}; primitive fallback", p.id)
                     })
                     .ok()
+                    .map(|(mesh, tex)| {
+                        model_tex = tex;
+                        model_path = Some(m.to_string());
+                        mesh
+                    })
             })
             .unwrap_or_else(|| machine_mesh(&state.renderer.device, &p.shape, p.size));
+        // Shared textured material per model path, created once. NEVER
+        // updated in place: instances of the same model share it.
+        let textured_mat: Option<usize> = match (&model_path, model_tex) {
+            (Some(mp), Some((rgba, w, h))) => {
+                Some(match state.machine_model_materials.get(mp) {
+                    Some(&ma) => ma,
+                    None => {
+                        let ma = state.renderer.add_textured_material(
+                            [1.0, 1.0, 1.0, 1.0],
+                            0.0,
+                            0.85,
+                            19.0,
+                            0.0,
+                            &rgba,
+                            w,
+                            h,
+                        );
+                        state.machine_model_materials.insert(mp.clone(), ma);
+                        ma
+                    }
+                })
+            }
+            _ => None,
+        };
         let color = [p.color.0, p.color.1, p.color.2, 1.0];
         let pos = Vec3::new(p.pos.0, p.pos.1, p.pos.2);
         if let Some(&(mi, ma, _, _)) = prior.get(i) {
             state.renderer.replace_mesh(mi, mesh);
-            state.renderer.update_material_typed(ma, color, 0.1, 0.7, 0.0);
-            objs.push((mi, ma, pos, p.rotation));
+            let use_ma = match textured_mat {
+                Some(tm) => tm,
+                None => {
+                    // Only repaint a slot the typed path OWNS: a prior slot
+                    // holding a shared textured material (machine switched
+                    // model -> primitive across rebuilds) gets a fresh typed
+                    // material instead of corrupting its siblings.
+                    let is_shared =
+                        state.machine_model_materials.values().any(|&v| v == ma);
+                    if is_shared {
+                        state.renderer.add_material_typed(color, 0.1, 0.7, 0.0)
+                    } else {
+                        state.renderer.update_material_typed(ma, color, 0.1, 0.7, 0.0);
+                        ma
+                    }
+                }
+            };
+            objs.push((mi, use_ma, pos, p.rotation));
         } else {
             let mi = state.renderer.add_mesh(mesh);
-            let ma = state.renderer.add_material_typed(color, 0.1, 0.7, 0.0);
+            let ma = textured_mat
+                .unwrap_or_else(|| state.renderer.add_material_typed(color, 0.1, 0.7, 0.0));
             objs.push((mi, ma, pos, p.rotation));
         }
         state.gui_state.machine_labels.push(crate::gui::MachineLabel {

@@ -345,6 +345,11 @@ pub(crate) struct EngineState {
     /// Crop model names that failed to load once - skipped on later rebuilds
     /// so ~114 modelless species never re-attempt a parse per growth tick.
     pub(crate) hero_plant_missing: std::collections::HashSet<String>,
+    /// Textured MACHINE model materials, cached per model path (v0.993):
+    /// shared across every instance of the same model and never mutated by
+    /// the machine rebuild's slot-reuse path (update_material_typed on a
+    /// shared textured material would repaint every sibling).
+    pub(crate) machine_model_materials: std::collections::HashMap<String, usize>,
     /// Mesh/material cache for decoration models so world reloads reuse
     /// GPU resources instead of re-appending them.
     pub(crate) decoration_mesh_cache: std::collections::HashMap<String, (usize, usize)>,
