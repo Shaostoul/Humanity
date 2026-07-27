@@ -114,12 +114,91 @@ pub fn clamp_above_ground(r: f64, ground_r: f64, eye_height: f64) -> f64 {
 /// at `rate` per second, clamped so the result is never below `rest` (you
 /// settle onto the ground, you do not tunnel through it). If already at or
 /// below rest, snap up to rest.
+/// NOTE v0.1005: this is now only the GROUNDED fine-tune (breathing terrain
+/// under a standing player). Airborne motion is real ballistics via
+/// `vertical_step` below - the operator's "falls extremely fast... not
+/// remotely like gravity" was this exponential snap being applied to
+/// kilometre falls.
 pub fn settle_radius(current: f64, rest: f64, dt: f64, rate: f64) -> f64 {
     if current <= rest {
         return rest;
     }
     let eased = rest + (current - rest) * (-rate * dt.max(0.0)).exp();
     eased.max(rest)
+}
+
+/// Human terminal velocity in a thick atmosphere (m/s, belly-to-earth).
+/// The free-fall clamp `vertical_step` applies; powered descent (thrust
+/// down) may exceed it deliberately.
+pub const TERMINAL_FALL_MPS: f64 = 55.0;
+
+/// How hard vertical thrust pulls the velocity toward its target, as a
+/// multiple of the local gravity (with a floor so tiny bodies still feel
+/// responsive). ~3g reaches a 50 m/s climb in under 2 s while still
+/// reading as a spool-up rather than a teleport.
+pub const THRUST_ACCEL_G_MULT: f64 = 3.0;
+pub const THRUST_ACCEL_MIN: f64 = 20.0;
+
+/// One step of real vertical ballistics (v0.1005, operator: "It's not
+/// remotely like gravity. The up speed is super slow while the down speed
+/// is always very fast").
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VerticalStep {
+    pub r: f64,
+    pub v_r: f64,
+    /// Landed on (or resting at) standing height this step.
+    pub grounded: bool,
+}
+
+/// Integrate the walk band's radial motion for one frame.
+///
+/// - `thrust_mps`: target vertical rate from input (+ = climb from Space,
+///   - = powered descent from Shift, 0 = no vertical input). The velocity
+///   RAMPS toward it at ~3g (a jetpack spool, not a teleport), and the
+///   same ramp brakes a fall when you thrust against it.
+/// - No input: gravity `g` accelerates the fall, clamped at `terminal`
+///   (real free-fall: ~4.5 s and 55 m/s from a 100 m drop, minutes from
+///   the band ceiling - not the old fixed-rate snap).
+/// - Landing at `rest` zeroes the velocity; standing there stays put.
+pub fn vertical_step(
+    r: f64,
+    v_r: f64,
+    rest: f64,
+    g: f64,
+    dt: f64,
+    thrust_mps: f64,
+    terminal: f64,
+) -> VerticalStep {
+    let dt = dt.max(0.0);
+    let g = g.max(0.0);
+    let mut v = v_r;
+    if thrust_mps.abs() > 1e-9 {
+        // Powered: ramp toward the commanded rate from EITHER side (also
+        // how an upward burn arrests a fall).
+        let accel = (g * THRUST_ACCEL_G_MULT).max(THRUST_ACCEL_MIN);
+        let dv = accel * dt;
+        if v < thrust_mps {
+            v = (v + dv).min(thrust_mps);
+        } else {
+            v = (v - dv).max(thrust_mps);
+        }
+    } else {
+        // Free fall, terminal-velocity clamped. (An upward coast also
+        // decays through zero into a fall - the ballistic arc.)
+        v = (v - g * dt).max(-terminal.abs());
+    }
+    let mut r_new = r + v * dt;
+    let mut grounded = false;
+    if r_new <= rest {
+        r_new = rest;
+        // Ground stops downward motion; an upward thrust may lift off the
+        // same frame it starts, so never clamp a positive velocity.
+        if v < 0.0 {
+            v = 0.0;
+        }
+        grounded = v <= 0.0;
+    }
+    VerticalStep { r: r_new, v_r: v, grounded }
 }
 
 #[cfg(test)]
@@ -233,6 +312,115 @@ mod tests {
         assert_eq!(clamp_above_ground(ground + 50.0, ground, eye), ground + 50.0);
         // Rest and clamp share the same floor so settle never fights the clamp.
         assert_eq!(rest_radius(ground, eye), floor);
+    }
+
+    #[test]
+    fn free_fall_accelerates_at_g_and_caps_at_terminal() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest + 10_000.0;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        // After 2 s of free fall: v ~ -g*t (well under terminal).
+        for _ in 0..120 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+        }
+        assert!((v + 9.81 * 2.0).abs() < 0.5, "2 s fall should be ~ -19.6 m/s, got {v}");
+        // Long fall: clamps at terminal, never faster.
+        for _ in 0..1200 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            assert!(v >= -TERMINAL_FALL_MPS - 1e-9, "fell past terminal: {v}");
+        }
+        assert!((v + TERMINAL_FALL_MPS).abs() < 1e-6, "did not reach terminal: {v}");
+    }
+
+    #[test]
+    fn hundred_metre_drop_takes_real_seconds_not_a_snap() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest + 100.0;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        let mut t = 0.0;
+        while r > rest {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            t += dt;
+            assert!(t < 30.0, "fall never landed");
+        }
+        // sqrt(2h/g) = 4.52 s; discrete integration lands within half a second.
+        assert!((4.0..5.0).contains(&t), "100 m drop took {t:.2} s, expected ~4.5 s");
+    }
+
+    #[test]
+    fn thrust_ramps_to_target_and_release_goes_ballistic() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let mut r = rest;
+        let mut v = 0.0;
+        let dt = 1.0 / 60.0;
+        // Hold Space (target 50 m/s): the ramp reaches the target in ~1.7 s
+        // at 3g and NEVER exceeds it.
+        let mut t = 0.0;
+        while v < 50.0 - 1e-6 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 50.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            t += dt;
+            assert!(v <= 50.0 + 1e-9, "overshot the commanded climb: {v}");
+            assert!(t < 5.0, "ramp never reached the target");
+        }
+        assert!((1.0..3.0).contains(&t), "3g spool to 50 m/s took {t:.2} s");
+        // Release: the coast decays through zero into a fall (ballistic arc),
+        // and the peak sits above the release height.
+        let release_r = r;
+        let mut peak = r;
+        for _ in 0..1200 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 0.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            peak = peak.max(r);
+            if s.grounded {
+                break;
+            }
+        }
+        assert!(peak > release_r + 50.0, "no ballistic coast above release point");
+        assert!((r - rest).abs() < 1e-6, "arc never landed");
+        assert_eq!(v, 0.0, "landing must zero the velocity");
+    }
+
+    #[test]
+    fn upward_burn_arrests_a_fall() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        // Falling at terminal from 2 km up: thrust up must brake the fall
+        // long before the ground.
+        let mut r = rest + 2_000.0;
+        let mut v = -TERMINAL_FALL_MPS;
+        let dt = 1.0 / 60.0;
+        for _ in 0..600 {
+            let s = vertical_step(r, v, rest, 9.81, dt, 10.0, TERMINAL_FALL_MPS);
+            r = s.r;
+            v = s.v_r;
+            if v >= 10.0 - 1e-6 {
+                break;
+            }
+        }
+        assert!(v >= 10.0 - 1e-6, "burn never arrested the fall: v={v}");
+        assert!(r > rest + 500.0, "braked too late: {r}");
+    }
+
+    #[test]
+    fn standing_on_ground_stays_grounded_and_still() {
+        let rest = 6.371e6 + EYE_HEIGHT_M + LOD_CLEARANCE_M;
+        let s = vertical_step(rest, 0.0, rest, 9.81, 1.0 / 60.0, 0.0, TERMINAL_FALL_MPS);
+        assert_eq!(s.r, rest);
+        assert_eq!(s.v_r, 0.0);
+        assert!(s.grounded);
+        // Lifting off from the ground works the same frame thrust starts.
+        let s2 = vertical_step(rest, 0.0, rest, 9.81, 1.0, 5.0, TERMINAL_FALL_MPS);
+        assert!(s2.r > rest && s2.v_r > 0.0 && !s2.grounded);
     }
 
     #[test]

@@ -1409,7 +1409,19 @@ pub(crate) fn render_door_panels(
     // wandering animal should not phase through a shut door's visual. Gathered once per frame:
     // the camera (the local player) + every RemotePlayer + every Creature transform. The
     // per-door check below takes the NEAREST actor, so one loiterer holds the door open.
-    let mut actors: Vec<Vec3> = vec![state.camera.position];
+    // v0.1005 (operator: "I was hearing doors open as my character moved
+    // around the home despite my camera being in some far off distance"):
+    // while the player is AWAY (surface-flying a planet, FTL), the local
+    // camera coordinates are frozen at their last home-frame values - a
+    // stale point usually INSIDE the house - so the "camera" kept counting
+    // as a door actor and kept passing the earshot gate below. The camera
+    // is only a door actor, and door sounds only reach the ears, while
+    // actually aboard (the same gate the wall-collision system uses).
+    let mut actors: Vec<Vec3> = if state.aboard_station {
+        vec![state.camera.position]
+    } else {
+        Vec::new()
+    };
     for (_e, (t, _)) in state
         .game_world
         .world
@@ -1519,8 +1531,8 @@ pub(crate) fn render_door_panels(
         // earshot stay silent (a REMOTE actor can open doors far from you;
         // play_sound is non-spatial, so gate by distance until the spatial
         // path is wired).
-        let within_earshot =
-            (p.center - state_cam).length_squared() < 25.0 * 25.0;
+        let within_earshot = state.aboard_station
+            && (p.center - state_cam).length_squared() < 25.0 * 25.0;
         if within_earshot {
             if open_before <= 0.02 && *open > 0.02 {
                 sfx.push(("sfx.door_open", "audio/sfx/door_open.ogg"));

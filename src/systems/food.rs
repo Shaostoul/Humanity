@@ -56,16 +56,22 @@ const DEFAULT_FRESHNESS: f32 = 259_200.0;     // 72 hours
 const REFRIGERATED_MULT: f32 = 4.0;
 const CANNED_MULT: f32 = 100.0;
 
-// ── Nutrition tuning (real-time seconds; dev values, tunable — could move to
-//    food_system.ron config later). Vitals run 0..100. ──────────────────────
-/// Satiation lost per real second (full -> hungry threshold in ~31 min).
-/// v0.791: slowed 0.10 -> 0.04 (operator: dying to vitals mid-exploration is
-/// annoying, not fun). Scaled live by the Settings > Gameplay "Vitals drain"
-/// slider (the "vitals_drain_scale" DataStore slot).
-const SATIATION_DECAY_PER_SEC: f32 = 0.04;
-/// Hydration lost per real second (slightly faster than hunger; full -> empty
-/// in ~33 min). v0.791: slowed 0.13 -> 0.05, same operator report.
-const HYDRATION_DECAY_PER_SEC: f32 = 0.05;
+// ── Nutrition tuning (real-time seconds). Vitals run 0..100. ──────────────
+// v0.1005 REAL SCALE (operator: "my character keeps dying from dehydration
+// [in minutes]. Can we set that to real scale? ... takes like three ish
+// days to die from dehydration"): all survival clocks now run at human
+// biology rates in REAL seconds - the two-realities axiom applied to
+// vitals. Dehydration: ~2 days to drain + ~1 day of damage = ~3 days to
+// kill. Starvation: ~1 week to drain + ~2 weeks of damage = ~3 weeks.
+// The Settings > Gameplay "Vitals drain" slider still scales all of it
+// (the "vitals_drain_scale" DataStore slot) for anyone who wants game-y
+// pacing back.
+/// Satiation lost per real second (full -> empty in ~7 days; the hungry
+/// threshold at 25 lands around day 5).
+const SATIATION_DECAY_PER_SEC: f32 = 100.0 / 604_800.0;
+/// Hydration lost per real second (full -> empty in ~2 days; thirsty from
+/// around day 1.5).
+const HYDRATION_DECAY_PER_SEC: f32 = 100.0 / 172_800.0;
 /// Below this satiation the `hungry` condition applies.
 const HUNGRY_THRESHOLD: f32 = 25.0;
 /// Below this hydration the `thirsty` condition applies.
@@ -79,10 +85,11 @@ const PRODUCE_HYDRATION: f32 = 10.0;
 const BASE_HYDRATION: f32 = 3.0;
 /// Hydration restored per drink consumed (water/juice/etc. via the Drink action).
 const DRINK_HYDRATION: f32 = 30.0;
-/// Health drained per second while fully starved / dehydrated (dehydration
-/// kills roughly twice as fast, matching the `thirsty` effect's data note).
-const STARVE_DAMAGE_PER_SEC: f32 = 1.0;
-const DEHYDRATE_DAMAGE_PER_SEC: f32 = 2.0;
+/// Health drained per second while fully starved / dehydrated (real scale,
+/// v0.1005: an empty tank kills over ~2 weeks starved / ~1 day dehydrated,
+/// so dehydration stays the far deadlier clock, matching human biology).
+const STARVE_DAMAGE_PER_SEC: f32 = 100.0 / 1_209_600.0;
+const DEHYDRATE_DAMAGE_PER_SEC: f32 = 100.0 / 86_400.0;
 /// Conditions (hungry/thirsty) are refreshed to this many seconds each tick
 /// while their trigger holds, so they linger briefly then fade once you recover.
 const CONDITION_LINGER: f32 = 3.0;
@@ -90,8 +97,9 @@ const CONDITION_LINGER: f32 = 3.0;
 const FALLBACK_WELL_FED_S: f32 = 1800.0;
 const FALLBACK_FOOD_POISONING_S: f32 = 5400.0;
 const FALLBACK_RESTED_S: f32 = 3600.0;
-/// Energy lost per real second while awake (full -> fatigued threshold in ~20 min).
-const ENERGY_DECAY_PER_SEC: f32 = 0.06;
+/// Energy lost per real second while awake (real scale, v0.1005: full ->
+/// fatigued threshold after ~16 waking hours; a sleep cycle refills).
+const ENERGY_DECAY_PER_SEC: f32 = 75.0 / 57_600.0;
 /// Below this energy the `fatigued` speed debuff applies; resting refills to full.
 const FATIGUED_THRESHOLD: f32 = 25.0;
 // ── Environment vitals (oxygen + body temperature; driven by EnvironmentContext). ──
@@ -109,8 +117,9 @@ const HYPOTHERMIA_C: f32 = 35.0;
 const HEAT_EXHAUSTION_C: f32 = 39.0;
 const TEMP_DAMAGE_PER_SEC: f32 = 2.0;
 // ── Sanitation (organic waste → compost → fertilizer). ──
-/// Waste accrued per real second while living, + per meal eaten.
-const WASTE_RISE_PER_SEC: f32 = 0.05;
+/// Waste accrued per real second while living, + per meal eaten (real
+/// scale, v0.1005: background rise fills over ~3 days; meals dominate).
+const WASTE_RISE_PER_SEC: f32 = 100.0 / 259_200.0;
 const WASTE_PER_MEAL: f32 = 4.0;
 /// Above this waste the `unsanitary` debuff applies (compost to clear it).
 const UNSANITARY_THRESHOLD: f32 = 75.0;
@@ -882,11 +891,12 @@ mod nutrition_tests {
             Controllable,
         ));
 
-        // Starvation drains 1 HP/s; 2 HP is gone within three 1s ticks, while
-        // hydration (80, decaying slowly) stays far from zero — so the cause
-        // is unambiguously starvation.
+        // Real-scale clocks (v0.1005): starvation drains ~100 HP over two
+        // weeks, so 2 HP takes ~6.7 hours - three 3-hour ticks cover it,
+        // while hydration (80, ~2-day drain) only falls ~19 points and
+        // stays far from zero, keeping the cause unambiguously starvation.
         for _ in 0..3 {
-            sys.tick(&mut world, 1.0, &data);
+            sys.tick(&mut world, 10_800.0, &data);
         }
         assert!(world.get::<&Dead>(e).is_ok(), "player marked Dead at 0 HP");
         let cause = data

@@ -1657,6 +1657,7 @@ mod native_app {
                 hero_plant_missing: std::collections::HashSet::new(),
                 near_tree_new: Vec::new(),
                 on_ground_planet: false,
+                surface_vr: 0.0,
                 near_tree_born_s: 0.0,
                 machine_model_materials: std::collections::HashMap::new(),
                 decoration_mesh_cache: std::collections::HashMap::new(),
@@ -3880,26 +3881,71 @@ mod native_app {
                             // ascend/descend key contributes ~1.0; require a
                             // deliberate input.
                             const RADIAL_WISH_EPS: f64 = 0.05;
-                            if radial_wish > RADIAL_WISH_EPS {
-                                // Thrust up (Space): the fly control lifts you off.
-                                r += (step * radial_wish).max(1.0 * dt as f64);
-                            } else if in_walk_band && !submerged {
-                                // Gravity only in the walk band: on/near the
-                                // ground you settle to standing height.
-                                // (Submerged = neutral buoyancy: depth holds
-                                // until you swim up or down. v0.903)
-                                r = crate::surface_walk::settle_radius(
-                                    r,
-                                    rest,
-                                    dt as f64,
-                                    SURFACE_SETTLE_RATE,
-                                );
-                            } else if radial_wish < -RADIAL_WISH_EPS {
-                                // Atmospheric flight band (10-100 km): descend
-                                // deliberately at the governed step; altitude
-                                // otherwise holds (no gravity drag - this also
-                                // stops parked aerial cameras sinking).
-                                r += radial_wish * step;
+                            // Band entry / teleport never inherits a stale
+                            // fall speed from a previous surface session.
+                            if just_engaged {
+                                state.surface_vr = 0.0;
+                            }
+                            if in_walk_band && !submerged {
+                                // ── REAL vertical ballistics (v0.1005,
+                                // operator: "It's not remotely like gravity.
+                                // The up speed is super slow while the down
+                                // speed is always very fast") ── the old
+                                // settle_radius exponential yanked kilometre
+                                // falls down in ~a second. Now: thrust ramps
+                                // the radial velocity toward the commanded
+                                // climb rate at ~3g, release coasts a real
+                                // ballistic arc, free fall builds at the
+                                // planet's own g and caps at human terminal
+                                // velocity. Walking keeps a short-range
+                                // settle "glue" (<0.5 m gap) so downhill
+                                // strides track the terrain instead of
+                                // micro-falling between every step.
+                                let g_accel =
+                                    def.map(|d| d.gravity as f64).unwrap_or(9.81).max(0.01);
+                                let thrusting = radial_wish.abs() > RADIAL_WISH_EPS;
+                                if !thrusting
+                                    && state.surface_vr <= 0.0
+                                    && (r - rest) < 0.5
+                                {
+                                    state.surface_vr = 0.0;
+                                    r = crate::surface_walk::settle_radius(
+                                        r,
+                                        rest,
+                                        dt as f64,
+                                        SURFACE_SETTLE_RATE,
+                                    );
+                                } else {
+                                    let climb_rate = step / (dt as f64).max(1e-6);
+                                    let thrust = if thrusting {
+                                        climb_rate * radial_wish
+                                    } else {
+                                        0.0
+                                    };
+                                    let vs = crate::surface_walk::vertical_step(
+                                        r,
+                                        state.surface_vr,
+                                        rest,
+                                        g_accel,
+                                        dt as f64,
+                                        thrust,
+                                        crate::surface_walk::TERMINAL_FALL_MPS,
+                                    );
+                                    r = vs.r;
+                                    state.surface_vr = vs.v_r;
+                                }
+                            } else {
+                                // Flight band (10-100 km): aircraft altitude
+                                // hold - deliberate climb/descend only (also
+                                // keeps parked aerial rig cameras from
+                                // sinking). Submerged: neutral buoyancy
+                                // (v0.903). Neither carries ballistic speed.
+                                state.surface_vr = 0.0;
+                                if radial_wish > RADIAL_WISH_EPS {
+                                    r += (step * radial_wish).max(1.0 * dt as f64);
+                                } else if radial_wish < -RADIAL_WISH_EPS {
+                                    r += radial_wish * step;
+                                }
                             }
                             r = crate::surface_walk::clamp_above_ground(
                                 r,
@@ -3934,14 +3980,26 @@ mod native_app {
                                 let below = def.map(|d| r < d.radius).unwrap_or(false);
                                 if LASTD.swap(now, Ordering::Relaxed) != now || below {
                                     if let Some(d) = def {
+                                        // [FlightDiag] fields (v0.1005): the
+                                        // data source for the operator's
+                                        // backwards-takeoff / 100 km-jump /
+                                        // jitter reports - band, vertical
+                                        // velocity, gear, and the wish split
+                                        // in one greppable line.
                                         log::info!(
-                                            "[Dive] sub={} eng={} r-R={:.1} g-R={:.1} rest-R={:.1} wish={:.3}",
+                                            "[Dive] sub={} eng={} band={} alt={:.0} r-R={:.1} g-R={:.1} rest-R={:.1} wish={:.3} tan={:.3} vr={:.2} gear={:.0} step={:.2}",
                                             submerged,
                                             just_engaged,
+                                            if in_walk_band { "walk" } else { "flight" },
+                                            alt,
                                             r - d.radius,
                                             g - d.radius,
                                             rest - d.radius,
-                                            radial_wish
+                                            radial_wish,
+                                            tangential.length(),
+                                            state.surface_vr,
+                                            state.controller.fly_speed_mult,
+                                            step,
                                         );
                                     }
                                 }

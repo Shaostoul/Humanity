@@ -351,6 +351,11 @@ pub(crate) struct EngineState {
     /// silent (operator: "as I'm jumping through the air it's still making
     /// the footstep noise").
     pub(crate) on_ground_planet: bool,
+    /// Radial (vertical) velocity in the walk band, m/s, + = up (v0.1005
+    /// real ballistics: gravity builds it during falls, thrust ramps it,
+    /// landing zeroes it). Only meaningful while the surface branch owns
+    /// translation inside the walk band; every other regime zeroes it.
+    pub(crate) surface_vr: f64,
     /// Parallel to `near_trees` (v0.995): true = this tree was NOT in the
     /// previous set - it dissolves in over ~a third of a second instead of
     /// blinking into existence (the operator's "trees blink into existence
