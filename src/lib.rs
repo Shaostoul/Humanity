@@ -3838,7 +3838,18 @@ mod native_app {
                             // only built while actually on a surface.
                             let detail = def
                                 .map(|d| crate::terrain::planet_chunks::DetailNoise::new(d.terrain_seed));
-                            if tangential.length() > 1e-9 {
+                            // v0.1008 (operator: "I don't teleport up/down
+                            // but, forward/back/left/right" while holding
+                            // Space): a pure-vertical wish leaves ~1e-8 of
+                            // float residue on the tangent plane, and the
+                            // old 1e-9 guard + normalize() amplified that
+                            // residue into a FULL-SPEED lateral step in
+                            // whatever direction the rounding noise pointed
+                            // - kilometres per frame at high gear, and the
+                            // root of every "I move parallel to the Earth
+                            // on takeoff" report. Same deliberate-input
+                            // dead zone as the radial axis.
+                            if tangential.length() > RADIAL_WISH_EPS {
                                 anchor += tangential.normalize() * step;
                             }
                             // Ground radius at the (possibly moved) surface point,

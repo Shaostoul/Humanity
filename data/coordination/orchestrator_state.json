@@ -3,7 +3,7 @@
   "_protocol": "Update this file at every significant decision/checkpoint. Treat it like a running session journal — newest at the bottom of recent_decisions, oldest pruned. The aggregator script `node scripts/agent-status.js` complements this with per-scope status from data/coordination/sessions/*.json.",
   "_what_vs_why": "As of v0.283.x: this file records WHY decisions were made (running journal). `docs/PRIORITIES.md` records WHAT comes next (strict-ranked backlog). Both must be updated when scope changes. Don't put 'next action' here — put it in PRIORITIES.md.",
   "current_orchestrator_session": "AFTERNOON LOOP (started 2026-07-01, operator awake and actively testing HumanityOS live). Triggered by operator: enable loop mode + dedicate a subagent to a self-sustaining homestead design. Full plan + backlog + safety rules in docs/history/2026-07-01-afternoon-loop-plan.md -- read that FIRST every wake-up.",
-  "current_focus": "v0.1007.1 shipped. Awaiting operator flight retest (takeoff direction + speed feel). Then: ground-sample wobble (trench/bob, diag data in hand), volumetric clouds STRUCTURE, terrain vertex sharing.",
+  "current_focus": "v0.1008.1 shipped (float-residue lateral teleport killed). Next: ground-sample wobble (trench/bob), then volumetric clouds STRUCTURE, then terrain vertex sharing.",
   "open_questions_for_human": [
     "LANDING SCREEN 2 HERO SHOT: the game is running on the operator machine; click Play, frame something pretty (garden towers, warm light), and tell the AI to capture (debug/screenshot_request.json) - it will swap the cosmos stand-in on landing screen 2 for the real 3D shot.",
     "DONATIONS finalize (donate.html live at v0.845.1 links the sponsor-a-can.org ROOT with no tax-deductible wording): operator to provide (1) the EXACT earmarked donation URL for HumanityOS on Sponsor-A-Can, and (2) confirmation of whether donations via Sponsor-A-Can are tax-deductible + earmarked to HumanityOS, so the CTA link + FAQ copy can be finalized. Also pending: native donate page gets the matching Sponsor-A-Can primary card in the next native wave.",
@@ -262,6 +262,10 @@
     {
       "date": "2026-07-27",
       "decision": "v0.1007.1: walk-band speed cap narrowed to WALKING only after operator pushback (they want max-gear dev flight everywhere; the v0.1006 Mach-1 cap made low flight a slog and descents a terminal-velocity wait). Dev fly = full wheel at all altitudes, bounded by the approach governor (step <= alt/2 per frame, 50 m floor) - exponential climb-outs and auto-glide descents replace hard caps. LESSON: the operator prizes traversal SPEED in dev mode; bound by geometry (governor) not by velocity caps."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1008.1 PARALLEL-TAKEOFF ROOT CAUSE FOUND AND KILLED: tangential.normalize() amplified ~1e-8 float residue (pure-Space wish) past a 1e-9 guard into FULL-gear lateral steps - km/frame sideways teleports in rounding-noise directions. Fixed with the same 0.05 deliberate-input dead zone the radial axis had. This explains every parallel-to-Earth takeoff report across versions. Operator confirms travel now works great (governor + full gear). REMAINING KNOWN: transient mouse-look freeze (self-heals on alt-tab; cursor-grab/focus state, needs repro), 100 km handoff feel (retest pending), trees-from-altitude, ground-sample wobble (trench/bob - next up)."
     }
   ],
   "active_scopes_to_avoid": [
