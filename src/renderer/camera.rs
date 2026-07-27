@@ -273,6 +273,29 @@ impl Camera {
         }
     }
 
+    /// Rotate the current LOOK direction by `rot`, re-deriving yaw/pitch in
+    /// the active basis (v0.994). While frame-locked on a spinning planet the
+    /// aim must ride the GROUND, not the star field: `set_surface_up`
+    /// preserves the world-space forward every frame, so without this
+    /// per-frame spin nudge a standing player's view stayed pinned to the
+    /// inertial frame - the terrain panned beneath them and the crosshair
+    /// visibly tracked the sun (operator field report 2026-07-26). The
+    /// frame-lock caller passes the spin DELTA for this frame.
+    pub fn co_rotate_look(&mut self, rot: glam::Quat) {
+        let fwd = rot * self.forward();
+        if self.surface_mode {
+            if fwd.dot(self.up).abs() < 0.999 {
+                let (yaw, pitch) = crate::surface_walk::surface_look_angles(self.up, fwd);
+                self.yaw = yaw;
+                self.pitch = pitch;
+            }
+        } else {
+            let (yaw, pitch) = crate::surface_walk::world_look_angles(fwd);
+            self.yaw = yaw;
+            self.pitch = pitch;
+        }
+    }
+
     /// Leave surface FPS mode, restoring the default world-Y basis. The look
     /// direction is preserved across the change (yaw/pitch recomputed in the
     /// world basis), so returning to space / the ship does not pop the view.

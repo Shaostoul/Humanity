@@ -3648,6 +3648,23 @@ mod native_app {
                             state.gui_state.surface_altitude_m = Some(alt.max(0.0) as f32);
                             state.gui_state.surface_speed_mult =
                                 state.controller.fly_speed_mult as f32;
+                            // Look co-rotation (v0.994, operator: "my cursor
+                            // seems to follow the sun even though I'm not
+                            // moving"): the position anchor rides the spin
+                            // below, but set_surface_up preserves the WORLD
+                            // forward - so the aim stayed inertial and the
+                            // ground panned under a standing player. Nudge the
+                            // look by this frame's spin delta first, so aim is
+                            // planet-fixed like everything else down here. The
+                            // 0.01 rad guard skips stale spins (teleports).
+                            if !just_engaged {
+                                let d_spin = spin - state.frame_lock_last_spin;
+                                if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
+                                    state
+                                        .camera
+                                        .co_rotate_look(glam::Quat::from_rotation_y(d_spin as f32));
+                                }
+                            }
                             // Radial "up" so "down" points at the body centre and
                             // the horizon is level (the transition preserves the
                             // current look direction across the basis change).
@@ -3926,6 +3943,21 @@ mod native_app {
                                 .clamp(0.0, 1.0);
                             let s = (t * t * (3.0 - 2.0 * t)) as f32; // smoothstep
                             let up = (radial * (1.0 - s) + glam::Vec3::Y * s).normalize();
+                            // Look co-rotation through the blend band (v0.994):
+                            // position rides the spin with the `keep` curve
+                            // below - the aim uses the SAME curve, so the view
+                            // stays ground-stable low in the band and hands
+                            // over to the fixed-starfield ISS regime at the top.
+                            if state.camera.surface_mode {
+                                let d_spin = spin - state.frame_lock_last_spin;
+                                if d_spin.abs() > 1e-12 && d_spin.abs() < 0.01 {
+                                    let shed = ((t - 0.8) / 0.2).clamp(0.0, 1.0);
+                                    let keep = 1.0 - shed * shed * (3.0 - 2.0 * shed);
+                                    state.camera.co_rotate_look(glam::Quat::from_rotation_y(
+                                        (d_spin * keep) as f32,
+                                    ));
+                                }
+                            }
                             state.camera.set_surface_up(up);
                             state.gui_state.surface_altitude_m = Some(alt.max(0.0) as f32);
                             state.gui_state.surface_speed_mult =
