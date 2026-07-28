@@ -6528,6 +6528,13 @@ pub struct SettingsState {
     /// How the desktop window is presented (v0.454). Default = WindowedFullscreen.
     pub window_mode: crate::config::WindowMode,
     pub vsync: bool,
+    /// Frame-rate caps (v0.1016): foreground = focused window, background =
+    /// unfocused (alt-tabbed). The bools are the "Unlimited" / "Sync to
+    /// foreground" checkboxes; the pacing itself lives in the redraw loop.
+    pub fps_foreground: u32,
+    pub fps_foreground_unlimited: bool,
+    pub fps_background: u32,
+    pub fps_background_sync: bool,
     pub fov: f32,
     pub render_distance: f32,
     /// Master toggle for procedural sky-planet surfaces (v0.763). Off falls
@@ -6702,6 +6709,10 @@ impl Default for SettingsState {
             fullscreen: false,
             window_mode: crate::config::WindowMode::default(),
             vsync: true,
+            fps_foreground: 120,
+            fps_foreground_unlimited: true,
+            fps_background: 30,
+            fps_background_sync: true,
             fov: 90.0,
             render_distance: 500.0,
             planet_detail: true,

@@ -744,6 +744,10 @@ pub(crate) struct EngineState {
     pub(crate) frame_lock_last_spin: f64,
     pub(crate) start_time: Instant,
     pub(crate) last_frame: Instant,
+    /// Whether the OS window currently has focus (v0.1016): drives the
+    /// foreground-vs-background FPS cap in the redraw loop. Starts true
+    /// (a freshly created window is foregrounded unless HUMANITY_NO_FOCUS).
+    pub(crate) window_focused: bool,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

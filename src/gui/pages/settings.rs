@@ -2030,6 +2030,32 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Syncs frames to your monitor to stop image tearing. On = smoother, frame rate capped at your monitor's refresh rate; off = uncapped FPS but frames can visibly tear.").color(theme.text_muted()).size(theme.font_size_small));
+        // Frame-rate caps (v0.1016, operator request: "set background and
+        // foreground FPS"). Foreground = window focused; background =
+        // alt-tabbed away (e.g. chatting on the website while the game
+        // runs). The pacing itself lives in the redraw loop.
+        if widgets::toggle(ui, theme, "Unlimited foreground FPS", &mut state.settings.fps_foreground_unlimited) {
+            state.settings_dirty = true;
+        }
+        if !state.settings.fps_foreground_unlimited {
+            let mut v = state.settings.fps_foreground as f32;
+            if widgets::labeled_slider(ui, theme, "Foreground FPS cap", &mut v, 10.0..=240.0) {
+                state.settings.fps_foreground = v.round() as u32;
+                state.settings_dirty = true;
+            }
+        }
+        ui.label(RichText::new("Highest frame rate while the game window is active. Unlimited = as fast as VSync and your GPU allow. A lower cap saves power and heat.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::toggle(ui, theme, "Background FPS matches foreground", &mut state.settings.fps_background_sync) {
+            state.settings_dirty = true;
+        }
+        if !state.settings.fps_background_sync {
+            let mut v = state.settings.fps_background as f32;
+            if widgets::labeled_slider(ui, theme, "Background FPS cap", &mut v, 5.0..=240.0) {
+                state.settings.fps_background = v.round() as u32;
+                state.settings_dirty = true;
+            }
+        }
+        ui.label(RichText::new("Frame rate while the game is in the background (alt-tabbed). A low cap keeps the world simulating while freeing your GPU and CPU for whatever you switched to.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "FOV", &mut state.settings.fov, 60.0..=120.0) {
             state.settings_dirty = true;
         }

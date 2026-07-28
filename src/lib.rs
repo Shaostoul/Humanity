@@ -474,6 +474,15 @@ mod native_app {
     /// cursor directly without updating it, which desynced the flag so a panel could render but
     /// not be clicked (recurring "I can see the UI but can't interact" bug).
     fn reconcile_cursor(state: &mut EngineState) {
+        // Background instances (HUMANITY_NO_FOCUS, the probe rig) never
+        // touch the cursor (v0.1016): set_cursor_grab(Confined) is a
+        // SYSTEM-WIDE cursor clip, so a rig entering the world could trap
+        // the operator's pointer inside the rig's window rect while they
+        // play. A rig is IPC-driven and needs no grab, ever.
+        static BACKGROUND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *BACKGROUND.get_or_init(|| std::env::var("HUMANITY_NO_FOCUS").is_ok()) {
+            return;
+        }
         // Hold Alt in first-person to FREE the cursor (v0.735, operator
         // directive: the centered machine card has buttons, and the only
         // way to click them used to be alt-tabbing out via the Windows key).
@@ -1794,6 +1803,7 @@ mod native_app {
                 frame_lock_last_spin: 0.0,
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
+                window_focused: true,
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -1842,6 +1852,10 @@ mod native_app {
             };
 
             match event {
+                WindowEvent::Focused(focused) => {
+                    // Drives the foreground/background FPS cap (v0.1016).
+                    state.window_focused = focused;
+                }
                 WindowEvent::CloseRequested => {
                     // Persist the active offline home before quitting (v0.381). The
                     // player entity exists from startup, so this captures the loaded
@@ -2757,6 +2771,31 @@ mod native_app {
                     }
                 }
                 WindowEvent::RedrawRequested => {
+                    // Frame-rate caps (v0.1016, operator request): sleep off
+                    // the remainder of the frame budget BEFORE stamping dt,
+                    // so game time simply sees a longer (correct) frame.
+                    // Foreground cap while the window has focus; background
+                    // cap while alt-tabbed ("sync" = background follows
+                    // foreground). Unlimited = no engine pacing (vsync still
+                    // paces presentation when on). std::thread::sleep is
+                    // ~1.5 ms-granular on Windows - fine for a cap, not a
+                    // precision limiter.
+                    {
+                        let s = &state.gui_state.settings;
+                        let cap = if state.window_focused || s.fps_background_sync {
+                            if s.fps_foreground_unlimited { 0 } else { s.fps_foreground }
+                        } else {
+                            s.fps_background
+                        };
+                        if cap > 0 {
+                            let target =
+                                std::time::Duration::from_secs_f64(1.0 / cap as f64);
+                            let elapsed = state.last_frame.elapsed();
+                            if elapsed < target {
+                                std::thread::sleep(target - elapsed);
+                            }
+                        }
+                    }
                     let now = Instant::now();
                     let dt = (now - state.last_frame).as_secs_f32().min(0.1);
                     state.last_frame = now;
@@ -3824,12 +3863,16 @@ mod native_app {
                                 (alt * 0.5).max(200.0)
                             };
                             // Swim speed cap (v0.984, post-audit item 6 residue):
-                            // water is DENSE - underwater the fly gear no longer
-                            // applies, capping motion at a strong-swimmer ~2.5 m/s
-                            // (dev fly mode is exempt: noclip stays noclip). Ends
-                            // the geared torpedo through the Marianas.
+                            // water is DENSE - underwater motion is capped at a
+                            // strong-swimmer ~2.5 m/s at gear 1. The mouse-wheel
+                            // gear scales it (v0.1016, operator: "we need to
+                            // increase the swim speed with the mouse wheel. When
+                            // I go under it feels like I'm normal speed despite
+                            // having dev mode on") - same multiplier that speeds
+                            // walking, so max walk gear swims ~125 m/s. Dev fly
+                            // mode stays exempt: noclip stays noclip.
                             let step = if submerged && !state.controller.fly_mode {
-                                (walk_speed * dt as f64).min(2.5 * dt as f64)
+                                (walk_speed * dt as f64).min(2.5 * surface_mult * dt as f64)
                             } else {
                                 (walk_speed * dt as f64).min(step_cap)
                             };

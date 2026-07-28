@@ -11,6 +11,38 @@
 
 ## Active focus
 
+> **>>> WATER ARC (2026-07-27 evening field report, operator: "We need to do
+> a lot of work on the water to make it look better. Maybe the water is one
+> of the biggest performance hits since it's behaving so weird?"). THE
+> CURRENT TOP ITEM. Punch list from the report + screenshots, roughly
+> ranked (diagnose first - several may share a root cause):**
+> 1. SEAM HOLES + unwelded look: "textures don't quite line up and it's
+>    like the mesh don't weld seams. I can see a bunch of holes through
+>    the water along the seams" (water patches have no skirts? border
+>    verts not bit-identical across depths?).
+> 2. HARD TILE LINES at altitude (screenshots: checkerboard-edged sheets
+>    of white/dark at 0.7-2.1 km): per-patch shading/wave-amplitude
+>    discontinuities + spec aliasing. Also "white splotches" band at low
+>    altitude that vanishes higher up (grazing-angle spec aliasing -
+>    normal-detail fade by distance is the standard fix).
+> 3. STATIC waves at the surface: "water has height but... the waves
+>    don't move" while standing at the shore (near-field Gerstner time
+>    input? mesh vs shader displacement split?).
+> 4. UNDERWATER: surface disappears from below (backface-culled shell) -
+>    draw the underside so submerged players see the surface above them.
+> 5. BLUE BLEED onto land: "land that is above water is blue" (coastal
+>    tint mask leaking above sea level).
+> 6. PERF: 16-18 FPS in ocean-heavy views vs 30-40 over land - profile
+>    the water pass at budget defaults (operator suspects water is a top
+>    perf hit; the checkerboard artifacts suggest overdraw or per-patch
+>    waste).
+> DONE from the same report: FPS caps setting (foreground/background +
+> unlimited/sync, v0.1016) + swim gear scaling + the rig focus-steal fix
+> (the mouse-look freeze root cause). Deferred to reserved arcs: tree
+> square/circle seams (billboard/instancing arc, analysis in its doc);
+> cloud drift desync (structure pinned by live weather while texture
+> drifts zonally - next clouds polish rung, noted below).**
+
 > **>>> BEDTIME DIRECTIVE QUEUE (2026-07-26 late evening, operator verbatim
 > list; worked overnight into 2026-07-27, releases v0.996.0-v0.1002.1).**
 > Status per item:

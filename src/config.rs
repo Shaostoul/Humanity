@@ -307,6 +307,20 @@ pub struct AppConfig {
     pub window_mode: WindowMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
+    /// Frame-rate caps (v0.1016, operator request: "add a setting to set
+    /// background and foreground FPS"). Foreground applies while the window
+    /// has focus; background while it does not (alt-tabbed to the website
+    /// chat). The `_unlimited` / `_sync` flags are the checkbox switches;
+    /// defaults preserve pre-v0.1016 behavior (foreground uncapped,
+    /// background follows it).
+    #[serde(default = "default_fps_foreground")]
+    pub fps_foreground: u32,
+    #[serde(default = "default_true")]
+    pub fps_foreground_unlimited: bool,
+    #[serde(default = "default_fps_background")]
+    pub fps_background: u32,
+    #[serde(default = "default_true")]
+    pub fps_background_sync: bool,
     /// Procedural sky-planet surfaces master toggle (v0.763). Off = the old
     /// flat-colored spheres.
     #[serde(default = "default_true")]
@@ -643,6 +657,8 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+fn default_fps_foreground() -> u32 { 120 }
+fn default_fps_background() -> u32 { 30 }
 fn default_home_variant() -> String { "home".to_string() }
 fn default_cloud_quality() -> String { "high".to_string() }
 fn default_vitals_drain() -> f32 { 1.0 }
@@ -950,6 +966,10 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             vsync: state.settings.vsync,
+            fps_foreground: state.settings.fps_foreground,
+            fps_foreground_unlimited: state.settings.fps_foreground_unlimited,
+            fps_background: state.settings.fps_background,
+            fps_background_sync: state.settings.fps_background_sync,
             planet_detail: state.settings.planet_detail,
             sky_orbit_mode: state.settings.sky_orbit_mode.clone(),
             sky_constellations: state.settings.sky_constellations,
@@ -1060,6 +1080,12 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.settings.vsync = self.vsync;
+        // Clamp hand-edited values to the UI's range (a 1 FPS cap would
+        // make the app look hung; 1000 covers any real display).
+        state.settings.fps_foreground = self.fps_foreground.clamp(10, 1000);
+        state.settings.fps_foreground_unlimited = self.fps_foreground_unlimited;
+        state.settings.fps_background = self.fps_background.clamp(5, 1000);
+        state.settings.fps_background_sync = self.fps_background_sync;
         state.settings.planet_detail = self.planet_detail;
         state.settings.sky_orbit_mode = self.sky_orbit_mode.clone();
         state.settings.sky_constellations = self.sky_constellations;

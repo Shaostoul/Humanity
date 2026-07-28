@@ -288,6 +288,11 @@
       "date": "2026-07-27",
       "decision": "v0.1015.1 draw-batching increment 3 SHIPPED: shared terrain grid vertices via provoking-vertex packs (emit_shared_grid_faces in planet_chunks.rs; winding-preserving rotation claim, duplicate-on-conflict, water/land flavored coast copies). MEASURED 258 grid verts vs 768 per real patch (2.98x fewer VS invocations, patch vertex bytes ~halved); skirts+cards stay unshared. 4 new unit tests + 5 layout-assuming tests reworked to go through indices. Rig visual identity: pixel-identical Alps capture. NO rig FPS delta claimed: rig window randomly occlusion-throttles to flat 30fps behind the operator game (validate future A/B pairs by matching orbital sweep fps as environment control; vsync=false panics Surface::configure). One unthrottled shared run: 27.6ms at Alps/budget 24576.",
       "rationale": "Operator-ranked arc; increments 1+2 left the frame GPU vertex-bound, sharing was the designed lever. Honest measurement note replaces an invalid A/B pair caught via the orbital control."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1016.1 operator-request batch: (1) foreground/background FPS caps (Settings > Graphics: unlimited toggle + slider, sync-to-foreground toggle + slider; pacing sleeps before dt stamp in RedrawRequested; WindowEvent::Focused tracked). (2) Swim speed now scales with the mouse-wheel gear (2.5 m/s at gear 1, ~125 m/s at max walk gear). (3) Mouse-look freeze ROOT-CAUSED: probe-rig launches stole foreground focus (raw MouseMotion only reaches the focused window; HUMANITY_NO_FOCUS existed since v0.828 but probe-sweep never set it) - rig now sets it + reconcile_cursor no-ops under it + CLAUDE.md boot-verify recipe updated. Operator confirmed v0.1015 perf: much better, 30-40 FPS high above surface. NEW ACTIVE ARC: WATER (6-item punch list in PRIORITIES top block). Tree square/circle + cloud drift-desync filed to their arcs.",
+      "rationale": "Direct operator requests from the evening field report; the focus-steal fix removes the one repro-less open bug and stops future rig sessions from disturbing play."
     }
   ],
   "active_scopes_to_avoid": [

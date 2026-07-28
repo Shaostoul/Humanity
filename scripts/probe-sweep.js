@@ -149,6 +149,14 @@ async function main() {
     cwd: RIG,
     detached: true,
     stdio: "ignore",
+    // Never steal the operator's foreground focus (v0.1016): raw-input
+    // mouse-look only reaches the FOCUSED window, so a rig launch used to
+    // kill the operator's aim mid-game (their "mouse stopped aiming,
+    // fixed itself when I tabbed back in" report - WASD kept working off
+    // the held-key set, masking it). The engine's HUMANITY_NO_FOCUS
+    // window path (v0.828) exists exactly for this; the rig just never
+    // set it.
+    env: { ...process.env, HUMANITY_NO_FOCUS: "1" },
   });
   const pid = child.pid;
   fs.writeFileSync(path.join(RIG, "probe_pid.txt"), String(pid));
