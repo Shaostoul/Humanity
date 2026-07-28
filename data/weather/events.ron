@@ -1,0 +1,87 @@
+// HumanityOS extreme-weather EVENTS (v0.1034, weather-water roadmap
+// section 5 - operator: "include the ability to add crazy weather, like
+// fire storms, or meteor storms, or tornadoes, hurricanes").
+//
+// Infinite-of-x: every possible weather event is a DATA entry here, not
+// code. Adding a fire storm later = adding an entry (plus any new
+// particle emitter ids it references in data/particles.ron).
+//
+// Loaded by: src/systems/weather_events.rs (WeatherEventRegistry)
+// Status: SCHEMA increment - loader-validated, not yet consumed by
+// WeatherSystem (that wiring is the next rung; hazard numbers are
+// placeholders until then and deal no damage today).
+//
+// Field notes:
+// - seasons: which seasons the event may trigger in (Spring, Summer,
+//   Autumn, Winter - must match the game's Season enum names).
+// - temp_c / wind_mps: inclusive ambient ranges that must hold at
+//   trigger time. rarity_weight scales selection odds among eligible
+//   events (higher = more common).
+// - duration_s: how long one occurrence runs (min..max, rolled at start).
+// - wind_profile: None | Front(gust_mps, direction_jitter_deg) |
+//   Vortex(core_radius_m, peak_mps).
+// - emitters: particle emitter ids from data/particles.ron the event
+//   plays at/around the camera (validated at load).
+// - cloud: coverage_boost adds to the deck's coverage while active;
+//   tint multiplies cloud luminance/color toward the given RGB.
+// - hazard: damage_per_s within radius_m of the event core (0 = purely
+//   atmospheric event).
+
+(
+    events: [
+        (
+            id: "thunderstorm",
+            name: "Thunderstorm",
+            seasons: ["Spring", "Summer", "Autumn"],
+            temp_c: (min: 5.0, max: 40.0),
+            wind_mps: (min: 6.0, max: 40.0),
+            rarity_weight: 1.0,
+            duration_s: (min: 300.0, max: 1500.0),
+            wind_profile: Front(gust_mps: 18.0, direction_jitter_deg: 40.0),
+            emitters: ["rain"],
+            cloud: (coverage_boost: 0.35, tint: (0.55, 0.55, 0.62)),
+            hazard: (damage_per_s: 0.0, radius_m: 0.0),
+        ),
+        (
+            id: "blizzard",
+            name: "Blizzard",
+            seasons: ["Winter"],
+            temp_c: (min: -40.0, max: -2.0),
+            wind_mps: (min: 10.0, max: 45.0),
+            rarity_weight: 0.6,
+            duration_s: (min: 600.0, max: 3600.0),
+            wind_profile: Front(gust_mps: 24.0, direction_jitter_deg: 25.0),
+            emitters: ["snow"],
+            cloud: (coverage_boost: 0.5, tint: (0.8, 0.8, 0.85)),
+            hazard: (damage_per_s: 0.0, radius_m: 0.0),
+        ),
+        (
+            id: "tornado",
+            name: "Tornado",
+            seasons: ["Spring", "Summer"],
+            temp_c: (min: 15.0, max: 40.0),
+            wind_mps: (min: 15.0, max: 60.0),
+            rarity_weight: 0.08,
+            duration_s: (min: 120.0, max: 900.0),
+            wind_profile: Vortex(core_radius_m: 60.0, peak_mps: 70.0),
+            emitters: ["dust", "rain"],
+            cloud: (coverage_boost: 0.45, tint: (0.45, 0.44, 0.42)),
+            // Placeholder until the hazard rung wires damage: a real
+            // tornado core will hurt anything unsheltered inside it.
+            hazard: (damage_per_s: 4.0, radius_m: 80.0),
+        ),
+        (
+            id: "meteor_shower",
+            name: "Meteor Shower",
+            seasons: ["Spring", "Summer", "Autumn", "Winter"],
+            temp_c: (min: -60.0, max: 60.0),
+            wind_mps: (min: 0.0, max: 60.0),
+            rarity_weight: 0.15,
+            duration_s: (min: 300.0, max: 1800.0),
+            wind_profile: None,
+            emitters: ["sparks"],
+            cloud: (coverage_boost: 0.0, tint: (1.0, 1.0, 1.0)),
+            hazard: (damage_per_s: 0.0, radius_m: 0.0),
+        ),
+    ],
+)

@@ -173,6 +173,22 @@ pub(crate) fn load_data_registries(store: &mut DataStore, data_dir: &std::path::
         },
         None => log::warn!("entities/wild_spawns.ron not found (no embedded copy); no wild creatures"),
     }
+    // WeatherEventRegistry (v0.1034, extreme-weather schema increment):
+    // tornado/blizzard/meteor-shower definitions. Loaded + validated now;
+    // WeatherSystem starts CONSUMING it on the next rung (trigger rolls,
+    // wind profiles, hazards) - until then it is inert data.
+    match crate::embedded_data::read_data_or_embedded(data_dir, "weather/events.ron") {
+        Some(text) => {
+            match crate::systems::weather_events::WeatherEventRegistry::from_ron(text.as_bytes()) {
+                Ok(reg) => {
+                    log::info!("Loaded {} weather events from weather/events.ron", reg.len());
+                    store.insert("weather_event_registry", reg);
+                }
+                Err(e) => log::warn!("Failed to parse weather/events.ron: {e}"),
+            }
+        }
+        None => log::warn!("weather/events.ron not found (no embedded copy); no extreme weather"),
+    }
     // VehicleKitRegistry: which inventory KIT item deploys into which vehicle
     // (economy Phase 2 Stage 1). Read by VehicleSystem's deploy arm + the
     // deployed-vehicle render pass.

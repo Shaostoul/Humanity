@@ -21,6 +21,7 @@ pub mod economy;
 pub mod player;
 pub mod interaction;
 pub mod weather;
+pub mod weather_events;
 pub mod hydrology;
 pub mod atmosphere;
 pub mod disasters;

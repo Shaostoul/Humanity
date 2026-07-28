@@ -391,6 +391,10 @@
     {
       "date": "2026-07-28",
       "decision": "Precipitation rendering increment 1 (v0.1033.1): weather sim now drives a camera-following AREA emitter (rain for Rain/Storm, snow for Snow) via the ambient-emitter pattern in lib.rs. Emitter gains per-instance dir_override (wind tilts fall, capped 0.7) + rate_scale (intensity scales drizzle-to-downpour; Storm 1.6x). rain/snow defs in data/particles.ron retuned as 15 m-radius volumes (data-driven per infinite-of-x - spawn_radius already existed since v0.966). Surface-mode gate only: ship interiors are not surface_mode so no indoor rain today; real roof signal joins when planet buildings become enterable. Streak-elongated drops deferred (particle renderer draws round sprites; elongation is a shader change, noted for inc 2)."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Extreme-weather EVENT schema increment (v0.1034.1): data/weather/events.ron (thunderstorm/blizzard/tornado/meteor_shower seeds) + systems::weather_events::WeatherEventRegistry (validated loader: unique ids, sane ranges, season names match the Season enum, emitter refs cross-checked against particles.ron in the shipped-data test). Registered in registries.rs + embedded_data (match arm + EMBEDDED_KEYS). Deliberately INERT: WeatherSystem consumption (trigger rolls, wind profiles Front/Vortex, hazard damage) is the next rung - fire storms/hurricanes later are pure data entries per infinite-of-x."
     }
   ],
   "active_scopes_to_avoid": [

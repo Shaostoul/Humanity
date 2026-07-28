@@ -140,6 +140,7 @@ pub const EQUIPMENT_CSV: &str = include_str!("../data/equipment.csv");
 pub const CREATURES_CSV: &str = include_str!("../data/creatures.csv");
 pub const LIVESTOCK_RON: &str = include_str!("../data/entities/livestock.ron");
 pub const WILD_SPAWNS_RON: &str = include_str!("../data/entities/wild_spawns.ron");
+pub const WEATHER_EVENTS_RON: &str = include_str!("../data/weather/events.ron");
 pub const ABILITIES_CSV: &str = include_str!("../data/abilities.csv");
 pub const PROPOSAL_TYPES_RON: &str = include_str!("../data/governance/proposal_types.ron");
 
@@ -170,6 +171,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "creatures.csv" => Some(CREATURES_CSV),
         "entities/livestock.ron" => Some(LIVESTOCK_RON),
         "entities/wild_spawns.ron" => Some(WILD_SPAWNS_RON),
+        "weather/events.ron" => Some(WEATHER_EVENTS_RON),
         "abilities.csv" => Some(ABILITIES_CSV),
         "governance/proposal_types.ron" => Some(PROPOSAL_TYPES_RON),
 
@@ -402,6 +404,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "creatures.csv",
     "entities/livestock.ron",
     "entities/wild_spawns.ron",
+    "weather/events.ron",
     "abilities.csv",
     "governance/proposal_types.ron",
 ];
