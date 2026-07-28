@@ -363,6 +363,22 @@
       "date": "2026-07-28",
       "decision": "HOMESTEAD ARC CLOSED: increments 5 (lighting power) and 6 (furniture models) were ALREADY DONE - v0.967 built the aggregate house-light PowerConsumer (reads the same structure data, so the new 23 fixtures have billed since v0.1026), and all 15 furniture entries ship with on-disk GLTFs (carried by the verbatim port). Design doc + PRIORITIES updated to BUILT status. Next big rock: the water FFT arc (hyper-realism roadmap #1) or operator feedback from the furnished-house walk-through.",
       "rationale": "Verify before building: two of six increments turned out pre-paid by earlier arcs; the day goal (house built up with machines and rooms) is fully delivered."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Water FFT increment 1 SHIPPED v0.1029.1 behind Settings toggle (default off): ocean_fft.rs JONSWAP 128x128, tile 64 m. WHY 64 not the doc 256: ground_anchor snaps in 64 m steps, so the tile must DIVIDE 64 or the sea jumps a quarter tile per snap; design doc corrected. Triplanar radial^2 projection (single plane degenerates at the equator); manual-bilinear textureLoad in VS mirrors the CPU twin exactly; buoyancy reads the SAME array the tile uploads (drawn==sampled literal). Long swells >64 m stay analytic in both modes. Lockstep tests guard shader constants."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Far-tree canopy sheet pulled to DEFAULT OFF v0.1029.1 (Settings toggle keeps it for A/B). Operator rejected it twice (black squares in a grid at altitude). Long-range trees arrive only via the impostor/instancing arc - do NOT iterate the card sheet further."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Model tiering plan written (docs/ai/model-tiering.md) per operator: spend the untouched Opus/Sonnet 50% on data packages (Wiktionary/WordNet dictionary, real plants, i18n, glossary curation) with hard scope walls; Fable orchestrates via Workflow model overrides + reviews merges. Operator: hitting caps sooner is fine; never waste Fable on data volume."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Glossary blank-dictionary ROOT CAUSE found: loader read only data_dir()/glossary.json and degraded to empty while embedded_data::GLOSSARY_JSON (201 terms) sat in the exe. v0.1030.1 falls back to the embedded copy on read OR parse failure + test guards the embedded copy. Operator report was real, not user error."
     }
   ],
   "active_scopes_to_avoid": [

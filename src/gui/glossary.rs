@@ -113,19 +113,34 @@ impl Glossary {
 /// definition tooltips just don't appear, app still works.
 pub fn install() -> &'static Glossary {
     GLOSSARY.get_or_init(|| {
+        // Disk first (hot-editable, mods can extend it), but ALWAYS fall
+        // back to the compile-time embedded copy - an install whose data
+        // dir lacks glossary.json used to get a silently EMPTY Dictionary
+        // page (operator 2026-07-28: "the glossary appears to have no
+        // words in it"; the exe carried all 201 terms the whole time).
         let path = crate::data_dir().join("glossary.json");
         let bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(e) => {
-                log::warn!("Glossary not loaded ({}): {}, definition tooltips will be blank.", path.display(), e);
-                return Glossary { terms: HashMap::new(), categories: HashMap::new() };
+                log::warn!(
+                    "Glossary not on disk ({}): {} - using the embedded copy.",
+                    path.display(),
+                    e
+                );
+                crate::embedded_data::GLOSSARY_JSON.as_bytes().to_vec()
             }
         };
         let parsed: GlossaryFile = match serde_json::from_slice(&bytes) {
             Ok(g) => g,
             Err(e) => {
-                log::warn!("Glossary parse failed: {}, definition tooltips will be blank.", e);
-                return Glossary { terms: HashMap::new(), categories: HashMap::new() };
+                log::warn!("Glossary parse failed: {} - trying the embedded copy.", e);
+                match serde_json::from_str(crate::embedded_data::GLOSSARY_JSON) {
+                    Ok(g) => g,
+                    Err(e2) => {
+                        log::warn!("Embedded glossary also failed ({e2}); dictionary blank.");
+                        return Glossary { terms: HashMap::new(), categories: HashMap::new() };
+                    }
+                }
             }
         };
         // Normalize keys to lowercase so lookup is case-insensitive
@@ -168,5 +183,16 @@ mod tests {
                 e.category
             );
         }
+    }
+
+    /// The embedded fallback (v0.1030) must itself parse with the full
+    /// term set - it is the last line between a data-dir-less install and
+    /// a blank Dictionary, so it gets the same bar as the disk file.
+    #[test]
+    fn embedded_glossary_parses_with_terms() {
+        let parsed: super::GlossaryFile =
+            serde_json::from_str(crate::embedded_data::GLOSSARY_JSON)
+                .expect("embedded GLOSSARY_JSON parses");
+        assert!(parsed.terms.len() >= 150, "term count {}", parsed.terms.len());
     }
 }

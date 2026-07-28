@@ -150,17 +150,37 @@
 > 6 hand trains + screen-space reflections/refraction with a depth
 > buffer + shore-wave sim (breaking, foam advection). CLOUDS: volumetric
 > froxel grid + temporal reprojection + wind-field advection of the
-> weather map (auto-fixes fly-through clipping). PLANTS: true GPU
-> instancing + octahedral impostors (replaces the card sheet).
-> - INCREMENT 1 SHIPPED (v0.1022.1): the far-tree CANOPY SHEET
->   (src/terrain/far_trees.rs) - clump cards to 150 km, from-altitude
->   forests fixed, square/circle boundary buried. Remaining rungs: true
->   GPU instancing, species atlas, near-band sprite detail.
+> weather map (auto-fixes fly-through clipping AND the "pinned" static
+> feel - structures advect + evolve between MODIS refreshes). PLANTS:
+> true GPU instancing + octahedral impostors (replaces the card sheet)
+> + INSTANCED GRASS (operator 2026-07-28 "how do we get dense grass":
+> per-patch instance buffers, crossed-quad blades from a CC0 realistic
+> sheet, wind sway in VS, ~5-20/m2 inside ~150 m with distance fade -
+> grass is instancing increment 1 since it needs no atlas bake).
+> - WATER FFT INCREMENT 1 SHIPPED (v0.1029.1): ocean_fft.rs JONSWAP
+>   128x128 on a 64 m tile (tile must DIVIDE the anchor modulus - doc
+>   corrected), triplanar VS sampling, buoyancy reads the same array,
+>   Settings > Graphics "FFT ocean (experimental)" default OFF. Next
+>   rungs: choppy displacement + slope/Jacobian maps (then default ON),
+>   weather-driven spectrum regen, second cascade, GPU compute, SSR,
+>   shore sim. Operator fork points in docs/design/water-fft.md still
+>   open (fetch default / calm residual / storm ceiling).
+> - FAR-TREE CANOPY SHEET pulled to default OFF (v0.1029.1; Settings
+>   toggle keeps it for A/B). Operator verdict twice: "black squares in
+>   a grid" at altitude. Long-range trees now arrive ONLY via the
+>   instancing/impostor arc - do not iterate the card sheet further.
 > - OPEN varied tree species / bushes / denser grass: deliberately folded
 >   into the reserved BILLBOARD-BAKE + TREE INSTANCING arc (fresh
 >   session): species variety needs matching far-field cards + atlas
 >   entries or the card handoff pops; models are already on disk
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
+> MODEL TIERING (operator 2026-07-28): docs/ai/model-tiering.md is the
+> plan for spending the never-touched Opus/Sonnet 50% of the sub -
+> Sonnet-ready data packages (full dictionary via Wiktionary/WordNet,
+> real-plants data, i18n, glossary curation, tools/chemistry depth) with
+> hard scope walls (no .rs/.wgsl/schemas). Fable orchestrates + reviews.
+> GLOSSARY BLANK-ON-INSTALL fixed v0.1030.1: loader falls back to the
+> embedded copy when data/glossary.json is missing next to the exe.
 >
 > **>>> OVERNIGHT BACKLOG (2026-07-25 ~01:00, operator heading to bed,
 > given verbatim then ranked here): IN PROGRESS.** Standing frame: MAX
