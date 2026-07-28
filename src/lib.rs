@@ -3311,6 +3311,69 @@ mod native_app {
                                 }
                             }
                         }
+                        // Precipitation (v0.1033): the HUD has said "Rain"
+                        // for months while the sky stayed dry - now the
+                        // weather sim drives a camera-following AREA
+                        // emitter. Condition picks rain vs snow, intensity
+                        // scales the per-instance spawn rate, and live wind
+                        // TILTS the fall direction (dir_override). Surface
+                        // mode only: ship interiors are not surface_mode,
+                        // so it cannot rain indoors today; a real
+                        // roof/interior signal joins when planet buildings
+                        // become enterable.
+                        let (want_rain, want_snow, precip_rate, precip_dir) = {
+                            let w = state
+                                .data_store
+                                .get::<std::sync::Mutex<Weather>>("weather")
+                                .and_then(|m| m.lock().ok())
+                                .map(|w| (w.condition, w.intensity, w.wind_speed, w.wind_direction));
+                            match w {
+                                Some((cond, inten, wind, wdir)) if state.camera.surface_mode => {
+                                    use crate::systems::weather::WeatherCondition as WC;
+                                    let (r, s) = match cond {
+                                        WC::Rain => (true, false),
+                                        WC::Storm => (true, false),
+                                        WC::Snow => (false, true),
+                                        _ => (false, false),
+                                    };
+                                    let storm_boost =
+                                        if matches!(cond, WC::Storm) { 1.6 } else { 1.0 };
+                                    let up = state.camera.up;
+                                    let wd = Vec3::new(wdir.x, wdir.y, wdir.z);
+                                    // Wind tilt: horizontal component only,
+                                    // capped so a storm slants hard but
+                                    // never goes sideways.
+                                    let horiz = (wd - up * wd.dot(up)).normalize_or_zero();
+                                    let tilt = (wind * 0.045).min(0.7);
+                                    let dir = (-up + horiz * tilt).normalize_or_zero();
+                                    (r, s, (0.4 + 0.8 * inten) * storm_boost, dir)
+                                }
+                                _ => (false, false, 0.0, -state.camera.up),
+                            }
+                        };
+                        let precip_pos = state.camera.position + state.camera.up * 13.0;
+                        for (ty, want) in [("rain", want_rain), ("snow", want_snow)] {
+                            match state.particle_system.emitter_by_type_mut(ty) {
+                                Some(e) => {
+                                    e.active = want;
+                                    if want {
+                                        e.position = precip_pos;
+                                        e.dir_override = Some(precip_dir);
+                                        e.rate_scale = precip_rate;
+                                    }
+                                }
+                                None => {
+                                    if want {
+                                        let i = state.particle_system.spawn(ty, precip_pos);
+                                        if let Some(e) = state.particle_system.emitters.get_mut(i)
+                                        {
+                                            e.dir_override = Some(precip_dir);
+                                            e.rate_scale = precip_rate;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         state.particle_system.tick(dt);
                     }
 

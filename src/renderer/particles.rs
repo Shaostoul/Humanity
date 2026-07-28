@@ -135,6 +135,13 @@ pub struct Emitter {
     pub emitter_type: String,
     pub position: Vec3,
     pub active: bool,
+    /// Per-instance emission direction override (v0.1033, precipitation):
+    /// the shared def says "straight down", but live wind TILTS rain -
+    /// the weather-driven emitter updates this every frame. None = def.
+    pub dir_override: Option<Vec3>,
+    /// Per-instance spawn-rate multiplier (v0.1033): weather intensity
+    /// scales drizzle -> downpour without forking the def.
+    pub rate_scale: f32,
     particles: Vec<Particle>,
     spawn_accumulator: f32,
     rng_state: u32,
@@ -146,6 +153,8 @@ impl Emitter {
             emitter_type,
             position,
             active: true,
+            dir_override: None,
+            rate_scale: 1.0,
             particles: Vec::new(),
             spawn_accumulator: 0.0,
             rng_state: (position.x.to_bits() ^ position.y.to_bits() ^ position.z.to_bits())
@@ -177,7 +186,7 @@ impl Emitter {
 
         // Spawn new particles
         if self.active {
-            self.spawn_accumulator += def.spawn_rate * dt;
+            self.spawn_accumulator += def.spawn_rate * self.rate_scale.max(0.0) * dt;
             while self.spawn_accumulator >= 1.0 && self.particles.len() < def.max_particles {
                 self.spawn_accumulator -= 1.0;
                 self.spawn_particle(def);
@@ -197,7 +206,8 @@ impl Emitter {
         let local_dir = Vec3::new(sin_phi * theta.cos(), phi.cos(), sin_phi * theta.sin());
 
         // Rotate local direction to align with emitter direction
-        let up = def.direction.normalize_or_zero();
+        // (instance override wins - wind-tilted precipitation).
+        let up = self.dir_override.unwrap_or(def.direction).normalize_or_zero();
         let velocity = if up.length_squared() < 0.001 {
             // Omnidirectional
             let rx = self.rand() * 2.0 - 1.0;
@@ -509,4 +519,39 @@ pub fn build_particle_pipelines(
         },
     );
     (alpha, additive, frame_bgl)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn def() -> EmitterDef {
+        EmitterDef { spawn_rate: 100.0, max_particles: 1000, ..Default::default() }
+    }
+
+    /// v0.1033 precipitation controls: the per-instance rate multiplier
+    /// scales emission, and the direction override retargets the cone.
+    #[test]
+    fn rate_scale_and_dir_override_drive_the_instance() {
+        let d = def();
+        let mut full = Emitter::new("t".into(), Vec3::ZERO);
+        let mut half = Emitter::new("t".into(), Vec3::ZERO);
+        half.rate_scale = 0.5;
+        full.tick(1.0, &d);
+        half.tick(1.0, &d);
+        assert_eq!(full.particles.len(), 100);
+        assert_eq!(half.particles.len(), 50, "rate_scale must halve emission");
+        // Override: emit straight -X; every velocity should lean -X.
+        let mut tilted = Emitter::new("t".into(), Vec3::ZERO);
+        tilted.dir_override = Some(Vec3::new(-1.0, 0.0, 0.0));
+        tilted.tick(1.0, &d);
+        for p in &tilted.particles {
+            assert!(p.velocity.x < 0.0, "override ignored: {:?}", p.velocity);
+        }
+        // Zero scale = no emission at all (indoors-later posture).
+        let mut off = Emitter::new("t".into(), Vec3::ZERO);
+        off.rate_scale = 0.0;
+        off.tick(1.0, &d);
+        assert!(off.particles.is_empty());
+    }
 }
