@@ -149,6 +149,45 @@ impl WeatherEventRegistry {
     }
 }
 
+/// Events whose trigger window contains the current conditions (v0.1035,
+/// the consumption rung). `season` is the `Season` enum's Debug name.
+pub fn eligible<'a>(
+    reg: &'a WeatherEventRegistry,
+    season: &str,
+    temp_c: f32,
+    wind_mps: f32,
+) -> Vec<&'a WeatherEvent> {
+    reg.events
+        .iter()
+        .filter(|e| {
+            e.seasons.iter().any(|s| s == season)
+                && temp_c >= e.temp_c.min
+                && temp_c <= e.temp_c.max
+                && wind_mps >= e.wind_mps.min
+                && wind_mps <= e.wind_mps.max
+        })
+        .collect()
+}
+
+/// Deterministic weighted selection: `roll01` in [0,1) maps onto the
+/// cumulative rarity weights, so rare events (tornado 0.08) fire far
+/// less often than common ones (thunderstorm 1.0). Pure function of its
+/// inputs - the caller owns the RNG, which keeps this testable.
+pub fn weighted_pick<'a>(events: &[&'a WeatherEvent], roll01: f32) -> Option<&'a WeatherEvent> {
+    let total: f32 = events.iter().map(|e| e.rarity_weight).sum();
+    if total <= 0.0 {
+        return None;
+    }
+    let mut x = roll01.clamp(0.0, 0.999_99) * total;
+    for e in events {
+        if x < e.rarity_weight {
+            return Some(e);
+        }
+        x -= e.rarity_weight;
+    }
+    events.last().copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +216,39 @@ mod tests {
         assert!(reg.events.iter().any(|e| matches!(e.wind_profile, WindProfile::Vortex { .. })));
         assert!(reg.events.iter().any(|e| matches!(e.wind_profile, WindProfile::Front { .. })));
         assert!(reg.events.iter().any(|e| e.wind_profile == WindProfile::None));
+    }
+
+    #[test]
+    fn eligibility_and_weighted_pick_behave() {
+        let bytes = std::fs::read(data_dir().join("weather/events.ron")).unwrap();
+        let reg = WeatherEventRegistry::from_ron(&bytes).unwrap();
+        // Blizzard needs Winter + hard cold + wind: a mild spring day
+        // can't produce it, a windy arctic winter can.
+        let spring = eligible(&reg, "Spring", 20.0, 8.0);
+        assert!(spring.iter().all(|e| e.id != "blizzard"));
+        assert!(spring.iter().any(|e| e.id == "thunderstorm"));
+        let arctic = eligible(&reg, "Winter", -15.0, 20.0);
+        assert!(arctic.iter().any(|e| e.id == "blizzard"));
+        assert!(arctic.iter().all(|e| e.id != "thunderstorm"), "thunderstorm at -15C");
+        // Out-of-range wind excludes everything wind-gated.
+        assert!(eligible(&reg, "Summer", 25.0, 0.5).iter().all(|e| e.id != "tornado"));
+        // Weighted pick: roll 0 lands in the first (cumulative) slot,
+        // roll near 1 lands in the last; a rare event occupies a slice
+        // proportional to its weight.
+        let all: Vec<&WeatherEvent> = reg.events.iter().collect();
+        assert!(weighted_pick(&all, 0.0).is_some());
+        assert_eq!(
+            weighted_pick(&all, 0.999).unwrap().id,
+            all.last().unwrap().id,
+            "top roll picks the last cumulative slot"
+        );
+        assert!(weighted_pick(&[], 0.5).is_none());
+        // Proportionality: sweep the roll space; the tornado (weight
+        // 0.08 of ~1.83 total) should win well under 10% of rolls.
+        let hits = (0..1000)
+            .filter(|i| weighted_pick(&all, *i as f32 / 1000.0).map(|e| e.id == "tornado") == Some(true))
+            .count();
+        assert!(hits < 100, "tornado won {hits}/1000 rolls despite 0.08 weight");
     }
 
     #[test]

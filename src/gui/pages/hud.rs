@@ -210,11 +210,16 @@ pub fn draw(
                     "Sandstorm" => "🌪",
                     _ => "?",
                 };
+                // An active extreme event replaces the plain condition
+                // label ("Thunderstorm" beats "Rain", v0.1035); the icon
+                // still keys off the underlying condition.
+                let cond_label =
+                    if w.event.is_empty() { w.condition.as_str() } else { w.event.as_str() };
                 text_shadowed(
                     painter,
                     Pos2::new(screen.right() - 16.0, 46.0),
                     Align2::RIGHT_TOP,
-                    &format!("{} {} {:.0}C {:.0}m/s", weather_icon, w.condition, w.temperature, w.wind_speed),
+                    &format!("{} {} {:.0}C {:.0}m/s", weather_icon, cond_label, w.temperature, w.wind_speed),
                     11.0,
                     theme.text_secondary(),
                 );

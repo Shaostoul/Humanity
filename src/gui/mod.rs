@@ -455,6 +455,9 @@ pub struct GuiWeather {
     pub condition: String,
     pub temperature: f32,
     pub wind_speed: f32,
+    /// Active extreme-weather event display name ("" = none, v0.1035):
+    /// the HUD shows this instead of the plain condition while it runs.
+    pub event: String,
 }
 
 /// Task priority levels for the task board.

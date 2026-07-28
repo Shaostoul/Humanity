@@ -43,6 +43,15 @@ pub struct Weather {
     pub visibility: f32,
     /// Seconds remaining in the current transition (0 = fully transitioned).
     pub transition_timer: f32,
+    /// Active extreme-weather event (v0.1035, data/weather/events.ron):
+    /// id + display name, empty when none, and seconds left. The HUD
+    /// shows the name; the precipitation block plays its emitters.
+    #[serde(default)]
+    pub event_id: String,
+    #[serde(default)]
+    pub event_name: String,
+    #[serde(default)]
+    pub event_remaining_s: f32,
 }
 
 impl Default for Weather {
@@ -56,6 +65,9 @@ impl Default for Weather {
             humidity: 0.4,
             visibility: 1.0,
             transition_timer: 0.0,
+            event_id: String::new(),
+            event_name: String::new(),
+            event_remaining_s: 0.0,
         }
     }
 }
@@ -68,6 +80,19 @@ const MIN_CHANGE_INTERVAL: f32 = 300.0;
 
 /// Maximum game-time seconds between weather changes (15 minutes).
 const MAX_CHANGE_INTERVAL: f32 = 900.0;
+
+/// Seconds between extreme-event roll attempts (v0.1035; same clock as
+/// the change intervals above).
+const EVENT_ROLL_INTERVAL_S: f32 = 900.0;
+
+/// Chance per roll that an eligible extreme event actually fires - the
+/// registry's rarity weights then decide WHICH one.
+const EVENT_FIRE_CHANCE: f32 = 0.35;
+
+/// Fraction of a Front profile's gust speed added to the exported wind
+/// while its event runs (steady component; real gust pulsing comes with
+/// the wind-field rung).
+const EVENT_GUST_EXPORT: f32 = 0.6;
 
 /// Drives weather transitions based on season and random rolls.
 pub struct WeatherSystem {
@@ -86,6 +111,12 @@ pub struct WeatherSystem {
     target_wind_speed: f32,
     /// Countdown until the next weather change attempt.
     next_change_timer: f32,
+    /// Countdown until the next extreme-event roll (v0.1035).
+    event_roll_timer: f32,
+    /// Steady wind bonus (m/s) exported while a Front-profile event is
+    /// active; 0 otherwise. Kept OUT of the lerp targets so event wind
+    /// vanishes cleanly the moment the event ends.
+    active_gust_mps: f32,
     /// Random number generator (Send + Sync compatible).
     rng: StdRng,
 }
@@ -106,6 +137,8 @@ impl WeatherSystem {
             target_wind_speed: weather.wind_speed,
             weather,
             next_change_timer: 60.0, // First change after 1 minute
+            event_roll_timer: EVENT_ROLL_INTERVAL_S,
+            active_gust_mps: 0.0,
             rng: StdRng::from_os_rng(),
         }
     }
@@ -303,12 +336,78 @@ impl System for WeatherSystem {
             self.weather.wind_speed = lerp(self.prev_wind_speed, self.target_wind_speed, t);
         }
 
+        // ── Extreme-weather events (v0.1035, data/weather/events.ron) ──
+        // A running event counts down; otherwise roll periodically for an
+        // eligible one. Selection is season/temp/wind-gated + rarity-
+        // weighted (systems::weather_events). This rung applies Front
+        // gusts to the exported wind and surfaces the event to the HUD +
+        // precipitation; Vortex spatial wind and hazard damage are the
+        // NEXT rung (logged on activation so playtests can spot them).
+        if self.weather.event_remaining_s > 0.0 {
+            self.weather.event_remaining_s = (self.weather.event_remaining_s - dt).max(0.0);
+            if self.weather.event_remaining_s == 0.0 {
+                log::info!("[WeatherEvent] '{}' ended", self.weather.event_name);
+                self.weather.event_id.clear();
+                self.weather.event_name.clear();
+                self.active_gust_mps = 0.0;
+            }
+        } else {
+            self.event_roll_timer -= dt;
+            if self.event_roll_timer <= 0.0 {
+                self.event_roll_timer = EVENT_ROLL_INTERVAL_S;
+                if self.rng.gen::<f32>() < EVENT_FIRE_CHANCE {
+                    if let Some(reg) = data
+                        .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                            "weather_event_registry",
+                        )
+                    {
+                        let season_name = format!("{season:?}");
+                        let elig = crate::systems::weather_events::eligible(
+                            reg,
+                            &season_name,
+                            self.weather.temperature,
+                            self.weather.wind_speed,
+                        );
+                        let roll: f32 = self.rng.gen();
+                        if let Some(ev) =
+                            crate::systems::weather_events::weighted_pick(&elig, roll)
+                        {
+                            self.weather.event_id = ev.id.clone();
+                            self.weather.event_name = ev.name.clone();
+                            self.weather.event_remaining_s = self
+                                .rng
+                                .gen_range(ev.duration_s.min..=ev.duration_s.max);
+                            use crate::systems::weather_events::WindProfile as WP;
+                            self.active_gust_mps = match ev.wind_profile {
+                                WP::Front { gust_mps, .. } => gust_mps,
+                                WP::Vortex { peak_mps, .. } => {
+                                    log::info!(
+                                        "[WeatherEvent] vortex wind ({peak_mps} m/s core) + hazard deferred to the next rung"
+                                    );
+                                    0.0
+                                }
+                                WP::None => 0.0,
+                            };
+                            log::info!(
+                                "[WeatherEvent] '{}' started ({:.0}s)",
+                                self.weather.event_name,
+                                self.weather.event_remaining_s
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         // Export the current weather to the DataStore so the survival environment
         // (the exposed ambient temperature) and the HUD read it. Interior mutability
         // via a Mutex (the TimeSystem/game_time pattern) since tick only gets &DataStore.
+        // Front-event gusts ride the EXPORT only, so the internal lerp
+        // targets stay clean and event wind vanishes with the event.
         if let Some(slot) = data.get::<std::sync::Mutex<Weather>>("weather") {
             if let Ok(mut w) = slot.lock() {
                 *w = self.weather.clone();
+                w.wind_speed += self.active_gust_mps * EVENT_GUST_EXPORT;
             }
         }
     }
@@ -347,6 +446,77 @@ mod tests {
         for _ in 0..100 {
             system.tick(&mut world, 1.0 / 60.0, &data);
         }
+    }
+
+    /// v0.1035: an active event counts down and clears at expiry, taking
+    /// its gust bonus with it.
+    #[test]
+    fn active_event_expires_and_clears() {
+        let mut sys = WeatherSystem::new();
+        sys.weather.event_id = "thunderstorm".into();
+        sys.weather.event_name = "Thunderstorm".into();
+        sys.weather.event_remaining_s = 5.0;
+        sys.active_gust_mps = 18.0;
+        let mut data = DataStore::new();
+        data.insert("weather", std::sync::Mutex::new(Weather::default()));
+        let mut world = hecs::World::new();
+        sys.tick(&mut world, 2.0, &data);
+        assert!(!sys.weather.event_id.is_empty(), "still running at t=2");
+        // Gusts ride the export while active.
+        let exported = data
+            .get::<std::sync::Mutex<Weather>>("weather")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .wind_speed;
+        assert!(
+            exported > sys.weather.wind_speed + 1.0,
+            "export {exported} should carry the gust bonus"
+        );
+        sys.tick(&mut world, 10.0, &data);
+        assert!(sys.weather.event_id.is_empty(), "event should have expired");
+        assert_eq!(sys.active_gust_mps, 0.0);
+        let after = data
+            .get::<std::sync::Mutex<Weather>>("weather")
+            .unwrap()
+            .lock()
+            .unwrap()
+            .wind_speed;
+        assert!((after - sys.weather.wind_speed).abs() < 1e-5, "gust gone after expiry");
+    }
+
+    /// v0.1035: with the shipped registry in the store and eligible
+    /// conditions, repeated rolls eventually start an event (P(miss) per
+    /// roll = 0.65; 300 rolls make a false failure astronomically rare).
+    #[test]
+    fn events_eventually_fire_from_the_shipped_registry() {
+        let bytes = std::fs::read(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/weather/events.ron"),
+        )
+        .unwrap();
+        let reg =
+            crate::systems::weather_events::WeatherEventRegistry::from_ron(&bytes).unwrap();
+        let mut data = DataStore::new();
+        data.insert("weather_event_registry", reg);
+        data.insert("weather", std::sync::Mutex::new(Weather::default()));
+        let mut world = hecs::World::new();
+        let mut sys = WeatherSystem::new();
+        // Pin ambient conditions inside the thunderstorm window each roll
+        // (the normal condition machinery keeps mutating them).
+        let mut fired = false;
+        for _ in 0..300 {
+            sys.weather.temperature = 20.0;
+            sys.weather.wind_speed = 10.0;
+            sys.weather.event_remaining_s = 0.0;
+            sys.weather.event_id.clear();
+            sys.event_roll_timer = 0.0;
+            sys.tick(&mut world, 0.1, &data);
+            if !sys.weather.event_id.is_empty() {
+                fired = true;
+                break;
+            }
+        }
+        assert!(fired, "no event fired in 300 forced rolls");
     }
 
     #[test]

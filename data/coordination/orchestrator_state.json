@@ -395,6 +395,10 @@
     {
       "date": "2026-07-28",
       "decision": "Extreme-weather EVENT schema increment (v0.1034.1): data/weather/events.ron (thunderstorm/blizzard/tornado/meteor_shower seeds) + systems::weather_events::WeatherEventRegistry (validated loader: unique ids, sane ranges, season names match the Season enum, emitter refs cross-checked against particles.ron in the shipped-data test). Registered in registries.rs + embedded_data (match arm + EMBEDDED_KEYS). Deliberately INERT: WeatherSystem consumption (trigger rolls, wind profiles Front/Vortex, hazard damage) is the next rung - fire storms/hurricanes later are pure data entries per infinite-of-x."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Weather-event CONSUMPTION rung (v0.1035.1): WeatherSystem rolls every 900 s (35% fire chance, then rarity-weighted pick among season/temp/wind-eligible events via pure helpers eligible+weighted_pick in weather_events.rs). Active event lives ON the Weather struct (event_id/name/remaining); Front gusts ride the EXPORT only (active_gust_mps * 0.6) so lerp targets stay clean; Vortex wind + hazard damage logged-but-deferred to the next rung. HUD condition label swaps to the event name while running; the precipitation block unions the active event emitters and enumerates ALL registry emitter ids so ended events deactivate cleanly. 10 weather tests incl statistical fire test (300 forced rolls)."
     }
   ],
   "active_scopes_to_avoid": [

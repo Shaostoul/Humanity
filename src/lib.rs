@@ -3321,14 +3321,22 @@ mod native_app {
                         // so it cannot rain indoors today; a real
                         // roof/interior signal joins when planet buildings
                         // become enterable.
-                        let (want_rain, want_snow, precip_rate, precip_dir) = {
+                        let (want_rain, want_snow, precip_rate, precip_dir, event_id) = {
                             let w = state
                                 .data_store
                                 .get::<std::sync::Mutex<Weather>>("weather")
                                 .and_then(|m| m.lock().ok())
-                                .map(|w| (w.condition, w.intensity, w.wind_speed, w.wind_direction));
+                                .map(|w| {
+                                    (
+                                        w.condition,
+                                        w.intensity,
+                                        w.wind_speed,
+                                        w.wind_direction,
+                                        w.event_id.clone(),
+                                    )
+                                });
                             match w {
-                                Some((cond, inten, wind, wdir)) if state.camera.surface_mode => {
+                                Some((cond, inten, wind, wdir, ev)) if state.camera.surface_mode => {
                                     use crate::systems::weather::WeatherCondition as WC;
                                     let (r, s) = match cond {
                                         WC::Rain => (true, false),
@@ -3346,13 +3354,37 @@ mod native_app {
                                     let horiz = (wd - up * wd.dot(up)).normalize_or_zero();
                                     let tilt = (wind * 0.045).min(0.7);
                                     let dir = (-up + horiz * tilt).normalize_or_zero();
-                                    (r, s, (0.4 + 0.8 * inten) * storm_boost, dir)
+                                    (r, s, (0.4 + 0.8 * inten) * storm_boost, dir, ev)
                                 }
-                                _ => (false, false, 0.0, -state.camera.up),
+                                _ => (false, false, 0.0, -state.camera.up, String::new()),
                             }
                         };
                         let precip_pos = state.camera.position + state.camera.up * 13.0;
-                        for (ty, want) in [("rain", want_rain), ("snow", want_snow)] {
+                        // Union in the active extreme event's emitters
+                        // (v0.1035): a thunderstorm keeps its rain, a
+                        // tornado adds dust, a meteor shower adds sparks -
+                        // and every OTHER event emitter is enumerated so
+                        // an ended event's particles deactivate cleanly.
+                        let mut manage: Vec<(String, bool)> =
+                            vec![("rain".into(), want_rain), ("snow".into(), want_snow)];
+                        if let Some(reg) = state
+                            .data_store
+                            .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                                "weather_event_registry",
+                            )
+                        {
+                            for ev in &reg.events {
+                                let on = !event_id.is_empty() && ev.id == event_id;
+                                for em in &ev.emitters {
+                                    match manage.iter_mut().find(|(t, _)| t == em) {
+                                        Some(slot) => slot.1 = slot.1 || on,
+                                        None => manage.push((em.clone(), on)),
+                                    }
+                                }
+                            }
+                        }
+                        for (ty, want) in &manage {
+                            let (ty, want) = (ty.as_str(), *want);
                             match state.particle_system.emitter_by_type_mut(ty) {
                                 Some(e) => {
                                     e.active = want;
@@ -12333,6 +12365,7 @@ mod native_app {
                             condition: format!("{:?}", w.condition),
                             temperature: w.temperature,
                             wind_speed: w.wind_speed,
+                            event: w.event_name.clone(),
                         });
                         // Sea state from wind (v0.909): 2 m/s or less reads
                         // glassy, ~15 m/s is a full storm sea. The showcase
