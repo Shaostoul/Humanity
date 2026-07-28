@@ -1818,6 +1818,8 @@ mod native_app {
                 cloud_advect_decaying: 0.0,
                 cloud_event_boost: 0.0,
                 cloud_event_tint: [1.0; 3],
+                event_core: None,
+                event_hazard_near: false,
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -12377,6 +12379,7 @@ mod native_app {
                             temperature: w.temperature,
                             wind_speed: w.wind_speed,
                             event: w.event_name.clone(),
+                            warning: String::new(),
                         });
                         // Sea state from wind (v0.909): 2 m/s or less reads
                         // glassy, ~15 m/s is a full storm sea. The showcase
@@ -12444,6 +12447,85 @@ mod native_app {
                         for i in 0..3 {
                             state.cloud_event_tint[i] +=
                                 (tt[i] - state.cloud_event_tint[i]) * ek;
+                        }
+                        // Vortex core lifecycle + proximity (v0.1038,
+                        // log + HUD scope; forces/damage are the next
+                        // rung, and wind does not move the player yet so
+                        // no physics is invented here). Core is placed
+                        // ONCE per event, 200-600 m from the player in
+                        // PLANET-FRAME metres; a visible funnel needs the
+                        // planet-spin transform the celestial pass owns,
+                        // so it is deferred with the damage rung.
+                        let vortex_hazard = if w.event_id.is_empty() {
+                            None
+                        } else {
+                            state
+                                .data_store
+                                .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                                    "weather_event_registry",
+                                )
+                                .and_then(|r| r.events.iter().find(|e| e.id == w.event_id))
+                                .filter(|e| {
+                                    matches!(
+                                        e.wind_profile,
+                                        crate::systems::weather_events::WindProfile::Vortex { .. }
+                                    )
+                                })
+                                .map(|e| e.hazard.radius_m)
+                        };
+                        match vortex_hazard {
+                            Some(radius_m) if state.frame_lock_body.is_some() => {
+                                let anchor = state.frame_lock_anchor;
+                                let core = *state.event_core.get_or_insert_with(|| {
+                                    // Cheap deterministic-enough rolls from
+                                    // the wall clock micros (placement is
+                                    // cosmetic; no gameplay fairness rides
+                                    // on it).
+                                    let us = state.start_time.elapsed().as_micros() as u64;
+                                    let bearing =
+                                        (us % 6283) as f64 / 1000.0;
+                                    let dist = 200.0 + (us / 7 % 400) as f64;
+                                    let c =
+                                        crate::systems::weather_events::place_event_core(
+                                            anchor, bearing, dist,
+                                        );
+                                    log::info!(
+                                        "[WeatherEvent] vortex core placed {:.0} m from player",
+                                        (c - anchor).length()
+                                    );
+                                    c
+                                });
+                                let dist = (anchor - core).length();
+                                let (near, inside) =
+                                    crate::systems::weather_events::hazard_proximity(
+                                        dist, radius_m,
+                                    );
+                                if near != state.event_hazard_near {
+                                    state.event_hazard_near = near;
+                                    log::info!(
+                                        "[WeatherEvent] hazard zone {} ({:.0} m from core, radius {radius_m} m)",
+                                        if near { "ENTERED (3x radius)" } else { "left" },
+                                        dist
+                                    );
+                                }
+                                if let Some(gw) = state.gui_state.weather.as_mut() {
+                                    gw.warning = if inside {
+                                        format!("{} - TAKE COVER!", w.event_name)
+                                    } else if near {
+                                        format!("{} nearby!", w.event_name)
+                                    } else {
+                                        String::new()
+                                    };
+                                }
+                            }
+                            _ => {
+                                if state.event_core.take().is_some() {
+                                    state.event_hazard_near = false;
+                                }
+                                if let Some(gw) = state.gui_state.weather.as_mut() {
+                                    gw.warning.clear();
+                                }
+                            }
                         }
                     }
 

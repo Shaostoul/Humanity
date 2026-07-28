@@ -783,6 +783,12 @@ pub(crate) struct EngineState {
     /// The celestial pass only READS these (it holds planet borrows).
     pub(crate) cloud_event_boost: f32,
     pub(crate) cloud_event_tint: [f32; 3],
+    /// Active Vortex event's core, PLANET-FRAME metres (v0.1038); None
+    /// when no vortex event runs. Placed 200-600 m from the player when
+    /// the event fires; the HUD warns inside 3x the hazard radius.
+    pub(crate) event_core: Option<glam::DVec3>,
+    /// Edge-detect flag for the enter/leave hazard-zone logs.
+    pub(crate) event_hazard_near: bool,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

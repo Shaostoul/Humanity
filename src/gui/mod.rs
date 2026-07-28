@@ -458,6 +458,9 @@ pub struct GuiWeather {
     /// Active extreme-weather event display name ("" = none, v0.1035):
     /// the HUD shows this instead of the plain condition while it runs.
     pub event: String,
+    /// Hazard proximity warning ("" = none, v0.1038): set while the
+    /// player is within 3x a Vortex event's hazard radius.
+    pub warning: String,
 }
 
 /// Task priority levels for the task board.

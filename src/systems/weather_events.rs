@@ -169,6 +169,38 @@ pub fn eligible<'a>(
         .collect()
 }
 
+/// Place a Vortex event's core on the planet surface (v0.1038): from
+/// the player's PLANET-FRAME position, walk `dist_m` along the surface
+/// at `bearing_rad`, then re-project onto the player's radius so the
+/// core sits on the sphere (a tornado core is a ground feature). Pure
+/// and deterministic - the caller supplies the bearing roll.
+pub fn place_event_core(anchor: glam::DVec3, bearing_rad: f64, dist_m: f64) -> glam::DVec3 {
+    let r = anchor.length();
+    if r < 1.0 {
+        return anchor;
+    }
+    let dir = anchor / r;
+    // Tangent basis at the anchor (east-ish / north-ish; exact compass
+    // orientation is irrelevant for a random bearing).
+    let mut east = glam::DVec3::Y.cross(dir);
+    if east.length_squared() < 1.0e-9 {
+        east = glam::DVec3::X.cross(dir);
+    }
+    let east = east.normalize();
+    let north = dir.cross(east);
+    let offset = (east * bearing_rad.cos() + north * bearing_rad.sin()) * dist_m;
+    (anchor + offset).normalize() * r
+}
+
+/// Hazard proximity bands: `near` inside 3x the hazard radius (the HUD
+/// warning), `inside` within the radius itself (the future damage rung).
+pub fn hazard_proximity(dist_m: f64, radius_m: f32) -> (bool, bool) {
+    if radius_m <= 0.0 {
+        return (false, false);
+    }
+    (dist_m < radius_m as f64 * 3.0, dist_m < radius_m as f64)
+}
+
 /// Deterministic weighted selection: `roll01` in [0,1) maps onto the
 /// cumulative rarity weights, so rare events (tornado 0.08) fire far
 /// less often than common ones (thunderstorm 1.0). Pure function of its
@@ -249,6 +281,27 @@ mod tests {
             .filter(|i| weighted_pick(&all, *i as f32 / 1000.0).map(|e| e.id == "tornado") == Some(true))
             .count();
         assert!(hits < 100, "tornado won {hits}/1000 rolls despite 0.08 weight");
+    }
+
+    #[test]
+    fn core_placement_stays_on_sphere_in_the_distance_band() {
+        let anchor = glam::DVec3::new(3_000_000.0, 4_000_000.0, 2_500_000.0);
+        let r0 = anchor.length();
+        for i in 0..24 {
+            let bearing = i as f64 * 0.26;
+            let dist = 200.0 + (i as f64 * 17.3) % 400.0;
+            let core = place_event_core(anchor, bearing, dist);
+            assert!((core.length() - r0).abs() < 0.01, "core left the sphere");
+            let d = (core - anchor).length();
+            // Chord vs arc at <= 600 m on a planet radius is sub-mm; the
+            // re-projection shortens the offset slightly, never grows it.
+            assert!(d > dist * 0.98 && d < dist * 1.001, "band miss: {d} vs {dist}");
+        }
+        // Proximity bands (tornado hazard radius 80 m).
+        assert_eq!(hazard_proximity(500.0, 80.0), (false, false));
+        assert_eq!(hazard_proximity(180.0, 80.0), (true, false));
+        assert_eq!(hazard_proximity(50.0, 80.0), (true, true));
+        assert_eq!(hazard_proximity(50.0, 0.0), (false, false), "no hazard, no warning");
     }
 
     #[test]

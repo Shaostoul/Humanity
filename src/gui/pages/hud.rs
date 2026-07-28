@@ -223,6 +223,19 @@ pub fn draw(
                     11.0,
                     theme.text_secondary(),
                 );
+                // Hazard proximity warning (v0.1038): a Vortex event's
+                // core within 3x its hazard radius. Danger-colored line
+                // right under the weather readout.
+                if !w.warning.is_empty() {
+                    text_shadowed(
+                        painter,
+                        Pos2::new(screen.right() - 16.0, 60.0),
+                        Align2::RIGHT_TOP,
+                        &w.warning,
+                        12.0,
+                        theme.danger(),
+                    );
+                }
             }
 
             // ── Power balance (live home electrical sim, below weather) ──
