@@ -348,6 +348,11 @@
       "date": "2026-07-28",
       "decision": "Wolf hunt CLOSED: VPS deploy landed (relay restart, uptime confirmed fresh), sqlite read-only inspection of game_world_snapshots v8+v9 found ZERO wolf entities in persisted shared state - the attacker was per-session list seeding; the removed row ends it everywhere. v0.1026.1: homestead increment 2 lighting (23 fixtures, 4 strips, demo lights to commons) + shore de-terracing (per-fragment noise perturbation of the baked shallow depth). Next: homestead increment 3 (plumbing fixtures + first HotWater producer, furniture catalog).",
       "rationale": "Live-player safety first (verified clean rather than assumed), then the queued increments."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1027.1 homestead 3a: SOLO home plumbing suite (7 fixtures, first solo HotWater producer, aggregate water node carved into per-room draws, utility-room relocations, pinned conduit specs). Key find: home.ron (family) ALREADY had the complete suite - the designs 5.2 gap was home_solo.ron only; my first mirror attempt duplicated ids and was reverted (lesson: inventory the target before mirroring). Next: 3b furniture manifest.",
+      "rationale": "Two shippable halves per the plan; plumbing carries the functional systems (WaterStatus/buildability), furniture is volume."
     }
   ],
   "active_scopes_to_avoid": [

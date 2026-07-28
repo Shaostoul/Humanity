@@ -72,11 +72,91 @@
         ),
         "home_water_use": (
             shape: "box", size: (0.3, 0.3, 0.3), color: (0.40, 0.60, 0.78),
-            label: "Household water (tap + shower)",
+            label: "Drinking water",
             category: "Water",
-            stats: [(kind: "water", value: "-80 L/d (drink/wash)", status: "ok")],
-            // One person, ~0.056 L/min (~80 L/day) -- a third of the 3-person home's demand.
-            ports: [(utility: Water, dir: In, label: "taps", flow_lpm: 0.056)],
+            // v0.1027 (homestead increment 3): the fixtures below carve the
+            // old -80 L/d aggregate into real per-room draws; this node
+            // keeps only drinking/cooking water (~5 L/d).
+            stats: [(kind: "water", value: "-5 L/d (drinking)", status: "ok")],
+            ports: [(utility: Water, dir: In, label: "taps", flow_lpm: 0.0035)],
+        ),
+        // ── Homestead plumbing fixtures (v0.1027, homestead.md section 5.2;
+        // per-day flows sized for ONE person, expressed as L/min averages).
+        // water_heater is the FIRST HotWater producer - Utility::HotWater
+        // existed end-to-end with zero producers until this entry. ──
+        "kitchen_sink": (
+            shape: "box", size: (0.6, 0.85, 0.5), color: (0.75, 0.78, 0.80),
+            label: "Kitchen sink + counter",
+            category: "Water",
+            stats: [(kind: "water", value: "-15 L/d", status: "ok")],
+            ports: [
+                (utility: Water, dir: In, label: "cold", flow_lpm: 0.0069),
+                (utility: HotWater, dir: In, label: "hot", flow_lpm: 0.0035),
+            ],
+        ),
+        "bath_sink": (
+            shape: "box", size: (0.5, 0.8, 0.4), color: (0.85, 0.87, 0.88),
+            label: "Bathroom sink",
+            category: "Water",
+            stats: [(kind: "water", value: "-5 L/d", status: "ok")],
+            ports: [
+                (utility: Water, dir: In, label: "cold", flow_lpm: 0.0021),
+                (utility: HotWater, dir: In, label: "hot", flow_lpm: 0.0014),
+            ],
+        ),
+        "shower": (
+            shape: "box", size: (0.9, 2.1, 0.9), color: (0.70, 0.82, 0.86),
+            label: "Shower",
+            category: "Water",
+            stats: [(kind: "water", value: "-35 L/d", status: "ok"), (kind: "water", value: "the big hot draw", status: "warn")],
+            ports: [
+                (utility: Water, dir: In, label: "cold", flow_lpm: 0.0104),
+                (utility: HotWater, dir: In, label: "hot", flow_lpm: 0.0139),
+            ],
+        ),
+        "toilet": (
+            shape: "box", size: (0.45, 0.75, 0.65), color: (0.90, 0.90, 0.92),
+            label: "Toilet",
+            category: "Water",
+            stats: [(kind: "water", value: "-14 L/d", status: "ok")],
+            ports: [
+                (utility: Water, dir: In, label: "fill", flow_lpm: 0.0097),
+                (utility: Waste, dir: Out, label: "black water", flow_lpm: 0.0097),
+            ],
+        ),
+        "washer": (
+            shape: "box", size: (0.6, 0.85, 0.6), color: (0.82, 0.82, 0.86),
+            label: "Washing machine",
+            category: "Water",
+            stats: [(kind: "water", value: "-11 L/d avg", status: "ok"), (kind: "power", value: "-0.3 kWh/d", status: "ok")],
+            power: Some(Consumer(watts: 12.0, priority: 4)),
+            ports: [
+                (utility: Water, dir: In, label: "fill", flow_lpm: 0.0076),
+                (utility: Electricity, dir: In, label: "motor", watts: 12.0),
+            ],
+        ),
+        "water_heater": (
+            shape: "cylinder", size: (0.55, 1.5, 0.55), color: (0.88, 0.84, 0.70),
+            label: "Water heater (150 L)",
+            category: "Water",
+            // ~1.2 kWh/day for one person's hot draws, expressed as a
+            // continuous-equivalent 50 W load (the sim's Consumer model).
+            stats: [(kind: "power", value: "-1.2 kWh/d", status: "warn"), (kind: "water", value: "hot 26 L/d", status: "ok")],
+            power: Some(Consumer(watts: 50.0, priority: 3)),
+            storage: [(utility: HotWater, capacity: 150.0)],
+            ports: [
+                (utility: Electricity, dir: In, label: "element", watts: 50.0),
+                (utility: Water, dir: In, label: "cold feed", flow_lpm: 0.0188),
+                (utility: HotWater, dir: Out, label: "hot supply", flow_lpm: 0.0188),
+            ],
+        ),
+        "septic_tank": (
+            shape: "cylinder", size: (1.2, 1.0, 1.2), color: (0.35, 0.32, 0.28),
+            label: "Septic tank (2000 L)",
+            category: "Water",
+            stats: [(kind: "storage", value: "black water", status: "ok")],
+            storage: [(utility: Waste, capacity: 2000.0)],
+            ports: [(utility: Waste, dir: In, label: "inlet", flow_lpm: 0.0097)],
         ),
         "air_recycler": (
             shape: "box", size: (0.5, 0.8, 0.4), color: (0.55, 0.78, 0.82),
@@ -205,14 +285,25 @@
         (id: "solar_3", machine: "solar_panel", room: "garage", offset: (7.0, 0.0, 5.0)),
         (id: "solar_4", machine: "solar_panel", room: "garage", offset: (9.0, 0.0, 5.0)),
         (id: "wind_1", machine: "wind_turbine_small", room: "garage", offset: (13.0, 0.0, 5.0)),
-        (id: "battery_1", machine: "battery_bank", room: "garage", offset: (8.4, 0.0, 25.4)),
-        (id: "battery_2", machine: "battery_bank", room: "garage", offset: (9.2, 0.0, 25.4)),
+        // Utility room (v0.1027: the house's section-6 relocations - the
+        // house block is x 39..55, z 24..44; utility spans x 39..47,
+        // z 24..28).
+        (id: "battery_1", machine: "battery_bank", room: "house", offset: (41.0, 0.0, 25.0)),
+        (id: "battery_2", machine: "battery_bank", room: "house", offset: (41.8, 0.0, 25.0)),
         (id: "gen_1", machine: "generator_portable", room: "garage", offset: (10.0, 0.0, 25.8)),
         (id: "cistern_1", machine: "water_tank", room: "garage", offset: (4.0, 0.0, 30.0)),
         (id: "pump_1", machine: "water_pump", room: "garage", offset: (7.6, 0.0, 28.4)),
-        (id: "purifier_1", machine: "water_purifier", room: "garage", offset: (8.6, 0.0, 28.4)),
-        (id: "household_1", machine: "home_water_use", room: "garage", offset: (6.6, 0.0, 29.2)),
-        (id: "air_recycler_1", machine: "air_recycler", room: "garage", offset: (10.6, 0.0, 26.8)),
+        (id: "purifier_1", machine: "water_purifier", room: "house", offset: (43.0, 0.0, 25.0)),
+        (id: "household_1", machine: "home_water_use", room: "house", offset: (40.4, 0.0, 42.6)),
+        (id: "air_recycler_1", machine: "air_recycler", room: "house", offset: (44.5, 0.0, 25.5)),
+        // Plumbing fixtures in their rooms (v0.1027, homestead 5.2).
+        (id: "kitchen_sink_1", machine: "kitchen_sink", room: "house", offset: (39.8, 0.0, 42.6)),
+        (id: "bath_sink_1", machine: "bath_sink", room: "house", offset: (46.4, 0.0, 33.2)),
+        (id: "shower_1", machine: "shower", room: "house", offset: (44.6, 0.0, 33.2)),
+        (id: "toilet_1", machine: "toilet", room: "house", offset: (44.6, 0.0, 31.6)),
+        (id: "washer_1", machine: "washer", room: "house", offset: (44.7, 0.0, 28.7)),
+        (id: "water_heater_1", machine: "water_heater", room: "house", offset: (39.7, 0.0, 24.7)),
+        (id: "septic_1", machine: "septic_tank", room: "garage", offset: (37.0, 0.0, 24.5)),
         (id: "composter_1", machine: "composter", room: "garage", offset: (12.0, 0.0, 28.4)),
         (id: "composter_2", machine: "composter", room: "garage", offset: (12.0, 0.0, 30.4)),
 
@@ -259,11 +350,28 @@
         (from: "battery_1", to: "irrigation_1", kind: "power"),
         (from: "battery_1", to: "air_recycler_1", kind: "power"),
 
-        // Water: cistern -> pump -> purifier -> irrigation + the household tap, one island.
+        // Water: cistern -> pump -> purifier trunk, then per-fixture
+        // branches (v0.1027, homestead 5.2: copper 3/4" trunk, PEX 1/2"
+        // branches - pinned specs teach real plumbing gauges).
         (from: "cistern_1", to: "pump_1", kind: "water"),
         (from: "pump_1", to: "purifier_1", kind: "water"),
         (from: "purifier_1", to: "irrigation_1", kind: "water"),
-        (from: "cistern_1", to: "household_1", kind: "water"),
+        (from: "purifier_1", to: "household_1", kind: "water", spec: Some("pex_half")),
+        (from: "purifier_1", to: "water_heater_1", kind: "water", spec: Some("copper_threequarter")),
+        (from: "purifier_1", to: "kitchen_sink_1", kind: "water", spec: Some("pex_half")),
+        (from: "purifier_1", to: "bath_sink_1", kind: "water", spec: Some("pex_half")),
+        (from: "purifier_1", to: "shower_1", kind: "water", spec: Some("pex_half")),
+        (from: "purifier_1", to: "toilet_1", kind: "water", spec: Some("pex_half")),
+        (from: "purifier_1", to: "washer_1", kind: "water", spec: Some("pex_half")),
+        // Hot water: the heater's first-ever HotWater consumers.
+        (from: "water_heater_1", to: "kitchen_sink_1", kind: "water", spec: Some("pex_half")),
+        (from: "water_heater_1", to: "bath_sink_1", kind: "water", spec: Some("pex_half")),
+        (from: "water_heater_1", to: "shower_1", kind: "water", spec: Some("pex_half")),
+        // Black water: toilet -> septic (honest dead end for now).
+        (from: "toilet_1", to: "septic_1", kind: "water", spec: Some("copper_threequarter")),
+        // Power: washer + heater on the utility circuit.
+        (from: "battery_2", to: "washer_1", kind: "power", spec: Some("cu_awg12")),
+        (from: "battery_2", to: "water_heater_1", kind: "power", spec: Some("cu_awg10")),
         (from: "irrigation_1", to: "potato_0", kind: "water"),
         (from: "aqua_1", to: "ntower_0", kind: "water"),
         (from: "composter_1", to: "irrigation_1", kind: "water"),
