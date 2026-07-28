@@ -155,6 +155,17 @@ const CLOUD_BASE_DARKEN: f32 = 0.75;
 // Slab bounds in DRAWN-SHELL units, derived from the scales above.
 const CLOUD_RB: f32 = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
 const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
+// Fly-through fix (v0.1025): the drawn shell radius is DYNAMIC now - it
+// rises above the slab top while the camera is inside the layer, so
+// fragments cover the whole sky (a camera above the mid-slab shell used
+// to lose the upper half of its view: the operator's "clouds kind of
+// disappear" at cloud level). The slab bounds in drawn-shell units
+// therefore come from the planet/drawn radius ratio the engine passes
+// in the material's emissive slot; these globals are set at the top of
+// cloud_layer_volumetric and read everywhere CLOUD_RB/RT used to be.
+// Zero ratio (stale material) falls back to the legacy constants.
+var<private> g_cloud_rb: f32 = CLOUD_RB;
+var<private> g_cloud_rt: f32 = CLOUD_RT;
 // View-march samples through the slab. Exponentially spaced (dense near
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
 // the detail budget and the far limb blurs gracefully.
@@ -522,6 +533,12 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // so column 0's length IS the shell radius and column 3 the center.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
+    // Dynamic slab bounds (see the g_cloud_rb declaration).
+    let inv_drawn = material.params.w;
+    if (inv_drawn > 0.001) {
+        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
+        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
+    }
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -1005,7 +1022,7 @@ fn cloud_stretch_domain(p: vec3<f32>, dir: vec3<f32>, stretch: f32) -> vec3<f32>
 // (cheaper) light march so shadows and shading agree on where cloud is.
 fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> CloudSample {
     let r = length(p);
-    let h = clamp((r - CLOUD_RB) / (CLOUD_RT - CLOUD_RB), 0.0, 1.0);
+    let h = clamp((r - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
     // Towering (v0.880, operator: "real clouds have a variety of heights").
     // Dense columns BUILD VERTICALLY: the effective band top rises with the
     // local coverage, scaled by the regime's own band thickness - so solid
@@ -1237,17 +1254,17 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     let tca = -dot(ro, rd);
     let perp = ro + rd * tca;
     let d2 = dot(perp, perp);
-    if (d2 >= CLOUD_RT * CLOUD_RT) {
+    if (d2 >= g_cloud_rt * g_cloud_rt) {
         return vec4<f32>(0.0);
     }
-    let thc_t = sqrt(CLOUD_RT * CLOUD_RT - d2);
+    let thc_t = sqrt(g_cloud_rt * g_cloud_rt - d2);
     var m0 = max(tca - thc_t, 0.0);
     var m1 = tca + thc_t;
     if (m1 <= 0.0) {
         return vec4<f32>(0.0);
     }
-    if (d2 < CLOUD_RB * CLOUD_RB) {
-        let thc_b = sqrt(CLOUD_RB * CLOUD_RB - d2);
+    if (d2 < g_cloud_rb * g_cloud_rb) {
+        let thc_b = sqrt(g_cloud_rb * g_cloud_rb - d2);
         let b0 = tca - thc_b;
         let b1 = tca + thc_b;
         if (b0 > m0) {
@@ -1316,7 +1333,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     // (seg ~ one slab thickness) needs ~a third of the budget a grazing
     // limb path does. Same step distribution, fewer steps on short rays;
     // the under-deck flight worst case gets its samples back.
-    let slab_h = CLOUD_RT - CLOUD_RB;
+    let slab_h = g_cloud_rt - g_cloud_rb;
     let n_samp_f = clamp(seg / (slab_h * 6.0), 0.34, 1.0) * f32(CLOUD_HI_SAMPLES);
     let n_samp = max(i32(n_samp_f), 8);
     var s_prev = 0.0;
@@ -1365,7 +1382,7 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
 
         // Ambient skylight proportional to height in the slab: tops see the
         // sky dome, bases see mostly their own shadow.
-        let h = clamp((length(p) - CLOUD_RB) / (CLOUD_RT - CLOUD_RB), 0.0, 1.0);
+        let h = clamp((length(p) - g_cloud_rb) / (g_cloud_rt - g_cloud_rb), 0.0, 1.0);
         let amb = mix(CLOUD_AMB_BASE, CLOUD_AMB_TOP, h);
 
         // Crevice occlusion (v0.1011): the puff cavity field darkens the

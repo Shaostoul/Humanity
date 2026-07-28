@@ -314,6 +314,35 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
             pass(true, &mut out);
             pass(false, &mut out);
         }
+        // Date-line seam (v0.1025, operator: a razor-straight vertical
+        // cloud WALL at lon ~180 in the 110 km screenshot): the daily
+        // composite's day boundary meets itself there with a hard
+        // fraction step that the global 3-pass blur only spreads ~130 km.
+        // Extra horizontal-only passes restricted to the wrap columns
+        // widen that one seam to a ~400 km front.
+        let seam = 24usize;
+        for _ in 0..8 {
+            let src: Vec<u8> = out.clone();
+            for y in 0..h {
+                for x in (0..seam).chain(w - seam..w) {
+                    let i = y * w + x;
+                    if src[i * 2 + 1] == 0 {
+                        continue;
+                    }
+                    let pa = y * w + (x + w - 1) % w;
+                    let pb = y * w + (x + 1) % w;
+                    let mut sum = src[i * 2] as u32 * 2;
+                    let mut wt = 2u32;
+                    for n in [pa, pb] {
+                        if src[n * 2 + 1] != 0 {
+                            sum += src[n * 2] as u32;
+                            wt += 1;
+                        }
+                    }
+                    out[i * 2] = (sum / wt) as u8;
+                }
+            }
+        }
     }
     feather_validity(&mut out);
     // A mostly-empty map (endpoint hiccup, wrong layer state) is worse than

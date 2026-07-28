@@ -10210,13 +10210,45 @@ mod native_app {
                                         // in the mesh's LOCAL frame, so the deck
                                         // rides the planet's spin and the drift
                                         // constants are true weather motion.
+                                        //
+                                        // FLY-THROUGH fix (v0.1025, operator: "at
+                                        // about cloud level the clouds kind of
+                                        // disappear"): the ray march fires from the
+                                        // drawn shell's fragments, and a camera
+                                        // INSIDE the slab but above the mid-slab
+                                        // shell had no geometry over half the view.
+                                        // In/near the slab the shell now draws
+                                        // ABOVE the slab top (the camera is always
+                                        // inside the sphere, so backfaces cover
+                                        // the whole sky); the shader keeps the slab
+                                        // at true altitude via the planet/drawn
+                                        // radius ratio in the (unused) emissive
+                                        // slot, updated every frame.
+                                        let cam_r_ratio = ((state.camera.effective_position()
+                                            - position)
+                                            .length()
+                                            / visual_scale)
+                                            .max(0.0);
+                                        let shell_ratio = if (cam_r_ratio as f64)
+                                            < crate::renderer::clouds::CLOUD_TOP_SCALE as f64
+                                                * 1.05
+                                        {
+                                            crate::renderer::clouds::CLOUD_TOP_SCALE + 0.004
+                                        } else {
+                                            crate::renderer::clouds::CLOUD_SHELL_SCALE
+                                        };
+                                        state.renderer.update_material_full(
+                                            cmat,
+                                            [1.0, 1.0, 1.0, cov.min(1.0)],
+                                            crate::renderer::clouds::cloud_seed(d.terrain_seed),
+                                            quality,
+                                            15.0,
+                                            1.0 / shell_ratio,
+                                        );
                                         cloud_shell_obj = Some(RenderObject { fade: 0.0,
                                             position,
                                             rotation,
-                                            scale: Vec3::splat(
-                                                visual_scale
-                                                    * crate::renderer::clouds::CLOUD_SHELL_SCALE,
-                                            ),
+                                            scale: Vec3::splat(visual_scale * shell_ratio),
                                             mesh: cloud_mesh,
                                             material: cmat,
                                         });

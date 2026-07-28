@@ -10,9 +10,13 @@
 // Adding a wild species or a den = adding a row here.
 (
     spawns: [
-        // A small wolf pack in the wilds northeast of the homestead - far
-        // enough that they must be sought out (or wander in hungry).
-        (creature: "wolf", count: 2, pos: (75.0, 100.0), radius: 10.0, tint: (0.42, 0.42, 0.48)),
+        // Wolves REMOVED (v0.1025, operator: a live player was killed at
+        // spawn - "pwned before even entered the game"): the hunt-AI pack
+        // wandered into the ship interior. The spaceship/homestead is a
+        // SAFE zone by design. Wolves return with the predator arc once
+        // hostile AI respects interior/zone boundaries; re-add the row
+        // then:
+        // (creature: "wolf", count: 2, pos: (75.0, 100.0), radius: 10.0, tint: (0.42, 0.42, 0.48)),
         // Forage flora (v0.978): rooted renewable pickups a short walk past
         // the outdoor fields (fields sit ~x 27-31, z 61-65). Berry bushes in
         // a loose thicket; a flax stand nearer the wetter ground. Both are
