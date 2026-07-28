@@ -353,6 +353,11 @@
       "date": "2026-07-28",
       "decision": "v0.1027.1 homestead 3a: SOLO home plumbing suite (7 fixtures, first solo HotWater producer, aggregate water node carved into per-room draws, utility-room relocations, pinned conduit specs). Key find: home.ron (family) ALREADY had the complete suite - the designs 5.2 gap was home_solo.ron only; my first mirror attempt duplicated ids and was reverted (lesson: inventory the target before mirroring). Next: 3b furniture manifest.",
       "rationale": "Two shippable halves per the plan; plumbing carries the functional systems (WaterStatus/buildability), furniture is volume."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1028.1 homestead 3b: the 15-entry furniture catalog + 34 placed instances ported verbatim to home_solo.ron (home.ron already carried the full section-6 set for this house, GLTF models included - inventory-first paid out, one splice). Homestead build order 1-4 COMPLETE (shell, lighting, plumbing, furniture). Next: increment 5, honest lighting power (small code: switched-on PlacedLights join ElectricalSystem demand).",
+      "rationale": "The operator morning goal - the house built up with machines and rooms - is now substantially real in their played variant."
     }
   ],
   "active_scopes_to_avoid": [
