@@ -27,6 +27,15 @@ pub const PLANE_OFF: [[f32; 2]; 3] = [[0.0, 0.0], [0.271, 0.417], [0.613, 0.129]
 /// keeps the same sea-energy envelope.
 pub const FFT_TARGET_RMS_M: f32 = 0.386;
 
+/// Choppy-displacement scale for the Jacobian foam mask (increment 2).
+/// The GEOMETRY stays vertical-only for now (drawn == sampled with the
+/// buoyancy twin holds exactly); the horizontal field is realized purely
+/// to find where crests pinch - which is where real seas whitecap.
+pub const CHOP_LAMBDA: f32 = 1.0;
+/// Jacobian threshold + sharpness: foam = clamp((THR - J) * SHARP).
+pub const FOAM_J_THR: f32 = 0.90;
+pub const FOAM_SHARP: f32 = 3.0;
+
 /// One FFT ocean cascade over a periodic `tile_m` square, `n` x `n`
 /// samples (n must be a power of two).
 pub struct OceanFft {
@@ -36,10 +45,26 @@ pub struct OceanFft {
     h0: Vec<[f32; 2]>,
     /// Dispersion angular frequency per bin (deep water: w = sqrt(g k)).
     omega: Vec<f32>,
-    /// Scratch: the time-evolved spectrum, consumed by the IFFT.
+    /// Signed wave vector (ku, kv) per bin, rad/m - the spectral
+    /// derivative multipliers for slopes + choppy displacement.
+    kvec: Vec<[f32; 2]>,
+    /// The time-evolved spectrum h(k, t) (kept - derived fields multiply
+    /// it per pass).
     spec: Vec<[f32; 2]>,
+    /// Scratch consumed by each derived IFFT.
+    work: Vec<[f32; 2]>,
     /// The realized height grid (metres), row-major, updated by `update`.
+    /// THE buoyancy array - unchanged by increment 2.
     pub height: Vec<f32>,
+    /// Physical slopes (dh/du, dh/dv) per texel (increment 2, shading).
+    pub slope: Vec<[f32; 2]>,
+    /// Choppy horizontal displacement (du, dv) per texel - foam input
+    /// only until increment 3 moves the geometry.
+    disp: Vec<[f32; 2]>,
+    /// Jacobian whitecap factor 0..1 per texel (increment 2).
+    pub foam: Vec<f32>,
+    /// Packed (height, slope_u, slope_v, foam) - the upload buffer.
+    pub texels: Vec<[f32; 4]>,
 }
 
 /// Seeded xorshift64* -> uniform [0,1).
@@ -92,6 +117,7 @@ impl OceanFft {
         let mut rng = Rng(seed | 1);
         let mut h0 = vec![[0.0f32; 2]; n * n];
         let mut omega = vec![0.0f32; n * n];
+        let mut kvec = vec![[0.0f32; 2]; n * n];
         let dk = TAU / tile_m;
         for y in 0..n {
             for x in 0..n {
@@ -104,12 +130,28 @@ impl OceanFft {
                 let amp = (s * dk * dk * 0.5).sqrt();
                 h0[y * n + x] = [rng.gauss() * amp, rng.gauss() * amp];
                 omega[y * n + x] = (G * k.length()).sqrt();
+                kvec[y * n + x] = [kx, ky];
             }
         }
-        Self { n, tile_m, h0, omega, spec: vec![[0.0; 2]; n * n], height: vec![0.0; n * n] }
+        Self {
+            n,
+            tile_m,
+            h0,
+            omega,
+            kvec,
+            spec: vec![[0.0; 2]; n * n],
+            work: vec![[0.0; 2]; n * n],
+            height: vec![0.0; n * n],
+            slope: vec![[0.0; 2]; n * n],
+            disp: vec![[0.0; 2]; n * n],
+            foam: vec![0.0; n * n],
+            texels: vec![[0.0; 4]; n * n],
+        }
     }
 
-    /// Realize the sea surface at time `t` (seconds) into `self.height`.
+    /// Realize the sea surface at time `t` (seconds): height (buoyancy +
+    /// vertex displacement), spectral slopes (shading normals), choppy
+    /// displacement (Jacobian input), foam mask, packed texels.
     pub fn update(&mut self, t: f32) {
         let n = self.n;
         // h(k,t) = h0(k) e^{iwt} + h0*(-k) e^{-iwt}  (hermitian -> real field)
@@ -130,24 +172,67 @@ impl OceanFft {
                 ];
             }
         }
-        // 2D IFFT: rows then columns (radix-2, in-place per line).
-        let mut line = vec![[0.0f32; 2]; n];
-        for y in 0..n {
-            line.copy_from_slice(&self.spec[y * n..(y + 1) * n]);
-            ifft(&mut line);
-            self.spec[y * n..(y + 1) * n].copy_from_slice(&line);
+        // Height: IFFT of h(k,t) directly.
+        self.work.copy_from_slice(&self.spec);
+        ifft2(&mut self.work, n);
+        for i in 0..n * n {
+            self.height[i] = self.work[i][0];
         }
-        for x in 0..n {
-            for y in 0..n {
-                line[y] = self.spec[y * n + x];
+        // Slopes: S_u(k) = i ku h(k), S_v(k) = i kv h(k)  (physical rad/m
+        // derivative - each is hermitian because k flips sign with the
+        // conjugate bin, so the realized field stays real).
+        for axis in 0..2 {
+            for i in 0..n * n {
+                let kk = self.kvec[i][axis];
+                let h = self.spec[i];
+                self.work[i] = [-kk * h[1], kk * h[0]]; // i*k*h
             }
-            ifft(&mut line);
-            for y in 0..n {
-                self.spec[y * n + x] = line[y];
+            ifft2(&mut self.work, n);
+            for i in 0..n * n {
+                self.slope[i][axis] = self.work[i][0];
+            }
+        }
+        // Choppy displacement: D(k) = -i (k/|k|) h(k) per axis.
+        for axis in 0..2 {
+            for i in 0..n * n {
+                let k = self.kvec[i];
+                let kl = (k[0] * k[0] + k[1] * k[1]).sqrt();
+                let f = if kl > 1.0e-6 { k[axis] / kl } else { 0.0 };
+                let h = self.spec[i];
+                self.work[i] = [f * h[1], -f * h[0]]; // -i*f*h
+            }
+            ifft2(&mut self.work, n);
+            for i in 0..n * n {
+                self.disp[i][axis] = self.work[i][0];
+            }
+        }
+        // Foam: finite-difference Jacobian of (u + L*du, v + L*dv). Where
+        // the mapping folds (J < threshold) crests pinch - whitecaps.
+        let texel = self.tile_m / n as f32;
+        let inv2 = 1.0 / (2.0 * texel);
+        for y in 0..n {
+            let ym = (y + n - 1) % n;
+            let yp = (y + 1) % n;
+            for x in 0..n {
+                let xm = (x + n - 1) % n;
+                let xp = (x + 1) % n;
+                let i = y * n + x;
+                let dux = (self.disp[y * n + xp][0] - self.disp[y * n + xm][0]) * inv2;
+                let dvy = (self.disp[yp * n + x][1] - self.disp[ym * n + x][1]) * inv2;
+                let duy = (self.disp[yp * n + x][0] - self.disp[ym * n + x][0]) * inv2;
+                let dvx = (self.disp[y * n + xp][1] - self.disp[y * n + xm][1]) * inv2;
+                let jac = (1.0 + CHOP_LAMBDA * dux) * (1.0 + CHOP_LAMBDA * dvy)
+                    - (CHOP_LAMBDA * duy) * (CHOP_LAMBDA * dvx);
+                self.foam[i] = ((FOAM_J_THR - jac) * FOAM_SHARP).clamp(0.0, 1.0);
             }
         }
         for i in 0..n * n {
-            self.height[i] = self.spec[i][0];
+            self.texels[i] = [
+                self.height[i],
+                self.slope[i][0],
+                self.slope[i][1],
+                self.foam[i],
+            ];
         }
     }
 
@@ -230,6 +315,25 @@ pub fn wave_height_shoaled_fft_m(p_m: glam::DVec3, t: f32, depth_m: f32, fft: &O
     let radial = p_m.normalize().as_vec3();
     (swell + fft.triplanar_height(pm, radial))
         * crate::terrain::ocean_waves::shoal_factor(depth_m)
+}
+
+/// 2D IFFT: rows then columns, each via the radix-2 line transform.
+fn ifft2(buf: &mut [[f32; 2]], n: usize) {
+    let mut line = vec![[0.0f32; 2]; n];
+    for y in 0..n {
+        line.copy_from_slice(&buf[y * n..(y + 1) * n]);
+        ifft(&mut line);
+        buf[y * n..(y + 1) * n].copy_from_slice(&line);
+    }
+    for x in 0..n {
+        for y in 0..n {
+            line[y] = buf[y * n + x];
+        }
+        ifft(&mut line);
+        for y in 0..n {
+            buf[y * n + x] = line[y];
+        }
+    }
 }
 
 /// In-place radix-2 inverse FFT (unscaled forward with conjugated
@@ -380,5 +484,71 @@ mod tests {
             assert!(body.contains(pair), "swell pairing missing: {pair}");
         }
         assert!(body.contains("fft_ocean_height(p_anch, radial)"), "fft term present");
+        // Increment 2 channel layout: VS height from .x, FS shading fn
+        // maps g/b slopes onto each plane's axes and blends foam from .w.
+        assert!(src.contains("fn fft_ocean_shading"), "shading fn present");
+        let sat = src.find("fn fft_ocean_shading").expect("shading fn");
+        let sbody = &src[sat..sat + 900];
+        for m in ["vec3<f32>(0.0, sx.y, sx.z)", "vec3<f32>(sy.y, 0.0, sy.z)", "vec3<f32>(sz.y, sz.z, 0.0)", "sx.w", "sy.w", "sz.w"] {
+            assert!(sbody.contains(m), "shading mapping missing: {m}");
+        }
+        // And the fragment side actually consumes it in the water branch.
+        let fs = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("assets/shaders/pbr/90-fragment-main.wgsl"),
+        )
+        .expect("fragment shader part readable");
+        assert!(fs.contains("fft_ocean_shading(ptw, dir)"), "FS consumes FFT shading");
+    }
+
+    /// Increment 2: spectral slopes must agree with finite differences of
+    /// the realized height field (the FD estimate under-reads the
+    /// shortest waves - sinc rolloff - so the bar is a loose relative
+    /// RMS, not equality).
+    #[test]
+    fn spectral_slopes_match_height_differences() {
+        let mut o = OceanFft::new(FFT_N, FFT_TILE_M, 8.0, 0.6, 200_000.0, 11);
+        o.update(2.5);
+        let n = o.n;
+        let texel = o.tile_m / n as f32;
+        let (mut err2, mut mag2) = (0.0f64, 0.0f64);
+        for y in 0..n {
+            for x in 0..n {
+                let xp = (x + 1) % n;
+                let xm = (x + n - 1) % n;
+                let fd = (o.height[y * n + xp] - o.height[y * n + xm]) / (2.0 * texel);
+                let sp = o.slope[y * n + x][0];
+                err2 += ((sp - fd) as f64).powi(2);
+                mag2 += (sp as f64).powi(2);
+            }
+        }
+        let rel = (err2 / mag2.max(1.0e-12)).sqrt();
+        assert!(rel < 0.35, "spectral vs FD slope relative RMS {rel}");
+        assert!(mag2 > 0.0, "slopes must be nonzero");
+    }
+
+    /// Increment 2: foam is a bounded mask that grows with wind, and the
+    /// packed texels mirror the four source arrays exactly.
+    #[test]
+    fn foam_bounded_grows_with_wind_and_texels_pack() {
+        let calm = sea(4.0, 9);
+        let storm = sea(19.0, 9);
+        for f in calm.foam.iter().chain(storm.foam.iter()) {
+            assert!((0.0..=1.0).contains(f), "foam {f} out of range");
+        }
+        let mean = |o: &OceanFft| o.foam.iter().sum::<f32>() / o.foam.len() as f32;
+        assert!(
+            mean(&storm) > mean(&calm),
+            "storm foam {} should exceed calm {}",
+            mean(&storm),
+            mean(&calm)
+        );
+        for i in [0usize, 77, 4095] {
+            let t = storm.texels[i];
+            assert_eq!(t[0], storm.height[i], "texel h");
+            assert_eq!(t[1], storm.slope[i][0], "texel su");
+            assert_eq!(t[2], storm.slope[i][1], "texel sv");
+            assert_eq!(t[3], storm.foam[i], "texel foam");
+        }
     }
 }

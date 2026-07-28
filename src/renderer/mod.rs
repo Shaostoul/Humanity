@@ -900,10 +900,11 @@ impl Renderer {
             view_formats: &[],
         });
         let tree_atlas_view = tree_atlas_texture.create_view(&Default::default());
-        // FFT ocean displacement tile (v0.1029, water-fft.md increment 1):
-        // 128x128 R32Float height field the type-16 water VS reads via
-        // textureLoad. wgpu zero-initializes it, so until the engine's
-        // first upload (or with the setting off) it is a flat sea.
+        // FFT ocean tile (v0.1029 increment 1; v0.1031 increment 2 packs
+        // RGBA = height, slope_u, slope_v, foam): 128x128 Rgba32Float the
+        // type-16 water VS (height) and FS (slopes + Jacobian whitecaps)
+        // read via textureLoad. wgpu zero-initializes it, so until the
+        // engine's first upload (or with the setting off) it is a flat sea.
         let water_fft_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("FFT Ocean Displacement"),
             size: wgpu::Extent3d {
@@ -914,7 +915,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Float,
+            format: wgpu::TextureFormat::Rgba32Float,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
@@ -1565,12 +1566,13 @@ impl Renderer {
         })
     }
 
-    /// Upload a fresh FFT-ocean height realization (FFT_N x FFT_N f32
-    /// metres) into the persistent displacement tile. Called once per
-    /// frame while FFT-ocean mode is on; ~64 KB, no bind-group rebuild.
-    pub fn upload_water_fft(&self, heights: &[f32]) {
+    /// Upload a fresh FFT-ocean realization (FFT_N x FFT_N packed
+    /// [height, slope_u, slope_v, foam] texels) into the persistent
+    /// tile. Called once per frame while FFT-ocean mode is on; ~256 KB,
+    /// no bind-group rebuild.
+    pub fn upload_water_fft(&self, texels: &[[f32; 4]]) {
         let n = crate::terrain::ocean_fft::FFT_N as u32;
-        debug_assert_eq!(heights.len(), (n * n) as usize);
+        debug_assert_eq!(texels.len(), (n * n) as usize);
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: &self.water_fft_texture,
@@ -1578,10 +1580,10 @@ impl Renderer {
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            bytemuck::cast_slice(heights),
+            bytemuck::cast_slice(texels),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(4 * n),
+                bytes_per_row: Some(16 * n),
                 rows_per_image: Some(n),
             },
             wgpu::Extent3d { width: n, height: n, depth_or_array_layers: 1 },

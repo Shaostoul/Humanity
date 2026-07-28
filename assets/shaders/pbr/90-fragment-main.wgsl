@@ -172,7 +172,21 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             camera.light0_cone_inner.w,
         );
         let ptw = anchw + dvw;
-        if (tex_reach > 0.003) {
+        // FFT-ocean mode (v0.1031, water-fft.md increment 2): the tile's
+        // SPECTRAL slopes + Jacobian whitecap channel replace the wave
+        // texture's normalized detail chop + crest heuristic, so shading
+        // agrees with the FFT geometry the VS actually displaced. Slopes
+        // are physical (rad/m from i*k*h(k)) - no amplitude renorm.
+        if (camera.light0_cone_inner.x > 0.5) {
+            if (tex_reach > 0.003) {
+                let f = fft_ocean_shading(ptw, dir);
+                grad = grad + f.xyz * (shoal * tex_reach);
+                // Jacobian foam is already a 0..1 whitecap factor; feed it
+                // through the same crest channel the texture used so the
+                // downstream foam window + lacework apply unchanged.
+                crest = clamp(f.w * 1.6, 0.0, 1.0) * tex_reach;
+            }
+        } else if (tex_reach > 0.003) {
             let det = ocean_tex_gradient(ptw, dir, t, footprint);
             // The texture stores slopes NORMALIZED to full channel range for
             // precision; the physical steepness lives here. Calm seas are

@@ -359,13 +359,15 @@ impl Pipeline {
                         },
                         count: None,
                     },
-                    // FFT ocean displacement tile (v0.1029, water-fft.md
-                    // increment 1): 128x128 R32Float height field the
-                    // type-16 water VERTEX branch reads via textureLoad
-                    // (manual bilinear, hence non-filterable is fine).
+                    // FFT ocean tile (v0.1029 inc 1, v0.1031 inc 2):
+                    // 128x128 Rgba32Float (height, slope_u, slope_v,
+                    // foam). VS displaces from .r; FS shades normals +
+                    // whitecaps from .gba. textureLoad manual bilinear,
+                    // hence non-filterable is fine.
                     wgpu::BindGroupLayoutEntry {
                         binding: 15,
-                        visibility: wgpu::ShaderStages::VERTEX,
+                        visibility: wgpu::ShaderStages::VERTEX
+                            | wgpu::ShaderStages::FRAGMENT,
                         ty: wgpu::BindingType::Texture {
                             sample_type: wgpu::TextureSampleType::Float { filterable: false },
                             view_dimension: wgpu::TextureViewDimension::D2,

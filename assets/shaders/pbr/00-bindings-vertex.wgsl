@@ -371,8 +371,9 @@ const OCEAN_FFT_OFF_Z: vec2<f32> = vec2<f32>(0.613, 0.129);
 
 // Manual-bilinear tile sample (wraps). textureLoad instead of a sampler:
 // exact texel math the CPU twin reproduces line for line, and no
-// VERTEX-visible sampler binding needed.
-fn fft_tile_sample(uv_in: vec2<f32>) -> f32 {
+// VERTEX-visible sampler binding needed. Returns the full packed texel
+// (v0.1031 increment 2): r = height, g = slope_u, b = slope_v, a = foam.
+fn fft_tile_sample(uv_in: vec2<f32>) -> vec4<f32> {
     let nf = f32(OCEAN_FFT_N);
     let u = fract(uv_in.x) * nf;
     let v = fract(uv_in.y) * nf;
@@ -382,10 +383,10 @@ fn fft_tile_sample(uv_in: vec2<f32>) -> f32 {
     let y1 = (y0 + 1) % OCEAN_FFT_N;
     let fx = fract(u);
     let fy = fract(v);
-    let a = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y0), 0).r,
-                textureLoad(water_fft_tex, vec2<i32>(x1, y0), 0).r, fx);
-    let b = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y1), 0).r,
-                textureLoad(water_fft_tex, vec2<i32>(x1, y1), 0).r, fx);
+    let a = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y0), 0),
+                textureLoad(water_fft_tex, vec2<i32>(x1, y0), 0), fx);
+    let b = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y1), 0),
+                textureLoad(water_fft_tex, vec2<i32>(x1, y1), 0), fx);
     return mix(a, b, fy);
 }
 
@@ -397,10 +398,29 @@ fn fft_tile_sample(uv_in: vec2<f32>) -> f32 {
 fn fft_ocean_height(p_anch: vec3<f32>, radial: vec3<f32>) -> f32 {
     let w2 = radial * radial;
     let q = p_anch / OCEAN_FFT_TILE_M;
-    var h = w2.x * fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X);
-    h = h + w2.y * fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y);
-    h = h + w2.z * fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z);
+    var h = w2.x * fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X).x;
+    h = h + w2.y * fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y).x;
+    h = h + w2.z * fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z).x;
     return h;
+}
+
+// Increment 2 (v0.1031): triplanar-blended shading fields - xyz = the 3D
+// height gradient in the planet-local frame, w = the Jacobian whitecap
+// factor. Slopes are stored per tile axis (g = d h/d u, b = d h/d v);
+// each projection plane maps (u, v) onto its own two world axes before
+// the radial^2 blend, so the summed gradient lives in the same frame as
+// `dir` and can perturb the water normal directly.
+fn fft_ocean_shading(p_anch: vec3<f32>, radial: vec3<f32>) -> vec4<f32> {
+    let w2 = radial * radial;
+    let q = p_anch / OCEAN_FFT_TILE_M;
+    let sx = fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X);
+    let sy = fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y);
+    let sz = fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z);
+    var g = w2.x * vec3<f32>(0.0, sx.y, sx.z);
+    g = g + w2.y * vec3<f32>(sy.y, 0.0, sy.z);
+    g = g + w2.z * vec3<f32>(sz.y, sz.z, 0.0);
+    let foam = w2.x * sx.w + w2.y * sy.w + w2.z * sz.w;
+    return vec4<f32>(g, foam);
 }
 
 // FFT-mode total height: the long swells (> 64 m wavelength, which the

@@ -83,13 +83,23 @@ existing light_tiles.rs compute pass is the wgpu compute precedent.
 
 ## Increments (each shippable)
 
-1. CPU 128^2 JONSWAP -> vertical displacement texture; VS samples it in
-   the anchored domain; buoyancy samples the same array; behind the
-   settings toggle, trains stay default. (One session.)
-2. Choppy (horizontal) displacement + slope maps from the same spectrum
-   -> replaces the analytic shading gradient; Jacobian foam mask ->
-   replaces the threshold whitecaps. FFT becomes the default tier.
-3. Second cascade (32 m chop) + retire the near-chop trains.
+1. SHIPPED v0.1029.1 - CPU 128^2 JONSWAP -> vertical displacement
+   texture (64 m tile); VS samples it in the anchored domain
+   (triplanar); buoyancy samples the same array; behind Settings >
+   Graphics "FFT ocean (experimental)", trains stay default.
+2. MECHANICS SHIPPED v0.1031.1 - spectral slope maps (i*k*h) + choppy
+   field realized for a finite-difference JACOBIAN whitecap mask, all
+   packed with height into one Rgba32Float tile; the type-16 FS swaps
+   its normalized texture-detail chop + crest heuristic for the
+   physical FFT slopes + Jacobian foam when the flag is on, so shading
+   agrees with the displaced geometry. GEOMETRY stays vertical-only
+   (buoyancy drawn == sampled holds exactly); horizontal chop moves the
+   verts in increment 3. Known gap in FFT mode: sub-texel (< 0.5 m)
+   micro-ripple sparkle is absent until cascade B lands. Default still
+   OFF - flips after the operator rules on the fork points below.
+3. Second cascade (32 or 16 m tile - must DIVIDE 64) for fine chop +
+   geometric horizontal displacement (sample h at the chop pre-image
+   for the buoyancy twin) + retire the near-chop trains.
 4. GPU compute FFT (512^2, frees the worker).
 5. Depth buffer for water: screen-space reflections + refraction (the
    Subnautica look; also enables real underwater god rays later).

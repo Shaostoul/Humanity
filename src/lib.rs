@@ -12328,7 +12328,7 @@ mod native_app {
                             // buoyancy twin (start-relative seconds).
                             let tsec = state.start_time.elapsed().as_secs_f32();
                             fft.update(tsec);
-                            state.renderer.upload_water_fft(&fft.height);
+                            state.renderer.upload_water_fft(&fft.texels);
                         }
                     }
 

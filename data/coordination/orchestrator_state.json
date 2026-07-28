@@ -379,6 +379,10 @@
     {
       "date": "2026-07-28",
       "decision": "Glossary blank-dictionary ROOT CAUSE found: loader read only data_dir()/glossary.json and degraded to empty while embedded_data::GLOSSARY_JSON (201 terms) sat in the exe. v0.1030.1 falls back to the embedded copy on read OR parse failure + test guards the embedded copy. Operator report was real, not user error."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Water FFT increment 2 mechanics shipped v0.1031.1 (still behind the default-off toggle): spectral slopes i*k*h + choppy field realized ONLY for a finite-difference Jacobian whitecap mask; tile now Rgba32Float (h, slope_u, slope_v, foam); FS swaps texture-detail chop + crest heuristic for physical FFT slopes + Jacobian foam in FFT mode. Geometry stays vertical-only so the buoyancy twin is untouched (drawn==sampled literal). Chop moves verts in inc 3 with pre-image height sampling. Known FFT-mode gap: sub-0.5 m micro sparkle until cascade B."
     }
   ],
   "active_scopes_to_avoid": [
