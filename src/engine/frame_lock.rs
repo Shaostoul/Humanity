@@ -233,10 +233,20 @@ pub(crate) fn godray_weather_scale(state: &EngineState) -> f32 {
     if state.frame_lock_body.as_deref() != Some("earth") {
         return 1.0;
     }
-    let dir = state.frame_lock_anchor.normalize_or_zero();
-    if dir.length_squared() < 0.5 {
+    let dir0 = state.frame_lock_anchor.normalize_or_zero();
+    if dir0.length_squared() < 0.5 {
         return 1.0;
     }
+    // v0.1032: mirror the shader's wind-advection rotation (cloud_rot_y
+    // by light1_cone_inner.x) so the overhead-dim reads the same cloud
+    // cell the sky actually draws above the camera.
+    let adv = (state.cloud_advect + state.cloud_advect_decaying) as f64;
+    let (c, s) = (adv.cos(), adv.sin());
+    let dir = glam::DVec3::new(
+        c * dir0.x + s * dir0.z,
+        dir0.y,
+        c * dir0.z - s * dir0.x,
+    );
     let w = crate::renderer::WEATHER_MAP_W as usize;
     let h = crate::renderer::WEATHER_MAP_H as usize;
     // Same equirect mapping as the sky shader's cloud_weather.

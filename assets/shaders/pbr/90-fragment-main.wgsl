@@ -115,8 +115,12 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // the sky draws doubles as sea state - under real storm cloud the
     // water chops up hard and crests break into whitecaps. Calm-clear
     // ocean keeps the v0.902 look.
-    let sw_lon = atan2(-dir.z, dir.x);
-    let sw_lat = asin(clamp(dir.y, -1.0, 1.0));
+    // v0.1032: rotate by the same wind-advection angle the sky's MODIS
+    // lookup uses (light1_cone_inner.x), so the storm SEA cell stays
+    // under its drifting storm CLOUD.
+    let sw_dir = cloud_rot_y(dir, camera.light1_cone_inner.x);
+    let sw_lon = atan2(-sw_dir.z, sw_dir.x);
+    let sw_lat = asin(clamp(sw_dir.y, -1.0, 1.0));
     let sw_uv = vec2<f32>(sw_lon * 0.15915494 + 0.5, 0.5 - sw_lat * 0.31830987);
     let sw = textureSampleLevel(weather_map, albedo_sampler, sw_uv, 0.0).rg;
     // SEA STATE 0..1 (v0.909, operator: "freely switch between calm glassy

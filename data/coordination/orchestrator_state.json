@@ -383,6 +383,10 @@
     {
       "date": "2026-07-28",
       "decision": "Water FFT increment 2 mechanics shipped v0.1031.1 (still behind the default-off toggle): spectral slopes i*k*h + choppy field realized ONLY for a finite-difference Jacobian whitecap mask; tile now Rgba32Float (h, slope_u, slope_v, foam); FS swaps texture-detail chop + crest heuristic for physical FFT slopes + Jacobian foam in FFT mode. Geometry stays vertical-only so the buoyancy twin is untouched (drawn==sampled literal). Chop moves verts in inc 3 with pre-image height sampling. Known FFT-mode gap: sub-0.5 m micro sparkle until cascade B."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Cloud wind-advection increment 1 (v0.1032.1): global zonal advection angle integrates live weather-sim wind (2.5x surface) and rotates ALL weather-map lookups (sky MODIS envelope in cloud_weather, storm sea-state sample in the water FS, CPU godray overhead dim in frame_lock). Rides light1_cone_inner.x (offset 480; .y/.z hold aerial params, .x was free). On MODIS refresh the accumulated angle moves to a decaying bucket (tau 45 s) so geography re-wins without a deck snap. Answers the operator pinned-clouds question: masses now MOVE at weather-dependent rates between refreshes. Full per-location wind FIELD stays the froxel-arc goal."
     }
   ],
   "active_scopes_to_avoid": [

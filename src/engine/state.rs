@@ -770,6 +770,13 @@ pub(crate) struct EngineState {
     /// turns on near an ocean body; the SAME height array feeds the GPU
     /// displacement tile and the buoyancy twin (drawn == sampled).
     pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanFft>,
+    /// Cloud wind-advection (v0.1032): the zonal angle the shader's
+    /// weather-map lookup is rotated by. `cloud_advect` integrates the
+    /// live wind; `cloud_advect_decaying` holds the offset orphaned by
+    /// the last MODIS refresh while it eases back to zero (geography
+    /// re-wins without a visible deck snap). Shader consumes the sum.
+    pub(crate) cloud_advect: f32,
+    pub(crate) cloud_advect_decaying: f32,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

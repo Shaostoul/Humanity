@@ -306,6 +306,9 @@ pub struct Renderer {
     /// reference the view forever, no rebuilds.
     pub water_fft_texture: wgpu::Texture,
     pub water_fft_view: wgpu::TextureView,
+    /// Cloud wind-advection angle (radians, v0.1032): set per frame from
+    /// the weather sim (lib.rs), poked into light1_cone_inner.x.
+    pub cloud_advect: f32,
     /// Aerial perspective (v0.916): extinction per metre at the CAMERA's
     /// altitude (strength + height falloff folded in by lib.rs; 0 = off).
     pub aerial_sigma: f32,
@@ -1178,6 +1181,7 @@ impl Renderer {
             tree_atlas_ready: false,
             water_fft_texture,
             water_fft_view,
+            cloud_advect: 0.0,
             lights_capacity,
             object_buffer,
             object_bind_group,
@@ -2671,6 +2675,12 @@ impl Renderer {
         // (offset 464: .x = water mode, .yzw = the v0.902 anchor).
         self.queue
             .write_buffer(&self.camera_buffer, 464, bytemuck::cast_slice(&ground_anchor));
+        // Cloud wind-advection angle in light1_cone_inner.x (offset 480,
+        // beside the aerial params in .y/.z; v0.1032): the zonal rotation
+        // the weather-map lookups apply so cloud masses drift with the
+        // live wind between MODIS refreshes.
+        self.queue
+            .write_buffer(&self.camera_buffer, 480, bytemuck::bytes_of(&self.cloud_advect));
         // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
         self.queue
             .write_buffer(&self.camera_buffer, 76, bytemuck::bytes_of(&self.detail_distance));

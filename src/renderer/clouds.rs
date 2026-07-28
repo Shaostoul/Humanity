@@ -228,6 +228,43 @@ pub fn quality_param(quality: &str) -> f32 {
     }
 }
 
+// ── Cloud wind-advection (v0.1032, weather-water roadmap) ──────────────
+// The MODIS envelope pins cloud MASSES to real geography; between map
+// refreshes real clouds still move with the wind. The shader rotates its
+// weather-map lookup by an accumulated zonal angle (light1_cone_inner.x),
+// so masses drift at WEATHER-DEPENDENT rates (storm wind = visible
+// motion, calm = near-still) and the deck evolves between refreshes.
+// When a FRESH map lands, geography must win again: the accumulated
+// angle transfers to a decaying bucket that eases back to zero over
+// ~45 s instead of snapping the whole deck sideways.
+
+/// Cloud-level wind runs faster than the surface wind the weather sim
+/// reports; 2.5x is the standard gradient-wind rule of thumb.
+pub const CLOUD_ADVECT_WIND_FACTOR: f32 = 2.5;
+/// Earth radius (m) - live weather is an Earth-only feature, so the
+/// angular rate conversion can use the constant.
+const EARTH_RADIUS_M: f32 = 6.371e6;
+/// Time constant (s) for easing the pre-refresh offset back to zero.
+pub const CLOUD_ADVECT_DECAY_TAU_S: f32 = 45.0;
+
+/// Advance the advection state one frame: the accumulator integrates the
+/// current wind; the decaying bucket (the offset orphaned by the last
+/// map refresh) eases toward zero. The shader consumes their SUM.
+pub fn advance_cloud_advect(
+    accum: f32,
+    decaying: f32,
+    wind_mps: f32,
+    dt_s: f32,
+) -> (f32, f32) {
+    let rate = wind_mps.max(0.0) * CLOUD_ADVECT_WIND_FACTOR / EARTH_RADIUS_M;
+    let a = accum + rate * dt_s.max(0.0);
+    let mut d = decaying * (-dt_s.max(0.0) / CLOUD_ADVECT_DECAY_TAU_S).exp();
+    if d.abs() < 1.0e-6 {
+        d = 0.0;
+    }
+    (a, d)
+}
+
 /// WGSL `fract` semantics: `x - floor(x)`, always in [0, 1) -- NOT Rust's
 /// `f32::fract`, which is negative for negative inputs. Every mirror below
 /// must use this or the noise diverges from the shader on negative coords.
@@ -581,6 +618,24 @@ mod tests {
                 [r * a.cos(), y, r * a.sin()]
             })
             .collect()
+    }
+
+    #[test]
+    fn cloud_advect_integrates_wind_and_decays_after_refresh() {
+        // Accumulator grows with wind, faster wind = faster drift.
+        let (calm, _) = advance_cloud_advect(0.0, 0.0, 3.0, 60.0);
+        let (storm, _) = advance_cloud_advect(0.0, 0.0, 20.0, 60.0);
+        assert!(storm > calm && calm > 0.0, "storm {storm} vs calm {calm}");
+        // Zero wind, zero dt: nothing moves.
+        assert_eq!(advance_cloud_advect(0.1, 0.0, 0.0, 0.0), (0.1, 0.0));
+        // The decaying bucket eases toward zero and eventually clamps.
+        let (_, d1) = advance_cloud_advect(0.0, 0.08, 0.0, 45.0);
+        assert!(d1 < 0.08 * 0.4 && d1 > 0.0, "one tau should ~1/e: {d1}");
+        let (_, d2) = advance_cloud_advect(0.0, 0.08, 0.0, 3600.0);
+        assert_eq!(d2, 0.0, "long decay clamps to zero");
+        // An hour of 10 m/s wind stays a small angle (< 1 deg of planet).
+        let (hr, _) = advance_cloud_advect(0.0, 0.0, 10.0, 3600.0);
+        assert!(hr < 0.0175, "hourly drift should be gentle: {hr}");
     }
 
     #[test]

@@ -1814,6 +1814,8 @@ mod native_app {
                 far_tree_built_cam: glam::DVec3::splat(1.0e30),
                 far_tree_pending: None,
                 ocean_fft: None,
+                cloud_advect: 0.0,
+                cloud_advect_decaying: 0.0,
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -12292,6 +12294,22 @@ mod native_app {
                             state.renderer.sea_state +=
                                 (target - state.renderer.sea_state) * k;
                         }
+                        // Cloud wind-advection (v0.1032): integrate the live
+                        // wind into the deck's drift angle; the shader
+                        // rotates its MODIS lookup by the sum so cloud
+                        // masses MOVE at weather-dependent rates between
+                        // map refreshes (operator: clouds should not sit
+                        // pinned; "clouds move at varying rates depending
+                        // on the weather").
+                        let (a, dc) = crate::renderer::clouds::advance_cloud_advect(
+                            state.cloud_advect,
+                            state.cloud_advect_decaying,
+                            w.wind_speed,
+                            dt as f32,
+                        );
+                        state.cloud_advect = a;
+                        state.cloud_advect_decaying = dc;
+                        state.renderer.cloud_advect = a + dc;
                     }
 
                     // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):
@@ -16072,6 +16090,13 @@ mod native_app {
                                         .renderer
                                         .update_weather_map(&state.renderer.queue, &grid);
                                     state.weather_grid = Some(grid);
+                                    // Fresh satellite data owns placement
+                                    // again (v0.1032): move the accumulated
+                                    // wind-advection angle into the decaying
+                                    // bucket so the deck EASES back onto real
+                                    // geography instead of snapping.
+                                    state.cloud_advect_decaying += state.cloud_advect;
+                                    state.cloud_advect = 0.0;
                                     log::info!("[Weather] live cloud map applied to sky");
                                 }
                             }

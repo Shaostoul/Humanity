@@ -65,7 +65,16 @@ The froxel+advection cloud arc replaces the single global drift constant
 with a WIND FIELD: the weather map advects through it, so trade winds,
 jet streams, calm mornings, and storm fronts each move at their own
 rate, varying by location (and eventually altitude per cloud family).
-Interim: scale the current drift by the game-weather wind at the camera.
+
+INTERIM SHIPPED (v0.1032.1): a global zonal advection angle integrates
+the live weather-sim wind (2.5x surface, the gradient-wind rule) and
+rotates every weather-map lookup - the sky's MODIS envelope, the storm
+sea-state sample, and the CPU god-ray overhead dim mirror it exactly.
+Storm wind = visible deck motion, calm = near-still. When a fresh MODIS
+map lands, the accumulated angle transfers to a bucket that eases to
+zero over ~45 s, so real geography re-wins without the deck snapping
+(clouds::advance_cloud_advect, unit-tested). The full wind FIELD
+(per-location direction + speed) remains the froxel-arc goal.
 
 ## 5. Extreme weather: infinite-of-x events
 

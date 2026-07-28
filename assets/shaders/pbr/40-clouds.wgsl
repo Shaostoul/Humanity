@@ -859,14 +859,20 @@ fn cloud_weather(dir: vec3<f32>, t: f32, seed: f32) -> f32 {
     let meso_f = 0.20 * cloud_noise(db, 7.0, seed + 101.0)
         + 0.12 * cloud_noise(da, 31.0, seed + 233.0)
         + 0.08 * cloud_noise(db, 67.0, seed + 409.0);
-    // Live weather (v0.874): sample the real MODIS cloud fraction with the
-    // UNDRIFTED planet-local direction (real weather pins to geography; only
-    // the procedural texture octaves drift). Equirect UV matches the planet
-    // albedo mapping above: east = -z, +Y = north. albedo_sampler wraps u
-    // (antimeridian) and clamps v (poles). textureSampleLevel because this
-    // runs inside the raymarch loop (non-uniform control flow).
-    let w_lon = atan2(-dir.z, dir.x);
-    let w_lat = asin(clamp(dir.y, -1.0, 1.0));
+    // Live weather (v0.874): sample the real MODIS cloud fraction in the
+    // near-geography domain. v0.1032 wind-advection: the lookup direction
+    // rotates by the accumulated zonal angle in light1_cone_inner.x (fed
+    // per frame from the weather sim's wind), so cloud masses MOVE at
+    // weather-dependent rates between map refreshes instead of sitting
+    // pinned; a fresh map eases the angle back to zero (geography
+    // re-wins - see clouds::advance_cloud_advect). Equirect UV matches
+    // the planet albedo mapping above: east = -z, +Y = north.
+    // albedo_sampler wraps u (antimeridian) and clamps v (poles).
+    // textureSampleLevel because this runs inside the raymarch loop
+    // (non-uniform control flow).
+    let wdir = cloud_rot_y(dir, camera.light1_cone_inner.x);
+    let w_lon = atan2(-wdir.z, wdir.x);
+    let w_lat = asin(clamp(wdir.y, -1.0, 1.0));
     let w_uv = vec2<f32>(w_lon * 0.15915494 + 0.5, 0.5 - w_lat * 0.31830987);
     let w = textureSampleLevel(weather_map, albedo_sampler, w_uv, 0.0).rg;
     let proc = smoothstep(CLOUD_FIELD_LO, CLOUD_FIELD_HI, (macro_f + meso_f) / 1.04);
