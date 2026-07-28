@@ -36,34 +36,20 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // seabed's warmth, so mix toward a bright green-blue over the first
     // ~9 m of depth.
     deep = mix(vec3<f32>(0.075, 0.30, 0.30), deep, smoothstep(0.4, 9.0, depth_m));
-    // Regional sea variation (v0.902; de-squared v0.906 - the operator saw
-    // "very obvious squares"): single low-frequency value noise shows its
-    // axis-aligned lattice as rectangular blotches. Three octaves at
-    // incommensurate frequencies with ROTATED sampling directions break
-    // the grid into organic patches.
-    let dir_r1 = normalize(vec3<f32>(
-        dir.x * 0.7660 - dir.z * 0.6428,
-        dir.y,
-        dir.x * 0.6428 + dir.z * 0.7660,
-    ));
-    let dir_r2 = normalize(vec3<f32>(
-        dir.x * 0.1736 + dir.z * 0.9848,
-        dir.y,
-        -dir.x * 0.9848 + dir.z * 0.1736,
-    ));
-    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.40
-        + surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) * 0.30
-        + surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) * 0.30;
     // FLAT BACKSTOP shell (v0.1019, params.x = the metallic-slot flag): the
     // coarse deep layer under the wave shell. Body color + regional hue
     // only - no waves, no foam, no texture taps; near-opaque so tears in
     // the displaced shell above read as water, not seafloor. Shore feather
     // still applies via the baked depth.
     if (material.params.x > 0.5) {
+        // One coarse hue octave only (v0.1020 perf): the backstop is seen
+        // through tears a few pixels wide - regional variation at full
+        // fidelity is wasted work on every occluded ocean pixel.
+        let bvar = surface_detail_noise(dir, r_render / 24000.0, 611.0);
         var bdeep = vec3<f32>(0.013, 0.055, 0.11);
         let bgreener = vec3<f32>(0.016, 0.085, 0.105);
-        bdeep = mix(bdeep, bgreener, smoothstep(0.35, 0.85, sea_var));
-        bdeep = bdeep * (0.9 + 0.25 * sea_var);
+        bdeep = mix(bdeep, bgreener, smoothstep(0.35, 0.85, bvar));
+        bdeep = bdeep * (0.9 + 0.25 * bvar);
         let bday = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
         var brgb = bdeep * (bday * camera.sun_direction.w * 0.9 + 0.02);
         // Grazing Fresnel toward a sky tint (matches the wave shell's
@@ -89,6 +75,24 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let balpha = 0.96 * smoothstep(0.02, 1.0, depth_m);
         return vec4<f32>(bmapped, balpha);
     }
+    // Regional sea variation (v0.902; de-squared v0.906 - the operator saw
+    // "very obvious squares"): single low-frequency value noise shows its
+    // axis-aligned lattice as rectangular blotches. Three octaves at
+    // incommensurate frequencies with ROTATED sampling directions break
+    // the grid into organic patches.
+    let dir_r1 = normalize(vec3<f32>(
+        dir.x * 0.7660 - dir.z * 0.6428,
+        dir.y,
+        dir.x * 0.6428 + dir.z * 0.7660,
+    ));
+    let dir_r2 = normalize(vec3<f32>(
+        dir.x * 0.1736 + dir.z * 0.9848,
+        dir.y,
+        -dir.x * 0.9848 + dir.z * 0.1736,
+    ));
+    let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.40
+        + surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) * 0.30
+        + surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) * 0.30;
     let greener = vec3<f32>(0.016, 0.085, 0.105);
     // Wider blend band (0.35..0.85) so hue patches feather instead of
     // stepping.

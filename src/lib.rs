@@ -475,12 +475,16 @@ mod native_app {
     /// not be clicked (recurring "I can see the UI but can't interact" bug).
     fn reconcile_cursor(state: &mut EngineState) {
         // Background instances (HUMANITY_NO_FOCUS, the probe rig) never
-        // touch the cursor (v0.1016): set_cursor_grab(Confined) is a
-        // SYSTEM-WIDE cursor clip, so a rig entering the world could trap
-        // the operator's pointer inside the rig's window rect while they
-        // play. A rig is IPC-driven and needs no grab, ever.
-        static BACKGROUND: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-        if *BACKGROUND.get_or_init(|| std::env::var("HUMANITY_NO_FOCUS").is_ok()) {
+        // touch the cursor WHILE UNFOCUSED (v0.1016): set_cursor_grab(
+        // Confined) is a SYSTEM-WIDE cursor clip, so a rig entering the
+        // world could trap the operator's pointer inside the rig's window
+        // rect while they play. v0.1020: the guard clears on the first
+        // genuine focus gain (see WindowEvent::Focused) - clicking into a
+        // no-focus instance makes it a normal interactive window; the old
+        // permanent guard left the cursor free in FPS, so the pointer
+        // escaped the window and focus bounced (the operator's "mouse
+        // doesn't work" in boot-verify instances).
+        if state.background_no_cursor {
             return;
         }
         // Hold Alt in first-person to FREE the cursor (v0.735, operator
@@ -1804,6 +1808,7 @@ mod native_app {
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 window_focused: true,
+                background_no_cursor: std::env::var("HUMANITY_NO_FOCUS").is_ok(),
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -1855,6 +1860,14 @@ mod native_app {
                 WindowEvent::Focused(focused) => {
                     // Drives the foreground/background FPS cap (v0.1016).
                     state.window_focused = focused;
+                    // A HUMANITY_NO_FOCUS instance the user deliberately
+                    // clicked into becomes a NORMAL window (v0.1020): the
+                    // launch flag only means "don't steal focus", never
+                    // "stay half-dead". Cursor management resumes next
+                    // frame via reconcile_cursor.
+                    if focused {
+                        state.background_no_cursor = false;
+                    }
                 }
                 WindowEvent::CloseRequested => {
                     // Persist the active offline home before quitting (v0.381). The

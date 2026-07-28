@@ -268,12 +268,24 @@ fn wave_octave(
     // adds local wiggle. Each noise is centred to +-0.5, then scaled to its
     // amplitude in wavelengths and summed before the cos.
     let r_m = length(p_m);
-    let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
-    let warp_c = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
-        * WAVE_WARP_AMP;
-    let warp_f = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7) - 0.5)
-        * WAVE_WARP_AMP2;
-    let cycles = dot(p_m, d) / lambda_m + warp_c + warp_f + t * cps;
+    // Warp gate (v0.1020 perf): the crest-snaking domain warp costs two
+    // value-noise evaluations PER OCTAVE per pixel, but the wiggle it adds
+    // is invisible once a wavelength spans under ~24 px on screen. Skip
+    // both noises there - the far field keeps its straight-crest look
+    // (which the AA fade is already blurring out anyway).
+    var warp = 0.0;
+    let warp_gate = 1.0 - smoothstep(lambda_m * 0.028, lambda_m * 0.042, footprint_m);
+    if (warp_gate > 0.001) {
+        let warp_seed = WAVE_WARP_SEED + lambda_m * 0.01;
+        let warp_c = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT), warp_seed) - 0.5)
+            * WAVE_WARP_AMP;
+        let warp_f = (surface_detail_noise(n, r_m / (lambda_m * WAVE_WARP_MULT2), warp_seed + 19.7) - 0.5)
+            * WAVE_WARP_AMP2;
+        // Faded, not cut: a hard boundary would draw a ring where crests
+        // suddenly straighten; the phase eases to unwarped instead.
+        warp = (warp_c + warp_f) * warp_gate;
+    }
+    let cycles = dot(p_m, d) / lambda_m + warp + t * cps;
     let ph = fract(cycles) * TAU;
     return tp * (slope * fade * cos(ph));
 }

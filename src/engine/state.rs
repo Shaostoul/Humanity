@@ -748,6 +748,12 @@ pub(crate) struct EngineState {
     /// foreground-vs-background FPS cap in the redraw loop. Starts true
     /// (a freshly created window is foregrounded unless HUMANITY_NO_FOCUS).
     pub(crate) window_focused: bool,
+    /// HUMANITY_NO_FOCUS instance that has not yet been clicked into
+    /// (v0.1020): cursor management stays hands-off so a rig can never own
+    /// the system cursor clip - but the FIRST genuine focus gain clears
+    /// this and the window becomes fully interactive (the operator's "when
+    /// I go to it the mouse doesn't work" was the old permanent guard).
+    pub(crate) background_no_cursor: bool,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

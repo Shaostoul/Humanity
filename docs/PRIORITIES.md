@@ -32,7 +32,12 @@
 >    draw the underside so submerged players see the surface above them.
 > 5. BLUE BLEED onto land: "land that is above water is blue" (coastal
 >    tint mask leaking above sea level).
-> 6. PERF: 16-18 FPS in ocean-heavy views vs 30-40 over land - profile
+> 6. PERF pass 1 SHIPPED (v0.1020.1): backstop 1-octave hue early-out +
+>    crest-warp footprint fade (up to 6 noise evals/pixel saved at
+>    distance). REMAINING rungs: batch water shells through the patch
+>    arena (still classic per-object, ~640 draws worst case); measure
+>    the 4-layer transparent overdraw (backstop+shell+atmo+clouds).
+>    Original report: 16-18 FPS in ocean-heavy views vs 30-40 over land - profile
 >    the water pass at budget defaults (operator suspects water is a top
 >    perf hit; the checkerboard artifacts suggest overdraw or per-patch
 >    waste).

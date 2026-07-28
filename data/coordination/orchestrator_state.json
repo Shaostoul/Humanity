@@ -308,6 +308,11 @@
       "date": "2026-07-27",
       "decision": "v0.1019.1 water backstop shell: seam holes re-root-caused with numbers - LONG swells (360-2000m) sag ~1.2m over coarse patch edges (T-junction tears showing pale seafloor = the pale polygon sheets); they cannot be resolution-faded (they are the visible sea). Fix = coarse undisplaced deep-water BACKSTOP layer ~4.7m below the wave shell, drawn behind it both above and below the waterline; tears now read as water forever, robust to any wave tuning. build_water_patch_mesh_at(lift_offset), ::water_backstop selection block, metallic-slot flag, cheap flat fs path.",
       "rationale": "Third pass on the seam class: fades fixed the short trains, the backstop closes the long-swell tears structurally instead of chasing stitching complexity (neighbor-depth-aware borders rejected as high-machinery vs a 2-layer shell)."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1020.1: HUMANITY_NO_FOCUS instances now PROMOTE to normal interactive windows on first click (operator: mouse dead in boot-verify instances until app restart - the v0.1016 guard was permanent; now a state flag cleared by Focused(true)). Water perf pass 1: backstop fs early-out above the 3-octave sea_var (1 octave hue), crest domain-warp faded out where lambda < ~24px on screen (saves up to 6 noise evals/pixel at distance, smooth fade so no ring). Remaining perf rungs in PRIORITIES: water arena batching (~640 classic draws), 4-layer transparent overdraw measurement.",
+      "rationale": "Operator-reported interactivity bug fixed at the design level (flag = launch behavior, not permanent crippling); perf gates chosen for zero visual cost first."
     }
   ],
   "active_scopes_to_avoid": [
