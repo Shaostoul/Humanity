@@ -9351,6 +9351,158 @@ mod native_app {
                                         16.0,
                                         0.0,
                                     );
+                                    // ── Backstop shell (v0.1019, water arc) ──
+                                    // A COARSE, undisplaced deep-water layer
+                                    // ~4.7 m under the wave shell. Cross-depth
+                                    // T-junction tears in the displaced
+                                    // surface (the long swells sag ~1.2 m
+                                    // across coarse patch edges; they cannot
+                                    // be resolution-faded, they ARE the
+                                    // visible sea) now reveal water-colored
+                                    // backstop instead of pale seafloor or
+                                    // sky. Drawn FIRST (this block precedes
+                                    // the wave shell's pushes), so it always
+                                    // composites behind the real surface -
+                                    // above OR below the waterline (the
+                                    // underwater sort is stable).
+                                    {
+                                        let bmat_key = format!("{}::backstop", b.id);
+                                        let bmat = match state.planet_water_materials.get(&bmat_key) {
+                                            Some(&m) => m,
+                                            None => {
+                                                let m = state.renderer.add_material_full(
+                                                    [0.0, 0.0, 0.0, 1.0],
+                                                    1.0, // metallic slot = the FLAT backstop flag
+                                                    0.05,
+                                                    16.0,
+                                                    0.0,
+                                                );
+                                                state
+                                                    .planet_water_materials
+                                                    .insert(bmat_key.clone(), m);
+                                                m
+                                            }
+                                        };
+                                        state.renderer.update_material_full(
+                                            bmat,
+                                            [
+                                                render_off.x as f32,
+                                                render_off.y as f32,
+                                                render_off.z as f32,
+                                                1.0,
+                                            ],
+                                            1.0,
+                                            0.05,
+                                            16.0,
+                                            0.0,
+                                        );
+                                        let bkey = format!("{}::water_backstop", b.id);
+                                        let bparams = chunks::ChunkParams {
+                                            radius_m: d.radius,
+                                            band: chunks::water_band(d.radius),
+                                            max_depth: 11,
+                                            split_px,
+                                            px_per_rad: viewport_h
+                                                / fov_deg.max(1.0).to_radians(),
+                                            max_leaves: 128,
+                                            max_build_requests: 8,
+                                        };
+                                        let seed = d.terrain_seed;
+                                        let bs = state
+                                            .planet_chunk_states
+                                            .entry(bkey)
+                                            .or_insert_with(|| chunks::ChunkState::new(seed));
+                                        bs.frame += 1;
+                                        let bsel = chunks::select_patches_sticky(
+                                            cam_local,
+                                            Some(&frustum),
+                                            &|id| bs.cache.get(id).map(|e| e.band),
+                                            &bparams,
+                                            Some(&bs.last_drawn),
+                                        );
+                                        bs.last_drawn = bsel.draws.iter().cloned().collect();
+                                        let frame = bs.frame;
+                                        for id in &bsel.draws {
+                                            if let Some(e) = bs.cache.get_mut(id) {
+                                                e.last_used = frame;
+                                            }
+                                        }
+                                        let drop_m = -(crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M
+                                            as f64
+                                            + 0.5);
+                                        let mut builds = 0usize;
+                                        for id in &bsel.build_requests {
+                                            if builds >= 4 {
+                                                break;
+                                            }
+                                            if bs.cache.contains_key(id) {
+                                                continue;
+                                            }
+                                            let (mesh, anchor, band, bytes) =
+                                                match chunks::build_water_patch_mesh_at(
+                                                    d,
+                                                    om,
+                                                    state
+                                                        .planet_heightmaps
+                                                        .get(&b.id)
+                                                        .map(|a| a.as_ref()),
+                                                    id,
+                                                    drop_m,
+                                                ) {
+                                                    Some(pm) => (
+                                                        Mesh::from_planet_surface(
+                                                            &state.renderer.device,
+                                                            &pm.mesh,
+                                                        ),
+                                                        pm.anchor,
+                                                        pm.band,
+                                                        chunks::PATCH_MESH_BYTES,
+                                                    ),
+                                                    None => {
+                                                        let c = chunks::patch_corners(id);
+                                                        let a = (c[0] + c[1] + c[2]).normalize()
+                                                            * d.radius;
+                                                        (
+                                                            Mesh::placeholder(
+                                                                &state.renderer.device,
+                                                            ),
+                                                            a,
+                                                            chunks::water_band(d.radius),
+                                                            256,
+                                                        )
+                                                    }
+                                                };
+                                            builds += 1;
+                                            let slot = if let Some(idx) =
+                                                state.planet_patch_free_slots.pop()
+                                            {
+                                                state.renderer.replace_mesh(idx, mesh);
+                                                idx
+                                            } else {
+                                                state.renderer.add_mesh(mesh)
+                                            };
+                                            bs.insert(*id, slot, bytes, anchor, band);
+                                        }
+                                        for id in &bsel.draws {
+                                            if let Some(e) = bs.cache.get(id) {
+                                                let anchor_render =
+                                                    render_off + rot_d * e.anchor;
+                                                celestial_transparent.push(RenderObject {
+                                                    fade: 0.0,
+                                                    position: Vec3::new(
+                                                        anchor_render.x as f32,
+                                                        anchor_render.y as f32,
+                                                        anchor_render.z as f32,
+                                                    ),
+                                                    rotation,
+                                                    scale: Vec3::ONE,
+                                                    mesh: e.mesh,
+                                                    material: bmat,
+                                                });
+                                            }
+                                        }
+                                    }
+
                                     let wkey = format!("{}::water", b.id);
                                     let wparams = chunks::ChunkParams {
                                         radius_m: d.radius,

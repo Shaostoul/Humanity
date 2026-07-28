@@ -303,6 +303,11 @@
       "date": "2026-07-27",
       "decision": "v0.1018.1 water increment 2 (operator round-2 report + Subnautica bar): underwater = transparent-list ORDER bug (water first/atmo over = backwards submerged; water sorts last when underwater), foam lacework (2nd wave-tex tap), surf sign flip (marched seaward), purple triangles = de-blue lerp through complements -> blue-dominance clamp rework, ocean tree strip -> 6m storm-surge floor, W4 anchored (lambda 32|64, was 1% wobble), AUDIT FIND: buoyancy caller narrowed to f32 before the f64 twin (DVec3 end-to-end now). Remaining f32-at-scale: GPU shading-train phases (<=1m per-patch offsets) = top suspect for residual faint seams/squarish tiles - next increment investigates via rig hot-reload experiments. Subnautica refs = the water-quality bar (underwater god rays/caustics future).",
       "rationale": "Operator asked the f64 question directly; the audit immediately found the buoyancy narrowing. Purple triangles were my own v0.1017 de-blue lerp - fixed same-session."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1019.1 water backstop shell: seam holes re-root-caused with numbers - LONG swells (360-2000m) sag ~1.2m over coarse patch edges (T-junction tears showing pale seafloor = the pale polygon sheets); they cannot be resolution-faded (they are the visible sea). Fix = coarse undisplaced deep-water BACKSTOP layer ~4.7m below the wave shell, drawn behind it both above and below the waterline; tears now read as water forever, robust to any wave tuning. build_water_patch_mesh_at(lift_offset), ::water_backstop selection block, metallic-slot flag, cheap flat fs path.",
+      "rationale": "Third pass on the seam class: fades fixed the short trains, the backstop closes the long-swell tears structurally instead of chasing stitching complexity (neighbor-depth-aware borders rejected as high-machinery vs a 2-layer shell)."
     }
   ],
   "active_scopes_to_avoid": [

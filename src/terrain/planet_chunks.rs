@@ -2184,9 +2184,28 @@ pub fn build_water_patch_mesh(
     hm: Option<&PlanetHeightmap>,
     id: &PatchId,
 ) -> Option<PatchMesh> {
+    build_water_patch_mesh_at(def, ocean, hm, id, 0.0)
+}
+
+/// `lift_offset_m` lowers (negative) or raises the shell radius relative to
+/// the standard SURFACE_LIFT sphere. The BACKSTOP shell (v0.1019, water arc:
+/// "holes through the water along the seams") builds at
+/// -(MAX_WAVE_HEIGHT + 0.5): a coarse, UNDISPLACED deep-water layer under
+/// the wave shell, so any cross-depth T-junction tear in the displaced
+/// surface reveals water-colored backstop instead of pale seafloor or sky -
+/// the long swells (360-2000 m) sag up to ~1.2 m across coarse patch edges
+/// and CANNOT be resolution-faded away (they are the visible sea).
+pub fn build_water_patch_mesh_at(
+    def: &PlanetDef,
+    ocean: &super::ocean_mask::OceanMask,
+    hm: Option<&PlanetHeightmap>,
+    id: &PatchId,
+    lift_offset_m: f64,
+) -> Option<PatchMesh> {
     let n = PATCH_TESS;
     let corners = patch_corners(id);
-    let radius_m = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+    let radius_m =
+        def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64 + lift_offset_m;
     let anchor = (corners[0] + corners[1] + corners[2]).normalize() * radius_m;
 
     // Same bit-identical border walk as the terrain builder (commutative

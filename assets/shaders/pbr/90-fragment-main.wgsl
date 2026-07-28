@@ -54,6 +54,41 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let sea_var = surface_detail_noise(dir, r_render / 24000.0, 611.0) * 0.40
         + surface_detail_noise(dir_r1, r_render / 9200.0, 733.0) * 0.30
         + surface_detail_noise(dir_r2, r_render / 3100.0, 857.0) * 0.30;
+    // FLAT BACKSTOP shell (v0.1019, params.x = the metallic-slot flag): the
+    // coarse deep layer under the wave shell. Body color + regional hue
+    // only - no waves, no foam, no texture taps; near-opaque so tears in
+    // the displaced shell above read as water, not seafloor. Shore feather
+    // still applies via the baked depth.
+    if (material.params.x > 0.5) {
+        var bdeep = vec3<f32>(0.013, 0.055, 0.11);
+        let bgreener = vec3<f32>(0.016, 0.085, 0.105);
+        bdeep = mix(bdeep, bgreener, smoothstep(0.35, 0.85, sea_var));
+        bdeep = bdeep * (0.9 + 0.25 * sea_var);
+        let bday = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
+        var brgb = bdeep * (bday * camera.sun_direction.w * 0.9 + 0.02);
+        // Grazing Fresnel toward a sky tint (matches the wave shell's
+        // typical look, so a tear's backstop content blends in instead of
+        // reading as a flat calm patch).
+        let bcos = clamp(dot(n_geo, view_dir), 0.0, 1.0);
+        let bt = 1.0 - bcos;
+        let bfres = bt * bt * bt;
+        let bsky = vec3<f32>(0.35, 0.44, 0.55)
+            * (bday * camera.sun_direction.w * 0.8 + 0.02);
+        brgb = mix(brgb, bsky, bfres * 0.75);
+        let ba = 2.51;
+        let bb = 0.03;
+        let bc = 2.43;
+        let bd = 0.59;
+        let be = 0.14;
+        let bmapped = clamp(
+            (brgb * (ba * brgb + vec3<f32>(bb)))
+                / (brgb * (bc * brgb + vec3<f32>(bd)) + vec3<f32>(be)),
+            vec3<f32>(0.0),
+            vec3<f32>(1.0),
+        );
+        let balpha = 0.96 * smoothstep(0.02, 1.0, depth_m);
+        return vec4<f32>(bmapped, balpha);
+    }
     let greener = vec3<f32>(0.016, 0.085, 0.105);
     // Wider blend band (0.35..0.85) so hue patches feather instead of
     // stepping.

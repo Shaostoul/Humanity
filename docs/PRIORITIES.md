@@ -36,6 +36,16 @@
 >    the water pass at budget defaults (operator suspects water is a top
 >    perf hit; the checkerboard artifacts suggest overdraw or per-patch
 >    waste).
+> INCREMENT 3 SHIPPED (v0.1019.1): the BACKSTOP SHELL - long swells sag
+> ~1.2 m over coarse patch edges (computed; they cannot be faded, they
+> ARE the sea), so a coarse undisplaced deep-water layer ~4.7 m below
+> the wave shell now water-colors every T-junction tear, above or below
+> the waterline. Rig-verified: straight-edged pale polygon sheets GONE.
+> INCREMENT 2 SHIPPED (v0.1018.1): underwater blend order (water sorts
+> last submerged), foam lacework, surf direction sign flip, de-blue
+> reworked to a blue-dominance clamp (purple triangles), tree floor 6 m
+> (shoreline strip), W4 anchored (lambda 32), buoyancy DVec3 end-to-end
+> (the operator-requested f64 audit find).
 > INCREMENT 1 SHIPPED (v0.1017.1): items 1+2 fixed by per-train resolution
 > fades (ocean_train_fade; holes + checkerboard verified gone at the rig);
 > item 4 fixed (fully_covered all-or-nothing gate removed + below-view

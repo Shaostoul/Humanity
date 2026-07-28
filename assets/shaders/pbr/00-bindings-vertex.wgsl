@@ -366,7 +366,11 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     // (material.base_color.xyz = planet center in render space;
     // transpose(normal_matrix) = model^-1). Skirt vertices displace with
     // their parent edge (same dir), so LOD seams stay sealed.
-    if (material.params.z >= 15.5 && material.params.z < 16.5) {
+    // params.x (the metallic slot, unused by water) > 0.5 marks the FLAT
+    // BACKSTOP shell (v0.1019): the coarse deep-water layer under the wave
+    // shell never displaces - it exists to water-color the T-junction tears
+    // in the displaced surface above it.
+    if (material.params.z >= 15.5 && material.params.z < 16.5 && material.params.x < 0.5) {
         let inv_model = transpose(obj_normal_matrix());
         let dir_world = world_pos.xyz - material.base_color.xyz;
         let r = length(dir_world);
