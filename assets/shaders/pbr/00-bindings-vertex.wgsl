@@ -224,6 +224,14 @@ struct VertexOutput {
     // interpolation): the terrain-batch variant's fragment accessors
     // rebuild the model matrix from it. Zero for classic draws.
     @location(3) @interpolate(flat) inst_data: vec4<f32>,
+    // The packed per-face color/flags channel, FLAT (v0.1013, draw-batching
+    // increment 3): flat interpolation takes the triangle's FIRST vertex,
+    // which lets terrain grid vertices be SHARED between faces while each
+    // face still reads its own pack from its provoking vertex. Cards and
+    // the water shell keep reading the smooth `uv` (sprite texcoords and
+    // the baked shoreline depth genuinely interpolate); only the type-12
+    // per-face decode reads this. With unshared meshes pack == uv exactly.
+    @location(4) @interpolate(flat) pack: vec2<f32>,
 };
 
 // ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
@@ -345,6 +353,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     out.clip_position = camera.view_proj * world_pos;
     out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
     out.uv = vertex.uv;
+    out.pack = vertex.uv;
     out.inst_data = vertex.inst_pos_fade;
     return out;
 }

@@ -1059,8 +1059,14 @@ fn cloud_density_hi(
     // near the camera (puff_amt fades by ~290 km).
     var cavity = 0.0;
     if (puff_amt > 0.01 && base > 0.003) {
+        // UNSTRETCHED domain (v0.1012.x fix): cs.ps carries the regime's
+        // east-west stretch (mares'-tail streaking), which at puff
+        // frequency turned round lobes into sharp knife lances (the
+        // dark wedge artifacts + dusk striping). Cauliflower turbulence
+        // is isotropic - rebuild the drifted-but-unstretched position.
+        let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
         let pu = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, cs.ps * CLOUD_PUFF_FREQ, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, ps0 * CLOUD_PUFF_FREQ, 0.0);
         let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
         let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));
         let pmod = phased

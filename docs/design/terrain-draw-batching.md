@@ -120,6 +120,28 @@ loop into ONE `multi_draw_indexed_indirect`:
 - The shadow pass keeps the per-draw loop: the 6 km caster cull leaves a
   few dozen draws, not worth a second culled args buffer.
 
+## Increment 3 (in progress): shared vertices via provoking-vertex flat data
+
+After increment 2 the 12k-budget frame is GPU vertex-throughput-bound:
+~9.2M VS invocations per frame with ZERO post-transform cache reuse,
+because every grid triangle carries 3 unique vertices - the per-FACE
+color+flags pack rides identical UV values on all 3 corners, and sharing
+would interpolate (and corrupt) the packed float.
+
+The fix that preserves the exact rendered output: SHARED grid vertices +
+@interpolate(flat) per-face data. WGSL flat interpolation takes the
+triangle's FIRST vertex value, so the packed color/flags move to a
+dedicated flat attribute and the index buffer is arranged so each
+triangle's first index points at a vertex carrying THAT face's pack.
+153 unique grid points cannot provide 256 unique provoking slots, so the
+builder duplicates a vertex when its provoking slot is already claimed -
+worst case ~280 vertices per patch instead of 768 (2.7x fewer VS
+invocations) plus real post-transform cache reuse on the shared ones.
+Vegetation cards keep genuinely interpolating UVs (sprite texcoords), so
+the vertex gains a separate flat `packed` attribute while `uv` stays
+smooth: terrain reads the flat pack, cards read uv, the card sentinel
+moves to the pack channel.
+
 ## Future increments
 
 1. GPU frustum culling of patches (compute pass writes the indirect args),

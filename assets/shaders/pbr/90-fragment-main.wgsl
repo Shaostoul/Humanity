@@ -504,7 +504,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             roughness = 0.9;
             metallic = 0.0;
         } else {
-        let packed = u32(round(max(in.uv.x, 0.0)));
+        let packed = u32(round(max(in.pack.x, 0.0)));
         let pr = f32((packed >> 8u) & 255u) / 255.0;
         let pg = f32(packed & 255u) / 255.0;
         // Tree-card LOD swap (v0.912, operator: "when it switches to the
@@ -598,7 +598,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         } else {
             // Fallback: the per-face packed color (classifier planets, or a
             // planet whose imagery failed to bake).
-            albedo = vec3<f32>(pr, pg, in.uv.y) * material.base_color.rgb;
+            albedo = vec3<f32>(pr, pg, in.pack.y) * material.base_color.rgb;
         }
         // Pixel footprint on the surface (metres per pixel), the analytic
         // anti-alias estimate every detail octave fades against (see the
