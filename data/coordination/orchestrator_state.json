@@ -343,6 +343,11 @@
       "date": "2026-07-28",
       "decision": "v0.1025.1: fly-through cloud fix (dynamic shell radius above slab top when cam in-slab + planet/drawn ratio via emissive slot + g_cloud_rb/rt shader globals; rig-verified at 50km in-layer) + date-line seam feather (8 wrap-column blur passes ~400km front). Remaining from the operator report: blocky beach (per-fragment shore shading) - next increment, then homestead increment 2 (lighting).",
       "rationale": "Two of the three remaining operator field-report items closed; the beach needs its own capture-iterate loop."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Wolf hunt CLOSED: VPS deploy landed (relay restart, uptime confirmed fresh), sqlite read-only inspection of game_world_snapshots v8+v9 found ZERO wolf entities in persisted shared state - the attacker was per-session list seeding; the removed row ends it everywhere. v0.1026.1: homestead increment 2 lighting (23 fixtures, 4 strips, demo lights to commons) + shore de-terracing (per-fragment noise perturbation of the baked shallow depth). Next: homestead increment 3 (plumbing fixtures + first HotWater producer, furniture catalog).",
+      "rationale": "Live-player safety first (verified clean rather than assumed), then the queued increments."
     }
   ],
   "active_scopes_to_avoid": [

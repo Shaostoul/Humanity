@@ -28,7 +28,19 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // builder bakes seafloor depth (decimetres) into the packed UV, and
     // linear interpolation of that scalar IS linear depth - a smooth
     // shoreline gradient with no depth-texture pass.
-    let depth_m = f32(u32(round(max(in.uv.x, 0.0))) & 65535u) / 10.0;
+    var depth_m = f32(u32(round(max(in.uv.x, 0.0))) & 65535u) / 10.0;
+    // Shore de-terracing (v0.1026, operator: "the beach effect of the
+    // water going to the shore looks very blocky"): the baked depth is
+    // per-vertex at patch resolution, so the turquoise and waterline
+    // bands followed big flat triangles as visible polygon terraces. A
+    // smooth noise perturbation in the SHALLOW range breaks the terraces
+    // into an organic, irregular waterline (real coasts are not
+    // isobath-parallel); deep water is untouched. The shoal wave damping
+    // reads the same perturbed depth, so the calm band wanders with it.
+    if (depth_m < 14.0) {
+        let dn = surface_detail_noise(dir, r_render / 90.0, 1723.0) - 0.5;
+        depth_m = max(depth_m + dn * (2.0 + depth_m * 0.3), 0.0);
+    }
     // Deep open-ocean body color (linear). The seabed under the shell keeps
     // the graded bathymetry albedo; this is only the water column's own hue.
     var deep = vec3<f32>(0.013, 0.055, 0.11);
