@@ -136,6 +136,14 @@
 >   remain 1 m tile seams (bicubic overshoot) and physics-vs-drawn-mesh
 >   divergence (bobbing = collider following the analytic curve between
 >   drawn verts?).
+> HYPER-REALISM ROADMAP (operator asked 2026-07-28 "what would we do to
+> make these closer to hyper realistic"): three arcs, sequence water ->
+> clouds -> plants. WATER: FFT ocean spectrum (Tessendorf) replacing the
+> 6 hand trains + screen-space reflections/refraction with a depth
+> buffer + shore-wave sim (breaking, foam advection). CLOUDS: volumetric
+> froxel grid + temporal reprojection + wind-field advection of the
+> weather map (auto-fixes fly-through clipping). PLANTS: true GPU
+> instancing + octahedral impostors (replaces the card sheet).
 > - INCREMENT 1 SHIPPED (v0.1022.1): the far-tree CANOPY SHEET
 >   (src/terrain/far_trees.rs) - clump cards to 150 km, from-altitude
 >   forests fixed, square/circle boundary buried. Remaining rungs: true

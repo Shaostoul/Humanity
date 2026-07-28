@@ -40,20 +40,26 @@ pub const FAR_TREE_NEAR_M: f64 = 1200.0;
 /// altitude where the planet still fills the screen.
 pub const FAR_TREE_FAR_M: f64 = 150_000.0;
 /// Rebuild when the camera ground point moved this far from the anchor.
-pub const FAR_TREE_REBUILD_M: f64 = 2_000.0;
+pub const FAR_TREE_REBUILD_M: f64 = 1_000.0;
 
-/// (outer radius m, per-axis cell stride, clump height m, clump width m)
-/// per band. Each surviving cell renders a CANOPY CLUMP: two crossed
-/// vertical cards spanning most of the collapsed cell area (grazing
-/// views) plus one horizontal canopy quad at crown height (views from
-/// above - a vertical billboard is edge-on-invisible from altitude,
-/// which is exactly how v1 of this sheet vanished from 12 km). One
-/// tree-sized card per cell was also 1/800th of forest density; clumps
-/// approximate the CANOPY, not individual trees.
-const BANDS: [(f64, u32, f32, f32); 3] = [
-    (10_000.0, 1, 24.0, 200.0),
-    (40_000.0, 4, 32.0, 840.0),
-    (FAR_TREE_FAR_M, 16, 44.0, 3200.0),
+/// (outer radius m, per-axis cell stride, clump height m, clump width m,
+/// horizontal canopy quad?) per band.
+///
+/// v3 scale correction (operator field report, 2026-07-28: "a bunch of
+/// squares that in some cases block out the entire sky" + camo-confetti
+/// terrain from mid altitudes): v2 sized clump cards to the COLLAPSED
+/// cell span (200/840/3200 m), which reads as texture from 12 km but is
+/// architectural-slab nonsense from anywhere lower - and a stale sheet
+/// during fast flight parked those slabs directly overhead. Cards are
+/// now tree-cluster scale (a sparse impression of the forest, not a
+/// 1:1 canopy replacement), horizontal crown quads exist only in the
+/// far bands (their from-above job), and lib.rs hides a sheet whose
+/// build anchor the camera has outrun (better briefly treeless than
+/// wrong). True GPU instancing remains the arc's real endgame.
+const BANDS: [(f64, u32, f32, f32, bool); 3] = [
+    (10_000.0, 1, 22.0, 30.0, false),
+    (40_000.0, 4, 26.0, 120.0, true),
+    (FAR_TREE_FAR_M, 16, 30.0, 400.0, true),
 ];
 
 /// Deterministic per-cell stream, IDENTICAL to the patch bake's (salt +
@@ -142,7 +148,7 @@ pub fn build_far_tree_sheet(
 
     let cell = TREE_CELL_RAD;
     let mut inner = FAR_TREE_NEAR_M;
-    for (outer, stride, card_h, card_w) in BANDS {
+    for (outer, stride, card_h, card_w, canopy_quad) in BANDS {
         let stride_i = stride as i64;
         let ang_outer = outer / radius;
         let ylo = ((cam_lat - ang_outer) / cell).floor() as i64;
@@ -191,33 +197,37 @@ pub fn build_far_tree_sheet(
                 let north = up.cross(east).normalize_or_zero();
                 let az = (r3 % 6283) as f32 / 1000.0;
                 let side = east * az.cos() + north * az.sin();
-                // Canopy green from the local imagery, darkened + slightly
-                // varied per cell so the far field reads as forest mass
-                // with texture, not a flat lawn.
+                // Canopy green from the local imagery, gently darkened +
+                // varied per cell (v3: 0.5x read as black slabs against
+                // bright terrain - forests are darker than grass, not
+                // silhouettes).
                 let shade = 0.85 + (r5 % 256) as f32 / 256.0 * 0.3;
                 let color = [
-                    sc[0] * 0.50 * shade,
-                    sc[1] * 0.58 * shade,
-                    sc[2] * 0.46 * shade,
+                    sc[0] * 0.68 * shade,
+                    sc[1] * 0.76 * shade,
+                    sc[2] * 0.62 * shade,
                 ];
                 // Crossed vertical cards: the grazing-view silhouette.
                 emit_card(base, up, side, card_w, card_h, color, None);
                 let side2 = up.cross(side).normalize_or_zero();
                 emit_card(base, up, side2, card_w, card_h, color, None);
-                // Horizontal canopy quad at crown height: the from-above
-                // view (vertical cards are edge-on-invisible from
-                // altitude). Axes swapped so the quad lies flat.
-                emit_card(
-                    // Centered: the closure treats its "up" axis as 0..1,
-                    // so back up half a span along side2.
-                    base + up * (card_h * 0.8) - side2 * (card_w * 0.5),
-                    side2,
-                    side,
-                    card_w,
-                    card_w,
-                    color,
-                    None,
-                );
+                if canopy_quad {
+                    // Horizontal crown quad, FAR bands only (v3): its job
+                    // is the from-above read at 10+ km, where vertical
+                    // cards are edge-on-invisible; near the player it was
+                    // a sky-blocking ceiling.
+                    emit_card(
+                        // Centered: the closure treats its "up" axis as
+                        // 0..1, so back up half a span along side2.
+                        base + up * (card_h * 0.8) - side2 * (card_w * 0.5),
+                        side2,
+                        side,
+                        card_w,
+                        card_w,
+                        color,
+                        None,
+                    );
+                }
             }
         }
         inner = outer;

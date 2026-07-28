@@ -333,6 +333,11 @@
       "date": "2026-07-28",
       "decision": "v0.1023.1 homestead increment 1 (the shell): 10-room program authored in ship_structure.ron (16 walls, doors/windows per design rules, glass entry half-wall, equal 0.10 thickness sidestepping the corner-seam bug), 23-segment showcase moved to commons as the teaching exhibit, spawn at entry, 12 room zones + 11 room-grade zone types. Splice via generated script (first cut corrupted the file - indexOf matched a substring inside deeper-indented lines; git-restored, newline-anchored, re-spliced clean). 79/79 data tests; walk-through = operator bar per the design doc. Editor snapshot confirmed the furniture palette exists for increment 3.",
       "rationale": "The operator morning directive moved the day to the homestead after the planetary wrap; increment 1 is the design-doc-named first build step."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1024.1 far-tree sheet v3 EMERGENCY (operator field report with 9 screenshots: sky-blocking squares, camo-confetti terrain): v2 cards were collapsed-cell-span sized (200/840/3200m = slabs below 12km) and fast flight outran the 2km rebuild leaving stale slabs overhead. v3: tree-cluster scales (30/120/400m), crown quads far bands only, color 0.5x->0.7x, rebuild 1km, staleness guard hides outrun sheets. ALSO answered the operator hyper-realism question with the three-arc roadmap: water FFT+SSR/refraction+shore sim, clouds froxel+temporal+wind advection (auto-fixes their fly-through clipping report), plants true instancing+octahedral impostors. Open next: in-slab cloud ray source (fly-through), per-fragment shore shading (blocky beach), date-line extra feather (razor cloud wall).",
+      "rationale": "Operator actively play-testing; the v2 sheet degraded ground/mid-altitude views badly enough to fix before anything else. The roadmap question deserves design-grade arcs, not tweaks - logged as the next big rocks."
     }
   ],
   "active_scopes_to_avoid": [

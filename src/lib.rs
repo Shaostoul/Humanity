@@ -9388,7 +9388,19 @@ mod native_app {
                                             });
                                         }
                                     }
-                                    if let Some(mi) = state.far_tree_mesh {
+                                    // Staleness guard (v0.1024, operator:
+                                    // sky-blocking squares): fast flight
+                                    // outruns the async rebuild, and a sheet
+                                    // built kilometres away parks its far
+                                    // bands around/over the player. Hide an
+                                    // outrun sheet - briefly treeless beats
+                                    // wrong.
+                                    let sheet_fresh = (cam_local
+                                        - state.far_tree_built_cam)
+                                        .length()
+                                        < crate::terrain::far_trees::FAR_TREE_REBUILD_M * 3.0;
+                                    if let (Some(mi), true) = (state.far_tree_mesh, sheet_fresh)
+                                    {
                                         let anchor_render =
                                             render_off + rot_d * state.far_tree_anchor;
                                         celestial_objects.push(RenderObject {
