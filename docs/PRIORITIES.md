@@ -174,6 +174,13 @@
 >   session): species variety needs matching far-field cards + atlas
 >   entries or the card handoff pops; models are already on disk
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
+> WEATHER ARC STATUS (2026-07-28 afternoon loop): advection (v0.1032),
+> precipitation particles (v0.1033), extreme-weather events schema +
+> LIVE consumption (v0.1034-v0.1035: eligibility rolls, rarity weights,
+> Front gusts on exported wind, HUD event name, event emitters union
+> into precipitation). Remaining weather rungs: Vortex spatial wind +
+> hazard damage, precipitation streak sprites (particle shader), cloud
+> coverage_boost/tint consumption, froxels + wind FIELD, rivers.
 > MODEL TIERING (operator 2026-07-28): docs/ai/model-tiering.md is the
 > plan for spending the never-touched Opus/Sonnet 50% of the sub -
 > Sonnet-ready data packages (full dictionary via Wiktionary/WordNet,
