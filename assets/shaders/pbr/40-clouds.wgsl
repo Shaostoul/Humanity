@@ -83,11 +83,21 @@ const CLOUD_BAND_STRETCH: f32 = 1.75;
 // The "weather" of increment 1: two octave SETS drift as rigid rotations at
 // different speeds around different axes, so their SUM genuinely evolves
 // (morphs) rather than sliding as one frozen texture. Radians per second of
-// cloud-clock time; zonal ~0.0015 rad/s is a visible-but-calm crawl (a
-// pattern crosses a planet disc in tens of minutes). Increment 2 can promote
-// these to per-planet data.
-const CLOUD_DRIFT_ZONAL: f32 = 0.0015;
-const CLOUD_DRIFT_CROSS: f32 = -0.0009;
+// cloud-clock time.
+//
+// v0.1021 (operator: "the main cloud structure are moving a different way
+// than the details of the clouds"): the LIVE MODIS envelope pins mass
+// placement to real geography (real weather cannot drift), but every
+// texture domain drifted at the old 0.0015 rad/s - interiors slid through
+// their own pinned silhouettes at ~580 km/min. Drifting the MODIS lookup
+// instead would wheel real geography (clear Sahara, ITCZ) around the
+// planet within the hour, so the fix is the drift rate itself: ~75x
+// slower = ~127 m/s equatorial = jet-stream speed. Structure and detail
+// now move coherently, and the residual silhouette mismatch accrues at
+// ~7.6 km/min - a gentle, realistic crawl. Slow evolution still comes
+// from the two sets' differential motion.
+const CLOUD_DRIFT_ZONAL: f32 = 0.00002;
+const CLOUD_DRIFT_CROSS: f32 = -0.000012;
 // Self-shadow lookup: great-circle step (radians) toward the sun, and how
 // hard a density rise over that step darkens this fragment. SHARP amplifies
 // the (already contrast-stretched) field differences into a usable shading
@@ -1366,7 +1376,12 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         // crown catch extra sky, samples deep in the fold between domes
         // sit in valley shade - the from-above relief cue that survives
         // even a zenith sun.
-        let crown_shade = mix(0.70, 1.12, dc.z);
+        // Regime-aware floor (v0.1021, watch item "cirrus possibly
+        // grayer"): thin families' samples sit LOW in their bands (small
+        // crown fraction), so a fixed 0.70 floor grayed cirrus veils that
+        // should stay bright. Faint regimes get a gentler valley shade.
+        let crown_floor = mix(0.88, 0.70, reg.opacity);
+        let crown_shade = mix(crown_floor, 1.12, dc.z);
         let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade;
         let lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5) + amb * ao;
 

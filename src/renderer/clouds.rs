@@ -193,8 +193,8 @@ pub const CLOUD_BAND_STRETCH: f32 = 1.75;
 /// "weather" -- rigid-rotation drift rates (rad/s of cloud-clock time) for
 /// the two octave sets. Different axes + different speeds = the summed
 /// field morphs rather than rotating as one piece.
-pub const CLOUD_DRIFT_ZONAL: f32 = 0.0015;
-pub const CLOUD_DRIFT_CROSS: f32 = -0.0009;
+pub const CLOUD_DRIFT_ZONAL: f32 = 0.00002;
+pub const CLOUD_DRIFT_CROSS: f32 = -0.000012;
 /// Mirrors `CLOUD_SHADOW_STEP` / `CLOUD_SHADOW_STRENGTH` /
 /// `CLOUD_SHADOW_SHARP`: the one-tap self-shadow lookup toward the sun.
 pub const CLOUD_SHADOW_STEP: f32 = 0.05;

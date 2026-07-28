@@ -313,6 +313,11 @@
       "date": "2026-07-27",
       "decision": "v0.1020.1: HUMANITY_NO_FOCUS instances now PROMOTE to normal interactive windows on first click (operator: mouse dead in boot-verify instances until app restart - the v0.1016 guard was permanent; now a state flag cleared by Focused(true)). Water perf pass 1: backstop fs early-out above the 3-octave sea_var (1 octave hue), crest domain-warp faded out where lambda < ~24px on screen (saves up to 6 noise evals/pixel at distance, smooth fade so no ring). Remaining perf rungs in PRIORITIES: water arena batching (~640 classic draws), 4-layer transparent overdraw measurement.",
       "rationale": "Operator-reported interactivity bug fixed at the design level (flag = launch behavior, not permanent crippling); perf gates chosen for zero visual cost first."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1021.1 morning (operator at Sponsor-A-Can, loop mode, goal = wrap planet gen then back to gameplay/house): cloud drift desync fixed by slowing CLOUD_DRIFT_ZONAL/CROSS ~75x to jet-stream rates (MODIS pins placement to geography; interiors slid through silhouettes at 580 km/min; drifting the MODIS UV would wheel real geography around the planet). Cirrus crown floor regime-aware (mix(0.88,0.70,opacity)). Rig A/B skipped after two night-side capture misfires - fix is constant arithmetic + 24 tests; operator judges aesthetics live. NEXT: the vegetation/tree instancing arc (the reserved fresh-session arc; owns square/circle tree boundary, trees-from-altitude, species variety) - the PLANTS pillar of the wrap-planet-gen goal.",
+      "rationale": "Day goal = finish planetary polish so gameplay loops resume; instancing arc is the biggest remaining plants item and today is its fresh session."
     }
   ],
   "active_scopes_to_avoid": [
