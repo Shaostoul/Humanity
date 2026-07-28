@@ -777,6 +777,12 @@ pub(crate) struct EngineState {
     /// re-wins without a visible deck snap). Shader consumes the sum.
     pub(crate) cloud_advect: f32,
     pub(crate) cloud_advect_decaying: f32,
+    /// Weather-event cloud override (v0.1037), eased per frame in the
+    /// weather bridge: extra deck coverage and rgb tint from the active
+    /// event's `cloud:` block (thunderstorm darkens, blizzard whitens).
+    /// The celestial pass only READS these (it holds planet borrows).
+    pub(crate) cloud_event_boost: f32,
+    pub(crate) cloud_event_tint: [f32; 3],
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

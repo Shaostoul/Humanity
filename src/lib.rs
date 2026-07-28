@@ -1816,6 +1816,8 @@ mod native_app {
                 ocean_fft: None,
                 cloud_advect: 0.0,
                 cloud_advect_decaying: 0.0,
+                cloud_event_boost: 0.0,
+                cloud_event_tint: [1.0; 3],
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -10357,9 +10359,18 @@ mod native_app {
                                         } else {
                                             crate::renderer::clouds::CLOUD_SHELL_SCALE
                                         };
+                                        // Weather-event override (v0.1037): the
+                                        // active event's eased coverage boost +
+                                        // tint ride the material slots the
+                                        // shader already reads (base_color.rgb
+                                        // = tint, .a = coverage) - zero shader
+                                        // changes, docs at 40-clouds.wgsl top.
+                                        let ev_t = state.cloud_event_tint;
+                                        let cov_eff =
+                                            (cov + state.cloud_event_boost).min(1.0);
                                         state.renderer.update_material_full(
                                             cmat,
-                                            [1.0, 1.0, 1.0, cov.min(1.0)],
+                                            [ev_t[0], ev_t[1], ev_t[2], cov_eff],
                                             crate::renderer::clouds::cloud_seed(d.terrain_seed),
                                             quality,
                                             15.0,
@@ -12406,6 +12417,34 @@ mod native_app {
                         state.cloud_advect = a;
                         state.cloud_advect_decaying = dc;
                         state.renderer.cloud_advect = a + dc;
+                        // Weather-event cloud override (v0.1037): ease the
+                        // deck's extra coverage + tint toward the active
+                        // event's cloud block (or back to neutral), ~10 s
+                        // time constant so a thunderstorm ROLLS the sky
+                        // over instead of snapping it.
+                        let (tb, tt) = if w.event_id.is_empty() {
+                            (0.0, [1.0f32; 3])
+                        } else {
+                            state
+                                .data_store
+                                .get::<crate::systems::weather_events::WeatherEventRegistry>(
+                                    "weather_event_registry",
+                                )
+                                .and_then(|r| r.events.iter().find(|e| e.id == w.event_id))
+                                .map(|e| {
+                                    (
+                                        e.cloud.coverage_boost,
+                                        [e.cloud.tint.0, e.cloud.tint.1, e.cloud.tint.2],
+                                    )
+                                })
+                                .unwrap_or((0.0, [1.0; 3]))
+                        };
+                        let ek = (dt as f32 / 10.0).min(1.0);
+                        state.cloud_event_boost += (tb - state.cloud_event_boost) * ek;
+                        for i in 0..3 {
+                            state.cloud_event_tint[i] +=
+                                (tt[i] - state.cloud_event_tint[i]) * ek;
+                        }
                     }
 
                     // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):

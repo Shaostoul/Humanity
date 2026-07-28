@@ -403,6 +403,10 @@
     {
       "date": "2026-07-28",
       "decision": "Rain streaks (v0.1036.1, precipitation inc 2): ParticleVertexData gains a world-space stretch vector (velocity * per-def streak_stretch SECONDS, serde default 0); particles.wgsl reorients the billboard basis along the projected velocity and lengthens by half the motion vector - stretch 0 reduces exactly to the round sprite, so only rain (0.035 s = ~40 cm at 12 m/s) changes. Vertex layout grew to 48 B/instance (location 3). Second collect_vertices call site (collect_all_vertices) caught by the compiler - both now pass the def streak."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Weather-event cloud overrides (v0.1037.1): active event coverage_boost + tint now ease (~10 s tau) in the weather bridge onto EngineState.cloud_event_boost/tint, and the per-frame cloud material update consumes them via the slots the shader ALREADY reads (base_color.rgb = tint documented since the material packing, .a = coverage) - zero shader changes, zero new uniforms. Celestial pass only reads the eased fields because it holds planet borrows (mutating there would E0502)."
     }
   ],
   "active_scopes_to_avoid": [
