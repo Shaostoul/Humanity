@@ -120,27 +120,54 @@ loop into ONE `multi_draw_indexed_indirect`:
 - The shadow pass keeps the per-draw loop: the 6 km caster cull leaves a
   few dozen draws, not worth a second culled args buffer.
 
-## Increment 3 (in progress): shared vertices via provoking-vertex flat data
+## Increment 3 (SHIPPED v0.1015.0): shared vertices via provoking-vertex flat data
 
 After increment 2 the 12k-budget frame is GPU vertex-throughput-bound:
 ~9.2M VS invocations per frame with ZERO post-transform cache reuse,
-because every grid triangle carries 3 unique vertices - the per-FACE
-color+flags pack rides identical UV values on all 3 corners, and sharing
+because every grid triangle carried 3 unique vertices - the per-FACE
+color+flags pack rode identical UV values on all 3 corners, and sharing
 would interpolate (and corrupt) the packed float.
 
-The fix that preserves the exact rendered output: SHARED grid vertices +
-@interpolate(flat) per-face data. WGSL flat interpolation takes the
-triangle's FIRST vertex value, so the packed color/flags move to a
-dedicated flat attribute and the index buffer is arranged so each
-triangle's first index points at a vertex carrying THAT face's pack.
-153 unique grid points cannot provide 256 unique provoking slots, so the
-builder duplicates a vertex when its provoking slot is already claimed -
-worst case ~280 vertices per patch instead of 768 (2.7x fewer VS
-invocations) plus real post-transform cache reuse on the shared ones.
-Vegetation cards keep genuinely interpolating UVs (sprite texcoords), so
-the vertex gains a separate flat `packed` attribute while `uv` stays
-smooth: terrain reads the flat pack, cards read uv, the card sentinel
-moves to the pack channel.
+Two-part fix that preserves the exact rendered output:
+
+1. Shader groundwork (v0.1013.1): VertexOutput gains
+   `@location(4) @interpolate(flat) pack: vec2<f32>` (copied from
+   vertex.uv); the type-12 fragment decode reads `in.pack` - the
+   provoking (first) vertex's value - instead of interpolated `in.uv`.
+   Exact no-op on unshared meshes (all corners equal), which is how it
+   soak-tested for a release before the layout flipped. Cards still read
+   interpolated `in.uv` for sprite texcoords (their sentinel now rides
+   the pack channel); the water-shell depth keeps interpolating by
+   design. Both stay 3-unique-verts-per-face.
+2. Mesh builder (`emit_shared_grid_faces`, planet_chunks.rs): emits each
+   unique (grid point, water-flavor) once; per face, tries the three
+   winding-preserving rotations (a,b,c)/(b,c,a)/(c,a,b) and picks one
+   whose first vertex is unclaimed or claims an identical pack;
+   duplicates one corner only when all three are claimed by other packs.
+   Water-flavor exists because land faces light with smoothed per-vertex
+   normals while water faces use spherical ones - a coastline point
+   serves both kinds through two flavored copies.
+
+MEASURED on a real mixed-terrain patch: 258 grid vertices vs 768
+(2.98x fewer VS invocations), 546 total with the still-unshared skirt vs
+1056 - patch vertex bytes nearly halved, plus real post-transform cache
+reuse on shared corners. Unit tests lock the invariants (provoking pack
+== face pack, rotation-only winding, full dedup under uniform color,
+hard vertex-count bound, coast flavoring).
+
+Rig note for future A/Bs: the probe rig window often boots BEHIND the
+operator's game and gets occlusion-throttled to a flat 30.00 fps /
+33.333 ms - the same orbital vantage read 96.8-120 fps in unthrottled
+launches. Whether a launch throttles is RANDOM (z-order race), so paired
+A/B runs are only valid when both launches' ORBITAL sweep fps agree
+(orbit draws almost no patches, making it a pure environment control -
+this is exactly how the v0.1015 "improvement" was caught as an invalid
+pair: shared exe 120 fps at orbit, unshared 30.0). Use vertex/byte
+counts (structural) or matched-control launches for frame times.
+Setting vsync=false in the rig config is NOT a workaround:
+Surface::configure panics ("window is in use", ResizeBuffers invalid)
+reproducibly on this DX12 adapter. For the record, the one unthrottled
+shared-exe run measured 27.6 ms at the Alps vantage, budget 24,576.
 
 ## Future increments
 

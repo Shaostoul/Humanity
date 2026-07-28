@@ -283,6 +283,11 @@
       "date": "2026-07-27",
       "decision": "v0.1014.1 clouds field-report arc (operator ranked clouds first): domed tops via height-rising carve threshold (CLOUD_TOP_RISE, fixes cliff edges + flat ceiling), geometric light ladder (first tap 3.9km->0.9km; deck-top relief finally shades) + crown channel from cloud_carve (valley shade at zenith sun, crown-weighted fine erosion = 3-13km turrets), fine-band de-stretch (straight slashes; same class as v0.1012 puff fix), MODIS swath-seam fixes in live_weather decode (3-pass fraction blur + chamfer validity FEATHER ~500km crossfade, idempotent + applied to old caches at load). Rig A/B at Libya broken deck + the 12N/122E swath band: cliffs->turreted domes, flat sheet->mottled mounds, razor band->feathered fronts. Deferred: slight double-lip cones at some mass leading edges (rounded now, watch operator reaction); cirrus may read a bit grayer from the crown floor 0.70.",
       "rationale": "Operator field report with real-photo references; all three complaints root-caused (two shader geometry/lighting, one DATA artifact from MODIS daily-composite swath boundaries) instead of tuned around."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1015.1 draw-batching increment 3 SHIPPED: shared terrain grid vertices via provoking-vertex packs (emit_shared_grid_faces in planet_chunks.rs; winding-preserving rotation claim, duplicate-on-conflict, water/land flavored coast copies). MEASURED 258 grid verts vs 768 per real patch (2.98x fewer VS invocations, patch vertex bytes ~halved); skirts+cards stay unshared. 4 new unit tests + 5 layout-assuming tests reworked to go through indices. Rig visual identity: pixel-identical Alps capture. NO rig FPS delta claimed: rig window randomly occlusion-throttles to flat 30fps behind the operator game (validate future A/B pairs by matching orbital sweep fps as environment control; vsync=false panics Surface::configure). One unthrottled shared run: 27.6ms at Alps/budget 24576.",
+      "rationale": "Operator-ranked arc; increments 1+2 left the frame GPU vertex-bound, sharing was the designed lever. Honest measurement note replaces an invalid A/B pair caught via the orbital control."
     }
   ],
   "active_scopes_to_avoid": [

@@ -169,6 +169,9 @@ pub const PATCH_CACHE_MAX_BYTES: usize = 1536 * 1024 * 1024;
 pub const PATCH_CACHE_WARM_BYTES: usize = 64 * 1024 * 1024;
 
 /// GPU byte estimate for one built patch (see PATCH_CACHE_MAX_BYTES).
+/// Exact for WATER-shell patches (still 3 unique verts per face); an
+/// upper bound for terrain patches since the shared-vertex layout
+/// (draw-batching increment 3) - terrain cache inserts use REAL bytes.
 pub const PATCH_MESH_BYTES: usize = 1056 * 32 + 1056 * 4;
 
 /// Skirt depth = patch edge arc * this fraction, clamped to the min/max
@@ -1239,6 +1242,126 @@ fn boundary_indices(n: u32) -> Vec<usize> {
     out
 }
 
+/// One grid triangle's worth of input to `emit_shared_grid_faces`: corner
+/// GRID indices (triangular-grid order, winding preserved as given) plus
+/// the per-FACE data the provoking vertex must transport.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SharedGridFace {
+    pub a: usize,
+    pub b: usize,
+    pub c: usize,
+    pub color: [f32; 3],
+    pub water: bool,
+}
+
+/// Draw-batching increment 3 (v0.1015): SHARED grid vertices via
+/// provoking-vertex per-face data.
+///
+/// Every grid triangle used to emit 3 unique vertices (768/patch) purely
+/// so its packed per-face color could ride identical UVs on all corners -
+/// sharing would have interpolated (and corrupted) the packed float. Since
+/// v0.1013.1 the fragment shader reads the pack through an
+/// @interpolate(flat) channel, which takes the value from each triangle's
+/// FIRST (provoking) vertex only. So vertices can now be shared: this
+/// function emits each unique (grid point, water-flavor) once and arranges
+/// the index buffer so every face's first index points at a vertex
+/// carrying THAT face's pack:
+///
+/// - A face tries its three winding-preserving rotations (a,b,c) ->
+///   (b,c,a) -> (c,a,b) and picks one whose first vertex is unclaimed (or
+///   already claims an identical pack - equal-color faces share).
+/// - When all three corners are claimed with different packs, ONE corner
+///   is duplicated to carry this face's pack (~103 duplicates worst case
+///   on the 16-tess grid: 256 faces vs 153 points; ~280 vertices total vs
+///   768 - 2.7x fewer VS invocations plus real post-transform cache reuse).
+/// - WATER-flavor: land faces light with the smoothed per-vertex normals,
+///   water faces with spherical ones, so a coastline grid point serves the
+///   two face kinds through separate flavored copies (position identical).
+///
+/// Non-provoking vertices keep the color of the first face that touched
+/// them: their UV is never flat-read, and grid faces ignore interpolated
+/// in.uv entirely (only cards and the water shell consume it, both emitted
+/// elsewhere and still unshared). `make_vertex(grid_idx, water)` supplies
+/// position + flavor normal; color/water are overwritten on claim.
+pub(crate) fn emit_shared_grid_faces(
+    faces: &[SharedGridFace],
+    mut make_vertex: impl FnMut(usize, bool) -> SurfaceVertexData,
+    vertices: &mut Vec<SurfaceVertexData>,
+    indices: &mut Vec<u32>,
+) {
+    let n_slots = faces
+        .iter()
+        .map(|f| f.a.max(f.b).max(f.c) + 1)
+        .max()
+        .unwrap_or(0);
+    // Per (grid point, flavor): the emitted vertex index and, once some
+    // face's provoking corner lands here, the color it claims.
+    struct Slot {
+        vi: u32,
+        claimed: Option<[f32; 3]>,
+    }
+    let mut land: Vec<Option<Slot>> = (0..n_slots).map(|_| None).collect();
+    let mut water: Vec<Option<Slot>> = (0..n_slots).map(|_| None).collect();
+
+    for f in faces {
+        let flavor = f.water;
+        // Materialize this face's three corner vertices in its flavor.
+        let mut vis = [0u32; 3];
+        for (k, gi) in [f.a, f.b, f.c].into_iter().enumerate() {
+            let slots = if flavor { &mut water } else { &mut land };
+            let slot = &mut slots[gi];
+            if slot.is_none() {
+                let mut v = make_vertex(gi, flavor);
+                v.color = f.color;
+                v.water = flavor;
+                *slot = Some(Slot { vi: vertices.len() as u32, claimed: None });
+                vertices.push(v);
+            }
+            vis[k] = slot.as_ref().unwrap().vi;
+        }
+        // Winding-preserving rotation whose provoking slot is free or
+        // already carries this exact pack.
+        let grid = [f.a, f.b, f.c];
+        let mut chosen: Option<usize> = None;
+        for rot in 0..3 {
+            let slots = if flavor { &mut water } else { &mut land };
+            let slot = slots[grid[rot]].as_mut().unwrap();
+            match slot.claimed {
+                None => {
+                    slot.claimed = Some(f.color);
+                    vertices[slot.vi as usize].color = f.color;
+                    chosen = Some(rot);
+                    break;
+                }
+                Some(c) if c == f.color => {
+                    chosen = Some(rot);
+                    break;
+                }
+                Some(_) => {}
+            }
+        }
+        match chosen {
+            Some(rot) => {
+                indices.push(vis[rot]);
+                indices.push(vis[(rot + 1) % 3]);
+                indices.push(vis[(rot + 2) % 3]);
+            }
+            None => {
+                // All three corners already provoke other packs: duplicate
+                // corner A to carry this face's pack.
+                let mut v = make_vertex(f.a, flavor);
+                v.color = f.color;
+                v.water = flavor;
+                let dup = vertices.len() as u32;
+                vertices.push(v);
+                indices.push(dup);
+                indices.push(vis[1]);
+                indices.push(vis[2]);
+            }
+        }
+    }
+}
+
 /// Build one patch's flat-shaded mesh.
 ///
 /// Precision (design constraint 1): every position is computed in f64
@@ -1381,9 +1504,10 @@ pub fn build_patch_mesh(
         }
     }
 
-    let mut emit_face = |ia: usize, ib: usize, ic: usize,
-                         vertices: &mut Vec<SurfaceVertexData>,
-                         indices: &mut Vec<u32>| {
+    // Per-FACE data (color + water), identical math to the old per-face
+    // emission; the winding-preserving provoking-vertex layout is handled
+    // by emit_shared_grid_faces (draw-batching increment 3 - see its doc).
+    let face_data = |ia: usize, ib: usize, ic: usize| -> SharedGridFace {
         let mean_e = (elevs[ia] + elevs[ib] + elevs[ic]) / 3.0;
         let centroid_dir = ((dirs[ia] + dirs[ib] + dirs[ic]) / 3.0).normalize();
         // Real imagery when the def ships an albedo grid (Earth), the
@@ -1392,21 +1516,9 @@ pub fn build_patch_mesh(
         let color = surface_color(def, albedo, centroid_dir.as_vec3(), mean_e);
         let underwater = def.has_water && mean_e < sea;
         if underwater {
-            // Smooth ocean: per-corner spherical normals. Positions are
-            // already on the undisplaced sphere (displaced_radius clamps
-            // below-sea to 1.0 on water worlds). water: true drives the
-            // shader's sun glint.
-            for &i in &[ia, ib, ic] {
-                indices.push(vertices.len() as u32);
-                vertices.push(SurfaceVertexData {
-                    position: offsets[i].to_array(),
-                    normal: dirs[i].as_vec3().to_array(),
-                    color,
-                    water: true,
-                    tree_card: false,
-                    grass_card: false,
-                });
-            }
+            // water: true drives the shader's sun glint; smooth spherical
+            // normals ride the water-flavor vertices.
+            SharedGridFace { a: ia, b: ib, c: ic, color, water: true }
         } else {
             let (p0, p1, p2) = (offsets[ia], offsets[ib], offsets[ic]);
             let mut nrm = (p1 - p0).cross(p2 - p0).normalize_or_zero();
@@ -1416,22 +1528,12 @@ pub fn build_patch_mesh(
                 // never an inside-out face.
                 nrm = out;
             }
-            // Slope shading stays per-FACE (color corners must match for
-            // the packed transport); LIGHTING normals are the smooth
-            // per-vertex averages (v0.884) so quantization ledges melt.
+            // Slope shading stays per-FACE (it rides the provoking pack);
+            // LIGHTING normals are the smooth per-vertex averages (v0.884)
+            // so quantization ledges melt.
             let shade = slope_shade(nrm, out);
             let color = [color[0] * shade, color[1] * shade, color[2] * shade];
-            for &i in &[ia, ib, ic] {
-                indices.push(vertices.len() as u32);
-                vertices.push(SurfaceVertexData {
-                    position: offsets[i].to_array(),
-                    normal: vnorm[i].to_array(),
-                    color,
-                    water: false,
-                        tree_card: false,
-                        grass_card: false,
-                });
-            }
+            SharedGridFace { a: ia, b: ib, c: ic, color, water: false }
         }
     };
 
@@ -1439,26 +1541,42 @@ pub fn build_patch_mesh(
     // r down-pointing triangles; both windings verified CCW-from-outside
     // (they match the parent corner orientation, which matches the
     // icosphere the backface-culling pipeline already draws correctly).
+    // emit_shared_grid_faces only ever ROTATES an index triple, so the
+    // orientation survives sharing.
+    let mut grid_faces: Vec<SharedGridFace> = Vec::with_capacity(grid_tris);
     for r in 0..n {
         for c in 0..=r {
-            emit_face(
+            grid_faces.push(face_data(
                 grid_idx(r, c),
                 grid_idx(r + 1, c),
                 grid_idx(r + 1, c + 1),
-                &mut vertices,
-                &mut indices,
-            );
+            ));
         }
         for c in 0..r {
-            emit_face(
+            grid_faces.push(face_data(
                 grid_idx(r, c),
                 grid_idx(r + 1, c + 1),
                 grid_idx(r, c + 1),
-                &mut vertices,
-                &mut indices,
-            );
+            ));
         }
     }
+    emit_shared_grid_faces(
+        &grid_faces,
+        |gi, water_flavor| SurfaceVertexData {
+            position: offsets[gi].to_array(),
+            normal: if water_flavor {
+                dirs[gi].as_vec3().to_array()
+            } else {
+                vnorm[gi].to_array()
+            },
+            color: [0.0; 3], // overwritten by the emitter
+            water: water_flavor,
+            tree_card: false,
+            grass_card: false,
+        },
+        &mut vertices,
+        &mut indices,
+    );
 
     // ── Procedural vegetation (v0.888; planet-fixed cells v0.897) ──
     // Crossed-quad trunks + diamond canopies, grass as crossed cards. Plant
@@ -2493,6 +2611,150 @@ impl ChunkState {
 mod tests {
     use super::*;
 
+    // ── emit_shared_grid_faces (draw-batching increment 3) ──
+
+    /// Grid-index-encoding vertex factory: position.x = grid index,
+    /// position.y = flavor, so tests can map emitted vertices back.
+    fn test_vertex(gi: usize, water: bool) -> SurfaceVertexData {
+        SurfaceVertexData {
+            position: [gi as f32, if water { 1.0 } else { 0.0 }, 0.0],
+            normal: [0.0, 1.0, 0.0],
+            color: [0.0; 3],
+            water,
+            tree_card: false,
+            grass_card: false,
+        }
+    }
+
+    /// The full 16-tess triangular grid's face list with a color function.
+    fn full_grid_faces(color_of: impl Fn(usize) -> [f32; 3]) -> Vec<SharedGridFace> {
+        let n = PATCH_TESS;
+        let mut faces = Vec::new();
+        for r in 0..n {
+            for c in 0..=r {
+                faces.push((grid_idx(r, c), grid_idx(r + 1, c), grid_idx(r + 1, c + 1)));
+            }
+            for c in 0..r {
+                faces.push((grid_idx(r, c), grid_idx(r + 1, c + 1), grid_idx(r, c + 1)));
+            }
+        }
+        faces
+            .into_iter()
+            .enumerate()
+            .map(|(i, (a, b, c))| SharedGridFace { a, b, c, color: color_of(i), water: false })
+            .collect()
+    }
+
+    #[test]
+    fn shared_grid_provoking_carries_each_faces_pack_and_preserves_winding() {
+        // Worst case for sharing: every face a distinct color.
+        let faces = full_grid_faces(|i| [i as f32, (i * 7) as f32, (i * 13) as f32]);
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        emit_shared_grid_faces(&faces, test_vertex, &mut vertices, &mut indices);
+        assert_eq!(indices.len(), faces.len() * 3);
+        for (i, f) in faces.iter().enumerate() {
+            let tri: Vec<usize> =
+                indices[i * 3..i * 3 + 3].iter().map(|&v| v as usize).collect();
+            // Provoking vertex carries THIS face's pack.
+            assert_eq!(
+                vertices[tri[0]].color, f.color,
+                "face {i}: provoking vertex carries a foreign pack"
+            );
+            assert!(!vertices[tri[0]].water);
+            // The emitted triple is a winding-preserving ROTATION of
+            // (a,b,c), mapped through the grid encoding in position.x.
+            let g: Vec<usize> =
+                tri.iter().map(|&vi| vertices[vi].position[0] as usize).collect();
+            let orig = [f.a, f.b, f.c];
+            let ok = (0..3).any(|r| {
+                g[0] == orig[r] && g[1] == orig[(r + 1) % 3] && g[2] == orig[(r + 2) % 3]
+            });
+            assert!(ok, "face {i}: {g:?} is not a rotation of {orig:?}");
+        }
+        // Sharing bound: 153 unique points + at most one duplicate per
+        // face; the greedy 3-rotation claim keeps it far below the old
+        // 768-vertex layout even with every color distinct.
+        let points = ((PATCH_TESS + 1) * (PATCH_TESS + 2) / 2) as usize;
+        assert!(vertices.len() >= faces.len().min(points));
+        assert!(
+            vertices.len() <= points + faces.len(),
+            "vertex count {} above the hard bound",
+            vertices.len()
+        );
+        assert!(
+            vertices.len() < 480,
+            "distinct-color sharing too weak: {} verts (old layout 768)",
+            vertices.len()
+        );
+    }
+
+    #[test]
+    fn shared_grid_dedups_fully_when_colors_repeat() {
+        // One color everywhere: every face can claim any corner, so the
+        // vertex array must collapse to exactly the unique grid points.
+        let faces = full_grid_faces(|_| [0.25, 0.5, 0.75]);
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        emit_shared_grid_faces(&faces, test_vertex, &mut vertices, &mut indices);
+        let points = ((PATCH_TESS + 1) * (PATCH_TESS + 2) / 2) as usize;
+        assert_eq!(vertices.len(), points, "uniform color must dedup fully");
+        assert!(vertices.iter().all(|v| v.color == [0.25, 0.5, 0.75]));
+    }
+
+    #[test]
+    fn shared_grid_flavors_coastline_vertices_per_face_kind() {
+        // Two faces sharing an edge, one water one land: the shared grid
+        // points must exist in BOTH flavors, and every face must reference
+        // only vertices of its own flavor (they carry different normals).
+        let faces = [
+            SharedGridFace { a: 0, b: 1, c: 2, color: [0.1, 0.2, 0.3], water: false },
+            SharedGridFace { a: 0, b: 2, c: 1, color: [0.4, 0.5, 0.6], water: true },
+        ];
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        emit_shared_grid_faces(&faces, test_vertex, &mut vertices, &mut indices);
+        for (i, f) in faces.iter().enumerate() {
+            for k in 0..3 {
+                let v = &vertices[indices[i * 3 + k] as usize];
+                assert_eq!(v.water, f.water, "face {i} corner {k} wrong flavor");
+                assert_eq!(v.position[1], if f.water { 1.0 } else { 0.0 });
+            }
+        }
+        // 3 land + 3 water copies, no cross-flavor sharing.
+        assert_eq!(vertices.len(), 6);
+    }
+
+    #[test]
+    fn shared_grid_duplicates_when_all_corners_are_claimed() {
+        // A fan of 4 faces around vertex 0 where every face also touches
+        // vertices claimed early: forces at least one duplicate, which
+        // must still carry the right pack + winding.
+        let faces = [
+            SharedGridFace { a: 0, b: 1, c: 2, color: [1.0, 0.0, 0.0], water: false },
+            SharedGridFace { a: 1, b: 3, c: 2, color: [0.0, 1.0, 0.0], water: false },
+            SharedGridFace { a: 2, b: 3, c: 0, color: [0.0, 0.0, 1.0], water: false },
+            // All of 0,1,2,3 are now claimed: this face must duplicate.
+            SharedGridFace { a: 0, b: 2, c: 1, color: [1.0, 1.0, 0.0], water: false },
+        ];
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        emit_shared_grid_faces(&faces, test_vertex, &mut vertices, &mut indices);
+        assert_eq!(vertices.len(), 5, "expected exactly one duplicate");
+        for (i, f) in faces.iter().enumerate() {
+            let tri: Vec<usize> =
+                indices[i * 3..i * 3 + 3].iter().map(|&v| v as usize).collect();
+            assert_eq!(vertices[tri[0]].color, f.color, "face {i} pack wrong");
+            let g: Vec<usize> =
+                tri.iter().map(|&vi| vertices[vi].position[0] as usize).collect();
+            let orig = [f.a, f.b, f.c];
+            let ok = (0..3).any(|r| {
+                g[0] == orig[r] && g[1] == orig[(r + 1) % 3] && g[2] == orig[(r + 2) % 3]
+            });
+            assert!(ok, "face {i}: {g:?} not a rotation of {orig:?}");
+        }
+    }
+
     /// Earth-like water world def with a heightmap-loader-style sea level.
     fn earth_like() -> PlanetDef {
         let mut def: PlanetDef = ron::from_str(
@@ -3078,16 +3340,27 @@ mod tests {
         let n = PATCH_TESS;
         let grid_tris = (n * n) as usize;
         let skirt_tris = (3 * n * 2) as usize;
-        assert_eq!(pm.mesh.vertices.len(), (grid_tris + skirt_tris) * 3);
+        // Index count is layout-independent: 3 per face, grid + skirt.
         assert_eq!(pm.mesh.indices.len(), (grid_tris + skirt_tris) * 3);
-        assert_eq!(pm.mesh.vertices.len(), 1056, "the documented 37 KB patch");
-        // Sequential indices (flat shading).
-        assert!(pm.mesh.indices.iter().enumerate().all(|(i, &v)| v as usize == i));
+        // Shared-vertex grid (draw-batching increment 3): the grid portion
+        // must come in well under the old 3-unique-per-face 768, plus the
+        // still-unshared skirt (288). The unique grid points alone are 153;
+        // provoking-slot duplicates push it up, but far below 768.
+        let grid_vert_count = pm.mesh.vertices.len() - skirt_tris * 3;
+        assert!(
+            grid_vert_count < 480,
+            "grid vertex sharing regressed: {grid_vert_count} grid verts (old layout was 768)"
+        );
         // Every GRID face must wind CCW from outside: its geometric normal
-        // (recomputed from positions) points away from the planet center.
+        // (recomputed from positions THROUGH THE INDICES) points away from
+        // the planet center.
         let anchor = pm.anchor;
         for t in 0..grid_tris {
-            let p = |k: usize| glam::Vec3::from_array(pm.mesh.vertices[t * 3 + k].position);
+            let p = |k: usize| {
+                glam::Vec3::from_array(
+                    pm.mesh.vertices[pm.mesh.indices[t * 3 + k] as usize].position,
+                )
+            };
             let (a, b, c) = (p(0), p(1), p(2));
             let nrm = (b - a).cross(c - a);
             if nrm.length_squared() < 1e-12 {
@@ -3111,9 +3384,11 @@ mod tests {
         let id = PatchId::root(2).child(0).child(0).child(0);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
-        let grid_tris = (n * n) as usize;
-        let skirt_verts = &pm.mesh.vertices[grid_tris * 3..];
-        assert_eq!(skirt_verts.len(), (3 * n * 2) as usize * 3);
+        // Skirt vertices are still emitted unshared, APPENDED after the
+        // shared grid: take the tail (the grid portion is variable now).
+        let skirt_len = (3 * n * 2) as usize * 3;
+        let skirt_verts = &pm.mesh.vertices[pm.mesh.vertices.len() - skirt_len..];
+        assert_eq!(skirt_verts.len(), skirt_len);
         let edge_m = patch_edge_arc_m(id.depth, def.radius);
         let expect_depth = (edge_m * SKIRT_EDGE_FRACTION).clamp(SKIRT_MIN_M, SKIRT_MAX_M);
         // Each skirt quad is (s0, s1, b1, then s0, b1, b0): vertices 0,1,3
@@ -3158,7 +3433,8 @@ mod tests {
         let sea = def.sea_level;
         let range_m = hm.max_meters() - hm.min_meters();
         let mut worst = 0.0_f64;
-        let mut vi = 0usize; // walks the flat-shaded grid emission order
+        let mut vi = 0usize; // face-corner counter (through the indices)
+        let mut fi = 0usize; // face counter, matching the emission order
         for r in 0..n {
             let row_faces: Vec<[ (u32, u32); 3 ]> = {
                 let mut v = Vec::new();
@@ -3171,26 +3447,42 @@ mod tests {
                 v
             };
             for face in row_faces {
-                for (rr, cc) in face {
-                    let w0 = (n - rr) as f64;
-                    let w1 = (rr - cc) as f64;
-                    let w2 = cc as f64;
-                    let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
-                    // Same elevation pipeline as the builder.
-                    let base = hm.normalized_at(dir.as_vec3());
-                    let above = (base - sea) * range_m;
-                    let mask = smoothstep01(above / DETAIL_LAND_FADE_M);
-                    let e = if mask > 0.0 {
-                        (base + detail.sample_m(dir, id.depth) * mask / range_m).clamp(0.0, 1.0)
-                    } else {
-                        base.clamp(0.0, 1.0)
-                    };
-                    let exact = dir * (def.radius * displaced_radius_f64(&def, e as f64));
+                // Exact f64 positions for this face's three corners.
+                let exact: Vec<DVec3> = face
+                    .iter()
+                    .map(|&(rr, cc)| {
+                        let w0 = (n - rr) as f64;
+                        let w1 = (rr - cc) as f64;
+                        let w2 = cc as f64;
+                        let dir =
+                            (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
+                        // Same elevation pipeline as the builder.
+                        let base = hm.normalized_at(dir.as_vec3());
+                        let above = (base - sea) * range_m;
+                        let mask = smoothstep01(above / DETAIL_LAND_FADE_M);
+                        let e = if mask > 0.0 {
+                            (base + detail.sample_m(dir, id.depth) * mask / range_m)
+                                .clamp(0.0, 1.0)
+                        } else {
+                            base.clamp(0.0, 1.0)
+                        };
+                        dir * (def.radius * displaced_radius_f64(&def, e as f64))
+                    })
+                    .collect();
+                // The shared-vertex layout may ROTATE the triple, so match
+                // each reconstructed corner to its nearest exact corner.
+                for k in 0..3 {
+                    let idx = pm.mesh.indices[fi * 3 + k] as usize;
                     let recon = pm.anchor
-                        + glam::Vec3::from_array(pm.mesh.vertices[vi].position).as_dvec3();
-                    worst = worst.max((exact - recon).length());
+                        + glam::Vec3::from_array(pm.mesh.vertices[idx].position).as_dvec3();
+                    let err = exact
+                        .iter()
+                        .map(|e| (*e - recon).length())
+                        .fold(f64::MAX, f64::min);
+                    worst = worst.max(err);
                     vi += 1;
                 }
+                fi += 1;
             }
         }
         assert!(vi > 0);
@@ -3238,9 +3530,13 @@ mod tests {
         let a = build_patch_mesh(&def, &src, None, &parent.child(0));
         let b = build_patch_mesh(&def, &src, None, &parent.child(3));
         let world = |pm: &PatchMesh| -> Vec<DVec3> {
-            pm.mesh.vertices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
+            pm.mesh.indices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
                 .iter()
-                .map(|v| pm.anchor + glam::Vec3::from_array(v.position).as_dvec3())
+                .map(|&i| {
+                    pm.anchor
+                        + glam::Vec3::from_array(pm.mesh.vertices[i as usize].position)
+                            .as_dvec3()
+                })
                 .collect()
         };
         let wa = world(&a);
@@ -3277,7 +3573,7 @@ mod tests {
         let src = ElevationSource::Heightmap { hm: &ocean, detail: &detail, tiles: None, ocean: None };
         let pm = build_patch_mesh(&def_ocean, &src, None, &PatchId::root(0).child(3));
         let n = PATCH_TESS;
-        for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
+        for v in &pm.mesh.vertices[..pm.mesh.vertices.len() - (3 * n * 2) as usize * 3] {
             let r = (pm.anchor + glam::Vec3::from_array(v.position).as_dvec3()).length();
             assert!(
                 (r - def_ocean.radius).abs() < 0.5,
@@ -3383,7 +3679,7 @@ mod tests {
         assert_eq!(id.depth, MAX_PATCH_DEPTH);
         let pm = build_patch_mesh(&def, &src, None, &id);
         let n = PATCH_TESS;
-        for v in &pm.mesh.vertices[..(n * n) as usize * 3] {
+        for v in &pm.mesh.vertices[..pm.mesh.vertices.len() - (3 * n * 2) as usize * 3] {
             let r = (pm.anchor + glam::Vec3::from_array(v.position).as_dvec3()).length();
             assert!(
                 (r - def.radius).abs() < 0.5,
@@ -3412,11 +3708,17 @@ mod tests {
         assert_eq!(parent.child(0).depth, DETAIL_FINE_MIN_DEPTH[0], "gate must be live");
         let a = build_patch_mesh(&def, &src, None, &parent.child(0));
         let b = build_patch_mesh(&def, &src, None, &parent.child(3));
-        assert_eq!(a.mesh.vertices.len(), 1056);
+        // Grid corner positions THROUGH the indices (the shared-vertex
+        // layout dedups the vertex array; the face-corner multiset the
+        // border comparison needs is index-defined and unchanged).
         let world = |pm: &PatchMesh| -> Vec<DVec3> {
-            pm.mesh.vertices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
+            pm.mesh.indices[..(PATCH_TESS * PATCH_TESS) as usize * 3]
                 .iter()
-                .map(|v| pm.anchor + glam::Vec3::from_array(v.position).as_dvec3())
+                .map(|&i| {
+                    pm.anchor
+                        + glam::Vec3::from_array(pm.mesh.vertices[i as usize].position)
+                            .as_dvec3()
+                })
                 .collect()
         };
         let wa = world(&a);

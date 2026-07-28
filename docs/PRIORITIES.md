@@ -58,6 +58,15 @@
 >   terrain vertices with FS-derived per-face data, or bigger patches
 >   (PATCH_TESS 16 -> 32 = 1/4 the draws at equal quality). Practical
 >   note for the operator: budgets 2048-4096 run 60+ FPS today.
+> - DONE increment 3 - shared terrain vertices (v0.1015.1): provoking-
+>   vertex flat packs (shader groundwork v0.1013.1 + the
+>   emit_shared_grid_faces builder). 258 grid verts vs 768 per patch =
+>   2.98x fewer VS invocations on the measured vertex-bound frame; visual
+>   pixel-identity rig-verified. Rig FPS A/B invalidated by the random
+>   occlusion throttle (see terrain-draw-batching.md rig note; orbital
+>   fps = the environment control for future pairs) - operator's live
+>   HUD is the real bench. Remaining levers in the design doc: GPU
+>   frustum culling, PATCH_TESS 32, tree instancing (reserved arc).
 > - DONE voxel-terrain direction doc (docs/design/voxel-terrain.md):
 >   Dover cliffs/overhangs/caves/digging as sparse ico-prism voxel
 >   OVERLAY on the heightmap + impact-crater ladder; increment 1 =
