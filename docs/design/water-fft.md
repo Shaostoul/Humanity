@@ -34,14 +34,26 @@ waves pinch - whitecaps emerge from the math instead of a threshold).
 ## Tiling and the f32 discipline
 
 Cascade tiles must respect the camera-anchored 64 m-modulus domain
-(CLAUDE.md f32-at-scale gotcha - the anchored-chop precedent):
+(CLAUDE.md f32-at-scale gotcha - the anchored-chop precedent).
 
-- Cascade A (swell): 256 m tile (= 4 x 64), 128x128 -> 2 m texels.
-- Cascade B (chop, increment 3): 32 m tile (= 64 / 2), 128x128 -> 25 cm.
-- Shader samples displacement at (anchw + dvw) / tile - anchor snaps
-  shift UVs by whole tiles, exactly the invariant the wave texture and
-  anchored chop trains already rely on. No planet-radius f32 dots
-  anywhere in the path.
+CORRECTION (v0.1029, found during increment 1): the tile must DIVIDE the
+64 m anchor modulus, not be a multiple of it. ground_anchor snaps in
+exact 64 m steps, so a 256 m tile would shift by a QUARTER tile per snap
+(a visible sea jump); a 64 m tile shifts by exactly one whole period
+(invisible). So:
+
+- Cascade A (shipped, increment 1): 64 m tile, 128x128 -> 0.5 m texels.
+  Replaces the three anchored chop trains; the three long swells
+  (> 64 m wavelength) stay analytic in both modes.
+- Cascade B (chop, increment 3): 32 m or 16 m tile (divide 64), finer
+  texels for sub-half-metre ripple.
+- A LONG-swell cascade (256 m) needs its own mod-256 anchor uniform -
+  one extra vec3 pad, increment 3 work.
+- Shader samples displacement at (anchw + dvw) / tile via triplanar
+  projection (a single 2D plane degenerates at the equator; three
+  axis planes blended by radial^2 cover every latitude, matching the
+  trains' three axis-aligned directions). Anchor snaps shift UVs by
+  whole tiles. No planet-radius f32 dots anywhere in the path.
 
 ## Drawn == sampled, stronger than ever
 

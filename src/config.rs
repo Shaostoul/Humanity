@@ -443,6 +443,18 @@ pub struct AppConfig {
     /// material flag. serde-defaulted true so old configs gain the effect.
     #[serde(default = "default_true")]
     pub planet_surface_detail: bool,
+    /// FFT ocean (v0.1029, water-fft.md increment 1): replace the three
+    /// anchored chop trains with a JONSWAP-spectrum FFT field (~16k
+    /// simultaneous waves on a 64 m tile). Experimental; default OFF -
+    /// the wave trains stay the shipped look until increment 2.
+    #[serde(default)]
+    pub water_fft: bool,
+    /// Far-tree canopy card sheet (v0.1022-v0.1027). Default OFF: the
+    /// clump cards read as "black squares in a grid" at altitude (operator,
+    /// twice) - proper far coverage arrives with the instancing/impostor
+    /// arc. The code stays for A/B while that lands.
+    #[serde(default)]
+    pub far_tree_sheet: bool,
     /// Cloud quality (clouds increment 3): "low" = the increment-1 painted
     /// deck, "medium" = the increment-2 10-sample field march, "high" = the
     /// volumetric 3D-noise system (default). Unknown values fall to high at
@@ -997,6 +1009,8 @@ impl AppConfig {
             live_weather: state.settings.live_weather,
             track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
+            water_fft: state.settings.water_fft,
+            far_tree_sheet: state.settings.far_tree_sheet,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
             hostile_wildlife: state.settings.hostile_wildlife,
@@ -1143,6 +1157,8 @@ impl AppConfig {
         state.settings.live_weather = self.live_weather;
         state.settings.track_station = self.track_station;
         state.settings.planet_surface_detail = self.planet_surface_detail;
+        state.settings.water_fft = self.water_fft;
+        state.settings.far_tree_sheet = self.far_tree_sheet;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.
         state.settings.cloud_quality =

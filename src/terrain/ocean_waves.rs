@@ -93,11 +93,21 @@ fn wgsl_fract(x: f32) -> f32 {
 /// pure noise - the physics float must be smooth even where the shader's
 /// anchored-domain trick is unavailable.
 pub fn wave_height_m(p_m: glam::DVec3, t: f32) -> f32 {
+    trains_height(&TRAINS, p_m, t)
+}
+
+/// The three long-swell trains only (lambda > 64 m): the part of the sea
+/// that stays analytic in FFT-ocean mode, because the 64 m FFT tile
+/// cannot hold wavelengths longer than itself (see ocean_fft.rs).
+pub fn swell_height_m(p_m: glam::DVec3, t: f32) -> f32 {
+    trains_height(&TRAINS[..3], p_m, t)
+}
+
+fn trains_height(trains: &[WaveTrain], p_m: glam::DVec3, t: f32) -> f32 {
     let mut h = 0.0f32;
-    let pd = p_m;
-    for tr in TRAINS {
+    for tr in trains {
         let d = glam::DVec3::new(tr.dir[0] as f64, tr.dir[1] as f64, tr.dir[2] as f64);
-        let phase = wgsl_fract64(pd.dot(d) / tr.lambda_m as f64 - (t * tr.cps) as f64);
+        let phase = wgsl_fract64(p_m.dot(d) / tr.lambda_m as f64 - (t * tr.cps) as f64);
         h += tr.height_m * (phase as f32 * TAU).cos();
     }
     h

@@ -765,6 +765,11 @@ pub(crate) struct EngineState {
             Option<(crate::terrain::planet_surface::SurfaceMeshData, glam::DVec3)>,
         >,
     >,
+    /// FFT-ocean spectrum + per-frame height realization (v0.1029,
+    /// water-fft.md increment 1). Built lazily when the Settings toggle
+    /// turns on near an ocean body; the SAME height array feeds the GPU
+    /// displacement tile and the buoyancy twin (drawn == sampled).
+    pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanFft>,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

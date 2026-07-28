@@ -1813,6 +1813,7 @@ mod native_app {
                 far_tree_anchor: glam::DVec3::ZERO,
                 far_tree_built_cam: glam::DVec3::splat(1.0e30),
                 far_tree_pending: None,
+                ocean_fft: None,
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -3953,9 +3954,23 @@ mod native_app {
                                         // toward the waterline exactly like the
                                         // vertex displacement (drawn == sampled).
                                         let depth_m = (d.radius - g).max(0.0) as f32;
-                                        let wave = crate::terrain::ocean_waves::wave_height_shoaled_m(
-                                            p, t, depth_m,
-                                        )
+                                        // FFT-ocean mode swaps in its twin
+                                        // (v0.1029): same shoal damping, same
+                                        // clock, same array the GPU tile drew
+                                        // this frame.
+                                        let wave = if let Some(fft) = state
+                                            .ocean_fft
+                                            .as_ref()
+                                            .filter(|_| state.gui_state.settings.water_fft)
+                                        {
+                                            crate::terrain::ocean_fft::wave_height_shoaled_fft_m(
+                                                p, t, depth_m, fft,
+                                            )
+                                        } else {
+                                            crate::terrain::ocean_waves::wave_height_shoaled_m(
+                                                p, t, depth_m,
+                                            )
+                                        }
                                             as f64;
                                         g = g.max(
                                             d.radius
@@ -9324,7 +9339,15 @@ mod native_app {
                                 // ground point moves; same cell hash as the
                                 // baked cards so the handoff never teleports
                                 // a tree.
-                                if b.id == "earth" && chunked_drawn {
+                                // Default OFF (v0.1029): at altitude the clump
+                                // cards read as "black squares in a grid"
+                                // (operator, twice). Proper far coverage is
+                                // the impostor arc; the sheet stays behind
+                                // this Settings toggle for A/B until then.
+                                if b.id == "earth"
+                                    && chunked_drawn
+                                    && state.gui_state.settings.far_tree_sheet
+                                {
                                     if let Some(rx) = &state.far_tree_pending {
                                         match rx.try_recv() {
                                             Ok(result) => {
@@ -12268,6 +12291,44 @@ mod native_app {
                             let k = (dt as f32 / 30.0).min(1.0);
                             state.renderer.sea_state +=
                                 (target - state.renderer.sea_state) * k;
+                        }
+                    }
+
+                    // FFT-ocean upkeep (v0.1029, water-fft.md increment 1):
+                    // build the spectrum on first use, realize this frame's
+                    // height field, and hand the SAME array to the GPU
+                    // displacement tile that the buoyancy twin reads -
+                    // drawn == sampled by construction. ~0.4 ms release;
+                    // moves to a worker (or GPU compute) in increment 4.
+                    if state.gui_state.settings.water_fft {
+                        if state.ocean_fft.is_none() {
+                            let seed = state
+                                .planet_defs
+                                .get("earth")
+                                .map(|d| d.terrain_seed as u64)
+                                .unwrap_or(7);
+                            let mut fft = crate::terrain::ocean_fft::OceanFft::new(
+                                crate::terrain::ocean_fft::FFT_N,
+                                crate::terrain::ocean_fft::FFT_TILE_M,
+                                // Moderate open-ocean breeze; weather-driven
+                                // spectrum regen is increment 2.
+                                8.0,
+                                0.6,
+                                200_000.0,
+                                seed,
+                            );
+                            fft.normalize_to_rms(
+                                crate::terrain::ocean_fft::FFT_TARGET_RMS_M,
+                            );
+                            state.ocean_fft = Some(fft);
+                            log::info!("[OceanFft] spectrum built (128x128, 64 m tile)");
+                        }
+                        if let Some(fft) = state.ocean_fft.as_mut() {
+                            // Same clock as the shader's trains + the
+                            // buoyancy twin (start-relative seconds).
+                            let tsec = state.start_time.elapsed().as_secs_f32();
+                            fft.update(tsec);
+                            state.renderer.upload_water_fft(&fft.height);
                         }
                     }
 

@@ -127,12 +127,23 @@ pub(crate) fn current_planet_spin(state: &EngineState) -> f64 {
 /// are exact 64 m steps, seamless for any pattern whose period divides
 /// 64 m. Zeros when not frame-locked (micro octaves are footprint-faded
 /// to nothing at those distances anyway).
-pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 3] {
+///
+/// v0.1029: element 0 is the FFT-ocean mode flag (light0_cone_inner.x,
+/// the pad beside the anchor) - 1.0 when the Settings toggle is on AND
+/// the CPU spectrum is built, so the shader and the buoyancy twin flip
+/// together and never disagree mid-build.
+pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 4] {
+    let fft = if state.gui_state.settings.water_fft && state.ocean_fft.is_some() {
+        1.0
+    } else {
+        0.0
+    };
     if state.frame_lock_body.is_none() {
-        return [0.0; 3];
+        return [fft, 0.0, 0.0, 0.0];
     }
     let a = state.frame_lock_anchor;
     [
+        fft,
         a.x.rem_euclid(64.0) as f32,
         a.y.rem_euclid(64.0) as f32,
         a.z.rem_euclid(64.0) as f32,

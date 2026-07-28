@@ -359,6 +359,20 @@ impl Pipeline {
                         },
                         count: None,
                     },
+                    // FFT ocean displacement tile (v0.1029, water-fft.md
+                    // increment 1): 128x128 R32Float height field the
+                    // type-16 water VERTEX branch reads via textureLoad
+                    // (manual bilinear, hence non-filterable is fine).
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 15,
+                        visibility: wgpu::ShaderStages::VERTEX,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 

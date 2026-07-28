@@ -6639,6 +6639,13 @@ pub struct SettingsState {
     /// LIVE: the sky loop rewrites the material flag every frame. See
     /// pbr_simple.wgsl type 12 + renderer::water.
     pub planet_surface_detail: bool,
+    /// FFT ocean (v0.1029, water-fft.md increment 1): JONSWAP-spectrum
+    /// FFT chop field instead of the three anchored trains. Experimental,
+    /// default off; applies live (the flag rides the per-frame uniform).
+    pub water_fft: bool,
+    /// Far-tree canopy card sheet (v0.1022). Default off: reads as grid
+    /// squares at altitude; superseded by the impostor arc. Kept for A/B.
+    pub far_tree_sheet: bool,
     /// Cloud quality (clouds increment 3): "low" = the painted deck,
     /// "medium" = the 10-sample field march, "high" = the volumetric
     /// 3D-noise system (default). Applies live: the cloud material is
@@ -6743,6 +6750,8 @@ impl Default for SettingsState {
             live_weather: true,
             track_station: true,
             planet_surface_detail: true,
+            water_fft: false,
+            far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,
             master_volume: 0.8,

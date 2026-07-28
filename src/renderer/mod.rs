@@ -301,6 +301,11 @@ pub struct Renderer {
     pub tree_atlas_texture: wgpu::Texture,
     pub tree_atlas_view: wgpu::TextureView,
     pub tree_atlas_ready: bool,
+    /// FFT ocean displacement tile (v0.1029): rewritten in place by
+    /// upload_water_fft each frame when FFT-ocean mode is on; bind groups
+    /// reference the view forever, no rebuilds.
+    pub water_fft_texture: wgpu::Texture,
+    pub water_fft_view: wgpu::TextureView,
     /// Aerial perspective (v0.916): extinction per metre at the CAMERA's
     /// altitude (strength + height falloff folded in by lib.rs; 0 = off).
     pub aerial_sigma: f32,
@@ -895,6 +900,25 @@ impl Renderer {
             view_formats: &[],
         });
         let tree_atlas_view = tree_atlas_texture.create_view(&Default::default());
+        // FFT ocean displacement tile (v0.1029, water-fft.md increment 1):
+        // 128x128 R32Float height field the type-16 water VS reads via
+        // textureLoad. wgpu zero-initializes it, so until the engine's
+        // first upload (or with the setting off) it is a flat sea.
+        let water_fft_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("FFT Ocean Displacement"),
+            size: wgpu::Extent3d {
+                width: crate::terrain::ocean_fft::FFT_N as u32,
+                height: crate::terrain::ocean_fft::FFT_N as u32,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R32Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        let water_fft_view = water_fft_texture.create_view(&Default::default());
         {
             let (rp, h) = atmosphere::shell_packing(0.06, 8500.0, 6.371e6);
             let params = atmo_luts::TransLutParams {
@@ -1048,6 +1072,10 @@ impl Renderer {
                     binding: 14,
                     resource: wgpu::BindingResource::TextureView(&tree_atlas_view),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 15,
+                    resource: wgpu::BindingResource::TextureView(&water_fft_view),
+                },
             ],
         });
         let shadow_pass_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -1114,6 +1142,10 @@ impl Renderer {
                     binding: 14,
                     resource: wgpu::BindingResource::TextureView(&tree_atlas_view),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 15,
+                    resource: wgpu::BindingResource::TextureView(&water_fft_view),
+                },
             ],
         });
 
@@ -1143,6 +1175,8 @@ impl Renderer {
             tree_atlas_texture,
             tree_atlas_view,
             tree_atlas_ready: false,
+            water_fft_texture,
+            water_fft_view,
             lights_capacity,
             object_buffer,
             object_bind_group,
@@ -1529,6 +1563,29 @@ impl Renderer {
                 },
             ],
         })
+    }
+
+    /// Upload a fresh FFT-ocean height realization (FFT_N x FFT_N f32
+    /// metres) into the persistent displacement tile. Called once per
+    /// frame while FFT-ocean mode is on; ~64 KB, no bind-group rebuild.
+    pub fn upload_water_fft(&self, heights: &[f32]) {
+        let n = crate::terrain::ocean_fft::FFT_N as u32;
+        debug_assert_eq!(heights.len(), (n * n) as usize);
+        self.queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.water_fft_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            bytemuck::cast_slice(heights),
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * n),
+                rows_per_image: Some(n),
+            },
+            wgpu::Extent3d { width: n, height: n, depth_or_array_layers: 1 },
+        );
     }
 
     /// Upload a fresh live-weather grid (RG8, WEATHER_W x WEATHER_H) into the
@@ -2569,9 +2626,10 @@ impl Renderer {
         // Poked into the light_count.yzw pads after the full uniform write,
         // so the type-12 terrain branch can sample the sky's coverage field.
         cloud_shadow: (f32, f32, bool),
-        // Camera planet-frame position mod 64 m (v0.902): the precision
-        // anchor for sub-8 m micro detail. Poked into light0_cone_inner.yzw.
-        ground_anchor: [f32; 3],
+        // [FFT-ocean flag, then camera planet-frame position mod 64 m
+        // (v0.902)]: the precision anchor for sub-8 m micro detail plus the
+        // v0.1029 water-mode toggle. Poked into light0_cone_inner.xyzw.
+        ground_anchor: [f32; 4],
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -2607,9 +2665,10 @@ impl Renderer {
         // like the yzw pads above.
         let lc = self.cur_lights.len() as f32;
         self.queue.write_buffer(&self.camera_buffer, 592, bytemuck::bytes_of(&lc));
-        // Micro-detail anchor in light0_cone_inner.yzw (offset 464 + 4).
+        // FFT-ocean flag + micro-detail anchor in light0_cone_inner.xyzw
+        // (offset 464: .x = water mode, .yzw = the v0.902 anchor).
         self.queue
-            .write_buffer(&self.camera_buffer, 468, bytemuck::cast_slice(&ground_anchor));
+            .write_buffer(&self.camera_buffer, 464, bytemuck::cast_slice(&ground_anchor));
         // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
         self.queue
             .write_buffer(&self.camera_buffer, 76, bytemuck::bytes_of(&self.detail_distance));

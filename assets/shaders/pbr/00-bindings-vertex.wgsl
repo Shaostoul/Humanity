@@ -174,6 +174,14 @@ struct ShadowUniforms {
 // Tree-card sprite atlas (v0.961): 3x2 grid of baked conifer sprites the
 // type-12 sprite-card branch samples (gated by material.params.w bit 2).
 @group(3) @binding(14) var tree_atlas_tex: texture_2d<f32>;
+// FFT ocean displacement tile (v0.1029, water-fft.md increment 1): a
+// 128x128 R32Float height field over a 64 m periodic tile, computed on
+// the CPU (terrain/ocean_fft.rs) and re-uploaded each frame. VERTEX
+// stage: the type-16 water branch samples it via manual-bilinear
+// textureLoad so the CPU buoyancy twin reads bit-matching heights from
+// the SAME array. Gated by camera.light0_cone_inner.x (the FFT-mode
+// flag beside the ground anchor in .yzw).
+@group(3) @binding(15) var water_fft_tex: texture_2d<f32>;
 
 // 3x3 PCF visibility of the sun from a world-space point. 1.0 = fully lit.
 // Fragments outside the ortho box (or with shadows off) return fully lit,
@@ -350,6 +358,65 @@ fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32) -
     return h;
 }
 
+// ---- FFT ocean (increment 1) ------------------------------------------
+// Tile size MUST divide the 64 m ground-anchor modulus: anchor re-snaps
+// are exact 64 m steps, so a 64 m tile shifts by exactly one period and
+// the sea never visibly jumps. LOCKSTEP with ocean_fft.rs (FFT_TILE_M,
+// FFT_N, PLANE_OFF) - a mismatch breaks drawn == sampled.
+const OCEAN_FFT_TILE_M: f32 = 64.0;
+const OCEAN_FFT_N: i32 = 128;
+const OCEAN_FFT_OFF_X: vec2<f32> = vec2<f32>(0.0, 0.0);
+const OCEAN_FFT_OFF_Y: vec2<f32> = vec2<f32>(0.271, 0.417);
+const OCEAN_FFT_OFF_Z: vec2<f32> = vec2<f32>(0.613, 0.129);
+
+// Manual-bilinear tile sample (wraps). textureLoad instead of a sampler:
+// exact texel math the CPU twin reproduces line for line, and no
+// VERTEX-visible sampler binding needed.
+fn fft_tile_sample(uv_in: vec2<f32>) -> f32 {
+    let nf = f32(OCEAN_FFT_N);
+    let u = fract(uv_in.x) * nf;
+    let v = fract(uv_in.y) * nf;
+    let x0 = i32(floor(u)) % OCEAN_FFT_N;
+    let y0 = i32(floor(v)) % OCEAN_FFT_N;
+    let x1 = (x0 + 1) % OCEAN_FFT_N;
+    let y1 = (y0 + 1) % OCEAN_FFT_N;
+    let fx = fract(u);
+    let fy = fract(v);
+    let a = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y0), 0).r,
+                textureLoad(water_fft_tex, vec2<i32>(x1, y0), 0).r, fx);
+    let b = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y1), 0).r,
+                textureLoad(water_fft_tex, vec2<i32>(x1, y1), 0).r, fx);
+    return mix(a, b, fy);
+}
+
+// Triplanar projection of the tile, blended by the squared radial normal:
+// a single 2D parameterization of a sphere always degenerates somewhere
+// (xz collapses at the equator), so - like the trains' three axis-aligned
+// directions - the tile is projected on all three planes. Fixed per-plane
+// UV offsets decorrelate the three projections' crests.
+fn fft_ocean_height(p_anch: vec3<f32>, radial: vec3<f32>) -> f32 {
+    let w2 = radial * radial;
+    let q = p_anch / OCEAN_FFT_TILE_M;
+    var h = w2.x * fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X);
+    h = h + w2.y * fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y);
+    h = h + w2.z * fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z);
+    return h;
+}
+
+// FFT-mode total height: the long swells (> 64 m wavelength, which the
+// tile cannot hold) stay analytic; the FFT field replaces the three
+// anchored chop trains with ~16k simultaneous waves. The field carries
+// its own time evolution (the CPU re-uploads each frame), so no t here.
+// CPU twin: ocean_fft::wave_height_shoaled_fft_m.
+fn ocean_wave_height_fft(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
+    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
+    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
+    h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
+        * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
+    h = h + fft_ocean_height(p_anch, radial) * ocean_train_fade(cam_dist, OCEAN_FFT_TILE_M);
+    return h;
+}
+
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     g_inst_data = vertex.inst_pos_fade;
@@ -404,7 +471,15 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                 );
                 let dvw = (inv_model
                     * vec4<f32>(world_pos.xyz - camera.view_pos.xyz, 0.0)).xyz;
-                let h = ocean_wave_height(dir * r, anchw + dvw, camera.sun_color.w, cam_dist) * fade * shoal;
+                // FFT-ocean mode flag rides in light0_cone_inner.x, beside
+                // the anchor in .yzw (v0.1029, water-fft.md increment 1).
+                var h: f32;
+                if (camera.light0_cone_inner.x > 0.5) {
+                    h = ocean_wave_height_fft(dir * r, anchw + dvw, camera.sun_color.w, cam_dist, dir);
+                } else {
+                    h = ocean_wave_height(dir * r, anchw + dvw, camera.sun_color.w, cam_dist);
+                }
+                h = h * fade * shoal;
                 world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
             }
         }

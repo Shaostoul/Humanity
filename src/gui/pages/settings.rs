@@ -2221,6 +2221,19 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Up close, oceans get moving waves and sun sparkle and land keeps revealing texture as you descend. The view from orbit is identical either way. Turn off on very old GPUs.").color(theme.text_muted()).size(theme.font_size_small));
+        // FFT ocean (v0.1029, water-fft.md increment 1). Applies live: the
+        // spectrum builds on first use; the mode flag rides the per-frame
+        // uniform so geometry and buoyancy flip together.
+        if widgets::toggle(ui, theme, "FFT ocean (experimental)", &mut state.settings.water_fft) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.").color(theme.text_muted()).size(theme.font_size_small));
+        // Far-tree card sheet (v0.1022, default off since v0.1029): kept
+        // for A/B against the upcoming impostor system.
+        if widgets::toggle(ui, theme, "Far tree sheet (experimental)", &mut state.settings.far_tree_sheet) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Draws distant forests as coarse canopy cards out to the horizon. Known issue: reads as dark squares from high altitude, which is why it is off by default until the proper long-range tree system lands.").color(theme.text_muted()).size(theme.font_size_small));
         // Cloud quality ladder (clouds increment 3). Applies live: the cloud
         // material is cached per (body, quality), so flipping tiers rebuilds
         // it the next frame the deck draws.
