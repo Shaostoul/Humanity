@@ -436,5 +436,6 @@
     "7. Check data/coordination/agent_registry.ron for the canonical scope list.",
     "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
   ],
-  "last_updated": "2026-07-27"
+  "last_updated": "2026-07-27",
+  "focus": "v0.1020.1 shipped (the 2026-07-27 evening marathon: v0.1015-v0.1020, six releases). Terrain vertex sharing DONE (258 vs 768 verts/patch). Water arc increments 1-3 + perf pass 1 DONE: per-train fades, anchored-domain chop (f32-at-scale GPU edition), foam lace + beat fix, underwater blend order + backstop shell (seam class CLOSED), coastal de-blue clamp, tree shore floor, surf direction. FPS caps setting + gear swimming + no-focus click-to-wake shipped. NEXT per PRIORITIES: clouds drift-desync rung (structure pinned by live weather vs zonally-drifting texture), then water arena batching + overdraw measurement, then breaking shore waves / Subnautica rungs (underwater god rays, caustics). Operator asleep; overnight = backlog per the standing get-through-the-backlog directive."
 }
