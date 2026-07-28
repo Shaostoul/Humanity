@@ -36,6 +36,17 @@
 >   (CLOUD_LIGHT_SIGMA_MULT 6x + halved first-tap step); undersides now
 >   carry real gray weight. The pillowy/cauliflower STRUCTURE want remains
 >   the VOLUMETRIC CLOUDS ARC below.
+> - DONE clouds field report round 2 (v0.1014.1, operator photos: cliffs /
+>   flat-sheet tops / straight hard lines): domed tops via height-rising
+>   carve threshold (CLOUD_TOP_RISE) + geometric light ladder (first tap
+>   0.9 km, deck-top relief finally shades) + crown channel (valley shade
+>   at zenith sun; crown-weighted fine erosion = 3-13 km turrets) + fine
+>   band de-stretched (the close-range slash artifact, same class as the
+>   v0.1012 puff fix) + MODIS swath-seam data fixes (3-pass fraction blur,
+>   chamfer validity feather ~500 km; live_weather.rs). Rig A/B: turreted
+>   dome silhouettes side-on, mottled mounds from above, razor swath band
+>   at 12N/122E gone. WATCH: double-lip cones at some mass leading edges
+>   (rounded, borderline natural); cirrus slightly grayer via crown floor.
 > - DONE terrain-gen proper fix increments 1+2 (v0.1001.0 + v0.1002.0):
 >   patch mega-buffer arena + batch shader variant + real-byte cache
 >   accounting + one multi_draw_indexed_indirect submit

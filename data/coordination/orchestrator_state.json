@@ -278,6 +278,11 @@
     {
       "date": "2026-07-27",
       "decision": "v0.1011.1 clouds structure increment 1 (puff erosion band ~1-5 km lobes, distance-gated to 290 km, + free crevice occlusion from the same noise via cloud_density_hi returning (density, cavity)); rig-verified carved billows at a Caribbean mass; further rungs (128^3 detail volume for sub-500 m fly-through lobes, real-scale deck altitude blocked on the terrain vertical-exaggeration decision) journaled. v0.1012.1 f32-at-scale audit (operator asked): ground-clamp chain went f64 (f32 unit dir = 0.4-0.8 m ground quantization, physics-side sibling of the v0.1010 ripples); sweep cleared mesh/camera/anchors/ballistics/cloud-units/ocean-phase as sound; rule recorded in CLAUDE.md gotchas."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1014.1 clouds field-report arc (operator ranked clouds first): domed tops via height-rising carve threshold (CLOUD_TOP_RISE, fixes cliff edges + flat ceiling), geometric light ladder (first tap 3.9km->0.9km; deck-top relief finally shades) + crown channel from cloud_carve (valley shade at zenith sun, crown-weighted fine erosion = 3-13km turrets), fine-band de-stretch (straight slashes; same class as v0.1012 puff fix), MODIS swath-seam fixes in live_weather decode (3-pass fraction blur + chamfer validity FEATHER ~500km crossfade, idempotent + applied to old caches at load). Rig A/B at Libya broken deck + the 12N/122E swath band: cliffs->turreted domes, flat sheet->mottled mounds, razor band->feathered fronts. Deferred: slight double-lip cones at some mass leading edges (rounded now, watch operator reaction); cirrus may read a bit grayer from the crown floor 0.70.",
+      "rationale": "Operator field report with real-photo references; all three complaints root-caused (two shader geometry/lighting, one DATA artifact from MODIS daily-composite swath boundaries) instead of tuned around."
     }
   ],
   "active_scopes_to_avoid": [
@@ -400,5 +405,6 @@
     "6. Read docs/STATUS.md and docs/FEATURES.md for the static feature inventory.",
     "7. Check data/coordination/agent_registry.ron for the canonical scope list.",
     "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
-  ]
+  ],
+  "last_updated": "2026-07-27"
 }

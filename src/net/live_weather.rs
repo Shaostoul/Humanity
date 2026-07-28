@@ -269,10 +269,16 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
     // Swath-boundary softening (v0.880, operator: "I still keep catching
     // hard seams in the clouds"): adjacent MODIS swaths are captured HOURS
     // apart, so the composite has razor-straight discontinuities where the
-    // cloud field genuinely jumped between passes. A small separable [1,2,1]
+    // cloud field genuinely jumped between passes. A separable [1,2,1]
     // blur over the fraction channel (valid samples only) turns those steps
-    // into ~100 km gradients - soft fronts instead of knife lines - while
-    // real weather structure (>100 km) keeps its shape.
+    // into gradients - soft fronts instead of knife lines - while real
+    // weather structure keeps its shape. Widened to 3 passes per axis
+    // (v0.1014, operator: "weird cloud artifacts indicated by the straight
+    // hard lines"): one pass left a ~2-texel (~56 km) step that the
+    // shader's coverage smoothstep re-sharpened into a visible ruler line
+    // across thousand-km masses; three passes spread it over ~130 km, and
+    // the procedural meso octaves re-add all the fine structure anyway
+    // (the map is a placement mask, not an opacity).
     {
         let w = WEATHER_W as usize;
         let h = WEATHER_H as usize;
@@ -304,9 +310,12 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
                 }
             }
         };
-        pass(true, &mut out);
-        pass(false, &mut out);
+        for _ in 0..3 {
+            pass(true, &mut out);
+            pass(false, &mut out);
+        }
     }
+    feather_validity(&mut out);
     // A mostly-empty map (endpoint hiccup, wrong layer state) is worse than
     // keeping the cache: require at least 20% real coverage to accept.
     if valid_px * 5 < (WEATHER_W * WEATHER_H) as usize {
@@ -321,6 +330,59 @@ fn decode(png_bytes: &[u8]) -> Option<Vec<u8>> {
         valid_px as f32 * 100.0 / (WEATHER_W * WEATHER_H) as f32
     );
     Some(out)
+}
+
+/// Validity feather (v0.1014, operator: "weird cloud artifacts indicated by
+/// the straight hard lines"): the G channel used to be BINARY (255 real /
+/// 0 procedural), so at every wide no-data border (night-side swath edges
+/// beyond the inpainter's reach) the shader's `mix(proc, live, w.g)`
+/// flipped between two entirely different cloud LAYOUTS inside one
+/// bilinear texel (~28 km) - a razor-straight, planet-length seam. This
+/// turns G into a distance ramp: 0 at the border, full 255 only
+/// FEATHER_TX texels (~500 km) into real data, so live and procedural
+/// skies crossfade over a real front's width. L1 chamfer distance
+/// transform, two rounds so the propagation crosses the antimeridian wrap.
+pub(crate) fn feather_validity(out: &mut [u8]) {
+    const FEATHER_TX: u16 = 18;
+    let w = WEATHER_W as usize;
+    let h = WEATHER_H as usize;
+    let mut dist = vec![u16::MAX; w * h];
+    let mut any_invalid = false;
+    for i in 0..w * h {
+        if out[i * 2 + 1] == 0 {
+            dist[i] = 0;
+            any_invalid = true;
+        }
+    }
+    if !any_invalid {
+        return; // fully valid map - nothing to feather
+    }
+    for _round in 0..2 {
+        // Forward: distance flows right/down (x wraps, y clamps).
+        for y in 0..h {
+            for x in 0..w {
+                let i = y * w + x;
+                let left = dist[y * w + (x + w - 1) % w].saturating_add(1);
+                let up = if y > 0 { dist[(y - 1) * w + x].saturating_add(1) } else { u16::MAX };
+                dist[i] = dist[i].min(left).min(up);
+            }
+        }
+        // Backward: distance flows left/up.
+        for y in (0..h).rev() {
+            for x in (0..w).rev() {
+                let i = y * w + x;
+                let right = dist[y * w + (x + 1) % w].saturating_add(1);
+                let down = if y + 1 < h { dist[(y + 1) * w + x].saturating_add(1) } else { u16::MAX };
+                dist[i] = dist[i].min(right).min(down);
+            }
+        }
+    }
+    for i in 0..w * h {
+        if out[i * 2 + 1] != 0 {
+            let d = dist[i].min(FEATHER_TX) as u32;
+            out[i * 2 + 1] = (d * 255 / FEATHER_TX as u32) as u8;
+        }
+    }
 }
 
 fn fetch_once() -> Option<Vec<u8>> {
@@ -352,9 +414,13 @@ fn fetch_once() -> Option<Vec<u8>> {
 pub fn spawn(tx: Sender<Vec<u8>>) {
     std::thread::spawn(move || {
         let cache = cache_path();
-        if let Ok(bytes) = std::fs::read(&cache) {
+        if let Ok(mut bytes) = std::fs::read(&cache) {
             if bytes.len() == (WEATHER_W * WEATHER_H * 2) as usize {
                 log::info!("[Weather] cached cloud map loaded");
+                // Feather is idempotent (recomputed purely from the
+                // zero/nonzero geometry), and running it here upgrades
+                // pre-v0.1014 caches whose validity is still binary.
+                feather_validity(&mut bytes);
                 let _ = tx.send(bytes);
             }
         }
@@ -397,5 +463,66 @@ mod tests {
         assert_eq!(civil_from_unix_days(19_723), (2024, 1, 1)); // leap year start
         assert_eq!(civil_from_unix_days(19_782), (2024, 2, 29)); // leap day
         assert_eq!(civil_from_unix_days(20_651), (2026, 7, 17));
+    }
+
+    #[test]
+    fn feather_ramps_validity_from_wide_gap_borders() {
+        // Left half valid, right half a wide no-data gap: validity must
+        // ramp up gradually with distance from the border, not step.
+        let w = WEATHER_W as usize;
+        let h = WEATHER_H as usize;
+        let mut buf = vec![0u8; w * h * 2];
+        for y in 0..h {
+            for x in 0..(w / 2) {
+                buf[(y * w + x) * 2] = 128;
+                buf[(y * w + x) * 2 + 1] = 255;
+            }
+        }
+        feather_validity(&mut buf);
+        let row = (h / 2) * w;
+        let border = w / 2 - 1; // last valid column
+        let near = buf[(row + border) * 2 + 1];
+        let mid = buf[(row + border - 9) * 2 + 1];
+        let deep = buf[(row + border - 30) * 2 + 1];
+        assert!(near < 32, "border texel should be near-procedural: {near}");
+        assert!(
+            mid > near && mid < 240,
+            "mid-feather should be a partial blend: {mid} (near {near})"
+        );
+        assert_eq!(deep, 255, "deep interior must stay fully live");
+        // Invalid texels stay 0.
+        assert_eq!(buf[(row + w / 2 + 5) * 2 + 1], 0);
+    }
+
+    #[test]
+    fn feather_crosses_the_antimeridian_wrap() {
+        // A gap at x=0 must feather the x = W-1 edge too (equirect wraps).
+        let w = WEATHER_W as usize;
+        let h = WEATHER_H as usize;
+        let mut buf = vec![0u8; w * h * 2];
+        for y in 0..h {
+            for x in 8..w {
+                buf[(y * w + x) * 2 + 1] = 255;
+            }
+        }
+        feather_validity(&mut buf);
+        let row = (h / 2) * w;
+        let wrapped = buf[(row + w - 1) * 2 + 1];
+        assert!(
+            wrapped > 0 && wrapped < 255,
+            "wrap-adjacent texel should be mid-feather: {wrapped}"
+        );
+    }
+
+    #[test]
+    fn feather_noops_on_a_fully_valid_map() {
+        let w = WEATHER_W as usize;
+        let h = WEATHER_H as usize;
+        let mut buf = vec![0u8; w * h * 2];
+        for i in 0..w * h {
+            buf[i * 2 + 1] = 255;
+        }
+        feather_validity(&mut buf);
+        assert!(buf.iter().skip(1).step_by(2).all(|v| *v == 255));
     }
 }

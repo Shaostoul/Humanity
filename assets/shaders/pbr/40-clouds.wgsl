@@ -154,11 +154,17 @@ const CLOUD_HI_STEP_EXP: f32 = 1.6;
 // Light-march taps toward the sun per lit view sample. Spacing widens with
 // each tap (near taps catch self-shadowing detail, far taps the big mass).
 const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
-// Base light-march step, drawn-shell units (slab thickness is ~0.0079).
-// Halved 0.0012 -> 0.0006 (2026-07-27 tau-heat-map probe): the first tap
-// used to jump ~15% of the slab, overshooting thin stratus bands entirely
-// (every tap above the band -> tau 0 -> flat white lighting).
-const CLOUD_LIGHT_STEP: f32 = 0.0006;
+// GEOMETRIC light-march ladder (v0.1014, operator: "from above they mostly
+// just look like a solid flat sheet"): the old arithmetic-quadratic ladder's
+// FIRST tap was ~3.9 km (0.0006 shell units), so a sample near a dome crown
+// saw tau = 0 in every direction - the whole top surface of the deck was
+// lit dead flat regardless of its relief, which erased exactly the
+// mound-and-valley shading that makes real cloud tops read 3D. Geometric
+// spacing starts at ~0.9 km (dome-scale self-shadow) and multiplies by
+// RATIO each tap, reaching ~125 km by tap 8 (big-mass shadows keep their
+// range). Same 8-tap cost. NEAR is the first step, shell units.
+const CLOUD_LIGHT_NEAR: f32 = 0.00014;
+const CLOUD_LIGHT_RATIO: f32 = 1.8;
 // Light-march extinction multiplier over the view sigma (2026-07-27, the
 // flat-lighting root cause): CLOUD_HI_SIGMA_T is calibrated for VIEW
 // opacity (kept low so deck edges feather instead of reading as carved
@@ -227,9 +233,23 @@ const CLOUD_PUFF_AO: f32 = 0.60;
 // because the old `1 - weather_a` carve kept the shape almost everywhere.
 const CLOUD_COV_LO: f32 = 0.92;
 const CLOUD_COV_HI: f32 = 0.52;
+// Domed tops (v0.1013.x, operator field report: "the big bulky clouds still
+// look like their edges are mostly cliffs" / "from above they mostly just
+// look like a solid flat sheet"): the carve threshold RISES with height
+// inside the regime band, so only the strongest shape noise survives near
+// the band top. Each ~45 km shape cell becomes a dome - broad base, sloped
+// shoulders, rounded crown at its own height - instead of a full-height
+// wall under one shared flat ceiling. Quadratic in band fraction so bases
+// stay broad and flat (condensation-level look) while tops taper. The
+// light march shares cloud_carve, so inter-dome valleys catch real shadow
+// from above. Shader-only tuning (texture-sampling path; not mirrorable).
+const CLOUD_TOP_RISE: f32 = 0.45;
 // Width of the soft density onset above the coverage threshold (in shape-noise
 // units). Wider = more feathered mass edges; too wide washes coverage out.
-const CLOUD_COV_SOFT: f32 = 0.20;
+// Widened 0.20 -> 0.28 (v0.1014): the narrow onset ended low skirts in
+// knife-taper wedges along the shape gradient; the wider ramp feathers
+// mass snouts so edges dissolve instead of coming to a point.
+const CLOUD_COV_SOFT: f32 = 0.28;
 // Cloud-TYPE field frequency (tiles around the sphere): a very-low-freq
 // noise picks stratus (0) vs cumulus (1) regions, ~2000 km weather cells.
 const CLOUD_TYPE_FREQ: f32 = 3.0;
@@ -862,6 +882,7 @@ struct CloudSample {
     carve: f32,      // coverage-carved, height-shaped body in [0,1] (pre-fray)
     ps: vec3<f32>,   // the drifted + stretched sample position (tap domain)
     h: f32,          // slab fraction at the sample
+    crown: f32,      // 0 deep in the column .. 1 at the column's own crown
 };
 
 // The type coordinate at a planet-fixed direction: two low-frequency octaves
@@ -985,7 +1006,7 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
     let h_hi_eff = min(reg.h_hi + tower * 0.8 * (reg.h_hi - reg.h_lo), 1.0);
     let env = cloud_height_band(h, reg.h_lo, h_hi_eff);
     if (env <= 0.002 || wa <= 0.003) {
-        return CloudSample(0.0, p, h);
+        return CloudSample(0.0, p, h, 0.0);
     }
     // Drift the sample like weather set A, then stretch for streaks.
     let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
@@ -994,9 +1015,24 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
         cloud_shape_tex, cloud_tile_sampler, ps * CLOUD_SHAPE_FREQ, 0.0);
     let lofi = s.g * 0.625 + s.b * 0.25 + s.a * 0.125;
     let body = clamp(cloud_remap(s.r, lofi - 1.0, 1.0, 0.0, 1.0), 0.0, 1.0);
-    let thr = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
+    // Domed tops (see CLOUD_TOP_RISE): the threshold climbs quadratically
+    // with the fraction of the (tower-extended) band already below this
+    // sample, so weak shape only exists near the base and each cell's crown
+    // peaks where its own noise is strongest - rounded domes, not walls.
+    let u_band = clamp(
+        (h - reg.h_lo) / max(h_hi_eff - reg.h_lo, 1.0e-4), 0.0, 1.0);
+    let thr_base = mix(CLOUD_COV_LO, CLOUD_COV_HI, wa);
+    let thr = thr_base + CLOUD_TOP_RISE * u_band * u_band;
     let carve = clamp((body - thr) / CLOUD_COV_SOFT, 0.0, 1.0) * env;
-    return CloudSample(carve, ps, h);
+    // Crown proximity: the rise threshold means this column's own top sits
+    // at u_crown = sqrt((body - thr_base) / CLOUD_TOP_RISE) band fractions
+    // up; how close this sample is to that crown drives the valley-shade /
+    // crown-light term in the march (real decks: mounds catch the sky,
+    // the folds between them sit in their own shade - visible even with
+    // the sun at zenith, where the tau march alone reads flat).
+    let u_crown = sqrt(max(body - thr_base, 0.0) / CLOUD_TOP_RISE);
+    let crown = clamp(u_band / clamp(u_crown, 1.0e-3, 1.0), 0.0, 1.0);
+    return CloudSample(carve, ps, h, crown);
 }
 
 // The increment-3 VIEW density: the carved body, then TWO erosion bands and a
@@ -1006,9 +1042,11 @@ fn cloud_carve(p: vec3<f32>, t: f32, seed: f32, wa: f32, reg: CloudRegime) -> Cl
 // coarse fray band is always on, which is what gives the ORBITAL marble its
 // wispy frayed edges (the fix for the "giant blotches": before, all erosion
 // faded with distance and orbit saw only smooth round blobs).
-// Returns (density, puff cavity 0..1). The cavity channel is the puff
-// noise that carved this neighborhood - the march turns it into crevice
-// occlusion so lobes shade individually (v0.1011).
+// Returns (density, puff cavity 0..1, crown proximity 0..1). The cavity
+// channel is the puff noise that carved this neighborhood - the march turns
+// it into crevice occlusion so lobes shade individually (v0.1011). The
+// crown channel is how close the sample sits to its own column's domed top
+// (v0.1014) - the march turns it into valley shade / crown light.
 fn cloud_density_hi(
     p: vec3<f32>,
     t: f32,
@@ -1017,11 +1055,11 @@ fn cloud_density_hi(
     reg: CloudRegime,
     detail_amt: f32,
     puff_amt: f32,
-) -> vec2<f32> {
+) -> vec3<f32> {
     let cs = cloud_carve(p, t, seed, weather_a, reg);
     var base = cs.carve;
     if (base <= 0.003) {
-        return vec2<f32>(0.0, 0.0);
+        return vec3<f32>(0.0, 0.0, 0.0);
     }
     // COARSE fray (always on -> orbit wispiness): erode edges with the detail
     // volume's Worley FBM sampled at a LOW world frequency (~88 km features,
@@ -1039,17 +1077,32 @@ fn cloud_density_hi(
     let fmask = smoothstep(CLOUD_FIL_LO, CLOUD_FIL_HI, fr.a);
     base = base * mix(1.0, fmask, reg.filament);
     if (base <= 0.003) {
-        return vec2<f32>(0.0, 0.0);
+        return vec3<f32>(0.0, 0.0, 0.0);
     }
+    // Both near-camera erosion bands sample the drifted-but-UNSTRETCHED
+    // domain (v0.1013.x, completing the v0.1012 puff fix): cs.ps carries the
+    // regime's east-west stretch (up to 3.4x), which at erosion frequencies
+    // turns round cavities into long knife slashes with hard straight edges
+    // - the operator's "straight hard lines ... worse the closer I get to
+    // the cloud layer" (the fine band fades in within ~190 km, exactly the
+    // reported onset). Cauliflower turbulence is isotropic; only the coarse
+    // FRAY band and the filament mask keep the stretch (mares'-tail streaks
+    // at 88 km scale are the intended look).
+    let pu0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
     // FINE cauliflower (near only): high-frequency Worley erosion, phase
     // flipping with height (wispy bases, billowy tops). Fades out with
     // distance so orbit stays smooth -- the standard Nubis distance trick.
     if (detail_amt > 0.01) {
         let d = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, cs.ps * CLOUD_DETAIL_FREQ, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * CLOUD_DETAIL_FREQ, 0.0);
         let dfbm = d.r * 0.625 + d.g * 0.25 + d.b * 0.125;
+        // Crown-weighted (v0.1014): erosion bites up to ~1.5x deeper near
+        // the column's own domed top, so crowns break into individual
+        // 3-13 km turrets (real cumulus castellation) instead of staying
+        // one smooth slab surface; bases keep the calmer carve.
         let dmod = mix(dfbm, 1.0 - dfbm, clamp(cs.h * 3.0, 0.0, 1.0))
-            * CLOUD_DETAIL_ERODE * reg.fine * detail_amt;
+            * CLOUD_DETAIL_ERODE * reg.fine * detail_amt
+            * (0.60 + 0.90 * cs.crown);
         base = clamp(cloud_remap(base, dmod, 1.0, 0.0, 1.0), 0.0, 1.0);
     }
     // PUFF band (v0.1011): the cauliflower-lobe scale the ladder was
@@ -1059,14 +1112,10 @@ fn cloud_density_hi(
     // near the camera (puff_amt fades by ~290 km).
     var cavity = 0.0;
     if (puff_amt > 0.01 && base > 0.003) {
-        // UNSTRETCHED domain (v0.1012.x fix): cs.ps carries the regime's
-        // east-west stretch (mares'-tail streaking), which at puff
-        // frequency turned round lobes into sharp knife lances (the
-        // dark wedge artifacts + dusk striping). Cauliflower turbulence
-        // is isotropic - rebuild the drifted-but-unstretched position.
-        let ps0 = cloud_rot_y(p, t * CLOUD_DRIFT_ZONAL);
+        // Unstretched domain (v0.1012.x fix; pu0 hoisted above since the
+        // fine band now shares it).
         let pu = textureSampleLevel(
-            cloud_detail_tex, cloud_tile_sampler, ps0 * CLOUD_PUFF_FREQ, 0.0);
+            cloud_detail_tex, cloud_tile_sampler, pu0 * CLOUD_PUFF_FREQ, 0.0);
         let pufbm = pu.r * 0.625 + pu.g * 0.25 + pu.b * 0.125;
         let phased = mix(pufbm, 1.0 - pufbm, clamp(cs.h * 3.0, 0.0, 1.0));
         let pmod = phased
@@ -1081,7 +1130,7 @@ fn cloud_density_hi(
     // Thin-edge shaping: pow > 1 makes low densities translucent (see-through
     // skirts) while cores stay opaque, then the regime opacity scales the whole
     // (cirrus faint, cumulus solid).
-    return vec2<f32>(pow(base, CLOUD_DENSITY_POW) * reg.opacity, cavity);
+    return vec3<f32>(pow(base, CLOUD_DENSITY_POW) * reg.opacity, cavity, cs.crown);
 }
 
 // The LIGHT-march density: carved body only (no fray/detail taps -- edges err
@@ -1113,13 +1162,15 @@ fn cloud_sun_tau(
     reg: CloudRegime,
 ) -> f32 {
     var tau = 0.0;
-    var prev_d = 0.0;
+    var dist = 0.0;
+    var step_d = CLOUD_LIGHT_NEAR;
     for (var i = 0; i < CLOUD_HI_LIGHT_SAMPLES; i = i + 1) {
-        let fi = f32(i);
-        let dist = CLOUD_LIGHT_STEP * (fi + 1.0)
-            + CLOUD_LIGHT_STEP * 0.35 * fi * fi;
-        let seg = dist - prev_d;
-        prev_d = dist;
+        // Geometric ladder: the segment IS the step, positions run
+        // ~0.9 / 2.5 / 5.5 / 11 / 21 / 38 / 69 / 125 km (see
+        // CLOUD_LIGHT_NEAR / RATIO above).
+        dist = dist + step_d;
+        let seg = step_d;
+        step_d = step_d * CLOUD_LIGHT_RATIO;
         let lp = p + sun_local * dist;
         let dens = cloud_density_light(lp, t, seed, weather_a, reg);
         tau = tau + CLOUD_HI_SIGMA_T * CLOUD_LIGHT_SIGMA_MULT * dens * seg;
@@ -1311,8 +1362,13 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
         // sample - lobes shade individually even though the light march
         // is far coarser than the lobe scale. Direct takes half the
         // occlusion (crevices still catch some sun), ambient the full.
-        let ao = 1.0 - CLOUD_PUFF_AO * dc.y;
-        let lit = direct * mix(1.0, ao, 0.5) + amb * ao;
+        // Crown shading (v0.1014): samples near their own column's domed
+        // crown catch extra sky, samples deep in the fold between domes
+        // sit in valley shade - the from-above relief cue that survives
+        // even a zenith sun.
+        let crown_shade = mix(0.70, 1.12, dc.z);
+        let ao = (1.0 - CLOUD_PUFF_AO * dc.y) * crown_shade;
+        let lit = direct * mix(1.0, clamp(ao, 0.0, 1.0), 0.5) + amb * ao;
 
         let c_i = material.base_color.rgb
             * (sun_energy * lit * day + vec3<f32>(CLOUD_NIGHT_FLOOR));

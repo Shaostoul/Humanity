@@ -105,10 +105,12 @@ pub const CLOUD_HI_STEP_EXP: f32 = 1.6;
 /// Mirrors `CLOUD_HI_LIGHT_SAMPLES`: light-march taps toward the sun per
 /// lit view sample.
 pub const CLOUD_HI_LIGHT_SAMPLES: i32 = 8;
-/// Mirrors `CLOUD_LIGHT_STEP`: base light-march step, drawn-shell units.
-/// Halved 2026-07-27 (flat-lighting root cause): the first tap used to
-/// jump ~15% of the slab, overshooting thin stratus bands entirely.
-pub const CLOUD_LIGHT_STEP: f32 = 0.0006;
+/// Mirrors `CLOUD_LIGHT_NEAR` / `CLOUD_LIGHT_RATIO`: the light march is a
+/// GEOMETRIC ladder (v0.1014) - first tap ~0.9 km so dome-crown relief
+/// self-shadows (the old ~3.9 km first tap lit the whole deck top dead
+/// flat), multiplying per tap out to ~125 km for big-mass shadows.
+pub const CLOUD_LIGHT_NEAR: f32 = 0.00014;
+pub const CLOUD_LIGHT_RATIO: f32 = 1.8;
 /// Mirrors `CLOUD_LIGHT_SIGMA_MULT`: light-march extinction multiplier
 /// over the view sigma. The view sigma is calibrated for deck ALPHA
 /// (feathered edges); reusing it for the sun path capped every shadow at
@@ -763,7 +765,8 @@ mod tests {
             ("CLOUD_BASE_DARKEN", CLOUD_BASE_DARKEN),
             // Increment-3 volumetric constants.
             ("CLOUD_HI_STEP_EXP", CLOUD_HI_STEP_EXP),
-            ("CLOUD_LIGHT_STEP", CLOUD_LIGHT_STEP),
+            ("CLOUD_LIGHT_NEAR", CLOUD_LIGHT_NEAR),
+            ("CLOUD_LIGHT_RATIO", CLOUD_LIGHT_RATIO),
             ("CLOUD_LIGHT_SIGMA_MULT", CLOUD_LIGHT_SIGMA_MULT),
             ("CLOUD_HI_SIGMA_T", CLOUD_HI_SIGMA_T),
             ("CLOUD_HI_MAX_ALPHA", CLOUD_HI_MAX_ALPHA),
