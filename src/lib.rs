@@ -1809,6 +1809,10 @@ mod native_app {
                 last_frame: Instant::now(),
                 window_focused: true,
                 background_no_cursor: std::env::var("HUMANITY_NO_FOCUS").is_ok(),
+                far_tree_mesh: None,
+                far_tree_anchor: glam::DVec3::ZERO,
+                far_tree_built_cam: glam::DVec3::splat(1.0e30),
+                far_tree_pending: None,
                 egui_ctx,
                 egui_state,
                 egui_renderer,
@@ -9308,6 +9312,99 @@ mod native_app {
                                 } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
                                     state.near_trees.clear();
                                     state.near_trees_center = glam::DVec3::splat(f64::MAX);
+                                }
+                                // ── Far-tree card sheet (v0.1022, vegetation
+                                // instancing arc increment 1) ── one streamed
+                                // mesh of hash-decimated clump cards covering
+                                // ~1.2-150 km, decoupled from patch LOD.
+                                // Closes the "trees aren't loaded from
+                                // altitude" gap and buries the square (patch
+                                // edge) / circle (card slider) boundary
+                                // shapes. Rebuilt on a worker when the camera
+                                // ground point moves; same cell hash as the
+                                // baked cards so the handoff never teleports
+                                // a tree.
+                                if b.id == "earth" && chunked_drawn {
+                                    if let Some(rx) = &state.far_tree_pending {
+                                        match rx.try_recv() {
+                                            Ok(result) => {
+                                                state.far_tree_pending = None;
+                                                log::info!(
+                                                    "[FarTrees] sheet built: {} cards",
+                                                    result
+                                                        .as_ref()
+                                                        .map(|(m, _)| m.vertices.len() / 12)
+                                                        .unwrap_or(0)
+                                                );
+                                                if let Some((md, anchor)) = result {
+                                                    let mesh = Mesh::from_planet_surface(
+                                                        &state.renderer.device,
+                                                        &md,
+                                                    );
+                                                    let idx = if let Some(i) = state.far_tree_mesh
+                                                    {
+                                                        state.renderer.replace_mesh(i, mesh);
+                                                        i
+                                                    } else if let Some(i) =
+                                                        state.planet_patch_free_slots.pop()
+                                                    {
+                                                        state.renderer.replace_mesh(i, mesh);
+                                                        i
+                                                    } else {
+                                                        state.renderer.add_mesh(mesh)
+                                                    };
+                                                    state.far_tree_mesh = Some(idx);
+                                                    state.far_tree_anchor = anchor;
+                                                }
+                                            }
+                                            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                                            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                                                state.far_tree_pending = None;
+                                            }
+                                        }
+                                    }
+                                    if state.far_tree_pending.is_none()
+                                        && (cam_local - state.far_tree_built_cam).length()
+                                            > crate::terrain::far_trees::FAR_TREE_REBUILD_M
+                                    {
+                                        if let Some(hm) = state.planet_heightmaps.get(&b.id) {
+                                            let (tx, rx) = std::sync::mpsc::channel();
+                                            state.far_tree_pending = Some(rx);
+                                            state.far_tree_built_cam = cam_local;
+                                            let hm = hm.clone();
+                                            let albedo =
+                                                state.planet_albedos.get(&b.id).cloned();
+                                            let def = d.clone();
+                                            let cam = cam_local;
+                                            std::thread::spawn(move || {
+                                                let _ = tx.send(
+                                                    crate::terrain::far_trees::build_far_tree_sheet(
+                                                        &def,
+                                                        &hm,
+                                                        albedo.as_deref(),
+                                                        cam,
+                                                    ),
+                                                );
+                                            });
+                                        }
+                                    }
+                                    if let Some(mi) = state.far_tree_mesh {
+                                        let anchor_render =
+                                            render_off + rot_d * state.far_tree_anchor;
+                                        celestial_objects.push(RenderObject {
+                                            fade: 0.0,
+                                            position: Vec3::new(
+                                                anchor_render.x as f32,
+                                                anchor_render.y as f32,
+                                                anchor_render.z as f32,
+                                            ),
+                                            rotation,
+                                            scale: Vec3::ONE,
+                                            mesh: mi,
+                                            material: textured_mat
+                                                .unwrap_or(state.planet_surface_material),
+                                        });
+                                    }
                                 }
                                 if chunked_drawn != cs.active_last_frame {
                                     cs.active_last_frame = chunked_drawn;

@@ -10,6 +10,7 @@ pub mod icosphere;
 pub mod planet;
 pub mod planet_albedo;
 pub mod planet_chunks;
+pub mod far_trees;
 pub mod ocean_mask;
 pub mod ocean_waves;
 pub mod terrain_tiles;

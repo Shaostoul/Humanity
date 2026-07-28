@@ -754,6 +754,17 @@ pub(crate) struct EngineState {
     /// this and the window becomes fully interactive (the operator's "when
     /// I go to it the mouse doesn't work" was the old permanent guard).
     pub(crate) background_no_cursor: bool,
+    /// Far-tree card sheet (v0.1022): renderer mesh slot, its planet-local
+    /// anchor, the camera point it was built around, and the in-flight
+    /// worker receiver. One sheet, Earth only for now.
+    pub(crate) far_tree_mesh: Option<usize>,
+    pub(crate) far_tree_anchor: glam::DVec3,
+    pub(crate) far_tree_built_cam: glam::DVec3,
+    pub(crate) far_tree_pending: Option<
+        std::sync::mpsc::Receiver<
+            Option<(crate::terrain::planet_surface::SurfaceMeshData, glam::DVec3)>,
+        >,
+    >,
     // egui integration
     pub(crate) egui_ctx: egui::Context,
     pub(crate) egui_state: egui_winit::State,

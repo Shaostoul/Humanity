@@ -318,6 +318,16 @@
       "date": "2026-07-28",
       "decision": "v0.1021.1 morning (operator at Sponsor-A-Can, loop mode, goal = wrap planet gen then back to gameplay/house): cloud drift desync fixed by slowing CLOUD_DRIFT_ZONAL/CROSS ~75x to jet-stream rates (MODIS pins placement to geography; interiors slid through silhouettes at 580 km/min; drifting the MODIS UV would wheel real geography around the planet). Cirrus crown floor regime-aware (mix(0.88,0.70,opacity)). Rig A/B skipped after two night-side capture misfires - fix is constant arithmetic + 24 tests; operator judges aesthetics live. NEXT: the vegetation/tree instancing arc (the reserved fresh-session arc; owns square/circle tree boundary, trees-from-altitude, species variety) - the PLANTS pillar of the wrap-planet-gen goal.",
       "rationale": "Day goal = finish planetary polish so gameplay loops resume; instancing arc is the biggest remaining plants item and today is its fresh session."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Vegetation arc increment 1 IN PROGRESS: far-tree card sheet (src/terrain/far_trees.rs) - one streamed mesh of hash-decimated clump cards 1.2-150 km in 3 density bands (stride 1/4/16; band 1 sprite cards, bands 2-3 flat-colored crossed clumps), SAME cell grid + xorshift stream as the patch bake so representatives stand on real baked-tree positions; rebuilt on a worker when the camera ground point moves 2 km; anchored near the camera (f32-safe). Wired into lib.rs earth chunked block (state fields far_tree_*); 3 unit tests green (anchored, deterministic, ocean-none). Closes trees-from-altitude + buries the square/circle card boundary. Next: rig visual verify (altitude carpet + near handoff), then ship v0.1022.1.",
+      "rationale": "The reserved instancing arc is the biggest remaining plants item for the wrap-planet-gen day goal; the sheet is its patch-decoupled foundation (true GPU instancing + atlas generalization remain follow-up rungs)."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1022.1 far-tree canopy sheet SHIPPED: clump redesign after v1 vertical billboards proved edge-on-invisible from altitude (the rig capture that shaped the increment) + 1-tree-per-cell proved 1/800th forest density. Clumps = crossed verticals + horizontal canopy quad per surviving cell, imagery-colored, 3 stride bands to 150 km, same cell hash as the bake, worker rebuilds each 2 km, 12-33k clumps @ 72 FPS. Trees-from-altitude CLOSED; square/circle boundaries buried. Remaining arc rungs: true instancing, species atlas, near-band sprites.",
+      "rationale": "Plants pillar of the wrap-planet-gen day goal: the sheet is the patch-decoupled foundation everything else in the arc rides on."
     }
   ],
   "active_scopes_to_avoid": [

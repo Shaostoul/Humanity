@@ -136,6 +136,10 @@
 >   remain 1 m tile seams (bicubic overshoot) and physics-vs-drawn-mesh
 >   divergence (bobbing = collider following the analytic curve between
 >   drawn verts?).
+> - INCREMENT 1 SHIPPED (v0.1022.1): the far-tree CANOPY SHEET
+>   (src/terrain/far_trees.rs) - clump cards to 150 km, from-altitude
+>   forests fixed, square/circle boundary buried. Remaining rungs: true
+>   GPU instancing, species atlas, near-band sprite detail.
 > - OPEN varied tree species / bushes / denser grass: deliberately folded
 >   into the reserved BILLBOARD-BAKE + TREE INSTANCING arc (fresh
 >   session): species variety needs matching far-field cards + atlas
