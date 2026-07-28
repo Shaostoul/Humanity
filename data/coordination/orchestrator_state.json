@@ -328,6 +328,11 @@
       "date": "2026-07-28",
       "decision": "v0.1022.1 far-tree canopy sheet SHIPPED: clump redesign after v1 vertical billboards proved edge-on-invisible from altitude (the rig capture that shaped the increment) + 1-tree-per-cell proved 1/800th forest density. Clumps = crossed verticals + horizontal canopy quad per surviving cell, imagery-colored, 3 stride bands to 150 km, same cell hash as the bake, worker rebuilds each 2 km, 12-33k clumps @ 72 FPS. Trees-from-altitude CLOSED; square/circle boundaries buried. Remaining arc rungs: true instancing, species atlas, near-band sprites.",
       "rationale": "Plants pillar of the wrap-planet-gen day goal: the sheet is the patch-decoupled foundation everything else in the arc rides on."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "v0.1023.1 homestead increment 1 (the shell): 10-room program authored in ship_structure.ron (16 walls, doors/windows per design rules, glass entry half-wall, equal 0.10 thickness sidestepping the corner-seam bug), 23-segment showcase moved to commons as the teaching exhibit, spawn at entry, 12 room zones + 11 room-grade zone types. Splice via generated script (first cut corrupted the file - indexOf matched a substring inside deeper-indented lines; git-restored, newline-anchored, re-spliced clean). 79/79 data tests; walk-through = operator bar per the design doc. Editor snapshot confirmed the furniture palette exists for increment 3.",
+      "rationale": "The operator morning directive moved the day to the homestead after the planetary wrap; increment 1 is the design-doc-named first build step."
     }
   ],
   "active_scopes_to_avoid": [
