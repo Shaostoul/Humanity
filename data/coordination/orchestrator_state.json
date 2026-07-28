@@ -298,6 +298,11 @@
       "date": "2026-07-27",
       "decision": "v0.1017.1 water arc increment 1: per-train resolution fades (seam holes + checkerboard tiles root-caused as trains outliving vertex density; reach ~60*lambda), chop rephased in camera-anchored 64m-modulus domain with axis-aligned dirs + lambda dividing 64 (16/6.4m) killing camera-coupled f32 jitter (twin phase now f64, lockstep updated), foam beat-pulse threshold raise, storm zebra softening (2.3x->1.5x + clamp 1.35), fully_covered all-or-nothing water gate removed (underwater surface never drew - selection never converges submerged), below-view normal flip (water ceiling), grade_albedo coastal de-blue (Blue Marble texel contamination, shared face+bake), rig diving camera. Operator live-reported pulse+jitter mid-arc; both root-caused same session.",
       "rationale": "Water was the operator-declared top backlog arc; every fix is a root cause, not a tune-around: resolution physics, f32-at-scale, beat frequencies, an all-or-nothing draw gate, and source-data contamination."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1018.1 water increment 2 (operator round-2 report + Subnautica bar): underwater = transparent-list ORDER bug (water first/atmo over = backwards submerged; water sorts last when underwater), foam lacework (2nd wave-tex tap), surf sign flip (marched seaward), purple triangles = de-blue lerp through complements -> blue-dominance clamp rework, ocean tree strip -> 6m storm-surge floor, W4 anchored (lambda 32|64, was 1% wobble), AUDIT FIND: buoyancy caller narrowed to f32 before the f64 twin (DVec3 end-to-end now). Remaining f32-at-scale: GPU shading-train phases (<=1m per-patch offsets) = top suspect for residual faint seams/squarish tiles - next increment investigates via rig hot-reload experiments. Subnautica refs = the water-quality bar (underwater god rays/caustics future).",
+      "rationale": "Operator asked the f64 question directly; the audit immediately found the buoyancy narrowing. Purple triangles were my own v0.1017 de-blue lerp - fixed same-session."
     }
   ],
   "active_scopes_to_avoid": [

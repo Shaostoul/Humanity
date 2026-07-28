@@ -109,16 +109,19 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // out so the far field stays the approved satellite look.
         var crest = 0.0;
         let tex_reach = 1.0 - smoothstep(4.0, 14.0, footprint);
+        // Anchored-domain position, shared by the wave texture and the foam
+        // lacework below (small magnitudes near the camera - the same
+        // pinned domain the micro ripples use).
+        let inv_mw = transpose(obj_normal_matrix());
+        let dvw =
+            (inv_mw * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
+        let anchw = vec3<f32>(
+            camera.light0_cone_inner.y,
+            camera.light0_cone_inner.z,
+            camera.light0_cone_inner.w,
+        );
+        let ptw = anchw + dvw;
         if (tex_reach > 0.003) {
-            let inv_mw = transpose(obj_normal_matrix());
-            let dvw =
-                (inv_mw * vec4<f32>(in.world_position - camera.view_pos.xyz, 0.0)).xyz;
-            let anchw = vec3<f32>(
-                camera.light0_cone_inner.y,
-                camera.light0_cone_inner.z,
-                camera.light0_cone_inner.w,
-            );
-            let ptw = anchw + dvw;
             let det = ocean_tex_gradient(ptw, dir, t, footprint);
             // The texture stores slopes NORMALIZED to full channel range for
             // precision; the physical steepness lives here. Calm seas are
@@ -156,6 +159,19 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             * smoothstep(0.55, 0.95, sea_state)
             * foam_reach
             * presence;
+        // Foam LACEWORK (v0.1018, operator: "the foam texture is very
+        // simple that it just kind of looks like white paper"): real foam
+        // is strands and holes, not a solid sheet. A second wave-texture
+        // tap at an incommensurate scale + offset time carves the flat
+        // foam into advecting lace: crest-channel strands modulate the
+        // alpha so patches read as froth riding the water. One extra
+        // textured sample, only where foam actually shows.
+        if (foam > 0.01) {
+            let lace_det = ocean_tex_gradient(
+                ptw * 2.83 + vec3<f32>(17.0, 3.0, 41.0), dir, t * 1.6, footprint);
+            let lace = smoothstep(0.28, 0.72, lace_det.w);
+            foam = foam * (0.25 + 0.85 * lace);
+        }
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((obj_model() * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
@@ -176,7 +192,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     if (surf_reach > 0.003) {
         let band = (1.0 - smoothstep(0.25, 2.2, depth_m)) * smoothstep(0.03, 0.25, depth_m);
         let along = surface_detail_noise(dir_r2, r_render / 40.0, 1543.0);
-        let breathe = 0.5 + 0.5 * sin(6.2831853 * (t * 0.5 - depth_m * 0.65));
+        // Sign flip (v0.1018, operator: "it looks like they're going
+        // backwards"): with t*f MINUS depth*k a constant-phase band drifts
+        // toward DEEPER water; PLUS makes the surf march shoreward.
+        let breathe = 0.5 + 0.5 * sin(6.2831853 * (t * 0.5 + depth_m * 0.65));
         let surf_line = band * (0.35 + 0.65 * breathe) * (0.4 + 0.6 * along)
             * (0.55 + 0.45 * sea_state) * surf_reach;
         foam = max(foam, surf_line);

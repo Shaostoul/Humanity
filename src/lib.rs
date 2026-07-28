@@ -3924,8 +3924,12 @@ mod native_app {
                                         // displacement runs on (sun_color.w
                                         // = start-relative seconds).
                                         let t = state.start_time.elapsed().as_secs_f32();
-                                        let p =
-                                            (dir1 * d.radius).as_vec3();
+                                        // f64 all the way into the twin
+                                        // (v0.1018 audit find: this used to
+                                        // narrow to f32 BEFORE the wave
+                                        // phase - 0.5 m of position noise
+                                        // fed the buoyancy float).
+                                        let p = dir1 * d.radius;
                                         // Shoaled twin (v0.957): g is the drawn
                                         // seafloor here, so radius - g is the
                                         // local depth - the float height dies
@@ -15000,6 +15004,26 @@ mod native_app {
                                 // (tree_card_hide_m is owned by the near-tree
                                 // draw loop since v0.914 - it tracks the
                                 // radius models actually cover each frame.)
+                                // Submerged blend order (v0.1018, operator:
+                                // "when I go under water all that happens is
+                                // the sky gets a blue tint"): the transparent
+                                // list is ordered back-to-front FROM ABOVE
+                                // (water first, then atmo/clouds over it).
+                                // From underwater that is exactly backwards -
+                                // the atmosphere and cloud shells blended
+                                // over the sea surface, washing it out with
+                                // sky. When submerged, water objects move to
+                                // the END (nearest), so the surface composites
+                                // over the sky/clouds seen through it.
+                                if state.gui_state.underwater {
+                                    let water_mats: std::collections::HashSet<usize> =
+                                        state.planet_water_materials.values().copied().collect();
+                                    // Stable: water sinks to the end (drawn
+                                    // last = nearest), everything else keeps
+                                    // its relative order.
+                                    celestial_transparent
+                                        .sort_by_key(|o| water_mats.contains(&o.material));
+                                }
                                 state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is

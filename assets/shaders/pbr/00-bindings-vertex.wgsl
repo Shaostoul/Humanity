@@ -257,9 +257,13 @@ const OCEAN_W2_HEIGHT: f32 = 0.7;
 const OCEAN_W3_LAMBDA: f32 = 150.0;
 const OCEAN_W3_CPS: f32 = 0.105;
 const OCEAN_W3_HEIGHT: f32 = 0.45;
-const OCEAN_W4_LAMBDA: f32 = 50.0;
-const OCEAN_W4_CPS: f32 = 0.18;
-const OCEAN_W4_HEIGHT: f32 = 0.45;
+// W4 joined the anchored-domain family (v0.1018, residual jitter: at
+// lambda 50 the planet-coordinate f32 noise was still ~1% of a wavelength
+// of camera-coupled wobble). 32 divides the 64 m anchor modulus;
+// dispersion retuned (c ~ 1.25 sqrt(lambda)).
+const OCEAN_W4_LAMBDA: f32 = 32.0;
+const OCEAN_W4_CPS: f32 = 0.221;
+const OCEAN_W4_HEIGHT: f32 = 0.4;
 // v0.912 (operator: "add fake geometry to the ocean to simulate the
 // smaller waves... right now the waves seem exclusively texture
 // related"): two SHORT geometric trains give near water real moving
@@ -286,6 +290,7 @@ const OCEAN_W5_HEIGHT: f32 = 0.35;
 const OCEAN_W6_LAMBDA: f32 = 6.4;
 const OCEAN_W6_CPS: f32 = 0.49;
 const OCEAN_W6_HEIGHT: f32 = 0.1;
+const OCEAN_W4_DIR: vec3<f32> = vec3<f32>(0.0, 1.0, 0.0);
 const OCEAN_W5_DIR: vec3<f32> = vec3<f32>(1.0, 0.0, 0.0);
 const OCEAN_W6_DIR: vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
 
@@ -331,7 +336,7 @@ fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32) -
     h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
         * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
-    h = h + ocean_height_train(p_m, WAVE6_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t)
+    h = h + ocean_height_train(p_anch, OCEAN_W4_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t)
         * ocean_train_fade(cam_dist, OCEAN_W4_LAMBDA);
     // Short chop: resolution-faded like the rest (the old fixed 250-800 m
     // band under-resolved the 6 m train past ~360 m), phased in the

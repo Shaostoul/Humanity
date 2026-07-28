@@ -41,7 +41,7 @@ pub const TRAINS: [WaveTrain; 6] = [
     WaveTrain { dir: [0.7071068, 0.0, 0.7071068], lambda_m: 2000.0, cps: 0.028, height_m: 1.1 },
     WaveTrain { dir: [0.2672612, 0.5345225, 0.8017837], lambda_m: 360.0, cps: 0.07, height_m: 0.7 },
     WaveTrain { dir: [-0.5773503, 0.5773503, 0.5773503], lambda_m: 150.0, cps: 0.105, height_m: 0.45 },
-    WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.45 },
+    WaveTrain { dir: [0.0, 1.0, 0.0], lambda_m: 32.0, cps: 0.221, height_m: 0.4 },
     WaveTrain { dir: [1.0, 0.0, 0.0], lambda_m: 16.0, cps: 0.31, height_m: 0.35 },
     WaveTrain { dir: [0.0, 0.0, 1.0], lambda_m: 6.4, cps: 0.49, height_m: 0.1 },
 ];
@@ -59,7 +59,7 @@ pub const SURFACE_LIFT_M: f32 = 1.2;
 /// v0.957 (field report "no actual wave height"): chop trains 4-6 lifted to
 /// Beaufort-4-ish amplitudes now that the water mesh is fine enough to
 /// actually draw them (WATER_MAX_PATCH_DEPTH 17).
-pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.45 + 0.35 + 0.1;
+pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.4 + 0.35 + 0.1;
 
 /// Shoal damping for the GEOMETRIC wave height: full amplitude in open
 /// water, fading to zero as the sea shallows so bigger waves never stab
@@ -73,7 +73,7 @@ pub fn shoal_factor(depth_m: f32) -> f32 {
 /// Wave height with shoal damping applied, for callers that know the local
 /// water depth (the player float clamp). `wave_height_m` stays the
 /// open-deep form for callers without bathymetry.
-pub fn wave_height_shoaled_m(p_m: glam::Vec3, t: f32, depth_m: f32) -> f32 {
+pub fn wave_height_shoaled_m(p_m: glam::DVec3, t: f32, depth_m: f32) -> f32 {
     wave_height_m(p_m, t) * shoal_factor(depth_m)
 }
 
@@ -92,9 +92,9 @@ fn wgsl_fract(x: f32) -> f32 {
 /// ~0.5 m, which on the short chop trains was most of a wavelength of
 /// pure noise - the physics float must be smooth even where the shader's
 /// anchored-domain trick is unavailable.
-pub fn wave_height_m(p_m: glam::Vec3, t: f32) -> f32 {
+pub fn wave_height_m(p_m: glam::DVec3, t: f32) -> f32 {
     let mut h = 0.0f32;
-    let pd = p_m.as_dvec3();
+    let pd = p_m;
     for tr in TRAINS {
         let d = glam::DVec3::new(tr.dir[0] as f64, tr.dir[1] as f64, tr.dir[2] as f64);
         let phase = wgsl_fract64(pd.dot(d) / tr.lambda_m as f64 - (t * tr.cps) as f64);
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn height_is_bounded_and_animates() {
-        let p = glam::Vec3::new(4_000_000.0, 2_000_000.0, -4_500_000.0);
+        let p = glam::DVec3::new(4_000_000.0, 2_000_000.0, -4_500_000.0);
         let mut moved = false;
         let mut prev = None;
         for i in 0..200 {
@@ -184,7 +184,7 @@ mod tests {
             "WAVE1_DIR",
             "WAVE3_DIR",
             "WAVE4_DIR",
-            "WAVE6_DIR",
+            "OCEAN_W4_DIR",
             "OCEAN_W5_DIR",
             "OCEAN_W6_DIR",
         ];

@@ -394,20 +394,20 @@ pub fn grade_albedo(
         // per-face path and the albedo texture bake heal identically.
         let shore = 1.0 - ((elevation - sea) / SHORE_DEBLUE_BAND).clamp(0.0, 1.0);
         if shore > 0.0 {
-            let blueness =
-                ((c[2] - c[0].max(c[1])) / c[2].max(0.001)).clamp(0.0, 1.0);
-            let bs = ((blueness - 0.05) / 0.30).clamp(0.0, 1.0);
-            let w = shore * bs * bs * (3.0 - 2.0 * bs) * 0.85;
-            if w > 0.0 {
-                let luma = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-                let sand = [
-                    (luma * 1.30).min(1.0),
-                    (luma * 1.14).min(1.0),
-                    luma * 0.82,
-                ];
-                for i in 0..3 {
-                    c[i] += (sand[i] - c[i]) * w;
-                }
+            // v0.1018 rework (operator: "obvious purpley triangles"): the
+            // first cut LERPED blue samples toward a warm sand target, and
+            // an RGB lerp between complements passes through gray-mauve -
+            // partial weights painted the tidal band purple. Now the
+            // correction only CLAMPS blue dominance (pull b down toward
+            // the r/g ceiling and lift r slightly to compensate luma):
+            // hue moves off blue without ever crossing purple, and
+            // non-blue samples are untouched by construction.
+            let ceiling = c[0].max(c[1]);
+            if c[2] > ceiling {
+                let excess = (c[2] - ceiling) * shore * 0.85;
+                c[2] -= excess;
+                c[0] = (c[0] + excess * 0.55).min(1.0);
+                c[1] = (c[1] + excess * 0.25).min(1.0);
             }
         }
         c

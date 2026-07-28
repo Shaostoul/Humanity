@@ -1783,7 +1783,14 @@ pub fn build_patch_mesh(
                         };
                         let elev_m = (e - sea) * range_m;
                         // Land only, below the treeline, above the beach.
-                        if elev_m < 3.0 || elev_m > TREELINE_M {
+                        // Floor raised 3 -> 6 m (v0.1018, operator: "weird
+                        // strip of trees on the ocean"): coastal shelves are
+                        // so flat that the first legal contour formed a
+                        // shoreline-hugging tree line on the tidal flat,
+                        // fed by blue-blurred imagery passing the green
+                        // gate. 6 m is the storm-surge line - real beaches
+                        // and flats stay bare.
+                        if elev_m < 6.0 || elev_m > TREELINE_M {
                             continue;
                         }
                         // Biome gate (v0.896, loosened v0.955): vegetation
@@ -2082,7 +2089,7 @@ pub fn near_tree_instances(
                     ElevationSource::Noise(sm) => (sm.elevation_at(dir.as_vec3()), false),
                 };
                 let elev_m = (e - sea) * range_m;
-                if elev_m < 3.0 || elev_m > TREELINE_M {
+                if elev_m < 6.0 || elev_m > TREELINE_M {
                     n_elev += 1;
                     if elev_samples.len() < 4 {
                         elev_samples.push(elev_m);
