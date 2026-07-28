@@ -399,6 +399,10 @@
     {
       "date": "2026-07-28",
       "decision": "Weather-event CONSUMPTION rung (v0.1035.1): WeatherSystem rolls every 900 s (35% fire chance, then rarity-weighted pick among season/temp/wind-eligible events via pure helpers eligible+weighted_pick in weather_events.rs). Active event lives ON the Weather struct (event_id/name/remaining); Front gusts ride the EXPORT only (active_gust_mps * 0.6) so lerp targets stay clean; Vortex wind + hazard damage logged-but-deferred to the next rung. HUD condition label swaps to the event name while running; the precipitation block unions the active event emitters and enumerates ALL registry emitter ids so ended events deactivate cleanly. 10 weather tests incl statistical fire test (300 forced rolls)."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Rain streaks (v0.1036.1, precipitation inc 2): ParticleVertexData gains a world-space stretch vector (velocity * per-def streak_stretch SECONDS, serde default 0); particles.wgsl reorients the billboard basis along the projected velocity and lengthens by half the motion vector - stretch 0 reduces exactly to the round sprite, so only rain (0.035 s = ~40 cm at 12 m/s) changes. Vertex layout grew to 48 B/instance (location 3). Second collect_vertices call site (collect_all_vertices) caught by the compiler - both now pass the def streak."
     }
   ],
   "active_scopes_to_avoid": [

@@ -80,6 +80,7 @@
         emissive: 0.0,
         blend_mode: "alpha",
         spawn_radius: 15.0,
+        streak_stretch: 0.035,  // ~40 cm motion-blur streaks at 12 m/s
     ),
     "snow": (
         max_particles: 900,

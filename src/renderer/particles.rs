@@ -47,6 +47,11 @@ struct EmitterDefRon {
     /// area effects like drifting leaves and space dust need a volume, not a
     /// point source). 0 = the classic point emitter.
     #[serde(default)] spawn_radius: f32,
+    /// Motion-blur streak length in SECONDS of travel (v0.1036): each
+    /// particle's quad stretches along its velocity by v * this. 0 =
+    /// classic round sprite; rain uses ~0.035 s so 12 m/s drops draw as
+    /// ~40 cm streaks while snow stays a drifting flake.
+    #[serde(default)] streak_stretch: f32,
 }
 fn default_100() -> usize { 100 }
 fn default_20f() -> f32 { 20.0 }
@@ -82,6 +87,7 @@ impl EmitterDefRon {
             emissive: self.emissive,
             blend_additive: self.blend_mode == "additive",
             spawn_radius: self.spawn_radius,
+            streak_stretch: self.streak_stretch,
         }
     }
 }
@@ -105,6 +111,7 @@ pub struct EmitterDef {
     pub emissive: f32,
     pub blend_additive: bool,
     pub spawn_radius: f32,
+    pub streak_stretch: f32,
 }
 
 impl Default for EmitterDef {
@@ -126,6 +133,7 @@ impl Default for EmitterDef {
             emissive: 0.0,
             blend_additive: false,
             spawn_radius: 0.0,
+            streak_stretch: 0.0,
         }
     }
 }
@@ -246,8 +254,9 @@ impl Emitter {
         });
     }
 
-    /// Collect vertex data for GPU upload.
-    fn collect_vertices(&self) -> Vec<ParticleVertexData> {
+    /// Collect vertex data for GPU upload. `streak_s` is the emitter
+    /// def's motion-blur seconds (0 = round sprites).
+    fn collect_vertices(&self, streak_s: f32) -> Vec<ParticleVertexData> {
         self.particles.iter().map(|p| {
             let t = (p.age / p.lifetime).clamp(0.0, 1.0);
             let size = p.size_start + (p.size_end - p.size_start) * t;
@@ -257,10 +266,12 @@ impl Emitter {
                 p.color_start[2] + (p.color_end[2] - p.color_start[2]) * t,
                 p.color_start[3] + (p.color_end[3] - p.color_start[3]) * t,
             ];
+            let s = p.velocity * streak_s;
             ParticleVertexData {
                 position: [p.position.x, p.position.y, p.position.z],
                 color,
                 size_emissive: [size, p.emissive],
+                stretch: [s.x, s.y, s.z],
             }
         }).collect()
     }
@@ -273,6 +284,10 @@ pub struct ParticleVertexData {
     pub position: [f32; 3],
     pub color: [f32; 4],
     pub size_emissive: [f32; 2],
+    /// World-space motion vector (velocity * streak seconds, v0.1036):
+    /// the shader stretches the billboard along its screen projection.
+    /// Zero = classic round sprite.
+    pub stretch: [f32; 3],
 }
 
 /// The main particle system managing all emitters.
@@ -377,13 +392,11 @@ impl ParticleSystem {
         let mut alpha = Vec::new();
         let mut additive = Vec::new();
         for e in &self.emitters {
-            let add = self
-                .emitter_defs
-                .get(&e.emitter_type)
-                .map(|d| d.blend_additive)
-                .unwrap_or(false);
+            let def = self.emitter_defs.get(&e.emitter_type);
+            let add = def.map(|d| d.blend_additive).unwrap_or(false);
+            let streak = def.map(|d| d.streak_stretch).unwrap_or(0.0);
             let out = if add { &mut additive } else { &mut alpha };
-            out.extend(e.collect_vertices());
+            out.extend(e.collect_vertices(streak));
         }
         (alpha, additive)
     }
@@ -392,7 +405,12 @@ impl ParticleSystem {
     pub fn collect_all_vertices(&self) -> Vec<ParticleVertexData> {
         let mut verts = Vec::with_capacity(self.particle_count());
         for emitter in &self.emitters {
-            verts.extend(emitter.collect_vertices());
+            let streak = self
+                .emitter_defs
+                .get(&emitter.emitter_type)
+                .map(|d| d.streak_stretch)
+                .unwrap_or(0.0);
+            verts.extend(emitter.collect_vertices(streak));
         }
         verts
     }
@@ -421,6 +439,11 @@ impl ParticleVertexData {
                     offset: 28,
                     shader_location: 2,
                     format: wgpu::VertexFormat::Float32x2,
+                },
+                wgpu::VertexAttribute {
+                    offset: 36,
+                    shader_location: 3,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
             ],
         }
@@ -553,5 +576,35 @@ mod tests {
         off.rate_scale = 0.0;
         off.tick(1.0, &d);
         assert!(off.particles.is_empty());
+    }
+
+    /// v0.1036 streaks: the shipped defs parse with the new field (rain
+    /// streaked, snow round via the serde default), and collected
+    /// vertices carry velocity * streak seconds.
+    #[test]
+    fn shipped_defs_parse_streak_and_vertices_carry_it() {
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data/particles.ron"),
+        )
+        .expect("particles.ron readable");
+        let map: std::collections::HashMap<String, EmitterDefRon> =
+            ron::from_str(&text).expect("particles.ron parses");
+        assert!(map.get("rain").unwrap().streak_stretch > 0.0, "rain streaks");
+        assert_eq!(map.get("snow").unwrap().streak_stretch, 0.0, "snow stays round");
+        // Vertex packing: stretch = velocity * streak seconds.
+        let mut d = def();
+        d.speed_min = 10.0;
+        d.speed_max = 10.0;
+        d.direction = Vec3::new(0.0, -1.0, 0.0);
+        d.spread_angle_deg = 0.0;
+        let mut e = Emitter::new("t".into(), Vec3::ZERO);
+        e.tick(0.1, &d);
+        let verts = e.collect_vertices(0.05);
+        assert!(!verts.is_empty());
+        for v in &verts {
+            let mag = (v.stretch[0].powi(2) + v.stretch[1].powi(2) + v.stretch[2].powi(2)).sqrt();
+            assert!((mag - 0.5).abs() < 0.05, "10 m/s * 0.05 s should be ~0.5 m, got {mag}");
+        }
+        assert!(e.collect_vertices(0.0).iter().all(|v| v.stretch == [0.0; 3]));
     }
 }

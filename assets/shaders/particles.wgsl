@@ -35,15 +35,29 @@ fn vs_main(
     @location(0) center: vec3<f32>,
     @location(1) color: vec4<f32>,
     @location(2) size_emissive: vec2<f32>,
+    @location(3) stretch: vec3<f32>,
 ) -> VsOut {
     // Triangle-strip quad corners from the vertex index: (0,0)(1,0)(0,1)(1,1)
     // mapped to [-1, 1].
     let cx = f32(vi & 1u) * 2.0 - 1.0;
     let cy = f32((vi >> 1u) & 1u) * 2.0 - 1.0;
     let half = size_emissive.x * 0.5;
+    // Motion-blur streaks (v0.1036, rain): reorient the billboard's 2D
+    // basis so its long axis follows the particle's velocity projected
+    // onto the billboard plane, and lengthen it by half the motion
+    // vector. stretch = 0 reduces exactly to the classic round sprite
+    // (axis_u = up, axis_r = right, half_l = half).
+    let sp = vec2<f32>(dot(stretch, frame.right.xyz), dot(stretch, frame.up.xyz));
+    let slen = length(sp);
+    var axis_u = vec2<f32>(0.0, 1.0);
+    if (slen > 1.0e-4) {
+        axis_u = sp / slen;
+    }
+    let axis_r = vec2<f32>(axis_u.y, -axis_u.x);
+    let half_l = half + slen * 0.5;
     let world = center
-        + frame.right.xyz * (cx * half)
-        + frame.up.xyz * (cy * half);
+        + (frame.right.xyz * axis_r.x + frame.up.xyz * axis_r.y) * (cx * half)
+        + (frame.right.xyz * axis_u.x + frame.up.xyz * axis_u.y) * (cy * half_l);
     var out: VsOut;
     out.pos = camera.view_proj * vec4<f32>(world, 1.0);
     out.color = color;
