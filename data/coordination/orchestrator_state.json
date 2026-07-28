@@ -293,6 +293,11 @@
       "date": "2026-07-27",
       "decision": "v0.1016.1 operator-request batch: (1) foreground/background FPS caps (Settings > Graphics: unlimited toggle + slider, sync-to-foreground toggle + slider; pacing sleeps before dt stamp in RedrawRequested; WindowEvent::Focused tracked). (2) Swim speed now scales with the mouse-wheel gear (2.5 m/s at gear 1, ~125 m/s at max walk gear). (3) Mouse-look freeze ROOT-CAUSED: probe-rig launches stole foreground focus (raw MouseMotion only reaches the focused window; HUMANITY_NO_FOCUS existed since v0.828 but probe-sweep never set it) - rig now sets it + reconcile_cursor no-ops under it + CLAUDE.md boot-verify recipe updated. Operator confirmed v0.1015 perf: much better, 30-40 FPS high above surface. NEW ACTIVE ARC: WATER (6-item punch list in PRIORITIES top block). Tree square/circle + cloud drift-desync filed to their arcs.",
       "rationale": "Direct operator requests from the evening field report; the focus-steal fix removes the one repro-less open bug and stops future rig sessions from disturbing play."
+    },
+    {
+      "date": "2026-07-27",
+      "decision": "v0.1017.1 water arc increment 1: per-train resolution fades (seam holes + checkerboard tiles root-caused as trains outliving vertex density; reach ~60*lambda), chop rephased in camera-anchored 64m-modulus domain with axis-aligned dirs + lambda dividing 64 (16/6.4m) killing camera-coupled f32 jitter (twin phase now f64, lockstep updated), foam beat-pulse threshold raise, storm zebra softening (2.3x->1.5x + clamp 1.35), fully_covered all-or-nothing water gate removed (underwater surface never drew - selection never converges submerged), below-view normal flip (water ceiling), grade_albedo coastal de-blue (Blue Marble texel contamination, shared face+bake), rig diving camera. Operator live-reported pulse+jitter mid-arc; both root-caused same session.",
+      "rationale": "Water was the operator-declared top backlog arc; every fix is a root cause, not a tune-around: resolution physics, f32-at-scale, beat frequencies, an all-or-nothing draw gate, and source-data contamination."
     }
   ],
   "active_scopes_to_avoid": [

@@ -36,6 +36,17 @@
 >    the water pass at budget defaults (operator suspects water is a top
 >    perf hit; the checkerboard artifacts suggest overdraw or per-patch
 >    waste).
+> INCREMENT 1 SHIPPED (v0.1017.1): items 1+2 fixed by per-train resolution
+> fades (ocean_train_fade; holes + checkerboard verified gone at the rig);
+> item 4 fixed (fully_covered all-or-nothing gate removed + below-view
+> normal flip); item 5 fixed (grade_albedo coastal de-blue, shared with
+> the bake); PLUS two live follow-ups: vertex JITTER (chop rephased in
+> the camera-anchored 64m-modulus domain, axis-aligned dirs, f64 twin -
+> the f32-at-scale class, GPU edition) and foam PULSING (train-beat
+> threshold raise). STILL OPEN: item 3 static shore waves = designed
+> shoal damping, wants a real breaking-wave rung; item 6 perf profile;
+> operator re-verify of splotches/seams at play. Rig can now DIVE
+> (camera_request negative altitude_km).
 > DONE from the same report: FPS caps setting (foreground/background +
 > unlimited/sync, v0.1016) + swim gear scaling + the rig focus-steal fix
 > (the mouse-look freeze root cause). Deferred to reserved arcs: tree

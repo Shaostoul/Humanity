@@ -21,18 +21,29 @@ pub struct WaveTrain {
     pub height_m: f32,
 }
 
-/// The six geometric wave trains, in shader order. Directions reuse the
-/// shading octaves' fixed vectors (WAVE1/3/4/6/2/5_DIR in the WGSL).
-/// Trains 5-6 (v0.912) are the NEAR chop - the shader fades them out by
-/// ~800 m; this CPU twin runs at the player where that fade is ~1, so the
-/// float height includes them at full strength.
+/// The six geometric wave trains, in shader order. Trains 1-4 reuse the
+/// shading octaves' fixed vectors (WAVE1/3/4/6_DIR in the WGSL).
+/// Trains 5-6 (v0.912) are the NEAR chop - resolution-faded by a few
+/// hundred metres; this CPU twin runs at the player where that fade is
+/// ~1, so the float height includes them at full strength.
+///
+/// v0.1017 (operator: "all the verts are kinda bouncing up and down
+/// rapidly"): the shader used to phase the chop off planet-radius f32
+/// coordinates, whose ~0.5 m quantization SHIFTS as the camera moves -
+/// on a 6 m wavelength that scrambled the whole near field into
+/// camera-coupled vertex jitter (the f32-at-scale defect class, GPU
+/// edition). The chop now phases in the camera-ANCHORED small domain
+/// with AXIS-ALIGNED directions and wavelengths that DIVIDE the 64 m
+/// anchor modulus, so anchor re-snaps shift phase by exact integers
+/// (invisible) and this twin's f64 planet-coordinate phase stays
+/// mathematically identical mod 1 (64k/16 and 64k/6.4 are integers).
 pub const TRAINS: [WaveTrain; 6] = [
     WaveTrain { dir: [0.7071068, 0.0, 0.7071068], lambda_m: 2000.0, cps: 0.028, height_m: 1.1 },
     WaveTrain { dir: [0.2672612, 0.5345225, 0.8017837], lambda_m: 360.0, cps: 0.07, height_m: 0.7 },
     WaveTrain { dir: [-0.5773503, 0.5773503, 0.5773503], lambda_m: 150.0, cps: 0.105, height_m: 0.45 },
     WaveTrain { dir: [-0.6666667, 0.3333333, -0.6666667], lambda_m: 50.0, cps: 0.18, height_m: 0.45 },
-    WaveTrain { dir: [0.9622504, 0.1924501, 0.1924501], lambda_m: 18.0, cps: 0.30, height_m: 0.35 },
-    WaveTrain { dir: [0.4082483, -0.8164966, 0.4082483], lambda_m: 6.0, cps: 0.52, height_m: 0.1 },
+    WaveTrain { dir: [1.0, 0.0, 0.0], lambda_m: 16.0, cps: 0.31, height_m: 0.35 },
+    WaveTrain { dir: [0.0, 0.0, 1.0], lambda_m: 6.4, cps: 0.49, height_m: 0.1 },
 ];
 
 /// The water surface floats this far ABOVE the nominal sea sphere
@@ -75,16 +86,27 @@ fn wgsl_fract(x: f32) -> f32 {
     x - x.floor()
 }
 
-/// Signed wave height in meters at planet-local position `p_m` (meters,
-/// f32 like the shader) and cloud-clock time `t` (camera.sun_color.w).
+/// Signed wave height in meters at planet-local position `p_m` (meters)
+/// and cloud-clock time `t` (camera.sun_color.w). The phase runs in f64
+/// (v0.1017): at planet-radius magnitudes an f32 dot product quantizes at
+/// ~0.5 m, which on the short chop trains was most of a wavelength of
+/// pure noise - the physics float must be smooth even where the shader's
+/// anchored-domain trick is unavailable.
 pub fn wave_height_m(p_m: glam::Vec3, t: f32) -> f32 {
     let mut h = 0.0f32;
+    let pd = p_m.as_dvec3();
     for tr in TRAINS {
-        let d = glam::Vec3::from_array(tr.dir);
-        let phase = wgsl_fract(p_m.dot(d) / tr.lambda_m - t * tr.cps);
-        h += tr.height_m * (phase * TAU).cos();
+        let d = glam::DVec3::new(tr.dir[0] as f64, tr.dir[1] as f64, tr.dir[2] as f64);
+        let phase = wgsl_fract64(pd.dot(d) / tr.lambda_m as f64 - (t * tr.cps) as f64);
+        h += tr.height_m * (phase as f32 * TAU).cos();
     }
     h
+}
+
+/// WGSL fract() in f64: x - floor(x), always in [0, 1).
+#[inline]
+fn wgsl_fract64(x: f64) -> f64 {
+    x - x.floor()
 }
 
 #[cfg(test)]
@@ -158,8 +180,14 @@ mod tests {
                 .collect();
             [parts[0], parts[1], parts[2]]
         };
-        let shader_dirs =
-            ["WAVE1_DIR", "WAVE3_DIR", "WAVE4_DIR", "WAVE6_DIR", "WAVE2_DIR", "WAVE5_DIR"];
+        let shader_dirs = [
+            "WAVE1_DIR",
+            "WAVE3_DIR",
+            "WAVE4_DIR",
+            "WAVE6_DIR",
+            "OCEAN_W5_DIR",
+            "OCEAN_W6_DIR",
+        ];
         for (i, tr) in TRAINS.iter().enumerate() {
             let n = i + 1;
             assert_eq!(grab(&format!("OCEAN_W{n}_LAMBDA")), tr.lambda_m, "W{n} lambda");

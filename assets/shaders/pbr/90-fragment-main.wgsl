@@ -87,7 +87,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // ~7 m of depth, so surf zones read calm-lapping instead of open-sea
     // chop running aground.
     let shoal = 0.2 + 0.8 * smoothstep(0.4, 7.0, depth_m);
-    let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 2.3, sea_state) * shoal;
+    // Storm boost compressed 2.3 -> 1.5 (v0.1017, operator: "white splotches"
+    // band): under a live-MODIS storm cell the old boost pushed the summed
+    // slopes far past the Fresnel knee, flipping sky-white/body-dark in
+    // harsh zebra sheets from any altitude. 1.5x still reads stormy.
+    let gscale = (0.55 + 0.95 * sea_var) * mix(0.30, 1.5, sea_state) * shoal;
     let presence = wave_presence(footprint);
     var n_pert = n_geo;
     var foam = 0.0;
@@ -131,7 +135,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // Compressing the gradient magnitude keeps every normal on the
         // correct hemisphere at any sea state.
         let gl = length(grad);
-        grad = grad * (1.0 / (1.0 + 0.75 * gl));
+        grad = grad * (1.0 / (1.0 + 1.35 * gl)); // clamp strengthened with it
         // Whitecaps: crest-masked from the texture's height channel (foam
         // rides actual wave tops now) plus the long-swell steepness term,
         // both sea-state gated. Same hard screen-space reach as before -
@@ -140,7 +144,13 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
         let cap_tex = smoothstep(0.55, 0.85, crest);
         foam = max(
-            smoothstep(0.20, 0.36, steep) * (0.4 + 0.6 * cap_tex),
+            // Window raised 0.20-0.36 -> 0.30-0.50 (v0.1017, operator:
+            // "the white on the ocean pulses slowly"): the summed trains
+            // BEAT at ~30 s periods, and the old low threshold let that
+            // global steepness swell push the whole sea over the foam
+            // line in sync. The texture crest channel (local,
+            // decorrelated) now carries most of the foam.
+            smoothstep(0.30, 0.50, steep) * (0.4 + 0.6 * cap_tex),
             cap_tex * 0.85
         )
             * smoothstep(0.55, 0.95, sea_state)
@@ -175,7 +185,18 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Alpha: deep water is near-opaque looking straight down and fully
     // reflective at grazing (Fresnel). A touch under 1.0 near nadir keeps a
     // hint of shallow seabed visible along coasts.
-    let cos_v = clamp(dot(n_pert, view_dir), 0.0, 1.0);
+    // Below-surface viewing (v0.1017, water arc): submerged players look UP
+    // at the shell, where the outward normal points AWAY from the view -
+    // the raw dot goes negative, the old clamp pinned Fresnel to full
+    // mirror, and the underside read as an opaque white ceiling. Flipping
+    // the effective normal for below-views gives the plausible look: a
+    // readable water ceiling overhead (body color) that mirrors toward
+    // grazing angles - the cheap cousin of Snell's window.
+    var n_shade = n_pert;
+    if (dot(n_geo, view_dir) < 0.0) {
+        n_shade = -n_pert;
+    }
+    let cos_v = clamp(dot(n_shade, view_dir), 0.0, 1.0);
     let tt = 1.0 - cos_v;
     let fres = tt * tt * tt;
     // v0.887 (operator: "all the coasts kind of seem to be glowing"): the

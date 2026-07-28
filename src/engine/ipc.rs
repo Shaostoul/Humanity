@@ -722,7 +722,11 @@ pub(crate) fn poll_camera_request(state: &mut EngineState) {
         .and_then(|a| a.as_f64())
         .or_else(|| scenic.as_ref().map(|s| s.altitude_km as f64))
         .unwrap_or(12_000.0)
-        .max(0.001);
+        // Negative altitude = UNDERWATER camera (v0.1017, water arc): the
+        // probe rig needs to verify the sea surface from below. Clamped to
+        // -450 m (deeper than any visual question; well above crush-depth
+        // silliness like the planet core).
+        .max(-0.45);
     let look_offset_deg = v
         .get("look_offset_deg")
         .and_then(|a| a.as_f64())

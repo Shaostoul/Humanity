@@ -271,12 +271,23 @@ const OCEAN_W4_HEIGHT: f32 = 0.45;
 // WATER_MAX_PATCH_DEPTH 17 gives ~4.8 m vertices near the camera - the
 // chop is real displaced geometry with silhouettes, not shading fiction.
 // CPU twin: terrain::ocean_waves::TRAINS (lockstep-tested).
-const OCEAN_W5_LAMBDA: f32 = 18.0;
-const OCEAN_W5_CPS: f32 = 0.30;
+// v0.1017 (operator: "the water is very jittery... all the verts are
+// kinda bouncing up and down rapidly"): the chop trains used to phase off
+// planet-radius f32 coordinates, whose ~0.5 m quantization SHIFTS as the
+// camera moves - most of a 6 m wavelength of camera-coupled noise. They
+// now phase in the camera-ANCHORED small domain (the wave texture's 64 m
+// modulus anchor) with AXIS-ALIGNED directions and wavelengths that
+// DIVIDE 64, so anchor re-snaps shift phase by exact integers (no pops)
+// and the CPU twin's f64 planet-coordinate phase matches mod 1 exactly.
+// Dispersion retuned to the new lengths (c ~ 1.25 sqrt(lambda)).
+const OCEAN_W5_LAMBDA: f32 = 16.0;
+const OCEAN_W5_CPS: f32 = 0.31;
 const OCEAN_W5_HEIGHT: f32 = 0.35;
-const OCEAN_W6_LAMBDA: f32 = 6.0;
-const OCEAN_W6_CPS: f32 = 0.52;
+const OCEAN_W6_LAMBDA: f32 = 6.4;
+const OCEAN_W6_CPS: f32 = 0.49;
 const OCEAN_W6_HEIGHT: f32 = 0.1;
+const OCEAN_W5_DIR: vec3<f32> = vec3<f32>(1.0, 0.0, 0.0);
+const OCEAN_W6_DIR: vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
 
 // One train's vertical height contribution at planet-local point p_m.
 // Phase = distance along the fixed 3D direction in wavelengths, wrapped
@@ -290,18 +301,46 @@ fn ocean_height_train(p_m: vec3<f32>, d: vec3<f32>, lambda_m: f32, cps: f32, h: 
 // Total wave height (metres, signed) at planet-local position p_m. Wave
 // directions reuse the shading octaves' fixed unit vectors so crests align
 // with what the fragment normals show.
-fn ocean_wave_height(p_m: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
+//
+// PER-TRAIN RESOLUTION FADES (v0.1017, water arc increment 1 - operator:
+// "holes through the water along the seams" + the hard checkerboard tile
+// lines at altitude). The water mesh's vertex spacing grows with camera
+// distance (screen-size-driven LOD, ~dist/300 at default split), so each
+// train stops being resolvable past dist ~ 60 * lambda: beyond that the
+// COARSE side of a cross-depth patch border draws the wave as a straight
+// under-sampled edge while the fine side follows the curve - T-junction
+// GAPS up to the train's amplitude (the reported holes), and each LOD
+// ring polygonalizes the train differently (the reported tile lines).
+// Fading every train out BEFORE its under-resolution distance makes any
+// border's displacement negligible exactly where neighbors stop agreeing,
+// which is the promise the old single global fade only kept for the
+// longest swell. The CPU physics twin evaluates at the player (dist ~ 0,
+// every fade = 1), so drawn == sampled still holds where it matters.
+fn ocean_train_fade(cam_dist: f32, lambda_m: f32) -> f32 {
+    let reach = 60.0 * lambda_m;
+    return 1.0 - smoothstep(reach * 0.6, reach, cam_dist);
+}
+
+// `p_m` is the planet-radius position (long swells tolerate its f32
+// noise: <= 1% of wavelength at lambda >= 50); `p_anch` is the SAME point
+// in the camera-anchored small domain (see the chop constants above).
+fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
+    // Long swells: the global 2-8 km fade (applied by the caller) is well
+    // inside their resolution reach, so they need no per-train fade.
     var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
-    h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t);
-    h = h + ocean_height_train(p_m, WAVE6_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t);
-    // Short chop only near the camera (sub-vertex beyond ~800 m; the CPU
-    // float twin runs at the player, where this fade is ~1).
-    let near = 1.0 - smoothstep(250.0, 800.0, cam_dist);
-    if (near > 0.001) {
-        var s = ocean_height_train(p_m, WAVE2_DIR, OCEAN_W5_LAMBDA, OCEAN_W5_CPS, OCEAN_W5_HEIGHT, t);
-        s = s + ocean_height_train(p_m, WAVE5_DIR, OCEAN_W6_LAMBDA, OCEAN_W6_CPS, OCEAN_W6_HEIGHT, t);
-        h = h + s * near;
+    h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
+        * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
+    h = h + ocean_height_train(p_m, WAVE6_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t)
+        * ocean_train_fade(cam_dist, OCEAN_W4_LAMBDA);
+    // Short chop: resolution-faded like the rest (the old fixed 250-800 m
+    // band under-resolved the 6 m train past ~360 m), phased in the
+    // anchored domain (the jitter fix).
+    let near5 = ocean_train_fade(cam_dist, OCEAN_W5_LAMBDA);
+    let near6 = ocean_train_fade(cam_dist, OCEAN_W6_LAMBDA);
+    if (near5 > 0.001 || near6 > 0.001) {
+        h = h + ocean_height_train(p_anch, OCEAN_W5_DIR, OCEAN_W5_LAMBDA, OCEAN_W5_CPS, OCEAN_W5_HEIGHT, t) * near5;
+        h = h + ocean_height_train(p_anch, OCEAN_W6_DIR, OCEAN_W6_LAMBDA, OCEAN_W6_CPS, OCEAN_W6_HEIGHT, t) * near6;
     }
     return h;
 }
@@ -344,7 +383,19 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                 // CPU twin: ocean_waves::shoal_factor (drawn == sampled).
                 let depth_m = f32(u32(round(max(vertex.uv.x, 0.0))) & 65535u) / 10.0;
                 let shoal = smoothstep(0.4, 7.0, depth_m);
-                let h = ocean_wave_height(dir * r, camera.sun_color.w, cam_dist) * fade * shoal;
+                // Camera-anchored small-domain position for the chop
+                // trains (v0.1017 jitter fix): camera-to-vertex delta in
+                // the planet-local frame plus the wave texture's 64 m
+                // modulus anchor - all small magnitudes, no planet-radius
+                // f32 noise.
+                let anchw = vec3<f32>(
+                    camera.light0_cone_inner.y,
+                    camera.light0_cone_inner.z,
+                    camera.light0_cone_inner.w,
+                );
+                let dvw = (inv_model
+                    * vec4<f32>(world_pos.xyz - camera.view_pos.xyz, 0.0)).xyz;
+                let h = ocean_wave_height(dir * r, anchw + dvw, camera.sun_color.w, cam_dist) * fade * shoal;
                 world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
             }
         }

@@ -269,6 +269,10 @@ pub const LAND_SHADOW_EXP: f32 = 0.5;
 /// fades in below sea level (v0.909). Keeps beach sand and shallow shelf at
 /// their imagery color instead of snapping blue at 1 cm of depth.
 pub const OCEAN_FLOOR_DEPTH_BAND: f32 = 0.002;
+/// Coastal de-bluing band (v0.1017): normalized-elevation width of the
+/// above-sea strip that gets blue-contaminated imagery corrected toward
+/// sand (~30 m on Earth's 20 km range). See grade_albedo.
+pub const SHORE_DEBLUE_BAND: f32 = 0.0015;
 
 /// Width of the sea-ice blend band on |sin(latitude)|: the albedo path's
 /// cap layer fades in from `polar_cap_latitude` to `polar_cap_latitude +
@@ -373,11 +377,40 @@ pub fn grade_albedo(
         ]
     } else {
         let k = land_gain(raw);
-        [
+        let mut c = [
             (raw[0] * k).min(1.0),
             (raw[1] * k).min(1.0),
             (raw[2] * k).min(1.0),
-        ]
+        ];
+        // Coastal de-bluing (v0.1017, water arc - operator: "the blueness
+        // of the water is bleeding a lot onto the land so it looks like
+        // land that is above water is blue"): Blue Marble texels are
+        // ~460 m wide, so land within a texel of the waterline samples
+        // ocean-contaminated imagery. Above-sea samples in the first shore
+        // band (~30 m of elevation) that read blue-DOMINANT get their hue
+        // pulled toward wet sand at the sample's own brightness - beaches
+        // stop looking flooded while genuinely gray/green land (not
+        // blue-dominant) passes through untouched. Lives HERE so the
+        // per-face path and the albedo texture bake heal identically.
+        let shore = 1.0 - ((elevation - sea) / SHORE_DEBLUE_BAND).clamp(0.0, 1.0);
+        if shore > 0.0 {
+            let blueness =
+                ((c[2] - c[0].max(c[1])) / c[2].max(0.001)).clamp(0.0, 1.0);
+            let bs = ((blueness - 0.05) / 0.30).clamp(0.0, 1.0);
+            let w = shore * bs * bs * (3.0 - 2.0 * bs) * 0.85;
+            if w > 0.0 {
+                let luma = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+                let sand = [
+                    (luma * 1.30).min(1.0),
+                    (luma * 1.14).min(1.0),
+                    luma * 0.82,
+                ];
+                for i in 0..3 {
+                    c[i] += (sand[i] - c[i]) * w;
+                }
+            }
+        }
+        c
     };
     // Sea-ice layer: polar ocean only (see the layering decision above).
     // polar_cap_latitude > 1.0 disables caps entirely, same as classify.

@@ -9476,7 +9476,22 @@ mod native_app {
                                             state.planet_patch_free_slots.push(mesh_idx);
                                         }
                                     }
-                                    if wsel.fully_covered && !wsel.draws.is_empty() {
+                                    // Draw whatever is BUILT (v0.1017, water arc):
+                                    // the old `fully_covered` gate was
+                                    // all-or-nothing - one unbuilt patch
+                                    // anywhere hid the ENTIRE ocean. From
+                                    // underwater the selection wants deep
+                                    // patches in every direction at once and
+                                    // the 8-per-frame build cap never
+                                    // catches up, so the surface simply
+                                    // never drew until the player left the
+                                    // water (operator: "the surface of the
+                                    // water disappears... I have to wait
+                                    // until I'm out of the water"). A
+                                    // transient local gap while a patch
+                                    // builds is far better than a vanishing
+                                    // sea.
+                                    if !wsel.draws.is_empty() {
                                         for id in &wsel.draws {
                                             if let Some(e) = ws.cache.get(id) {
                                                 let anchor_render =
