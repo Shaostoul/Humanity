@@ -358,6 +358,11 @@
       "date": "2026-07-28",
       "decision": "v0.1028.1 homestead 3b: the 15-entry furniture catalog + 34 placed instances ported verbatim to home_solo.ron (home.ron already carried the full section-6 set for this house, GLTF models included - inventory-first paid out, one splice). Homestead build order 1-4 COMPLETE (shell, lighting, plumbing, furniture). Next: increment 5, honest lighting power (small code: switched-on PlacedLights join ElectricalSystem demand).",
       "rationale": "The operator morning goal - the house built up with machines and rooms - is now substantially real in their played variant."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "HOMESTEAD ARC CLOSED: increments 5 (lighting power) and 6 (furniture models) were ALREADY DONE - v0.967 built the aggregate house-light PowerConsumer (reads the same structure data, so the new 23 fixtures have billed since v0.1026), and all 15 furniture entries ship with on-disk GLTFs (carried by the verbatim port). Design doc + PRIORITIES updated to BUILT status. Next big rock: the water FFT arc (hyper-realism roadmap #1) or operator feedback from the furnished-house walk-through.",
+      "rationale": "Verify before building: two of six increments turned out pre-paid by earlier arcs; the day goal (house built up with machines and rooms) is fully delivered."
     }
   ],
   "active_scopes_to_avoid": [

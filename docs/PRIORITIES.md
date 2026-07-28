@@ -136,6 +136,14 @@
 >   remain 1 m tile seams (bicubic overshoot) and physics-vs-drawn-mesh
 >   divergence (bobbing = collider following the analytic curve between
 >   drawn verts?).
+> HOMESTEAD ARC COMPLETE (v0.1023.1-v0.1028.1, 2026-07-28): build order
+> 1-6 done - the 10-room house is walled, lit, plumbed (first solo
+> HotWater loop), furnished (34 pieces, typed-container storage, GLTF
+> models), and light switches bill the real power ledger (~330 W with
+> everything on vs the 4 kWh/day solo budget - the teaching point).
+> Operator walk-through = the acceptance test. Deferred: wall-corner
+> seam (own effort, blocks nothing); HvacSystem registration when heat
+> becomes a loop.
 > HYPER-REALISM ROADMAP (operator asked 2026-07-28 "what would we do to
 > make these closer to hyper realistic"): three arcs, sequence water ->
 > clouds -> plants. WATER: FFT ocean spectrum (Tessendorf) replacing the

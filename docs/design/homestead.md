@@ -1,6 +1,11 @@
 # Homestead: the fully-fledged player home
 
-> Status: design, drafted 2026-07-25. This is the HOMESTEAD DESIGN ARC from
+> Status: BUILT (v0.1023.1-v0.1028.1, 2026-07-28) - build-order increments
+> 1-6 all verified complete: shell, lighting, plumbing/circuits, furniture,
+> honest lighting power (landed early as v0.967), and models (all 15
+> furniture entries ship with on-disk GLTFs; primitives remain the
+> fallback). Only the deferred wall-corner seam (wall-corners.md) remains,
+> and it blocks nothing. Originally: design, drafted 2026-07-25. This is the HOMESTEAD DESIGN ARC from
 > docs/PRIORITIES.md (Active focus, overnight backlog item 10). Operator request:
 > "We need to get walls properly placed, plumbing, electrical, decorations,
 > furniture, etc. for all the different rooms of the house... a fully fledged
