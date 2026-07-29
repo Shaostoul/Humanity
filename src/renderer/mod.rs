@@ -1566,6 +1566,18 @@ impl Renderer {
                     binding: 14,
                     resource: wgpu::BindingResource::TextureView(&self.tree_atlas_view),
                 },
+                // v0.1039 CRASH FIX: binding 15 (FFT ocean tile) was added
+                // to the LAYOUT in v0.1029 but this per-material creation
+                // site was missed - the other two sites were updated, and
+                // menu-only boot-verifies never create a textured material,
+                // so every world entry on v0.1029-v0.1038 panicked with
+                // "15 bindings vs 16 in layout" (operator: "insta crashes
+                // when I press esc"). Every texture_bind_group_layout
+                // create_bind_group site MUST carry every binding.
+                wgpu::BindGroupEntry {
+                    binding: 15,
+                    resource: wgpu::BindingResource::TextureView(&self.water_fft_view),
+                },
             ],
         })
     }
