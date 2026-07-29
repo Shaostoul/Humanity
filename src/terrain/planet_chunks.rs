@@ -1948,6 +1948,18 @@ pub const WATER_MAX_PATCH_DEPTH: u8 = 20;
 
 /// Water-shell leaf budget: six deeper tiers need more near-camera
 /// leaves; MAX_OBJECTS is 16384 today, so 512 is still a small slice.
+///
+/// MEASURED, v0.1045: at 512 the ocean genuinely runs ~1.5 LOD levels
+/// COARSER than the pixel-error target (the split heap hits the cap and
+/// cuts every request above ~11-14 px of error instead of the 4.6 px the
+/// selector asks for), so cross-LOD borders carry a bigger wave-height
+/// mismatch than the selector intends. Raising this to 2048 was tried and
+/// REVERTED: at a grazing dusk vantage it cost ~26 ms/frame (34 -> 60 ms)
+/// and changed nothing visible, because the artifact it was meant to fix
+/// (the operator's flat pale tiles) was the BACKSTOP's mismatched shading,
+/// not coverage - see the type-16 backstop branch in 90-fragment-main.wgsl.
+/// If the residual dusk seam ever needs attacking, make this a Settings
+/// slider like terrain_patch_budget rather than raising the default.
 pub const WATER_MAX_LEAVES: usize = 512;
 
 /// One near-field tree from the planet-fixed vegetation stream (v0.911):
@@ -3195,6 +3207,69 @@ mod tests {
             build_water_patch_mesh(&def, &synth_mask(false), None, &id).is_none(),
             "all-land patch must not build water"
         );
+    }
+
+    /// v0.1043 THE SEAM ITSELF, measured: a fine patch's edge vertex sits
+    /// ON the sea sphere, but the coarser neighbor draws that span as a
+    /// straight triangle EDGE (a chord) whose midpoint lies inside the
+    /// sphere. That difference IS the operator's dusk seam ("the vertices
+    /// seem welded but I keep seeing gaps along the edges"). This test
+    /// asserts (a) the crack equals the chord sagitta |delta|^2/(2r), and
+    /// (b) the shader's morph - drop the vert radially by exactly that -
+    /// closes it to under 1% of its size. The shader lockstep test
+    /// (ocean_fft) proves the shader really contains this formula.
+    #[test]
+    fn geomorph_chord_sag_is_the_seam_and_the_morph_closes_it() {
+        let def = earth_like();
+        let radius = def.radius + crate::terrain::ocean_waves::SURFACE_LIFT_M as f64;
+        let n = PATCH_TESS;
+        // Sample several depths: the crack grows with the SQUARE of tile
+        // size, which is why the operator fingered "the slightly larger
+        // tiles". Depth 6 is a coarse far patch; 14 is near-field.
+        for depth_extra in [8u32, 10, 12, 14] {
+            let mut id = PatchId::root(3);
+            for _ in 0..depth_extra {
+                id = id.child(1);
+            }
+            let corners = patch_corners(&id);
+            let vpos = |r: u32, c: u32| -> DVec3 {
+                let (w0, w1, w2) = ((n - r) as f64, (r - c) as f64, c as f64);
+                (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize() * radius
+            };
+            let (mut worst_before, mut worst_after, mut worst_sag) = (0.0f64, 0.0f64, 0.0f64);
+            for r in 0..=n {
+                for c in 0..=r {
+                    let Some(((r1, c1), (r2, c2))) = water_geomorph_parents(r, c) else {
+                        continue;
+                    };
+                    let (p1, p2, v) = (vpos(r1, c1), vpos(r2, c2), vpos(r, c));
+                    let delta = (p1 - p2) * 0.5;
+                    let mid = (p1 + p2) * 0.5;
+                    // The shader's chord-sag term, verbatim.
+                    let sag = delta.length() * delta.length() / (2.0 * radius);
+                    let morphed = v - v.normalize() * sag;
+                    worst_before = worst_before.max((v - mid).length());
+                    worst_after = worst_after.max((morphed - mid).length());
+                    worst_sag = worst_sag.max(sag);
+                }
+            }
+            // (a) The unmorphed crack IS the sagitta (within 2%).
+            assert!(
+                (worst_before - worst_sag).abs() < worst_sag * 0.02,
+                "depth+{depth_extra}: crack {worst_before:.4} m should equal sagitta {worst_sag:.4} m"
+            );
+            // (b) The morph closes it to under 1% of the crack.
+            assert!(
+                worst_after < worst_sag * 0.01,
+                "depth+{depth_extra}: morph left {worst_after:.6} m of a {worst_sag:.4} m crack"
+            );
+            println!(
+                "depth+{depth_extra}: cell {:.1} m, crack {:.4} m -> {:.6} m after morph",
+                (vpos(1, 0) - vpos(0, 0)).length(),
+                worst_before,
+                worst_after
+            );
+        }
     }
 
     /// v0.1041 geomorph weld: the parent map obeys the parity contract,

@@ -427,6 +427,18 @@
     {
       "date": "2026-07-29",
       "decision": "Water geomorph WELD shipped correctly (v0.1042.1) after the v0.1041 attempt was caught pre-ship by rig A/B (giant plates at grazing angles - root cause: the morph window was GUESSED at [150,260]x cell from the terrain spacing note, but the real handoff from screen_error_px + 1.15/0.7 hysteresis is [1.74, 2.86]x cell x K with K = px_per_rad/split_px, so every patch fully collapsed a level early and borders mismatched by whole wavelength bands). Fix: window [1.43, 1.74] x cell x K with K fed per frame in light4_cone_inner.w (anchor256 poke grew to xyzw); windows dovetail exactly across levels (1.74 handoff = 1.43 x next cell). E1 hot-reload bisection proved morph-off = no plates; v0.1042.1 rig captures at the plate vantage + 80 m oblique: clean, no plates, no tears, panics=0. LESSON: LOD-coupled shader constants must come FROM the selection math, never from prose estimates."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "OCEAN SEAM/PLATES root-caused correctly at last (v0.1045.2). The operator's flat pale blue tiles at water level AND the dusk/dawn edge seams were the SAME defect: the BACKSTOP shell (the coarse water-coloured layer under the wave shell, seen through cross-LOD apertures and wherever the 512-leaf water budget cannot cover) invented its own lighting - no 1/PI on the body term, its own grey sky tint at 0.75 Fresnel, no sun glitter. Under a LOW sun at GRAZING view that reads several times brighter and greyer than the sea beside it, so exposed backstop = flat pale tiles with hard polygon edges; at night both collapse to their floors (operator: invisible except a slight glint); from altitude the wave shell covers again (operator: they go away when I go up). FIX: the backstop now calls water_shade(deep, n_geo, n_geo, view_dir) - the identical sea shading with the wave normal replaced by the geometric one, plus the same alpha law and ACES tail - so whatever shows through reads as calm water. Verified in the rig at the operator's exact vantage (7 m, dusk, aimed at the sun): plates gone, 33.9 ms."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "Two corrections to my own earlier work, both caught by measurement not by reasoning: (1) the v0.1041/1042 GEOMORPH WELD was mis-calibrated - a 5-agent read-only analysis proved weld_w is EXACTLY 0 at every real seam, because the window scales with split_px while the true LOD handoff is set by the 512-leaf budget (E_cut ~11-14 px vs the assumed 4.6 px, zero design margin). The wave-height morph is removed (v0.1044); only the chord-sag term remains. (2) My chord-sag hypothesis was REFUTED as the seam cause: a CPU test measured the real gap at realistic drawn cells as 0.1-1 mm (30 cm only at cells so coarse they are never drawn), not the visible artifact. LESSON: for a rendering artifact, reproduce the operator's EXACT viewing condition before theorising - I had checked grazing views but never grazing INTO a low sun, which is the only condition that shows it."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "WATER_MAX_LEAVES stays 512: raising to 2048 cost ~26 ms/frame (34->60 ms) at a grazing dusk vantage for zero visible gain once the backstop shading matched. Recorded in the const doc; if the residual sub-pixel seam ever matters, expose it as a Settings slider like terrain_patch_budget instead of raising the default."
     }
   ],
   "active_scopes_to_avoid": [

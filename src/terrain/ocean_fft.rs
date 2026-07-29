@@ -644,11 +644,31 @@ mod tests {
         assert!(src.contains("const WATER_WELD_MORPH_END: f32 = 1.74;"), "weld end");
         assert!(src.contains("weld_k = camera.light4_cone_inner.w"), "weld K from uniform");
         assert!(src.contains("weld_k > 1.0"), "weld disabled until K arrives");
+        // v0.1043: the weld must move the BASE sphere position too - the
+        // coarse neighbor's edge is a chord sagging |delta|^2/(2r) inside
+        // the sphere, and morphing only the wave height left exactly that
+        // gap at every LOD border (the operator's dusk seam). The term
+        // must sit OUTSIDE the wave-fade branch: far patches are exact
+        // spheres and exact spheres still crack.
         assert!(
-            src.contains("water_disp_height(p_m + delta, p64 + delta, p256 + delta"),
-            "parent morph sampling present"
+            src.contains("var disp = -weld_w * (dl * dl) / (2.0 * r);"),
+            "chord-sag morph present"
         );
-        assert!(src.contains("h = mix(h, 0.5 * hp, w);"), "morph mix present");
+        let vs_at = src.find("var disp = -weld_w").expect("sag term");
+        let fade_at = src.find("let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);");
+        assert!(
+            fade_at.is_some_and(|f| f > vs_at),
+            "chord sag must be applied BEFORE (outside) the wave fade gate"
+        );
+        // v0.1044: the WAVE-height morph is deliberately GONE (it halved
+        // wave resolution over whole patches - the operator's flat blue
+        // plates at water level). Only the chord-sag term welds now, and
+        // it must stay that way unless the lattice is made subset-aligned
+        // across LOD levels first.
+        assert!(
+            !src.contains("h = mix(h, 0.5 * hp, weld_w);"),
+            "wave-height morph must NOT come back (it plates the sea)"
+        );
     }
 
     /// Increment 2: spectral slopes must agree with finite differences of

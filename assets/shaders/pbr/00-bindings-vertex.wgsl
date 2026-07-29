@@ -466,8 +466,7 @@ fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32
     return h;
 }
 
-// One call for the active water model (trains or FFT cascades), so the
-// geomorph weld below evaluates parents through the identical stack.
+// One call for the active water model (trains or FFT cascades).
 fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
     if (camera.light0_cone_inner.x > 0.5) {
         return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial);
@@ -501,87 +500,102 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     // wave height, computed in the planet-local frame via the same
     // center + inverse-rotation trick the planet fragment branch uses
     // (material.base_color.xyz = planet center in render space;
-    // transpose(normal_matrix) = model^-1). Skirt vertices displace with
-    // their parent edge (same dir), so LOD seams stay sealed.
+    // transpose(normal_matrix) = model^-1).
+    //
     // params.x (the metallic slot, unused by water) > 0.5 marks the FLAT
-    // BACKSTOP shell (v0.1019): the coarse deep-water layer under the wave
-    // shell never displaces - it exists to water-color the T-junction tears
-    // in the displaced surface above it.
-    if (material.params.z >= 15.5 && material.params.z < 16.5 && material.params.x < 0.5) {
+    // BACKSTOP shell (v0.1019): the coarse deep-water layer under the
+    // wave shell never takes WAVES - but since v0.1043 it DOES take the
+    // geomorph weld below, so its own cross-LOD cracks close too.
+    if (material.params.z >= 15.5 && material.params.z < 16.5) {
         let inv_model = transpose(obj_normal_matrix());
         let dir_world = world_pos.xyz - material.base_color.xyz;
         let r = length(dir_world);
         if (r > 1.0) {
             let radial = dir_world / r;
             let dir = normalize((inv_model * vec4<f32>(dir_world, 0.0)).xyz);
-            // Distance fade (v0.878.2): waves are invisible beyond a few km
-            // anyway, and fading the displacement to ZERO makes every far
-            // patch an EXACT sphere - so patches of different LODs share
-            // bit-matching borders with no skirts (see the water builder
-            // comment). 2..8 km band; inside 2 km, full height.
             let cam_dist = length(camera.view_pos.xyz - world_pos.xyz);
-            let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);
-            if (fade > 0.001) {
-                // Shoal damping (v0.957): the packed UV carries the baked
-                // water depth (see build_water_patch_mesh - low 16 bits =
-                // decimetres), so the taller chop dies smoothly toward the
-                // waterline instead of stabbing through beach terrain.
-                // CPU twin: ocean_waves::shoal_factor (drawn == sampled).
-                let depth_m = f32(u32(round(max(vertex.uv.x, 0.0))) & 65535u) / 10.0;
-                let shoal = smoothstep(0.4, 7.0, depth_m);
-                // Camera-anchored small-domain position for the chop
-                // trains (v0.1017 jitter fix): camera-to-vertex delta in
-                // the planet-local frame plus the wave texture's 64 m
-                // modulus anchor - all small magnitudes, no planet-radius
-                // f32 noise.
-                let anchw = vec3<f32>(
-                    camera.light0_cone_inner.y,
-                    camera.light0_cone_inner.z,
-                    camera.light0_cone_inner.w,
+            // ── GEOMORPH WELD (v0.1042 window, v0.1043 base-position fix) ──
+            // Odd lattice verts carry the half-offset to their two
+            // coarser-level parents in the NORMAL slot (zero on verts that
+            // survive coarsening). weld_w ramps to 1 before the LOD switch
+            // (window = [1.43, 1.74] * |delta| * K, K = px_per_rad/split_px
+            // from the selection itself, in light4_cone_inner.w).
+            let delta = vertex.normal;
+            let dl = length(delta);
+            let weld_k = camera.light4_cone_inner.w;
+            var weld_w = 0.0;
+            if (dl > 0.01 && weld_k > 1.0) {
+                weld_w = smoothstep(
+                    WATER_WELD_MORPH_START * dl * weld_k,
+                    WATER_WELD_MORPH_END * dl * weld_k,
+                    cam_dist,
                 );
-                let dvw = (inv_model
-                    * vec4<f32>(world_pos.xyz - camera.view_pos.xyz, 0.0)).xyz;
-                // FFT-ocean mode flag rides in light0_cone_inner.x, beside
-                // the anchor in .yzw (v0.1029); cascade B's mod-256 anchor
-                // rides in light4_cone_inner.xyz (v0.1040).
-                let anch256 = vec3<f32>(
-                    camera.light4_cone_inner.x,
-                    camera.light4_cone_inner.y,
-                    camera.light4_cone_inner.z,
-                );
-                let p_m = dir * r;
-                let p64 = anchw + dvw;
-                let p256 = anch256 + dvw;
-                let t = camera.sun_color.w;
-                var h = water_disp_height(p_m, p64, p256, t, cam_dist, dir);
-                // GEOMORPH WELD (v0.1041, operator: "fix the welds on the
-                // water polygons"): water verts carry their next-coarser
-                // parents' half-offset in the NORMAL slot (zero on verts
-                // that survive coarsening). Morph this vert's height
-                // toward the parents' MEAN with distance, reaching the
-                // coarser neighbor's exact edge interpolation before that
-                // neighbor can appear. Parents sit +-delta away in the
-                // planet-local frame; the anchored domains shift by the
-                // same small vector, and radial/cam_dist differences over
-                // one cell are negligible.
-                let delta = vertex.normal;
-                let dl = length(delta);
-                let weld_k = camera.light4_cone_inner.w;
-                if (dl > 0.01 && weld_k > 1.0) {
-                    let w = smoothstep(
-                        WATER_WELD_MORPH_START * dl * weld_k,
-                        WATER_WELD_MORPH_END * dl * weld_k,
-                        cam_dist,
-                    );
-                    if (w > 0.001) {
-                        let hp = water_disp_height(p_m + delta, p64 + delta, p256 + delta, t, cam_dist, dir)
-                            + water_disp_height(p_m - delta, p64 - delta, p256 - delta, t, cam_dist, dir);
-                        h = mix(h, 0.5 * hp, w);
-                    }
-                }
-                h = h * fade * shoal;
-                world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
             }
+            // CHORD SAG (v0.1043, the seam the v0.1042 weld still left -
+            // operator: "the vertices seem welded but I keep seeing gaps
+            // along the edges... easiest to notice at dusk/dawn"): this
+            // vert sits ON the sea sphere, but the coarser neighbor draws
+            // that span as a straight triangle EDGE whose midpoint lies
+            // |delta|^2 / 2r INSIDE the sphere (sagitta of a 2|delta|
+            // chord). The v0.1042 weld morphed only the WAVE height, so
+            // the BASE surface still bulged above the coarse chord by
+            // exactly that much at every LOD border - a real crack,
+            // widening with the square of tile size (hence "the slightly
+            // larger tiles"), and at a grazing dusk view a centimetre of
+            // vertical gap smears across many pixels. Drop the vert onto
+            // the chord as it morphs. Applies with NO wave fade gate: far
+            // patches are exact spheres, and exact spheres still crack.
+            var disp = -weld_w * (dl * dl) / (2.0 * r);
+            if (material.params.x < 0.5) {
+                // Distance fade (v0.878.2): waves are invisible beyond a
+                // few km, so fading displacement to zero keeps the far
+                // field a clean sphere. 2..8 km band; inside 2 km, full.
+                let fade = 1.0 - smoothstep(2000.0, 8000.0, cam_dist);
+                if (fade > 0.001) {
+                    // Shoal damping (v0.957): the packed UV carries the
+                    // baked water depth (low 16 bits = decimetres), so the
+                    // taller chop dies toward the waterline instead of
+                    // stabbing through beach terrain. CPU twin:
+                    // ocean_waves::shoal_factor (drawn == sampled).
+                    let depth_m = f32(u32(round(max(vertex.uv.x, 0.0))) & 65535u) / 10.0;
+                    let shoal = smoothstep(0.4, 7.0, depth_m);
+                    // Camera-anchored small-domain positions (v0.1017
+                    // jitter fix + v0.1040 cascade B): camera-to-vertex
+                    // delta in the planet-local frame plus each cascade's
+                    // own modulus anchor - small magnitudes only.
+                    let anchw = vec3<f32>(
+                        camera.light0_cone_inner.y,
+                        camera.light0_cone_inner.z,
+                        camera.light0_cone_inner.w,
+                    );
+                    let dvw = (inv_model
+                        * vec4<f32>(world_pos.xyz - camera.view_pos.xyz, 0.0)).xyz;
+                    let anch256 = vec3<f32>(
+                        camera.light4_cone_inner.x,
+                        camera.light4_cone_inner.y,
+                        camera.light4_cone_inner.z,
+                    );
+                    let p_m = dir * r;
+                    let p64 = anchw + dvw;
+                    let p256 = anch256 + dvw;
+                    let t = camera.sun_color.w;
+                    let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir);
+                    // NO wave-height morph here (v0.1044). Collapsing odd
+                    // verts onto their parents' mean is textbook CDLOD,
+                    // but this lattice is normalize(barycentric) per patch,
+                    // so a child's edge verts are NOT a subset of the
+                    // parent's - the morph target is wrong, and visually it
+                    // halves the wave resolution over whole patches: the
+                    // operator's "weird basic simple blue tiles... most
+                    // prominent resting at water level" (v0.1041 + v0.1042,
+                    // reproduced in the rig, proven by toggling the morph
+                    // off live). The waves are a continuous field sampled
+                    // at different rates, so their cross-LOD mismatch is
+                    // small; the CHORD SAG above is the real crack.
+                    disp = disp + h * fade * shoal;
+                }
+            }
+            world_pos = vec4<f32>(world_pos.xyz + radial * disp, 1.0);
         }
     }
     out.world_position = world_pos.xyz;

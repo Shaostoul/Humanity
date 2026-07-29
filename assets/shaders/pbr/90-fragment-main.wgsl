@@ -54,25 +54,32 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // the displaced shell above read as water, not seafloor. Shore feather
     // still applies via the baked depth.
     if (material.params.x > 0.5) {
-        // One coarse hue octave only (v0.1020 perf): the backstop is seen
-        // through tears a few pixels wide - regional variation at full
-        // fidelity is wasted work on every occluded ocean pixel.
-        let bvar = surface_detail_noise(dir, r_render / 24000.0, 611.0);
-        var bdeep = vec3<f32>(0.013, 0.055, 0.11);
-        let bgreener = vec3<f32>(0.016, 0.085, 0.105);
-        bdeep = mix(bdeep, bgreener, smoothstep(0.35, 0.85, bvar));
-        bdeep = bdeep * (0.9 + 0.25 * bvar);
-        let bday = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
-        var brgb = bdeep * (bday * camera.sun_direction.w * 0.9 + 0.02);
-        // Grazing Fresnel toward a sky tint (matches the wave shell's
-        // typical look, so a tear's backstop content blends in instead of
-        // reading as a flat calm patch).
+        // FLAT BACKSTOP shell (v0.1019, params.x = the metallic-slot flag):
+        // the coarse deep layer under the wave shell, seen wherever the
+        // displaced surface above does not cover (cross-LOD apertures, and
+        // any ocean the 512-leaf water budget could not reach).
+        //
+        // v0.1045 - THE PALE PLATES (operator: "weird basic simple blue
+        // tiles... most prominent when resting at water level", and the
+        // dusk/dawn seams): this branch used to invent its OWN lighting -
+        // no 1/PI on the body term, its own 0.35/0.44/0.55 sky tint at
+        // 0.75 Fresnel, no sun glitter. Under a LOW sun at GRAZING view
+        // that reads several times BRIGHTER and greyer than the sea beside
+        // it, so every exposed backstop patch became a flat pale tile with
+        // hard polygon edges - exactly the artifact, and exactly why it
+        // vanished at night (both terms collapse to their floors) and from
+        // altitude (the wave shell covers again).
+        //
+        // Now it is the SAME water shading as the wave shell, with the
+        // wave normal replaced by the geometric one: a perfectly calm sea.
+        // Whatever shows through now reads as water, not as a tile.
+        let brgb = water_shade(deep, n_geo, n_geo, view_dir);
         let bcos = clamp(dot(n_geo, view_dir), 0.0, 1.0);
         let bt = 1.0 - bcos;
         let bfres = bt * bt * bt;
-        let bsky = vec3<f32>(0.35, 0.44, 0.55)
-            * (bday * camera.sun_direction.w * 0.8 + 0.02);
-        brgb = mix(brgb, bsky, bfres * 0.75);
+        // Same alpha law and same ACES tail as the wave shell below, so a
+        // backstop pixel and a sea pixel composite identically.
+        let balpha = clamp(0.93 + 0.07 * bfres, 0.0, 1.0) * smoothstep(0.02, 1.0, depth_m);
         let ba = 2.51;
         let bb = 0.03;
         let bc = 2.43;
@@ -84,7 +91,6 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             vec3<f32>(0.0),
             vec3<f32>(1.0),
         );
-        let balpha = 0.96 * smoothstep(0.02, 1.0, depth_m);
         return vec4<f32>(bmapped, balpha);
     }
     // Regional sea variation (v0.902; de-squared v0.906 - the operator saw
