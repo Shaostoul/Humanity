@@ -92,7 +92,8 @@
         "time": "10.7",
         "sea": "0.3"
       },
-      "settle_s": 10
+      "settle_s": 10,
+      "hold_altitude": true
     },
     {
       "id": "fuji-forest-ground",
@@ -213,6 +214,70 @@
         "no washed dome, no black shell above the glow"
       ],
       "perf_floor_fps": 12
+    },
+    {
+      "id": "ocean-150m",
+      "desc": "Open ocean from 150 m - the altitude band where the operator sees far-field plates.",
+      "expect": "Wave field to the horizon, no flat facets.",
+      "regressions": [
+        "water-shell far-field coverage"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.15,
+        "look_offset_deg": 85
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "ocean-700m",
+      "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
+      "expect": "Wave field to the horizon, no flat facets.",
+      "regressions": [
+        "water-shell far-field coverage"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.7,
+        "look_offset_deg": 85
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
+    },
+    {
+      "id": "ocean-underwater",
+      "desc": "Submerged, looking down at the SEA FLOOR. (camera_request adds a ~+26 m radial offset from the ship-local camera height, so the requested altitude must overshoot.)",
+      "expect": "Bathymetric relief shading with its own smooth normals. NO diagonal swell banding painted on the floor - that was the seabed being flagged water and shaded as an ocean SURFACE (fixed v0.1049).",
+      "regressions": [
+        "water shell back-face visibility",
+        "coarse-leaf floor opening holes underwater"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": -0.12,
+        "look_offset_deg": 25
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "settle_s": 10,
+      "hold_altitude": true
     }
   ]
 }

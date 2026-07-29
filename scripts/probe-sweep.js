@@ -38,6 +38,15 @@ const RIG = path.resolve(opt("--rig", path.join(REPO, ".probe-rig")));
 const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
 const KEEP_OPEN = flag("--keep-open");
+// --reload-shaders: after world entry, bump the mtime of the rig's OWN copy of
+// the pbr shader parts so the engine's hot-reload picks them up. The initial
+// compile uses the include_str! embedded sources, so a shader edit made BEFORE
+// launch is silently ignored - which is why rig-only shader diagnostics
+// (LOD tints, coverage masks) appeared to do nothing, and why the only way
+// they had ever worked was editing the REPO copy, which hot-reloads straight
+// into the operator's running game. With this flag the rig can test a tinted
+// shader entirely inside .probe-rig/assets.
+const RELOAD_SHADERS = flag("--reload-shaders");
 const NO_REFRESH = flag("--no-refresh");
 
 const stamp = new Date()
@@ -188,6 +197,15 @@ async function main() {
     // finish building on their background threads, so a screenshot then
     // catches a black/undressed frame. Park on Earth's surface and wait for
     // the builds so every real vantage below renders on arrival.
+    if (RELOAD_SHADERS) {
+      const sdir = path.join(RIG, "assets", "shaders", "pbr");
+      const now = new Date();
+      for (const f of fs.readdirSync(sdir).filter((f) => f.endsWith(".wgsl"))) {
+        fs.utimesSync(path.join(sdir, f), now, now);
+      }
+      log("touched rig shader parts (hot-reload)");
+      await sleep(4000);
+    }
     log("warming up (async sky-sphere + terrain build)...");
     req("showcase_request.json", { time: "12.0" });
     await sleep(2000);
@@ -216,6 +234,21 @@ async function main() {
         const cam = await waitFile("camera_done.json", 60000);
         if (!cam || cam.ok !== true) throw new Error(`camera: ${JSON.stringify(cam)}`);
         await sleep((v.settle_s ?? 8) * 1000);
+        // HOLD ALTITUDE (v0.1049). A camera_request parks the player and
+        // leaves fly mode on, but gravity/buoyancy still act, so during a
+        // 12 s settle a 150 m park FALLS to the sea and every "high eye"
+        // ocean capture came back reading Alt 3-6 m - which is exactly why
+        // the rig could not reproduce the operator's altitude-triggered
+        // water artifacts. Re-park at the identical pose once the patches
+        // are built, then shoot within a second: warm caches AND the
+        // altitude that was asked for.
+        if (v.hold_altitude) {
+          clearDone("camera_done.json");
+          req("camera_request.json", v.camera);
+          const rehold = await waitFile("camera_done.json", 60000);
+          if (!rehold || rehold.ok !== true) throw new Error(`re-park: ${JSON.stringify(rehold)}`);
+          await sleep(900);
+        }
         clearDone("screenshot_done.json");
         req("screenshot_request.json", {});
         const shot = await waitFile("screenshot_done.json", 60000);

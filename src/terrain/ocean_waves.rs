@@ -208,7 +208,7 @@ mod tests {
         // The shader's ocean_wave_height must pair train i with the same
         // direction constant this table does (order is load-bearing).
         let body_at = wgsl.find("fn ocean_wave_height").expect("fn present");
-        let body = &wgsl[body_at..body_at + 1400];
+        let body = &wgsl[body_at..body_at + 2000];
         for (i, d) in shader_dirs.iter().enumerate() {
             assert!(
                 body.contains(&format!("{d}, OCEAN_W{}_LAMBDA", i + 1)),

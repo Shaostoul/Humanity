@@ -612,11 +612,26 @@ mod tests {
         // with the same direction constants as the trains path, and feed
         // BOTH anchored positions to the cascade sum.
         let at = src.find("fn ocean_wave_height_fft").expect("fft fn present");
-        let body = &src[at..at + 1200];
+        let body = &src[at..at + 1600];
         for pair in ["WAVE1_DIR, OCEAN_W1_LAMBDA", "WAVE3_DIR, OCEAN_W2_LAMBDA", "WAVE4_DIR, OCEAN_W3_LAMBDA"] {
             assert!(body.contains(pair), "swell pairing missing: {pair}");
         }
-        assert!(body.contains("fft_ocean_height(p64, p256, radial, cam_dist)"), "fft term present");
+        assert!(
+            body.contains("fft_ocean_height(p64, p256, radial, cam_dist, cell_m)"),
+            "fft term present"
+        );
+        // v0.1049: every wave term is gated by the MEASURED vertex spacing
+        // (uv.y), not just by camera distance - the fix for far-field facets
+        // under a saturated water leaf budget. If a term loses its gate the
+        // facets come back, so pin the gating here too.
+        assert!(
+            body.contains("ocean_cell_gate(cell_m, OCEAN_W1_LAMBDA)"),
+            "W1 cell gate"
+        );
+        assert!(
+            body.contains("ocean_wave_gate(cam_dist, cell_m, OCEAN_W3_LAMBDA)"),
+            "W3 combined gate"
+        );
         // Increment 2 channel layout: VS height from .x, the per-cascade
         // shading fn maps g/b slopes onto each plane's axes + foam from .w.
         let sat = src.find("fn fft_cascade_shading").expect("shading fn");

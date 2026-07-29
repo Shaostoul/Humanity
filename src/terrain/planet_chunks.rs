@@ -778,6 +778,17 @@ pub struct ChunkParams {
     pub px_per_rad: f32,
     pub max_leaves: usize,
     pub max_build_requests: usize,
+    /// Occluder radius for the horizon cull, when it should NOT be
+    /// `band.min_r_m` (v0.1049). `band.min_r_m` is the guaranteed-solid
+    /// sphere for TERRAIN, but the water band subtracts SKIRT_MAX_M (80 km)
+    /// even though the water shell emits no skirts, which puts the occluder
+    /// 80 km below the sea floor and lets water patches survive out to
+    /// ~2020 km of arc at any altitude. Roughly 40% of the water leaf budget
+    /// was therefore spent refining ocean BEYOND the horizon, where it can
+    /// never be seen - and that starvation is what forced the visible far
+    /// field onto a coarse cut in the first place. None = use band.min_r_m
+    /// (terrain, unchanged).
+    pub occluder_r_m: Option<f64>,
 }
 
 /// Selection outcome for one planet this frame. Clone exists for the
@@ -932,7 +943,8 @@ pub fn select_patches_sticky(
                        stats: &mut SelectStats|
      -> Option<PatchBounds> {
         let b = patch_bounds(corners, params.radius_m, band);
-        if horizon_culled(&b, cam_local_m, params.band.min_r_m) {
+        let occluder_r = params.occluder_r_m.unwrap_or(params.band.min_r_m);
+        if horizon_culled(&b, cam_local_m, occluder_r) {
             stats.horizon_culled += 1;
             return None;
         }
@@ -1514,7 +1526,20 @@ pub fn build_patch_mesh(
         // elevation-band classifier otherwise -- shared with the uniform
         // sphere path so zero color logic is duplicated.
         let color = surface_color(def, albedo, centroid_dir.as_vec3(), mean_e);
-        let underwater = def.has_water && mean_e < sea;
+        // v0.1049 (operator: "the sea floor looks like it has tiger
+        // stripes"). In BATHYMETRIC mode these faces are the SEA FLOOR, not
+        // the sea surface - the separate water shell draws the water. Flagging
+        // them `water` sent the seabed down the type-12 ocean-SURFACE path,
+        // which shades a pixel with the three analytic swell trains
+        // (2000/850/360 m) plus a Fresnel sky mirror: the floor was literally
+        // painted with the ocean's own waves, which is what the diagonal
+        // banding was. It also forced RADIAL normals on those vertices, hiding
+        // the real bathymetric relief, and the deep-ocean albedo floor left
+        // nothing else to look at. The skirt builder in this same function has
+        // carried the `!bathymetric` guard since the v0.876 ocean split
+        // (whose commit message says "NO TERRAIN FACE CARRIES THE WATER FLAG");
+        // the grid-face builder predates the split and never got it.
+        let underwater = !bathymetric && def.has_water && mean_e < sea;
         if underwater {
             // water: true drives the shader's sun glint; smooth spherical
             // normals ride the water-flavor vertices.
@@ -1946,6 +1971,13 @@ pub const MAX_PREFETCH_REQUESTS: usize = 12;
 /// costs exactly what it did.
 pub const WATER_MAX_PATCH_DEPTH: u8 = 20;
 
+/// Divisor that packs a water patch's vertex spacing into the vertex blue
+/// channel (which `pack_color_to_uv` clamps to 0..1 and forwards as `uv.y`).
+/// 65536 m covers the coarsest water leaf ever drawn (depth 3 = ~52 km cells
+/// clamp to 1.0, and anything that coarse is gated off entirely anyway).
+/// LOCKSTEP with `WATER_CELL_CODE_SCALE` in 00-bindings-vertex.wgsl.
+pub const WATER_CELL_CODE_SCALE: f32 = 65536.0;
+
 /// Water-shell leaf budget: six deeper tiers need more near-camera
 /// leaves; MAX_OBJECTS is 16384 today, so 512 is still a small slice.
 ///
@@ -2286,7 +2318,31 @@ pub fn build_water_patch_mesh_at(
         let dm = (depth_m * 10.0).clamp(0.0, 65535.0) as u32;
         [((dm >> 8) & 255) as f32 / 255.0, (dm & 255) as f32 / 255.0, 0.0]
     };
-    let depth_colors: Vec<[f32; 3]> = dirs.iter().map(|d| depth_color(*d)).collect();
+    // CELL SIZE baked into the free blue channel (v0.1049 - the far-field
+    // facets). The wave fades are Nyquist gates written in DISTANCE: each
+    // train dies at 60 * lambda because the vertex spacing there is assumed
+    // to be ~dist/325 (screen-error LOD at split_px 4), which lands the
+    // fade at cell ~ lambda/5.4. But the water shell's leaf budget SATURATES
+    // (measured [WaterDiag] at 700 m: coarsest drawn leaf carries 38-60 px of
+    // error against a 4 px target), so the real spacing out there is 10-15x
+    // coarser than the fade assumes: the shader keeps displacing waves the
+    // mesh cannot represent, and 16 verts spanning hundreds of metres draw a
+    // wave field as big randomly-tilted facets. That is the operator's
+    // "flat triangles... only the very furthest", and why ascending makes it
+    // worse (a higher eye sees more sea, so the budget cuts coarser).
+    // Measuring the spacing instead of assuming it makes the same gate
+    // correct at any budget. color.b -> uv.y (pack_color_to_uv keeps it as a
+    // plain float, and water always wrote 0 there).
+    let cell_m = ((dirs[grid_idx(1, 0)] - dirs[grid_idx(0, 0)]).length() * radius_m) as f32;
+    let cell_code = (cell_m / WATER_CELL_CODE_SCALE).min(1.0);
+    let depth_colors: Vec<[f32; 3]> = dirs
+        .iter()
+        .map(|d| {
+            let mut c = depth_color(*d);
+            c[2] = cell_code;
+            c
+        })
+        .collect();
     // Geomorph parent deltas (v0.1041, the WELD fix - operator: "let's
     // fix the welds on the water polygons"): every ODD-parity lattice
     // vert disappears at the next-coarser LOD, where the surviving edge
@@ -2906,6 +2962,7 @@ mod tests {
 
     fn params_for(def: &PlanetDef) -> ChunkParams {
         ChunkParams {
+            occluder_r_m: None,
             radius_m: def.radius,
             band: band_for(def),
             max_depth: MAX_PATCH_DEPTH,

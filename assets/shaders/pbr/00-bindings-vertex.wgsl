@@ -334,23 +334,59 @@ fn ocean_train_fade(cam_dist: f32, lambda_m: f32) -> f32 {
     return 1.0 - smoothstep(reach * 0.6, reach, cam_dist);
 }
 
+// Water patch vertex spacing, baked per-vertex into uv.y by the shell
+// builder. LOCKSTEP with WATER_CELL_CODE_SCALE in planet_chunks.rs.
+const WATER_CELL_CODE_SCALE: f32 = 65536.0;
+
+// ── MEASURED Nyquist gate (v0.1049) ──
+// ocean_train_fade above is really a Nyquist gate written in DISTANCE: it
+// dies at 60 * lambda because the vertex spacing there is ASSUMED to be
+// ~dist/325 (screen-error LOD at split_px 4, px_per_rad ~1300), which puts
+// the fade at cell ~ lambda/5.4. The assumption fails exactly where the
+// operator sees the artifact: the water leaf budget saturates, so out at the
+// horizon the real spacing is 10-15x coarser than dist/325 ([WaterDiag]
+// measured 38-60 px of leaf error against a 4 px target at 700 m). The
+// shader then displaces waves the mesh cannot represent - 16 verts spanning
+// hundreds of metres turn a wave field into big randomly-tilted facets, the
+// "flat triangles... only the very furthest", worse on ascent because a
+// higher eye sees more sea and the budget cuts coarser still.
+//
+// So gate on the spacing we MEASURED instead of the one we assumed, at the
+// same lambda/9 .. lambda/5.4 threshold the distance version implies. Where
+// the budget is not saturated the two agree and nothing changes; where it is,
+// this one is right. Taken as a MIN with the distance fade, so it can only
+// ever remove displacement, never add it - no new pop anywhere that already
+// looked correct. At the player cell is ~0.4 m and every gate is exactly 1,
+// so the CPU buoyancy twin (drawn == sampled) is untouched.
+fn ocean_cell_gate(cell_m: f32, lambda_m: f32) -> f32 {
+    return 1.0 - smoothstep(lambda_m * 0.111, lambda_m * 0.185, cell_m);
+}
+
+// The two gates combined: displacement survives only if BOTH the distance
+// and the actual mesh resolution can carry the wavelength.
+fn ocean_wave_gate(cam_dist: f32, cell_m: f32, lambda_m: f32) -> f32 {
+    return min(ocean_train_fade(cam_dist, lambda_m), ocean_cell_gate(cell_m, lambda_m));
+}
+
 // `p_m` is the planet-radius position (long swells tolerate its f32
 // noise: <= 1% of wavelength at lambda >= 50); `p_anch` is the SAME point
 // in the camera-anchored small domain (see the chop constants above).
-fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32) -> f32 {
+fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32, cell_m: f32) -> f32 {
     // Long swells: the global 2-8 km fade (applied by the caller) is well
     // inside their resolution reach, so they need no per-train fade.
-    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
-    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
+    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t)
+        * ocean_cell_gate(cell_m, OCEAN_W1_LAMBDA);
+    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t)
+        * ocean_cell_gate(cell_m, OCEAN_W2_LAMBDA);
     h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
-        * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
+        * ocean_wave_gate(cam_dist, cell_m, OCEAN_W3_LAMBDA);
     h = h + ocean_height_train(p_anch, OCEAN_W4_DIR, OCEAN_W4_LAMBDA, OCEAN_W4_CPS, OCEAN_W4_HEIGHT, t)
-        * ocean_train_fade(cam_dist, OCEAN_W4_LAMBDA);
+        * ocean_wave_gate(cam_dist, cell_m, OCEAN_W4_LAMBDA);
     // Short chop: resolution-faded like the rest (the old fixed 250-800 m
     // band under-resolved the 6 m train past ~360 m), phased in the
     // anchored domain (the jitter fix).
-    let near5 = ocean_train_fade(cam_dist, OCEAN_W5_LAMBDA);
-    let near6 = ocean_train_fade(cam_dist, OCEAN_W6_LAMBDA);
+    let near5 = ocean_wave_gate(cam_dist, cell_m, OCEAN_W5_LAMBDA);
+    let near6 = ocean_wave_gate(cam_dist, cell_m, OCEAN_W6_LAMBDA);
     if (near5 > 0.001 || near6 > 0.001) {
         h = h + ocean_height_train(p_anch, OCEAN_W5_DIR, OCEAN_W5_LAMBDA, OCEAN_W5_CPS, OCEAN_W5_HEIGHT, t) * near5;
         h = h + ocean_height_train(p_anch, OCEAN_W6_DIR, OCEAN_W6_LAMBDA, OCEAN_W6_CPS, OCEAN_W6_HEIGHT, t) * near6;
@@ -418,11 +454,11 @@ fn fft_cascade_height(p_anch: vec3<f32>, radial: vec3<f32>, tile_m: f32, row_bas
 
 // Both cascades with their own resolution fades: p64 is the 64 m-anchored
 // position, p256 the 256 m-anchored one.
-fn fft_ocean_height(p64: vec3<f32>, p256: vec3<f32>, radial: vec3<f32>, cam_dist: f32) -> f32 {
+fn fft_ocean_height(p64: vec3<f32>, p256: vec3<f32>, radial: vec3<f32>, cam_dist: f32, cell_m: f32) -> f32 {
     return fft_cascade_height(p64, radial, OCEAN_FFT_TILE_M, 0)
-        * ocean_train_fade(cam_dist, OCEAN_FFT_A_FADE_LAMBDA)
+        * ocean_wave_gate(cam_dist, cell_m, OCEAN_FFT_A_FADE_LAMBDA)
         + fft_cascade_height(p256, radial, OCEAN_FFT_B_TILE_M, OCEAN_FFT_ROW_B)
-            * ocean_train_fade(cam_dist, OCEAN_FFT_B_FADE_LAMBDA);
+            * ocean_wave_gate(cam_dist, cell_m, OCEAN_FFT_B_FADE_LAMBDA);
 }
 
 // Increment 2 (v0.1031): triplanar-blended shading fields - xyz = the 3D
@@ -457,21 +493,23 @@ fn fft_ocean_shading(p64: vec3<f32>, p256: vec3<f32>, radial: vec3<f32>, cam_dis
 // the two cascades carry everything from 256 m down. The fields carry
 // their own time evolution (the CPU re-uploads each frame), so no t for
 // them. CPU twin: ocean_fft::wave_height_shoaled_fft_m.
-fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
-    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
-    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
+fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>, cell_m: f32) -> f32 {
+    var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t)
+        * ocean_cell_gate(cell_m, OCEAN_W1_LAMBDA);
+    h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t)
+        * ocean_cell_gate(cell_m, OCEAN_W2_LAMBDA);
     h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
-        * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
-    h = h + fft_ocean_height(p64, p256, radial, cam_dist);
+        * ocean_wave_gate(cam_dist, cell_m, OCEAN_W3_LAMBDA);
+    h = h + fft_ocean_height(p64, p256, radial, cam_dist, cell_m);
     return h;
 }
 
 // One call for the active water model (trains or FFT cascades).
-fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
+fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>, cell_m: f32) -> f32 {
     if (camera.light0_cone_inner.x > 0.5) {
-        return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial);
+        return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial, cell_m);
     }
-    return ocean_wave_height(p_m, p64, t, cam_dist);
+    return ocean_wave_height(p_m, p64, t, cam_dist, cell_m);
 }
 
 // Geomorph weld window (v0.1041), in units of cell * K where K =
@@ -579,7 +617,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     let p64 = anchw + dvw;
                     let p256 = anch256 + dvw;
                     let t = camera.sun_color.w;
-                    let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir);
+                    // uv.y carries this patch's measured vertex spacing.
+                    let cell_m = vertex.uv.y * WATER_CELL_CODE_SCALE;
+                    let h = water_disp_height(p_m, p64, p256, t, cam_dist, dir, cell_m);
                     // NO wave-height morph here (v0.1044). Collapsing odd
                     // verts onto their parents' mean is textbook CDLOD,
                     // but this lattice is normalize(barycentric) per patch,

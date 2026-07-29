@@ -8600,6 +8600,7 @@ mod native_app {
                                     .clamp(64.0, 12288.0)
                                     as usize;
                                 let params = chunks::ChunkParams {
+                                    occluder_r_m: None,
                                     radius_m: d.radius,
                                     band,
                                     // The tile tier earns deeper patches
@@ -9644,6 +9645,7 @@ mod native_app {
                                         );
                                         let bkey = format!("{}::water_backstop", b.id);
                                         let bparams = chunks::ChunkParams {
+                                            occluder_r_m: None,
                                             radius_m: d.radius,
                                             band: chunks::water_band(d.radius),
                                             max_depth: 11,
@@ -9751,6 +9753,45 @@ mod native_app {
 
                                     let wkey = format!("{}::water", b.id);
                                     let wparams = chunks::ChunkParams {
+                                        // TIGHT HORIZON OCCLUDER for water
+                                        // (v0.1049). water_band subtracts
+                                        // SKIRT_MAX_M (80 km) though the water
+                                        // shell emits no skirts, so the cull's
+                                        // occluder sat 80 km below the seabed
+                                        // and every water patch out to ~2020 km
+                                        // of arc counted as visible - roughly
+                                        // 40% of the 1024-leaf budget refining
+                                        // ocean beyond the horizon, which is
+                                        // WHY the visible far field got such a
+                                        // coarse cut.
+                                        //
+                                        // The margin RAMPS with altitude rather
+                                        // than switching. It cannot simply be
+                                        // 4.1 m always: horizon_culled bails
+                                        // (culls nothing) once the camera sits
+                                        // below the occluder, so a sea-level
+                                        // occluder flips the entire cull on and
+                                        // off as the player BOBS on the waves.
+                                        // A hard switch is no better - measured
+                                        // at the threshold it drew a DEPTH-0
+                                        // leaf (a whole icosahedral face of
+                                        // ocean) for a frame, because the step
+                                        // invalidated the tree faster than the
+                                        // 24-builds/frame budget could descend
+                                        // it. Ramping keeps the horizon sweeping
+                                        // in continuously, which is just camera
+                                        // motion as far as the selector is
+                                        // concerned. Below 3.6 m (the 3.1 m wave
+                                        // ceiling plus the backstop drop) the
+                                        // margin is exactly today's, so the
+                                        // waterline case cannot churn.
+                                        occluder_r_m: {
+                                            let alt = (cam_local.length() - d.radius) as f32;
+                                            let t = ((alt - 3.6) / 16.4).clamp(0.0, 1.0);
+                                            let ramp = t * t * (3.0 - 2.0 * t);
+                                            let margin = 4.1 + 80_000.0 * (1.0 - ramp as f64);
+                                            Some(d.radius - margin)
+                                        },
                                         radius_m: d.radius,
                                         band: chunks::water_band(d.radius),
                                         // Per-type LOD control (v0.965): the
@@ -9844,6 +9885,39 @@ mod native_app {
                                         if let Some(e) = ws.cache.get_mut(id) {
                                             e.last_used = frame;
                                         }
+                                    }
+                                    // [WaterDiag] (v0.1049) - the water twin of
+                                    // [ChunkDiag] above. The far-field plates are a
+                                    // COVERAGE question (does the wave shell reach
+                                    // the horizon, or does the backstop show through
+                                    // 3.6 m lower?) and coverage is invisible in a
+                                    // screenshot until you know whether the leaf
+                                    // budget saturated and at what error it cut.
+                                    // Permanent: this bug class is altitude-triggered
+                                    // and recurs whenever the budget or the error
+                                    // floor moves.
+                                    if ws.frame % 60 == 0 {
+                                        let wdmax =
+                                            wsel.draws.iter().map(|d| d.depth).max().unwrap_or(0);
+                                        let wdmin =
+                                            wsel.draws.iter().map(|d| d.depth).min().unwrap_or(0);
+                                        log::info!(
+                                            "[WaterDiag] draws={} d={}..{} sat={} covered={} req={} cache={} budget={} split_px={:.1} alt={:.0}m refused=({:.0}px@d{}) maxleaf=({:.0}px@d{})",
+                                            wsel.draws.len(),
+                                            wdmin,
+                                            wdmax,
+                                            wsel.stats.budget_saturated,
+                                            wsel.fully_covered,
+                                            wsel.build_requests.len(),
+                                            ws.cache.len(),
+                                            wparams.max_leaves,
+                                            wparams.split_px,
+                                            cam_local.length() - d.radius,
+                                            wsel.stats.max_refused_err,
+                                            wsel.stats.max_refused_depth,
+                                            wsel.stats.max_leaf_err,
+                                            wsel.stats.max_leaf_depth,
+                                        );
                                     }
                                     let mut wbuilds = 0usize;
                                     for id in &wsel.build_requests {
@@ -9991,7 +10065,52 @@ mod native_app {
                                                 }
                                             }
                                         }
-                                        for id in wsel.draws.iter().filter(|i| ws.cache.contains_key(i)).chain(wdrawn.iter()) {
+                                        // COARSE-LEAF FLOOR (v0.1049). A water
+                                        // leaf shallower than this is not a
+                                        // patch of sea, it is a continent-sized
+                                        // flat triangle: depth 0 is a whole
+                                        // icosahedral face (7053 km edge, 441 km
+                                        // cells) and [WaterDiag] caught exactly
+                                        // that being drawn for a frame after a
+                                        // teleport, when restricted descent held
+                                        // the root because its children had not
+                                        // streamed in yet. Such a leaf can only
+                                        // ever be wrong on screen, so drop it
+                                        // and let the coarse BACKSTOP shell
+                                        // (its own selection, max_depth 11) hold
+                                        // that ground - since v0.1045 the
+                                        // backstop shades identically to the
+                                        // sea, so what shows through reads as
+                                        // calm water rather than a plate. Depth
+                                        // 6 keeps 110 km patches, whose 6.9 km
+                                        // cells sag under a metre off the true
+                                        // sphere (0.05 px past 20 km) and whose
+                                        // waves the v0.1049 Nyquist gate has
+                                        // already flattened - smooth sea, not
+                                        // facets.
+                                        //
+                                        // ALTITUDE-GATED, and that is not
+                                        // optional: from orbit a coarse leaf is
+                                        // the CORRECT leaf. [WaterDiag] at
+                                        // 400 km shows the selection drawing
+                                        // depth 5..8 at 10 px of error, so a
+                                        // blanket floor of 6 would delete every
+                                        // depth-5 patch and punch holes in the
+                                        // ocean seen from space. Below 20 km the
+                                        // horizon is under ~500 km and a
+                                        // sub-depth-6 leaf cannot be anything
+                                        // but a streaming artifact; above it,
+                                        // trust the selector.
+                                        let walt = cam_local.length() - d.radius;
+                                        let water_min_draw_depth: u8 =
+                                            if walt < 20_000.0 { 6 } else { 0 };
+                                        for id in wsel
+                                            .draws
+                                            .iter()
+                                            .filter(|i| ws.cache.contains_key(i))
+                                            .chain(wdrawn.iter())
+                                            .filter(|i| i.depth >= water_min_draw_depth)
+                                        {
                                             if let Some(e) = ws.cache.get(id) {
                                                 let anchor_render =
                                                     render_off + rot_d * e.anchor;
