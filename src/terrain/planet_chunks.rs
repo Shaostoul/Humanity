@@ -1949,6 +1949,11 @@ pub const WATER_MAX_PATCH_DEPTH: u8 = 20;
 /// Water-shell leaf budget: six deeper tiers need more near-camera
 /// leaves; MAX_OBJECTS is 16384 today, so 512 is still a small slice.
 ///
+/// v0.1048: 512 -> 1024. With the water error floor added alongside (see
+/// the wparams split_px in lib.rs) this is headroom for a high eye over open
+/// ocean, where the visible sea area - and so the leaf demand - grows with
+/// altitude; 512 covered a 3 m eye but not a 13 m one.
+///
 /// MEASURED, v0.1045: at 512 the ocean genuinely runs ~1.5 LOD levels
 /// COARSER than the pixel-error target (the split heap hits the cap and
 /// cuts every request above ~11-14 px of error instead of the 4.6 px the
@@ -1960,7 +1965,7 @@ pub const WATER_MAX_PATCH_DEPTH: u8 = 20;
 /// not coverage - see the type-16 backstop branch in 90-fragment-main.wgsl.
 /// If the residual dusk seam ever needs attacking, make this a Settings
 /// slider like terrain_patch_budget rather than raising the default.
-pub const WATER_MAX_LEAVES: usize = 512;
+pub const WATER_MAX_LEAVES: usize = 1024;
 
 /// One near-field tree from the planet-fixed vegetation stream (v0.911):
 /// the same cell hash the patch bake emits silhouette cards from,

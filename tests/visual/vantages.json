@@ -74,6 +74,27 @@
       "perf_floor_fps": 18
     },
     {
+      "id": "ocean-high-eye",
+      "desc": "Open ocean from a 30 m eye - the water-shell COVERAGE case.",
+      "expect": "Wave field carries to the horizon. NO flat pale plates: those are the coarse backstop shell showing through where the wave shell ran out of leaves. A high eye sees far more sea than a 3 m eye, so this is where the water leaf budget is actually tested (v0.1048: the operator hit it at 13 m with terrain_split_px = 2).",
+      "regressions": [
+        "water-shell coverage / backstop show-through",
+        "cross-LOD seams at distance"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.03,
+        "look_offset_deg": 88
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0.3"
+      },
+      "settle_s": 10
+    },
+    {
       "id": "fuji-forest-ground",
       "desc": "Ground level near Mt Fuji in a conifer forest, morning",
       "showcase": {

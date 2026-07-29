@@ -9765,7 +9765,29 @@ mod native_app {
                                             .round()
                                             .clamp(14.0, chunks::WATER_MAX_PATCH_DEPTH as f32))
                                             as u8,
-                                        split_px,
+                                        // WATER GETS ITS OWN ERROR FLOOR
+                                        // (v0.1048). The terrain slider is
+                                        // the pixel-error target, and leaves
+                                        // wanted scale as 1/px^2 - so the
+                                        // operator's terrain_split_px = 2
+                                        // asked the WATER shell for ~4x the
+                                        // patches that split_px = 4 does,
+                                        // against a leaf budget that is a
+                                        // small fraction of terrain's. The
+                                        // selection then cut at a huge error
+                                        // and could not cover the sea, and
+                                        // the flat backstop showed through as
+                                        // the operator's pale "blue
+                                        // triangles" - present at 13 m (lots
+                                        // of visible ocean), absent at 3 m
+                                        // (little), which is exactly the
+                                        // altitude signature they reported.
+                                        // Water is a smooth wave field, not
+                                        // silhouetted terrain: 4 px of error
+                                        // is invisible on it, so clamp the
+                                        // floor here instead of making the
+                                        // sea hostage to the terrain slider.
+                                        split_px: split_px.max(4.0),
                                         px_per_rad: viewport_h / fov_deg.max(1.0).to_radians(),
                                         max_leaves: chunks::WATER_MAX_LEAVES,
                                         max_build_requests: 24,
@@ -9779,8 +9801,22 @@ mod native_app {
                                     // Parked skip for the WATER selection too
                                     // (v0.928) - same static-pose rule as the
                                     // terrain selection above.
+                                    // v0.1047: 0.25 m -> 3.0 m. Floating at the
+                                    // waterline the camera BOBS with the waves, so
+                                    // the old tolerance re-ran the whole water
+                                    // selection every frame; under the 512-leaf
+                                    // budget the equal-error cut lands slightly
+                                    // differently each time, so patches near the
+                                    // cut flip in and out faster than the build
+                                    // cap can refill them - holes, and the flat
+                                    // backstop showing through as the operator's
+                                    // "blue triangles [that] randomly pop up as I
+                                    // bob up and down in the water". A metre of
+                                    // altitude changes the pixel error of a patch
+                                    // hundreds of metres away by nothing, so this
+                                    // tolerance costs no visible detail.
                                     let wparked = state.camera.surface_mode
-                                        && (cam_local - ws.last_sel_cam).length() < 0.25
+                                        && (cam_local - ws.last_sel_cam).length() < 3.0
                                         && cam_fwd_local.dot(ws.last_sel_fwd) > 0.99999
                                         && !ws.sel_dirty
                                         && ws.last_selection.as_ref().is_some_and(|s| {
@@ -9811,7 +9847,13 @@ mod native_app {
                                     }
                                     let mut wbuilds = 0usize;
                                     for id in &wsel.build_requests {
-                                        if wbuilds >= 8 {
+                                        // v0.1047: 8 -> 24 per frame (the
+                                        // selection never requests more than
+                                        // wparams.max_build_requests anyway). A
+                                        // transient hole now closes in one frame
+                                        // instead of three-plus, which is what
+                                        // the eye actually catches.
+                                        if wbuilds >= 24 {
                                             break;
                                         }
                                         if ws.cache.contains_key(id) {

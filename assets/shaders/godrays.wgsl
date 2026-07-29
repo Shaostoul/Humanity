@@ -62,8 +62,19 @@ fn fs_main(@builtin(position) fc: vec4<f32>) -> @location(0) vec4<f32> {
     var lit = 0.0;
     var wsum = 0.0;
     var decay = 1.0;
+    // Per-pixel march offset (v0.1047, operator: "can you see the banding of
+    // the sun rays? can we somehow blend that"): every fragment used to tap
+    // at the SAME 40 fractions along its ray, so neighbouring pixels shared
+    // sampling positions and the visibility estimate stepped in unison -
+    // concentric banding radiating from the sun, worst at sunset when the
+    // shafts are long and low-contrast. Interleaved-gradient noise offsets
+    // each pixel's taps by up to one step, which converts that correlated
+    // stair-step into fine film-grain dither the eye reads as smooth. Free:
+    // same tap count.
+    let ign = fract(52.9829189
+        * fract(dot(fc.xy, vec2<f32>(0.06711056, 0.00583715))));
     for (var i = 1u; i <= steps; i = i + 1u) {
-        let t = f32(i) / f32(steps);
+        let t = (f32(i) - ign) / f32(steps);
         let suv = uv + to_sun * t;
         if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) {
             break;
