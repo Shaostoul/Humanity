@@ -439,6 +439,14 @@
     {
       "date": "2026-07-29",
       "decision": "WATER_MAX_LEAVES stays 512: raising to 2048 cost ~26 ms/frame (34->60 ms) at a grazing dusk vantage for zero visible gain once the backstop shading matched. Recorded in the const doc; if the residual sub-pixel seam ever matters, expose it as a Settings slider like terrain_patch_budget instead of raising the default."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "THE FLAT BLUE TILES ARE STREAMING HOLES (v0.1046.1). Proof chain: tinting the backstop red showed ~100% of the ocean was backstop right after camera motion and 0% when held still; the operator's own screenshots then showed the tell - every bad frame is at FLY x100M FTL, the good one at FLY x1. Water builds are capped at 8 patches/frame and the draw loop SKIPPED any selected-but-unbuilt patch, so at speed the wave shell is mostly missing and the flat backstop shows through as pale plates with hard polygon edges. FIX: ancestor fallback - a selected patch that is not resident now draws its nearest RESIDENT ancestor (roots are never evicted, so one always exists), deduped. Holes become coarser real water instead of flat backstop. Strictly better: it can only replace nothing-drawn with something-drawn."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "RIG HAZARD LEARNED THE HARD WAY: .probe-rig/assets is a SYMLINK to the repo assets, and the operator's running game hot-reloads shaders - so my red/green coverage diagnostics rendered INSIDE THEIR SESSION. They sent screenshots of a red ocean. Restored immediately. Before any shader-level diagnostic, either give the rig its own assets COPY or confirm the operator is not running. Also: colour-key diagnostics are unreliable in daylight (aerial haze desaturates them) - compare hue DOMINANCE (r>g) rather than absolute saturation, and never trust a 0% reading taken at noon."
     }
   ],
   "active_scopes_to_avoid": [

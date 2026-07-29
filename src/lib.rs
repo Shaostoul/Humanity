@@ -9894,7 +9894,62 @@ mod native_app {
                                     // builds is far better than a vanishing
                                     // sea.
                                     if !wsel.draws.is_empty() {
+                                        // ANCESTOR FALLBACK (v0.1046,
+                                        // operator: "flat blue triangles...
+                                        // the visual updates, most of the
+                                        // triangles disappear, another
+                                        // refresh happens then it seems to
+                                        // revert"): water builds are capped
+                                        // at 8/frame, so right after the
+                                        // camera moves a chunk of the
+                                        // selection is still UNBUILT. The
+                                        // old loop simply skipped those,
+                                        // leaving real holes through which
+                                        // the flat BACKSTOP showed - big
+                                        // pale plates that healed a second
+                                        // later as the builds landed (a red
+                                        // -tinted backstop proved it: ~100%
+                                        // of the sea right after a teleport,
+                                        // 0% once held still). Standard
+                                        // streaming answer: never draw a
+                                        // hole - fall back to the nearest
+                                        // RESIDENT ancestor, which always
+                                        // exists because roots are never
+                                        // evicted. Its wave shading is the
+                                        // real sea, just coarser, so the
+                                        // transient reads as water instead
+                                        // of a plate. Ancestors are deduped
+                                        // so one coarse patch covering four
+                                        // missing children draws once.
+                                        let mut wdrawn: std::collections::HashSet<chunks::PatchId> =
+                                            std::collections::HashSet::new();
+                                        let mut wfallbacks = 0usize;
                                         for id in &wsel.draws {
+                                            if ws.cache.contains_key(id) {
+                                                continue;
+                                            }
+                                            let mut anc = id.parent();
+                                            while let Some(a) = anc {
+                                                if ws.cache.contains_key(&a) {
+                                                    if wdrawn.insert(a) {
+                                                        wfallbacks += 1;
+                                                    }
+                                                    break;
+                                                }
+                                                anc = a.parent();
+                                            }
+                                        }
+                                        if wfallbacks > 0 {
+                                            // Keep the fallbacks resident:
+                                            // they are what covers the sea
+                                            // while the real leaves stream.
+                                            for a in &wdrawn {
+                                                if let Some(e) = ws.cache.get_mut(a) {
+                                                    e.last_used = frame;
+                                                }
+                                            }
+                                        }
+                                        for id in wsel.draws.iter().filter(|i| ws.cache.contains_key(i)).chain(wdrawn.iter()) {
                                             if let Some(e) = ws.cache.get(id) {
                                                 let anchor_render =
                                                     render_off + rot_d * e.anchor;
