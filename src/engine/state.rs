@@ -769,7 +769,7 @@ pub(crate) struct EngineState {
     /// water-fft.md increment 1). Built lazily when the Settings toggle
     /// turns on near an ocean body; the SAME height array feeds the GPU
     /// displacement tile and the buoyancy twin (drawn == sampled).
-    pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanFft>,
+    pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanCascades>,
     /// Cloud wind-advection (v0.1032): the zonal angle the shader's
     /// weather-map lookup is rotated by. `cloud_advect` integrates the
     /// live wind; `cloud_advect_decaying` holds the offset orphaned by

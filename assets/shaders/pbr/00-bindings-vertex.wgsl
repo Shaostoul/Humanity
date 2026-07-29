@@ -358,22 +358,34 @@ fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32) -
     return h;
 }
 
-// ---- FFT ocean (increment 1) ------------------------------------------
-// Tile size MUST divide the 64 m ground-anchor modulus: anchor re-snaps
-// are exact 64 m steps, so a 64 m tile shifts by exactly one period and
-// the sea never visibly jumps. LOCKSTEP with ocean_fft.rs (FFT_TILE_M,
-// FFT_N, PLANE_OFF) - a mismatch breaks drawn == sampled.
+// ---- FFT ocean (increments 1-3) ---------------------------------------
+// TWO cascades since v0.1040 (operator: "the texture repeats A LOT...
+// looks like a grid"): cascade A (64 m tile, short chop) rides the 64 m
+// ground anchor; cascade B (256 m tile, mid/long waves) rides its OWN
+// mod-256 anchor in light4_cone_inner.xyz. Each tile divides its own
+// anchor modulus, so every snap shifts each tile by exactly one period.
+// ONE 128x256 texture: A in rows [0,128), B in rows [128,256). LOCKSTEP
+// with ocean_fft.rs (FFT_TILE_M, FFT_B_TILE_M, FFT_N, FFT_TEX_H,
+// PLANE_OFF, fade lambdas) - a mismatch breaks drawn == sampled.
 const OCEAN_FFT_TILE_M: f32 = 64.0;
+const OCEAN_FFT_B_TILE_M: f32 = 256.0;
 const OCEAN_FFT_N: i32 = 128;
+const OCEAN_FFT_ROW_B: i32 = 128;
+// Per-cascade resolution fades (via ocean_train_fade): A's short chop
+// dies by ~1 km (the seam fix - under-resolved waves vanish before
+// cross-LOD borders can disagree about them); B's mid waves carry the
+// far field the operator called flat.
+const OCEAN_FFT_A_FADE_LAMBDA: f32 = 16.0;
+const OCEAN_FFT_B_FADE_LAMBDA: f32 = 96.0;
 const OCEAN_FFT_OFF_X: vec2<f32> = vec2<f32>(0.0, 0.0);
 const OCEAN_FFT_OFF_Y: vec2<f32> = vec2<f32>(0.271, 0.417);
 const OCEAN_FFT_OFF_Z: vec2<f32> = vec2<f32>(0.613, 0.129);
 
-// Manual-bilinear tile sample (wraps). textureLoad instead of a sampler:
-// exact texel math the CPU twin reproduces line for line, and no
-// VERTEX-visible sampler binding needed. Returns the full packed texel
-// (v0.1031 increment 2): r = height, g = slope_u, b = slope_v, a = foam.
-fn fft_tile_sample(uv_in: vec2<f32>) -> vec4<f32> {
+// Manual-bilinear tile sample (wraps within one cascade's 128 rows;
+// row_base selects the cascade). textureLoad instead of a sampler:
+// exact texel math the CPU twin reproduces line for line. Returns the
+// packed texel: r = height, g = slope_u, b = slope_v, a = foam.
+fn fft_tile_sample(uv_in: vec2<f32>, row_base: i32) -> vec4<f32> {
     let nf = f32(OCEAN_FFT_N);
     let u = fract(uv_in.x) * nf;
     let v = fract(uv_in.y) * nf;
@@ -383,25 +395,34 @@ fn fft_tile_sample(uv_in: vec2<f32>) -> vec4<f32> {
     let y1 = (y0 + 1) % OCEAN_FFT_N;
     let fx = fract(u);
     let fy = fract(v);
-    let a = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y0), 0),
-                textureLoad(water_fft_tex, vec2<i32>(x1, y0), 0), fx);
-    let b = mix(textureLoad(water_fft_tex, vec2<i32>(x0, y1), 0),
-                textureLoad(water_fft_tex, vec2<i32>(x1, y1), 0), fx);
+    let a = mix(textureLoad(water_fft_tex, vec2<i32>(x0, row_base + y0), 0),
+                textureLoad(water_fft_tex, vec2<i32>(x1, row_base + y0), 0), fx);
+    let b = mix(textureLoad(water_fft_tex, vec2<i32>(x0, row_base + y1), 0),
+                textureLoad(water_fft_tex, vec2<i32>(x1, row_base + y1), 0), fx);
     return mix(a, b, fy);
 }
 
-// Triplanar projection of the tile, blended by the squared radial normal:
-// a single 2D parameterization of a sphere always degenerates somewhere
-// (xz collapses at the equator), so - like the trains' three axis-aligned
-// directions - the tile is projected on all three planes. Fixed per-plane
-// UV offsets decorrelate the three projections' crests.
-fn fft_ocean_height(p_anch: vec3<f32>, radial: vec3<f32>) -> f32 {
+// Triplanar projection of ONE cascade's tile, blended by the squared
+// radial normal: a single 2D parameterization of a sphere always
+// degenerates somewhere (xz collapses at the equator), so - like the
+// trains' three axis-aligned directions - the tile is projected on all
+// three planes. Fixed per-plane UV offsets decorrelate the projections.
+fn fft_cascade_height(p_anch: vec3<f32>, radial: vec3<f32>, tile_m: f32, row_base: i32) -> f32 {
     let w2 = radial * radial;
-    let q = p_anch / OCEAN_FFT_TILE_M;
-    var h = w2.x * fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X).x;
-    h = h + w2.y * fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y).x;
-    h = h + w2.z * fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z).x;
+    let q = p_anch / tile_m;
+    var h = w2.x * fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X, row_base).x;
+    h = h + w2.y * fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y, row_base).x;
+    h = h + w2.z * fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z, row_base).x;
     return h;
+}
+
+// Both cascades with their own resolution fades: p64 is the 64 m-anchored
+// position, p256 the 256 m-anchored one.
+fn fft_ocean_height(p64: vec3<f32>, p256: vec3<f32>, radial: vec3<f32>, cam_dist: f32) -> f32 {
+    return fft_cascade_height(p64, radial, OCEAN_FFT_TILE_M, 0)
+        * ocean_train_fade(cam_dist, OCEAN_FFT_A_FADE_LAMBDA)
+        + fft_cascade_height(p256, radial, OCEAN_FFT_B_TILE_M, OCEAN_FFT_ROW_B)
+            * ocean_train_fade(cam_dist, OCEAN_FFT_B_FADE_LAMBDA);
 }
 
 // Increment 2 (v0.1031): triplanar-blended shading fields - xyz = the 3D
@@ -410,12 +431,12 @@ fn fft_ocean_height(p_anch: vec3<f32>, radial: vec3<f32>) -> f32 {
 // each projection plane maps (u, v) onto its own two world axes before
 // the radial^2 blend, so the summed gradient lives in the same frame as
 // `dir` and can perturb the water normal directly.
-fn fft_ocean_shading(p_anch: vec3<f32>, radial: vec3<f32>) -> vec4<f32> {
+fn fft_cascade_shading(p_anch: vec3<f32>, radial: vec3<f32>, tile_m: f32, row_base: i32) -> vec4<f32> {
     let w2 = radial * radial;
-    let q = p_anch / OCEAN_FFT_TILE_M;
-    let sx = fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X);
-    let sy = fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y);
-    let sz = fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z);
+    let q = p_anch / tile_m;
+    let sx = fft_tile_sample(vec2<f32>(q.y, q.z) + OCEAN_FFT_OFF_X, row_base);
+    let sy = fft_tile_sample(vec2<f32>(q.x, q.z) + OCEAN_FFT_OFF_Y, row_base);
+    let sz = fft_tile_sample(vec2<f32>(q.x, q.y) + OCEAN_FFT_OFF_Z, row_base);
     var g = w2.x * vec3<f32>(0.0, sx.y, sx.z);
     g = g + w2.y * vec3<f32>(sy.y, 0.0, sy.z);
     g = g + w2.z * vec3<f32>(sz.y, sz.z, 0.0);
@@ -423,17 +444,25 @@ fn fft_ocean_shading(p_anch: vec3<f32>, radial: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(g, foam);
 }
 
-// FFT-mode total height: the long swells (> 64 m wavelength, which the
-// tile cannot hold) stay analytic; the FFT field replaces the three
-// anchored chop trains with ~16k simultaneous waves. The field carries
-// its own time evolution (the CPU re-uploads each frame), so no t here.
-// CPU twin: ocean_fft::wave_height_shoaled_fft_m.
-fn ocean_wave_height_fft(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
+// Both cascades' shading, distance-faded like the geometry so normals
+// never carry detail the verts no longer draw.
+fn fft_ocean_shading(p64: vec3<f32>, p256: vec3<f32>, radial: vec3<f32>, cam_dist: f32) -> vec4<f32> {
+    return fft_cascade_shading(p64, radial, OCEAN_FFT_TILE_M, 0)
+        * ocean_train_fade(cam_dist, OCEAN_FFT_A_FADE_LAMBDA)
+        + fft_cascade_shading(p256, radial, OCEAN_FFT_B_TILE_M, OCEAN_FFT_ROW_B)
+            * ocean_train_fade(cam_dist, OCEAN_FFT_B_FADE_LAMBDA);
+}
+
+// FFT-mode total height: the analytic long swells (2000/360/150 m) stay,
+// the two cascades carry everything from 256 m down. The fields carry
+// their own time evolution (the CPU re-uploads each frame), so no t for
+// them. CPU twin: ocean_fft::wave_height_shoaled_fft_m.
+fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
     var h = ocean_height_train(p_m, WAVE1_DIR, OCEAN_W1_LAMBDA, OCEAN_W1_CPS, OCEAN_W1_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE3_DIR, OCEAN_W2_LAMBDA, OCEAN_W2_CPS, OCEAN_W2_HEIGHT, t);
     h = h + ocean_height_train(p_m, WAVE4_DIR, OCEAN_W3_LAMBDA, OCEAN_W3_CPS, OCEAN_W3_HEIGHT, t)
         * ocean_train_fade(cam_dist, OCEAN_W3_LAMBDA);
-    h = h + fft_ocean_height(p_anch, radial) * ocean_train_fade(cam_dist, OCEAN_FFT_TILE_M);
+    h = h + fft_ocean_height(p64, p256, radial, cam_dist);
     return h;
 }
 
@@ -492,10 +521,16 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                 let dvw = (inv_model
                     * vec4<f32>(world_pos.xyz - camera.view_pos.xyz, 0.0)).xyz;
                 // FFT-ocean mode flag rides in light0_cone_inner.x, beside
-                // the anchor in .yzw (v0.1029, water-fft.md increment 1).
+                // the anchor in .yzw (v0.1029); cascade B's mod-256 anchor
+                // rides in light4_cone_inner.xyz (v0.1040).
                 var h: f32;
                 if (camera.light0_cone_inner.x > 0.5) {
-                    h = ocean_wave_height_fft(dir * r, anchw + dvw, camera.sun_color.w, cam_dist, dir);
+                    let anch256 = vec3<f32>(
+                        camera.light4_cone_inner.x,
+                        camera.light4_cone_inner.y,
+                        camera.light4_cone_inner.z,
+                    );
+                    h = ocean_wave_height_fft(dir * r, anchw + dvw, anch256 + dvw, camera.sun_color.w, cam_dist, dir);
                 } else {
                     h = ocean_wave_height(dir * r, anchw + dvw, camera.sun_color.w, cam_dist);
                 }

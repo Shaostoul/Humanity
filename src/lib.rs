@@ -12542,28 +12542,23 @@ mod native_app {
                                 .get("earth")
                                 .map(|d| d.terrain_seed as u64)
                                 .unwrap_or(7);
-                            let mut fft = crate::terrain::ocean_fft::OceanFft::new(
-                                crate::terrain::ocean_fft::FFT_N,
-                                crate::terrain::ocean_fft::FFT_TILE_M,
-                                // Moderate open-ocean breeze; weather-driven
-                                // spectrum regen is increment 2.
-                                8.0,
-                                0.6,
-                                200_000.0,
-                                seed,
+                            // Moderate open-ocean breeze; weather-driven
+                            // spectrum regen is a later increment.
+                            state.ocean_fft = Some(
+                                crate::terrain::ocean_fft::OceanCascades::build(
+                                    8.0, 0.6, 200_000.0, seed,
+                                ),
                             );
-                            fft.normalize_to_rms(
-                                crate::terrain::ocean_fft::FFT_TARGET_RMS_M,
+                            log::info!(
+                                "[OceanFft] cascades built (A 64 m + B 256 m tiles, 128x128 each)"
                             );
-                            state.ocean_fft = Some(fft);
-                            log::info!("[OceanFft] spectrum built (128x128, 64 m tile)");
                         }
-                        if let Some(fft) = state.ocean_fft.as_mut() {
+                        if let Some(c) = state.ocean_fft.as_mut() {
                             // Same clock as the shader's trains + the
                             // buoyancy twin (start-relative seconds).
                             let tsec = state.start_time.elapsed().as_secs_f32();
-                            fft.update(tsec);
-                            state.renderer.upload_water_fft(&fft.texels);
+                            c.update(tsec);
+                            state.renderer.upload_water_fft(&c.a.texels, &c.b.texels);
                         }
                     }
 
@@ -15626,7 +15621,7 @@ mod native_app {
                                     celestial_transparent
                                         .sort_by_key(|o| water_mats.contains(&o.material));
                                 }
-                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), &view);
+                                state.renderer.render_celestial_onto(&state.camera, &celestial_objects, &celestial_transparent, sun_dir_f, state.start_time.elapsed().as_secs_f32(), cloud_ground_params(state), ground_anchor(state), ocean_anchor256(state), &view);
                                 // Pass 1.6: orbit rings at celestial scale — between the
                                 // bodies and the interior so a ring behind a planet is
                                 // occluded by that body, and walls then draw over the

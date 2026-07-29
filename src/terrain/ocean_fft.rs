@@ -11,14 +11,36 @@
 const TAU: f32 = std::f32::consts::TAU;
 const G: f32 = 9.81;
 
-/// Engine-standard cascade: the tile must DIVIDE the 64 m ground-anchor
-/// modulus (frame_lock::ground_anchor snaps in 64 m steps; a tile of 64
-/// shifts by exactly one whole tile per snap, so the sea never jumps).
-/// A 256 m long-swell cascade needs its own mod-256 anchor - that is
-/// increment 3 work; until then the >64 m energy stays with the three
-/// analytic swell trains in both modes.
+/// Engine-standard cascades (increment 3, v0.1040 - operator: "the
+/// texture repeats A LOT... looks like a grid"): TWO tiles now. Cascade
+/// A (64 m, 0.5 m texels) carries the short chop and rides the 64 m
+/// ground anchor; cascade B (256 m, 2 m texels) carries the mid/long
+/// waves and rides its OWN mod-256 anchor (light4_cone_inner.xyz), so
+/// each tile still shifts by exactly one period per anchor snap. Each
+/// cascade is BAND-LIMITED to its wavelength range so they never
+/// double-count energy, and each fades at its own resolvable distance
+/// (the seam fix: under-resolved short waves vanish before cross-LOD
+/// patch borders can disagree about them).
 pub const FFT_TILE_M: f32 = 64.0;
 pub const FFT_N: usize = 128;
+/// Cascade B tile (must divide ITS anchor modulus: 256 mod 256 = 0).
+pub const FFT_B_TILE_M: f32 = 256.0;
+/// Wavelength split between the cascades (metres): A holds (0, 32],
+/// B holds (32, 256].
+pub const FFT_SPLIT_LAMBDA_M: f32 = 32.0;
+/// Texture layout: one 128x256 texture, cascade A in rows [0, 128),
+/// cascade B in rows [128, 256). LOCKSTEP with the shader's
+/// OCEAN_FFT_ROW_B constant.
+pub const FFT_TEX_H: usize = 256;
+/// Per-cascade resolution-fade wavelengths (fed to the shader's
+/// ocean_train_fade): A dies by ~1 km, B reaches the mid-distance the
+/// operator called flat.
+pub const FFT_A_FADE_LAMBDA: f32 = 16.0;
+pub const FFT_B_FADE_LAMBDA: f32 = 96.0;
+/// Per-cascade RMS targets: together they keep the trains' total
+/// energy envelope (sqrt(0.18^2 + 0.34^2) ~ 0.385).
+pub const FFT_A_TARGET_RMS_M: f32 = 0.18;
+pub const FFT_B_TARGET_RMS_M: f32 = 0.34;
 /// Per-plane UV decorrelation offsets for the triplanar projection.
 /// LOCKSTEP with the shader's OCEAN_FFT_OFF_X/Y/Z constants.
 pub const PLANE_OFF: [[f32; 2]; 3] = [[0.0, 0.0], [0.271, 0.417], [0.613, 0.129]];
@@ -111,7 +133,19 @@ fn jonswap_dir(k: glam::Vec2, wind_speed: f32, wind_dir: glam::Vec2, fetch_m: f3
 }
 
 impl OceanFft {
-    pub fn new(n: usize, tile_m: f32, wind_speed: f32, wind_dir_rad: f32, fetch_m: f32, seed: u64) -> Self {
+    /// `lambda_range` BAND-LIMITS the spectrum (metres, exclusive min /
+    /// inclusive max): bins outside get zero amplitude. The two-cascade
+    /// split assigns each wavelength to exactly one cascade so their sum
+    /// carries the spectrum once.
+    pub fn new(
+        n: usize,
+        tile_m: f32,
+        wind_speed: f32,
+        wind_dir_rad: f32,
+        fetch_m: f32,
+        seed: u64,
+        lambda_range: (f32, f32),
+    ) -> Self {
         assert!(n.is_power_of_two(), "FFT size must be a power of two");
         let wind_dir = glam::Vec2::new(wind_dir_rad.cos(), wind_dir_rad.sin());
         let mut rng = Rng(seed | 1);
@@ -125,7 +159,13 @@ impl OceanFft {
                 let kx = (if x <= n / 2 { x as i32 } else { x as i32 - n as i32 }) as f32 * dk;
                 let ky = (if y <= n / 2 { y as i32 } else { y as i32 - n as i32 }) as f32 * dk;
                 let k = glam::Vec2::new(kx, ky);
-                let s = jonswap_dir(k, wind_speed, wind_dir, fetch_m);
+                let kl = k.length();
+                let lam = if kl > 1.0e-6 { TAU / kl } else { f32::INFINITY };
+                let s = if lam > lambda_range.0 && lam <= lambda_range.1 {
+                    jonswap_dir(k, wind_speed, wind_dir, fetch_m)
+                } else {
+                    0.0
+                };
                 // Bin amplitude: sqrt(S * dkx * dky / 2) per Tessendorf.
                 let amp = (s * dk * dk * 0.5).sqrt();
                 h0[y * n + x] = [rng.gauss() * amp, rng.gauss() * amp];
@@ -296,25 +336,73 @@ impl OceanFft {
     }
 }
 
-/// Full FFT-mode buoyancy twin: the analytic long swells plus the FFT
-/// field, shoal-damped exactly like the trains version. The vertex
-/// shader's FFT branch (`ocean_wave_height_fft`) is the drawn side; both
-/// read the SAME height array this frame, so drawn == sampled is literal.
-pub fn wave_height_shoaled_fft_m(p_m: glam::DVec3, t: f32, depth_m: f32, fft: &OceanFft) -> f32 {
-    let swell = crate::terrain::ocean_waves::swell_height_m(p_m, t);
-    // Planet coords mod tile in f64 FIRST (the f32-at-scale rule): the
-    // remainder is < 64 m, so the downcast carries micrometre precision.
-    // The GPU's anchored domain differs from this by an exact integer
-    // number of tiles (anchor snaps are 64 m steps), which fract() erases.
-    let tile = fft.tile_m as f64;
-    let pm = glam::Vec3::new(
+/// The engine's two-cascade sea (v0.1040): built together, updated
+/// together, uploaded as ONE 128x256 texture (A rows then B rows).
+pub struct OceanCascades {
+    pub a: OceanFft,
+    pub b: OceanFft,
+}
+
+impl OceanCascades {
+    pub fn build(wind_speed: f32, wind_dir_rad: f32, fetch_m: f32, seed: u64) -> Self {
+        let mut a = OceanFft::new(
+            FFT_N,
+            FFT_TILE_M,
+            wind_speed,
+            wind_dir_rad,
+            fetch_m,
+            seed,
+            (0.0, FFT_SPLIT_LAMBDA_M),
+        );
+        a.normalize_to_rms(FFT_A_TARGET_RMS_M);
+        let mut b = OceanFft::new(
+            FFT_N,
+            FFT_B_TILE_M,
+            wind_speed,
+            wind_dir_rad,
+            fetch_m,
+            // Different Gaussian stream so the two tiles never share a
+            // crest pattern.
+            seed ^ 0x9E37_79B9_7F4A_7C15,
+            (FFT_SPLIT_LAMBDA_M, FFT_B_TILE_M),
+        );
+        b.normalize_to_rms(FFT_B_TARGET_RMS_M);
+        Self { a, b }
+    }
+
+    pub fn update(&mut self, t: f32) {
+        self.a.update(t);
+        self.b.update(t);
+    }
+}
+
+/// Planet coords mod tile in f64 FIRST (the f32-at-scale rule): the
+/// remainder downcasts with micrometre precision, and the GPU's anchored
+/// domain differs from it by an exact integer number of tiles.
+fn mod_tile(p_m: glam::DVec3, tile: f64) -> glam::Vec3 {
+    glam::Vec3::new(
         p_m.x.rem_euclid(tile) as f32,
         p_m.y.rem_euclid(tile) as f32,
         p_m.z.rem_euclid(tile) as f32,
-    );
+    )
+}
+
+/// Full FFT-mode buoyancy twin: the analytic long swells plus BOTH
+/// cascades, shoal-damped exactly like the trains version. The vertex
+/// shader's FFT branch (`ocean_wave_height_fft`) is the drawn side; both
+/// read the SAME height arrays this frame, so drawn == sampled is
+/// literal (per-cascade fades are ~1 at the player, matching the twin).
+pub fn wave_height_shoaled_fft_m(
+    p_m: glam::DVec3,
+    t: f32,
+    depth_m: f32,
+    c: &OceanCascades,
+) -> f32 {
+    let swell = crate::terrain::ocean_waves::swell_height_m(p_m, t);
     let radial = p_m.normalize().as_vec3();
-    (swell + fft.triplanar_height(pm, radial))
-        * crate::terrain::ocean_waves::shoal_factor(depth_m)
+    let h = c.a.triplanar_height(mod_tile(p_m, c.a.tile_m as f64), radial)
+        + c.b.triplanar_height(mod_tile(p_m, c.b.tile_m as f64), radial);
+    (swell + h) * crate::terrain::ocean_waves::shoal_factor(depth_m)
 }
 
 /// 2D IFFT: rows then columns, each via the radix-2 line transform.
@@ -383,7 +471,7 @@ mod tests {
     use super::*;
 
     fn sea(wind: f32, seed: u64) -> OceanFft {
-        let mut o = OceanFft::new(64, 256.0, wind, 0.6, 200_000.0, seed);
+        let mut o = OceanFft::new(64, 256.0, wind, 0.6, 200_000.0, seed, (0.0, 256.0));
         o.update(3.7);
         o
     }
@@ -416,7 +504,7 @@ mod tests {
 
     #[test]
     fn sea_animates_over_time() {
-        let mut o = OceanFft::new(64, 256.0, 10.0, 0.6, 200_000.0, 5);
+        let mut o = OceanFft::new(64, 256.0, 10.0, 0.6, 200_000.0, 5, (0.0, 256.0));
         o.update(0.0);
         let h0 = o.height.clone();
         o.update(2.0);
@@ -435,9 +523,43 @@ mod tests {
         assert!(o.rms() < 0.01, "no wind should be near-flat, rms {}", o.rms());
     }
 
+    /// v0.1040 cascades: band-limiting keeps each cascade's energy inside
+    /// its wavelength range (complementary bands sum to the full sea; an
+    /// empty band is a flat sea), and the pair builds with the expected
+    /// per-cascade RMS split.
+    #[test]
+    fn cascades_are_band_limited_and_normalized() {
+        // An impossible band (nothing between 1 and 1.001 m at 64 m tile
+        // resolution) must produce a flat sea.
+        let mut empty = OceanFft::new(64, 64.0, 12.0, 0.6, 200_000.0, 7, (1.0, 1.001));
+        empty.update(2.0);
+        assert!(empty.rms() < 1.0e-6, "empty band leaked energy: {}", empty.rms());
+        // The short band must carry LESS raw energy than the full band
+        // (it is a subset of the spectrum).
+        let mut short_band = OceanFft::new(64, 64.0, 12.0, 0.6, 200_000.0, 7, (0.0, 8.0));
+        short_band.update(2.0);
+        let mut full = OceanFft::new(64, 64.0, 12.0, 0.6, 200_000.0, 7, (0.0, 64.0));
+        full.update(2.0);
+        assert!(
+            short_band.rms() < full.rms(),
+            "band subset {} should be below full {}",
+            short_band.rms(),
+            full.rms()
+        );
+        // The engine pair: both cascades normalized to their targets.
+        let mut c = OceanCascades::build(8.0, 0.6, 200_000.0, 42);
+        c.update(0.0);
+        assert!((c.a.rms() - FFT_A_TARGET_RMS_M).abs() < 0.01, "A rms {}", c.a.rms());
+        assert!((c.b.rms() - FFT_B_TARGET_RMS_M).abs() < 0.01, "B rms {}", c.b.rms());
+        assert_eq!(c.a.tile_m, FFT_TILE_M);
+        assert_eq!(c.b.tile_m, FFT_B_TILE_M);
+        // The layout contract: two 128x128 cascades fill the 128x256 tile.
+        assert_eq!(c.a.texels.len() + c.b.texels.len(), FFT_N * FFT_TEX_H);
+    }
+
     #[test]
     fn normalization_hits_the_trains_energy_envelope() {
-        let mut o = OceanFft::new(FFT_N, FFT_TILE_M, 8.0, 0.6, 200_000.0, 42);
+        let mut o = OceanFft::new(FFT_N, FFT_TILE_M, 8.0, 0.6, 200_000.0, 42, (0.0, FFT_TILE_M));
         o.normalize_to_rms(FFT_TARGET_RMS_M);
         o.update(0.0);
         let r = o.rms();
@@ -466,39 +588,50 @@ mod tests {
         )
         .expect("vertex shader part readable");
         assert!(src.contains("const OCEAN_FFT_TILE_M: f32 = 64.0;"), "tile const");
+        assert!(src.contains("const OCEAN_FFT_B_TILE_M: f32 = 256.0;"), "B tile const");
         assert!(src.contains("const OCEAN_FFT_N: i32 = 128;"), "N const");
+        assert!(src.contains("const OCEAN_FFT_ROW_B: i32 = 128;"), "row-B const");
+        assert!(src.contains("const OCEAN_FFT_A_FADE_LAMBDA: f32 = 16.0;"), "A fade");
+        assert!(src.contains("const OCEAN_FFT_B_FADE_LAMBDA: f32 = 96.0;"), "B fade");
         assert_eq!(FFT_TILE_M, 64.0);
+        assert_eq!(FFT_B_TILE_M, 256.0);
         assert_eq!(FFT_N, 128);
-        // 64 must divide the ground-anchor modulus exactly (see frame_lock).
+        assert_eq!(FFT_TEX_H, 256);
+        assert_eq!(FFT_A_FADE_LAMBDA, 16.0);
+        assert_eq!(FFT_B_FADE_LAMBDA, 96.0);
+        // Each tile must divide ITS anchor modulus exactly: A rides the
+        // 64 m ground anchor, B rides the 256 m ocean anchor.
         assert_eq!(64.0_f32 % FFT_TILE_M, 0.0);
+        assert_eq!(256.0_f32 % FFT_B_TILE_M, 0.0);
         // Per-plane UV offsets, literal-for-literal.
         assert!(src.contains("vec2<f32>(0.0, 0.0)"), "OFF_X literal");
         assert!(src.contains("vec2<f32>(0.271, 0.417)"), "OFF_Y literal");
         assert!(src.contains("vec2<f32>(0.613, 0.129)"), "OFF_Z literal");
         assert_eq!(PLANE_OFF, [[0.0, 0.0], [0.271, 0.417], [0.613, 0.129]]);
         // The FFT branch must keep the three long swells analytic, paired
-        // with the same direction constants as the trains path.
+        // with the same direction constants as the trains path, and feed
+        // BOTH anchored positions to the cascade sum.
         let at = src.find("fn ocean_wave_height_fft").expect("fft fn present");
         let body = &src[at..at + 1200];
         for pair in ["WAVE1_DIR, OCEAN_W1_LAMBDA", "WAVE3_DIR, OCEAN_W2_LAMBDA", "WAVE4_DIR, OCEAN_W3_LAMBDA"] {
             assert!(body.contains(pair), "swell pairing missing: {pair}");
         }
-        assert!(body.contains("fft_ocean_height(p_anch, radial)"), "fft term present");
-        // Increment 2 channel layout: VS height from .x, FS shading fn
-        // maps g/b slopes onto each plane's axes and blends foam from .w.
-        assert!(src.contains("fn fft_ocean_shading"), "shading fn present");
-        let sat = src.find("fn fft_ocean_shading").expect("shading fn");
+        assert!(body.contains("fft_ocean_height(p64, p256, radial, cam_dist)"), "fft term present");
+        // Increment 2 channel layout: VS height from .x, the per-cascade
+        // shading fn maps g/b slopes onto each plane's axes + foam from .w.
+        let sat = src.find("fn fft_cascade_shading").expect("shading fn");
         let sbody = &src[sat..sat + 900];
         for m in ["vec3<f32>(0.0, sx.y, sx.z)", "vec3<f32>(sy.y, 0.0, sy.z)", "vec3<f32>(sz.y, sz.z, 0.0)", "sx.w", "sy.w", "sz.w"] {
             assert!(sbody.contains(m), "shading mapping missing: {m}");
         }
-        // And the fragment side actually consumes it in the water branch.
+        // And the fragment side actually consumes both cascades.
         let fs = std::fs::read_to_string(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("assets/shaders/pbr/90-fragment-main.wgsl"),
         )
         .expect("fragment shader part readable");
-        assert!(fs.contains("fft_ocean_shading(ptw, dir)"), "FS consumes FFT shading");
+        assert!(fs.contains("fft_ocean_shading(ptw, ptw256, dir, fdist)"), "FS consumes FFT shading");
+        assert!(fs.contains("light4_cone_inner"), "FS reads the B anchor");
     }
 
     /// Increment 2: spectral slopes must agree with finite differences of
@@ -507,7 +640,7 @@ mod tests {
     /// RMS, not equality).
     #[test]
     fn spectral_slopes_match_height_differences() {
-        let mut o = OceanFft::new(FFT_N, FFT_TILE_M, 8.0, 0.6, 200_000.0, 11);
+        let mut o = OceanFft::new(FFT_N, FFT_TILE_M, 8.0, 0.6, 200_000.0, 11, (0.0, FFT_TILE_M));
         o.update(2.5);
         let n = o.n;
         let texel = o.tile_m / n as f32;

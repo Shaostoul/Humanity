@@ -183,7 +183,15 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // are physical (rad/m from i*k*h(k)) - no amplitude renorm.
         if (camera.light0_cone_inner.x > 0.5) {
             if (tex_reach > 0.003) {
-                let f = fft_ocean_shading(ptw, dir);
+                // Both cascades (v0.1040): the 256 m-anchored position
+                // and the camera distance for the per-cascade fades.
+                let ptw256 = vec3<f32>(
+                    camera.light4_cone_inner.x,
+                    camera.light4_cone_inner.y,
+                    camera.light4_cone_inner.z,
+                ) + dvw;
+                let fdist = length(in.world_position - camera.view_pos.xyz);
+                let f = fft_ocean_shading(ptw, ptw256, dir, fdist);
                 grad = grad + f.xyz * (shoal * tex_reach);
                 // Jacobian foam is already a 0..1 whitecap factor; feed it
                 // through the same crest channel the texture used so the

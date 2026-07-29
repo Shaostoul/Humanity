@@ -910,9 +910,11 @@ impl Renderer {
         // engine's first upload (or with the setting off) it is a flat sea.
         let water_fft_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("FFT Ocean Displacement"),
+            // v0.1040: 128x256 - cascade A (64 m tile) in rows [0,128),
+            // cascade B (256 m tile) in rows [128,256).
             size: wgpu::Extent3d {
                 width: crate::terrain::ocean_fft::FFT_N as u32,
-                height: crate::terrain::ocean_fft::FFT_N as u32,
+                height: crate::terrain::ocean_fft::FFT_TEX_H as u32,
                 depth_or_array_layers: 1,
             },
             mip_level_count: 1,
@@ -1582,28 +1584,31 @@ impl Renderer {
         })
     }
 
-    /// Upload a fresh FFT-ocean realization (FFT_N x FFT_N packed
-    /// [height, slope_u, slope_v, foam] texels) into the persistent
-    /// tile. Called once per frame while FFT-ocean mode is on; ~256 KB,
-    /// no bind-group rebuild.
-    pub fn upload_water_fft(&self, texels: &[[f32; 4]]) {
+    /// Upload both FFT-ocean cascade realizations (each FFT_N x FFT_N of
+    /// packed [height, slope_u, slope_v, foam] texels) into the
+    /// persistent 128x256 tile: A at row 0, B at row FFT_N. Called once
+    /// per frame while FFT-ocean mode is on; ~512 KB, no rebuild.
+    pub fn upload_water_fft(&self, a: &[[f32; 4]], b: &[[f32; 4]]) {
         let n = crate::terrain::ocean_fft::FFT_N as u32;
-        debug_assert_eq!(texels.len(), (n * n) as usize);
-        self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &self.water_fft_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            bytemuck::cast_slice(texels),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(16 * n),
-                rows_per_image: Some(n),
-            },
-            wgpu::Extent3d { width: n, height: n, depth_or_array_layers: 1 },
-        );
+        debug_assert_eq!(a.len(), (n * n) as usize);
+        debug_assert_eq!(b.len(), (n * n) as usize);
+        for (texels, row0) in [(a, 0u32), (b, n)] {
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &self.water_fft_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d { x: 0, y: row0, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytemuck::cast_slice(texels),
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(16 * n),
+                    rows_per_image: Some(n),
+                },
+                wgpu::Extent3d { width: n, height: n, depth_or_array_layers: 1 },
+            );
+        }
     }
 
     /// Upload a fresh live-weather grid (RG8, WEATHER_W x WEATHER_H) into the
@@ -2648,6 +2653,9 @@ impl Renderer {
         // (v0.902)]: the precision anchor for sub-8 m micro detail plus the
         // v0.1029 water-mode toggle. Poked into light0_cone_inner.xyzw.
         ground_anchor: [f32; 4],
+        // FFT cascade-B anchor (v0.1040): camera planet-frame position
+        // mod 256 m. Poked into light4_cone_inner.xyz.
+        ocean_anchor256: [f32; 3],
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -2693,6 +2701,10 @@ impl Renderer {
         // live wind between MODIS refreshes.
         self.queue
             .write_buffer(&self.camera_buffer, 480, bytemuck::bytes_of(&self.cloud_advect));
+        // FFT cascade-B anchor in light4_cone_inner.xyz (offset 528; the
+        // .x..z pads are unused - aerial data stops at light3, v0.1040).
+        self.queue
+            .write_buffer(&self.camera_buffer, 528, bytemuck::cast_slice(&ocean_anchor256));
         // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
         self.queue
             .write_buffer(&self.camera_buffer, 76, bytemuck::bytes_of(&self.detail_distance));

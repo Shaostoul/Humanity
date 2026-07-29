@@ -150,6 +150,21 @@ pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 4] {
     ]
 }
 
+/// FFT cascade-B anchor (v0.1040): the camera's planet-frame position
+/// mod 256 m, for the 256 m ocean tile - snaps are exact whole-tile
+/// steps just like the 64 m anchor. Poked into light4_cone_inner.xyz.
+pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 3] {
+    if state.frame_lock_body.is_none() {
+        return [0.0; 3];
+    }
+    let a = state.frame_lock_anchor;
+    [
+        a.x.rem_euclid(256.0) as f32,
+        a.y.rem_euclid(256.0) as f32,
+        a.z.rem_euclid(256.0) as f32,
+    ]
+}
+
 /// Cloud-ground-shadow params for the celestial pass (v0.898): the
 /// frame-locked planet's cloud seed + deck coverage + on/off. Zeroes
 /// (shadows off) away from any cloudy body or with clouds disabled.

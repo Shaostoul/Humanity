@@ -612,6 +612,7 @@ pub(crate) fn capture_hires_screenshot(
         state.start_time.elapsed().as_secs_f32(),
         cloud_ground_params(state),
         ground_anchor(state),
+        ocean_anchor256(state),
         &capture_view,
     );
     state

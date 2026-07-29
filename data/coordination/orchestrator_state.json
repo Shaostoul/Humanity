@@ -415,6 +415,10 @@
     {
       "date": "2026-07-28",
       "decision": "CRITICAL regression found by the operator (world entry crashed on v0.1029-v0.1038; esc into game = wgpu panic): the v0.1029 binding-15 layout change missed the third create_bind_group site (per-material Material Albedo BG, lazily created only for TEXTURED materials, which menu-only boot-verifies never exercise). Fixed v0.1039.1 + verified through the REAL path (probe rig portable sandbox, autopilot entry, Earth capture, panics=0). CLAUDE.md gotcha added: count entries at every creation site after a layout change; renderer verify bar now includes world entry via the rig."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "FFT ocean increment 3a (v0.1040.1, operator live feedback: texture repeats A LOT / grid look, seams not welded, mid-distance flat): SECOND CASCADE. A (64 m tile) keeps short chop on the 64 m ground anchor; new B (256 m tile, band-limited 32-256 m, own Gaussian stream) rides a NEW mod-256 anchor in light4_cone_inner.xyz (528; light4 pads were free - aerial stops at light3.yzw). One 128x256 texture (A rows 0-127, B rows 128-255 - no bind-group layout change, learned from v0.1039). Per-cascade resolution fades (A lambda 16 -> dies ~1 km = the seam fix; B lambda 96 -> carries mid distance). Both cascades band-limited so energy is carried once; RMS split 0.18/0.34 keeps the trains envelope. Twin sums both cascades with per-tile f64 mod. Geometric chop still deferred."
     }
   ],
   "active_scopes_to_avoid": [
