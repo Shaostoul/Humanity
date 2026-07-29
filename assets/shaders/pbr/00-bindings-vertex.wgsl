@@ -466,6 +466,27 @@ fn ocean_wave_height_fft(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32
     return h;
 }
 
+// One call for the active water model (trains or FFT cascades), so the
+// geomorph weld below evaluates parents through the identical stack.
+fn water_disp_height(p_m: vec3<f32>, p64: vec3<f32>, p256: vec3<f32>, t: f32, cam_dist: f32, radial: vec3<f32>) -> f32 {
+    if (camera.light0_cone_inner.x > 0.5) {
+        return ocean_wave_height_fft(p_m, p64, p256, t, cam_dist, radial);
+    }
+    return ocean_wave_height(p_m, p64, t, cam_dist);
+}
+
+// Geomorph weld window (v0.1041), in units of cell * K where K =
+// px_per_rad / split_px arrives per frame in light4_cone_inner.w - the
+// SELECTION's own pixel-error scale, so the morph tracks the real LOD
+// handoff at any resolution/FOV/split setting. From screen_error_px +
+// the 1.15/0.7 hysteresis: a cell-c leaf is born below ~1.74cK and
+// dies above ~2.86cK; full morph by 1.74cK, and the next level starts
+// morphing at 1.43*(2c)K = 2.86cK - the windows dovetail exactly.
+// (The first attempt hardcoded a guessed scale; every patch collapsed
+// a level early and the sea became giant plates.)
+const WATER_WELD_MORPH_START: f32 = 1.43;
+const WATER_WELD_MORPH_END: f32 = 1.74;
+
 @vertex
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     g_inst_data = vertex.inst_pos_fade;
@@ -523,16 +544,40 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                 // FFT-ocean mode flag rides in light0_cone_inner.x, beside
                 // the anchor in .yzw (v0.1029); cascade B's mod-256 anchor
                 // rides in light4_cone_inner.xyz (v0.1040).
-                var h: f32;
-                if (camera.light0_cone_inner.x > 0.5) {
-                    let anch256 = vec3<f32>(
-                        camera.light4_cone_inner.x,
-                        camera.light4_cone_inner.y,
-                        camera.light4_cone_inner.z,
+                let anch256 = vec3<f32>(
+                    camera.light4_cone_inner.x,
+                    camera.light4_cone_inner.y,
+                    camera.light4_cone_inner.z,
+                );
+                let p_m = dir * r;
+                let p64 = anchw + dvw;
+                let p256 = anch256 + dvw;
+                let t = camera.sun_color.w;
+                var h = water_disp_height(p_m, p64, p256, t, cam_dist, dir);
+                // GEOMORPH WELD (v0.1041, operator: "fix the welds on the
+                // water polygons"): water verts carry their next-coarser
+                // parents' half-offset in the NORMAL slot (zero on verts
+                // that survive coarsening). Morph this vert's height
+                // toward the parents' MEAN with distance, reaching the
+                // coarser neighbor's exact edge interpolation before that
+                // neighbor can appear. Parents sit +-delta away in the
+                // planet-local frame; the anchored domains shift by the
+                // same small vector, and radial/cam_dist differences over
+                // one cell are negligible.
+                let delta = vertex.normal;
+                let dl = length(delta);
+                let weld_k = camera.light4_cone_inner.w;
+                if (dl > 0.01 && weld_k > 1.0) {
+                    let w = smoothstep(
+                        WATER_WELD_MORPH_START * dl * weld_k,
+                        WATER_WELD_MORPH_END * dl * weld_k,
+                        cam_dist,
                     );
-                    h = ocean_wave_height_fft(dir * r, anchw + dvw, anch256 + dvw, camera.sun_color.w, cam_dist, dir);
-                } else {
-                    h = ocean_wave_height(dir * r, anchw + dvw, camera.sun_color.w, cam_dist);
+                    if (w > 0.001) {
+                        let hp = water_disp_height(p_m + delta, p64 + delta, p256 + delta, t, cam_dist, dir)
+                            + water_disp_height(p_m - delta, p64 - delta, p256 - delta, t, cam_dist, dir);
+                        h = mix(h, 0.5 * hp, w);
+                    }
                 }
                 h = h * fade * shoal;
                 world_pos = vec4<f32>(world_pos.xyz + radial * h, 1.0);
@@ -541,7 +586,14 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     }
     out.world_position = world_pos.xyz;
     out.clip_position = camera.view_proj * world_pos;
-    out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
+    // Water meshes carry the geomorph delta in the normal slot (v0.1041);
+    // their geometric normal is the radial, which the water FS re-derives
+    // from position anyway - this keeps the interpolated value sane.
+    if (material.params.z >= 15.5 && material.params.z < 16.5) {
+        out.world_normal = normalize(world_pos.xyz - material.base_color.xyz);
+    } else {
+        out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
+    }
     out.uv = vertex.uv;
     out.pack = vertex.uv;
     out.inst_data = vertex.inst_pos_fade;

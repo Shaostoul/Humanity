@@ -105,6 +105,15 @@ existing light_tiles.rs compute pass is the wgpu compute precedent.
    change). Per-cascade resolution fades: A dies ~1 km (the seam fix),
    B carries the mid field. RMS split 0.18/0.34 keeps the trains
    envelope.
+3b'. SHIPPED v0.1042.1 - GEOMORPH WELD (operator: "fix the welds on
+   the water polygons"): odd lattice verts carry their coarser-level
+   parents' half-offset in the free normal slot; the VS morphs their
+   displacement onto the parents' mean across the window
+   [1.43, 1.74] x cell x K (K = px_per_rad/split_px, fed per frame),
+   which dovetails exactly with the selection's 1.15/0.7 hysteresis -
+   cross-LOD borders agree by construction. First attempt guessed the
+   window scale and plated the sea; the shipped one derives it from
+   screen_error_px.
 3b. Geometric horizontal displacement (sample h at the chop pre-image
    for the buoyancy twin) + possibly a finer sub-cascade.
 4. GPU compute FFT (512^2, frees the worker).

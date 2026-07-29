@@ -150,18 +150,30 @@ pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 4] {
     ]
 }
 
-/// FFT cascade-B anchor (v0.1040): the camera's planet-frame position
-/// mod 256 m, for the 256 m ocean tile - snaps are exact whole-tile
-/// steps just like the 64 m anchor. Poked into light4_cone_inner.xyz.
-pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 3] {
+/// FFT cascade-B anchor (v0.1040) + the water-weld LOD constant
+/// (v0.1041): xyz = the camera's planet-frame position mod 256 m for
+/// the 256 m ocean tile (snaps are exact whole-tile steps, like the
+/// 64 m anchor); w = K = px_per_rad / split_px, the SELECTION's own
+/// pixel-error scale. The vertex shader's geomorph weld must reach
+/// full morph exactly where the LOD handoff really happens
+/// (dist ~ 1.74 * cell * K, from screen_error_px + the 1.15/0.7
+/// hysteresis) - the v0.1041 first attempt GUESSED this scale, every
+/// patch collapsed a level too early, and the sea turned into giant
+/// plates. Poked into light4_cone_inner.xyzw.
+pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 4] {
+    let split_px = state.gui_state.settings.terrain_split_px.clamp(2.0, 24.0);
+    let viewport_h = state.renderer.surface_size().1 as f32;
+    let px_per_rad = viewport_h / state.camera.fov_degrees.max(1.0).to_radians();
+    let k = px_per_rad / split_px.max(0.1);
     if state.frame_lock_body.is_none() {
-        return [0.0; 3];
+        return [0.0, 0.0, 0.0, k];
     }
     let a = state.frame_lock_anchor;
     [
         a.x.rem_euclid(256.0) as f32,
         a.y.rem_euclid(256.0) as f32,
         a.z.rem_euclid(256.0) as f32,
+        k,
     ]
 }
 

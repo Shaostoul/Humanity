@@ -632,6 +632,23 @@ mod tests {
         .expect("fragment shader part readable");
         assert!(fs.contains("fft_ocean_shading(ptw, ptw256, dir, fdist)"), "FS consumes FFT shading");
         assert!(fs.contains("light4_cone_inner"), "FS reads the B anchor");
+        // v0.1041 geomorph weld: the VS must morph odd verts toward their
+        // parents' mean through the SAME dispatch helper it displaces
+        // with, and the weld window constants must be present.
+        assert!(src.contains("fn water_disp_height"), "dispatch helper present");
+        // The weld window is in units of cell * K (K = px_per_rad /
+        // split_px, fed per frame via light4_cone_inner.w) - derived from
+        // screen_error_px's 1.15/0.7 hysteresis, NOT guessed (the guessed
+        // version collapsed every patch a level early: giant plates).
+        assert!(src.contains("const WATER_WELD_MORPH_START: f32 = 1.43;"), "weld start");
+        assert!(src.contains("const WATER_WELD_MORPH_END: f32 = 1.74;"), "weld end");
+        assert!(src.contains("weld_k = camera.light4_cone_inner.w"), "weld K from uniform");
+        assert!(src.contains("weld_k > 1.0"), "weld disabled until K arrives");
+        assert!(
+            src.contains("water_disp_height(p_m + delta, p64 + delta, p256 + delta"),
+            "parent morph sampling present"
+        );
+        assert!(src.contains("h = mix(h, 0.5 * hp, w);"), "morph mix present");
     }
 
     /// Increment 2: spectral slopes must agree with finite differences of

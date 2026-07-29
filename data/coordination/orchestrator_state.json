@@ -419,6 +419,14 @@
     {
       "date": "2026-07-28",
       "decision": "FFT ocean increment 3a (v0.1040.1, operator live feedback: texture repeats A LOT / grid look, seams not welded, mid-distance flat): SECOND CASCADE. A (64 m tile) keeps short chop on the 64 m ground anchor; new B (256 m tile, band-limited 32-256 m, own Gaussian stream) rides a NEW mod-256 anchor in light4_cone_inner.xyz (528; light4 pads were free - aerial stops at light3.yzw). One 128x256 texture (A rows 0-127, B rows 128-255 - no bind-group layout change, learned from v0.1039). Per-cascade resolution fades (A lambda 16 -> dies ~1 km = the seam fix; B lambda 96 -> carries mid distance). Both cascades band-limited so energy is carried once; RMS split 0.18/0.34 keeps the trains envelope. Twin sums both cascades with per-tile f64 mod. Geometric chop still deferred."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "Water geomorph WELD (v0.1041.1, operator priority call: fix welds before more shader work): CDLOD-style. Builder stores each ODD barycentric lattice verts parent half-offset in the NORMAL slot (water FS derives its normal from position - free transport; even verts zero; parents follow the triangulations three lattice axes so every odd vert lies on a real coarse edge; border parity is intrinsic to the edge so both sides morph identically). VS morphs displacement toward the parents MEAN over cam_dist in [150,260]x cell size - fully welded to the coarser neighbors exact edge interpolation before that neighbor can exist (selection uses a cell to ~300x). Parents sampled through the same water_disp_height dispatch (trains or FFT). No vertex-layout change, no neighbor bookkeeping. CPU buoyancy twin unaffected (cam_dist ~0 at the player). world_normal for type-16 now computed radially in the VS."
+    },
+    {
+      "date": "2026-07-29",
+      "decision": "Water geomorph WELD shipped correctly (v0.1042.1) after the v0.1041 attempt was caught pre-ship by rig A/B (giant plates at grazing angles - root cause: the morph window was GUESSED at [150,260]x cell from the terrain spacing note, but the real handoff from screen_error_px + 1.15/0.7 hysteresis is [1.74, 2.86]x cell x K with K = px_per_rad/split_px, so every patch fully collapsed a level early and borders mismatched by whole wavelength bands). Fix: window [1.43, 1.74] x cell x K with K fed per frame in light4_cone_inner.w (anchor256 poke grew to xyzw); windows dovetail exactly across levels (1.74 handoff = 1.43 x next cell). E1 hot-reload bisection proved morph-off = no plates; v0.1042.1 rig captures at the plate vantage + 80 m oblique: clean, no plates, no tears, panics=0. LESSON: LOD-coupled shader constants must come FROM the selection math, never from prose estimates."
     }
   ],
   "active_scopes_to_avoid": [

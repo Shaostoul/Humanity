@@ -2187,6 +2187,21 @@ pub fn build_water_patch_mesh(
     build_water_patch_mesh_at(def, ocean, hm, id, 0.0)
 }
 
+/// The two next-coarser-level parents of barycentric lattice vert (r, c),
+/// or None for EVEN verts (they survive coarsening). Parents follow the
+/// triangulation's three lattice axes (+row, +col, and the emit-order
+/// (r,c)->(r+1,c+1) diagonal), so every odd vert lies on a real edge of
+/// the coarse triangulation and its fully-morphed height equals that
+/// edge's linear interpolation - the geomorph weld contract (v0.1041).
+pub fn water_geomorph_parents(r: u32, c: u32) -> Option<((u32, u32), (u32, u32))> {
+    match (r % 2, c % 2) {
+        (1, 0) => Some(((r - 1, c), (r + 1, c))),
+        (0, 1) => Some(((r, c - 1), (r, c + 1))),
+        (1, 1) => Some(((r - 1, c - 1), (r + 1, c + 1))),
+        _ => None,
+    }
+}
+
 /// `lift_offset_m` lowers (negative) or raises the shell radius relative to
 /// the standard SURFACE_LIFT sphere. The BACKSTOP shell (v0.1019, water arc:
 /// "holes through the water along the seams") builds at
@@ -2255,6 +2270,33 @@ pub fn build_water_patch_mesh_at(
         [((dm >> 8) & 255) as f32 / 255.0, (dm & 255) as f32 / 255.0, 0.0]
     };
     let depth_colors: Vec<[f32; 3]> = dirs.iter().map(|d| depth_color(*d)).collect();
+    // Geomorph parent deltas (v0.1041, the WELD fix - operator: "let's
+    // fix the welds on the water polygons"): every ODD-parity lattice
+    // vert disappears at the next-coarser LOD, where the surviving edge
+    // linearly interpolates its two PARENT verts. The half-offset to
+    // those parents rides the NORMAL slot (the water FS derives its
+    // normal from position, so the slot is free transport; even verts
+    // carry zero). The vertex shader morphs displacement toward the
+    // parents' mean as the camera recedes, reaching EXACTLY the coarser
+    // neighbor's edge interpolation before that neighbor can exist -
+    // spatially exact welds with no neighbor bookkeeping (CDLOD).
+    // Parent directions follow the triangulation's three lattice axes
+    // (+row, +col, and the (r,c)->(r+1,c+1) diagonal of emit order), so
+    // every odd vert sits on a real coarse edge. Along shared borders
+    // the parity and parents are intrinsic to the edge, so both sides
+    // compute identical morphs (the border walk is bit-identical).
+    let vpos = |r: u32, c: u32| -> DVec3 { dirs[grid_idx(r, c)] * radius_m };
+    let mut deltas: Vec<glam::Vec3> = Vec::with_capacity(vert_count);
+    for r in 0..=n {
+        for c in 0..=r {
+            deltas.push(match water_geomorph_parents(r, c) {
+                Some(((r1, c1), (r2, c2))) => {
+                    ((vpos(r1, c1) - vpos(r2, c2)) * 0.5).as_vec3()
+                }
+                None => glam::Vec3::ZERO,
+            });
+        }
+    }
     let mut emit_face = |ia: usize, ib: usize, ic: usize,
                          vertices: &mut Vec<SurfaceVertexData>,
                          indices: &mut Vec<u32>| {
@@ -2262,7 +2304,7 @@ pub fn build_water_patch_mesh_at(
             indices.push(vertices.len() as u32);
             vertices.push(SurfaceVertexData {
                 position: offsets[i].to_array(),
-                normal: dirs[i].as_vec3().to_array(),
+                normal: deltas[i].to_array(),
                 color: depth_colors[i],
                 water: true,
                 tree_card: false,
@@ -3153,6 +3195,61 @@ mod tests {
             build_water_patch_mesh(&def, &synth_mask(false), None, &id).is_none(),
             "all-land patch must not build water"
         );
+    }
+
+    /// v0.1041 geomorph weld: the parent map obeys the parity contract,
+    /// and built water verts carry parent half-offsets in the normal slot
+    /// (zero on even verts, ~one lattice step on odd verts).
+    #[test]
+    fn water_geomorph_deltas_follow_the_parity_contract() {
+        // Parity map: even verts have no parents; odd verts' parents are
+        // 2 lattice steps apart along the axis of oddness, all in-bounds.
+        for r in 0..=PATCH_TESS {
+            for c in 0..=r {
+                match water_geomorph_parents(r, c) {
+                    None => assert!(r % 2 == 0 && c % 2 == 0, "({r},{c}) parity"),
+                    Some(((r1, c1), (r2, c2))) => {
+                        assert!(r % 2 == 1 || c % 2 == 1, "({r},{c}) should be even");
+                        // Parents are even-parity, straddle the vert, and
+                        // stay inside the triangular lattice.
+                        for (pr, pc) in [(r1, c1), (r2, c2)] {
+                            assert!(pr % 2 == 0 && pc % 2 == 0, "parent parity");
+                            assert!(pc <= pr && pr <= PATCH_TESS, "parent bounds ({pr},{pc})");
+                        }
+                        assert_eq!(r1 + r2, 2 * r, "row midpoint");
+                        assert_eq!(c1 + c2, 2 * c, "col midpoint");
+                    }
+                }
+            }
+        }
+        // Built mesh: deltas ride the normal slot; even verts zero, odd
+        // verts about one lattice step long (the patch cell size).
+        let def = earth_like();
+        let id = PatchId::root(3).child(2).child(1);
+        let pm = build_water_patch_mesh(&def, &synth_mask(true), None, &id)
+            .expect("ocean patch builds");
+        let (mut zeros, mut steps) = (0usize, 0usize);
+        let mut step_len = 0.0f32;
+        for v in &pm.mesh.vertices {
+            let d = glam::Vec3::from_array(v.normal).length();
+            if d < 1.0e-3 {
+                zeros += 1;
+            } else {
+                steps += 1;
+                step_len = step_len.max(d);
+            }
+        }
+        assert!(zeros > 0, "no even verts");
+        assert!(steps > 0, "no odd verts carrying deltas");
+        // The lattice step at depth 5-ish is hundreds of metres; sanity
+        // band rather than exact (spherical cells vary slightly).
+        for v in &pm.mesh.vertices {
+            let d = glam::Vec3::from_array(v.normal).length();
+            assert!(
+                d < 1.0e-3 || (d > step_len * 0.4 && d <= step_len * 1.001),
+                "delta {d} outside the lattice-step band (max {step_len})"
+            );
+        }
     }
 
     #[test]

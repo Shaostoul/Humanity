@@ -2653,9 +2653,11 @@ impl Renderer {
         // (v0.902)]: the precision anchor for sub-8 m micro detail plus the
         // v0.1029 water-mode toggle. Poked into light0_cone_inner.xyzw.
         ground_anchor: [f32; 4],
-        // FFT cascade-B anchor (v0.1040): camera planet-frame position
-        // mod 256 m. Poked into light4_cone_inner.xyz.
-        ocean_anchor256: [f32; 3],
+        // FFT cascade-B anchor + water-weld LOD scale (v0.1040/41):
+        // xyz = camera planet-frame position mod 256 m, w = the
+        // selection's px_per_rad/split_px. Poked into
+        // light4_cone_inner.xyzw.
+        ocean_anchor256: [f32; 4],
         view: &wgpu::TextureView,
     ) {
         if objects.is_empty() && transparent.is_empty() {
@@ -2701,8 +2703,9 @@ impl Renderer {
         // live wind between MODIS refreshes.
         self.queue
             .write_buffer(&self.camera_buffer, 480, bytemuck::bytes_of(&self.cloud_advect));
-        // FFT cascade-B anchor in light4_cone_inner.xyz (offset 528; the
-        // .x..z pads are unused - aerial data stops at light3, v0.1040).
+        // FFT cascade-B anchor + weld K in light4_cone_inner.xyzw
+        // (offset 528; the light4 pads are unused - aerial data stops at
+        // light3, v0.1040/41).
         self.queue
             .write_buffer(&self.camera_buffer, 528, bytemuck::cast_slice(&ocean_anchor256));
         // Detail-distance factor in the view_pos.w pad (offset 64 + 12).
