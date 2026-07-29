@@ -411,6 +411,10 @@
     {
       "date": "2026-07-28",
       "decision": "Tornado vortex proximity (v0.1038.1, log+HUD scope): place_event_core puts the core 200-600 m from the player in PLANET-FRAME metres (pure fn, sphere-projected, tested); hazard_proximity gives near (3x radius, HUD danger-line warning via GuiWeather.warning + theme.danger()) and inside (TAKE COVER text; damage is the next rung). Enter/leave logged. Deliberately NO forces (wind does not move the player today - not inventing physics) and NO funnel yet (a world-anchored particle column needs the planet-spin transform the celestial pass owns; deferred with the damage rung)."
+    },
+    {
+      "date": "2026-07-28",
+      "decision": "CRITICAL regression found by the operator (world entry crashed on v0.1029-v0.1038; esc into game = wgpu panic): the v0.1029 binding-15 layout change missed the third create_bind_group site (per-material Material Albedo BG, lazily created only for TEXTURED materials, which menu-only boot-verifies never exercise). Fixed v0.1039.1 + verified through the REAL path (probe rig portable sandbox, autopilot entry, Earth capture, panics=0). CLAUDE.md gotcha added: count entries at every creation site after a layout change; renderer verify bar now includes world entry via the rig."
     }
   ],
   "active_scopes_to_avoid": [
