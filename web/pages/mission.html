@@ -43,6 +43,21 @@
       border-radius: 999px;
     }
 
+    /* A to Z creed: 26 virtues, one per letter */
+    .creed { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 16px; }
+    .creed-item {
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 12px;
+    }
+    .creed-letter { font-size: 0.95rem; font-weight: 900; color: var(--accent); flex: none; }
+    .creed-word { font-size: 0.92rem; font-weight: 600; color: var(--text); }
+    .creed-note { font-size: 0.9rem; color: var(--text-muted); margin: 16px 0 0; }
+
     .metrics { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
     .metric { flex: 1; min-width: 140px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
     .mval { font-size: 1.2rem; font-weight: 800; color: var(--text); }
@@ -120,6 +135,41 @@
           <span class="goal-chip">End Poverty</span>
           <span class="goal-chip">End Pollution</span>
         </div>
+      </div>
+
+      <div class="mcard">
+        <h3>The standard we hold ourselves to</h3>
+        <p>Society, business, government, our whole civilization: this is what we have to be to live our best lives. One for every letter, so it is easy to remember and hard to weasel out of.</p>
+        <div class="creed">
+          <div class="creed-item"><span class="creed-letter">A</span><span class="creed-word">Altruistic</span></div>
+          <div class="creed-item"><span class="creed-letter">B</span><span class="creed-word">Benevolent</span></div>
+          <div class="creed-item"><span class="creed-letter">C</span><span class="creed-word">Compassionate</span></div>
+          <div class="creed-item"><span class="creed-letter">D</span><span class="creed-word">Diligent</span></div>
+          <div class="creed-item"><span class="creed-letter">E</span><span class="creed-word">Empathetic</span></div>
+          <div class="creed-item"><span class="creed-letter">F</span><span class="creed-word">Frugal</span></div>
+          <div class="creed-item"><span class="creed-letter">G</span><span class="creed-word">Generous</span></div>
+          <div class="creed-item"><span class="creed-letter">H</span><span class="creed-word">Honest</span></div>
+          <div class="creed-item"><span class="creed-letter">I</span><span class="creed-word">Intelligent</span></div>
+          <div class="creed-item"><span class="creed-letter">J</span><span class="creed-word">Just</span></div>
+          <div class="creed-item"><span class="creed-letter">K</span><span class="creed-word">Kind</span></div>
+          <div class="creed-item"><span class="creed-letter">L</span><span class="creed-word">Loving</span></div>
+          <div class="creed-item"><span class="creed-letter">M</span><span class="creed-word">Mindful</span></div>
+          <div class="creed-item"><span class="creed-letter">N</span><span class="creed-word">Noble</span></div>
+          <div class="creed-item"><span class="creed-letter">O</span><span class="creed-word">Observant</span></div>
+          <div class="creed-item"><span class="creed-letter">P</span><span class="creed-word">Perseverant</span></div>
+          <div class="creed-item"><span class="creed-letter">Q</span><span class="creed-word">Quixotic</span></div>
+          <div class="creed-item"><span class="creed-letter">R</span><span class="creed-word">Righteous</span></div>
+          <div class="creed-item"><span class="creed-letter">S</span><span class="creed-word">Sincere</span></div>
+          <div class="creed-item"><span class="creed-letter">T</span><span class="creed-word">Truthful</span></div>
+          <div class="creed-item"><span class="creed-letter">U</span><span class="creed-word">United</span></div>
+          <div class="creed-item"><span class="creed-letter">V</span><span class="creed-word">Virtuous</span></div>
+          <div class="creed-item"><span class="creed-letter">W</span><span class="creed-word">Wholesome</span></div>
+          <div class="creed-item"><span class="creed-letter">X</span><span class="creed-word">Xenial</span></div>
+          <div class="creed-item"><span class="creed-letter">Y</span><span class="creed-word">Yielding</span></div>
+          <div class="creed-item"><span class="creed-letter">Z</span><span class="creed-word">Zealous</span></div>
+        </div>
+        <p class="creed-note">Three of those are worth a definition. <strong>Xenial</strong> means welcoming to strangers, treating a guest as well as you treat your own. <strong>Yielding</strong> means giving way when you are wrong, and giving others room when you are not. <strong>Quixotic</strong> means chasing something most people call impossible, on purpose. Ending poverty is exactly that, so it stays.</p>
+        <p>Anything less is a path toward pain, suffering, despair, and eventually extinction. Becoming a peaceful, harmonious, united Humanity is how we survive both the disasters outside our control and the tools we are building.</p>
       </div>
 
       <div class="mcard">
