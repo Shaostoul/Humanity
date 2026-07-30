@@ -1,5 +1,40 @@
 // ── Fragment Shader ──
 
+// ── Aerial perspective, shared (v0.1053) ──
+// Was inline in fs_main's tail only, which meant the WATER shell never got it:
+// the type-16 branch early-returns hundreds of lines earlier. So distant waves
+// carried zero atmospheric haze while the land beside them faded correctly, and
+// a 10 m storm sea read as a flat patterned plane instead of receding relief -
+// the operator's "I can see waves behind waves... there's no extra shading" -
+// with the sea meeting the sky at a hard contrast step instead of hazing into
+// it. Same math, one definition, called from both paths so they cannot drift.
+fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+    let aer_sigma = camera.light1_cone_inner.y;
+    if (aer_sigma <= 1.0e-9) {
+        return color_in;
+    }
+    let aer_vec = world_pos - camera.view_pos.xyz;
+    let aer_dist = length(aer_vec);
+    if (aer_dist <= 120.0) {
+        return color_in;
+    }
+    let aer_up = vec3<f32>(
+        camera.light3_cone_inner.y,
+        camera.light3_cone_inner.z,
+        camera.light3_cone_inner.w,
+    );
+    let up_dot = abs(dot(aer_vec / aer_dist, aer_up));
+    let slant_cap = camera.light1_cone_inner.z / max(up_dot, 0.035);
+    let path = min(aer_dist - 120.0, slant_cap);
+    let t_aer = exp(-aer_sigma * path);
+    let sky_aer = vec3<f32>(
+        camera.light2_cone_inner.y,
+        camera.light2_cone_inner.z,
+        camera.light2_cone_inner.w,
+    );
+    return color_in * t_aer + sky_aer * (1.0 - t_aer);
+}
+
 // ── Planetary ocean shell (material type 16, v0.876 real-water Stage 1) ──
 //
 // The translucent water-surface sphere drawn over connected-ocean regions;
@@ -348,6 +383,9 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // over the last metre of depth, so the sea EDGE dissolves onto the
     // sand instead of cutting a hard polygon line against the beach.
     let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, feather_top, depth_m);
+    // Aerial perspective BEFORE the tone map, exactly as the main tail does it
+    // (v0.1053) - this is the branch that was missing it entirely.
+    let rgb_aer = aerial_apply(rgb, in.world_position);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;
@@ -356,7 +394,8 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let d = 0.59;
     let e = 0.14;
     let mapped = clamp(
-        (rgb * (a * rgb + vec3<f32>(b))) / (rgb * (c * rgb + vec3<f32>(d)) + vec3<f32>(e)),
+        (rgb_aer * (a * rgb_aer + vec3<f32>(b)))
+            / (rgb_aer * (c * rgb_aer + vec3<f32>(d)) + vec3<f32>(e)),
         vec3<f32>(0.0),
         vec3<f32>(1.0),
     );
@@ -1137,28 +1176,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // noon sun and orbit views clear: looking up exits the haze layer in a
     // few km, so only long, flat sightlines accumulate fog. sigma = 0 (off
     // in space, at night the color also darkens) makes this a no-op.
-    let aer_sigma = camera.light1_cone_inner.y;
-    if (aer_sigma > 1.0e-9) {
-        let aer_vec = in.world_position - camera.view_pos.xyz;
-        let aer_dist = length(aer_vec);
-        if (aer_dist > 120.0) {
-            let aer_up = vec3<f32>(
-                camera.light3_cone_inner.y,
-                camera.light3_cone_inner.z,
-                camera.light3_cone_inner.w,
-            );
-            let up_dot = abs(dot(aer_vec / aer_dist, aer_up));
-            let slant_cap = camera.light1_cone_inner.z / max(up_dot, 0.035);
-            let path = min(aer_dist - 120.0, slant_cap);
-            let t_aer = exp(-aer_sigma * path);
-            let sky_aer = vec3<f32>(
-                camera.light2_cone_inner.y,
-                camera.light2_cone_inner.z,
-                camera.light2_cone_inner.w,
-            );
-            color = color * t_aer + sky_aer * (1.0 - t_aer);
-        }
-    }
+    color = aerial_apply(color, in.world_position);
 
     // ACES-like tone mapping (more filmic than Reinhard)
     let a = 2.51;

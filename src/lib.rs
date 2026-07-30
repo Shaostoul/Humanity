@@ -16009,7 +16009,45 @@ mod native_app {
                                 // sky. When submerged, water objects move to
                                 // the END (nearest), so the surface composites
                                 // over the sky/clouds seen through it.
-                                if state.gui_state.underwater {
+                                // v0.1053 (operator: "when the waves are really
+                                // tall they get hidden by the sky... the horizon
+                                // is perfectly flat instead of seeing the peaks
+                                // of the waves close to me going above the
+                                // horizon"): the SAME reordering is needed
+                                // whenever the camera is inside the atmosphere,
+                                // not only when submerged. The transparent
+                                // pipeline does not write depth - the water
+                                // shell's Fresnel alpha has to blend over the
+                                // seafloor - so the atmosphere and cloud shells
+                                // drawn AFTER water have no water depth to test
+                                // against and simply composite over it. Their
+                                // limb term is DENSEST at grazing angles, which
+                                // is precisely where a near wave crest rises
+                                // into the sky band, so tall crests got washed
+                                // to sky colour and the horizon read as a
+                                // ruler-straight line. From any viewpoint inside
+                                // the atmosphere the sea surface is NEARER than
+                                // the sky, so water belongs last. Outside the
+                                // atmosphere the approved space look (blue limb
+                                // hazing the deck) is untouched.
+                                // Gate on ALTITUDE, not camera.surface_mode:
+                                // surface_mode is false in dev-fly/travel mode
+                                // (measured - the first attempt at this fix
+                                // never fired in the probe rig for exactly that
+                                // reason), and the ordering question is purely
+                                // "is the camera inside the air". 120 km clears
+                                // every atmosphere shell this engine builds.
+                                let near_planet_air = state
+                                    .frame_lock_body
+                                    .as_deref()
+                                    .and_then(|b| state.planet_defs.get(b))
+                                    .map(|d| {
+                                        (state.frame_lock_anchor.length() - d.radius) < 120_000.0
+                                    })
+                                    .unwrap_or(false);
+                                let water_over_sky =
+                                    state.gui_state.underwater || near_planet_air;
+                                if water_over_sky {
                                     let water_mats: std::collections::HashSet<usize> =
                                         state.planet_water_materials.values().copied().collect();
                                     // Stable: water sinks to the end (drawn

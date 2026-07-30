@@ -341,6 +341,27 @@
       },
       "settle_s": 12,
       "hold_altitude": true
+    },
+    {
+      "id": "ocean-storm-horizon",
+      "desc": "Storm sea from a LOW eye, aimed flat at the horizon - do tall crests occlude the sky?",
+      "expect": "Near wave crests break the horizon line and stand against the sky. A ruler-straight horizon over a 10 m sea means the atmosphere shell is compositing over the crests (fixed v0.1053).",
+      "regressions": [
+        "sky shell drawn over near wave crests"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.006,
+        "look_offset_deg": 90
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "1.0"
+      },
+      "settle_s": 26,
+      "hold_altitude": true
     }
   ]
 }
