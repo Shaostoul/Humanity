@@ -9696,9 +9696,15 @@ mod native_app {
                                                 e.last_used = frame;
                                             }
                                         }
-                                        let drop_m = -(crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M
-                                            as f64
-                                            + 0.5);
+                                        // v0.1051: track the LIVE crest. The
+                                        // backstop only has to sit below the
+                                        // wave troughs; pinning it to a 12 m
+                                        // worst case would park it 12 m down on
+                                        // a glassy day, where the gap between
+                                        // the two shells becomes its own
+                                        // artifact at the waterline.
+                                        let drop_m =
+                                            -(state.renderer.sea_crest_m as f64 + 0.5);
                                         let mut builds = 0usize;
                                         for id in &bsel.build_requests {
                                             if builds >= 4 {
@@ -12772,6 +12778,12 @@ mod native_app {
                     // displacement tile that the buoyancy twin reads -
                     // drawn == sampled by construction. ~0.4 ms release;
                     // moves to a worker (or GPU compute) in increment 4.
+                    if !state.gui_state.settings.water_fft {
+                        // Trains mode: fixed amplitude sum, so the crest is the
+                        // old constant and every bound behaves as before.
+                        state.renderer.sea_crest_m =
+                            crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M;
+                    }
                     if state.gui_state.settings.water_fft {
                         let ocean_seed = state
                             .planet_defs
@@ -12853,6 +12865,13 @@ mod native_app {
                             let tsec = state.start_time.elapsed().as_secs_f32();
                             c.update(tsec);
                             state.renderer.upload_water_fft(&c.a.texels, &c.b.texels);
+                            // Publish the LIVE crest (v0.1051): the shader
+                            // scales its shoal fade by it and the backstop
+                            // shell drops below it, so both track the actual
+                            // sea instead of a worst case. A calm day keeps
+                            // exactly the old tight numbers.
+                            state.renderer.sea_crest_m =
+                                crate::terrain::ocean_fft::crest_estimate_m(c.total_rms());
                         }
                     }
 

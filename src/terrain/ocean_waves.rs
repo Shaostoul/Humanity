@@ -61,12 +61,45 @@ pub const SURFACE_LIFT_M: f32 = 1.2;
 /// actually draw them (WATER_MAX_PATCH_DEPTH 17).
 pub const MAX_WAVE_HEIGHT_M: f32 = 1.1 + 0.7 + 0.45 + 0.4 + 0.35 + 0.1;
 
+/// Worst-case |wave height| across BOTH water models (v0.1051, operator: "I'd
+/// love to see full proper waves of proper heights"). MAX_WAVE_HEIGHT_M above is
+/// the analytic trains' amplitude sum, 3.1 m, and it used to serve as the
+/// engine-wide ceiling: the water patches' radial band, the flat backstop
+/// shell's drop, and the buoyancy bound all read it. That capped the wind-driven
+/// FFT sea at ~1 m RMS, so a 25 m/s hurricane drew 3 m crests instead of the
+/// 15 m significant height JONSWAP actually predicts.
+///
+/// This is the FFT path's conservative envelope instead: it bounds the radial
+/// band (a CULLING bound, so over-estimating is merely conservative). The
+/// backstop drop and the shoal fade both track the LIVE sea instead of this
+/// worst case, so a calm day is unchanged.
+pub const MAX_SEA_HEIGHT_M: f32 = 12.0;
+
+/// Depth at which waves reach full amplitude, given the current crest height
+/// (v0.1051). The shoal fade exists so waves never stab through beach terrain;
+/// with 3 m crests a 7 m shelf was plenty, but a 10 m storm crest in 7 m of
+/// water would punch straight through the seabed. Scale the fade's outer edge
+/// with the sea so the guarantee survives any wind. LOCKSTEP with the vertex
+/// shader's ocean_shoal_top().
+pub fn shoal_top_m(crest_m: f32) -> f32 {
+    let t = 2.5 * crest_m;
+    if t > 7.0 { t } else { 7.0 }
+}
+
 /// Shoal damping for the GEOMETRIC wave height: full amplitude in open
 /// water, fading to zero as the sea shallows so bigger waves never stab
 /// through beach terrain (the drawn waterline stays clean). Mirrors the
-/// vertex shader's smoothstep(0.4, 7.0, depth_m) exactly (drawn == sampled).
+/// vertex shader's smoothstep(0.4, ocean_shoal_top(crest), depth_m) exactly
+/// (drawn == sampled). `shoal_factor` keeps the trains' fixed 3.1 m crest.
 pub fn shoal_factor(depth_m: f32) -> f32 {
-    let t = ((depth_m - 0.4) / (7.0 - 0.4)).clamp(0.0, 1.0);
+    shoal_factor_at(depth_m, MAX_WAVE_HEIGHT_M)
+}
+
+/// Crest-aware variant: the FFT sea's crest grows with the wind, so its shoal
+/// fade has to grow with it.
+pub fn shoal_factor_at(depth_m: f32, crest_m: f32) -> f32 {
+    let top = shoal_top_m(crest_m);
+    let t = ((depth_m - 0.4) / (top - 0.4)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
 }
 

@@ -334,6 +334,14 @@ fn ocean_train_fade(cam_dist: f32, lambda_m: f32) -> f32 {
     return 1.0 - smoothstep(reach * 0.6, reach, cam_dist);
 }
 
+// Live sea crest height (m) - light5_cone_inner.x, v0.1051. The shoal fade's
+// outer edge scales with it: with 3 m crests a 7 m shelf was plenty, but a 10 m
+// storm crest in 7 m of water would punch through the seabed. LOCKSTEP with
+// ocean_waves::shoal_top_m.
+fn ocean_shoal_top() -> f32 {
+    return max(7.0, 2.5 * camera.light5_cone_inner.x);
+}
+
 // Water patch vertex spacing, baked per-vertex into uv.y by the shell
 // builder. LOCKSTEP with WATER_CELL_CODE_SCALE in planet_chunks.rs.
 const WATER_CELL_CODE_SCALE: f32 = 65536.0;
@@ -596,7 +604,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
                     // stabbing through beach terrain. CPU twin:
                     // ocean_waves::shoal_factor (drawn == sampled).
                     let depth_m = f32(u32(round(max(vertex.uv.x, 0.0))) & 65535u) / 10.0;
-                    let shoal = smoothstep(0.4, 7.0, depth_m);
+                    let shoal = smoothstep(0.4, ocean_shoal_top(), depth_m);
                     // Camera-anchored small-domain positions (v0.1017
                     // jitter fix + v0.1040 cascade B): camera-to-vertex
                     // delta in the planet-local frame plus each cascade's

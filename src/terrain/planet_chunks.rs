@@ -2211,7 +2211,10 @@ pub fn near_tree_instances(
 /// sphere plus the worst-case analytic wave height either way (the vertex
 /// shader displaces within this envelope), plus skirt + slop.
 pub fn water_band(radius_m: f64) -> RadialBand {
-    let wave = crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M as f64;
+    // v0.1051: the FFT sea's crest now scales with wind (up to ~10 m), so this
+    // CULLING bound must cover the worst case, not the trains' 3.1 m. It is a
+    // conservative bound only - over-estimating costs a little less culling.
+    let wave = crate::terrain::ocean_waves::MAX_SEA_HEIGHT_M as f64;
     RadialBand {
         min_r_m: radius_m - wave - SKIRT_MAX_M - 1.0,
         max_r_m: radius_m + wave + 1.0,

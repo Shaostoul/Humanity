@@ -54,15 +54,38 @@ pub const FFT_TARGET_RMS_M: f32 = 0.386;
 /// buoyancy twin holds exactly); the horizontal field is realized purely
 /// to find where crests pinch - which is where real seas whitecap.
 pub const CHOP_LAMBDA: f32 = 1.0;
-/// Jacobian threshold + sharpness: foam = clamp((THR - J) * SHARP).
+/// Jacobian threshold + sharpness. SUPERSEDED for the mask itself by the
+/// coverage-targeted threshold in `update` (v0.1051) - kept because the
+/// lockstep tests pin them and they still document the original heuristic.
 pub const FOAM_J_THR: f32 = 0.90;
 pub const FOAM_SHARP: f32 = 3.0;
+
+/// Whitecap foam e-folding time (s): how long a broken crest keeps its foam.
+pub const FOAM_DECAY_TAU_S: f32 = 1.5;
+
+/// Monahan's empirical whitecap coverage: W = 3.84e-6 * U10^3.41, the
+/// fraction of the sea surface actively covered in breaking-wave foam.
+/// Capped at 35% - beyond a real hurricane the relation runs away, and a sea
+/// that is more foam than water reads as snow.
+pub fn whitecap_coverage(wind_speed_ms: f32) -> f32 {
+    if wind_speed_ms < 3.0 {
+        return 0.0;
+    }
+    (3.84e-6 * wind_speed_ms.powf(3.41)).min(0.35)
+}
 
 /// One FFT ocean cascade over a periodic `tile_m` square, `n` x `n`
 /// samples (n must be a power of two).
 pub struct OceanFft {
     pub n: usize,
     pub tile_m: f32,
+    /// Wind this cascade's spectrum was built for (m/s). Whitecap coverage is
+    /// an empirical function of wind, so the foam mask needs it (v0.1051).
+    pub wind_speed: f32,
+    /// Foam from the previous update, for temporal persistence (v0.1051).
+    foam_prev: Vec<f32>,
+    /// Clock of the previous update, for the decay timestep.
+    last_t: f32,
     /// Initial spectrum h0(k), row-major complex; index [ky * n + kx].
     h0: Vec<[f32; 2]>,
     /// Dispersion angular frequency per bin (deep water: w = sqrt(g k)).
@@ -185,6 +208,9 @@ impl OceanFft {
             slope: vec![[0.0; 2]; n * n],
             disp: vec![[0.0; 2]; n * n],
             foam: vec![0.0; n * n],
+            foam_prev: vec![0.0; n * n],
+            last_t: 0.0,
+            wind_speed,
             texels: vec![[0.0; 4]; n * n],
         }
     }
@@ -263,7 +289,87 @@ impl OceanFft {
                 let dvx = (self.disp[y * n + xp][1] - self.disp[y * n + xm][1]) * inv2;
                 let jac = (1.0 + CHOP_LAMBDA * dux) * (1.0 + CHOP_LAMBDA * dvy)
                     - (CHOP_LAMBDA * duy) * (CHOP_LAMBDA * dvx);
-                self.foam[i] = ((FOAM_J_THR - jac) * FOAM_SHARP).clamp(0.0, 1.0);
+                // Stash the raw Jacobian; the threshold is chosen below from
+                // the whole field, not fixed per texel.
+                self.foam[i] = jac;
+            }
+        }
+        // ── FOLD FIELD -> PERSISTENCE -> COVERAGE TARGET (v0.1051) ──
+        // Three things have to be true at once, and the ORDER matters.
+        //
+        // (1) Coverage must be physical. A fixed Jacobian threshold cannot
+        // survive a wind-driven sea: the choppy displacement scales with
+        // amplitude, so the Jacobian pinches proportionally harder, and when
+        // the spectrum grew 3.5x for a storm the old constant put foam on ~90%
+        // of the surface. Whitecap coverage is one of the best-measured
+        // quantities in physical oceanography - Monahan's W = 3.84e-6 * U^3.41
+        // - so target THAT and solve for the threshold.
+        //
+        // (2) Foam must persist. Real whitecaps linger and dissipate over
+        // seconds; an instantaneous function of the Jacobian flickers on and
+        // off as texels cross a threshold, which is what read as "pulses a lot
+        // of white".
+        //
+        // (3) Persistence must not saturate. Accumulating a THRESHOLDED mask on
+        // a static Eulerian grid does exactly that: the crest lines sweep the
+        // whole tile within a couple of seconds, so every texel eventually gets
+        // marked and holds it - a sea of solid white (measured, first attempt).
+        //
+        // So: accumulate the CONTINUOUS fold measure with decay, and apply the
+        // coverage target to the ACCUMULATED field. Persistence then shapes the
+        // foam into trailing streaks behind the breaks, while total coverage is
+        // pinned to Monahan by construction no matter what the dynamics do.
+        let dt = (t - self.last_t).clamp(0.0, 1.0);
+        self.last_t = t;
+        let decay = (-dt / FOAM_DECAY_TAU_S).exp();
+        for i in 0..n * n {
+            // Positive where the surface folds (jac < 1 = compression).
+            let fold = (1.0 - self.foam[i]).max(0.0);
+            let kept = self.foam_prev[i] * decay;
+            self.foam_prev[i] = if fold > kept { fold } else { kept };
+        }
+        // HALF the coverage per cascade: the shader SUMS both cascades' foam,
+        // and two independent masks at fraction c cover 2c - c^2 together. At
+        // half each, the union lands within a couple of points of Monahan.
+        let target = whitecap_coverage(self.wind_speed) * 0.5;
+        if target <= 1.0e-5 {
+            // Below a light breeze there are no whitecaps at all.
+            for i in 0..n * n {
+                self.foam[i] = 0.0;
+            }
+        } else {
+            // 256-bin histogram over the accumulated fold, walked down from the
+            // most-folded bin until the target fraction is covered. O(n^2), no
+            // sort, and stable frame to frame - which is the other half of the
+            // pulsing fix, since the TOTAL can no longer swing.
+            const BINS: usize = 256;
+            let mut hi = 1.0e-6f32;
+            for &v in self.foam_prev.iter() {
+                if v > hi {
+                    hi = v;
+                }
+            }
+            let mut hist = [0u32; BINS];
+            for &v in self.foam_prev.iter() {
+                let q = (v / hi).clamp(0.0, 0.999_999);
+                hist[(q * BINS as f32) as usize] += 1;
+            }
+            let want = (target * (n * n) as f32).max(1.0) as u32;
+            let mut acc = 0u32;
+            let mut edge = 0usize;
+            for b in (0..BINS).rev() {
+                acc += hist[b];
+                if acc >= want {
+                    edge = b;
+                    break;
+                }
+            }
+            let thr = hi * (edge as f32) / BINS as f32;
+            // Soft edge over the top decile so foam patches have a wet rim
+            // instead of a hard cut.
+            let width = (hi * 0.10).max(1.0e-6);
+            for i in 0..n * n {
+                self.foam[i] = ((self.foam_prev[i] - thr) / width).clamp(0.0, 1.0);
             }
         }
         for i in 0..n * n {
@@ -352,7 +458,14 @@ pub struct OceanCascades {
 /// real hurricane seas (JONSWAP at 25 m/s is 15 m significant height) need
 /// MAX_WAVE_HEIGHT_M itself raised, which moves the band, the backstop drop
 /// and the buoyancy clamp together. That is its own increment.
-pub const FFT_MAX_TOTAL_RMS_M: f32 = 1.0;
+pub const FFT_MAX_TOTAL_RMS_M: f32 = 3.5;
+
+/// Crest estimate (m) for a Gaussian sea of the given total RMS: peaks run
+/// ~3 sigma. Drives the backstop shell's drop and the shoal fade, so both
+/// track the LIVE sea instead of a worst case.
+pub fn crest_estimate_m(total_rms_m: f32) -> f32 {
+    3.0 * total_rms_m
+}
 
 /// Wind-driven RMS height for the pair (v0.1050). Fetch-limited significant
 /// height is Hs ~= 0.0246 * U^2, and RMS ~= Hs / 4 for a Gaussian sea. That
@@ -398,6 +511,15 @@ impl OceanCascades {
         Self { a, b }
     }
 
+    /// Combined RMS of both cascades (independent bands add in quadrature).
+    /// The live sea size: feeds the crest estimate that drives the backstop
+    /// drop and the shoal fade.
+    pub fn total_rms(&self) -> f32 {
+        let a = self.a.rms();
+        let b = self.b.rms();
+        (a * a + b * b).sqrt()
+    }
+
     pub fn update(&mut self, t: f32) {
         self.a.update(t);
         self.b.update(t);
@@ -430,7 +552,11 @@ pub fn wave_height_shoaled_fft_m(
     let radial = p_m.normalize().as_vec3();
     let h = c.a.triplanar_height(mod_tile(p_m, c.a.tile_m as f64), radial)
         + c.b.triplanar_height(mod_tile(p_m, c.b.tile_m as f64), radial);
-    (swell + h) * crate::terrain::ocean_waves::shoal_factor(depth_m)
+    // v0.1051: the shoal fade's outer edge tracks THIS sea's crest, matching
+    // the vertex shader's ocean_shoal_top(crest) - drawn == sampled through a
+    // storm as well as a calm.
+    let crest = crest_estimate_m(c.total_rms());
+    (swell + h) * crate::terrain::ocean_waves::shoal_factor_at(depth_m, crest)
 }
 
 /// 2D IFFT: rows then columns, each via the radix-2 line transform.

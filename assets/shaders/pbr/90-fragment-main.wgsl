@@ -169,7 +169,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Waves die in the shallows (v0.917): amplitude drains over the last
     // ~7 m of depth, so surf zones read calm-lapping instead of open-sea
     // chop running aground.
-    let shoal = 0.2 + 0.8 * smoothstep(0.4, 7.0, depth_m);
+    let shoal = 0.2 + 0.8 * smoothstep(0.4, ocean_shoal_top(), depth_m);
     // Storm boost compressed 2.3 -> 1.5 (v0.1017, operator: "white splotches"
     // band): under a live-MODIS storm cell the old boost pushed the summed
     // slopes far past the Fresnel knee, flipping sky-white/body-dark in
@@ -224,7 +224,10 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
                 // Jacobian foam is already a 0..1 whitecap factor; feed it
                 // through the same crest channel the texture used so the
                 // downstream foam window + lacework apply unchanged.
-                crest = clamp(f.w * 1.6, 0.0, 1.0) * tex_reach;
+                // No 1.6x amplification any more (v0.1051): the CPU mask is
+                // now coverage-targeted to Monahan's law, so scaling it here
+                // would just break the coverage it was solved for.
+                crest = clamp(f.w, 0.0, 1.0) * tex_reach;
             }
         } else if (tex_reach > 0.003) {
             let det = ocean_tex_gradient(ptw, dir, t, footprint);
@@ -251,6 +254,16 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let steep = length(grad) * (1.0 + sea_state * 1.4);
         let foam_reach = 1.0 - smoothstep(2.5, 5.0, footprint);
         let cap_tex = smoothstep(0.55, 0.85, crest);
+        // FFT MODE: the Jacobian mask IS the physical whitecap field, solved on
+        // the CPU to Monahan's coverage for the live wind. The steepness term
+        // below is a trains-era heuristic, and stacking it on top double-counts:
+        // once v0.1051 let the spectrum grow 3.5x for a storm, length(grad)
+        // cleared the 0.30-0.50 window EVERYWHERE and the max() pinned foam to
+        // 1.0 across the whole sea - the operator's white-out. Trust the mask
+        // in FFT mode; keep the heuristic exactly as it was for wave trains.
+        if (camera.light0_cone_inner.x > 0.5) {
+            foam = clamp(crest, 0.0, 1.0) * foam_reach * presence;
+        } else {
         foam = max(
             // Window raised 0.20-0.36 -> 0.30-0.50 (v0.1017, operator:
             // "the white on the ocean pulses slowly"): the summed trains
@@ -264,6 +277,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
             * smoothstep(0.55, 0.95, sea_state)
             * foam_reach
             * presence;
+        }
         // Foam LACEWORK (v0.1018, operator: "the foam texture is very
         // simple that it just kind of looks like white paper"): real foam
         // is strands and holes, not a solid sheet. A second wave-texture

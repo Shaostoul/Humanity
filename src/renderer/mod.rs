@@ -260,6 +260,11 @@ pub struct Renderer {
     /// Sea state 0..1 (v0.909): glassy -> ripples -> storm. Poked into the
     /// fill_color.w uniform pad each celestial pass.
     pub sea_state: f32,
+    /// Live sea CREST height in metres (v0.1051): ~3 sigma of the FFT sea, or
+    /// the trains' fixed 3.1 m. The shader scales its shoal fade by this so
+    /// storm waves never punch through the seabed, and the backstop shell's
+    /// drop tracks it so a calm day keeps a tight backstop.
+    pub sea_crest_m: f32,
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1198,6 +1203,7 @@ impl Renderer {
             ssao_strength: 0.55,
             detail_distance: 1.0,
             sea_state: 0.35,
+            sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2717,6 +2723,11 @@ impl Renderer {
         // at the player (lib.rs) or the showcase {"sea":x} dev override.
         self.queue
             .write_buffer(&self.camera_buffer, 668, bytemuck::bytes_of(&self.sea_state));
+        // Live sea crest (m) in light5_cone_inner.x (offset 544; the light5 pads
+        // are unused - aerial data stops at light3 and the ocean anchor owns
+        // light4). The shader's shoal fade reads it, v0.1051.
+        self.queue
+            .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
         // Fill intensity scaled by the camera-local daylight (v0.998):
         // fill_direction.w at offset 640 + 12. The full write stamps the
         // default 0.6; night on a surface dims it so forests stop glowing.
