@@ -222,6 +222,41 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
             sea.parse::<f32>().ok().map(|v| v.clamp(0.0, 1.0))
         };
     }
+    // Optional "weather":"fog" (v0.1059): drive the live weather from the rig,
+    // through the SAME DataStore slot the F11 panel writes, so a scripted
+    // capture can show fog, a sandstorm or a storm. Without this the rig could
+    // never photograph a weather condition at all - every vantage got whatever
+    // the sim happened to roll - which is precisely why "fog and sandstorm
+    // change nothing in the air" went unnoticed for so long.
+    if let Some(w) = grab("weather") {
+        let (cond, intensity) = match w.to_ascii_lowercase().as_str() {
+            "clear" => (crate::systems::weather::WeatherCondition::Clear, 0.0),
+            "cloudy" => (crate::systems::weather::WeatherCondition::Cloudy, 0.4),
+            "rain" => (crate::systems::weather::WeatherCondition::Rain, 0.9),
+            "storm" => (crate::systems::weather::WeatherCondition::Storm, 1.0),
+            "snow" => (crate::systems::weather::WeatherCondition::Snow, 0.7),
+            "fog" => (crate::systems::weather::WeatherCondition::Fog, 1.0),
+            "sandstorm" => (crate::systems::weather::WeatherCondition::Sandstorm, 1.0),
+            _ => (crate::systems::weather::WeatherCondition::Clear, 0.0),
+        };
+        if let Some(m) = state
+            .data_store
+            .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>("weather_control")
+        {
+            if let Ok(mut c) = m.lock() {
+                c.manual = Some(crate::systems::weather::ManualWeather {
+                    condition: cond,
+                    intensity,
+                    wind_speed: if intensity > 0.8 { 18.0 } else { 4.0 },
+                });
+                c.retrigger = true;
+            }
+        }
+        state.gui_state.weather_manual = true;
+        state.gui_state.weather_pick_condition = cond;
+        state.gui_state.weather_pick_intensity = intensity;
+        log::info!("Showcase: weather -> {w}");
+    }
     // Optional "lights":"500": N camera-pinned test point lights (clustering
     // dev-aid; the grid regenerates around the camera every frame, so it
     // survives floating-origin rebases). "lights":"0" clears. Optional
@@ -589,7 +624,8 @@ pub(crate) fn capture_hires_screenshot(
                 ..Default::default()
             });
             if let Some(ref star_r) = state.star_renderer {
-                star_r.render_pass(&mut pass);
+                // Menu/backdrop: always the full sky (no atmosphere in front).
+                star_r.render_pass(&mut pass, false);
             }
         }
         state.renderer.queue.submit(std::iter::once(encoder.finish()));

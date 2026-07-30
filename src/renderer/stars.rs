@@ -748,7 +748,18 @@ impl StarRenderer {
     /// Render stars into the given render pass.
     /// Call this BEFORE the main scene pass. The caller should have already
     /// begun a render pass that clears to black.
-    pub fn render_pass<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    ///
+    /// `daylight` (v0.1059) skips the WHOLE sky when the sun is well up and the
+    /// camera is inside an atmosphere. Measured waste: the star point draw is
+    /// 16,844,156 PointList primitives - 192.8 MB of vertex fetch - submitted
+    /// unconditionally EVERY frame with no culling, no depth and no gate, and in
+    /// daylight not one of those pixels survives the sky. The glow,
+    /// constellation and halo layers were each already gated by a setting; the
+    /// 16.8 M-point layer, the expensive one, never was.
+    pub fn render_pass<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>, daylight: bool) {
+        if daylight {
+            return;
+        }
         // Draw order is layering, back to front (the v0.787 lesson: any sky
         // layer that overdraws the star points makes them flicker as the
         // camera rotates): 1. Milky Way glow (additive fullsky), 2.

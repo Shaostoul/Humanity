@@ -453,6 +453,10 @@ pub struct GuiGameTime {
 #[derive(Debug, Clone)]
 pub struct GuiWeather {
     pub condition: String,
+    /// Weather intensity 0..1 (v0.1059). Needed by the aerial-haze fog ramp,
+    /// which is the first thing in the engine to actually CONSUME the weather's
+    /// severity rather than just its name.
+    pub intensity: f32,
     pub temperature: f32,
     pub wind_speed: f32,
     /// Active extreme-weather event display name ("" = none, v0.1035):

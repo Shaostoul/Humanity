@@ -11085,6 +11085,68 @@ mod native_app {
                                     ];
                                 }
                             }
+                            // ── WEATHER-DRIVEN FOG (v0.1059) ──
+                            // Operator, twice: "I didn't notice anything with
+                            // change with fog or sandstorm... the air/sky didn't
+                            // change at all."
+                            //
+                            // Correct, and the reason is simple: weather.visibility
+                            // was computed every tick and consumed by NOTHING. No
+                            // shader uniform ever read it. Meanwhile the engine
+                            // already has exactly the right term - the aerial
+                            // perspective haze, an exponential extinction toward a
+                            // sky colour, with the sigma poked from right here. So
+                            // fog does not need a new pass, a new uniform or a new
+                            // shader: it needs the weather to be allowed to raise
+                            // this sigma and tint its colour.
+                            //
+                            // Sigma for a target visibility V is ln(50)/V (the
+                            // Koschmieder 2% contrast threshold), so 100 m of fog
+                            // is 0.039 /m against the clear-air 2.2e-5 - about
+                            // 1800x - and the exponential does the rest.
+                            if let Some(w) = state.gui_state.weather.as_ref() {
+                                let cond = w.condition.as_str();
+                                // Visibility floor per condition, in metres, at
+                                // full intensity. Rain and snow cut visibility
+                                // hard but nothing like fog; sandstorm is the
+                                // worst and also the most coloured.
+                                let (vis_min_m, tint) = match cond {
+                                    "Fog" => (60.0_f32, [0.70_f32, 0.74, 0.78]),
+                                    "Sandstorm" => (90.0, [0.62, 0.46, 0.28]),
+                                    "Snow" => (400.0, [0.80, 0.83, 0.88]),
+                                    "Storm" => (900.0, [0.48, 0.52, 0.58]),
+                                    "Rain" => (1500.0, [0.52, 0.56, 0.62]),
+                                    _ => (0.0, [0.0, 0.0, 0.0]),
+                                };
+                                if vis_min_m > 0.0 && sigma > 0.0 {
+                                    // Intensity interpolates between clear air and
+                                    // that floor, in SIGMA space so the ramp is
+                                    // perceptually even rather than crowding at
+                                    // the dense end.
+                                    let t = w.intensity.clamp(0.0, 1.0);
+                                    let sigma_fog = (50.0_f32).ln() / vis_min_m;
+                                    let sigma_w = sigma * (1.0 - t) + sigma_fog * t;
+                                    // The slant cap exists to keep a look-UP ray
+                                    // from accumulating a whole atmosphere of
+                                    // haze. Fog is a GROUND layer a few tens of
+                                    // metres deep, so as it thickens the cap has
+                                    // to come down with it or the zenith turns to
+                                    // soup. 80 m of fog layer at full intensity.
+                                    let cap_w = cap * (1.0 - t) + 80.0 * t;
+                                    // Tint toward the fog colour, keeping some of
+                                    // the real sky so sunset still reads through a
+                                    // light mist.
+                                    let lum = (sky[0] + sky[1] + sky[2]) / 3.0;
+                                    let sky_w = [
+                                        sky[0] * (1.0 - t) + tint[0] * lum.max(0.25) * t,
+                                        sky[1] * (1.0 - t) + tint[1] * lum.max(0.25) * t,
+                                        sky[2] * (1.0 - t) + tint[2] * lum.max(0.25) * t,
+                                    ];
+                                    sigma = sigma_w;
+                                    cap = cap_w;
+                                    sky = sky_w;
+                                }
+                            }
                             state.renderer.aerial_sigma = sigma;
                             state.renderer.aerial_slant_cap = cap;
                             state.renderer.aerial_sky = sky;
@@ -12702,6 +12764,7 @@ mod native_app {
                         .and_then(|m| m.lock().ok())
                     {
                         state.gui_state.weather = Some(GuiWeather {
+                            intensity: w.intensity,
                             condition: format!("{:?}", w.condition),
                             temperature: w.temperature,
                             wind_speed: w.wind_speed,
@@ -15836,7 +15899,34 @@ mod native_app {
                                             depth_stencil_attachment: None,
                                             ..Default::default()
                                         });
-                                        star_r.render_pass(&mut pass);
+                                        // DAYLIGHT GATE (v0.1059): inside an
+                                        // atmosphere with the sun more than
+                                        // ~6 degrees up, every star is washed
+                                        // out by the sky drawn over it, so the
+                                        // 16.8 M-point draw is pure waste. Sun
+                                        // BELOW that still draws the full sky,
+                                        // so dusk, dawn and night are
+                                        // untouched, and so is space (no
+                                        // frame-locked body = no atmosphere to
+                                        // hide behind).
+                                        let daylight = state
+                                            .frame_lock_body
+                                            .as_deref()
+                                            .and_then(|b| state.planet_defs.get(b))
+                                            .map(|d| {
+                                                let alt = state.frame_lock_anchor.length()
+                                                    - d.radius;
+                                                let up = state
+                                                    .frame_lock_anchor
+                                                    .normalize_or_zero();
+                                                let to_sun = (state.sun_world_pos
+                                                    - state.ship_world_pos)
+                                                    .normalize_or_zero();
+                                                let sun_up = up.dot(to_sun);
+                                                alt < 120_000.0 && sun_up > 0.10
+                                            })
+                                            .unwrap_or(false);
+                                        star_r.render_pass(&mut pass, daylight);
                                     }
                                     state.renderer.queue.submit(std::iter::once(encoder.finish()));
                                 }
