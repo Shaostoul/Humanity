@@ -651,3 +651,55 @@ mod tests {
         assert!(e.collect_vertices(0.0).iter().all(|v| v.stretch == [0.0; 3]));
     }
 }
+
+#[cfg(test)]
+mod perf_probe {
+    use super::*;
+
+    /// MEASURED particle-budget probe (v0.1066). Ignored by default - it is a
+    /// timing measurement, not an assertion, and timings do not belong in a
+    /// gate. Run it deliberately:
+    ///   cargo test --features native --lib perf_probe -- --ignored --nocapture
+    ///
+    /// It exists because "what is our particle ceiling" is a question the
+    /// operator asks and the honest answer needs a number, not an estimate:
+    /// draw submission is O(1) here (one instanced draw for all alpha
+    /// particles), bandwidth is trivial, so the CPU update+collect loop is the
+    /// real serial cost and this is what measures it.
+    #[test]
+    #[ignore]
+    fn particle_update_cost_per_frame() {
+        let def = EmitterDef {
+            max_particles: 1_000_000,
+            spawn_rate: 1.0e9,
+            lifetime_min: 100.0,
+            lifetime_max: 100.0,
+            speed_min: 1.0,
+            speed_max: 2.0,
+            ..Default::default()
+        };
+        for n in [10_000usize, 100_000, 1_000_000] {
+            let mut e = Emitter::new("probe".to_string(), Vec3::ZERO);
+            e.cap_scale = 1.0;
+            // Fill the pool DIRECTLY. Going through tick() cannot get there:
+            // the v0.1065 steady-state clamp deliberately limits spawning to
+            // cap/lifetime per second, which is the point of it.
+            for _ in 0..n {
+                e.spawn_particle(&def);
+            }
+            assert_eq!(e.particles.len(), n, "pool did not fill");
+            let t0 = std::time::Instant::now();
+            let frames = 30;
+            let mut sink = 0usize;
+            for _ in 0..frames {
+                e.tick(1.0 / 60.0, &def);
+                sink += e.collect_vertices(0.0).len();
+            }
+            let ms = t0.elapsed().as_secs_f64() * 1000.0 / frames as f64;
+            println!(
+                "[ParticleProbe] {:>9} particles -> {:.3} ms/frame update+collect ({} sink)",
+                n, ms, sink
+            );
+        }
+    }
+}

@@ -1174,10 +1174,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             let lp = triplanar_uv(in.world_position, normal);
 
             // Primary vein net, plus a finer secondary net inside its cells.
-            let v1 = voronoi(lp * 240.0);
-            var vein = smoothstep(0.34, 0.03, v1);
+            // voronoi_EDGE, not voronoi: veins are cell BORDERS. Frequencies are
+            // per world metre, and a strawberry leaflet is ~0.13 m, so 55/m puts
+            // roughly 7 primary areoles across a blade and 170/m fills them with
+            // secondary reticulation. That matches real dicot venation density;
+            // a much higher number just reads as noise.
+            let v1 = voronoi_edge(lp * 55.0);
+            var vein = smoothstep(0.16, 0.02, v1);
             if (micro > 0.001) {
-                vein = vein + smoothstep(0.18, 0.02, voronoi(lp * 720.0)) * 0.45 * micro;
+                vein = vein + smoothstep(0.10, 0.015, voronoi_edge(lp * 170.0)) * 0.45 * micro;
             }
             vein = clamp(vein, 0.0, 1.0);
 
@@ -1199,11 +1204,13 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             let t2 = cross(normal, t1);
             let bx = fbm(lp * 300.0) - 0.5;
             let by = fbm(lp * 300.0 + vec2<f32>(31.0, 17.0)) - 0.5;
-            // Veins sit proud of the lamina, so push along the normal too.
-            normal = normalize(
-                normal * (1.0 + vein * 0.25 * detail)
-                    + (t1 * bx + t2 * by) * 0.5 * detail
-            );
+            // The pucker EASES OFF over a vein: vascular tissue is taut, the
+            // lamina between it is not. (Genuinely raising the veins would need
+            // a gradient of the vein field, i.e. four more voronoi_edge taps
+            // per pixel; the albedo and roughness breaks below carry the read
+            // for far less.)
+            let pucker = (1.0 - vein * 0.6) * 0.5 * detail;
+            normal = normalize(normal + (t1 * bx + t2 * by) * pucker);
 
             // Waxy cuticle. A leaf is not chalk: 0.9 roughness everywhere is
             // most of why the current plants look papery. Wax is smoother

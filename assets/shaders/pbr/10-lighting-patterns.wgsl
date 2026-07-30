@@ -171,6 +171,32 @@ fn voronoi(p: vec2<f32>) -> f32 {
     return sqrt(min_dist);
 }
 
+// Voronoi EDGE distance (F2 - F1): near 0 ON a cell border, large at a cell
+// centre. `voronoi` above returns F1, which is smallest at CENTRES, so
+// thresholding it paints blobs. A leaf vein (or any crack/seam network) is a
+// BORDER, so it needs this. Added v0.1063 for the type-20 plant branch.
+fn voronoi_edge(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = fract(p);
+    var d1 = 8.0;
+    var d2 = 8.0;
+    for (var y = -1; y <= 1; y = y + 1) {
+        for (var x = -1; x <= 1; x = x + 1) {
+            let neighbor = vec2<f32>(f32(x), f32(y));
+            let cell_center = vec2<f32>(hash21(i + neighbor), hash21(i + neighbor + vec2<f32>(57.0, 113.0)));
+            let diff = neighbor + cell_center - f;
+            let d = dot(diff, diff);
+            if (d < d1) {
+                d2 = d1;
+                d1 = d;
+            } else if (d < d2) {
+                d2 = d;
+            }
+        }
+    }
+    return sqrt(d2) - sqrt(d1);
+}
+
 // Wood grain pattern
 fn wood_pattern(world_pos: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let an = abs(normal);
