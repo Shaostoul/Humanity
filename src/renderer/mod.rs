@@ -270,6 +270,15 @@ pub struct Renderer {
     /// Settings "Underwater clarity" slider, and zero unless the camera is
     /// actually submerged so surface views are untouched.
     pub underwater_ext: f32,
+    /// Material ids of the WAVE water shell (v0.1057), so those patches cast
+    /// into the sun shadow map and a 10 m crest shadows the trough behind it.
+    /// Identified by MATERIAL rather than by an index range into the transparent
+    /// list, because v0.1053 stable-sorts that list every frame whenever the
+    /// camera is inside the atmosphere - a recorded index range would silently
+    /// point at the atmosphere shell instead. The flat BACKSTOP is deliberately
+    /// excluded: it is undisplaced and sits below the troughs, so it could only
+    /// shadow the seabed.
+    pub water_caster_mats: Vec<usize>,
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1210,6 +1219,7 @@ impl Renderer {
             sea_state: 0.35,
             sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
             underwater_ext: 0.0,
+            water_caster_mats: Vec::new(),
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2799,10 +2809,45 @@ impl Renderer {
             let origin = vp * glam::Vec4::new(0.0, 0.0, 0.0, 1.0);
             let snap = |v: f32| (v / ndc_texel).round() * ndc_texel - v;
             vp = Mat4::from_translation(Vec3::new(snap(origin.x), snap(origin.y), 0.0)) * vp;
-            let mut light_u = <camera::CameraUniforms as bytemuck::Zeroable>::zeroed();
+            // v0.1057: build the light camera from the REAL celestial uniforms
+            // and overwrite only view_proj, instead of starting from zeroed.
+            // Same class of bug as the hardcoded sun and the discarded fill
+            // above: a zeroed uniform means the type-16 water vertex branch sees
+            // FFT-mode 0, both cascade anchors 0, weld K 0, the wave clock 0 and
+            // view_pos 0 - so if water ever casts into this map it rasterises a
+            // DIFFERENT sea than the colour pass draws, and the shadows land on
+            // the wrong water. Everything the water VS reads has to be re-poked
+            // at the same offsets the colour pass uses on camera_buffer. If a
+            // refactor re-zeroes this, wave shadows silently go wrong rather
+            // than absent, which is much harder to spot.
+            let mut light_u = camera.celestial_uniforms();
             light_u.view_proj = vp.to_cols_array_2d();
             self.queue
                 .write_buffer(&self.light_camera_buffer, 0, bytemuck::bytes_of(&light_u));
+            // 464 = ground_anchor (FFT flag + the 64 m cascade-A anchor).
+            self.queue.write_buffer(
+                &self.light_camera_buffer,
+                464,
+                bytemuck::cast_slice(&ground_anchor),
+            );
+            // 528 = cascade-B anchor + the water weld K.
+            self.queue.write_buffer(
+                &self.light_camera_buffer,
+                528,
+                bytemuck::cast_slice(&ocean_anchor256),
+            );
+            // 544 = live sea crest, which the VS shoal fade reads.
+            self.queue.write_buffer(
+                &self.light_camera_buffer,
+                544,
+                bytemuck::bytes_of(&self.sea_crest_m),
+            );
+            // 636 = the wave clock, parked in sun_color.w.
+            self.queue.write_buffer(
+                &self.light_camera_buffer,
+                636,
+                bytemuck::bytes_of(&time_s),
+            );
             let mut su = [0.0_f32; 24];
             su[..16].copy_from_slice(&vp.to_cols_array());
             su[16] = if shadow_on { 1.0 } else { 0.0 };
@@ -2933,6 +2978,59 @@ impl Renderer {
                     pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     pass.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                     pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                }
+                // WATER CASTERS (v0.1057). The wave shell lives in the
+                // TRANSPARENT list, which this pass never walked - so a 10 m
+                // crest cast nothing and the trough behind it stayed fully lit.
+                // That absent self-shadowing is a large part of why a storm sea
+                // read as a flat pattern rather than relief. Object uniforms for
+                // the transparent list were already uploaded by the chain above,
+                // at slot objects.len() + i, so the dynamic offset is the only
+                // thing that changes. Group 3 for this pass binds the REAL FFT
+                // tile at binding 15, so the vertex displacement matches the
+                // colour pass exactly (and v0.1057 also stopped this pass from
+                // zeroing the anchors it needs to do that).
+                //
+                // Tighter cull than the 6 km above: the ortho box is 1.5 km
+                // across at 0.73 m/texel, and only crests inside it land at a
+                // useful resolution.
+                if !self.water_caster_mats.is_empty() {
+                    pass.set_pipeline(&self.pipeline.shadow_pipeline);
+                    pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+                    for (i, obj) in transparent.iter().enumerate() {
+                        let slot = objects.len() + i;
+                        if slot >= MAX_OBJECTS {
+                            break;
+                        }
+                        if !self.water_caster_mats.contains(&obj.material) {
+                            continue;
+                        }
+                        if (obj.position - cast_center).length_squared()
+                            > 2_500.0_f32 * 2_500.0
+                        {
+                            continue;
+                        }
+                        let mesh = match self.meshes.get(obj.mesh) {
+                            Some(m) => m,
+                            None => continue,
+                        };
+                        let material = match self.materials.get(obj.material) {
+                            Some(m) => m,
+                            None => continue,
+                        };
+                        let dynamic_offset = (uniform_align as u32) * (slot as u32);
+                        pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
+                        if bound_material != obj.material {
+                            bound_material = obj.material;
+                            pass.set_bind_group(2, &material.bind_group, &[]);
+                        }
+                        pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                        pass.set_index_buffer(
+                            mesh.index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        pass.draw_indexed(0..mesh.index_count, 0, 0..1);
+                    }
                 }
                 // Batched patch casters: same 6 km cull, one bind, one
                 // draw per near patch. Instance index = full-list position

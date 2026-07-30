@@ -165,7 +165,14 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         // Now it is the SAME water shading as the wave shell, with the
         // wave normal replaced by the geometric one: a perfectly calm sea.
         // Whatever shows through now reads as water, not as a tile.
-        let brgb = water_shade(deep, n_geo, n_geo, view_dir);
+        let bsun_ndl = dot(n_geo, normalize(camera.sun_direction.xyz));
+        let brgb = water_shade(
+            deep,
+            n_geo,
+            n_geo,
+            view_dir,
+            sun_shadow(in.world_position, bsun_ndl),
+        );
         let bcos = clamp(dot(n_geo, view_dir), 0.0, 1.0);
         let bt = 1.0 - bcos;
         let bfres = bt * bt * bt;
@@ -369,7 +376,14 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let n_pert_local = normalize(dir - grad * presence);
         n_pert = normalize((obj_model() * vec4<f32>(n_pert_local, 0.0)).xyz);
     }
-    var rgb = water_shade(deep, n_geo, n_pert, view_dir);
+    let wsun_ndl = dot(n_geo, normalize(camera.sun_direction.xyz));
+    var rgb = water_shade(
+        deep,
+        n_geo,
+        n_pert,
+        view_dir,
+        sun_shadow(in.world_position, wsun_ndl),
+    );
     // Foam is scattered froth - and froth is DIFFUSE, so it is SUNLIT like
     // everything else (v0.914, operator: "the ocean in night time is
     // bright white, almost like it is glowing" - the old constant foam
@@ -1049,7 +1063,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 let n_pert = normalize(
                     (obj_model() * vec4<f32>(n_pert_local, 0.0)).xyz,
                 );
-                let water_rgb = water_shade(albedo, normal, n_pert, view_dir);
+                // Orbital sea (type 12): no shadow term - from orbit the
+                // near-field shadow map does not cover the visible ocean.
+                let water_rgb = water_shade(albedo, normal, n_pert, view_dir, 1.0);
                 proc_emissive = mix(old_glint, water_rgb, presence);
                 // Hand the diffuse + ambient energy over to the water term
                 // and flatten the residual GGX response as presence rises.

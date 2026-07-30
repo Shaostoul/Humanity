@@ -447,6 +447,14 @@ fn water_shade(
     n_geo: vec3<f32>,
     n_pert: vec3<f32>,
     view_dir: vec3<f32>,
+    // Sun shadow attenuation, 1 = unshadowed (v0.1057). Water was the only lit
+    // surface in the engine that never sampled the shadow map at all: the
+    // megashader has exactly ONE sun_shadow call site, in the shared PBR tail
+    // that the type-16 branch early-returns before ever reaching. So an island,
+    // a cliff or a wave in front cast nothing onto the sea. Only the SUN terms
+    // take it - the reflected sky arrives from the whole hemisphere and is not
+    // blocked by a single occluder.
+    sun_shadow_f: f32,
 ) -> vec3<f32> {
     let sun_l = normalize(camera.sun_direction.xyz);
     let sun_i = camera.sun_direction.w;
@@ -500,7 +508,7 @@ fn water_shade(
     if (shadow_u.params2.y > 0.5) {
         sky_term = water_sky_lut(refl, n_geo);
     }
-    let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI);
+    let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI) * sun_shadow_f;
     let h = normalize(view_dir + sun_l);
     // GLITTER WIDTH FROM THE WIND (v0.1055, operator: "the sun reflects but
     // there is some weird hard lines"). WATER_SPEC_POWER is a fixed 900-power
@@ -518,7 +526,7 @@ fn water_shade(
     let spec_p = max(2.0 / max(mss, 1.0e-4) - 2.0, 8.0);
     let sparkle = pow(max(dot(n_pert, h), 0.0), spec_p) * WATER_SPEC_GAIN;
     let anchor = pow(max(dot(n_geo, h), 0.0), 220.0) * 0.15;
-    let spec = camera.sun_color.rgb * sun_i * (sparkle + anchor) * day;
+    let spec = camera.sun_color.rgb * sun_i * (sparkle + anchor) * day * sun_shadow_f;
     return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;
 }
 

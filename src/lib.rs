@@ -15997,6 +15997,14 @@ mod native_app {
                                 // while submerged, and only as far as the
                                 // Settings clarity slider allows. 1 - clarity so
                                 // the slider reads as "how far can I see".
+                                // Wave shell materials cast shadows (v0.1057).
+                                // Only the WAVE shell, never the backstop.
+                                state.renderer.water_caster_mats = state
+                                    .planet_water_materials
+                                    .iter()
+                                    .filter(|(k, _)| !k.contains("backstop"))
+                                    .map(|(_, v)| *v)
+                                    .collect();
                                 state.renderer.underwater_ext = if state.gui_state.underwater {
                                     (1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0))
                                 } else {
