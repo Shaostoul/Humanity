@@ -70,13 +70,52 @@ fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     if (ext <= 1.0e-4) {
         return color_in;
     }
-    let d = length(world_pos - camera.view_pos.xyz);
+    // ── PER-RAY SUBMERGED PATH (v0.1061) ──
+    // Operator: "Can we do like a strip across the screen where we're
+    // transitioning from underwater to above water and vice versa? Right now
+    // that edge point just kind of flips. I don't really see the water passing
+    // in front of me until the camera suddenly just goes blue."
+    //
+    // The flip was structural: "am I underwater" was ONE point test on the
+    // camera position, in Rust, switching extinction for the entire screen at
+    // once. Physically the question is not about the camera at all - it is how
+    // much of the path from the eye to THIS pixel lies below the surface. Answer
+    // that per pixel and the over-under photograph falls out for free: rays
+    // going up through the meniscus stay clear, rays going down are extinguished
+    // over their submerged length, and the water surface geometry between them
+    // draws the strip.
+    //
+    // The sea sphere (centre + sea-level radius, in render space) arrives in
+    // light6_cone_inner. Depth is signed: positive above water, negative below.
+    let sea_c = camera.light6_cone_inner.xyz;
+    let sea_r = camera.light6_cone_inner.w;
+    if (sea_r <= 1.0) {
+        return color_in;
+    }
+    let h_cam = length(camera.view_pos.xyz - sea_c) - sea_r;
+    let h_frag = length(world_pos - sea_c) - sea_r;
+    let seg = length(world_pos - camera.view_pos.xyz);
+    // Fraction of the segment that lies below the surface. Over these ranges
+    // the surface is locally flat compared with the planet, so the linear
+    // crossing point is exact enough and costs one divide.
+    var frac_wet = 0.0;
+    if (h_cam <= 0.0 && h_frag <= 0.0) {
+        frac_wet = 1.0;
+    } else if (h_cam > 0.0 && h_frag > 0.0) {
+        frac_wet = 0.0;
+    } else {
+        // Crossing: the wet share is whichever endpoint is submerged.
+        frac_wet = clamp(min(h_cam, h_frag) / (min(h_cam, h_frag) - max(h_cam, h_frag)), 0.0, 1.0);
+    }
+    let d = seg * frac_wet;
+    if (d <= 0.01) {
+        return color_in;
+    }
     let sigma = vec3<f32>(WATER_EXT_R, WATER_EXT_G, WATER_EXT_B) * ext;
     let t = exp(-sigma * d);
-    // In-scattered ambient of the water column itself: what remains when
-    // everything else has been absorbed. Blue-green, and dark - this is the
-    // colour a distant seabed dissolves INTO rather than staying visible
-    // against.
+    // In-scattered ambient of the water column: what remains once everything
+    // else is absorbed. Blue-green and dark - what a distant seabed dissolves
+    // INTO rather than staying visible against.
     let inscatter = vec3<f32>(0.008, 0.030, 0.055);
     return color_in * t + inscatter * (vec3<f32>(1.0) - t);
 }

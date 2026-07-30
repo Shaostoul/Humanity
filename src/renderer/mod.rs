@@ -285,6 +285,11 @@ pub struct Renderer {
     /// nothing is submitted after the sea that its depth could wrongly occlude.
     /// From orbit this stays false and the approved space look is untouched.
     pub water_depth_write: bool,
+    /// Sea sphere in RENDER space (v0.1061): xyz = planet centre, w = sea-level
+    /// radius. Lets any fragment work out how deep it and the camera are, which
+    /// is what turns underwater extinction from a whole-screen switch into a
+    /// per-ray path integral - the over-under waterline.
+    pub sea_sphere: [f32; 4],
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1227,6 +1232,7 @@ impl Renderer {
             underwater_ext: 0.0,
             water_caster_mats: Vec::new(),
             water_depth_write: false,
+            sea_sphere: [0.0, 0.0, 0.0, 0.0],
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2754,6 +2760,9 @@ impl Renderer {
         // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
         self.queue
             .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));
+        // Sea sphere in light6_cone_inner.xyzw (offset 560), v0.1061.
+        self.queue
+            .write_buffer(&self.camera_buffer, 560, bytemuck::cast_slice(&self.sea_sphere));
         // Fill DIRECTION, COLOUR and intensity (v0.998 intensity, v0.1052 the
         // rest). This pass stamps camera.celestial_uniforms() over the whole
         // buffer first, which carries the DEFAULT fill - so the fill that

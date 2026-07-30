@@ -9644,6 +9644,17 @@ mod native_app {
                                             m
                                         }
                                     };
+                                    // The same centre feeds the SEA SPHERE
+                                    // uniform (v0.1061), which is what lets the
+                                    // underwater extinction become a per-ray
+                                    // path integral instead of a screen-wide
+                                    // switch.
+                                    state.renderer.sea_sphere = [
+                                        render_off.x as f32,
+                                        render_off.y as f32,
+                                        render_off.z as f32,
+                                        d.radius as f32,
+                                    ];
                                     // base_color.xyz = planet center in render
                                     // space, every frame (floating origin).
                                     state.renderer.update_material_full(
@@ -16131,11 +16142,20 @@ mod native_app {
                                     .filter(|(k, _)| !k.contains("backstop"))
                                     .map(|(_, v)| *v)
                                     .collect();
-                                state.renderer.underwater_ext = if state.gui_state.underwater {
-                                    (1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0))
-                                } else {
-                                    0.0
-                                };
+                                // v0.1061: no longer gated on the binary
+                                // camera-is-submerged flag. Operator: "I don't
+                                // really see the water passing in front of me
+                                // until the camera suddenly just goes blue."
+                                // That flip WAS this gate - one point test on
+                                // the camera switching the whole screen. The
+                                // shader now integrates extinction over the
+                                // submerged PART of each ray, so a camera at
+                                // the waterline gets air above the surface and
+                                // water below it in the same frame, which is
+                                // the over-under look. Always on; the sea
+                                // sphere decides per pixel.
+                                state.renderer.underwater_ext =
+                                    1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0);
                                 state.renderer.ssao_strength =
                                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
                                 // (tree_card_hide_m is owned by the near-tree

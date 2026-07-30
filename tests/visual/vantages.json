@@ -404,6 +404,27 @@
         "weather": "sandstorm"
       },
       "settle_s": 10
+    },
+    {
+      "id": "waterline-split",
+      "desc": "Camera AT the waterline over a shallow shelf - the over-under split.",
+      "expect": "One frame containing both: air and sky above the surface line, extinguished blue-green water below it, with the water surface itself crossing the screen. A whole-screen flip to blue means the underwater state is still a binary camera test rather than a per-ray path integral.",
+      "regressions": [
+        "over-under waterline"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": -0.0255,
+        "look_offset_deg": 88
+      },
+      "showcase": {
+        "time": "11.0",
+        "sea": "0.25"
+      },
+      "settle_s": 14,
+      "hold_altitude": true
     }
   ]
 }
