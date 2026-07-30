@@ -468,6 +468,15 @@
 > 3. **In-app documentation / tutorials / walkthroughs / AI guides.** Ship the docs
 >    INSIDE the app (data-driven, like the Library already does for the Accord), so
 >    there is no external manual to lose or fail to find. Tech-illiterate-first.
+>    **Head start (audit 2026-07-30): `data/onboarding/core_pages.json` (8 plain-language
+>    page descriptions) and `core_concepts.json` (4 concepts) already exist and are
+>    exactly this content, but NOTHING renders them on either client.** A comment in
+>    gui/mod.rs claimed the web /onboarding page read them; it does not, it fetches
+>    quests.json only. Wire them into a surface rather than rewriting the content.
+>    Note core_pages.json predates the v0.1063 page split, so it lists 8 pages and
+>    does not mention Library, Tools or Platform. Also unrendered:
+>    `data/onboarding/sim_guides.json` (27 in-game guides, 20 of them still unwritten),
+>    split out of the old resources.json in v0.1064.
 > 4. **Inline-first hints everywhere.** Put the instruction ON the widget/machine/
 >    button, controlled by the hint-display modes from (2). Get close, not absolute.
 > 5. **Web near-pixel parity with the app.** He shared a side-by-side and wants the
