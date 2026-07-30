@@ -158,14 +158,43 @@ pub struct PatchArena {
 
 impl PatchArena {
     /// Element capacities honoring the device's real buffer-size limit.
-    /// Wanted: ~1.28 GB of vertices + ~192 MB of indices -- the same
-    /// ballpark as the patch cache's byte cap, since the arena holds
-    /// exactly what the cache holds. A small-limit adapter gets a smaller
-    /// arena and overflows to the classic path sooner (logged, graceful).
+    ///
+    /// SPLIT REBALANCED v0.1062. The old split was 1280 MB of vertices to
+    /// 192 MB of indices, chosen to sit in the same ballpark as the patch
+    /// cache's byte cap - but it never checked the ratio a patch actually
+    /// CONSUMES. A PATCH_TESS = 16 triangular patch is 153 grid vertices and
+    /// 768 grid indices, so demand runs about 5 indices per vertex, while the
+    /// old arena provisioned about 1.2. Indices therefore exhausted while a
+    /// fifth of the vertex arena sat stranded and unusable:
+    ///
+    ///   [PatchArena] index arena full (9,222,583 of 41,943,040 vertex elems
+    ///   free, 937,440 of 50,331,648 index elems free)
+    ///
+    /// measured live - 22% of the vertex arena free, 1.9% of the index arena.
+    /// Every patch past that point falls to the CLASSIC per-draw path, and
+    /// [PatchBatch] shows the cost: 4,442 of 12,294 patches per frame paying a
+    /// full set_bind_group + 2 buffer binds + draw_indexed each, on one thread.
+    ///
+    /// MEASURED from the live overflow logs rather than derived from the grid,
+    /// because vertex sharing means a patch does NOT cost the naive 153:768.
+    /// Two independent exhaustion snapshots give 1.51 and 1.26 indices per
+    /// vertex, i.e. about 713 vertices and 1076 indices per patch. (A first
+    /// attempt at this fix reasoned from the raw grid, assumed 5:1, and simply
+    /// moved the exhaustion to the VERTEX pool - worth recording so nobody
+    /// re-derives it from the tessellation again.)
+    ///
+    /// So the shift needed was modest, not drastic: 1200 MB of vertices +
+    /// 272 MB of indices, the same 1472 MB total. That holds ~55k patches by
+    /// vertices and ~66k by indices, and the patch CACHE tops out at ~42k
+    /// (1536 MiB / 38 KB) - so LRU eviction now becomes the limiter, which is
+    /// graceful, instead of arena overflow, which dumps every excess patch onto
+    /// the classic per-draw path. That path was costing 4,442 of 12,294 patches
+    /// per frame, each paying a bind-group set plus two buffer binds plus a
+    /// draw, single-threaded.
     fn capacities(device: &wgpu::Device) -> (u32, u32) {
         let max_buf = device.limits().max_buffer_size;
-        let vert_bytes = (1280u64 * 1024 * 1024).min(max_buf);
-        let idx_bytes = (192u64 * 1024 * 1024).min(max_buf);
+        let vert_bytes = (1200u64 * 1024 * 1024).min(max_buf);
+        let idx_bytes = (272u64 * 1024 * 1024).min(max_buf);
         let vcap = (vert_bytes / std::mem::size_of::<Vertex>() as u64) as u32;
         let icap = (idx_bytes / 4) as u32;
         (vcap, icap)

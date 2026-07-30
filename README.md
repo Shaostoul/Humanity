@@ -260,7 +260,7 @@ The Humanity Accord is a voluntary set of principles every server may adopt. Ser
 
 Society, business, government, our whole civilization: this is what we have to be to live our best lives. One for every letter, so it is easy to remember and hard to weasel out of.
 
-**A**ltruistic · **B**enevolent · **C**ompassionate · **D**iligent · **E**mpathetic · **F**rugal · **G**enerous · **H**onest · **I**ntelligent · **J**ust · **K**ind · **L**oving · **M**indful · **N**oble · **O**bservant · **P**erseverant · **Q**uixotic · **R**ighteous · **S**incere · **T**ruthful · **U**nited · **V**irtuous · **W**holesome · **X**enial · **Y**ielding · **Z**ealous
+**A**ltruistic · **B**enevolent · **C**ompassionate · **D**iligent · **E**mpathetic · **F**rugal · **G**enerous · **H**umble · **I**ntelligent · **J**ust · **K**ind · **L**oving · **M**indful · **N**oble · **O**bservant · **P**ersevering · **Q**uixotic · **R**ighteous · **S**incere · **T**ruthful · **U**nited · **V**aliant · **W**holesome · **X**enial · **Y**ielding · **Z**ealous
 
 *Xenial* means welcoming to strangers. *Yielding* means giving way when you are wrong. *Quixotic* means chasing something most people call impossible, on purpose. Ending poverty is exactly that, so it stays.
 

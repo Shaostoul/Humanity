@@ -19,6 +19,42 @@
   <meta name="twitter:description" content="Open-source tools and step-by-step guides to grow your own food, generate your own power, and collect your own water.">
   <meta name="twitter:image" content="https://united-humanity.us/shared/social/og-banner.png">
 
+  <link rel="canonical" href="https://united-humanity.us/">
+
+  <!-- Structured data: lets search engines show this as free software with a
+       price of 0 rather than guessing. Kept in sync with the <title>/description. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://united-humanity.us/#org",
+        "name": "HumanityOS",
+        "url": "https://united-humanity.us",
+        "logo": "https://united-humanity.us/shared/icons/icon-192.png",
+        "description": "Open-source tools and guides for growing your own food, generating your own power, and collecting your own water.",
+        "sameAs": [
+          "https://github.com/Shaostoul/Humanity",
+          "https://x.com/Shaostoul",
+          "https://youtube.com/@Shaostoul"
+        ]
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "HumanityOS",
+        "url": "https://united-humanity.us",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Windows, macOS, Linux, Web",
+        "license": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "isAccessibleForFree": true,
+        "publisher": { "@id": "https://united-humanity.us/#org" },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    ]
+  }
+  </script>
+
   <link rel="manifest" href="/shared/manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -344,7 +380,7 @@
       <h2 class="u-green">It starts as a game.</h2>
       <p>You live on a big ship in space. You grow plants, fix things, and learn by playing.</p>
     </div>
-    <img class="shot" src="/shared/landing/crop-cosmos.png" alt="The in-game solar system map, with your home marked near the Sun" loading="lazy">
+    <img class="shot" src="/shared/landing/crop-cosmos.png" alt="The in-game solar system map, with your home marked near the Sun" loading="lazy" width="720" height="480">
     <div class="chev" aria-hidden="true">&#9660;</div>
   </section>
 
@@ -355,19 +391,19 @@
     </div>
     <div class="cards">
       <div class="card c-green">
-        <img src="/shared/landing/crop-garden.png" alt="Seeds and supplies in the app inventory" loading="lazy">
+        <img src="/shared/landing/crop-garden.png" alt="Seeds and supplies in the app inventory" loading="lazy" width="884" height="185">
         <div class="cap">Grow your food</div>
       </div>
       <div class="card c-purple">
-        <img src="/shared/landing/crop-tasks.png" alt="A task board with to do, in progress, and done columns" loading="lazy">
+        <img src="/shared/landing/crop-tasks.png" alt="A task board with to do, in progress, and done columns" loading="lazy" width="740" height="347">
         <div class="cap">Plan your day</div>
       </div>
       <div class="card c-blue">
-        <img src="/shared/landing/crop-market.png" alt="The marketplace with listings from real people" loading="lazy">
+        <img src="/shared/landing/crop-market.png" alt="The marketplace with listings from real people" loading="lazy" width="740" height="347">
         <div class="cap">Trade with people near you</div>
       </div>
       <div class="card c-red">
-        <img src="/shared/landing/crop-chat.png" alt="The community chat" loading="lazy">
+        <img src="/shared/landing/crop-chat.png" alt="The community chat" loading="lazy" width="880" height="360">
         <div class="cap">Talk freely</div>
       </div>
     </div>
@@ -403,9 +439,11 @@
   <!-- ══ Screen 6: proof bar ══ -->
   <section class="screen" id="s6">
     <div class="proof">
-      <div class="tile"><div class="n">860+</div><div class="l">versions shipped</div></div>
+      <!-- proof-versions is stamped by scripts/bump-version.js on every release,
+           proof-years is computed below, so neither can go stale by hand. -->
+      <div class="tile"><div class="n" id="proof-versions">1,062</div><div class="l">updates shipped</div></div>
       <div class="tile"><div class="n">100%</div><div class="l">open source</div></div>
-      <div class="tile"><div class="n">7 years</div><div class="l">of work</div></div>
+      <div class="tile"><div class="n" id="proof-years">7 years</div><div class="l">of work</div></div>
       <div class="tile"><div class="n">Donations</div><div class="l">not ads</div></div>
     </div>
   </section>
@@ -426,6 +464,14 @@
   document.querySelectorAll('.pg-ico[data-icon]').forEach(function(el) {
     if (window.hosIcon) el.innerHTML = hosIcon(el.dataset.icon, parseInt(el.dataset.size) || 20);
   });
+
+  // Years of work, counted from the first commit in 2019 so it never goes stale.
+  (function () {
+    var el = document.getElementById('proof-years');
+    if (!el) return;
+    var years = new Date().getFullYear() - 2019;
+    el.textContent = years + (years === 1 ? ' year' : ' years');
+  })();
   </script>
 </body>
 </html>
