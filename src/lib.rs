@@ -11168,8 +11168,46 @@ mod native_app {
                                     // that floor, in SIGMA space so the ramp is
                                     // perceptually even rather than crowding at
                                     // the dense end.
+                                    // ── FOG IS A GROUND LAYER (v0.1063) ──
+                                    // Operator: "bad weather causes the whole
+                                    // Earth to go foggy" - and from 469 km the
+                                    // entire planet really did render as a
+                                    // uniform white ball.
+                                    //
+                                    // The bug: the clear-air sigma above is
+                                    // multiplied by exp(-alt / scale_height),
+                                    // so aerial haze correctly thins out with
+                                    // altitude - but the weather fog REPLACED
+                                    // that sigma with a fixed density carrying
+                                    // no falloff at all. It stayed at full
+                                    // ground strength into orbit, and the sky
+                                    // shell (v0.1060) reads the same uniform,
+                                    // so the planet's whole dome went with it.
+                                    //
+                                    // Real fog and dust live in the boundary
+                                    // layer: radiation fog is 100-300 m deep,
+                                    // and even a big dust storm tops out
+                                    // around 1-2 km. So the weather term gets
+                                    // its OWN scale height, far shorter than
+                                    // the atmosphere's ~8 km, and above it the
+                                    // air simply returns to clear.
+                                    const FOG_LAYER_H_M: f32 = 700.0;
+                                    // Altitude recomputed here: the block that
+                                    // owns `alt` above is scoped to the
+                                    // atmosphere-bearing branch.
+                                    let fog_alt_m = state
+                                        .frame_lock_body
+                                        .as_deref()
+                                        .and_then(|b| state.planet_defs.get(b))
+                                        .map(|d| {
+                                            (state.frame_lock_anchor.length() - d.radius) as f32
+                                        })
+                                        .unwrap_or(0.0);
+                                    let fog_alt_fade =
+                                        (-(fog_alt_m.max(0.0)) / FOG_LAYER_H_M).exp();
                                     let t = (w.intensity
-                                        * state.gui_state.settings.fog_density)
+                                        * state.gui_state.settings.fog_density
+                                        * fog_alt_fade)
                                         .clamp(0.0, 1.0);
                                     let sigma_fog = (50.0_f32).ln() / vis_min_m;
                                     let sigma_w = sigma * (1.0 - t) + sigma_fog * t;
