@@ -314,7 +314,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             ui.add_space(2.0);
             if ui
                 .add(
-                    egui::Slider::new(&mut state.settings.precip_density, 0.1..=10.0)
+                    egui::Slider::new(&mut state.settings.precip_density, 0.1..=100.0)
                         .text("Precipitation density")
                         .logarithmic(true)
                         .fixed_decimals(2),
@@ -325,7 +325,7 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             }
             ui.label(
                 RichText::new(
-                    "Rain, snow and hail. Scales spawn rate AND the particle cap -                      the cap is what used to pin heavy rain to light rain, since past                      it a higher rate bought nothing. Goes to 10x on purpose so you                      can find where it breaks.",
+                    "Rain, snow and hail. Scales spawn rate AND the particle cap -                      the cap is what used to pin heavy rain to light rain, since past                      it a higher rate bought nothing. Goes to 100x on purpose: the                      measured cost is ~17-20 ns per particle per frame on ONE core,                      so 100x rain (160k drops) is about 3 ms of CPU. Past roughly                      50k total particles you are trading frames for density, which                      is a fair trade if you want to see the ceiling.",
                 )
                 .size(theme.font_size_small)
                 .color(theme.text_muted()),

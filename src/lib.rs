@@ -3411,7 +3411,7 @@ mod native_app {
                                         .gui_state
                                         .settings
                                         .precip_density
-                                        .clamp(0.1, 10.0);
+                                        .clamp(0.1, 100.0);
                                     (
                                         r,
                                         s,
@@ -3429,7 +3429,7 @@ mod native_app {
                             .gui_state
                             .settings
                             .precip_density
-                            .clamp(0.1, 10.0);
+                            .clamp(0.1, 100.0);
                         let precip_pos = state.camera.position + state.camera.up * 13.0;
                         // Union in the active extreme event's emitters
                         // (v0.1035): a thunderstorm keeps its rain, a

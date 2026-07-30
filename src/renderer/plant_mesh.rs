@@ -156,7 +156,7 @@ const ORGAN_BIT_FRUIT: f32 = 1_048_576.0; // bit 20: fruit skin
 
 /// Which organ the builder is currently emitting faces for.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Organ {
+pub(crate) enum Organ {
     /// Stems, branches, roots. No extra bit; plain matte shading.
     Stem,
     Leaf,
@@ -189,7 +189,7 @@ impl PlantMeshBuilder {
     /// Push one flat-shaded triangle. The face normal is computed from the
     /// winding; the packed color rides identically on all three corners
     /// (material type 12 contract - see module docs).
-    fn tri(&mut self, a: [f32; 3], b: [f32; 3], c: [f32; 3], color: [f32; 3]) {
+    pub(crate) fn tri(&mut self, a: [f32; 3], b: [f32; 3], c: [f32; 3], color: [f32; 3]) {
         let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
         let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
         let mut n = [
@@ -210,13 +210,13 @@ impl PlantMeshBuilder {
 
     /// Double-sided triangle (leaves/petals must be visible from both sides
     /// because the opaque pipeline back-culls).
-    fn tri2(&mut self, a: [f32; 3], b: [f32; 3], c: [f32; 3], color: [f32; 3]) {
+    pub(crate) fn tri2(&mut self, a: [f32; 3], b: [f32; 3], c: [f32; 3], color: [f32; 3]) {
         self.tri(a, b, c, color);
         self.tri(a, c, b, color);
     }
 
     /// Tapered tube from `from` to `to` with `sides` around (a stem segment).
-    fn tube(&mut self, from: [f32; 3], to: [f32; 3], r0: f32, r1: f32, sides: u32, color: [f32; 3]) {
+    pub(crate) fn tube(&mut self, from: [f32; 3], to: [f32; 3], r0: f32, r1: f32, sides: u32, color: [f32; 3]) {
         let axis = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
         let alen = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(1e-6);
         let ax = [axis[0] / alen, axis[1] / alen, axis[2] / alen];
@@ -248,7 +248,7 @@ impl PlantMeshBuilder {
     /// (operator close-up feedback, 2026-07-16). 16 double-sided triangles.
     /// `dir` is the midrib direction (unit-ish), `length`/`width` in metres,
     /// `fold` 0..1 controls how sharply the blade folds along the midrib.
-    fn leaf(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, fold: f32, color: [f32; 3]) {
+    pub(crate) fn leaf(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, fold: f32, color: [f32; 3]) {
         self.organ = Organ::Leaf;
         let d = norm(dir);
         let side = norm(cross(d, [0.0, 1.0, 0.0]));

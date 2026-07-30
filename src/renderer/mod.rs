@@ -34,6 +34,7 @@ pub mod mesh;
 pub mod multi_scale;
 pub mod patch_arena;
 pub mod plant_mesh;
+pub mod tree_mesh;
 pub mod particles;
 pub mod pipeline;
 pub mod shader_loader;
