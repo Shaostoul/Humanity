@@ -292,7 +292,10 @@
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/wallet'))    active = 'wallet';
-    else if (p.startsWith('/tools'))     active = 'platform';
+    else if (p.startsWith('/platform'))  active = 'platform';
+    // Tools is its own top-level tab as of v0.1063 (the external catalog:
+    // software + real-world help services), no longer a Platform section.
+    else if (p.startsWith('/tools'))     active = 'tools';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
@@ -302,9 +305,10 @@
     else if (p.startsWith('/donate'))    active = 'donate';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
-    // Library = the Accord documents + the external-resources list (mirrors the
-    // native Library page's two faces), so BOTH pages light up the Library tab.
-    else if (p.startsWith('/resources')) active = 'library';
+    // Library = everything you READ. /library is the full document tree plus the
+    // dictionary; /accord is the Accord on its own public permalink. Both light
+    // up the Library tab.
+    else if (p.startsWith('/library'))   active = 'library';
     else if (p.startsWith('/accord'))    active = 'library';
     else if (p.startsWith('/bugs'))     active = 'bugs';
     else active = '';
@@ -869,13 +873,14 @@
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-blue">' +
-        navTab('/tools',     'grid',     'Platform', 'platform') +
+        navTab('/platform',  'grid',     'Platform', 'platform') +
+        navTab('/tools',     'tool',     'Tools',    'tools') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
       '<span class="nav-group-red">' +
-        navTab('/resources', 'journal',  'Library',  'library') +
+        navTab('/library',   'journal',  'Library',  'library') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
@@ -981,11 +986,11 @@
       mobileLink('/inventory', 'Inventory') +
       mobileLink('/crafting',  'Crafting') +
       mobileLink('/maps',      'Map') +
-      mobileLink('/tools',     'Platform') +
-      mobileLink('/resources', 'Library') +
-      // The Accord viewer was BUILT but had no nav entry at all (orphaned page).
-      // Native's Library shows the Accord documents, so both live under Library
-      // here: /resources is the curated links list, /accord is the Accord itself.
+      mobileLink('/platform',  'Platform') +
+      // Tools = the external catalog (software + real-world help services).
+      // Library = everything we wrote. Split by what you DO with them (v0.1063).
+      mobileLink('/tools',     'Tools') +
+      mobileLink('/library',   'Library') +
       mobileLink('/accord',    'Humanity Accord') +
       mobileLink('/settings',  'Settings') +
     '</div>' +
@@ -1595,7 +1600,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.1063.1';
+    var CURRENT_VERSION = '0.1064.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min

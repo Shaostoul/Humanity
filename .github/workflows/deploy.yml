@@ -137,8 +137,18 @@ jobs:
               fi
             done
             mkdir -p /var/www/humanity/data
-            rsync -a --include='*.json' --exclude='*' \
+            # JSON anywhere under data/. The --include='*/' is what lets rsync
+            # descend: without it --exclude='*' matches directory names too, so
+            # the tree is pruned and nested files (data/external/catalog.json,
+            # data/tools/catalog.json) never sync. Fixed 2026-07-30.
+            rsync -a --prune-empty-dirs \
+              --include='*/' --include='*.json' --exclude='*' \
               /opt/Humanity/data/ /var/www/humanity/data/
+            # The Library ships its markdown too, so web/pages/library.html can
+            # render the SAME documents the native Library reads from disk. One
+            # source for both clients, no relay round-trip.
+            rsync -a --delete \
+              /opt/Humanity/data/library/ /var/www/humanity/data/library/
 
             # Graceful restart
             systemctl restart humanity-relay

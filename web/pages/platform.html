@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+  <meta charset=UTF-8>
+  <meta name=viewport content=width=device-width,initial-scale=1.0>
+  <title>Platform, HumanityOS</title>
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    /* Web mirror of the native Platform tab (src/gui/pages/platform.rs). Native
+       folds these into one tab with a section sidebar; web keeps them as
+       standalone pages, so this hub is the grouping. Same sections, same order,
+       same words. The Tools catalog is deliberately NOT here: it is external
+       software and services, not the app's own machinery, so it has its own
+       top-level page on both sides. */
+    body { background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
+    #page-app { flex:1; overflow-y:auto; padding:var(--space-xl) var(--space-2xl); max-width:1100px; width:100%; margin:0 auto; }
+
+    .plat-header h1 { font-size:var(--text-2xl); font-weight:700; margin-bottom:var(--space-xs); }
+    .plat-header p { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-xl); }
+    .plat-header a { color:var(--accent); }
+
+    .plat-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:var(--space-md); }
+    .plat-card { display:block; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:var(--space-lg); text-decoration:none; color:inherit; transition:border-color 0.15s; }
+    .plat-card:hover, .plat-card:focus-visible { border-color:var(--accent); }
+    .plat-name { font-size:var(--text-base); font-weight:700; color:var(--text); margin-bottom:var(--space-xs); }
+    .plat-desc { color:var(--text-muted); font-size:var(--text-sm); line-height:1.5; }
+    .plat-card.native-only { opacity:0.65; cursor:default; }
+    .plat-card.native-only:hover { border-color:var(--border); }
+    .plat-tag { display:inline-block; margin-top:var(--space-sm); padding:2px 8px; border-radius:var(--badge-radius); font-size:var(--text-xs); font-weight:600; background:var(--accent-dim); color:var(--accent); }
+
+    @media (max-width:600px) { .plat-grid { grid-template-columns:1fr; } }
+    @media (prefers-reduced-motion: reduce) { .plat-card { transition:none; } }
+  </style>
+</head>
+<body>
+<script src="/shared/events.js?v=1"></script>
+<script src="/shared/shell.js" data-active="platform"></script>
+<script src="/shared/defaults.js"></script>
+<script src="/shared/settings.js"></script>
+
+<p class="page-hint">The app's own machinery: your keys, your files, your notes, and the tools for reporting when something breaks.</p>
+
+<div id="page-app">
+  <div class="plat-header">
+    <h1>Platform</h1>
+    <p>Everything here is part of HumanityOS itself. Looking for free software to install, or real-world help services? Those are external, and they live on the <a href="/tools">Tools</a> page.</p>
+  </div>
+
+  <div class="plat-grid">
+    <a class="plat-card" href="/recovery">
+      <div class="plat-name">Recovery</div>
+      <div class="plat-desc">Restore your identity from your 24-word phrase, or from friends who each hold an encrypted piece of it.</div>
+    </a>
+    <a class="plat-card" href="/calculator">
+      <div class="plat-name">Calculator</div>
+      <div class="plat-desc">A full scientific calculator with history.</div>
+    </a>
+    <a class="plat-card" href="/notes">
+      <div class="plat-name">Notes</div>
+      <div class="plat-desc">Private encrypted notes with a sidebar, editor, and autosave.</div>
+    </a>
+    <a class="plat-card" href="/calendar">
+      <div class="plat-name">Calendar</div>
+      <div class="plat-desc">Month view with events, colors, and times.</div>
+    </a>
+    <a class="plat-card" href="/files">
+      <div class="plat-name">Files</div>
+      <div class="plat-desc">Browse and edit the data files that drive the app.</div>
+    </a>
+    <a class="plat-card" href="/bugs">
+      <div class="plat-name">Bugs</div>
+      <div class="plat-desc">Report something broken, with severity and category.</div>
+    </a>
+    <div class="plat-card native-only">
+      <div class="plat-name">Testing</div>
+      <div class="plat-desc">Run the in-app test suites and see what passed.</div>
+      <span class="plat-tag">Desktop app only</span>
+    </div>
+    <a class="plat-card" href="/dev">
+      <div class="plat-name">Dev</div>
+      <div class="plat-desc">Developer tools and diagnostics.</div>
+    </a>
+    <a class="plat-card" href="/web">
+      <div class="plat-name">Browser</div>
+      <div class="plat-desc">Open the web from inside HumanityOS.</div>
+    </a>
+  </div>
+</div>
+</body>
+</html>

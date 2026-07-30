@@ -1,0 +1,1060 @@
+{
+  "_comment": "The single catalog of EXTERNAL things: free software you install (kind \"software\") and real-world help services/websites (kind \"service\"). Rendered identically by the native Tools page (src/gui/pages/tools.rs) and the web Tools page (web/pages/tools.html). Add entries here, never in code (Infinite-of-X). Replaced data/tools/catalog.json, data/resources/catalog.json and data/resources.json on 2026-07-30.",
+  "version": 1,
+  "kinds": [
+    {
+      "id": "software",
+      "label": "Software",
+      "description": "Free programs you download and run yourself."
+    },
+    {
+      "id": "service",
+      "label": "Help and services",
+      "description": "Websites and organizations for real-world needs."
+    }
+  ],
+  "categories": [
+    {
+      "id": "3d-modeling",
+      "name": "3D Modeling and Animation",
+      "kind": "software",
+      "extensions": [
+        ".blend",
+        ".fbx",
+        ".obj",
+        ".glb",
+        ".gltf",
+        ".3ds",
+        ".dae",
+        ".stl"
+      ],
+      "entries": [
+        {
+          "name": "Blender",
+          "url": "https://blender.org",
+          "description": "Industry-standard 3D creation suite. Modeling, animation, rendering, simulation, video editing.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~350MB"
+        },
+        {
+          "name": "FreeCAD",
+          "url": "https://freecad.org",
+          "description": "Parametric 3D CAD modeler for engineering, product design, and architecture.",
+          "license": "LGPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~500MB"
+        },
+        {
+          "name": "Wings 3D",
+          "url": "http://www.wings3d.com",
+          "description": "Lightweight subdivision modeler. Great for organic shapes and low-poly work.",
+          "license": "BSD",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~30MB"
+        },
+        {
+          "name": "MeshLab",
+          "url": "https://meshlab.net",
+          "description": "3D mesh processing. Clean, repair, inspect, convert, and measure meshes.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~50MB"
+        }
+      ]
+    },
+    {
+      "id": "image-editing",
+      "name": "Image Editing and Digital Art",
+      "kind": "software",
+      "extensions": [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".tiff",
+        ".psd",
+        ".xcf",
+        ".kra",
+        ".webp",
+        ".ico"
+      ],
+      "entries": [
+        {
+          "name": "GIMP",
+          "url": "https://gimp.org",
+          "description": "Full-featured image editor. Photo retouching, compositing, graphic design.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~300MB"
+        },
+        {
+          "name": "Krita",
+          "url": "https://krita.org",
+          "description": "Professional digital painting. Brush engines, layer management, animation tools.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~200MB"
+        },
+        {
+          "name": "Paint.NET",
+          "url": "https://getpaint.net",
+          "description": "Fast, intuitive image editor for Windows. Layers, effects, plugins.",
+          "license": "MIT",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~10MB"
+        },
+        {
+          "name": "Photopea",
+          "url": "https://photopea.com",
+          "description": "Browser-based Photoshop alternative. Opens PSD, XCF, Sketch, XD files.",
+          "license": "Freemium",
+          "platforms": [
+            "web"
+          ],
+          "size": "Web app"
+        }
+      ]
+    },
+    {
+      "id": "vector-graphics",
+      "name": "Vector Graphics and SVG",
+      "kind": "software",
+      "extensions": [
+        ".svg",
+        ".ai",
+        ".eps"
+      ],
+      "entries": [
+        {
+          "name": "Inkscape",
+          "url": "https://inkscape.org",
+          "description": "Professional vector graphics editor. SVG native. Logos, diagrams, illustrations.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~120MB"
+        },
+        {
+          "name": "Vectr",
+          "url": "https://vectr.com",
+          "description": "Simple vector editor with real-time collaboration and cross-platform sync.",
+          "license": "Free",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux",
+            "web"
+          ],
+          "size": "~60MB"
+        },
+        {
+          "name": "Boxy SVG",
+          "url": "https://boxy-svg.com",
+          "description": "Modern SVG editor focused on simplicity and web standards.",
+          "license": "Free tier",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux",
+            "web"
+          ],
+          "size": "~20MB"
+        }
+      ]
+    },
+    {
+      "id": "documents",
+      "name": "Documents and Spreadsheets",
+      "kind": "software",
+      "extensions": [
+        ".doc",
+        ".docx",
+        ".odt",
+        ".xls",
+        ".xlsx",
+        ".ods",
+        ".ppt",
+        ".pptx",
+        ".odp",
+        ".rtf",
+        ".csv"
+      ],
+      "entries": [
+        {
+          "name": "LibreOffice",
+          "url": "https://libreoffice.org",
+          "description": "Complete office suite. Writer, Calc, Impress, Draw, Base, Math.",
+          "license": "MPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~350MB"
+        },
+        {
+          "name": "OnlyOffice",
+          "url": "https://onlyoffice.com",
+          "description": "MS Office-compatible suite with real-time collaboration.",
+          "license": "AGPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux",
+            "web"
+          ],
+          "size": "~300MB"
+        },
+        {
+          "name": "CryptPad",
+          "url": "https://cryptpad.org",
+          "description": "Encrypted collaborative editing. Documents, spreadsheets, presentations.",
+          "license": "AGPL",
+          "platforms": [
+            "web"
+          ],
+          "size": "Web app"
+        },
+        {
+          "name": "Etherpad",
+          "url": "https://etherpad.org",
+          "description": "Real-time collaborative text editor. Self-hostable. Plugin ecosystem.",
+          "license": "Apache-2.0",
+          "platforms": [
+            "web"
+          ],
+          "size": "Web app"
+        }
+      ]
+    },
+    {
+      "id": "video-editing",
+      "name": "Video Editing",
+      "kind": "software",
+      "extensions": [
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".webm",
+        ".flv",
+        ".wmv",
+        ".m4v"
+      ],
+      "entries": [
+        {
+          "name": "Kdenlive",
+          "url": "https://kdenlive.org",
+          "description": "Non-linear video editor. Multi-track, transitions, effects, titling.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~200MB"
+        },
+        {
+          "name": "Shotcut",
+          "url": "https://shotcut.org",
+          "description": "Cross-platform video editor supporting hundreds of formats via FFmpeg.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~100MB"
+        },
+        {
+          "name": "DaVinci Resolve",
+          "url": "https://blackmagicdesign.com/products/davinciresolve",
+          "description": "Professional editing, color grading, VFX, and audio post-production.",
+          "license": "Free tier",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~2GB"
+        },
+        {
+          "name": "OpenShot",
+          "url": "https://openshot.org",
+          "description": "Easy-to-use video editor with drag-and-drop, animation, and effects.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~100MB"
+        }
+      ]
+    },
+    {
+      "id": "audio-editing",
+      "name": "Audio Editing and Music Production",
+      "kind": "software",
+      "extensions": [
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".flac",
+        ".aac",
+        ".m4a",
+        ".mid",
+        ".midi",
+        ".opus"
+      ],
+      "entries": [
+        {
+          "name": "Audacity",
+          "url": "https://audacityteam.org",
+          "description": "Multi-track audio editor. Recording, mixing, effects, noise reduction.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~40MB"
+        },
+        {
+          "name": "LMMS",
+          "url": "https://lmms.io",
+          "description": "Digital audio workstation. Synthesizers, beat sequencer, FX chains.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~60MB"
+        },
+        {
+          "name": "Ardour",
+          "url": "https://ardour.org",
+          "description": "Professional DAW for recording, editing, and mixing. VST plugin support.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~50MB"
+        },
+        {
+          "name": "MuseScore",
+          "url": "https://musescore.org",
+          "description": "Music notation software. Compose, play back, and print sheet music.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~100MB"
+        }
+      ]
+    },
+    {
+      "id": "code-editors",
+      "name": "Code and Text Editors",
+      "kind": "software",
+      "extensions": [
+        ".rs",
+        ".js",
+        ".py",
+        ".ts",
+        ".c",
+        ".cpp",
+        ".java",
+        ".go",
+        ".toml",
+        ".yaml",
+        ".json",
+        ".xml",
+        ".html",
+        ".css",
+        ".sh"
+      ],
+      "entries": [
+        {
+          "name": "VS Code",
+          "url": "https://code.visualstudio.com",
+          "description": "Lightweight but powerful code editor with massive extensions ecosystem.",
+          "license": "MIT",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~100MB"
+        },
+        {
+          "name": "Zed",
+          "url": "https://zed.dev",
+          "description": "High-performance editor built in Rust. Multiplayer editing, AI integration.",
+          "license": "GPL/AGPL",
+          "platforms": [
+            "mac",
+            "linux"
+          ],
+          "size": "~80MB"
+        },
+        {
+          "name": "Lapce",
+          "url": "https://lapce.dev",
+          "description": "Lightning-fast code editor written in Rust with WASI plugin system.",
+          "license": "Apache-2.0",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~30MB"
+        },
+        {
+          "name": "Notepad++",
+          "url": "https://notepad-plus-plus.org",
+          "description": "Fast text editor with syntax highlighting for 80+ languages.",
+          "license": "GPL",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~5MB"
+        }
+      ]
+    },
+    {
+      "id": "pdf",
+      "name": "PDF Viewers and Editors",
+      "kind": "software",
+      "extensions": [
+        ".pdf",
+        ".epub",
+        ".mobi",
+        ".djvu"
+      ],
+      "entries": [
+        {
+          "name": "SumatraPDF",
+          "url": "https://sumatrapdfreader.org",
+          "description": "Blazing fast, minimalist PDF/EPUB/MOBI/CHM reader.",
+          "license": "GPL",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~6MB"
+        },
+        {
+          "name": "Okular",
+          "url": "https://okular.kde.org",
+          "description": "Universal document viewer. PDF, EPUB, CHM, XPS, and more.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~50MB"
+        },
+        {
+          "name": "Stirling PDF",
+          "url": "https://stirlingpdf.io",
+          "description": "Self-hosted PDF toolkit. Merge, split, convert, compress, OCR.",
+          "license": "MIT",
+          "platforms": [
+            "web"
+          ],
+          "size": "Web/Docker"
+        }
+      ]
+    },
+    {
+      "id": "pixel-art",
+      "name": "Pixel Art and Sprites",
+      "kind": "software",
+      "extensions": [
+        ".ase",
+        ".aseprite",
+        ".piskel"
+      ],
+      "entries": [
+        {
+          "name": "Aseprite",
+          "url": "https://aseprite.org",
+          "description": "Professional pixel art and animation. Compile from source for free.",
+          "license": "GPL (source)",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~15MB"
+        },
+        {
+          "name": "LibreSprite",
+          "url": "https://libresprite.github.io",
+          "description": "Free fork of Aseprite. Full pixel art editor with animation support.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~10MB"
+        },
+        {
+          "name": "Piskel",
+          "url": "https://piskelapp.com",
+          "description": "Browser-based pixel art editor with animation timeline and export.",
+          "license": "Apache-2.0",
+          "platforms": [
+            "web"
+          ],
+          "size": "Web app"
+        }
+      ]
+    },
+    {
+      "id": "streaming",
+      "name": "Streaming and Screen Recording",
+      "kind": "software",
+      "extensions": [],
+      "entries": [
+        {
+          "name": "OBS Studio",
+          "url": "https://obsproject.com",
+          "description": "Industry-standard streaming and recording. Scenes, sources, filters, plugins.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~150MB"
+        },
+        {
+          "name": "HandBrake",
+          "url": "https://handbrake.fr",
+          "description": "Video transcoder. Convert between formats, compress, batch process.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~20MB"
+        },
+        {
+          "name": "ShareX",
+          "url": "https://getsharex.com",
+          "description": "Screenshot and screen recording with annotation, OCR, and upload.",
+          "license": "GPL",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~10MB"
+        }
+      ]
+    },
+    {
+      "id": "utilities",
+      "name": "Utilities",
+      "kind": "software",
+      "extensions": [
+        ".zip",
+        ".7z",
+        ".tar",
+        ".gz",
+        ".rar",
+        ".bz2",
+        ".xz"
+      ],
+      "entries": [
+        {
+          "name": "7-Zip",
+          "url": "https://7-zip.org",
+          "description": "High compression ratio archiver. 7z, ZIP, GZIP, TAR, and more.",
+          "license": "LGPL",
+          "platforms": [
+            "windows",
+            "linux"
+          ],
+          "size": "~2MB"
+        },
+        {
+          "name": "KeePassXC",
+          "url": "https://keepassxc.org",
+          "description": "Cross-platform password manager. Local vault, browser integration, TOTP.",
+          "license": "GPL",
+          "platforms": [
+            "windows",
+            "mac",
+            "linux"
+          ],
+          "size": "~30MB"
+        },
+        {
+          "name": "Everything",
+          "url": "https://voidtools.com",
+          "description": "Instant file search. Indexes entire drive in seconds.",
+          "license": "MIT",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~2MB"
+        },
+        {
+          "name": "WinSCP",
+          "url": "https://winscp.net",
+          "description": "SFTP, SCP, FTP client with GUI. Sync directories, edit remote files.",
+          "license": "GPL",
+          "platforms": [
+            "windows"
+          ],
+          "size": "~15MB"
+        }
+      ]
+    },
+    {
+      "id": "water",
+      "name": "Water",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Appropedia",
+          "url": "https://www.appropedia.org",
+          "description": "Open wiki of appropriate tech: rainwater harvesting and filtration."
+        },
+        {
+          "name": "CDC Healthy Water",
+          "url": "https://www.cdc.gov/healthywater",
+          "description": "Safe water, storage, and emergency disinfection from the CDC."
+        },
+        {
+          "name": "EPA Drinking Water",
+          "url": "https://www.epa.gov/ground-water-and-drinking-water",
+          "description": "Water safety, testing, and private-well guidance from the EPA."
+        }
+      ]
+    },
+    {
+      "id": "energy",
+      "name": "Energy",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "DOE Energy Saver",
+          "url": "https://www.energy.gov/energysaver",
+          "description": "US Dept of Energy guide to saving energy and going solar at home."
+        },
+        {
+          "name": "EnergySage",
+          "url": "https://www.energysage.com",
+          "description": "Independent guides to solar panels, batteries, and home energy."
+        },
+        {
+          "name": "Open Source Ecology",
+          "url": "https://www.opensourceecology.org",
+          "description": "Open blueprints for the machines a self-sufficient community needs."
+        }
+      ]
+    },
+    {
+      "id": "food",
+      "name": "Food",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Feeding America",
+          "url": "https://www.feedingamerica.org",
+          "description": "Find local food banks and meal programs near you."
+        },
+        {
+          "name": "National Gardening Assoc.",
+          "url": "https://garden.org",
+          "description": "Free guides to growing your own food at home."
+        },
+        {
+          "name": "No Kid Hungry",
+          "url": "https://www.nokidhungry.org",
+          "description": "Free meals for children, school breakfast programs, and summer meal sites."
+        },
+        {
+          "name": "SNAP Benefits",
+          "url": "https://www.fns.usda.gov/snap",
+          "description": "Apply for food assistance (SNAP/EBT)."
+        },
+        {
+          "name": "USDA Plant Hardiness",
+          "url": "https://planthardiness.ars.usda.gov",
+          "description": "Find your growing zone before you plant."
+        },
+        {
+          "name": "World Food Programme",
+          "url": "https://www.wfp.org",
+          "description": "Global hunger relief, emergency food assistance, and development programs."
+        }
+      ]
+    },
+    {
+      "id": "housing",
+      "name": "Housing",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "211",
+          "url": "https://www.211.org",
+          "description": "Dial 2-1-1 for local housing, utility, and crisis help."
+        },
+        {
+          "name": "Habitat for Humanity",
+          "url": "https://www.habitat.org",
+          "description": "Affordable housing and home-repair assistance."
+        },
+        {
+          "name": "HUD Resources",
+          "url": "https://www.hud.gov",
+          "description": "US Dept of Housing: rental assistance and fair housing."
+        },
+        {
+          "name": "National Low Income Housing Coalition",
+          "url": "https://nlihc.org",
+          "description": "Affordable housing advocacy and rental assistance locator."
+        },
+        {
+          "name": "Ready.gov",
+          "url": "https://www.ready.gov",
+          "description": "Prepare your home for emergencies and disasters."
+        }
+      ]
+    },
+    {
+      "id": "health",
+      "name": "Health",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "988 Lifeline",
+          "url": "https://988lifeline.org",
+          "description": "Call or text 988 for free, confidential crisis support."
+        },
+        {
+          "name": "American Red Cross",
+          "url": "https://www.redcross.org",
+          "description": "First aid, CPR, and disaster preparedness."
+        },
+        {
+          "name": "CDC",
+          "url": "https://www.cdc.gov",
+          "description": "Disease prevention, health information, and public health guidance."
+        },
+        {
+          "name": "GoodRx",
+          "url": "https://www.goodrx.com",
+          "description": "Compare prescription drug prices and find coupons at local pharmacies."
+        },
+        {
+          "name": "MedlinePlus",
+          "url": "https://medlineplus.gov",
+          "description": "Health information from the National Library of Medicine."
+        },
+        {
+          "name": "Planned Parenthood",
+          "url": "https://www.plannedparenthood.org",
+          "description": "Reproductive health care, sex education, and health information."
+        },
+        {
+          "name": "WHO Resources",
+          "url": "https://www.who.int",
+          "description": "World Health Organization health topics and data."
+        }
+      ]
+    },
+    {
+      "id": "mental",
+      "name": "Mental Health",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "BetterHelp",
+          "url": "https://www.betterhelp.com",
+          "description": "Online therapy and counseling with licensed professionals."
+        },
+        {
+          "name": "Crisis Text Line",
+          "url": "https://www.crisistextline.org",
+          "description": "Text HOME to 741741 for free crisis counseling via text message."
+        },
+        {
+          "name": "NAMI",
+          "url": "https://www.nami.org",
+          "description": "Mental health education, support groups, and advocacy resources."
+        },
+        {
+          "name": "Open Path Collective",
+          "url": "https://openpathcollective.org",
+          "description": "Affordable therapy sessions ($30-$80) with licensed therapists."
+        }
+      ]
+    },
+    {
+      "id": "emergency",
+      "name": "Emergency",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Disaster Distress Helpline",
+          "url": "https://www.samhsa.gov/find-help/disaster-distress-helpline",
+          "description": "Call 1-800-985-5990 for crisis counseling after disasters."
+        },
+        {
+          "name": "FEMA",
+          "url": "https://www.fema.gov",
+          "description": "Disaster assistance, emergency preparedness, and recovery programs."
+        }
+      ]
+    },
+    {
+      "id": "money",
+      "name": "Money and Benefits",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Benefits.gov",
+          "url": "https://www.benefits.gov",
+          "description": "Find government assistance programs you may qualify for."
+        },
+        {
+          "name": "Consumer Finance (CFPB)",
+          "url": "https://www.consumerfinance.gov",
+          "description": "Free, unbiased help with money, debt, and avoiding scams."
+        },
+        {
+          "name": "IRS Free File",
+          "url": "https://www.irs.gov/filing/free-file-do-your-federal-taxes-for-free",
+          "description": "Free federal tax filing for qualifying individuals."
+        },
+        {
+          "name": "MyMoney.gov",
+          "url": "https://www.mymoney.gov",
+          "description": "Federal hub for budgeting, saving, and financial basics."
+        }
+      ]
+    },
+    {
+      "id": "employment",
+      "name": "Employment",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "CareerOneStop",
+          "url": "https://www.careeronestop.org",
+          "description": "Free career exploration, training finder, and job search tools from the DOL."
+        },
+        {
+          "name": "Indeed",
+          "url": "https://www.indeed.com",
+          "description": "Job search engine aggregating listings from thousands of sources."
+        },
+        {
+          "name": "LinkedIn",
+          "url": "https://www.linkedin.com",
+          "description": "Professional networking, job search, and career development."
+        },
+        {
+          "name": "USAJobs",
+          "url": "https://www.usajobs.gov",
+          "description": "Official job site for the U.S. federal government."
+        }
+      ]
+    },
+    {
+      "id": "skills",
+      "name": "Skills and Repair",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "iFixit",
+          "url": "https://www.ifixit.com",
+          "description": "Free repair guides for almost everything, so you fix not replace."
+        },
+        {
+          "name": "Instructables",
+          "url": "https://www.instructables.com",
+          "description": "Step-by-step DIY projects shared by makers worldwide."
+        }
+      ]
+    },
+    {
+      "id": "education",
+      "name": "Education",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Coursera",
+          "url": "https://coursera.org",
+          "description": "Online courses from top universities worldwide."
+        },
+        {
+          "name": "Coursera",
+          "url": "https://www.coursera.org",
+          "description": "University-level courses from top institutions, many available for free."
+        },
+        {
+          "name": "edX",
+          "url": "https://www.edx.org",
+          "description": "Free online courses from Harvard, MIT, and other leading universities."
+        },
+        {
+          "name": "Internet Archive",
+          "url": "https://archive.org",
+          "description": "Free books, audio, video, and the web's library."
+        },
+        {
+          "name": "Khan Academy",
+          "url": "https://khanacademy.org",
+          "description": "Free courses in math, science, computing, and more."
+        },
+        {
+          "name": "Khan Academy",
+          "url": "https://www.khanacademy.org",
+          "description": "Free courses in math, science, computing, history, and more for all ages."
+        },
+        {
+          "name": "Library Genesis",
+          "url": "https://libgen.is",
+          "description": "Search engine for free access to academic papers, books, and articles."
+        },
+        {
+          "name": "MIT OpenCourseWare",
+          "url": "https://ocw.mit.edu",
+          "description": "Free lecture notes, exams, and videos from MIT."
+        },
+        {
+          "name": "OpenStax",
+          "url": "https://openstax.org",
+          "description": "Free, peer-reviewed college textbooks."
+        },
+        {
+          "name": "Project Gutenberg",
+          "url": "https://www.gutenberg.org",
+          "description": "Over 70,000 free public-domain books."
+        }
+      ]
+    },
+    {
+      "id": "legal",
+      "name": "Legal",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "ACLU",
+          "url": "https://www.aclu.org",
+          "description": "Civil liberties defense, know your rights resources."
+        },
+        {
+          "name": "Know Your Rights",
+          "url": "https://www.aclu.org/know-your-rights",
+          "description": "ACLU guide to your constitutional rights."
+        },
+        {
+          "name": "Legal Aid",
+          "url": "https://www.lawhelp.org",
+          "description": "Find free legal help in your area."
+        },
+        {
+          "name": "Legal Aid Society",
+          "url": "https://www.legalaidnyc.org",
+          "description": "Free legal services for low-income individuals and families."
+        },
+        {
+          "name": "Nolo",
+          "url": "https://www.nolo.com",
+          "description": "Plain-English legal information and DIY legal forms."
+        }
+      ]
+    },
+    {
+      "id": "technology",
+      "name": "Technology",
+      "kind": "service",
+      "entries": [
+        {
+          "name": "Digital Literacy Resources",
+          "url": "https://www.digitallearn.org",
+          "description": "Free courses on using technology, the internet, and digital tools."
+        },
+        {
+          "name": "Electronic Frontier Fdn.",
+          "url": "https://www.eff.org",
+          "description": "Defends your digital privacy and free expression."
+        },
+        {
+          "name": "EveryoneOn",
+          "url": "https://www.everyoneon.org",
+          "description": "Low-cost internet and affordable computers for qualifying households."
+        },
+        {
+          "name": "freeCodeCamp",
+          "url": "https://freecodecamp.org",
+          "description": "Learn to code for free with interactive lessons."
+        },
+        {
+          "name": "freeCodeCamp",
+          "url": "https://www.freecodecamp.org",
+          "description": "Free coding bootcamp with certifications in web dev, data science, and more."
+        },
+        {
+          "name": "MDN Web Docs",
+          "url": "https://developer.mozilla.org",
+          "description": "The reference for building on the open web."
+        },
+        {
+          "name": "Open Source Guides",
+          "url": "https://opensource.guide",
+          "description": "How to contribute to and maintain open source projects."
+        },
+        {
+          "name": "The Odin Project",
+          "url": "https://www.theodinproject.com",
+          "description": "Free full-stack web development curriculum with projects."
+        }
+      ]
+    }
+  ]
+}

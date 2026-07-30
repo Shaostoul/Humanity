@@ -48,9 +48,9 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Trade | `trade.rs` | P2P trading with escrow. | everyone | both |
 | Files | `files.rs` | Browse + edit text files in `data/`. | dev | both |
 | BugReport | `bugs.rs` | Submit bug reports with severity + category. From `data/bugs/taxonomy.json`. | everyone | both |
-| Library | `library.rs` | Two faces: DOCUMENTS (Humanity Accord + companions from `data/library/`, nested tree) and a directory of free external tools/websites, in one top-level tab (added v0.373-375; absorbed what used to be the standalone Resources page). | everyone | both |
+| Library | `library.rs` | Everything you READ: DOCUMENTS (Humanity Accord + companions from `data/library/`, nested tree) and the DICTIONARY. The external tools/websites third face moved to the Tools page 2026-07-30, so Library and Tools now split by verb rather than by ownership. Web mirror: `library.html`, same manifest. | everyone | both (data-parity enforced) |
 | Donate | `donate.rs` | Hero + funding goal + donation method cards + FAQ. | everyone | both |
-| Tools | `tools.rs` | Open-source tools catalog with search + filters. From `data/tools/catalog.json`. | everyone | both |
+| Tools | `tools.rs` | Everything you GO USE: the single external catalog from `data/external/catalog.json`, with kind + category filters and search. Two kinds: `software` (40 free programs) and `service` (63 real-world help websites for water, food, housing, health, legal aid...). Promoted from a Platform section to its own top-level tab 2026-07-30. Web mirror: `tools.html`, same file. | everyone | both (data-parity enforced) |
 | Studio | `studio.rs` | OBS-like broadcasting studio (scenes, sources, properties) with a Program/Preview split (v0.664): scene clicks stage into Preview, "Cut to Program" pushes live. Real broadcast transport shipped v0.853-0.855 (GPU capture, JPEG segments to the relay). | everyone | native-only, no web page |
 | Watch | `watch.rs` | Stream viewer (v0.857): browse live broadcasts on the connected relay and watch one (JPEG-segment playback via `net/live_viewer.rs`). Sits beside Studio in the nav; the web mirror is `watch.html`. | everyone | both |
 | RelayControl | `relay_control.rs` | Relay Control Center (v0.846, "Relays" nav tab): manage relays you own - health, actions, config; the in-app VPS Console (v0.858) runs server commands over SSH so admin needs no separate terminal. | admin | native-only |
@@ -75,7 +75,7 @@ from many top-level buttons to a handful of tabs.
 | Name | File | Folds in |
 |------|------|----------|
 | Real | `real.rs` | Renamed "Profile" in the UI (v0.378; the enum variant name `Real` is the internal legacy name). Profile's sections (Body/Identity/Notes/Network/Interests/Skills/Social/Streaming) plus Inventory, Wallet, Tasks, Maps, Market. |
-| Platform | `platform.rs` | The software-itself tab: Recovery, Tools, Calculator, Files, Bugs, Testing, Dev, Browser. (Settings was pulled back OUT to its own top-level tab per an explicit operator call: "never buried in another menu.") |
+| Platform | `platform.rs` | The software-itself tab: Recovery, Calculator, Notes, Calendar, Files, Bugs, Testing, Dev, Browser. Everything here is the app's OWN machinery. Two things were deliberately pulled out: Settings, per an explicit operator call ("never buried in another menu"), and Tools (2026-07-30), because a catalog of EXTERNAL software and services is not part of the app. Web mirror: `platform.html`. |
 | Humanity | `humanity.rs` | The collective/mission tab: the Mission Dashboard (the real landing content) plus Governance, Identity (as "Directory"), Onboarding, Donate, Library (as "Resources"). |
 
 ### Category-landing pages + Settings sub-page variants — REMOVED v0.699.0
@@ -132,7 +132,7 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 38 standalone; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 39 standalone; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
@@ -153,9 +153,14 @@ Web is a superset of native, adds marketing/landing/dev pages that don't need a 
 | Watch | `watch.html` | Web stream viewer (v0.857 streaming arc): watch live broadcasts from the relay in the browser; mirrors the native Watch page. | everyone | both |
 | Web | `web.html` | (purpose unclear, TODO audit, carried over unresolved from the last audit) | unknown | yes |
 
-Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `resources.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (functional agent dashboard, secured v0.698.0, linked from README), `settings.html`.
+| Library | `library.html` | **Web mirror of the native Library** (built 2026-07-30). Document tree + reader + Dictionary, reading the SAME `data/library/index.json` manifest and the SAME markdown files native reads from disk. Before this, web exposed only the 17 Accord docs via the relay while the app shipped 53: the single worst parity gap in the registry. Enforced now by `tests/page_parity_lint.rs`. | everyone | both |
+| Platform | `platform.html` | **Web mirror of the native Platform tab** (built 2026-07-30). A hub linking the same 9 sections native folds into its sidebar (Recovery, Calculator, Notes, Calendar, Files, Bugs, Testing, Dev, Browser). Before this, the web nav pill labeled "Platform" pointed at `/tools`, i.e. one tenth of what native's Platform is. Testing is marked desktop-only (no web page exists). | everyone | both |
 
-**Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Platform/Humanity, web keeps the flatter per-page nav instead). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
+Plus mirrors of native pages: `chat.html`, `inventory.html`, `tasks.html`, `maps.html`, `market.html`, `profile.html`, `civilization.html`, `calculator.html`, `notes.html`, `calendar.html`, `crafting.html`, `wallet.html`, `guilds.html`, `trade.html`, `files.html`, `bugs.html`, `donate.html`, `tools.html`, `identity.html`, `governance.html`, `laws.html` (jurisdiction-chain + filter logic shared via `web/shared/laws-logic.js`), `recovery.html`, `agents.html` (functional agent dashboard, secured v0.698.0, linked from README), `settings.html`.
+
+**Retired 2026-07-30:** `resources.html` + `resources-app.js`. It rendered `data/resources.json`, a curation that shared only 17 URLs with the `data/resources/catalog.json` the native Library rendered. Both files and `data/tools/catalog.json` merged into a single `data/external/catalog.json` (24 categories, 103 entries, 18 duplicate URLs collapsed) now rendered by the Tools page on both sides. The in-game "sim" half of `resources.json` was not external at all and was preserved to `data/onboarding/sim_guides.json`, which still needs a render surface.
+
+**Not mirrored on web at all:** the Construction/Build Editor and Cosmos (both 3D-viewport/gizmo-heavy; web has no wgpu renderer, so a literal mirror isn't the right shape) and the merged super-tabs (Real/Humanity; Platform gained a web hub 2026-07-30, see above). (The 5 category-Overview landing pages and the 12 Settings sub-page variants that used to be listed here were removed from native in v0.699.0; web's `settings.html` remains a single page covering the same Settings ground.)
 
 ## Web hubs (entry points outside `web/pages/`)
 

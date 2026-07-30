@@ -29,21 +29,30 @@ mod ui_snapshots;
 #[cfg(feature = "native")]
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// A tool entry loaded from data/tools/catalog.json.
+/// An external entry loaded from `data/external/catalog.json`: either free
+/// software you install (`kind == "software"`) or a real-world help service
+/// (`kind == "service"`). One catalog, one renderer, both clients (v0.1063).
 #[cfg(feature = "native")]
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct ToolEntry {
     pub name: String,
     pub description: String,
     pub url: String,
+    /// Software only; services leave this empty.
+    #[serde(default)]
     pub license: String,
+    /// Software only; services leave this empty.
+    #[serde(default)]
     pub platforms: Vec<String>,
-    /// Optional download size hint (e.g. "~350MB").
+    /// Optional download size hint (e.g. "~350MB"). Software only.
     #[serde(default)]
     pub size: String,
     /// Category name, populated during loading from the parent category.
     #[serde(skip)]
     pub category: String,
+    /// Kind id from the parent category: "software" or "service".
+    #[serde(skip)]
+    pub kind: String,
 }
 
 /// A single donation address entry (for the dynamic addresses array).
@@ -3965,7 +3974,8 @@ pub struct GuiState {
     /// Ring buffer of timestamped debug log lines for the overlay.
     pub debug_log: Vec<String>,
 
-    // ── Tools catalog (loaded from data/tools/catalog.json) ──
+    // ── External catalog (loaded from data/external/catalog.json): free
+    //    software plus real-world help services, rendered by the Tools page ──
     pub tools_catalog: Vec<ToolEntry>,
 
     // ── Page taxonomies (Infinite-of-X migrations, v0.123.0) ──
@@ -3979,8 +3989,8 @@ pub struct GuiState {
     pub crafting_category_groups: Vec<CraftCategoryGroup>,
     /// Marketplace category filters (`data/market/categories.json`).
     pub market_categories: Vec<String>,
-    /// In-app Library: sections of nested categories holding docs + external
-    /// links (`data/library/` + the shared `data/resources/catalog.json`).
+    /// In-app Library: sections of nested categories holding documents
+    /// (`data/library/`). Documents only since v0.1063.
     pub library: Vec<LibrarySection>,
     /// Studio scene presets (`data/studio/scenes.json`).
     pub studio_scene_presets: Vec<StudioScenePreset>,
@@ -5119,12 +5129,16 @@ impl Default for GuiState {
     }
 }
 
-/// Load the tools catalog from data/tools/catalog.json.
+/// Load the external catalog from `data/external/catalog.json`: free software
+/// (`kind == "software"`) and real-world help services (`kind == "service"`), in
+/// one flat list tagged with its category and kind. The web Tools page reads the
+/// same file, which is what keeps the two clients in step.
 /// `data_dir` is the root data directory (e.g. from AssetManager).
 /// Returns an empty Vec on any error (graceful degradation).
 #[cfg(feature = "native")]
 pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
-    /// JSON shape for the catalog file (categories with nested tools).
+    /// JSON shape for `data/external/catalog.json`: categories, each tagged
+    /// with a kind, each holding entries.
     #[derive(serde::Deserialize)]
     struct Catalog {
         categories: Vec<CatalogCategory>,
@@ -5132,7 +5146,11 @@ pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
     #[derive(serde::Deserialize)]
     struct CatalogCategory {
         name: String,
-        tools: Vec<ToolEntry>,
+        /// "software" or "service"; see the `kinds` array in the file.
+        #[serde(default)]
+        kind: String,
+        #[serde(default)]
+        entries: Vec<ToolEntry>,
         #[allow(dead_code)]
         #[serde(default)]
         id: String,
@@ -5141,26 +5159,27 @@ pub fn load_tools_catalog(data_dir: &std::path::Path) -> Vec<ToolEntry> {
         extensions: Vec<String>,
     }
 
-    let path = data_dir.join("tools").join("catalog.json");
+    let path = data_dir.join("external").join("catalog.json");
     let bytes = match std::fs::read_to_string(&path) {
         Ok(b) => b,
         Err(e) => {
-            eprintln!("[tools] Failed to read {}: {}", path.display(), e);
+            eprintln!("[external] Failed to read {}: {}", path.display(), e);
             return Vec::new();
         }
     };
     let catalog: Catalog = match serde_json::from_str(&bytes) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[tools] Failed to parse catalog.json: {}", e);
+            eprintln!("[external] Failed to parse external/catalog.json: {}", e);
             return Vec::new();
         }
     };
     let mut out = Vec::new();
     for cat in catalog.categories {
-        for mut tool in cat.tools {
-            tool.category = cat.name.clone();
-            out.push(tool);
+        for mut entry in cat.entries {
+            entry.category = cat.name.clone();
+            entry.kind = cat.kind.clone();
+            out.push(entry);
         }
     }
     out
@@ -5291,8 +5310,9 @@ pub fn load_planets(data_dir: &std::path::Path) -> Vec<GuiPlanet> {
 // the loaders into GuiState at startup.
 
 // v0.415.0: ResourceEntry / ResourceCategory / load_resource_categories removed
-// with the Resources page (retired into the Library, which loads the shared
-// data/resources/catalog.json itself).
+// with the Resources page (retired into the Library). v0.1063: those external
+// links left the Library too and now live in data/external/catalog.json,
+// rendered by the Tools page.
 
 /// A streaming-studio scene preset.
 #[cfg(feature = "native")]
@@ -6059,17 +6079,13 @@ mod tower_compat_tests {
     }
 }
 
-/// What a Library entry points to: an embedded document (markdown body) or an
-/// external website / tool (url + short description).
-pub enum LibraryEntryKind {
-    Doc(String),
-    Link { url: String, desc: String },
-}
-
-/// One entry in the Library: a document to read or a website to open.
+/// One entry in the Library: a document to read. (The `Link` kind that used to
+/// share this type went to the Tools page with the rest of the external
+/// catalog in v0.1063, so every Library entry is now a document.)
 pub struct LibraryEntry {
     pub title: String,
-    pub kind: LibraryEntryKind,
+    /// Raw markdown body, read from `data/library/<file>` at startup.
+    pub body: String,
 }
 
 /// A named category of entries within a section.
@@ -6085,11 +6101,10 @@ pub struct LibrarySection {
     pub categories: Vec<LibraryCategory>,
 }
 
-/// Load the in-app Library into sections. "HumanityOS" is the Accord + companion
-/// docs (`data/library/index.json` plus the markdown files it lists); "Tools and
-/// Websites" is the curated external links shared with the Resources page
-/// (`data/resources/catalog.json`), so the link data has a single source. Empty
-/// vec on error, so the page falls back to a "nothing loaded" note.
+/// Load the in-app Library into sections: the Accord + companion docs from
+/// `data/library/index.json` plus the markdown files it lists. Documents only
+/// (the external links moved to the Tools page in v0.1063). Empty vec on error,
+/// so the page falls back to a "nothing loaded" note.
 #[cfg(feature = "native")]
 pub fn load_library(data_dir: &std::path::Path) -> Vec<LibrarySection> {
     let mut sections = Vec::new();
@@ -6123,10 +6138,9 @@ pub fn load_library(data_dir: &std::path::Path) -> Vec<LibrarySection> {
                         .docs
                         .into_iter()
                         .filter_map(|d| {
-                            std::fs::read_to_string(dir.join(&d.file)).ok().map(|body| LibraryEntry {
-                                title: d.title,
-                                kind: LibraryEntryKind::Doc(body),
-                            })
+                            std::fs::read_to_string(dir.join(&d.file))
+                                .ok()
+                                .map(|body| LibraryEntry { title: d.title, body })
                         })
                         .collect(),
                 })
@@ -6138,48 +6152,11 @@ pub fn load_library(data_dir: &std::path::Path) -> Vec<LibrarySection> {
         }
     }
 
-    // Tools and Websites: external links, shared with the Resources page catalog.
-    {
-        #[derive(serde::Deserialize)]
-        struct Res {
-            title: String,
-            #[serde(default)]
-            description: String,
-            url: String,
-        }
-        #[derive(serde::Deserialize)]
-        struct ResCat {
-            name: String,
-            #[serde(default)]
-            real_resources: Vec<Res>,
-        }
-        #[derive(serde::Deserialize)]
-        struct ResFile {
-            #[serde(default)]
-            categories: Vec<ResCat>,
-        }
-        if let Some(rf) = read_data_json::<ResFile>(data_dir, "resources/catalog.json") {
-            let cats: Vec<LibraryCategory> = rf
-                .categories
-                .into_iter()
-                .map(|c| LibraryCategory {
-                    name: c.name,
-                    entries: c
-                        .real_resources
-                        .into_iter()
-                        .map(|r| LibraryEntry {
-                            title: r.title,
-                            kind: LibraryEntryKind::Link { url: r.url, desc: r.description },
-                        })
-                        .collect(),
-                })
-                .filter(|c| !c.entries.is_empty())
-                .collect();
-            if !cats.is_empty() {
-                sections.push(LibrarySection { name: "Tools and Websites".to_string(), categories: cats });
-            }
-        }
-    }
+    // NOTE (v0.1063): the external links that used to load here from
+    // data/resources/catalog.json moved to data/external/catalog.json and are
+    // rendered by the Tools page. Library is documents-only now, so the two
+    // pages split by what you DO with them: Library is what you read, Tools is
+    // what you go use. See docs/PAGES.md.
 
     sections
 }

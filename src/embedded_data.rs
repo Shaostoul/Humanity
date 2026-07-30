@@ -33,7 +33,7 @@ pub const GLOSSARY_JSON: &str = include_str!("../data/glossary.json");
 pub const SOLAR_SYSTEM_JSON: &str = include_str!("../data/star_systems/sol.json");
 pub const STAR_SYSTEMS_INDEX_JSON: &str = include_str!("../data/star_systems/index.json");
 pub const SOLAR_SYSTEM_LEGACY_JSON: &str = include_str!("../data/solar-system.json");
-pub const TOOLS_CATALOG_JSON: &str = include_str!("../data/tools/catalog.json");
+pub const EXTERNAL_CATALOG_JSON: &str = include_str!("../data/external/catalog.json");
 pub const CITIES_JSON: &str = include_str!("../data/cities.json");
 pub const COASTLINES_JSON: &str = include_str!("../data/coastlines.json");
 pub const CONSTELLATIONS_JSON: &str = include_str!("../data/constellations.json");
@@ -185,7 +185,7 @@ pub fn get_embedded(path: &str) -> Option<&'static str> {
         "star_systems/index.json" => Some(STAR_SYSTEMS_INDEX_JSON),
         "solar-system.json" => Some(SOLAR_SYSTEM_LEGACY_JSON),
         "planets/tooltips.json" => Some(PLANET_TOOLTIPS_JSON),
-        "tools/catalog.json" => Some(TOOLS_CATALOG_JSON),
+        "external/catalog.json" => Some(EXTERNAL_CATALOG_JSON),
         "cities.json" => Some(CITIES_JSON),
         "coastlines.json" => Some(COASTLINES_JSON),
         "constellations.json" => Some(CONSTELLATIONS_JSON),
@@ -327,7 +327,7 @@ pub const EMBEDDED_KEYS: &[&str] = &[
     "star_systems/sol.json",
     "star_systems/index.json",
     "solar-system.json",
-    "tools/catalog.json",
+    "external/catalog.json",
     "cities.json",
     "coastlines.json",
     "constellations.json",

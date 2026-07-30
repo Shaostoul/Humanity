@@ -1,16 +1,21 @@
 //! Platform — the software-itself tab (page carve, v0.360; trimmed v0.361).
 //!
-//! Folds Recovery + Tools + Bugs + Testing + Browser into one tab via a
-//! `section_nav` sidebar, delegating content to each page's `draw`. Settings was
-//! pulled OUT to its own top-level tab (operator 2026-06-04: "have settings as
-//! its own top level page ... never buried in another menu"), so this no longer
-//! needs `&mut Theme`.
+//! Folds Recovery + Calculator + Notes + Calendar + Files + Bugs + Testing +
+//! Dev + Browser into one tab via a `section_nav` sidebar, delegating content to
+//! each page's `draw`. Everything here is the app's OWN machinery.
+//!
+//! Two things were deliberately pulled out. Settings went to its own top-level
+//! tab (operator 2026-06-04: "have settings as its own top level page ... never
+//! buried in another menu"), which is why this no longer needs `&mut Theme`.
+//! Tools went to its own top-level tab in v0.1063, because it is a catalog of
+//! EXTERNAL software and services, not part of the app's machinery. The web
+//! mirror is `web/pages/platform.html`.
 
 use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{recovery, tools, bugs, testing, browser, calculator, files, dev, notes, calendar};
+use super::{recovery, bugs, testing, browser, calculator, files, dev, notes, calendar};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("platform_section_nav")
@@ -27,7 +32,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
             let c = theme.nav_tools();
             let items = [
                 SectionNavItem::new("recovery", "Recovery", c),
-                SectionNavItem::new("tools", "Tools", c),
                 SectionNavItem::new("calculator", "Calculator", c),
                 SectionNavItem::new("notes", "Notes", c),
                 SectionNavItem::new("calendar", "Calendar", c),
@@ -50,7 +54,6 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
 
     let section = state.active_platform_section.clone();
     match section.as_str() {
-        "tools" => tools::draw(ctx, theme, state),
         "calculator" => calculator::draw(ctx, theme, state),
         "notes" => notes::draw(ctx, theme, state),
         "calendar" => calendar::draw(ctx, theme, state),

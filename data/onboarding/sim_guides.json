@@ -1,0 +1,185 @@
+{
+  "_comment": "In-game guide index, split out of data/resources.json on 2026-07-30 because it is game help, not external resources. Entries without a url are guides not yet written. Needs a render surface (Quests/onboarding); see docs/PRIORITIES.md.",
+  "version": 1,
+  "title": "Game Guides",
+  "subtitle": "In-game wiki, tutorials, and reference guides for HumanityOS simulation.",
+  "categories": [
+    {
+      "name": "Getting Started",
+      "icon": "home",
+      "guides": [
+        {
+          "name": "Tutorial Walkthrough",
+          "url": "/onboarding",
+          "description": "Step-by-step guide through the opening tutorial quests."
+        },
+        {
+          "name": "Controls Reference",
+          "url": null,
+          "description": "Keyboard, mouse, and gamepad bindings for all actions."
+        },
+        {
+          "name": "UI Guide",
+          "url": null,
+          "description": "Understanding the HUD, inventory, and menu systems."
+        },
+        {
+          "name": "First Steps Checklist",
+          "url": null,
+          "description": "What to do in your first 30 minutes: gather, build, survive."
+        }
+      ]
+    },
+    {
+      "name": "Survival",
+      "icon": "heart",
+      "guides": [
+        {
+          "name": "Farming Guide",
+          "url": null,
+          "description": "Planting, watering, harvesting, and crop rotation for 23 crops."
+        },
+        {
+          "name": "Crafting Recipes",
+          "url": "/crafting",
+          "description": "Every recipe: inputs, outputs, station, skill, and craft time."
+        },
+        {
+          "name": "Weather & Seasons",
+          "url": null,
+          "description": "7 weather conditions, seasonal effects on farming and travel."
+        },
+        {
+          "name": "Resource Gathering",
+          "url": null,
+          "description": "Mining asteroids, harvesting planets, and material processing."
+        }
+      ]
+    },
+    {
+      "name": "Building",
+      "icon": "inventory",
+      "guides": [
+        {
+          "name": "Construction System",
+          "url": null,
+          "description": "Blueprints, snap grid placement, and structural integrity."
+        },
+        {
+          "name": "Ship Building",
+          "url": null,
+          "description": "Ship layouts, room types, deck plans, and fleet management."
+        },
+        {
+          "name": "Base Planning",
+          "url": null,
+          "description": "Optimal base layouts for defense, farming, and production."
+        },
+        {
+          "name": "Power & Systems",
+          "url": null,
+          "description": "Reactor types, power grids, and life support configuration."
+        }
+      ]
+    },
+    {
+      "name": "Exploration",
+      "icon": "map",
+      "guides": [
+        {
+          "name": "Planet Guide",
+          "url": null,
+          "description": "Earth, Mars, Moon, and procedural worlds: biomes, resources, hazards."
+        },
+        {
+          "name": "Asteroid Mining",
+          "url": null,
+          "description": "C/S/M-type asteroids, ore veins, and mining techniques."
+        },
+        {
+          "name": "Navigation",
+          "url": "/maps",
+          "description": "Star maps, waypoints, and orbital mechanics basics."
+        },
+        {
+          "name": "Vehicle Guide",
+          "url": null,
+          "description": "Mechs, rovers, and ship piloting controls and upgrades."
+        }
+      ]
+    },
+    {
+      "name": "Combat & Skills",
+      "icon": "shield",
+      "guides": [
+        {
+          "name": "Combat Guide",
+          "url": null,
+          "description": "Weapons, armor, tactics, and enemy behavior patterns."
+        },
+        {
+          "name": "Skills Overview",
+          "url": null,
+          "description": "20 skills, XP curves, level-up rewards, and training tips."
+        },
+        {
+          "name": "AI Behaviors",
+          "url": null,
+          "description": "Understanding NPC types: passive, aggressive, herd, predator, guard."
+        },
+        {
+          "name": "Quest Guide",
+          "url": "/onboarding",
+          "description": "Main quest chains, side quests, objectives, and rewards."
+        }
+      ]
+    },
+    {
+      "name": "Economy & Trading",
+      "icon": "market",
+      "guides": [
+        {
+          "name": "Trading Guide",
+          "url": "/trade",
+          "description": "P2P trading, escrow system, and marketplace listings."
+        },
+        {
+          "name": "Economy Overview",
+          "url": "/market",
+          "description": "Supply, demand, pricing, and resource flow between players."
+        },
+        {
+          "name": "Inventory Management",
+          "url": "/inventory",
+          "description": "Item stacking, storage optimization, and transfer systems."
+        }
+      ]
+    },
+    {
+      "name": "Modding",
+      "icon": "dev",
+      "guides": [
+        {
+          "name": "Mod Getting Started",
+          "url": null,
+          "description": "How to create and install mods using the data directory."
+        },
+        {
+          "name": "Data File Reference",
+          "url": null,
+          "description": "CSV, TOML, RON, and JSON format specifications for game data."
+        },
+        {
+          "name": "Asset Creation",
+          "url": null,
+          "description": "Creating models (GLTF/GLB), textures, and audio for mods."
+        },
+        {
+          "name": "Mod Manifest",
+          "url": null,
+          "description": "Manifest format, load order, and data override system."
+        }
+      ]
+    }
+  ]
+}
