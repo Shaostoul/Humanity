@@ -363,6 +363,14 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     return vec4<f32>(mapped, alpha);
 }
 
+// Terrain terminator window, in cos(angle between the local outward radial and
+// the sun). Fully lit by +0.004 (~0.2 deg above the local horizon); fully dark
+// by -0.012 (~0.7 deg below), which still leaves room for the genuine alpenglow
+// a raised fragment sees past geometric sunset. Tightening LO toward 0 would
+// clip mountain-top light; loosening it brings the streak back.
+const TERRAIN_TERMINATOR_LO: f32 = -0.012;
+const TERRAIN_TERMINATOR_HI: f32 = 0.004;
+
 @fragment
 fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4<f32> {
     // Route the per-instance data to the obj_* accessors (flat varying;
@@ -404,6 +412,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     var metallic = material.params.x;
     var roughness = material.params.y;
     let material_type = material.params.z;
+    // Sun visibility for THIS fragment, 1 unless a branch knows better. Only
+    // the planet-surface branch sets it (v0.1052 terminator gate); everything
+    // else - ship interiors, props, the other bodies - is unaffected.
+    var sun_gate = 1.0;
     var proc_emissive = vec3<f32>(0.0); // extra emissive from procedural materials (e.g. lava cracks)
     var out_alpha = material.base_color.a; // types below may modulate (atmosphere fresnel)
     // Emissive strength normally rides in params.w -- but material type 12
@@ -619,6 +631,15 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // intact. Keep the decode in sync with terrain::planet_surface::
         // unpack_uv_to_color (unit-tested).
         //
+        // Local-horizon gate for this fragment (v0.1052): base_color.xyz is
+        // the planet centre in render space for this type, so the outward
+        // radial is exact regardless of what the normal map did to `normal`.
+        {
+            let rad_w = in.world_position - material.base_color.xyz;
+            let rl = max(length(rad_w), 1.0);
+            let mu_geo = dot(rad_w / rl, normalize(camera.sun_direction.xyz));
+            sun_gate = smoothstep(TERRAIN_TERMINATOR_LO, TERRAIN_TERMINATOR_HI, mu_geo);
+        }
         // params.w REPURPOSED for this type as a BIT FIELD (v0.816; a
         // single texture flag since v0.811): bit 0 = a baked per-pixel
         // albedo texture is bound at group 3 (replacing the per-face color
@@ -982,11 +1003,33 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // Evaluate main directional light (from camera uniforms), attenuated
     // by the sun shadow map (v0.899). Only the SUN term is shadowed; fill
     // and ambient stay, so shadows read as shade, not holes.
+    // ── TERRAIN TERMINATOR GATE (v0.1052) ──
+    // Operator: "some weird lighting at night in the desert... we've had this
+    // lighting bug before." They are right that it recurred, and this is why.
+    //
+    // The celestial pass (which draws planet terrain) stamps a HARDCODED white
+    // sun at intensity 2.5 over the camera uniform - unchanged since v0.451 -
+    // so the atmosphere-corrected night sun colour that lib.rs computes never
+    // reaches the ground. On top of that, the terrain sun term is
+    // dot(MESH normal, sun_dir) with no local-horizon test, and the sand normal
+    // map tilts that normal by tens of degrees. So after sunset the flat desert
+    // correctly falls to ambient, while the band toward the sunset azimuth -
+    // where grazing geometry and normal-map facets present the most surfaces
+    // tilted at a sun that is BELOW THE HORIZON - still catches ~25x more light
+    // than anything else in frame. That is the bright streak.
+    //
+    // Every other surface in that pass already has this gate: water and foam
+    // test dot(RADIAL normal, sun), and the cloud march tests each sample's own
+    // sphere normal. Terrain never got one. The window keeps a small negative
+    // tail so genuine alpenglow and mountain-top light survive - a fragment
+    // above the local sphere really does see the sun a little past geometric
+    // sunset - while ruling out light from a sun a degree or more under.
     let sun_ndl = dot(normal, normalize(camera.sun_direction.xyz));
     var lo = evaluate_light(
         camera.sun_direction.xyz, camera.sun_color.rgb, camera.sun_direction.w,
         normal, view_dir, albedo, metallic, roughness, f0)
-        * sun_shadow(in.world_position, sun_ndl);
+        * sun_shadow(in.world_position, sun_ndl)
+        * sun_gate;
 
     // Evaluate fill light (from camera uniforms)
     lo = lo + evaluate_light(

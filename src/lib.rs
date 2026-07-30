@@ -8346,6 +8346,7 @@ mod native_app {
                             .map(|e| crate::cosmos::body_world_position_3d_au(e, sim_t))
                             .unwrap_or(glam::DVec3::ZERO);
                         let mut sun_rel_earth_m = glam::DVec3::ZERO;
+                        let mut moon_rel_earth_m = glam::DVec3::ZERO;
 
                         // Screen-size-driven icosphere LOD (v0.763): each
                         // body's subdivision level follows its projected
@@ -8386,6 +8387,11 @@ mod native_app {
                             let rel_earth_m =
                                 (helio_au - earth_helio_au) * crate::cosmos::M_PER_AU;
                             if is_sun { sun_rel_earth_m = rel_earth_m; }
+                            // v0.1052: the Moon is the night KEY LIGHT. With the
+                            // terrain terminator gate landing in the same
+                            // release, a moonless night is genuinely black - so
+                            // the fill light aims at the real Moon after sunset.
+                            if b.id == "moon" { moon_rel_earth_m = rel_earth_m; }
                             // The Sun's light direction is needed even in the
                             // showroom; the sky bodies themselves are hidden
                             // there (a dark Earth limb would fill the view).
@@ -11086,10 +11092,88 @@ mod native_app {
                         }
                         // The fill is otherwise set once at init; re-assert it each frame so the GI
                         // toggle is authoritative (restores the default when GI is back on).
+                        //
+                        // MOONLIGHT (v0.1052). The terrain terminator gate that
+                        // ships alongside this correctly stops a below-horizon
+                        // sun from lighting the ground - and that leaves a
+                        // moonless night at ambient only, i.e. unusably black
+                        // (measured in the rig: the desert-night vantage went to
+                        // near pure black once the streak was gone). Real nights
+                        // are not black because the Moon is a key light, so aim
+                        // the FILL at the actual Moon after sunset. Reusing the
+                        // fill slot means no new light plumbing and no extra
+                        // shader term.
+                        //
+                        // Physically the Moon is ~1e-6 of daylight, which no
+                        // display can show; like every game we lift it to a few
+                        // percent so a night reads as night rather than as a
+                        // fault. Phase is real though: full moon is bright, new
+                        // moon is not, and it tracks the true Moon position, so
+                        // moonlight comes from where the Moon actually is.
+                        let (fill_dir, fill_rgb, fill_i) = {
+                            // The anchor is PLANET-LOCAL; world up needs the
+                            // planet's current spin applied, exactly as the
+                            // aerial-perspective block above does. Without the
+                            // rotation mu_sun and mu_moon are both meaningless
+                            // (measured: night never triggered at all).
+                            let up = (glam::DQuat::from_rotation_y(state.current_spin)
+                                * state.frame_lock_anchor.normalize_or_zero())
+                                .normalize_or_zero();
+                            let have_ground = up.length_squared() > 0.5;
+                            let moon_dir = (moon_rel_earth_m - state.ship_world_pos)
+                                .normalize_or_zero();
+                            let day_dir = Vec3::new(-0.5, 0.3, -0.3);
+                            let day_rgb = [0.4f32, 0.5, 0.7];
+                            if !have_ground || moon_dir.length_squared() < 0.5 {
+                                (day_dir, day_rgb, 0.6f32)
+                            } else {
+                                // How far past sunset we are, at this spot.
+                                let mu_sun = up.dot(
+                                    glam::DVec3::new(
+                                        sun_dir.x as f64,
+                                        sun_dir.y as f64,
+                                        sun_dir.z as f64,
+                                    ),
+                                ) as f32;
+                                let night = 1.0
+                                    - ((mu_sun + 0.05) / 0.15).clamp(0.0, 1.0);
+                                // Moon above the local horizon, and how full it
+                                // is (sun-moon elongation as seen from here).
+                                let mu_moon = up.dot(moon_dir) as f32;
+                                let risen = ((mu_moon + 0.02) / 0.12).clamp(0.0, 1.0);
+                                let elong = moon_dir.dot(glam::DVec3::new(
+                                    sun_dir.x as f64,
+                                    sun_dir.y as f64,
+                                    sun_dir.z as f64,
+                                )) as f32;
+                                // elong = +1 at new moon (Moon toward the Sun),
+                                // -1 at full. Illuminated fraction = (1-e)/2.
+                                let phase = ((1.0 - elong) * 0.5).clamp(0.0, 1.0);
+                                // Floor of 0.12 so a moonless or set-moon night
+                                // is still navigable rather than a black screen -
+                                // starlight and airglow do light the ground a
+                                // little, and a game has to be playable.
+                                let moon_i = 0.12 + 0.26 * risen * phase;
+                                let d = Vec3::new(
+                                    moon_dir.x as f32,
+                                    moon_dir.y as f32,
+                                    moon_dir.z as f32,
+                                );
+                                (
+                                    if night > 0.5 { d } else { day_dir },
+                                    [
+                                        day_rgb[0] + (0.62 - day_rgb[0]) * night,
+                                        day_rgb[1] + (0.68 - day_rgb[1]) * night,
+                                        day_rgb[2] + (0.90 - day_rgb[2]) * night,
+                                    ],
+                                    0.6 + (moon_i - 0.6) * night,
+                                )
+                            }
+                        };
                         state.renderer.set_fill_light(
-                            Vec3::new(-0.5, 0.3, -0.3),
-                            [0.4, 0.5, 0.7],
-                            if gi { 0.6 } else { 0.0 },
+                            fill_dir,
+                            fill_rgb,
+                            if gi { fill_i } else { 0.0 },
                         );
                     }
 

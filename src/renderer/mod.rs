@@ -2728,12 +2728,23 @@ impl Renderer {
         // light4). The shader's shoal fade reads it, v0.1051.
         self.queue
             .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
-        // Fill intensity scaled by the camera-local daylight (v0.998):
-        // fill_direction.w at offset 640 + 12. The full write stamps the
-        // default 0.6; night on a surface dims it so forests stop glowing.
-        let fill_w = 0.6_f32 * self.fill_scale.clamp(0.0, 1.0);
+        // Fill DIRECTION, COLOUR and intensity (v0.998 intensity, v0.1052 the
+        // rest). This pass stamps camera.celestial_uniforms() over the whole
+        // buffer first, which carries the DEFAULT fill - so the fill that
+        // lib.rs sets each frame never reached anything the celestial pass
+        // draws, and planet terrain is drawn in this pass. That is the same
+        // shape of bug as the hardcoded sun below: v0.1052 aims the fill at the
+        // real Moon after sunset to give night a key light, and until now that
+        // aim and colour were silently discarded here while a literal 0.6 was
+        // used for the strength. Re-poke all of it.
+        //
+        // fill_direction xyz+w at offset 640, fill_color rgb at 656.
+        let (fdir, fcol, fint) = self.cur_fill;
+        let fill_dw = [fdir[0], fdir[1], fdir[2], fint * self.fill_scale.clamp(0.0, 1.0)];
         self.queue
-            .write_buffer(&self.camera_buffer, 652, bytemuck::bytes_of(&fill_w));
+            .write_buffer(&self.camera_buffer, 640, bytemuck::cast_slice(&fill_dw));
+        self.queue
+            .write_buffer(&self.camera_buffer, 656, bytemuck::cast_slice(&fcol));
         // Aerial perspective params (v0.916) in the unused per-light cone
         // pads: [1].y sigma (484), [1].z slant cap (488), [2].yzw sky color
         // (500), [3].yzw camera radial up (516). The interior passes'

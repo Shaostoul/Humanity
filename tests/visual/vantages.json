@@ -320,6 +320,27 @@
       },
       "settle_s": 26,
       "hold_altitude": true
+    },
+    {
+      "id": "desert-night",
+      "desc": "Sahara at night, low eye - the terrain terminator gate.",
+      "expect": "Uniformly dark ground under starlight. NO bright band toward the sunset azimuth: that was a below-horizon sun still lighting normal-map facets, because the celestial pass has no terminator test (v0.1052).",
+      "regressions": [
+        "night terrain lit by a below-horizon sun"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 23,
+        "lon": 13,
+        "altitude_km": 0.03,
+        "look_offset_deg": 84
+      },
+      "showcase": {
+        "time": "22.0",
+        "sea": "0.3"
+      },
+      "settle_s": 12,
+      "hold_altitude": true
     }
   ]
 }
