@@ -178,6 +178,58 @@ fn jonswap_dir(k: glam::Vec2, wind_speed: f32, wind_dir: glam::Vec2, fetch_m: f3
     s_w * jac * (c * c) * (2.0 / std::f32::consts::PI) / kl
 }
 
+/// Tile-PERIODIC multi-octave value noise on the cascade grid (v0.1056).
+/// Wraps at n so it cannot introduce a seam the cascade itself does not have,
+/// and is a pure function of the texel index so it is stable frame to frame
+/// (a time-varying break-up would sparkle).
+///
+/// Purpose: tear the foam ribbons. The Jacobian folds along whole crest lines,
+/// so a threshold on it produces long unbroken streaks - the operator: "the
+/// [foam streaks] are long unbroken lines but that is not how the ocean looks in
+/// real life". Real whitecaps are patchy, with holes and torn edges, because
+/// breaking is intermittent along a crest rather than uniform.
+///
+/// Applied BEFORE the coverage threshold, which is the whole trick: the
+/// threshold re-solves for Monahan coverage every frame, so modulating the
+/// CONTINUOUS fold field changes WHICH texels foam without changing HOW MANY.
+/// Break-up for free, with the physical coverage preserved by construction.
+/// (Applied after the threshold it would just delete foam and undershoot.)
+fn foam_breakup(x: usize, y: usize, n: usize) -> f32 {
+    let hash = |xi: usize, yi: usize, salt: u32| -> f32 {
+        let mut h = (xi as u32)
+            .wrapping_mul(0x27d4_eb2d)
+            ^ (yi as u32).wrapping_mul(0x1656_67b1)
+            ^ salt.wrapping_mul(0x9e37_79b9);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x2545_f491);
+        h ^= h >> 13;
+        (h >> 8) as f32 / 16_777_216.0
+    };
+    // Value noise at one octave: bilinear over a coarse periodic lattice.
+    let octave = |period: usize, salt: u32| -> f32 {
+        let step = (n / period).max(1);
+        let gx = x / step;
+        let gy = y / step;
+        let fx = (x % step) as f32 / step as f32;
+        let fy = (y % step) as f32 / step as f32;
+        let w = |t: f32| t * t * (3.0 - 2.0 * t);
+        let (ux, uy) = (w(fx), w(fy));
+        let cells = n / step;
+        let gx1 = (gx + 1) % cells;
+        let gy1 = (gy + 1) % cells;
+        let a = hash(gx, gy, salt);
+        let b = hash(gx1, gy, salt);
+        let c = hash(gx, gy1, salt);
+        let d = hash(gx1, gy1, salt);
+        (a + (b - a) * ux) + ((c + (d - c) * ux) - (a + (b - a) * ux)) * uy
+    };
+    // Three octaves: broad patchiness, mid tearing, fine lace.
+    let v = 0.55 * octave(8, 1) + 0.30 * octave(16, 2) + 0.15 * octave(32, 3);
+    // Never fully zero: a texel the noise happens to hate should still be able
+    // to foam if it is folding hard enough.
+    0.35 + 1.30 * v
+}
+
 impl OceanFft {
     /// `lambda_range` BAND-LIMITS the spectrum (metres, exclusive min /
     /// inclusive max): bins outside get zero amplitude. The two-cascade
@@ -346,8 +398,11 @@ impl OceanFft {
         self.last_t = t;
         let decay = (-dt / FOAM_DECAY_TAU_S).exp();
         for i in 0..n * n {
-            // Positive where the surface folds (jac < 1 = compression).
-            let fold = (1.0 - self.foam[i]).max(0.0);
+            // Positive where the surface folds (jac < 1 = compression), then
+            // torn up by periodic noise so the crest lines break into patches
+            // instead of drawing continuous ribbons. Before the threshold, so
+            // coverage stays pinned to Monahan (v0.1056).
+            let fold = (1.0 - self.foam[i]).max(0.0) * foam_breakup(i % n, i / n, n);
             let kept = self.foam_prev[i] * decay;
             self.foam_prev[i] = if fold > kept { fold } else { kept };
         }

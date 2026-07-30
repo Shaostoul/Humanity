@@ -2286,7 +2286,13 @@ pub fn build_water_patch_mesh_at(
             let w1 = (r - c) as f64;
             let w2 = c as f64;
             let dir = (corners[0] * w0 + corners[1] * w1 + corners[2] * w2).normalize();
-            if ocean.is_ocean(dir.as_vec3()) {
+            // DILATED coverage test (v0.1056): the mask's 5.56 km cells are
+            // 12x coarser than the seabed actually drawn, so an undilated test
+            // clipped the shell along mask-cell edges and left kilometre-wide
+            // strips of drawn-underwater seabed bare. The per-vertex depth
+            // feather trims the shell back to the real waterline, so being
+            // generous here costs nothing but closes those strips.
+            if ocean.is_ocean_near(dir.as_vec3()) {
                 any_ocean = true;
             }
             dirs.push(dir);

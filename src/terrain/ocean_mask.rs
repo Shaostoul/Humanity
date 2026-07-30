@@ -27,7 +27,7 @@ pub const OCEAN_MASK_MAGIC: &[u8; 7] = b"HOSOCM1";
 
 const HEADER_LEN: usize = 15;
 
-/// A loaded ocean mask. Earth's shipped mask is 3600x1800 -> ~0.77 MB.
+/// A loaded ocean mask. Earth's shipped mask is 7200x3600 -> ~0.77 MB.
 pub struct OceanMask {
     width: u32,
     height: u32,
@@ -95,6 +95,45 @@ impl OceanMask {
     pub fn is_ocean(&self, unit: Vec3) -> bool {
         let (lat, lon) = dir_to_latlon_deg(unit);
         self.is_ocean_latlon(lat, lon)
+    }
+
+    /// Ocean within ONE CELL of here, i.e. the mask dilated by its own
+    /// resolution (v0.1056).
+    ///
+    /// Why this exists: the seabed is DRAWN from the 15-arcsec elevation tiles
+    /// (463 m cells, bicubic) but the water shell decided whether it exists at
+    /// all from THIS mask - a nearest-cell lookup on a 0.05 degree grid, so
+    /// 5.56 km cells with no interpolation. A near-shore water patch is 430 m
+    /// across at depth 14 and 6.7 m at depth 20, so every one of its 153
+    /// vertices lands in the SAME mask cell: coverage was all-or-nothing per
+    /// patch and terminated on a lat/lon cell edge, quantized into whole patch
+    /// triangles. Measured on the shipped mask that leaves strips which are
+    /// drawn UNDERWATER but carry no wave shell, median 1.3-1.9 km wide along
+    /// every coast - the operator's "the ocean looks good until I get to shore
+    /// and then the quality dies", with a hard straight diagonal and a torn
+    /// triangular sliver where the mask cell ended.
+    ///
+    /// Dilating by one cell makes coverage generous instead of clipped, and
+    /// nothing is over-drawn as a result: the shell's per-vertex baked DEPTH is
+    /// zero on land, and the waterline feather (v0.917, made
+    /// resolution-aware in v0.1050) fades it to fully transparent there. So the
+    /// shoreline is now decided by the drawn seabed, at 463 m, instead of by a
+    /// 5.56 km mask quantization.
+    pub fn is_ocean_near(&self, unit: Vec3) -> bool {
+        let (lat, lon) = dir_to_latlon_deg(unit);
+        let dlat = 180.0 / self.height as f32;
+        let dlon = 360.0 / self.width as f32;
+        for j in -1i32..=1 {
+            for i in -1i32..=1 {
+                if self.is_ocean_latlon(
+                    (lat + j as f32 * dlat).clamp(-90.0, 90.0),
+                    lon + i as f32 * dlon,
+                ) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
