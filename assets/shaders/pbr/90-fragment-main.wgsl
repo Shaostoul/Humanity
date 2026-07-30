@@ -1226,9 +1226,65 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // that it reads as ambient bounce rather than a bug.
             let sun_l = normalize(camera.sun_direction.xyz);
             let lt = normalize(-sun_l + normal * 0.4);
-            let trans = pow(max(dot(view_dir, -lt), 0.0), 3.0);
+            // Exponent 1.6, not 3: a tight lobe only glows when you line the
+            // sun up exactly behind a leaf, which left a backlit canopy reading
+            // as black silhouettes (first Fuji capture). Real foliage is thin
+            // enough that it stays luminous across a wide arc.
+            let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
+            // Plus a floor that depends only on how backlit the leaf is, so a
+            // blade whose lambert term is ~0 still carries colour instead of
+            // going to black. This is the cheap stand-in for wrap diffuse,
+            // which would mean touching the shared BRDF.
+            let backlit = max(-dot(normal, sun_l), 0.0);
             proc_emissive = proc_emissive
-                + albedo * camera.sun_color.rgb * trans * 0.5 * (0.35 + 0.65 * detail);
+                + albedo * camera.sun_color.rgb
+                    * (trans * 1.05 + backlit * 0.35)
+                    * (0.35 + 0.65 * detail);
+        } else if (!is_leaf && !is_fruit && detail > 0.001) {
+            // ── BARK (v0.1067) ──
+            // Stems previously got NO treatment: one flat colour per face, on a
+            // 4-to-8-sided cylinder. Even with smooth normals that reads as
+            // plastic tubing. Bark is the other half of making a tree look like
+            // a tree, and it is the cheapest half, because bark is essentially
+            // vertical fissures at two scales.
+            //
+            // Coordinates are deliberately ANISOTROPIC: bark runs ALONG the
+            // trunk, so the pattern is stretched ~6x vertically. Using the
+            // world Y directly (rather than a triplanar pair) is what keeps the
+            // fissures vertical no matter which way a branch leans.
+            // 2.4:1, not 6:1. A very high ratio drew unbroken floor-to-crown
+            // streaks that read as sawn plywood; real bark fissures are
+            // elongated but they branch, merge and terminate.
+            let bp = vec2<f32>(
+                (in.world_position.x + in.world_position.z) * 2.4,
+                in.world_position.y * 1.0,
+            );
+            // Deep fissures: voronoi_edge borders again, stretched into long
+            // vertical cracks by the coordinate scaling above.
+            let crack = 1.0 - smoothstep(0.0, 0.22, voronoi_edge(bp * 1.6));
+            // Fine grain riding on top so the flat areas are not flat.
+            let grain = fbm(bp * 7.0);
+
+            // Crevices are darker and rougher; ridges catch a little more light.
+            albedo = albedo * (0.72 + 0.42 * grain) * detail + albedo * (1.0 - detail);
+            albedo = mix(albedo, albedo * 0.42, crack * 0.75 * detail);
+            roughness = mix(0.9, mix(0.78, 0.96, crack), detail);
+
+            // Relief. Bark is genuinely rough, so this pushes harder than the
+            // leaf pucker does, and the cracks read as grooves rather than
+            // painted lines.
+            if (micro > 0.001) {
+                let ref_a = select(
+                    vec3<f32>(0.0, 1.0, 0.0),
+                    vec3<f32>(1.0, 0.0, 0.0),
+                    abs(normal.y) > 0.9,
+                );
+                let t1 = normalize(cross(normal, ref_a));
+                let t2 = cross(normal, t1);
+                let gx = fbm(bp * 9.0) - 0.5;
+                let gy = fbm(bp * 9.0 + vec2<f32>(23.0, 5.0)) - 0.5;
+                normal = normalize(normal + (t1 * gx + t2 * gy) * 0.55 * micro);
+            }
         } else if (is_fruit && detail > 0.001) {
             // Fruit skin is a taut, waxy surface, not paper: far smoother than
             // a leaf, with a broad blush of colour variation and (up close) a

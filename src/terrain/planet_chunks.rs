@@ -387,6 +387,30 @@ pub fn veg_biome_ok(sc: [f32; 3]) -> bool {
     sc[0] < sc[1] * 1.25 && sc[1] > sc[2] * 1.04
 }
 
+/// Pick the tree species for a spawn cell from `data/vegetation/trees.ron`
+/// (v0.1066), replacing the hardcoded `species_fir` bit that gave the entire
+/// planet exactly two species.
+///
+/// BOTH stream sites call this - the card bake and the near-model mirror - and
+/// they pass the identical `dir`, `elev_m` and random word, because if they
+/// disagree a tree changes species as you walk toward it. That is the invariant
+/// the old `species_fir` comment guarded by asking two copies of an expression
+/// to stay in sync; it is structural now (one function, one call each) and the
+/// purity it depends on is pinned by `tree_mesh::tests::pick_is_deterministic`.
+///
+/// Falls back to species 0 rather than returning None when no gate passes, so a
+/// forest can never silently vanish on a planet whose latitudes or elevations
+/// fall outside every authored range.
+pub fn pick_tree_species(def: &PlanetDef, dir: DVec3, elev_m: f32, r5: u64) -> usize {
+    let reg = crate::renderer::tree_mesh::registry();
+    if reg.is_empty() {
+        return 0;
+    }
+    let lat_deg = dir.y.clamp(-1.0, 1.0).asin().to_degrees() as f32;
+    reg.pick([dir.x, dir.y, dir.z], lat_deg, elev_m, def.radius, (r5 >> 9) as u32)
+        .unwrap_or(0)
+}
+
 pub fn tile_or_base(
     hm: &PlanetHeightmap,
     tiles: Option<&super::terrain_tiles::TerrainTiles>,
@@ -1855,14 +1879,28 @@ pub fn build_patch_mesh(
                             // seem uniform height"). 4-18 m, skewed toward
                             // younger trees; BOTH stream sites (bake + the
                             // near-model mirror) must stay identical.
-                            let species_fir = ((r5 >> 9) & 1) == 0;
-                            // v0.914 (operator: "set all the trees to the max
-                            // height of their tree species"): full-grown
-                            // conifers with a natural +-12% spread - fir ~22 m,
-                            // pine ~16 m. BOTH stream sites stay identical.
-                            let jitter = 0.88 + (r3 % 100) as f32 / 100.0 * 0.24;
-                            let h = if species_fir { 22.0 * jitter } else { 16.0 * jitter };
-                            if albedo.is_some() {
+                            // v0.1066: species comes from data/vegetation/trees.ron
+                            // (was a hardcoded fir/pine bit). v0.914 (operator:
+                            // "set all the trees to the max height of their tree
+                            // species"): full-grown, with a natural spread.
+                            // BOTH stream sites stay identical.
+                            let sp_i = pick_tree_species(def, dir, elev_m, r5);
+                            let reg = crate::renderer::tree_mesh::registry();
+                            let sp = reg.get(sp_i);
+                            let (sp_h, sp_jit, sp_tile, sp_proc) = match sp {
+                                Some(t) => (t.height_m, t.height_jitter, t.sprite_tile, t.is_procedural()),
+                                None => (22.0, 0.12, 0u8, false),
+                            };
+                            let jitter =
+                                1.0 - sp_jit + (r3 % 100) as f32 / 100.0 * (sp_jit * 2.0);
+                            let h = sp_h * jitter;
+                            // Procedural species have no baked atlas tile, so
+                            // they take the coloured-card path even on imagery
+                            // planets. Otherwise a pink sakura grove would turn
+                            // into fir silhouettes at card range. Real impostors
+                            // for procedural trees are a later increment (see
+                            // docs/design/procedural-plants.md, Layer 4).
+                            if albedo.is_some() && !sp_proc {
                                 // Sprite cards (v0.961, billboard bake
                                 // increment 2): on imagery planets the card
                                 // is ONE crossed pair of quads textured from
@@ -1871,18 +1909,39 @@ pub fn build_patch_mesh(
                                 // LOD handoff keeps the exact silhouette.
                                 // Variant picks match near_tree_instances
                                 // exactly ((r5 >> 11) % 3).
-                                let tile = if species_fir { 0 } else { 3 } + ((r5 >> 11) % 3) as u8;
+                                let tile = sp_tile + ((r5 >> 11) % 3) as u8;
                                 emit_sprite_card(base, up, side_a, h, tile, &mut vertices, &mut indices);
                                 emit_sprite_card(base, up, side_b, h, tile, &mut vertices, &mut indices);
                             } else {
-                                // Noise planets (no imagery, no atlas):
-                                // the legacy colored trunk + canopy cards.
-                                let trunk = [0.30, 0.22, 0.13];
-                                let canopy = [
-                                    0.08 + (r4 % 60) as f32 / 1000.0,
-                                    0.26 + (r5 % 80) as f32 / 1000.0,
-                                    0.10,
-                                ];
+                                // No atlas tile for this species (noise planet,
+                                // or a procedural species): coloured trunk +
+                                // canopy cards, tinted from the species row so
+                                // a distant sakura grove still reads pink.
+                                let (trunk, canopy) = match sp {
+                                    Some(t) => {
+                                        let leafy = if t.blossom_frac > 0.5 {
+                                            t.blossom_color
+                                        } else {
+                                            t.leaf_color
+                                        };
+                                        (
+                                            t.trunk_color,
+                                            [
+                                                leafy[0] + (r4 % 60) as f32 / 1000.0,
+                                                leafy[1] + (r5 % 80) as f32 / 1000.0,
+                                                leafy[2],
+                                            ],
+                                        )
+                                    }
+                                    None => (
+                                        [0.30, 0.22, 0.13],
+                                        [
+                                            0.08 + (r4 % 60) as f32 / 1000.0,
+                                            0.26 + (r5 % 80) as f32 / 1000.0,
+                                            0.10,
+                                        ],
+                                    ),
+                                };
                                 emit_card(base, up, side_a, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
                                 emit_card(base, up, side_b, 0.5, 0.0, h * 0.35, trunk, &mut vertices, &mut indices);
                                 emit_card(base, up, side_a, h * 0.55, h * 0.25, h, canopy, &mut vertices, &mut indices);
@@ -2164,19 +2223,24 @@ pub fn near_tree_instances(
                             // seem uniform height"). 4-18 m, skewed toward
                             // younger trees; BOTH stream sites (bake + the
                             // near-model mirror) must stay identical.
-                            let species_fir = ((r5 >> 9) & 1) == 0;
-                            // v0.914 (operator: "set all the trees to the max
-                            // height of their tree species"): full-grown
-                            // conifers with a natural +-12% spread - fir ~22 m,
-                            // pine ~16 m. BOTH stream sites stay identical.
-                            let jitter = 0.88 + (r3 % 100) as f32 / 100.0 * 0.24;
-                            let h = if species_fir { 22.0 * jitter } else { 16.0 * jitter };
+                            // v0.1066: MUST match the bake site above exactly -
+                            // same inputs, same helper - or a tree changes
+                            // species as you walk toward it.
+                            let sp_i = pick_tree_species(def, dir, elev_m, r5);
+                            let (sp_h, sp_jit) = match crate::renderer::tree_mesh::registry().get(sp_i)
+                            {
+                                Some(t) => (t.height_m, t.height_jitter),
+                                None => (22.0, 0.12),
+                            };
+                            let jitter =
+                                1.0 - sp_jit + (r3 % 100) as f32 / 100.0 * (sp_jit * 2.0);
+                            let h = sp_h * jitter;
                 out.push(NearTree {
                     dir,
                     r_m: r,
                     yaw,
                     height_m: h,
-                    species: ((r5 >> 9) & 1) as u8,
+                    species: sp_i as u8,
                     variant: ((r5 >> 11) % 3) as u8,
                 });
             }

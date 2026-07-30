@@ -21,7 +21,8 @@
           "title": "Absolute Prohibitions",
           "file": "absolute_prohibitions.md"
         }
-      ]
+      ],
+      "accord": true
     },
     {
       "name": "Your Rights and Consent",
@@ -38,7 +39,8 @@
           "title": "Communication and Association",
           "file": "communication_and_association.md"
         }
-      ]
+      ],
+      "accord": true
     },
     {
       "name": "How We Decide",
@@ -59,7 +61,8 @@
           "title": "When Legitimacy Fails",
           "file": "failure_of_legitimacy.md"
         }
-      ]
+      ],
+      "accord": true
     },
     {
       "name": "Safety and Care",
@@ -84,7 +87,8 @@
           "title": "User Safety Overview",
           "file": "user_safety_overview.md"
         }
-      ]
+      ],
+      "accord": true
     },
     {
       "name": "Reference",
@@ -101,7 +105,8 @@
           "title": "Knowledge Sources",
           "file": "knowledge_sources.md"
         }
-      ]
+      ],
+      "accord": true
     },
     {
       "name": "Getting Started",

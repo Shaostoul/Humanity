@@ -20,29 +20,29 @@ const CATEGORIES = [
   { name: 'Credits', docs: [
     { title: 'Credits and Thanks', src: 'CREDITS.md' },
   ]},
-  { name: 'The Accord', docs: [
+  { name: 'The Accord', accord: true, docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
     { title: 'Absolute Prohibitions', src: 'docs/accord/absolute_prohibitions.md' },
   ]},
-  { name: 'Your Rights and Consent', docs: [
+  { name: 'Your Rights and Consent', accord: true, docs: [
     { title: 'Rights and Responsibilities', src: 'docs/accord/rights_and_responsibilities.md' },
     { title: 'Consent and Control', src: 'docs/accord/consent_and_control.md' },
     { title: 'Communication and Association', src: 'docs/accord/communication_and_association.md' },
   ]},
-  { name: 'How We Decide', docs: [
+  { name: 'How We Decide', accord: true, docs: [
     { title: 'Ethical Principles', src: 'docs/accord/ethical_principles.md' },
     { title: 'Conflict Resolution', src: 'docs/accord/conflict_resolution.md' },
     { title: 'Transparency Guarantees', src: 'docs/accord/transparency_guarantees.md' },
     { title: 'When Legitimacy Fails', src: 'docs/accord/failure_of_legitimacy.md' },
   ]},
-  { name: 'Safety and Care', docs: [
+  { name: 'Safety and Care', accord: true, docs: [
     { title: 'Human Needs', src: 'docs/accord/human_needs.md' },
     { title: 'Safety and Responsibility', src: 'docs/accord/safety_and_responsibility.md' },
     { title: 'Harm and Responsibility', src: 'docs/accord/harm_and_responsibility.md' },
     { title: 'Irreversible Actions', src: 'docs/accord/irreversible_actions.md' },
     { title: 'User Safety Overview', src: 'docs/accord/user_safety_overview.md' },
   ]},
-  { name: 'Reference', docs: [
+  { name: 'Reference', accord: true, docs: [
     { title: 'Glossary', src: 'docs/accord/glossary.md' },
     { title: 'Scope and Boundaries', src: 'docs/accord/scope_boundaries.md' },
     { title: 'Knowledge Sources', src: 'docs/accord/knowledge_sources.md' },
@@ -109,6 +109,9 @@ const missing = [];
 const used = new Set();
 for (const cat of CATEGORIES) {
   const entry = { name: cat.name, docs: [] };
+  // The Accord subset is flagged so /accord can render exactly those
+  // categories from THIS manifest instead of a separate relay endpoint.
+  if (cat.accord) entry.accord = true;
   for (const d of cat.docs) {
     if (!fs.existsSync(d.src)) { missing.push(d.src); continue; }
     // Collision-safe target name: basename first; if taken (README.md

@@ -4041,8 +4041,13 @@ pub struct GuiState {
     pub pending_respawn: bool,
     // v0.197.0: ai_usage_filters removed (AI Usage page deleted).
     // v0.415.0: onboarding_concepts + onboarding_core_pages removed with the
-    // standalone onboarding page (the web /onboarding page still reads the
-    // JSON files; the quest chains below remain the native consumer).
+    // standalone onboarding page. NOTE (audit 2026-07-30): the claim that "the
+    // web /onboarding page still reads the JSON files" is NOT true, and may
+    // never have been. web/pages/onboarding.html fetches quests.json only, so
+    // data/onboarding/core_pages.json and core_concepts.json are read by
+    // nothing on either client. They are good plain-language content and are
+    // kept as the source for the in-app documentation item in PRIORITIES,
+    // rather than deleted, but nothing renders them today.
 
     // ── Universal help modal (loaded from data/help/topics.json) ──
     /// Registry of help topics. Populated at startup from data/help/topics.json.
@@ -4053,7 +4058,11 @@ pub struct GuiState {
     // ── Onboarding quest chains (loaded from data/onboarding/quests.json) ──
     /// Quest chains displayed on the Onboarding page.
     pub onboarding_quest_chains: Vec<crate::gui::pages::onboarding::QuestChain>,
-    /// Map of "chain_id:step_id" -> done?. Persisted via AppConfig for local progress.
+    /// Map of "chain_id:step_id" -> done?. Persisted via
+    /// `AppConfig::onboarding_quest_progress`, written the moment a step is
+    /// ticked. (This comment claimed persistence from v0.415 until v0.1066
+    /// while no such config field existed and every tick was discarded on
+    /// exit; the field is real now.)
     pub onboarding_quest_progress: std::collections::HashMap<String, bool>,
 
     // ── Inline image cache (for chat attachments) ──

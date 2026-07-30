@@ -311,6 +311,41 @@ pub struct AppConfig {
     /// restart. Absent in old configs => `Both`, the default.
     #[serde(default)]
     pub nav_display_mode: crate::gui::NavDisplayMode,
+    // ── Settings that the UI exposed but never saved (fixed v0.1066) ──
+    // Each of these had a working control that took effect immediately and
+    // then silently reverted to its default on the next launch. The two
+    // visibility flags are the sharp ones: someone who turned themselves
+    // private was public again next time they opened the app, with no
+    // indication it had happened.
+    /// Show your profile to other members.
+    #[serde(default = "default_true")]
+    pub profile_visible: bool,
+    /// Show when you are online.
+    #[serde(default = "default_true")]
+    pub online_status_visible: bool,
+    /// UI font size. An accessibility setting, so losing it every launch is
+    /// worse than losing a cosmetic one.
+    #[serde(default = "default_font_size")]
+    pub font_size: f32,
+    /// Dark theme.
+    #[serde(default = "default_true")]
+    pub dark_mode: bool,
+    /// Camera far plane in metres.
+    #[serde(default = "default_render_distance")]
+    pub render_distance: f32,
+    /// Water near-field mesh depth cap.
+    #[serde(default = "default_water_detail_depth")]
+    pub water_detail_depth: f32,
+    /// Tiled light lists (clustering L1b).
+    #[serde(default)]
+    pub lights_tiled: bool,
+    /// Learn-by-doing quest progress, "chain_id:step_id" -> done (v0.1066).
+    /// GuiState has claimed since v0.415 that this was "persisted via
+    /// AppConfig", but no such field existed: every tick a person made in the
+    /// onboarding chains was thrown away on exit, while the web version has
+    /// always kept its progress in localStorage.
+    #[serde(default)]
+    pub onboarding_quest_progress: std::collections::HashMap<String, bool>,
     #[serde(default = "default_true")]
     pub vsync: bool,
     /// Frame-rate caps (v0.1016, operator request: "add a setting to set
@@ -689,6 +724,12 @@ fn default_sky_milkyway_intensity() -> f32 { 1.0 }
 fn default_sky_glow_tier() -> String { "standard".to_string() }
 fn default_star_catalog_tier() -> String { "auto".to_string() }
 fn default_true() -> bool { true }
+// Settings that were reachable in the UI but never persisted until v0.1066.
+// Defaults MUST match the `Settings::default()` values in src/gui/mod.rs, so
+// an existing install sees no behaviour change on upgrade.
+fn default_font_size() -> f32 { 14.0 }
+fn default_render_distance() -> f32 { 500.0 }
+fn default_water_detail_depth() -> f32 { 20.0 }
 fn default_fps_foreground() -> u32 { 120 }
 fn default_fps_background() -> u32 { 30 }
 fn default_home_variant() -> String { "home".to_string() }
@@ -998,6 +1039,14 @@ impl AppConfig {
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
             nav_display_mode: state.nav_display_mode,
+            profile_visible: state.settings.profile_visible,
+            online_status_visible: state.settings.online_status_visible,
+            font_size: state.settings.font_size,
+            dark_mode: state.settings.dark_mode,
+            render_distance: state.settings.render_distance,
+            water_detail_depth: state.settings.water_detail_depth,
+            lights_tiled: state.settings.lights_tiled,
+            onboarding_quest_progress: state.onboarding_quest_progress.clone(),
             vsync: state.settings.vsync,
             fps_foreground: state.settings.fps_foreground,
             fps_foreground_unlimited: state.settings.fps_foreground_unlimited,
@@ -1118,6 +1167,16 @@ impl AppConfig {
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
         state.nav_display_mode = self.nav_display_mode;
+        state.settings.profile_visible = self.profile_visible;
+        state.settings.online_status_visible = self.online_status_visible;
+        // Clamp the ranges the UI enforces, so a hand-edited config cannot
+        // produce an unusable window (a 0 font size or a 0 m far plane).
+        state.settings.font_size = self.font_size.clamp(10.0, 24.0);
+        state.settings.dark_mode = self.dark_mode;
+        state.settings.render_distance = self.render_distance.clamp(50.0, 2000.0);
+        state.settings.water_detail_depth = self.water_detail_depth.clamp(14.0, 20.0);
+        state.settings.lights_tiled = self.lights_tiled;
+        state.onboarding_quest_progress = self.onboarding_quest_progress.clone();
         state.settings.vsync = self.vsync;
         // Clamp hand-edited values to the UI's range (a 1 FPS cap would
         // make the app look hung; 1000 covers any real display).
@@ -1427,6 +1486,39 @@ mod play_mode_tests {
         let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
         let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
         assert_eq!(cfg.nav_display_mode, NavDisplayMode::Both);
+    }
+
+    #[test]
+    fn settings_that_used_to_vanish_now_round_trip() {
+        // These seven had working controls that took effect immediately and
+        // then silently reverted on the next launch (audit 2026-07-30). The
+        // two visibility flags are the sharp ones: someone who made themselves
+        // private came back public with no indication it had happened.
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let old: AppConfig = serde_json::from_str(minimal).unwrap();
+        // Defaults must match Settings::default() in src/gui/mod.rs so an
+        // existing install sees no behaviour change on upgrade.
+        assert!(old.profile_visible, "profile stays visible by default");
+        assert!(old.online_status_visible, "online status stays visible by default");
+        assert!(old.dark_mode, "dark mode is the default");
+        assert_eq!(old.font_size, 14.0);
+        assert_eq!(old.render_distance, 500.0);
+        assert_eq!(old.water_detail_depth, 20.0);
+        assert!(!old.lights_tiled);
+        assert!(old.onboarding_quest_progress.is_empty());
+
+        // And a non-default choice must survive a write/read cycle.
+        let mut c = old.clone();
+        c.profile_visible = false;
+        c.online_status_visible = false;
+        c.font_size = 22.0;
+        c.onboarding_quest_progress.insert("water:collect-rain".into(), true);
+        let json = serde_json::to_string(&c).unwrap();
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert!(!back.profile_visible, "a private profile must STAY private");
+        assert!(!back.online_status_visible, "hidden online status must STAY hidden");
+        assert_eq!(back.font_size, 22.0);
+        assert_eq!(back.onboarding_quest_progress.get("water:collect-rain"), Some(&true));
     }
 }
 

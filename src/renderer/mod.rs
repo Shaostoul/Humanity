@@ -145,6 +145,15 @@ pub struct Renderer {
     particle_pipeline_alpha: wgpu::RenderPipeline,
     particle_pipeline_additive: wgpu::RenderPipeline,
     particle_frame_buffer: wgpu::Buffer,
+    /// Persistent particle vertex buffers (v0.1067). These used to be created
+    /// FRESH EVERY FRAME with create_buffer_init - a driver allocation, a
+    /// mapped write and a deallocation per frame, per blend mode, whose cost
+    /// scales with particle count exactly when you least want it to. They now
+    /// grow to a high-water mark and are refilled with write_buffer.
+    particle_vb_alpha: Option<wgpu::Buffer>,
+    particle_vb_additive: Option<wgpu::Buffer>,
+    particle_vb_alpha_cap: usize,
+    particle_vb_additive_cap: usize,
     particle_frame_bind_group: wgpu::BindGroup,
     camera_buffer: wgpu::Buffer,
     camera_bind_group: wgpu::BindGroup,
@@ -1202,6 +1211,10 @@ impl Renderer {
             particle_pipeline_alpha,
             particle_pipeline_additive,
             particle_frame_buffer,
+            particle_vb_alpha: None,
+            particle_vb_additive: None,
+            particle_vb_alpha_cap: 0,
+            particle_vb_additive_cap: 0,
             particle_frame_bind_group,
             camera_buffer,
             camera_bind_group,
@@ -3390,7 +3403,7 @@ impl Renderer {
     /// reverse-Z depth TEST against the scene, no depth write. Billboard
     /// axes come from the camera basis, uploaded to the frame uniform.
     pub fn draw_particles_onto(
-        &self,
+        &mut self,
         camera: &Camera,
         alpha: &[particles::ParticleVertexData],
         additive: &[particles::ParticleVertexData],
@@ -3409,16 +3422,40 @@ impl Renderer {
         let frame: [f32; 8] = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0];
         self.queue
             .write_buffer(&self.particle_frame_buffer, 0, bytemuck::cast_slice(&frame));
-        let make_vb = |data: &[particles::ParticleVertexData]| {
-            self.device
-                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Particle Instance VB"),
-                    contents: bytemuck::cast_slice(data),
-                    usage: wgpu::BufferUsages::VERTEX,
-                })
+        // Grow-to-high-water-mark, then refill. Reallocating only when the
+        // count exceeds the previous peak means a steady downpour allocates
+        // once and then never again.
+        let mut ensure = |buf: &mut Option<wgpu::Buffer>,
+                          cap: &mut usize,
+                          data: &[particles::ParticleVertexData],
+                          label: &str| {
+            if data.is_empty() {
+                return;
+            }
+            if buf.is_none() || *cap < data.len() {
+                // Round up so a slowly-growing storm does not reallocate every
+                // frame on the way up.
+                let want = (data.len() * 3 / 2).max(4096);
+                *buf = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some(label),
+                    size: (want * std::mem::size_of::<particles::ParticleVertexData>()) as u64,
+                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }));
+                *cap = want;
+            }
+            if let Some(b) = buf.as_ref() {
+                self.queue.write_buffer(b, 0, bytemuck::cast_slice(data));
+            }
         };
-        let vb_alpha = (!alpha.is_empty()).then(|| make_vb(alpha));
-        let vb_add = (!additive.is_empty()).then(|| make_vb(additive));
+        let mut vb_a = self.particle_vb_alpha.take();
+        let mut vb_b = self.particle_vb_additive.take();
+        let mut cap_a = self.particle_vb_alpha_cap;
+        let mut cap_b = self.particle_vb_additive_cap;
+        ensure(&mut vb_a, &mut cap_a, alpha, "Particle VB (alpha)");
+        ensure(&mut vb_b, &mut cap_b, additive, "Particle VB (additive)");
+        let vb_alpha = (!alpha.is_empty()).then(|| vb_a.as_ref().expect("ensured")).cloned();
+        let vb_add = (!additive.is_empty()).then(|| vb_b.as_ref().expect("ensured")).cloned();
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -3459,6 +3496,10 @@ impl Renderer {
             }
         }
         self.queue.submit(std::iter::once(encoder.finish()));
+        self.particle_vb_alpha = vb_a;
+        self.particle_vb_additive = vb_b;
+        self.particle_vb_alpha_cap = cap_a;
+        self.particle_vb_additive_cap = cap_b;
     }
 
     /// Orbit paths drawn with the CELESTIAL far plane (v0.451) so the AU-scale rings

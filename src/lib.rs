@@ -9220,6 +9220,56 @@ mod native_app {
                                             }
                                         }
                                     }
+                                    // v0.1066: PROCEDURAL species from
+                                    // data/vegetation/trees.ron are built here
+                                    // instead of loaded. One mesh per (species,
+                                    // variant) - roughly 18 meshes total - then
+                                    // instanced by transform, so a forest costs
+                                    // meshes, not one per tree. These are the
+                                    // only trees a RELEASE build has, because
+                                    // the bundle does not ship assets/models/.
+                                    {
+                                        use crate::renderer::tree_mesh;
+                                        let reg = tree_mesh::registry();
+                                        for t in reg.trees.iter().filter(|t| t.is_procedural()) {
+                                            for v in 0..t.variants.max(1) {
+                                                let key = format!("proc:{}_v{v}", t.id);
+                                                if state.decoration_mesh_cache.contains_key(&key) {
+                                                    continue;
+                                                }
+                                                let mut b =
+                                                    crate::renderer::plant_mesh::PlantMeshBuilder::new();
+                                                // Built at the species' nominal
+                                                // height; per-tree height rides
+                                                // on the instance scale below.
+                                                tree_mesh::build_tree(
+                                                    &mut b,
+                                                    t,
+                                                    t.height_m,
+                                                    v.wrapping_mul(2_654_435_761),
+                                                );
+                                                let mesh = crate::renderer::mesh::Mesh::from_vertices(
+                                                    &state.renderer.device,
+                                                    &b.vertices,
+                                                    &b.indices,
+                                                );
+                                                let mi = state.renderer.add_mesh(mesh);
+                                                // Type 20 = packed per-face
+                                                // colour + the close-range leaf
+                                                // shading (venation, wax,
+                                                // backlit transmission).
+                                                let ma = state.renderer.add_material_typed(
+                                                    [1.0, 1.0, 1.0, 1.0],
+                                                    0.0,
+                                                    0.9,
+                                                    20.0,
+                                                );
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(key, (mi, ma));
+                                            }
+                                        }
+                                    }
                                     for name in &tree_names {
                                         let name = name.as_str();
                                         if state.decoration_mesh_cache.contains_key(name) {
@@ -9398,12 +9448,32 @@ mod native_app {
                                         } else {
                                             0.0
                                         };
-                                        let sp = (tr.species % 2) as usize;
+                                        // v0.1066: species is now an index into
+                                        // data/vegetation/trees.ron. Procedural
+                                        // species resolve to a single generated
+                                        // mesh; model species keep the glTF
+                                        // stem + _bark pair they always had.
                                         let va = (tr.variant % 3) as usize;
-                                        let stem = if sp == 0 {
-                                            format!("fir_sapling_v{}", va + 1)
-                                        } else {
-                                            format!("pine_sapling_small_v{}", va + 1)
+                                        let tdef =
+                                            crate::renderer::tree_mesh::registry()
+                                                .get(tr.species as usize);
+                                        let procedural =
+                                            tdef.map(|t| t.is_procedural()).unwrap_or(false);
+                                        // TREE_MODEL_H is indexed by the two
+                                        // photoscans, so map by MODEL NAME
+                                        // rather than registry order - a
+                                        // reordered data file must not silently
+                                        // rescale every conifer.
+                                        let sp = match tdef.map(|t| t.model.as_str()) {
+                                            Some("pine_sapling_small") => 1,
+                                            _ => 0,
+                                        };
+                                        let stem = match tdef {
+                                            Some(t) if procedural => {
+                                                format!("proc:{}_v{}", t.id, va)
+                                            }
+                                            Some(t) => format!("{}_v{}", t.model, va + 1),
+                                            None => format!("fir_sapling_v{}", va + 1),
                                         };
                                         let pos_render = render_off + rot_d * base_local;
                                         // Y-up model onto the local radial up,
@@ -9416,9 +9486,21 @@ mod native_app {
                                         let obj_rot = rotation
                                             * up_arc
                                             * Quat::from_rotation_y(tr.yaw);
-                                        let scl = tr.height_m / TREE_MODEL_H[sp][va];
+                                        // Procedural meshes are generated AT the
+                                        // species height, so the instance scale
+                                        // only carries the per-tree jitter.
+                                        let scl = match tdef {
+                                            Some(t) if procedural => {
+                                                tr.height_m / t.height_m.max(0.01)
+                                            }
+                                            _ => tr.height_m / TREE_MODEL_H[sp][va],
+                                        };
                                         let mut any = false;
-                                        for suffix in ["", "_bark"] {
+                                        // A procedural tree is ONE mesh; the
+                                        // photoscans are a trunk + foliage pair.
+                                        let suffixes: &[&str] =
+                                            if procedural { &[""] } else { &["", "_bark"] };
+                                        for suffix in suffixes {
                                             let key = format!("{stem}{suffix}");
                                             let Some(&(mi, ma)) =
                                                 state.decoration_mesh_cache.get(&key)

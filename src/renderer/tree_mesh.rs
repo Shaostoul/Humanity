@@ -267,15 +267,30 @@ fn tilt(v: [f32; 3], deg: f32, phase: f32) -> [f32; 3] {
 /// whole subtrees mid-recursion and the first branches ate the entire budget
 /// while the rest of the crown came out bare. Branch tube cost is kept low
 /// (see `sides_for`) precisely so foliage, not scaffolding, fills this.
-const MAX_TRIS: usize = 6800;
+const MAX_TRIS: usize = 8600;
 
 /// Radial segments for a limb at `depth`. A twig does not need the 8 sides a
 /// trunk does, and halving them here is what buys the crown its leaves.
+///
+/// These stay low on purpose: with SMOOTH normals (see `tri_smooth`) a 5-sided
+/// branch shades like a cylinder, so sides buy silhouette only, and silhouette
+/// at twig scale is a pixel wide.
 fn sides_for(depth: u32) -> u32 {
     match depth {
-        0 => 6,
+        0 => 7,
         1 => 5,
-        _ => 4,
+        2 => 4,
+        _ => 3,
+    }
+}
+
+/// Lengthwise segments per limb: how finely the curved spine is sampled.
+/// The trunk gets the most because its bow is the one you stand next to.
+fn segments_for(depth: u32) -> u32 {
+    match depth {
+        0 => 4,
+        1 => 3,
+        _ => 2,
     }
 }
 
@@ -295,6 +310,43 @@ pub fn build_tree(b: &mut PlantMeshBuilder, def: &TreeDef, height_m: f32, seed: 
     }
 }
 
+/// A bole: the clear trunk from the ground to the first branching. Curved and
+/// ROOT-FLARED (v0.1067). The flare is the detail that reads as "a tree grew
+/// here" rather than "a cylinder was placed here": real trunks swell sharply in
+/// the last half-metre where they meet the ground, and a dead-straight
+/// constant-taper post is an instant giveaway.
+///
+/// Returns the top of the bole so the caller can branch from it.
+fn trunk(
+    b: &mut PlantMeshBuilder,
+    def: &TreeDef,
+    base: [f32; 3],
+    dir: [f32; 3],
+    len: f32,
+    r_base: f32,
+    r_top_frac: f32,
+) -> [f32; 3] {
+    let segs = 6;
+    let mut p = base;
+    let mut d = dir;
+    for s in 0..segs {
+        let f0 = s as f32 / segs as f32;
+        let f1 = (s + 1) as f32 / segs as f32;
+        // Flare: an extra radius bump near the ground. Kept gentle and spread
+        // over a longer run - a short sharp flare reads as a rocket fin, not
+        // buttress roots.
+        let flare = |f: f32| 1.0 + 0.28 * (1.0 - (f / 0.30).min(1.0)).powi(2);
+        let ra = r_base * (1.0 + (r_top_frac - 1.0) * f0) * flare(f0);
+        let rb = r_base * (1.0 + (r_top_frac - 1.0) * f1) * flare(f1);
+        let to = add(p, d, len / segs as f32);
+        b.tube(p, to, ra, rb, 8, def.trunk_color);
+        p = to;
+        // A very slight sway so the bole is not a plumb line.
+        d = norm([d[0] + 0.012, d[1], d[2] - 0.008]);
+    }
+    p
+}
+
 /// A leaf cluster: several blades fanned around a twig tip. Individual leaves
 /// on an 18 m tree would be sub-pixel and cost thousands of triangles, so one
 /// "leaf" here stands for a clump of foliage, which is what every foliage
@@ -310,11 +362,42 @@ fn leaf_cluster(
 ) {
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.4, 0.4);
-        let d = tilt(dir, rng.range(38.0, 82.0), phase);
+        let d = tilt(dir, rng.range(30.0, 88.0), phase);
         // Blades hang slightly: gravity plus the weight of the clump.
         let d = norm([d[0], d[1] - 0.35, d[2]]);
-        b.leaf(at, d, size, size * 0.62, 0.5, color);
+        // Push each blade out from the twig so a clump reads as a spray of
+        // foliage rather than a rosette pinned to one point.
+        let off = add(at, d, size * rng.range(0.05, 0.45));
+        blade(b, off, d, size * rng.range(0.7, 1.25), color, rng);
     }
+}
+
+/// One foliage blade: a double-sided diamond, FOUR triangles.
+///
+/// `PlantMeshBuilder::leaf` is a folded 8-quad fan at 16 triangles, which is
+/// right for a crop you stand over and wrong for tree foliage: at clump scale
+/// the fold is invisible, so those 16 triangles bought nothing while starving
+/// the canopy. Four triangles per blade buys 4x the coverage for the same
+/// budget, and coverage is the whole difference between a canopy and a few
+/// leaves stapled to a stick. (Palm fronds still use the real `leaf`, where
+/// the elongated shape genuinely reads.)
+fn blade(
+    b: &mut PlantMeshBuilder,
+    at: [f32; 3],
+    dir: [f32; 3],
+    len: f32,
+    color: [f32; 3],
+    rng: &mut Rng,
+) {
+    let up = if dir[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
+    let side = norm(cross(dir, up));
+    let wid = len * rng.range(0.42, 0.68);
+    let mid = add(at, dir, len * rng.range(0.38, 0.5));
+    let tip = add(at, dir, len);
+    let l = add(mid, side, -wid * 0.5);
+    let r = add(mid, side, wid * 0.5);
+    b.tri2(at, l, tip, color);
+    b.tri2(at, tip, r, color);
 }
 
 /// Recursive limb. Emits a tapered segment, then either children or foliage.
@@ -335,8 +418,31 @@ fn limb(
         return;
     }
     let r1 = r0 * 0.68;
-    let to = add(from, dir, len);
-    b.tube(from, to, r0, r1, sides_for(depth), def.trunk_color);
+    // A limb is a CURVED SPINE, not one straight frustum (v0.1067). Real
+    // branches bow: they leave the parent at an angle, then gravity pulls the
+    // far end down while the tip reaches back toward the light. Drawing that as
+    // a single cone gave every junction a hard kink and every branch a dead
+    // straight silhouette, which is most of what read as "early 2000s".
+    let segs = segments_for(depth);
+    let mut p = from;
+    let mut d = dir;
+    for s in 0..segs {
+        let f0 = s as f32 / segs as f32;
+        let f1 = (s + 1) as f32 / segs as f32;
+        let seg_len = len / segs as f32;
+        let to = add(p, d, seg_len);
+        // Radius interpolates along the whole limb, so the taper is continuous
+        // across segments instead of stepping at each one.
+        let ra = r0 + (r1 - r0) * f0;
+        let rb = r0 + (r1 - r0) * f1;
+        b.tube(p, to, ra, rb, sides_for(depth), def.trunk_color);
+        p = to;
+        // Bow: droop grows toward the tip, and the trunk stays straighter than
+        // the twigs (a bole that sagged would read as a sick tree).
+        let droop = if depth == 0 { 0.04 } else { 0.10 } * f1;
+        d = norm([d[0], d[1] - droop, d[2]]);
+    }
+    let to = p;
 
     // Foliage on the outer TWO generations, not just the tips: one generation
     // of leaf clumps leaves a crown you can see straight through.
@@ -346,7 +452,7 @@ fn limb(
         let tip = depth >= max_depth;
         let at = if tip { to } else { add(from, dir, len * 0.72) };
         let size = if tip { leaf_size } else { leaf_size * 0.78 };
-        leaf_cluster(b, at, dir, size, color, if tip { 6 } else { 3 }, rng);
+        leaf_cluster(b, at, dir, size, color, if tip { 16 } else { 8 }, rng);
         if tip {
             return;
         }
@@ -374,8 +480,7 @@ fn broadleaf(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, rng: &mut Rng) {
     let bole = h * rng.range(0.26, 0.36);
     let r_base = h * 0.030;
     let lean = norm([rng.range(-0.06, 0.06), 1.0, rng.range(-0.06, 0.06)]);
-    let top = add([0.0, 0.0, 0.0], lean, bole);
-    b.tube([0.0, 0.0, 0.0], top, r_base, r_base * 0.74, 8, def.trunk_color);
+    let top = trunk(b, def, [0.0, 0.0, 0.0], lean, bole, r_base, 0.74);
     // 3 primary limbs off the bole top. Three rather than four: each primary
     // costs a whole subtree, and the budget buys more by spending it on
     // foliage than on a fourth scaffold.
@@ -411,10 +516,10 @@ fn conifer(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, rng: &mut Rng) {
             let d = norm([d[0], d[1] - 0.30, d[2]]);
             let tip = add([0.0, y, 0.0], d, blen);
             b.tube([0.0, y, 0.0], tip, r_base * 0.22, r_base * 0.07, 4, def.trunk_color);
-            leaf_cluster(b, tip, d, leaf_size, def.leaf_color, 3, rng);
+            leaf_cluster(b, tip, d, leaf_size, def.leaf_color, 10, rng);
             // A second clump midway keeps the branch from reading as a bare stick.
             let mid = add([0.0, y, 0.0], d, blen * 0.55);
-            leaf_cluster(b, mid, d, leaf_size * 0.8, def.leaf_color, 2, rng);
+            leaf_cluster(b, mid, d, leaf_size * 0.8, def.leaf_color, 7, rng);
         }
     }
 }
@@ -442,7 +547,7 @@ fn umbrella(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, rng: &mut Rng) {
             let d2 = tilt([0.0, 1.0, 0.0], rng.range(80.0, 94.0), p2);
             let tip = add(mid, d2, h * rng.range(0.16, 0.26));
             b.tube(mid, tip, r_base * 0.30, r_base * 0.12, 4, def.trunk_color);
-            leaf_cluster(b, tip, [0.0, 1.0, 0.0], leaf_size, def.leaf_color, 4, rng);
+            leaf_cluster(b, tip, [0.0, 1.0, 0.0], leaf_size, def.leaf_color, 16, rng);
         }
     }
 }
@@ -466,7 +571,7 @@ fn palm(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, rng: &mut Rng) {
     }
     // Crown: long fronds arching out and down.
     let frond = h * 0.34;
-    for k in 0..9 {
+    for k in 0..15 {
         let phase = k as f32 * 2.399_963;
         let dd = tilt([0.0, 1.0, 0.0], rng.range(52.0, 88.0), phase);
         let dd = norm([dd[0], dd[1] - 0.28, dd[2]]);
@@ -648,6 +753,23 @@ mod tests {
         let path = std::env::var("TREE_DUMP").unwrap_or_else(|_| "tree_dump.svg".to_string());
         std::fs::write(&path, svg).expect("write dump");
         eprintln!("wrote {path}");
+    }
+
+    /// The card bake and the near-model mirror both call `pick` with the same
+    /// inputs. If it were not a pure function of those inputs, a tree would
+    /// change species as you walked toward it - the exact defect the old
+    /// duplicated `species_fir` expression was written to avoid.
+    #[test]
+    fn pick_is_deterministic() {
+        let r = registry();
+        for (lat, lon, elev) in [(35.36, 138.73, 700.0), (45.0, -122.0, 300.0), (5.0, 30.0, 100.0)] {
+            let d = dir_of(lat, lon);
+            for roll in [0u32, 1, 99, 123_456, u32::MAX] {
+                let a = r.pick(d, lat as f32, elev, EARTH_R, roll);
+                let b = r.pick(d, lat as f32, elev, EARTH_R, roll);
+                assert_eq!(a, b, "pick differed for lat {lat} roll {roll}");
+            }
+        }
     }
 
     #[test]

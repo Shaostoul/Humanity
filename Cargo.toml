@@ -1,6 +1,6 @@
 [package]
 name = "humanity-engine"
-version = "0.1065.4"
+version = "0.1066.0"
 edition = "2021"
 
 [[bin]]
@@ -25,6 +25,10 @@ wasm = [
 ]
 
 [dependencies]
+# Data parallelism (v0.1067). The particle update + vertex-collect loop is
+# embarrassingly parallel and was MEASURED at 17-20 ns per particle per frame
+# on one core, which put the practical ceiling near 50k particles at 120 fps.
+rayon = "1"
 # Rendering
 wgpu = "24"
 bytemuck = { version = "1", features = ["derive"] }

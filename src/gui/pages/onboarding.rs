@@ -198,6 +198,11 @@ pub fn draw_quests(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
                         if response.clicked() {
                             let current = state.onboarding_quest_progress.get(&key).copied().unwrap_or(false);
                             state.onboarding_quest_progress.insert(key.clone(), !current);
+                            // Write it out now (v0.1066). Before this, ticking a
+                            // step only changed an in-memory map, so a person
+                            // could work through a whole chain and find it blank
+                            // again on the next launch.
+                            crate::config::AppConfig::from_gui_state(state).save();
 
                             // If the step has a link to another page, also navigate.
                             if let Some(link) = step.link.as_ref() {
@@ -230,6 +235,11 @@ fn page_from_link(link: &str) -> Option<GuiPage> {
         "civilization" => Some(GuiPage::Civilization),
         "guilds" => Some(GuiPage::Guilds),
         "tools" => Some(GuiPage::Tools),
+        // Library and Platform became top-level tabs in v0.1063; without these
+        // a quest step pointing at either would silently do nothing.
+        "library" => Some(GuiPage::Library),
+        "platform" => Some(GuiPage::Platform),
+        "quests" => Some(GuiPage::Quests),
         "studio" => Some(GuiPage::Studio),
         "inventory" => Some(GuiPage::Inventory),
         // External URLs or unknown paths: no navigation.

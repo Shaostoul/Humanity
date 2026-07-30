@@ -216,6 +216,30 @@ impl PlantMeshBuilder {
     }
 
     /// Tapered tube from `from` to `to` with `sides` around (a stem segment).
+    /// Push one triangle with EXPLICIT per-vertex normals.
+    ///
+    /// Same packed-colour contract as `tri` (all three corners carry the
+    /// identical UV, so the integer survives interpolation), but the caller
+    /// supplies smooth normals instead of the flat face normal. Vertices are
+    /// already unshared because the colour transport demands it, so a smooth
+    /// normal costs nothing extra - it is pure shading gain. This is what
+    /// stops a 4-sided branch from reading as four hard facets, which was the
+    /// single loudest "low-poly" tell on the procedural trees (v0.1067).
+    pub(crate) fn tri_smooth(
+        &mut self,
+        p: [[f32; 3]; 3],
+        n: [[f32; 3]; 3],
+        color: [f32; 3],
+    ) {
+        let mut uv = pack_color_to_uv(color, false);
+        uv[0] += self.organ.bit();
+        let base = self.vertices.len() as u32;
+        for i in 0..3 {
+            self.vertices.push(Vertex { position: p[i], normal: norm(n[i]), uv });
+        }
+        self.indices.extend_from_slice(&[base, base + 1, base + 2]);
+    }
+
     pub(crate) fn tube(&mut self, from: [f32; 3], to: [f32; 3], r0: f32, r1: f32, sides: u32, color: [f32; 3]) {
         let axis = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
         let alen = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(1e-6);
@@ -237,8 +261,21 @@ impl PlantMeshBuilder {
             };
             let (b0, b1) = (p(a0, from, r0), p(a1, from, r0));
             let (t0, t1) = (p(a0, to, r1), p(a1, to, r1));
-            self.tri(b0, t0, t1, color);
-            self.tri(b0, t1, b1, color);
+            // Smooth normals around the circumference (v0.1067). The surface
+            // normal of a truncated cone is the radial direction tilted back
+            // along the axis by the taper slope, so a fat trunk tapering to a
+            // twig still lights correctly rather than like a cylinder.
+            let slope = (r0 - r1) / alen;
+            let rad = |ang: f32| {
+                norm([
+                    side[0] * ang.cos() + up[0] * ang.sin() + ax[0] * slope,
+                    side[1] * ang.cos() + up[1] * ang.sin() + ax[1] * slope,
+                    side[2] * ang.cos() + up[2] * ang.sin() + ax[2] * slope,
+                ])
+            };
+            let (n0, n1) = (rad(a0), rad(a1));
+            self.tri_smooth([b0, t0, t1], [n0, n0, n1], color);
+            self.tri_smooth([b0, t1, b1], [n0, n1, n1], color);
         }
     }
 

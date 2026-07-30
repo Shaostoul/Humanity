@@ -121,6 +121,41 @@ fn parity_data_files_exist() {
     );
 }
 
+/// The constitution must have exactly ONE document pipeline. /accord is a
+/// focused public permalink over the same `data/library/` manifest that
+/// /library and the native Library read (the Accord subset is flagged
+/// `accord: true` by scripts/build-library.js). It used to fetch a separate
+/// relay endpoint, which gave the constitution two independent sources that
+/// could drift and made a static document unreadable whenever the relay was
+/// down.
+#[test]
+fn accord_page_reads_the_shared_library_manifest() {
+    let js = read("web/pages/accord-app.js");
+    assert!(
+        js.contains("library/index.json"),
+        "\n\nweb/pages/accord-app.js must read the shared data/library manifest, \
+         not a separate document source.\n"
+    );
+    // Match a STRING LITERAL, not prose: the header comment legitimately names
+    // the retired endpoint to explain why it is retired, and a bare substring
+    // check flags that comment as a violation.
+    assert!(
+        !js.contains("'/api/docs/accord") && !js.contains("\"/api/docs/accord"),
+        "\n\nweb/pages/accord-app.js is back on the relay endpoint /api/docs/accord. \
+         That is a SECOND source for the constitution; it can drift from \
+         data/library/ and it breaks when the relay is down. Read the manifest \
+         instead.\n"
+    );
+    // The flag the page filters on must actually exist in the generated data,
+    // otherwise the page renders an empty Accord.
+    let manifest = read("data/library/index.json");
+    assert!(
+        manifest.contains("\"accord\""),
+        "\n\ndata/library/index.json has no `accord` flag, so /accord would show \
+         nothing. Re-run `node scripts/build-library.js`.\n"
+    );
+}
+
 /// The retired files must stay retired. They were merged into
 /// data/external/catalog.json on 2026-07-30; if one reappears, the three-way
 /// split is back and the pages will drift again.

@@ -13,18 +13,27 @@ use glam::Vec3;
 
 /// A single live particle.
 #[derive(Clone)]
+/// One live particle - ONLY what varies per particle (v0.1067).
+///
+/// It used to also carry size_start/size_end/color_start/color_end/emissive/
+/// shape, all copied verbatim from the emitter def into every single particle:
+/// 48 bytes of pure duplication against 32 bytes of real state, so 60% of the
+/// struct was a constant repeated a million times.
+///
+/// That mattered because this loop is MEMORY-bound, not compute-bound. The
+/// per-particle maths is a few flops; the cost is streaming the pool through
+/// cache twice a frame (advance, then collect). Measured proof: adding rayon
+/// across 6 cores bought only 1.25x, which is the signature of a bandwidth
+/// limit rather than a compute one. Shrinking 80 bytes to 32 removes 2.5x of
+/// that traffic, which is the actual lever.
+///
+/// The constants now come from the def at collect time, where they are read
+/// once from L1 rather than fetched per particle.
 struct Particle {
     position: Vec3,
     velocity: Vec3,
     age: f32,
     lifetime: f32,
-    size_start: f32,
-    size_end: f32,
-    color_start: [f32; 4],
-    color_end: [f32; 4],
-    emissive: f32,
-    /// Sprite shape, copied from the emitter def (v0.1064).
-    shape: f32,
 }
 
 /// Serializable emitter def for RON loading.
@@ -202,17 +211,52 @@ impl Emitter {
         min + self.rand() * (max - min)
     }
 
+    /// Particle count above which the physics advance is worth handing to
+    /// rayon (v0.1067). Below this the pool fits in cache and the fork/join
+    /// costs more than the work: measured, a 10k pool is 0.168 ms serial, and
+    /// thread wakeup alone is tens of microseconds. Small emitters - sparks,
+    /// smoke puffs, the ambient dust - stay on the fast serial path.
+    /// MEASURED: at 10k the parallel path was SLOWER (0.319 ms vs 0.168 ms
+    /// serial) - fork/join costs more than a pool that already fits in cache.
+    /// Parallelism only pays once the pool is big enough to be streaming from
+    /// memory anyway.
+    const PAR_THRESHOLD: usize = 50_000;
+
     fn tick(&mut self, dt: f32, def: &EmitterDef) {
-        // Advance existing particles
-        self.particles.retain_mut(|p| {
-            p.age += dt;
-            if p.age >= p.lifetime {
-                return false;
-            }
-            p.velocity += def.gravity * dt;
-            p.position += p.velocity * dt;
-            true
-        });
+        // ── ADVANCE (parallel above PAR_THRESHOLD) ──
+        // Split into a parallel ADVANCE and a serial COMPACT. The old
+        // retain_mut did both at once, which is tidy but inherently serial:
+        // removal has to know the surviving order. Advancing is per-particle
+        // and shares nothing, so it parallelises exactly; the compaction that
+        // follows is a memmove over a Vec, which is memory-bound and cheap.
+        //
+        // Measured before this change: 17-20 ns per particle per frame on one
+        // core, which put the practical ceiling near 50k particles at 120 fps.
+        let g = def.gravity;
+        if self.particles.len() >= Self::PAR_THRESHOLD {
+            use rayon::prelude::*;
+            self.particles.par_iter_mut().for_each(|p| {
+                p.age += dt;
+                p.velocity += g * dt;
+                p.position += p.velocity * dt;
+            });
+            self.particles.retain(|p| p.age < p.lifetime);
+        } else {
+            // Serial path keeps advance and removal FUSED in one pass. Splitting
+            // them (as the parallel path must) costs a second walk of the array,
+            // and for a pool small enough to sit in cache that second walk is
+            // pure overhead - measured at 10k it turned 0.168 ms into 0.233 ms.
+            // Small emitters are the common case, so they keep the fast shape.
+            self.particles.retain_mut(|p| {
+                p.age += dt;
+                if p.age >= p.lifetime {
+                    return false;
+                }
+                p.velocity += g * dt;
+                p.position += p.velocity * dt;
+                true
+            });
+        }
 
         // Spawn new particles
         if self.active {
@@ -288,35 +332,46 @@ impl Emitter {
             velocity,
             age: 0.0,
             lifetime,
-            size_start: def.size_start,
-            size_end: def.size_end,
-            color_start: def.color_start,
-            color_end: def.color_end,
-            emissive: def.emissive,
-            shape: def.shape,
         });
     }
 
-    /// Collect vertex data for GPU upload. `streak_s` is the emitter
-    /// def's motion-blur seconds (0 = round sprites).
-    fn collect_vertices(&self, streak_s: f32) -> Vec<ParticleVertexData> {
-        self.particles.iter().map(|p| {
-            let t = (p.age / p.lifetime).clamp(0.0, 1.0);
-            let size = p.size_start + (p.size_end - p.size_start) * t;
-            let color = [
-                p.color_start[0] + (p.color_end[0] - p.color_start[0]) * t,
-                p.color_start[1] + (p.color_end[1] - p.color_start[1]) * t,
-                p.color_start[2] + (p.color_end[2] - p.color_start[2]) * t,
-                p.color_start[3] + (p.color_end[3] - p.color_start[3]) * t,
-            ];
-            let s = p.velocity * streak_s;
-            ParticleVertexData {
-                position: [p.position.x, p.position.y, p.position.z],
-                color,
-                size_emissive: [size, p.emissive, p.shape],
-                stretch: [s.x, s.y, s.z],
-            }
-        }).collect()
+    /// Collect vertex data for GPU upload; `streak_s` is the emitter def's
+    /// motion-blur seconds (0 = round sprites). Parallel above the same threshold: this is a
+    /// pure map with no shared state, and it was HALF the measured per-particle
+    /// cost (the colour lerp plus the struct write).
+    fn collect_vertices(&self, streak_s: f32, def: &EmitterDef) -> Vec<ParticleVertexData> {
+        if self.particles.len() >= Self::PAR_THRESHOLD {
+            use rayon::prelude::*;
+            return self
+                .particles
+                .par_iter()
+                .map(|p| Self::vertex_for(p, streak_s, def))
+                .collect();
+        }
+        self.particles
+            .iter()
+            .map(|p| Self::vertex_for(p, streak_s, def))
+            .collect()
+    }
+
+    /// One particle's vertex data. Extracted so the serial and parallel paths
+    /// cannot drift apart.
+    fn vertex_for(p: &Particle, streak_s: f32, def: &EmitterDef) -> ParticleVertexData {
+        let t = (p.age / p.lifetime).clamp(0.0, 1.0);
+        let size = def.size_start + (def.size_end - def.size_start) * t;
+        let color = [
+            def.color_start[0] + (def.color_end[0] - def.color_start[0]) * t,
+            def.color_start[1] + (def.color_end[1] - def.color_start[1]) * t,
+            def.color_start[2] + (def.color_end[2] - def.color_start[2]) * t,
+            def.color_start[3] + (def.color_end[3] - def.color_start[3]) * t,
+        ];
+        let s = p.velocity * streak_s;
+        ParticleVertexData {
+            position: [p.position.x, p.position.y, p.position.z],
+            color,
+            size_emissive: [size, def.emissive, def.shape],
+            stretch: [s.x, s.y, s.z],
+        }
     }
 }
 
@@ -439,7 +494,9 @@ impl ParticleSystem {
             let add = def.map(|d| d.blend_additive).unwrap_or(false);
             let streak = def.map(|d| d.streak_stretch).unwrap_or(0.0);
             let out = if add { &mut additive } else { &mut alpha };
-            out.extend(e.collect_vertices(streak));
+            if let Some(d) = def {
+                out.extend(e.collect_vertices(streak, d));
+            }
         }
         (alpha, additive)
     }
@@ -448,12 +505,10 @@ impl ParticleSystem {
     pub fn collect_all_vertices(&self) -> Vec<ParticleVertexData> {
         let mut verts = Vec::with_capacity(self.particle_count());
         for emitter in &self.emitters {
-            let streak = self
-                .emitter_defs
-                .get(&emitter.emitter_type)
-                .map(|d| d.streak_stretch)
-                .unwrap_or(0.0);
-            verts.extend(emitter.collect_vertices(streak));
+            let Some(def) = self.emitter_defs.get(&emitter.emitter_type) else {
+                continue;
+            };
+            verts.extend(emitter.collect_vertices(def.streak_stretch, def));
         }
         verts
     }
@@ -642,13 +697,13 @@ mod tests {
         d.spread_angle_deg = 0.0;
         let mut e = Emitter::new("t".into(), Vec3::ZERO);
         e.tick(0.1, &d);
-        let verts = e.collect_vertices(0.05);
+        let verts = e.collect_vertices(0.05, &d);
         assert!(!verts.is_empty());
         for v in &verts {
             let mag = (v.stretch[0].powi(2) + v.stretch[1].powi(2) + v.stretch[2].powi(2)).sqrt();
             assert!((mag - 0.5).abs() < 0.05, "10 m/s * 0.05 s should be ~0.5 m, got {mag}");
         }
-        assert!(e.collect_vertices(0.0).iter().all(|v| v.stretch == [0.0; 3]));
+        assert!(e.collect_vertices(0.0, &d).iter().all(|v| v.stretch == [0.0; 3]));
     }
 }
 
@@ -693,7 +748,7 @@ mod perf_probe {
             let mut sink = 0usize;
             for _ in 0..frames {
                 e.tick(1.0 / 60.0, &def);
-                sink += e.collect_vertices(0.0).len();
+                sink += e.collect_vertices(0.0, &def).len();
             }
             let ms = t0.elapsed().as_secs_f64() * 1000.0 / frames as f64;
             println!(

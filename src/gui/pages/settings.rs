@@ -2767,9 +2767,18 @@ pub(crate) fn draw_controls_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
 
 pub(crate) fn draw_privacy_content(ui: &mut egui::Ui, theme: &Theme, state: &mut GuiState) {
     widgets::card(ui, theme, |ui| {
-        widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible);
+        // Both toggles must mark the settings dirty, otherwise the change is
+        // never written to the config and the person is public again on the
+        // next launch without being told (v0.1066: the return value of
+        // `toggle` was being discarded here, and neither field was on
+        // AppConfig at all).
+        if widgets::toggle(ui, theme, "Profile Visible to Others", &mut state.settings.profile_visible) {
+            state.settings_dirty = true;
+        }
         ui.label(RichText::new("Whether other players can open and view your profile page.").color(theme.text_muted()).size(theme.font_size_small));
-        widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible);
+        if widgets::toggle(ui, theme, "Show Online Status", &mut state.settings.online_status_visible) {
+            state.settings_dirty = true;
+        }
         ui.label(RichText::new("Whether others can see that you are online right now. Off = you appear offline.").color(theme.text_muted()).size(theme.font_size_small));
     });
 }
