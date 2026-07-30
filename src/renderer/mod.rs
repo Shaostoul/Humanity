@@ -2802,7 +2802,28 @@ impl Renderer {
             let center = camera.effective_position();
             let up = if sun.y.abs() > 0.95 { Vec3::Z } else { Vec3::Y };
             let view_m = Mat4::look_at_rh(center + sun * 4000.0, center, up);
-            let proj = Mat4::orthographic_rh(-extent, extent, -extent, extent, 0.1, 8000.0);
+            // DEPTH RANGE, tightened v0.1058. The light sits at center + sun*4000
+            // and everything that can cast into a +/-1500 m box lies within
+            // about 1500 m of that centre plane, but the projection mapped
+            // 0.1..8000 m onto 0..1 of depth - so 3.2x of the precision was
+            // spent on empty space in front of and behind the scene.
+            //
+            // That matters because the shader's shadow bias is expressed in NDC
+            // (0.0006 flat, 0.0025 at grazing), so its WORLD size is the bias
+            // times the depth range: 4.8 m flat and 20 m grazing. A conifer is
+            // 20-30 m tall, so most of a tree's shadow - and all of a trunk's -
+            // fell inside the bias and was erased. Same for any modest terrain
+            // relief and for wave crests, which are 10 m at most.
+            //
+            // Fitting the range to the box takes it to 2400..5600 m = 3200 m,
+            // so the same NDC bias is 1.9 m flat and 8 m grazing: 2.5x tighter
+            // shadows everywhere, for one line and no perf cost. A margin of
+            // 1.4x extent covers casters standing above the box (a 30 m tree on
+            // a ridge) and the texel snap.
+            let z_margin = extent * 1.4;
+            let z_near = (4000.0 - extent - z_margin).max(1.0);
+            let z_far = 4000.0 + extent + z_margin;
+            let proj = Mat4::orthographic_rh(-extent, extent, -extent, extent, z_near, z_far);
             let mut vp = proj * view_m;
             // Texel snap: shift so the world origin lands on a texel grid.
             let ndc_texel = 2.0 / SHADOW_MAP_SIZE;
