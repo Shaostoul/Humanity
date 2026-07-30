@@ -142,15 +142,48 @@ impl Rng {
 
 // ── Mesh assembly ─────────────────────────────────────────────────────────
 
+/// Organ tag ridden into spare bits of the packed UV (v0.1063) so the shader
+/// can tell a leaf blade from a stem from a fruit skin and shade each one
+/// differently up close.
+///
+/// Bits 0..18 of `uv.x` are already spoken for by
+/// `terrain::planet_surface::pack_color_to_uv*`: 0..7 green, 8..15 red,
+/// 16 water, 17 tree card, 18 grass card. Bits 19..23 are free below f32's
+/// 2^24 exact-integer ceiling, and this takes two of them. Keep these in sync
+/// with the type-20 decode in `assets/shaders/pbr/90-fragment-main.wgsl`.
+const ORGAN_BIT_LEAF: f32 = 524_288.0; // bit 19: leaf / petal blade
+const ORGAN_BIT_FRUIT: f32 = 1_048_576.0; // bit 20: fruit skin
+
+/// Which organ the builder is currently emitting faces for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Organ {
+    /// Stems, branches, roots. No extra bit; plain matte shading.
+    Stem,
+    Leaf,
+    Fruit,
+}
+
+impl Organ {
+    fn bit(self) -> f32 {
+        match self {
+            Organ::Stem => 0.0,
+            Organ::Leaf => ORGAN_BIT_LEAF,
+            Organ::Fruit => ORGAN_BIT_FRUIT,
+        }
+    }
+}
+
 /// Accumulates flat-shaded triangles with packed per-face color.
 pub struct PlantMeshBuilder {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    /// Set by each organ primitive before it emits; `tri` bakes it into the UV.
+    organ: Organ,
 }
 
 impl PlantMeshBuilder {
     pub fn new() -> Self {
-        PlantMeshBuilder { vertices: Vec::new(), indices: Vec::new() }
+        PlantMeshBuilder { vertices: Vec::new(), indices: Vec::new(), organ: Organ::Stem }
     }
 
     /// Push one flat-shaded triangle. The face normal is computed from the
@@ -166,7 +199,8 @@ impl PlantMeshBuilder {
         ];
         let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt().max(1e-6);
         n = [n[0] / len, n[1] / len, n[2] / len];
-        let uv = pack_color_to_uv(color, false);
+        let mut uv = pack_color_to_uv(color, false);
+        uv[0] += self.organ.bit();
         let base = self.vertices.len() as u32;
         for p in [a, b, c] {
             self.vertices.push(Vertex { position: p, normal: n, uv });
@@ -215,6 +249,7 @@ impl PlantMeshBuilder {
     /// `dir` is the midrib direction (unit-ish), `length`/`width` in metres,
     /// `fold` 0..1 controls how sharply the blade folds along the midrib.
     fn leaf(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, fold: f32, color: [f32; 3]) {
+        self.organ = Organ::Leaf;
         let d = norm(dir);
         let side = norm(cross(d, [0.0, 1.0, 0.0]));
         let bow = length * 0.14; // tip bows down (gravity)
@@ -246,12 +281,14 @@ impl PlantMeshBuilder {
         // Tip taper
         self.tri2(l2, tip, m2, color);
         self.tri2(r2, m2, tip, color);
+        self.organ = Organ::Stem;
     }
 
     /// A small flat petal: single diamond, kept intentionally simple (flowers
     /// are tiny; the old full leaf() as a petal is what made blossoms read as
     /// giant pinwheels). 2 double-sided triangles.
     fn petal(&mut self, base: [f32; 3], dir: [f32; 3], length: f32, width: f32, color: [f32; 3]) {
+        self.organ = Organ::Leaf; // a petal is a blade too: same thin-tissue shading
         let d = norm(dir);
         let side = norm(cross(d, [0.0, 1.0, 0.0]));
         let mid = lerp3(base, [base[0] + d[0] * length, base[1] + d[1] * length, base[2] + d[2] * length], 0.55);
@@ -260,19 +297,23 @@ impl PlantMeshBuilder {
         let r = [mid[0] + side[0] * width * 0.5, mid[1], mid[2] + side[2] * width * 0.5];
         self.tri2(l, tip, base, color);
         self.tri2(r, base, tip, color);
+        self.organ = Organ::Stem;
     }
 
     /// Low-poly fruit sphere (octahedron subdivided once = 32 faces).
     fn fruit_sphere(&mut self, center: [f32; 3], r: f32, squash: f32, color: [f32; 3]) {
+        self.organ = Organ::Fruit;
         let ico = octa_sub1();
         for f in ico.chunks(3) {
             let p = |v: [f32; 3]| [center[0] + v[0] * r, center[1] + v[1] * r * squash, center[2] + v[2] * r];
             self.tri(p(f[0]), p(f[1]), p(f[2]), color);
         }
+        self.organ = Organ::Stem;
     }
 
     /// Downward-pointing cone (strawberry): rim circle at top, apex below.
     fn fruit_cone(&mut self, top: [f32; 3], r: f32, len: f32, sides: u32, color: [f32; 3]) {
+        self.organ = Organ::Fruit;
         let apex = [top[0], top[1] - len, top[2]];
         let n = sides.max(4);
         for i in 0..n {
@@ -284,6 +325,7 @@ impl PlantMeshBuilder {
             // top cap
             self.tri(p0, p1, top, color);
         }
+        self.organ = Organ::Stem;
     }
 }
 
@@ -693,6 +735,38 @@ mod tests {
             assert!(!water);
             assert!(c.iter().all(|&x| (0.0..=1.0).contains(&x)));
         }
+    }
+
+    /// The organ tag (v0.1063) rides in spare UV bits 19/20. It must reach the
+    /// shader for every organ kind AND must not disturb the color the same
+    /// integer carries in bits 0..15, or plants lose their albedo entirely.
+    #[test]
+    fn organ_bits_ride_along_without_disturbing_the_color() {
+        let mut b = PlantMeshBuilder::new();
+        build_plant(&mut b, &strawberry(), [0.0; 3], [1.0, 0.0, 0.0], 1.0, 0.0, 1);
+        let (mut leaves, mut fruits, mut stems) = (0, 0, 0);
+        for f in b.indices.chunks(3) {
+            let uv = b.vertices[f[0] as usize].uv;
+            let packed = uv[0].round().max(0.0) as u32;
+            let is_leaf = packed & 0x8_0000 != 0;
+            let is_fruit = packed & 0x10_0000 != 0;
+            assert!(!(is_leaf && is_fruit), "a face cannot be both leaf and fruit");
+            if is_leaf {
+                leaves += 1;
+            } else if is_fruit {
+                fruits += 1;
+            } else {
+                stems += 1;
+            }
+            // The color must still decode cleanly with the extra bits set.
+            let (c, water) = crate::terrain::planet_surface::unpack_uv_to_color(uv);
+            assert!(!water, "no plant face is water");
+            assert!(c.iter().all(|&x| (0.0..=1.0).contains(&x)), "color survived: {c:?}");
+        }
+        // A ripe strawberry has all three: leaflets, berries, and stems/roots.
+        assert!(leaves > 0, "tagged no leaf faces");
+        assert!(fruits > 0, "tagged no fruit faces");
+        assert!(stems > 0, "tagged no stem faces");
     }
 
     #[test]

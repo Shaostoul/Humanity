@@ -887,8 +887,13 @@ pub(crate) fn rebuild_plant_meshes(state: &mut EngineState) {
             objs.push((mi, ma));
         } else {
             let mi = state.renderer.add_mesh(mesh);
-            // Type 12: albedo comes from the packed per-face UV colors.
-            let ma = state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 12.0);
+            // Type 20 (v0.1063): albedo comes from the packed per-face UV
+            // colors, same as type 12, but plants get their OWN type so they
+            // (a) stop inheriting type 12's planet terminator gate, which read
+            // base_color as a planet centre and switched direct sun off across
+            // half of every garden, and (b) have somewhere to grow close-range
+            // leaf/fruit detail. See assets/shaders/pbr/90-fragment-main.wgsl.
+            let ma = state.renderer.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 20.0);
             objs.push((mi, ma));
         }
     }

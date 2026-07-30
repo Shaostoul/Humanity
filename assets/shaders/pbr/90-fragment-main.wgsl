@@ -1125,6 +1125,124 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             }
         }
         } // close the sprite-card / packed-color split (v0.961)
+    } else if (material_type >= 19.5 && material_type < 20.5) {
+        // ── Type 20: PROCEDURAL PLANT (v0.1063) ──────────────────────────
+        // Same packed-per-face-colour transport as type 12 (written by
+        // renderer::plant_mesh), but this is its OWN type for two reasons.
+        //
+        // 1. Type 12 applies a planet terminator gate that reads
+        //    material.base_color.xyz as a PLANET CENTRE. A plant's base_color
+        //    is (1,1,1), so plants inherited a terminator through the point
+        //    (1,1,1) in world space and roughly half of every garden had
+        //    direct sun switched off along a plane that swept with the sun.
+        //    That gate simply does not exist here.
+        // 2. It gives leaves and fruit somewhere to grow CLOSE-RANGE DETAIL.
+        //    The geometry is flat-shaded, one colour per face, with no real
+        //    UVs -- so without this every pixel of a leaf is identical, which
+        //    is exactly what reads as "flat two-tone". Everything below is
+        //    derived from world position plus the face normal, so it needs no
+        //    vertex-format change, and it fades out with distance so it costs
+        //    nothing past arm's reach.
+        let packed = u32(round(max(in.pack.x, 0.0)));
+        albedo = vec3<f32>(
+            f32((packed >> 8u) & 255u) / 255.0,
+            f32(packed & 255u) / 255.0,
+            clamp(in.pack.y, 0.0, 1.0),
+        );
+        metallic = 0.0;
+        roughness = 0.9;
+        emissive_strength = 0.0;
+
+        // Organ tag from spare UV bits (keep in sync with plant_mesh.rs).
+        let is_leaf = (packed & 524288u) != 0u;
+        let is_fruit = (packed & 1048576u) != 0u;
+
+        let plant_dist = length(camera.view_pos.xyz - in.world_position);
+        // Coarse detail out to 12 m; past that a leaf is a few pixels wide and
+        // per-pixel venation would only alias.
+        let detail = 1.0 - smoothstep(2.5, 12.0, plant_dist);
+        // The fine pass is the expensive one, so it only runs within ~3 m.
+        let micro = 1.0 - smoothstep(0.8, 3.0, plant_dist);
+
+        if (is_leaf && detail > 0.001) {
+            // A leaf-plane coordinate. There is no per-leaf UV to sample, so
+            // this projects world position onto the face's dominant axis pair.
+            // It is NOT aligned to the midrib -- which is precisely why the
+            // vein pattern is RETICULATE (voronoi cell borders) rather than
+            // striped. A reticulate net has no preferred axis, so the
+            // misalignment is invisible, and real dicot venation IS a net.
+            let lp = triplanar_uv(in.world_position, normal);
+
+            // Primary vein net, plus a finer secondary net inside its cells.
+            let v1 = voronoi(lp * 240.0);
+            var vein = smoothstep(0.34, 0.03, v1);
+            if (micro > 0.001) {
+                vein = vein + smoothstep(0.18, 0.02, voronoi(lp * 720.0)) * 0.45 * micro;
+            }
+            vein = clamp(vein, 0.0, 1.0);
+
+            // Veins are paler and a little yellower than the lamina between
+            // them, and the lamina itself is never one flat green.
+            let mottle = fbm(lp * 70.0);
+            albedo = albedo * (1.0 + (mottle - 0.5) * 0.26 * detail);
+            albedo = mix(albedo, albedo * 1.45 + vec3<f32>(0.03, 0.05, 0.01), vein * 0.5 * detail);
+
+            // Micro-relief: the lamina puckers between the veins. Perturbing
+            // the normal is what stops a blade reading as a flat sticker --
+            // it makes the surface catch light unevenly as the camera moves.
+            let ref_a = select(
+                vec3<f32>(0.0, 1.0, 0.0),
+                vec3<f32>(1.0, 0.0, 0.0),
+                abs(normal.y) > 0.9,
+            );
+            let t1 = normalize(cross(normal, ref_a));
+            let t2 = cross(normal, t1);
+            let bx = fbm(lp * 300.0) - 0.5;
+            let by = fbm(lp * 300.0 + vec2<f32>(31.0, 17.0)) - 0.5;
+            // Veins sit proud of the lamina, so push along the normal too.
+            normal = normalize(
+                normal * (1.0 + vein * 0.25 * detail)
+                    + (t1 * bx + t2 * by) * 0.5 * detail
+            );
+
+            // Waxy cuticle. A leaf is not chalk: 0.9 roughness everywhere is
+            // most of why the current plants look papery. Wax is smoother
+            // between the veins and scuffed along them.
+            roughness = mix(0.9, mix(0.30, 0.55, vein), detail);
+
+            // Subsurface transmission (the cheap Frostbite/DICE form): light
+            // that came THROUGH the blade. A backlit leaf glowing green is the
+            // single strongest cue that vegetation is alive rather than
+            // plastic. Rides on proc_emissive so the shared BRDF below is
+            // untouched. KNOWN SIMPLIFICATION: not shadowed, so a leaf in
+            // deep shade still transmits a little; the term is small enough
+            // that it reads as ambient bounce rather than a bug.
+            let sun_l = normalize(camera.sun_direction.xyz);
+            let lt = normalize(-sun_l + normal * 0.4);
+            let trans = pow(max(dot(view_dir, -lt), 0.0), 3.0);
+            proc_emissive = proc_emissive
+                + albedo * camera.sun_color.rgb * trans * 0.5 * (0.35 + 0.65 * detail);
+        } else if (is_fruit && detail > 0.001) {
+            // Fruit skin is a taut, waxy surface, not paper: far smoother than
+            // a leaf, with a broad blush of colour variation and (up close) a
+            // faint pore stipple. Low-poly fruit spheres lean hard on this.
+            let fp = triplanar_uv(in.world_position, normal);
+            let blush = fbm(fp * 45.0);
+            albedo = albedo * (1.0 + (blush - 0.5) * 0.30 * detail);
+            if (micro > 0.001) {
+                let ref_a = select(
+                    vec3<f32>(0.0, 1.0, 0.0),
+                    vec3<f32>(1.0, 0.0, 0.0),
+                    abs(normal.y) > 0.9,
+                );
+                let t1 = normalize(cross(normal, ref_a));
+                let t2 = cross(normal, t1);
+                let px = fbm(fp * 850.0) - 0.5;
+                let py = fbm(fp * 850.0 + vec2<f32>(13.0, 71.0)) - 0.5;
+                normal = normalize(normal + (t1 * px + t2 * py) * 0.30 * micro);
+            }
+            roughness = mix(0.9, 0.24, detail);
+        }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
         // oversized transparent sphere. Nearly invisible looking straight

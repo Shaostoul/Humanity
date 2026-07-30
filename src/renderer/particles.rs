@@ -23,6 +23,8 @@ struct Particle {
     color_start: [f32; 4],
     color_end: [f32; 4],
     emissive: f32,
+    /// Sprite shape, copied from the emitter def (v0.1064).
+    shape: f32,
 }
 
 /// Serializable emitter def for RON loading.
@@ -52,6 +54,7 @@ struct EmitterDefRon {
     /// classic round sprite; rain uses ~0.035 s so 12 m/s drops draw as
     /// ~40 cm streaks while snow stays a drifting flake.
     #[serde(default)] streak_stretch: f32,
+    #[serde(default)] shape: f32,
 }
 fn default_100() -> usize { 100 }
 fn default_20f() -> f32 { 20.0 }
@@ -88,6 +91,7 @@ impl EmitterDefRon {
             blend_additive: self.blend_mode == "additive",
             spawn_radius: self.spawn_radius,
             streak_stretch: self.streak_stretch,
+            shape: self.shape,
         }
     }
 }
@@ -112,6 +116,13 @@ pub struct EmitterDef {
     pub blend_additive: bool,
     pub spawn_radius: f32,
     pub streak_stretch: f32,
+    /// Sprite SHAPE (v0.1064): 0 = the classic soft round dot, 1 = a procedural
+    /// six-fold snowflake. Operator: "Can we also do procedural snowflake
+    /// designs instead of just dots? While it won't matter much for distant
+    /// snow the stuff that falls real close to the screen will look beautiful."
+    /// A data field rather than a magic sentinel packed into emissive, so new
+    /// shapes (hail, ash, blossom) are a RON edit and a shader arm.
+    pub shape: f32,
 }
 
 impl Default for EmitterDef {
@@ -134,6 +145,7 @@ impl Default for EmitterDef {
             blend_additive: false,
             spawn_radius: 0.0,
             streak_stretch: 0.0,
+            shape: 0.0,
         }
     }
 }
@@ -204,8 +216,27 @@ impl Emitter {
 
         // Spawn new particles
         if self.active {
-            self.spawn_accumulator += def.spawn_rate * self.rate_scale.max(0.0) * dt;
             let cap = ((def.max_particles as f32) * self.cap_scale.max(0.0)) as usize;
+            // ── STEADY-STATE RATE CLAMP (v0.1064) ──
+            // Operator: "the rain kinda pulses from heavy to light to heavy. It
+            // should be consistent."
+            //
+            // A pool of N particles each living L seconds can only sustain N/L
+            // spawns per second - that is what steady state MEANS. Asking for
+            // more does not make denser rain; it fills the pool in a burst, the
+            // cap then blocks all spawning, the whole cohort dies together
+            // because they were born together, and the cycle repeats. That is
+            // the pulse, and raising precip_density made it worse by widening
+            // the gap between the requested rate and the sustainable one.
+            //
+            // Clamping the rate to the sustainable value keeps the pool full
+            // AND lets ages spread out, so deaths become uniform and the fall
+            // looks continuous. Density still rises with the cap, which is the
+            // knob that actually adds rain.
+            let life_avg = ((def.lifetime_min + def.lifetime_max) * 0.5).max(0.05);
+            let sustainable = cap as f32 / life_avg;
+            let want_rate = def.spawn_rate * self.rate_scale.max(0.0);
+            self.spawn_accumulator += want_rate.min(sustainable) * dt;
             while self.spawn_accumulator >= 1.0 && self.particles.len() < cap {
                 self.spawn_accumulator -= 1.0;
                 self.spawn_particle(def);
@@ -262,6 +293,7 @@ impl Emitter {
             color_start: def.color_start,
             color_end: def.color_end,
             emissive: def.emissive,
+            shape: def.shape,
         });
     }
 
@@ -281,7 +313,7 @@ impl Emitter {
             ParticleVertexData {
                 position: [p.position.x, p.position.y, p.position.z],
                 color,
-                size_emissive: [size, p.emissive],
+                size_emissive: [size, p.emissive, p.shape],
                 stretch: [s.x, s.y, s.z],
             }
         }).collect()
@@ -294,7 +326,7 @@ impl Emitter {
 pub struct ParticleVertexData {
     pub position: [f32; 3],
     pub color: [f32; 4],
-    pub size_emissive: [f32; 2],
+    pub size_emissive: [f32; 3],
     /// World-space motion vector (velocity * streak seconds, v0.1036):
     /// the shader stretches the billboard along its screen projection.
     /// Zero = classic round sprite.
@@ -449,10 +481,10 @@ impl ParticleVertexData {
                 wgpu::VertexAttribute {
                     offset: 28,
                     shader_location: 2,
-                    format: wgpu::VertexFormat::Float32x2,
+                    format: wgpu::VertexFormat::Float32x3,
                 },
                 wgpu::VertexAttribute {
-                    offset: 36,
+                    offset: 40,
                     shader_location: 3,
                     format: wgpu::VertexFormat::Float32x3,
                 },

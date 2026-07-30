@@ -82,20 +82,30 @@
         spawn_radius: 15.0,
         streak_stretch: 0.035,  // ~40 cm motion-blur streaks at 12 m/s
     ),
+    // v0.1064 (operator: "Snow is very hard to see and is way too fast even at
+    // zero wind speed. It should be slow and drifting"). Both were the same
+    // cause: gravity -0.35 kept ACCELERATING the flakes, so over a 7-12 s life
+    // they reached 1.6 + 0.35*12 = 5.8 m/s - sleet, not snow. Real snowflakes
+    // hit terminal velocity almost immediately and stay near 1 m/s, so gravity
+    // is nearly zero here BY DESIGN: aerodynamic drag, not ballistics, is what
+    // governs a flake, and the cheapest honest model of drag is simply not
+    // accelerating. Sizes roughly doubled so they read at all, and the wide
+    // spread gives the sideways wander that makes snow look like snow.
     "snow": (
         max_particles: 900,
         spawn_rate: 160.0,
-        lifetime_min: 7.0,
-        lifetime_max: 12.0,
-        speed_min: 0.6,
-        speed_max: 1.6,
+        lifetime_min: 9.0,
+        lifetime_max: 16.0,
+        speed_min: 0.7,
+        speed_max: 1.3,
         direction: (0.0, -1.0, 0.0),
-        spread_angle_deg: 30.0,
-        gravity: (0.0, -0.35, 0.0),
-        size_start: 0.03,
-        size_end: 0.028,
-        color_start: (0.95, 0.95, 1.0, 0.85),
-        color_end: (0.9, 0.9, 0.95, 0.35),
+        spread_angle_deg: 38.0,
+        gravity: (0.0, -0.02, 0.0),
+        size_start: 0.06,
+        size_end: 0.055,
+        color_start: (0.97, 0.97, 1.0, 0.92),
+        color_end: (0.92, 0.94, 1.0, 0.45),
+        shape: 1.0,  // procedural six-fold snowflake (v0.1064)
         emissive: 0.0,
         blend_mode: "alpha",
         spawn_radius: 15.0,

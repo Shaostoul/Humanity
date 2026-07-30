@@ -425,6 +425,27 @@
       },
       "settle_s": 14,
       "hold_altitude": true
+    },
+    {
+      "id": "snow-close",
+      "desc": "Snowfall at eye level - drift speed and the procedural flake shape.",
+      "expect": "Flakes drift slowly (near 1 m/s terminal, not accelerating) and near ones resolve as six-fold crystals rather than dots. Fast streaking sleet means gravity is accelerating them again.",
+      "regressions": [
+        "snow drift speed",
+        "procedural snowflake"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 35.3,
+        "lon": 138.8,
+        "altitude_km": 0.03,
+        "look_offset_deg": 80
+      },
+      "showcase": {
+        "time": "12.0",
+        "weather": "snow"
+      },
+      "settle_s": 14
     }
   ]
 }

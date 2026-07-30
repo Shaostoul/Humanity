@@ -3361,7 +3361,21 @@ mod native_app {
                                     )
                                 });
                             match w {
-                                Some((cond, inten, wind, wdir, ev)) if state.camera.surface_mode => {
+                                // ALTITUDE GATE (v0.1064, operator: "The rain
+                                // actually persists up into outer space, we need
+                                // to fix that"). surface_mode stays true while
+                                // flying away from a planet, so the emitters
+                                // followed the camera all the way out. Rain and
+                                // snow live under the cloud deck; above a few km
+                                // there is nothing to fall past you.
+                                Some((cond, inten, wind, wdir, ev))
+                                    if state.camera.surface_mode
+                                        && state
+                                            .gui_state
+                                            .surface_altitude_m
+                                            .unwrap_or(0.0)
+                                            < 4000.0 =>
+                                {
                                     use crate::systems::weather::WeatherCondition as WC;
                                     let (r, s) = match cond {
                                         WC::Rain => (true, false),
@@ -11192,17 +11206,20 @@ mod native_app {
                                     // the atmosphere's ~8 km, and above it the
                                     // air simply returns to clear.
                                     const FOG_LAYER_H_M: f32 = 700.0;
-                                    // Altitude recomputed here: the block that
-                                    // owns `alt` above is scoped to the
-                                    // atmosphere-bearing branch.
-                                    let fog_alt_m = state
-                                        .frame_lock_body
-                                        .as_deref()
-                                        .and_then(|b| state.planet_defs.get(b))
-                                        .map(|d| {
-                                            (state.frame_lock_anchor.length() - d.radius) as f32
-                                        })
-                                        .unwrap_or(0.0);
+                                    // LIVE altitude (v0.1064). v0.1063 read
+                                    // frame_lock_anchor, which tracks the camera
+                                    // only in surface-WALK mode - in fly mode it
+                                    // is the anchor captured at the last
+                                    // teleport and never moves. So the fog layer
+                                    // was evaluated at a stale height and the
+                                    // operator saw it inverted: thin at the
+                                    // waterline, thick on the way up, gone
+                                    // higher still, all of it tracking where
+                                    // they had teleported FROM. surface_altitude_m
+                                    // is what the HUD reads and is recomputed
+                                    // every frame in both modes.
+                                    let fog_alt_m =
+                                        state.gui_state.surface_altitude_m.unwrap_or(0.0);
                                     let fog_alt_fade =
                                         (-(fog_alt_m.max(0.0)) / FOG_LAYER_H_M).exp();
                                     let t = (w.intensity
