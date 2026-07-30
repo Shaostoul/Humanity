@@ -6461,6 +6461,9 @@ pub struct BrowserCategory {
 
 #[cfg(feature = "native")]
 fn default_browser_color() -> String { "accent".to_string() }
+/// Default underwater clarity (v0.1054): mostly physical, but not so dark that
+/// a first dive is a black screen. The operator can take it either way.
+fn default_water_clarity() -> f32 { 0.35 }
 
 /// Load browser bookmarks from `data/browser/bookmarks.json`.
 #[cfg(feature = "native")]
@@ -6668,6 +6671,13 @@ pub struct SettingsState {
     /// FFT chop field instead of the three anchored trains. Experimental,
     /// default off; applies live (the flag rides the per-frame uniform).
     pub water_fft: bool,
+    /// Underwater clarity (v0.1054, operator: "I can easily see the sea floor
+    /// everywhere as if there's no actual depth darkening... we should
+    /// introduce like a setting for it"). 0 = physical: real seawater
+    /// extinction, so red dies within metres and the view goes blue then black
+    /// with depth. 1 = the old unlimited visibility, which they explicitly want
+    /// KEPT because it is how you go find places like Challenger Deep.
+    pub water_clarity: f32,
     /// Far-tree canopy card sheet (v0.1022). Default off: reads as grid
     /// squares at altitude; superseded by the impostor arc. Kept for A/B.
     pub far_tree_sheet: bool,
@@ -6776,6 +6786,7 @@ impl Default for SettingsState {
             track_station: true,
             planet_surface_detail: true,
             water_fft: false,
+            water_clarity: default_water_clarity(),
             far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,

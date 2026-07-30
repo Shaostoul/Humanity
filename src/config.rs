@@ -449,6 +449,10 @@ pub struct AppConfig {
     /// the wave trains stay the shipped look until increment 2.
     #[serde(default)]
     pub water_fft: bool,
+    /// Underwater clarity 0..1 (v0.1054): 0 = physical seawater extinction,
+    /// 1 = the old unlimited visibility, kept on purpose for exploration.
+    #[serde(default = "default_water_clarity_cfg")]
+    pub water_clarity: f32,
     /// Far-tree canopy card sheet (v0.1022-v0.1027). Default OFF: the
     /// clump cards read as "black squares in a grid" at altitude (operator,
     /// twice) - proper far coverage arrives with the instancing/impostor
@@ -641,6 +645,7 @@ pub struct AppConfig {
     pub default_character: String,
 }
 
+fn default_water_clarity_cfg() -> f32 { 0.35 }
 fn default_nav_top_category() -> String { "reality".to_string() }
 fn default_boot_page() -> String { "onboarding".to_string() }
 
@@ -1010,6 +1015,7 @@ impl AppConfig {
             track_station: state.settings.track_station,
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
+            water_clarity: state.settings.water_clarity,
             far_tree_sheet: state.settings.far_tree_sheet,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
@@ -1158,6 +1164,7 @@ impl AppConfig {
         state.settings.track_station = self.track_station;
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
+        state.settings.water_clarity = self.water_clarity;
         state.settings.far_tree_sheet = self.far_tree_sheet;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.

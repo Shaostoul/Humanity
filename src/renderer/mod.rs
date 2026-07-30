@@ -265,6 +265,11 @@ pub struct Renderer {
     /// storm waves never punch through the seabed, and the backstop shell's
     /// drop tracks it so a calm day keeps a tight backstop.
     pub sea_crest_m: f32,
+    /// Underwater extinction strength (v0.1054): 0 = unlimited visibility (the
+    /// old behaviour), 1 = full physical seawater absorption. Driven by the
+    /// Settings "Underwater clarity" slider, and zero unless the camera is
+    /// actually submerged so surface views are untouched.
+    pub underwater_ext: f32,
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1204,6 +1209,7 @@ impl Renderer {
             detail_distance: 1.0,
             sea_state: 0.35,
             sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
+            underwater_ext: 0.0,
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2728,6 +2734,9 @@ impl Renderer {
         // light4). The shader's shoal fade reads it, v0.1051.
         self.queue
             .write_buffer(&self.camera_buffer, 544, bytemuck::bytes_of(&self.sea_crest_m));
+        // Underwater extinction in light5_cone_inner.y (offset 548), v0.1054.
+        self.queue
+            .write_buffer(&self.camera_buffer, 548, bytemuck::bytes_of(&self.underwater_ext));
         // Fill DIRECTION, COLOUR and intensity (v0.998 intensity, v0.1052 the
         // rest). This pass stamps camera.celestial_uniforms() over the whole
         // buffer first, which carries the DEFAULT fill - so the fill that

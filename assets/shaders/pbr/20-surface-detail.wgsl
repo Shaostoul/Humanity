@@ -405,7 +405,28 @@ fn water_shade(
 ) -> vec3<f32> {
     let sun_l = normalize(camera.sun_direction.xyz);
     let sun_i = camera.sun_direction.w;
+    // Sun elevation from the GEOMETRIC normal - this is the day/night and
+    // terminator factor, and it must NOT follow the waves or a wave tilted
+    // toward a set sun would light up at night.
     let day = clamp(dot(n_geo, sun_l), 0.0, 1.0);
+    // ── PER-FACET DIFFUSE (v0.1054) ──
+    // Operator: "I can see waves behind waves at the most extreme setting. Like
+    // there's no extra shading." Water is the one lit surface in the engine that
+    // never reaches the shared PBR tail (the type-16 branch early-returns), so
+    // ALL of its lighting is this function - and every diffuse term here used
+    // the geometric sphere normal. The wave-perturbed normal reached only the
+    // Fresnel, the sky ramp and the specular lobe, so wave FACES had no
+    // light-and-shade whatsoever: a sunlit slope and a shaded slope of the same
+    // wave returned identical body colour. That is what makes a big sea read as
+    // a flat patterned plane rather than as relief.
+    //
+    // Real water is a poor diffuse reflector, so this is deliberately gentle -
+    // a Lambert term on the perturbed normal, blended with the geometric one so
+    // the near-field gains facet shading while the far field (where n_pert
+    // relaxes to n_geo anyway) is unchanged. Multiplied by `day` so it cannot
+    // manufacture light at night.
+    let facet = clamp(dot(n_pert, sun_l), 0.0, 1.0);
+    let day_facet = day * mix(1.0, clamp(facet / max(day, 0.05), 0.0, 1.6), 0.65);
     let cos_v = clamp(dot(n_pert, view_dir), 0.0, 1.0);
     let t1 = 1.0 - cos_v;
     let t2 = t1 * t1;
@@ -426,7 +447,7 @@ fn water_shade(
     var sky = mix(horizon, zenith, pow(elev, 0.6));
     sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.18;
     let sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
-    let body = albedo * camera.sun_color.rgb * (sun_i * day / PI);
+    let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI);
     let h = normalize(view_dir + sun_l);
     let sparkle = pow(max(dot(n_pert, h), 0.0), WATER_SPEC_POWER) * WATER_SPEC_GAIN;
     let anchor = pow(max(dot(n_geo, h), 0.0), 220.0) * 0.15;

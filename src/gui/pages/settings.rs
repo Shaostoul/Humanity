@@ -2228,6 +2228,20 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.").color(theme.text_muted()).size(theme.font_size_small));
+        // Underwater clarity (v0.1054). Deliberately a slider rather than a
+        // toggle: the operator wants the physical fade AND the ability to keep
+        // seeing far underwater for exploration, and the honest way to offer
+        // both is to let them pick where on that line to sit.
+        if widgets::labeled_slider(
+            ui,
+            theme,
+            "Underwater clarity",
+            &mut state.settings.water_clarity,
+            0.0..=1.0,
+        ) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How far you can see underwater. 0 is physical: real seawater absorbs red within a few metres, then green, so the world goes blue and then black as you descend. 1 keeps the old unlimited visibility, which is far better for finding places like Challenger Deep.").color(theme.text_muted()).size(theme.font_size_small));
         // Far-tree card sheet (v0.1022, default off since v0.1029): kept
         // for A/B against the upcoming impostor system.
         if widgets::toggle(ui, theme, "Far tree sheet (experimental)", &mut state.settings.far_tree_sheet) {

@@ -35,6 +35,42 @@ fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     return color_in * t_aer + sky_aer * (1.0 - t_aer);
 }
 
+// ── Underwater extinction (v0.1054) ──
+// Operator: "we're able to see the underwater horizon but we shouldn't be able
+// to as in real life. I can easily see the sea floor everywhere as if there's no
+// actual depth darkening to the water."
+//
+// Correct: nothing attenuated anything underwater, so a submerged view had
+// unlimited visibility and the seabed stayed crisp to the horizon. Real seawater
+// is a strong, STRONGLY WAVELENGTH-DEPENDENT absorber - red is gone within a few
+// metres, green lasts tens of metres, blue hundreds - which is the entire reason
+// the deep sea looks the way it does. Beer-Lambert with per-channel
+// coefficients reproduces it for the cost of one exp per channel.
+//
+// Scaled by camera.light5_cone_inner.y, which is zero unless the camera is
+// submerged AND non-zero only as far as the Settings "Underwater clarity"
+// slider allows - the operator explicitly wants to keep the see-forever mode
+// for finding places like Challenger Deep, so this is a dial, not a switch.
+const WATER_EXT_R: f32 = 0.115;
+const WATER_EXT_G: f32 = 0.042;
+const WATER_EXT_B: f32 = 0.021;
+
+fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
+    let ext = camera.light5_cone_inner.y;
+    if (ext <= 1.0e-4) {
+        return color_in;
+    }
+    let d = length(world_pos - camera.view_pos.xyz);
+    let sigma = vec3<f32>(WATER_EXT_R, WATER_EXT_G, WATER_EXT_B) * ext;
+    let t = exp(-sigma * d);
+    // In-scattered ambient of the water column itself: what remains when
+    // everything else has been absorbed. Blue-green, and dark - this is the
+    // colour a distant seabed dissolves INTO rather than staying visible
+    // against.
+    let inscatter = vec3<f32>(0.008, 0.030, 0.055);
+    return color_in * t + inscatter * (vec3<f32>(1.0) - t);
+}
+
 // ── Planetary ocean shell (material type 16, v0.876 real-water Stage 1) ──
 //
 // The translucent water-surface sphere drawn over connected-ocean regions;
@@ -142,9 +178,13 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let bc = 2.43;
         let bd = 0.59;
         let be = 0.14;
+        // The BACKSTOP needs the haze too (v0.1054): v0.1053 gave it to the wave
+        // shell only, so wherever the coarse deep layer showed through it stayed
+        // at full contrast against a hazed sea around it.
+        let brgb_aer = underwater_apply(aerial_apply(brgb, in.world_position), in.world_position);
         let bmapped = clamp(
-            (brgb * (ba * brgb + vec3<f32>(bb)))
-                / (brgb * (bc * brgb + vec3<f32>(bd)) + vec3<f32>(be)),
+            (brgb_aer * (ba * brgb_aer + vec3<f32>(bb)))
+                / (brgb_aer * (bc * brgb_aer + vec3<f32>(bd)) + vec3<f32>(be)),
             vec3<f32>(0.0),
             vec3<f32>(1.0),
         );
@@ -385,7 +425,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, feather_top, depth_m);
     // Aerial perspective BEFORE the tone map, exactly as the main tail does it
     // (v0.1053) - this is the branch that was missing it entirely.
-    let rgb_aer = aerial_apply(rgb, in.world_position);
+    let rgb_aer = underwater_apply(aerial_apply(rgb, in.world_position), in.world_position);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;
@@ -1177,6 +1217,10 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // few km, so only long, flat sightlines accumulate fog. sigma = 0 (off
     // in space, at night the color also darkens) makes this a no-op.
     color = aerial_apply(color, in.world_position);
+    // Underwater extinction AFTER aerial haze: above water the aerial term is
+    // the atmosphere, below it the water column is what attenuates, and the two
+    // are mutually exclusive in practice (aerial sigma is a surface-air value).
+    color = underwater_apply(color, in.world_position);
 
     // ACES-like tone mapping (more filmic than Reinhard)
     let a = 2.51;

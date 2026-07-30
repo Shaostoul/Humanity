@@ -15993,6 +15993,15 @@ mod native_app {
                                     state.gui_state.settings.sun_shadows;
                                 state.renderer.godray_intensity =
                                     state.gui_state.settings.godray_intensity.clamp(0.0, 1.5);
+                                // Underwater extinction (v0.1054): only
+                                // while submerged, and only as far as the
+                                // Settings clarity slider allows. 1 - clarity so
+                                // the slider reads as "how far can I see".
+                                state.renderer.underwater_ext = if state.gui_state.underwater {
+                                    (1.0 - state.gui_state.settings.water_clarity.clamp(0.0, 1.0))
+                                } else {
+                                    0.0
+                                };
                                 state.renderer.ssao_strength =
                                     state.gui_state.settings.ssao_strength.clamp(0.0, 1.5);
                                 // (tree_card_hide_m is owned by the near-tree
