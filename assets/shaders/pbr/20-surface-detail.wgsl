@@ -397,6 +397,51 @@ fn land_detail_factor(dir: vec3<f32>, r_m: f32, footprint_m: f32) -> f32 {
 //     anchor so the overall glint region never vanishes.
 // Everything is day-gated and SUN-ONLY; a small albedo floor mirrors the
 // pipeline's ambient so the night ocean is near-black, not absolute black.
+// == Real sky reflection for water (v0.1055) ==
+// Operator: "the glassy doesn't really look glass. How do we go about
+// reflecting the clouds, land, and plants in the water?"
+//
+// The sea reflected NOTHING real. water_shade built its mirror from two
+// hardcoded literals - a 0.20/0.36/0.55 horizon and a 0.04/0.14/0.38 zenith -
+// mixed by elevation and then multiplied by WATER_SKY_GAIN = 0.20. Meanwhile
+// the actual Hillaire sky-view LUT for this frame, at this camera altitude and
+// this sun elevation, is bound in the SAME bind group at @group(3) @binding(13)
+// and was never read. At grazing incidence, where Fresnel goes to 1 and physics
+// says the sea must be as bright as the sky it mirrors, ours was 3-5x DARKER,
+// the wrong hue at sunset, and collapsed to zero at night. That one multiply is
+// why calm water read as flat blue paint rather than glass, and why no cloud
+// colour, sunset or haze ever appeared in it.
+//
+// Same parameterization as 30-atmosphere.wgsl (Hillaire non-linear latitude,
+// azimuth measured from the sun on a symmetric half-circle) and the same
+// exposure, duplicated here only because the shader parts concatenate in
+// filename order and part 20 comes before part 30. LOCKSTEP: if the
+// atmosphere mapping or exposure changes, change both.
+const WATER_SKY_LUT_EXPOSURE: f32 = 15.0;
+
+fn water_sky_lut(dir: vec3<f32>, up_c: vec3<f32>) -> vec3<f32> {
+    let sun_lut = normalize(camera.sun_direction.xyz);
+    let l_elev = asin(clamp(dot(dir, up_c), -1.0, 1.0));
+    // CLAMP TO THE UPPER HEMISPHERE. A wave tilted at a grazing view reflects
+    // slightly BELOW the local horizon, and the lower half of the sky LUT is
+    // near-black - which drew a band of hard black dashes along the horizon the
+    // moment the real mirror went in (measured in the rig). A ray that would
+    // reflect into the sea instead takes the horizon radiance, which is what it
+    // would actually pick up after one more bounce off the water in front of it.
+    let v_lut = clamp(0.5 + 0.5 * sqrt(max(l_elev, 0.0) / (PI * 0.5)), 0.5, 1.0);
+    let sun_h = sun_lut - up_c * dot(sun_lut, up_c);
+    let view_h = dir - up_c * dot(dir, up_c);
+    let sh_len = length(sun_h);
+    let vh_len = length(view_h);
+    var u_lut = 0.25;
+    if (sh_len > 1e-4 && vh_len > 1e-4) {
+        let cphi = clamp(dot(sun_h / sh_len, view_h / vh_len), -1.0, 1.0);
+        u_lut = acos(cphi) / (2.0 * PI);
+    }
+    return textureSampleLevel(sky_view_tex, albedo_sampler, vec2<f32>(u_lut, v_lut), 0.0).rgb
+        * WATER_SKY_LUT_EXPOSURE;
+}
+
 fn water_shade(
     albedo: vec3<f32>,
     n_geo: vec3<f32>,
@@ -446,10 +491,32 @@ fn water_shade(
     let zenith = vec3<f32>(0.04, 0.14, 0.38);
     var sky = mix(horizon, zenith, pow(elev, 0.6));
     sky = sky + camera.sun_color.rgb * pow(max(dot(refl, sun_l), 0.0), 8.0) * 0.18;
-    let sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
+    var sky_term = sky * (day * sun_i * WATER_SKY_GAIN);
+    // The REAL sky, when this frame LUT is valid (shadow_u.params2.y is the
+    // rendered-this-frame flag, the same gate the atmosphere uses). No daylight
+    // factor and no 0.20 gain: the LUT already carries true radiance, so the
+    // mirror is as bright as the sky it reflects, which is the whole point -
+    // and it darkens at night on its own because the sky does.
+    if (shadow_u.params2.y > 0.5) {
+        sky_term = water_sky_lut(refl, n_geo);
+    }
     let body = albedo * camera.sun_color.rgb * (sun_i * day_facet / PI);
     let h = normalize(view_dir + sun_l);
-    let sparkle = pow(max(dot(n_pert, h), 0.0), WATER_SPEC_POWER) * WATER_SPEC_GAIN;
+    // GLITTER WIDTH FROM THE WIND (v0.1055, operator: "the sun reflects but
+    // there is some weird hard lines"). WATER_SPEC_POWER is a fixed 900-power
+    // Blinn lobe - a 2.7 degree half-angle - evaluated on a normal field that is
+    // only piecewise-smooth, so the lobe is far narrower than the surface it
+    // samples and the highlight breaks into hard slivers along the interpolation
+    // seams. Cox and Munk measured the real thing: mean-square slope
+    // 0.003 + 0.00512 * U10, an effective roughness 3-5x wider than this lobe at
+    // any real wind. Widening it to the physical value removes the slivers AND
+    // makes the glitter path spread with the wind the way it does on a real sea.
+    // Wind comes from the sea state already in the uniform - no new plumbing.
+    let u10 = 2.0 + 13.0 * clamp(camera.fill_color.w, 0.0, 1.0);
+    let mss = 0.003 + 0.00512 * u10;
+    // Blinn power equivalent to GGX alpha = sqrt(mss): p = 2/alpha^2 - 2.
+    let spec_p = max(2.0 / max(mss, 1.0e-4) - 2.0, 8.0);
+    let sparkle = pow(max(dot(n_pert, h), 0.0), spec_p) * WATER_SPEC_GAIN;
     let anchor = pow(max(dot(n_geo, h), 0.0), 220.0) * 0.15;
     let spec = camera.sun_color.rgb * sun_i * (sparkle + anchor) * day;
     return body * (1.0 - f) + sky_term * f + spec + albedo * 0.005;

@@ -23,8 +23,31 @@ const G: f32 = 9.81;
 /// patch borders can disagree about them).
 pub const FFT_TILE_M: f32 = 64.0;
 pub const FFT_N: usize = 128;
-/// Cascade B tile (must divide ITS anchor modulus: 256 mod 256 = 0).
-pub const FFT_B_TILE_M: f32 = 256.0;
+/// Cascade B tile. 208 = 2^4 * 13 (v0.1055, operator: "I see this grid pattern
+/// of foam designs on the sea", twice, plus "are we able to use aperiodic tiling
+/// for removing square tiling issues?").
+///
+/// The grid was arithmetic, not a shader bug: A tiled at 64 m and B at 256 m,
+/// and 64 DIVIDES 256, so the SUM of the two cascades was exactly 256 m periodic
+/// - adding B in v0.1040 never raised the repeat past B's own tile, it added a
+/// second copy of the same period. 208 shares ONLY the factor 16 with 64, so the
+/// composite sea now repeats at LCM(64, 208) = 832 m: 3.25x further, with FINER
+/// texels at the same time (208/128 = 1.625 m vs 2.0). No power of two can do
+/// this - every power of two at or above 64 has 64 as a divisor, which pins the
+/// composite to the larger tile. That is also the honest answer to the aperiodic
+/// question: an FFT field IS one periodic tile by construction, so the fix is
+/// incommensurate periods, not an aperiodic tiling.
+///
+/// HARD CONSTRAINT (docs/design/water-fft.md): a cascade's tile must DIVIDE its
+/// own camera-anchor modulus, or an anchor re-snap shifts the sampling UV by a
+/// fraction of a tile and the sea visibly jumps. The modulus is a free per-
+/// cascade choice, which is why 208 is allowed at all - it moves in lockstep
+/// below.
+pub const FFT_B_TILE_M: f32 = 208.0;
+/// Cascade B's camera-anchor modulus - the ONLY definition. frame_lock reads
+/// THIS rather than a literal, so the divides-its-own-anchor invariant cannot
+/// drift out of a comment again (it previously lived as a bare 256.0).
+pub const FFT_B_ANCHOR_MOD_M: f64 = 208.0;
 /// Wavelength split between the cascades (metres): A holds (0, 32],
 /// B holds (32, 256].
 pub const FFT_SPLIT_LAMBDA_M: f32 = 32.0;
@@ -742,21 +765,36 @@ mod tests {
         )
         .expect("vertex shader part readable");
         assert!(src.contains("const OCEAN_FFT_TILE_M: f32 = 64.0;"), "tile const");
-        assert!(src.contains("const OCEAN_FFT_B_TILE_M: f32 = 256.0;"), "B tile const");
+        assert!(src.contains("const OCEAN_FFT_B_TILE_M: f32 = 208.0;"), "B tile const");
         assert!(src.contains("const OCEAN_FFT_N: i32 = 128;"), "N const");
         assert!(src.contains("const OCEAN_FFT_ROW_B: i32 = 128;"), "row-B const");
         assert!(src.contains("const OCEAN_FFT_A_FADE_LAMBDA: f32 = 16.0;"), "A fade");
         assert!(src.contains("const OCEAN_FFT_B_FADE_LAMBDA: f32 = 96.0;"), "B fade");
         assert_eq!(FFT_TILE_M, 64.0);
-        assert_eq!(FFT_B_TILE_M, 256.0);
+        assert_eq!(FFT_B_TILE_M, 208.0);
         assert_eq!(FFT_N, 128);
         assert_eq!(FFT_TEX_H, 256);
         assert_eq!(FFT_A_FADE_LAMBDA, 16.0);
         assert_eq!(FFT_B_FADE_LAMBDA, 96.0);
-        // Each tile must divide ITS anchor modulus exactly: A rides the
-        // 64 m ground anchor, B rides the 256 m ocean anchor.
+        // Each tile must divide ITS OWN anchor modulus exactly: A rides the
+        // 64 m ground anchor, B rides FFT_B_ANCHOR_MOD_M. Asserted against the
+        // named constant, not a literal, so a retile cannot silently break the
+        // invariant (v0.1055 moved B from 256 m to 208 m to make the two
+        // cascades incommensurate and push the composite repeat to 832 m).
         assert_eq!(64.0_f32 % FFT_TILE_M, 0.0);
-        assert_eq!(256.0_f32 % FFT_B_TILE_M, 0.0);
+        assert_eq!(FFT_B_ANCHOR_MOD_M as f32 % FFT_B_TILE_M, 0.0);
+        // And the whole point of the retile: the composite period is the LCM,
+        // so the tiles must share no factor beyond 16.
+        let lcm = |a: u64, b: u64| {
+            let (mut x, mut y) = (a, b);
+            while y != 0 {
+                let t = y;
+                y = x % y;
+                x = t;
+            }
+            a / x * b
+        };
+        assert_eq!(lcm(FFT_TILE_M as u64, FFT_B_TILE_M as u64), 832);
         // Per-plane UV offsets, literal-for-literal.
         assert!(src.contains("vec2<f32>(0.0, 0.0)"), "OFF_X literal");
         assert!(src.contains("vec2<f32>(0.271, 0.417)"), "OFF_Y literal");

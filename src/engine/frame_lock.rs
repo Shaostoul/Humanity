@@ -151,9 +151,11 @@ pub(crate) fn ground_anchor(state: &EngineState) -> [f32; 4] {
 }
 
 /// FFT cascade-B anchor (v0.1040) + the water-weld LOD constant
-/// (v0.1041): xyz = the camera's planet-frame position mod 256 m for
-/// the 256 m ocean tile (snaps are exact whole-tile steps, like the
-/// 64 m anchor); w = K = px_per_rad / split_px, the SELECTION's own
+/// (v0.1041): xyz = the camera's planet-frame position mod
+/// FFT_B_ANCHOR_MOD_M for cascade B's tile (snaps are exact whole-tile
+/// steps, like the 64 m anchor). v0.1055: the modulus is read from
+/// ocean_fft rather than hardcoded, because the tile moved to 208 m to
+/// break the composite grid and these two MUST move together; w = K = px_per_rad / split_px, the SELECTION's own
 /// pixel-error scale. The vertex shader's geomorph weld must reach
 /// full morph exactly where the LOD handoff really happens
 /// (dist ~ 1.74 * cell * K, from screen_error_px + the 1.15/0.7
@@ -169,10 +171,11 @@ pub(crate) fn ocean_anchor256(state: &EngineState) -> [f32; 4] {
         return [0.0, 0.0, 0.0, k];
     }
     let a = state.frame_lock_anchor;
+    let m = crate::terrain::ocean_fft::FFT_B_ANCHOR_MOD_M;
     [
-        a.x.rem_euclid(256.0) as f32,
-        a.y.rem_euclid(256.0) as f32,
-        a.z.rem_euclid(256.0) as f32,
+        a.x.rem_euclid(m) as f32,
+        a.y.rem_euclid(m) as f32,
+        a.z.rem_euclid(m) as f32,
         k,
     ]
 }

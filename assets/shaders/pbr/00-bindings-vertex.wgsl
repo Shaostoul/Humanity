@@ -412,7 +412,10 @@ fn ocean_wave_height(p_m: vec3<f32>, p_anch: vec3<f32>, t: f32, cam_dist: f32, c
 // with ocean_fft.rs (FFT_TILE_M, FFT_B_TILE_M, FFT_N, FFT_TEX_H,
 // PLANE_OFF, fade lambdas) - a mismatch breaks drawn == sampled.
 const OCEAN_FFT_TILE_M: f32 = 64.0;
-const OCEAN_FFT_B_TILE_M: f32 = 256.0;
+// 208 = 2^4 * 13 (v0.1055): shares only the factor 16 with cascade A's 64 m
+// tile, so the composite sea repeats at LCM(64, 208) = 832 m instead of 256 m.
+// LOCKSTEP with FFT_B_TILE_M and FFT_B_ANCHOR_MOD_M in ocean_fft.rs.
+const OCEAN_FFT_B_TILE_M: f32 = 208.0;
 const OCEAN_FFT_N: i32 = 128;
 const OCEAN_FFT_ROW_B: i32 = 128;
 // Per-cascade resolution fades (via ocean_train_fade): A's short chop
