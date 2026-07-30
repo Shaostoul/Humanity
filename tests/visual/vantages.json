@@ -278,6 +278,48 @@
       },
       "settle_s": 10,
       "hold_altitude": true
+    },
+    {
+      "id": "ocean-glass",
+      "desc": "Sea state pinned to glass (wind ~0.5 m/s).",
+      "expect": "A near-mirror sea: almost no chop, the sun path collapses toward a single hard highlight.",
+      "regressions": [
+        "wind-driven ocean spectrum"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.02,
+        "look_offset_deg": 87
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "0"
+      },
+      "settle_s": 26,
+      "hold_altitude": true
+    },
+    {
+      "id": "ocean-storm-high",
+      "desc": "Sea state pinned to storm (wind ~25 m/s).",
+      "expect": "Big steep seas with whitecaps - visibly a different ocean from ocean-glass, which is the proof the spectrum is wind-driven.",
+      "regressions": [
+        "wind-driven ocean spectrum"
+      ],
+      "camera": {
+        "body": "earth",
+        "lat": 31.5,
+        "lon": 17.5,
+        "altitude_km": 0.02,
+        "look_offset_deg": 87
+      },
+      "showcase": {
+        "time": "10.7",
+        "sea": "1"
+      },
+      "settle_s": 26,
+      "hold_altitude": true
     }
   ]
 }

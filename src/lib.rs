@@ -955,6 +955,14 @@ mod native_app {
                 "weather",
                 std::sync::Mutex::new(crate::systems::weather::Weather::default()),
             );
+            // Live weather control (v0.1050, F11 panel): the GUI publishes the
+            // operator's picks here and WeatherSystem consumes them, since the
+            // system itself lives inside the SystemRunner and is not reachable
+            // from the GUI. Same Mutex-slot pattern as time_set_hour_request.
+            data_store.insert(
+                "weather_control",
+                std::sync::Mutex::new(crate::systems::weather::WeatherControl::default()),
+            );
             // Live home electrical readout (gen/use/balance watts): ElectricalSystem writes
             // it each tick, the HUD + Home page read it. Same Mutex pattern as game_time.
             data_store.insert(
@@ -1802,6 +1810,9 @@ mod native_app {
                 dev_travel_stepped_out: false,
                 frame_lock_body: None,
                 sea_state_override: None,
+                ocean_fft_wind: 8.0,
+                ocean_fft_built_wind: 8.0,
+                ocean_fft_rebuild_cooldown: 0.0,
                 bookmark_save_requested: false,
                 frame_lock_anchor: glam::DVec3::ZERO,
                 frame_lock_last_spin: 0.0,
@@ -2002,6 +2013,16 @@ mod native_app {
                         }
                         if key == KeyCode::F4 && pressed {
                             state.gui_state.show_system_overlay = !state.gui_state.show_system_overlay;
+                            return;
+                        }
+                        // F11 (v0.1050, operator request): the live WEATHER
+                        // panel. Presets from glassy calm to hurricane, plus
+                        // condition buttons and wind/intensity sliders. Wind is
+                        // what the ocean spectrum is built from, so this is
+                        // also the sea-state control.
+                        if key == KeyCode::F11 && pressed {
+                            state.gui_state.show_weather_panel =
+                                !state.gui_state.show_weather_panel;
                             return;
                         }
                         // F6 (v0.890): save a LOCATION BOOKMARK - the exact
@@ -12752,21 +12773,78 @@ mod native_app {
                     // drawn == sampled by construction. ~0.4 ms release;
                     // moves to a worker (or GPU compute) in increment 4.
                     if state.gui_state.settings.water_fft {
+                        let ocean_seed = state
+                            .planet_defs
+                            .get("earth")
+                            .map(|d| d.terrain_seed as u64)
+                            .unwrap_or(7);
+                        // WIND-DRIVEN SPECTRUM (v0.1050, water-fft.md "Wind
+                        // changes REGENERATE h0(k)"). Until now the cascades
+                        // were built ONCE at a hardcoded 8 m/s and never
+                        // rebuilt, so in FFT mode the sea was permanently a
+                        // moderate breeze no matter the weather - the operator
+                        // could not find calm glass or a storm because neither
+                        // existed ("we got a great lightly disturbed water
+                        // but, what about calm glassy water or extremely
+                        // stormy water?"). sea_state only modulated SHADING.
+                        //
+                        // The target wind is the live weather's, or the
+                        // showcase/rig {"sea":x} pin mapped onto 0.5..25 m/s
+                        // so a pinned sea state still means something here.
+                        // Smoothed on the same ~30 s constant as sea_state, so
+                        // a regime flip rolls the ocean over.
+                        let wind_target = match state.sea_state_override {
+                            Some(pin) => 0.5 + pin.clamp(0.0, 1.0) * 24.5,
+                            None => state
+                                .gui_state
+                                .weather
+                                .as_ref()
+                                .map(|w| w.wind_speed)
+                                .unwrap_or(8.0),
+                        };
+                        // 30 s of smoothing is right for weather that rolls
+                        // in on its own, and far too slow for a hand on a
+                        // slider - the operator would click "Hurricane" and
+                        // watch nothing happen for half a minute. So the
+                        // manual panel and the rig's sea pin get a 2 s
+                        // constant: still smoothed, but visibly responsive.
+                        let tau = if state.sea_state_override.is_some()
+                            || state.gui_state.weather_manual
+                        {
+                            2.0
+                        } else {
+                            30.0
+                        };
+                        let k = (dt as f32 / tau).min(1.0);
+                        state.ocean_fft_wind += (wind_target - state.ocean_fft_wind) * k;
                         if state.ocean_fft.is_none() {
-                            let seed = state
-                                .planet_defs
-                                .get("earth")
-                                .map(|d| d.terrain_seed as u64)
-                                .unwrap_or(7);
-                            // Moderate open-ocean breeze; weather-driven
-                            // spectrum regen is a later increment.
+                            state.ocean_fft_wind = wind_target;
+                        }
+                        // Rebuild past a ~1 m/s drift, at most ~1 Hz. The SEED
+                        // is unchanged, so h0's Gaussian draws - and therefore
+                        // every wave's phase - are identical; only the
+                        // JONSWAP amplitudes are re-weighted. That is why this
+                        // reshapes the sea smoothly instead of snapping to a
+                        // different ocean, and why no crossfade machinery is
+                        // needed. The buoyancy twin reads the same arrays, so
+                        // drawn == sampled holds through a rebuild.
+                        state.ocean_fft_rebuild_cooldown =
+                            (state.ocean_fft_rebuild_cooldown - dt as f32).max(0.0);
+                        let drift = (state.ocean_fft_wind - state.ocean_fft_built_wind).abs();
+                        if state.ocean_fft.is_none()
+                            || (drift > 1.0 && state.ocean_fft_rebuild_cooldown <= 0.0)
+                        {
+                            let w = state.ocean_fft_wind.clamp(0.2, 30.0);
                             state.ocean_fft = Some(
                                 crate::terrain::ocean_fft::OceanCascades::build(
-                                    8.0, 0.6, 200_000.0, seed,
+                                    w, 0.6, 200_000.0, ocean_seed,
                                 ),
                             );
+                            state.ocean_fft_built_wind = state.ocean_fft_wind;
+                            state.ocean_fft_rebuild_cooldown = 1.0;
                             log::info!(
-                                "[OceanFft] cascades built (A 64 m + B 256 m tiles, 128x128 each)"
+                                "[OceanFft] spectrum rebuilt for wind {:.1} m/s (A 64 m + B 256 m tiles, 128x128 each)",
+                                w
                             );
                         }
                         if let Some(c) = state.ocean_fft.as_mut() {
@@ -16219,6 +16297,35 @@ mod native_app {
                                 }
                                 // Diagnostics dev-HUD overlays (F2/F3/F4), v0.482.
                                 crate::gui::pages::diagnostics::draw(ctx, &state.theme, &state.gui_state);
+                                // F11 weather panel (v0.1050). Publishes into
+                                // the DataStore slot on any change, so the
+                                // sim picks it up on its next tick.
+                                if crate::gui::pages::weather_panel::draw(
+                                    ctx,
+                                    &state.theme,
+                                    &mut state.gui_state,
+                                ) {
+                                    if let Some(m) = state
+                                        .data_store
+                                        .get::<std::sync::Mutex<crate::systems::weather::WeatherControl>>(
+                                            "weather_control",
+                                        )
+                                    {
+                                        if let Ok(mut c) = m.lock() {
+                                            c.manual = state.gui_state.weather_manual.then(|| {
+                                                crate::systems::weather::ManualWeather {
+                                                    condition: state.gui_state.weather_pick_condition,
+                                                    intensity: state.gui_state.weather_pick_intensity,
+                                                    wind_speed: state.gui_state.weather_pick_wind,
+                                                }
+                                            });
+                                            if state.gui_state.weather_retrigger {
+                                                c.retrigger = true;
+                                                state.gui_state.weather_retrigger = false;
+                                            }
+                                        }
+                                    }
+                                }
 
                                 // Confirmation toasts (v0.861): floats a "Saved" style
                                 // note over everything so actions are never silent.

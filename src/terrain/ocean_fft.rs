@@ -343,8 +343,36 @@ pub struct OceanCascades {
     pub b: OceanFft,
 }
 
+/// Ceiling on the two cascades' combined RMS height (m), v0.1050. The whole
+/// engine budgets wave amplitude against `ocean_waves::MAX_WAVE_HEIGHT_M`
+/// (3.1 m): it sets the water patches' radial band, the flat backstop shell's
+/// drop below sea level, and the buoyancy bound. A Gaussian sea's crests run
+/// ~3x its RMS, so 1.0 m of RMS is the most that fits inside that envelope.
+/// Beyond this the sea stops growing - a visible ceiling, and the honest one:
+/// real hurricane seas (JONSWAP at 25 m/s is 15 m significant height) need
+/// MAX_WAVE_HEIGHT_M itself raised, which moves the band, the backstop drop
+/// and the buoyancy clamp together. That is its own increment.
+pub const FFT_MAX_TOTAL_RMS_M: f32 = 1.0;
+
+/// Wind-driven RMS height for the pair (v0.1050). Fetch-limited significant
+/// height is Hs ~= 0.0246 * U^2, and RMS ~= Hs / 4 for a Gaussian sea. That
+/// law is already calibrated to this engine by accident: at U = 8 m/s it gives
+/// 0.394 m, within 2% of `FFT_TARGET_RMS_M` (0.386), the value hand-tuned to
+/// match the six analytic trains. So 8 m/s reproduces exactly today's sea and
+/// every other wind is physics.
+pub fn wind_target_rms_m(wind_speed: f32) -> f32 {
+    let hs = 0.0246 * wind_speed * wind_speed;
+    (hs / 4.0).clamp(0.0, FFT_MAX_TOTAL_RMS_M)
+}
+
 impl OceanCascades {
     pub fn build(wind_speed: f32, wind_dir_rad: f32, fetch_m: f32, seed: u64) -> Self {
+        // AMPLITUDE MUST FOLLOW THE WIND (v0.1050, operator: "what about calm
+        // glassy water or extremely stormy water?"). Both cascades used to be
+        // normalized to FIXED RMS targets, so changing the wind changed the
+        // spectrum's SHAPE and never its height - every sea was the same size.
+        // Scale the targets by the physical law, keeping the A/B split.
+        let scale = wind_target_rms_m(wind_speed) / FFT_TARGET_RMS_M;
         let mut a = OceanFft::new(
             FFT_N,
             FFT_TILE_M,
@@ -354,7 +382,7 @@ impl OceanCascades {
             seed,
             (0.0, FFT_SPLIT_LAMBDA_M),
         );
-        a.normalize_to_rms(FFT_A_TARGET_RMS_M);
+        a.normalize_to_rms(FFT_A_TARGET_RMS_M * scale);
         let mut b = OceanFft::new(
             FFT_N,
             FFT_B_TILE_M,
@@ -366,7 +394,7 @@ impl OceanCascades {
             seed ^ 0x9E37_79B9_7F4A_7C15,
             (FFT_SPLIT_LAMBDA_M, FFT_B_TILE_M),
         );
-        b.normalize_to_rms(FFT_B_TARGET_RMS_M);
+        b.normalize_to_rms(FFT_B_TARGET_RMS_M * scale);
         Self { a, b }
     }
 

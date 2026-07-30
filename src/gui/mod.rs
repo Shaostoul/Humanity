@@ -3049,6 +3049,18 @@ pub struct GuiState {
     /// stacked in the top-right corner. F2 = performance, F3 = network, F4 =
     /// system. Listed in the F1 keymap so they are discoverable.
     pub show_perf_overlay: bool,
+    /// F11 live weather panel (v0.1050). Permanent operator tooling: the
+    /// ocean's character is wind-driven, so this is how the sea gets reviewed.
+    pub show_weather_panel: bool,
+    /// True while the panel is driving the weather (random rolls suspended).
+    pub weather_manual: bool,
+    pub weather_pick_condition: crate::systems::weather::WeatherCondition,
+    pub weather_pick_intensity: f32,
+    pub weather_pick_wind: f32,
+    /// The selected preset's "what to look for" line, shown under the grid.
+    pub weather_pick_note: String,
+    /// Set on a condition pick so the sim re-runs its 30 s transition.
+    pub weather_retrigger: bool,
     pub show_network_overlay: bool,
     pub show_system_overlay: bool,
     /// Recent frame times in milliseconds (ring buffer, newest last), for the
@@ -4693,6 +4705,13 @@ impl Default for GuiState {
             construction_plan_view: false,
             keymap_visible: false,
             show_perf_overlay: false,
+            show_weather_panel: false,
+            weather_manual: false,
+            weather_pick_condition: crate::systems::weather::WeatherCondition::Clear,
+            weather_pick_intensity: 0.0,
+            weather_pick_wind: 8.0,
+            weather_pick_note: String::new(),
+            weather_retrigger: false,
             show_network_overlay: false,
             show_system_overlay: false,
             frame_times: Vec::new(),

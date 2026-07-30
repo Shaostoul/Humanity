@@ -72,6 +72,35 @@ impl Default for Weather {
     }
 }
 
+/// LIVE WEATHER CONTROL (v0.1050, operator: "is there a way for me to cycle
+/// the weather live in game? Like press F11 to bring up the weather menu").
+/// Published into the DataStore under "weather_control" exactly like
+/// `time_set_hour_request`, because WeatherSystem lives inside the
+/// SystemRunner and is not otherwise reachable from the GUI. While `manual`
+/// is Some the random condition roll and the extreme-event roll are both
+/// suspended, so a chosen sky STAYS chosen.
+///
+/// This is permanent dev tooling, not a debug hack: the ocean's whole
+/// character is wind-driven (JONSWAP fetch), so being able to drive wind and
+/// condition live is the only practical way to see - or review - calm glass
+/// through to a storm sea.
+#[derive(Debug, Clone, Default)]
+pub struct WeatherControl {
+    pub manual: Option<ManualWeather>,
+    /// Set by the panel when the operator picks a condition; consumed by the
+    /// next tick so the ancillary values (visibility, temperature, humidity)
+    /// ramp through the SAME 30 s transition the sim uses.
+    pub retrigger: bool,
+}
+
+/// The values the panel drives directly.
+#[derive(Debug, Clone, Copy)]
+pub struct ManualWeather {
+    pub condition: WeatherCondition,
+    pub intensity: f32,
+    pub wind_speed: f32,
+}
+
 /// Duration of smooth transition between weather conditions (seconds).
 const TRANSITION_DURATION: f32 = 30.0;
 
@@ -311,9 +340,28 @@ impl System for WeatherSystem {
             .map(|gt| gt.season)
             .unwrap_or(Season::Spring);
 
+        // Live control from the F11 panel (v0.1050). Read first: it decides
+        // whether the random rolls below run at all.
+        let manual = data
+            .get::<std::sync::Mutex<WeatherControl>>("weather_control")
+            .and_then(|m| m.lock().ok())
+            .and_then(|mut c| {
+                let retrigger = c.retrigger;
+                c.retrigger = false;
+                c.manual.map(|m| (m, retrigger))
+            });
+        if let Some((m, retrigger)) = manual {
+            // A condition change goes through begin_transition so visibility,
+            // temperature and humidity ramp naturally rather than snapping;
+            // wind and intensity are then held at the panel's values below.
+            if retrigger || m.condition != self.weather.condition {
+                self.begin_transition(m.condition, season);
+            }
+        }
+
         // Count down to next weather change
         self.next_change_timer -= dt;
-        if self.next_change_timer <= 0.0 {
+        if manual.is_none() && self.next_change_timer <= 0.0 {
             let new_condition = self.pick_condition(season);
             if new_condition != self.weather.condition {
                 self.begin_transition(new_condition, season);
@@ -336,6 +384,15 @@ impl System for WeatherSystem {
             self.weather.wind_speed = lerp(self.prev_wind_speed, self.target_wind_speed, t);
         }
 
+        // The panel's wind + intensity win over the lerp, so dragging a slider
+        // is immediate instead of being walked back over 30 s.
+        if let Some((m, _)) = manual {
+            self.weather.intensity = m.intensity;
+            self.weather.wind_speed = m.wind_speed;
+            self.target_intensity = m.intensity;
+            self.target_wind_speed = m.wind_speed;
+        }
+
         // ── Extreme-weather events (v0.1035, data/weather/events.ron) ──
         // A running event counts down; otherwise roll periodically for an
         // eligible one. Selection is season/temp/wind-gated + rarity-
@@ -351,7 +408,8 @@ impl System for WeatherSystem {
                 self.weather.event_name.clear();
                 self.active_gust_mps = 0.0;
             }
-        } else {
+        } else if manual.is_none() {
+            // No random extreme events while the F11 panel is driving.
             self.event_roll_timer -= dt;
             if self.event_roll_timer <= 0.0 {
                 self.event_roll_timer = EVENT_ROLL_INTERVAL_S;

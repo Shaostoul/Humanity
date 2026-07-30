@@ -770,6 +770,14 @@ pub(crate) struct EngineState {
     /// turns on near an ocean body; the SAME height array feeds the GPU
     /// displacement tile and the buoyancy twin (drawn == sampled).
     pub(crate) ocean_fft: Option<crate::terrain::ocean_fft::OceanCascades>,
+    /// Smoothed wind (m/s) driving the FFT ocean spectrum (v0.1050). Tracks
+    /// the live weather (or the showcase sea pin) on a ~30 s constant.
+    pub(crate) ocean_fft_wind: f32,
+    /// The wind the resident cascades were actually built for; a ~1 m/s drift
+    /// from the smoothed wind triggers a rebuild.
+    pub(crate) ocean_fft_built_wind: f32,
+    /// Seconds until another spectrum rebuild is allowed (~1 Hz ceiling).
+    pub(crate) ocean_fft_rebuild_cooldown: f32,
     /// Cloud wind-advection (v0.1032): the zonal angle the shader's
     /// weather-map lookup is rotated by. `cloud_advect` integrates the
     /// live wind; `cloud_advect_decaying` holds the offset orphaned by

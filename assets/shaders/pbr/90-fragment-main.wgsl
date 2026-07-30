@@ -10,6 +10,24 @@
 // from water_shade. Every wave term anti-alias fades with distance, so from
 // orbit the shell is a smooth deep-blue sphere -- visually the same sea the
 // clamped terrain used to draw, which is the regression bar.
+// ── Waterline feather width from the patch's own resolution (v0.1050) ──
+// The shell's shore fade reads a per-VERTEX baked seafloor depth, so its
+// accuracy is the patch's vertex spacing. On a coarse patch every vertex of a
+// small island can sample open-ocean depth, and the interpolated field then
+// claims there is water on dry land: the operator's "terrain that's obviously
+// land is still showing that blue underwater ground texture" - a partial blue
+// veil (alpha ~0.5 at a fake 0.5 m of depth), worst over islands seen from
+// altitude, which is exactly where cells are hundreds of metres wide.
+//
+// So scale the feather's upper edge by the measured cell size (uv.y, baked by
+// the shell builder): a 1 m cell keeps today's 1 m feather, while a 200 m cell
+// demands ~11 m of depth before it will paint water. Coarse patches stop
+// asserting a shoreline they cannot resolve, and fine near-shore patches -
+// where the beach is actually rendered and looked at - are untouched.
+fn water_shore_feather_top(cell_m: f32) -> f32 {
+    return 1.0 + cell_m * 0.05;
+}
+
 fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Planet-local frame via the same center + inverse-rotation trick as
     // the planet imagery branch (material.base_color.xyz = planet center in
@@ -29,6 +47,9 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // linear interpolation of that scalar IS linear depth - a smooth
     // shoreline gradient with no depth-texture pass.
     var depth_m = f32(u32(round(max(in.uv.x, 0.0))) & 65535u) / 10.0;
+    // This patch's measured vertex spacing (v0.1049 channel).
+    let cell_m = in.uv.y * 65536.0;
+    let feather_top = water_shore_feather_top(cell_m);
     // Shore de-terracing (v0.1026, operator: "the beach effect of the
     // water going to the shore looks very blocky"): the baked depth is
     // per-vertex at patch resolution, so the turquoise and waterline
@@ -79,7 +100,8 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
         let bfres = bt * bt * bt;
         // Same alpha law and same ACES tail as the wave shell below, so a
         // backstop pixel and a sea pixel composite identically.
-        let balpha = clamp(0.93 + 0.07 * bfres, 0.0, 1.0) * smoothstep(0.02, 1.0, depth_m);
+        let balpha =
+            clamp(0.93 + 0.07 * bfres, 0.0, 1.0) * smoothstep(0.02, feather_top, depth_m);
         let ba = 2.51;
         let bb = 0.03;
         let bc = 2.43;
@@ -311,7 +333,7 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // Waterline feather (v0.917): the shell fades to fully transparent
     // over the last metre of depth, so the sea EDGE dissolves onto the
     // sand instead of cutting a hard polygon line against the beach.
-    let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, 1.0, depth_m);
+    let alpha = clamp(0.93 + 0.07 * fres, 0.0, 1.0) * smoothstep(0.02, feather_top, depth_m);
     // Same ACES curve as the main pipeline tail (this branch early-returns,
     // mirroring the cloud shell's convention).
     let a = 2.51;
