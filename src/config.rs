@@ -453,6 +453,13 @@ pub struct AppConfig {
     /// 1 = the old unlimited visibility, kept on purpose for exploration.
     #[serde(default = "default_water_clarity_cfg")]
     pub water_clarity: f32,
+    /// Precipitation density multiplier (v0.1060): scales spawn rate AND the
+    /// emitter population cap.
+    #[serde(default = "default_precip_density_cfg")]
+    pub precip_density: f32,
+    /// Weather fog/dust extinction multiplier (v0.1060).
+    #[serde(default = "default_fog_density_cfg")]
+    pub fog_density: f32,
     /// Far-tree canopy card sheet (v0.1022-v0.1027). Default OFF: the
     /// clump cards read as "black squares in a grid" at altitude (operator,
     /// twice) - proper far coverage arrives with the instancing/impostor
@@ -646,6 +653,8 @@ pub struct AppConfig {
 }
 
 fn default_water_clarity_cfg() -> f32 { 0.35 }
+fn default_precip_density_cfg() -> f32 { 1.0 }
+fn default_fog_density_cfg() -> f32 { 1.0 }
 fn default_nav_top_category() -> String { "reality".to_string() }
 fn default_boot_page() -> String { "onboarding".to_string() }
 
@@ -1016,6 +1025,8 @@ impl AppConfig {
             planet_surface_detail: state.settings.planet_surface_detail,
             water_fft: state.settings.water_fft,
             water_clarity: state.settings.water_clarity,
+            precip_density: state.settings.precip_density,
+            fog_density: state.settings.fog_density,
             far_tree_sheet: state.settings.far_tree_sheet,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
@@ -1165,6 +1176,8 @@ impl AppConfig {
         state.settings.planet_surface_detail = self.planet_surface_detail;
         state.settings.water_fft = self.water_fft;
         state.settings.water_clarity = self.water_clarity;
+        state.settings.precip_density = self.precip_density;
+        state.settings.fog_density = self.fog_density;
         state.settings.far_tree_sheet = self.far_tree_sheet;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.

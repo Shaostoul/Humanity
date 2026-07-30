@@ -303,6 +303,55 @@ pub fn draw(ctx: &Context, theme: &Theme, state: &mut GuiState) -> bool {
             ui.separator();
             ui.add_space(theme.spacing_sm);
 
+            // ── EFFECT KNOBS (v0.1060) ──
+            // Operator: "We should add a bunch of sliders / customizable
+            // variables for the various weather effects instead of using
+            // specific hardcoded values." These are the real drivers, not
+            // cosmetic multipliers: precipitation density scales the spawn rate
+            // AND the emitter population cap, and the fog scale multiplies the
+            // extinction the whole aerial term is built on.
+            ui.label(RichText::new("Effect strength").strong().color(theme.accent()));
+            ui.add_space(2.0);
+            if ui
+                .add(
+                    egui::Slider::new(&mut state.settings.precip_density, 0.1..=10.0)
+                        .text("Precipitation density")
+                        .logarithmic(true)
+                        .fixed_decimals(2),
+                )
+                .changed()
+            {
+                state.settings_dirty = true;
+            }
+            ui.label(
+                RichText::new(
+                    "Rain, snow and hail. Scales spawn rate AND the particle cap -                      the cap is what used to pin heavy rain to light rain, since past                      it a higher rate bought nothing. Goes to 10x on purpose so you                      can find where it breaks.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+            if ui
+                .add(
+                    egui::Slider::new(&mut state.settings.fog_density, 0.0..=4.0)
+                        .text("Fog / dust density")
+                        .fixed_decimals(2),
+                )
+                .changed()
+            {
+                state.settings_dirty = true;
+            }
+            ui.label(
+                RichText::new(
+                    "Multiplies the extinction a Fog, Sandstorm, Snow, Storm or Rain                      condition adds to the air. 0 disables weather fog entirely and                      leaves clear-air aerial perspective.",
+                )
+                .size(theme.font_size_small)
+                .color(theme.text_muted()),
+            );
+
+            ui.add_space(theme.spacing_sm);
+            ui.separator();
+            ui.add_space(theme.spacing_sm);
+
             // Live readback: what the sim actually exports, which lags the
             // sliders through the 30 s condition transition. Seeing both is
             // the point - it makes the smoothing legible instead of feeling

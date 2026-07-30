@@ -6468,6 +6468,8 @@ fn default_browser_color() -> String { "accent".to_string() }
 /// Default underwater clarity (v0.1054): mostly physical, but not so dark that
 /// a first dive is a black screen. The operator can take it either way.
 fn default_water_clarity() -> f32 { 0.35 }
+fn default_precip_density() -> f32 { 1.0 }
+fn default_fog_density() -> f32 { 1.0 }
 
 /// Load browser bookmarks from `data/browser/bookmarks.json`.
 #[cfg(feature = "native")]
@@ -6682,6 +6684,13 @@ pub struct SettingsState {
     /// with depth. 1 = the old unlimited visibility, which they explicitly want
     /// KEPT because it is how you go find places like Challenger Deep.
     pub water_clarity: f32,
+    /// Precipitation density multiplier (v0.1060). Scales BOTH the spawn rate
+    /// and the emitter population cap, so it can actually build a downpour
+    /// rather than saturating against the RON ceiling. Deliberately allowed to
+    /// go to 10x so the operator can find the limits.
+    pub precip_density: f32,
+    /// Weather fog/dust extinction multiplier (v0.1060). 0 = no weather fog.
+    pub fog_density: f32,
     /// Far-tree canopy card sheet (v0.1022). Default off: reads as grid
     /// squares at altitude; superseded by the impostor arc. Kept for A/B.
     pub far_tree_sheet: bool,
@@ -6791,6 +6800,8 @@ impl Default for SettingsState {
             planet_surface_detail: true,
             water_fft: false,
             water_clarity: default_water_clarity(),
+            precip_density: default_precip_density(),
+            fog_density: default_fog_density(),
             far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,

@@ -150,6 +150,15 @@ pub struct Emitter {
     /// Per-instance spawn-rate multiplier (v0.1033): weather intensity
     /// scales drizzle -> downpour without forking the def.
     pub rate_scale: f32,
+    /// Multiplies the emitter def's max_particles at runtime (v0.1060).
+    /// Operator: "We could make the rain/snow/hail/whatever even denser, maybe
+    /// a slider that goes fairly extreme so we can test limits?" - and the
+    /// limit they were hitting is exactly this: rate_scale only ever changed
+    /// the spawn RATE, while the population ceiling stayed pinned at the RON's
+    /// max_particles (1600 for rain). Past that cap a higher rate buys nothing
+    /// at all, which is why heavy rain looked like light rain. Scaling the cap
+    /// is what actually makes a downpour.
+    pub cap_scale: f32,
     particles: Vec<Particle>,
     spawn_accumulator: f32,
     rng_state: u32,
@@ -163,6 +172,7 @@ impl Emitter {
             active: true,
             dir_override: None,
             rate_scale: 1.0,
+            cap_scale: 1.0,
             particles: Vec::new(),
             spawn_accumulator: 0.0,
             rng_state: (position.x.to_bits() ^ position.y.to_bits() ^ position.z.to_bits())
@@ -195,7 +205,8 @@ impl Emitter {
         // Spawn new particles
         if self.active {
             self.spawn_accumulator += def.spawn_rate * self.rate_scale.max(0.0) * dt;
-            while self.spawn_accumulator >= 1.0 && self.particles.len() < def.max_particles {
+            let cap = ((def.max_particles as f32) * self.cap_scale.max(0.0)) as usize;
+            while self.spawn_accumulator >= 1.0 && self.particles.len() < cap {
                 self.spawn_accumulator -= 1.0;
                 self.spawn_particle(def);
             }

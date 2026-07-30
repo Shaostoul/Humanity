@@ -3379,11 +3379,43 @@ mod native_app {
                                     let horiz = (wd - up * wd.dot(up)).normalize_or_zero();
                                     let tilt = (wind * 0.045).min(0.7);
                                     let dir = (-up + horiz * tilt).normalize_or_zero();
-                                    (r, s, (0.4 + 0.8 * inten) * storm_boost, dir, ev)
+                                    // PRECIPITATION DENSITY (v0.1060, operator:
+                                    // "the heavy rain isn't really heavy, kind
+                                    // of like a fairly light rain"). The old
+                                    // curve was (0.4 + 0.8 * intensity), so
+                                    // intensity 0.9 produced 1.12 against 0.72
+                                    // at 0.4 - a 1.6x span across the ENTIRE
+                                    // range, which is not a difference anyone
+                                    // could see. And it only moved the spawn
+                                    // rate, while the population ceiling stayed
+                                    // pinned at the RON cap, so past a point a
+                                    // higher rate bought literally nothing.
+                                    // Now: a 20x span, times the operator's own
+                                    // density slider, and cap_scale lifts the
+                                    // ceiling so the extra drops can exist.
+                                    let dens = state
+                                        .gui_state
+                                        .settings
+                                        .precip_density
+                                        .clamp(0.1, 10.0);
+                                    (
+                                        r,
+                                        s,
+                                        (0.25 + 5.0 * inten) * storm_boost * dens,
+                                        dir,
+                                        ev,
+                                    )
                                 }
                                 _ => (false, false, 0.0, -state.camera.up, String::new()),
                             }
                         };
+                        // The cap multiplier rides the same slider: a downpour
+                        // needs BOTH a higher rate and room for the drops.
+                        let precip_cap = state
+                            .gui_state
+                            .settings
+                            .precip_density
+                            .clamp(0.1, 10.0);
                         let precip_pos = state.camera.position + state.camera.up * 13.0;
                         // Union in the active extreme event's emitters
                         // (v0.1035): a thunderstorm keeps its rain, a
@@ -3417,6 +3449,7 @@ mod native_app {
                                         e.position = precip_pos;
                                         e.dir_override = Some(precip_dir);
                                         e.rate_scale = precip_rate;
+                                        e.cap_scale = precip_cap;
                                     }
                                 }
                                 None => {
@@ -3426,6 +3459,7 @@ mod native_app {
                                         {
                                             e.dir_override = Some(precip_dir);
                                             e.rate_scale = precip_rate;
+                                        e.cap_scale = precip_cap;
                                         }
                                     }
                                 }
@@ -11123,7 +11157,9 @@ mod native_app {
                                     // that floor, in SIGMA space so the ramp is
                                     // perceptually even rather than crowding at
                                     // the dense end.
-                                    let t = w.intensity.clamp(0.0, 1.0);
+                                    let t = (w.intensity
+                                        * state.gui_state.settings.fog_density)
+                                        .clamp(0.0, 1.0);
                                     let sigma_fog = (50.0_f32).ln() / vis_min_m;
                                     let sigma_w = sigma * (1.0 - t) + sigma_fog * t;
                                     // The slant cap exists to keep a look-UP ray
@@ -16154,6 +16190,10 @@ mod native_app {
                                     .unwrap_or(false);
                                 let water_over_sky =
                                     state.gui_state.underwater || near_planet_air;
+                                // Same gate drives the depth-writing water
+                                // pipeline (v0.1060): only correct when water
+                                // is last in the list.
+                                state.renderer.water_depth_write = near_planet_air;
                                 if water_over_sky {
                                     let water_mats: std::collections::HashSet<usize> =
                                         state.planet_water_materials.values().copied().collect();

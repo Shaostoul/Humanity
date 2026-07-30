@@ -15,7 +15,17 @@ fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     }
     let aer_vec = world_pos - camera.view_pos.xyz;
     let aer_dist = length(aer_vec);
-    if (aer_dist <= 120.0) {
+    // NEAR CUTOFF, v0.1060. Operator: "The sandstorm effect just looks like
+    // there's a wall of fog in a perfect circle around me. Can we have that
+    // blend all the way to me?" That circle IS this cutoff: haze began at a
+    // hard 120 m, drawing a crisp ring on the ground at exactly that radius.
+    // 120 m is a reasonable floor for CLEAR-air aerial perspective, where the
+    // near field genuinely has no measurable extinction - but fog and dust are
+    // dense enough to be visible on your own hands. Scale the cutoff down with
+    // density: at clear-air sigma it stays 120 m, and by fog densities it is
+    // essentially zero, so the dust blends continuously all the way in.
+    let near_cut = clamp(120.0 * (2.2e-5 / max(aer_sigma, 1.0e-9)), 0.0, 120.0);
+    if (aer_dist <= near_cut) {
         return color_in;
     }
     let aer_up = vec3<f32>(
@@ -25,7 +35,7 @@ fn aerial_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     );
     let up_dot = abs(dot(aer_vec / aer_dist, aer_up));
     let slant_cap = camera.light1_cone_inner.z / max(up_dot, 0.035);
-    let path = min(aer_dist - 120.0, slant_cap);
+    let path = min(aer_dist - near_cut, slant_cap);
     let t_aer = exp(-aer_sigma * path);
     let sky_aer = vec3<f32>(
         camera.light2_cone_inner.y,

@@ -352,14 +352,42 @@ fn atmosphere_scattering(world_position: vec3<f32>, front_facing: bool) -> vec4<
     // sRGB target happens in LINEAR space per the WebGPU spec (the
     // v0.802/v0.803 glow-layer lesson: know the target's gamma, encode once,
     // never twice).
+    // ── WEATHER FOG REACHES THE SKY (v0.1060) ──
+    // Operator: "I would think that while a sandstorm is happening I couldn't
+    // see the sky", with reference photos of a dust wall swallowing everything.
+    // v0.1059 gave the weather control of the aerial-haze sigma, which fogs
+    // every surface that reaches the shared fragment tail - terrain, vegetation,
+    // objects, water - but the SKY is this shell, a different material type that
+    // returns long before that tail. So a sandstorm hazed the ground
+    // convincingly and left a clear blue sky above it, which is exactly
+    // backwards: in a real dust storm the sky is the FIRST thing to go.
+    //
+    // The dome sits at the top of an optically thick layer, so the fog's own
+    // colour simply replaces it as density rises. Weight by how much sky is
+    // left after the ground-layer extinction over one slant cap - the same
+    // numbers the surface path uses, so sky and ground agree by construction.
+    var radiance_fog = radiance_sky;
+    let fog_sigma = camera.light1_cone_inner.y;
+    if (fog_sigma > 1.0e-4) {
+        let fog_rgb = vec3<f32>(
+            camera.light2_cone_inner.y,
+            camera.light2_cone_inner.z,
+            camera.light2_cone_inner.w,
+        );
+        // Vertical optical depth through the weather layer. The slant cap IS
+        // the layer thickness the surface path integrates through.
+        let layer = max(camera.light1_cone_inner.z, 1.0);
+        let w_fog = clamp(1.0 - exp(-fog_sigma * layer), 0.0, 1.0);
+        radiance_fog = mix(radiance_sky, fog_rgb, w_fog);
+    }
     let aces_a = 2.51;
     let aces_b = 0.03;
     let aces_c = 2.43;
     let aces_d = 0.59;
     let aces_e = 0.14;
     let mapped = clamp(
-        (radiance_sky * (aces_a * radiance_sky + vec3<f32>(aces_b)))
-            / (radiance_sky * (aces_c * radiance_sky + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
+        (radiance_fog * (aces_a * radiance_fog + vec3<f32>(aces_b)))
+            / (radiance_fog * (aces_c * radiance_fog + vec3<f32>(aces_d)) + vec3<f32>(aces_e)),
         vec3<f32>(0.0),
         vec3<f32>(1.0),
     );

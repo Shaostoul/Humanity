@@ -279,6 +279,12 @@ pub struct Renderer {
     /// excluded: it is undisplaced and sits below the troughs, so it could only
     /// shadow the seabed.
     pub water_caster_mats: Vec<usize>,
+    /// Draw the water shell on the DEPTH-WRITING pipeline (v0.1060). Set by
+    /// lib.rs only when the camera is inside an atmosphere, which is exactly
+    /// when v0.1053 also sorts water to the END of the transparent list - so
+    /// nothing is submitted after the sea that its depth could wrongly occlude.
+    /// From orbit this stays false and the approved space look is untouched.
+    pub water_depth_write: bool,
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1220,6 +1226,7 @@ impl Renderer {
             sea_crest_m: crate::terrain::ocean_waves::MAX_WAVE_HEIGHT_M,
             underwater_ext: 0.0,
             water_caster_mats: Vec::new(),
+            water_depth_write: false,
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -3233,9 +3240,50 @@ impl Renderer {
                 // Slot 1: zero per-instance data for classic draws (increment 2).
                 render_pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 let mut bound_material = usize::MAX;
+                // ── WATER DEPTH WRITE (v0.1060) ──
+                // Operator: "I can essentially see waves behind waves very
+                // easily, almost transparent like glass. Almost like the wave
+                // behind renders in front of the close waves."
+                //
+                // Exactly right, and it is not a shading problem: the water
+                // shell is thousands of separate patches drawn with alpha
+                // blending and NO depth write, in whatever order the LOD
+                // selection emitted them - which is heap order by screen error,
+                // uncorrelated with distance. So a far wave patch submitted
+                // later paints straight over a near one. At 10 m storm crests
+                // the sea folds over itself on screen constantly, which is why
+                // it only became obvious once the waves got big.
+                //
+                // The fix is depth, not sorting: the sea's alpha is 0.93-1.0
+                // almost everywhere, so it is opaque enough that the NEAREST
+                // fragment is simply the right answer. overlay_pipeline is
+                // already alpha-blend + cull None + depth_write TRUE - the exact
+                // state - so this costs no new pipeline compile.
+                //
+                // This is only safe because v0.1053 moved water to the END of
+                // the transparent list whenever the camera is inside an
+                // atmosphere: nothing is drawn after the sea, so its depth
+                // cannot wrongly occlude the atmosphere or cloud shells. From
+                // orbit the flag stays false and the old behaviour is kept.
+                let water_dw = self.water_depth_write && !self.water_caster_mats.is_empty();
+                let mut on_water_pipe = false;
                 for (i, obj) in transparent.iter().enumerate() {
                     let slot = objects.len() + i;
                     if slot >= MAX_OBJECTS { break; }
+                    if water_dw {
+                        let is_water = self.water_caster_mats.contains(&obj.material);
+                        if is_water != on_water_pipe {
+                            on_water_pipe = is_water;
+                            render_pass.set_pipeline(if is_water {
+                                &self.pipeline.overlay_pipeline
+                            } else {
+                                &self.pipeline.transparent_pipeline
+                            });
+                            render_pass
+                                .set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
+                            bound_material = usize::MAX;
+                        }
+                    }
                     let mesh = match self.meshes.get(obj.mesh) { Some(m) => m, None => continue };
                     let material = match self.materials.get(obj.material) { Some(m) => m, None => continue };
                     let dynamic_offset = (uniform_align as u32) * (slot as u32);
