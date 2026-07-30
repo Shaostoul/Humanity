@@ -2113,7 +2113,7 @@ pub enum ToastKind {
 /// icon/text toggle. `Both` is the default (icon + label); `IconOnly` is the compact
 /// mode the operator wanted; `TextOnly` drops the glyphs.
 #[cfg(feature = "native")]
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub enum NavDisplayMode {
     #[default]
     Both,

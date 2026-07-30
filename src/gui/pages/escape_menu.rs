@@ -311,6 +311,10 @@ fn draw_nav_bar_one_tier(ctx: &egui::Context, theme: &Theme, state: &mut GuiStat
                     .clicked()
                 {
                     state.nav_display_mode = state.nav_display_mode.next();
+                    // Persist immediately (v0.1066). Web has remembered this
+                    // since v0.859; native was cycling in-memory only, so the
+                    // choice was silently lost on every restart.
+                    crate::config::AppConfig::from_gui_state(state).save();
                 }
             });
         });

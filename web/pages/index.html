@@ -288,6 +288,8 @@
       <p style="color: var(--text-muted); margin: 0 0 20px; line-height: 1.6; font-size: 0.9rem;">
         Your "name" is just a label other members see. There's no password, no email, no profile to fill in.
         Your computer creates a private signing key so messages prove they're yours. The key never leaves this device.
+        Next you'll be shown a 24-word recovery phrase: that phrase <strong>is</strong> your account, and it's the only way
+        back in if you lose this device, so write it down when it appears.
       </p>
       <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; max-width: 480px; margin: 0 auto;">
         <input id="welcome-name" type="text" placeholder="Your chosen name (letters, numbers, _ -)"
@@ -323,7 +325,7 @@
 
       function setError(msg) { err.textContent = msg || ''; }
 
-      async function joinChat() {
+      function joinChat() {
         var name = nameInput.value.trim();
         if (!/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
           setError('Name must be 1-24 characters: letters, numbers, _ or -.');
@@ -332,24 +334,29 @@
         }
         setError('');
         joinBtn.disabled = true;
-        joinBtn.textContent = 'Setting up your identity...';
+        joinBtn.textContent = 'Taking you to chat...';
         try {
-          var kp = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
-          var rawPub = await crypto.subtle.exportKey('raw', kp.publicKey);
-          var publicKeyHex = Array.from(new Uint8Array(rawPub))
-            .map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
-          var pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
-          var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(pkcs8)));
-          localStorage.setItem('humanity_key_backup', JSON.stringify({
-            publicKeyHex: publicKeyHex,
-            privateKeyPkcs8: b64
-          }));
+          // Store ONLY the chosen name and hand off. The chat app creates the
+          // identity itself, and that is what makes it report `isNew`, which is
+          // what runs the onboarding wizard that SHOWS THE 24-WORD RECOVERY
+          // PHRASE.
+          //
+          // This page used to mint the keypair here and write it to
+          // localStorage. Chat then found an existing key and reported
+          // `restored` instead of `isNew`, so a person who signed up from the
+          // landing page: (1) never saw the wizard, so never saw their phrase,
+          // (2) was told "your identity was restored from a local backup"
+          // seconds after signing up, and (3) never got the not-backed-up
+          // nudge either, because that nudge is gated behind
+          // `humanity_onboarding_done`, which only the wizard sets. Clearing
+          // browser data would then lose the identity permanently, with the
+          // person never having been shown the words that would restore it.
           localStorage.setItem('humanity_name', name);
           var ret = params.get('return') || '/chat';
           location.replace(ret + '#joined');
         } catch (e) {
-          console.error('Identity generation failed:', e);
-          setError('Could not create your identity in this browser. Try Chrome, Firefox, or Safari.');
+          console.error('Could not save the chosen name:', e);
+          setError('Could not save your name in this browser. Check that storage is not blocked.');
           joinBtn.disabled = false;
           joinBtn.textContent = 'Join the community';
         }

@@ -453,13 +453,18 @@
 >    server commands over SSH from the app (one-click status/restart/logs/disk/memory
 >    + a free command box), so admin no longer means a second terminal. Shells to the
 >    OS `ssh` with the `humanity-vps` alias + the operator's existing key.
-> 2. **NEXT - header word-wrap + hint-display modes.** (a) The top nav (app egui +
->    web `.hub-nav` in shell.js) should WRAP overflowing buttons into view instead of
->    horizontal-scroll/hide. (b) A user setting for button presentation: icon-only /
->    icon+text / text-only (compact mode = icons). Operator wants icon+text by default
->    for the screenshots he shares (screenshots -> social -> donations). Cross-cutting
->    (touches shared nav + a Settings toggle + per-button rendering), so do it as a
->    focused, width-tested pass, not a tail-of-turn rush.
+> 2. **SHIPPED (v0.859, persistence gap closed v0.1066) - header word-wrap +
+>    hint-display modes.** (a) DONE both sides: the top nav wraps overflowing buttons
+>    into a second row instead of hiding them (native `horizontal_wrapped` in
+>    escape_menu.rs; web `flex-wrap` on `.hub-nav` with a ResizeObserver keeping the
+>    spacer in sync). (b) DONE both sides: the icon+text / icon-only / text-only cycle
+>    (native `NavDisplayMode`, web `data-navmode`), default icon+text as the operator
+>    wanted for screenshots. It lives as a cycle button in the nav itself rather than a
+>    Settings toggle, on both sides. **v0.1066 closed a real parity gap found on
+>    re-audit:** web had persisted the choice since v0.859 but native cycled it
+>    in-memory only, so it silently reset to icon+text on every restart. Now stored in
+>    `AppConfig.nav_display_mode` and saved on click, guarded by
+>    `nav_display_mode_survives_a_config_round_trip`.
 > 3. **In-app documentation / tutorials / walkthroughs / AI guides.** Ship the docs
 >    INSIDE the app (data-driven, like the Library already does for the Accord), so
 >    there is no external manual to lose or fail to find. Tech-illiterate-first.

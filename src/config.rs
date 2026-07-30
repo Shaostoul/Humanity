@@ -305,6 +305,12 @@ pub struct AppConfig {
     /// Absent in old configs => WindowedFullscreen (the operator's preferred default).
     #[serde(default)]
     pub window_mode: WindowMode,
+    /// How the top-nav buttons present themselves: icon+text / icon-only /
+    /// text-only (v0.1066). The web header has persisted this since v0.859;
+    /// native was cycling it in-memory only, so the choice was lost on every
+    /// restart. Absent in old configs => `Both`, the default.
+    #[serde(default)]
+    pub nav_display_mode: crate::gui::NavDisplayMode,
     #[serde(default = "default_true")]
     pub vsync: bool,
     /// Frame-rate caps (v0.1016, operator request: "add a setting to set
@@ -991,6 +997,7 @@ impl AppConfig {
             sfx_volume: state.settings.sfx_volume,
             fullscreen: state.settings.fullscreen,
             window_mode: state.settings.window_mode,
+            nav_display_mode: state.nav_display_mode,
             vsync: state.settings.vsync,
             fps_foreground: state.settings.fps_foreground,
             fps_foreground_unlimited: state.settings.fps_foreground_unlimited,
@@ -1110,6 +1117,7 @@ impl AppConfig {
         state.settings.sfx_volume = self.sfx_volume;
         state.settings.fullscreen = self.fullscreen;
         state.settings.window_mode = self.window_mode;
+        state.nav_display_mode = self.nav_display_mode;
         state.settings.vsync = self.vsync;
         // Clamp hand-edited values to the UI's range (a 1 FPS cap would
         // make the app look hung; 1000 covers any real display).
@@ -1401,6 +1409,24 @@ mod play_mode_tests {
         let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
         let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
         assert_eq!(cfg.play_mode, PlayMode::Dev);
+    }
+
+    #[test]
+    fn nav_display_mode_survives_a_config_round_trip() {
+        use crate::gui::NavDisplayMode;
+        // The whole point of v0.1066: the choice must come back after a
+        // restart. Web has persisted it since v0.859; native did not.
+        for m in [NavDisplayMode::Both, NavDisplayMode::IconOnly, NavDisplayMode::TextOnly] {
+            let json = serde_json::to_string(&m).unwrap();
+            let back: NavDisplayMode = serde_json::from_str(&json).unwrap();
+            assert_eq!(m, back, "NavDisplayMode must survive a config round-trip");
+        }
+        // A pre-v0.1066 config has no nav_display_mode field: serde(default)
+        // must fill in Both (icon + text), which is what those users see today
+        // and what the operator wants for the screenshots he shares.
+        let minimal = r#"{"server_url":"","user_name":"","public_key_hex":"","completed_onboarding":false}"#;
+        let cfg: AppConfig = serde_json::from_str(minimal).unwrap();
+        assert_eq!(cfg.nav_display_mode, NavDisplayMode::Both);
     }
 }
 
