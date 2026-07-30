@@ -116,9 +116,17 @@ jobs:
               /var/www/humanity/assets/
 
             # Remove orphaned pages from previous deploys
-            for old in skills equipment quests logbook vault knowledge systems streams studio learn; do
+            for old in skills equipment quests logbook vault knowledge systems streams studio learn resources; do
               rm -f "/var/www/humanity/${old}.html"
             done
+            rm -f /var/www/humanity/pages/resources-app.js
+            # Retired 2026-07-30: these three catalogs merged into
+            # data/external/catalog.json. The data rsync has no --delete, so
+            # without this they would linger forever and keep serving the old
+            # curation to anyone with a bookmark.
+            rm -f /var/www/humanity/data/resources.json
+            rm -f /var/www/humanity/data/resources/catalog.json
+            rm -f /var/www/humanity/data/tools/catalog.json
 
             # Copy all standalone pages (HTML + JS) from pages/ folder
             mkdir -p /var/www/humanity/pages
