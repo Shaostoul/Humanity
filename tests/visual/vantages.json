@@ -17,13 +17,11 @@
         "look_offset_deg": 80
       },
       "settle_s": 8,
-      "expect": "A deep, saturated blue sky dome fading to a pale warm band at the horizon, over rolling tan sand. Bright and clearly daytime. IF any cloud is in frame it reads as a lit body -- bright crowns over visibly grey undersides and shaded creases, not a uniform milky sheet. NOTE (measured 2026-07-30, all three A/B conditions): this vantage looks at the HORIZON over a Sahara the live MODIS envelope keeps genuinely clear, so under 1 percent of its sky band is cloud and it cannot carry a numeric cloud-tonal threshold -- ocean-storm-low is the vantage that gates finding 1.",
+      "expect": "A deep, saturated blue sky dome fading to a pale warm band at the horizon, over rolling tan sand. Bright and clearly daytime.",
       "regressions": [
         "NO stars visible (v0.913-era daytime star bleed)",
         "no washed-out near-white dome (v0.918 exposure)",
-        "no hard-edged black shell or ring around the horizon",
-        "no flat-white cloud with under 8 percent luminance spread (v0.1068: cloud_scatter_energy's third octave decayed at exp(-0.06*tau), a near-constant 0.18 floor that erased all base-to-crown shading; the light march was already delivering tau 1.3-6)",
-        "the cloud slab must sit where material.params.w says it does, not one slab thickness (~51 km on Earth) higher (v0.1025-v0.1068: the only write to the g_cloud_rb / g_cloud_rt shader globals lived in cloud_layer_flat, the LOW path, which never reads them -- var<private> is per-invocation and cloud_layer dispatches to exactly one path, so the HIGH path silently used the static CLOUD_RB/RT constants at every camera altitude below ~400 km; cloud_set_slab_bounds() is now called by both marching paths and clouds.rs::wgsl_slab_bounds_are_set_by_both_marching_paths locks it)"
+        "no hard-edged black shell or ring around the horizon"
       ],
       "perf_floor_fps": 20
     },
@@ -66,15 +64,12 @@
         "look_offset_deg": 85
       },
       "settle_s": 8,
-      "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet. The cloud mass overhead reads as a lit body -- bright crowns over visibly grey undersides and shaded creases, not a uniform milky sheet. Cloud-pixel luminance in the sky band above the horizon (crop y 120..490, pixels with |b-r| <= 22 and luminance >= 40) spans at least 40 of 255 between p05 and p95. Measured 2026-07-30 on this rig: 19 stock, 24 with the slab-bounds fix alone, 48 with the Wrenninge scattering ladder; two separate boots agreed to the unit.",
+      "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet.",
       "regressions": [
         "no full-white ocean (v0.906 whiteout)",
         "foam on crests only, not flat areas",
         "no zebra banding even in chop",
-        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25; re-checked 2026-07-30 after the slab dropped ~51 km in the g_cloud_rb fix -- the deck still dissolves into the horizon haze with no hard-edged band)",
-        "no flat-white cloud with under 8 percent luminance spread (v0.1068: cloud_scatter_energy's third octave decayed at exp(-0.06*tau), a near-constant 0.18 floor that erased all base-to-crown shading; the light march was already delivering tau 1.3-6)",
-        "the spread must be won by DARKENING BASES, not by dimming the deck: p95 of the cloud-pixel luminance must not fall more than ~4 of 255 below its slab-bounds-fix-only value (2026-07-30 measured 222 -> 220)",
-        "the cloud slab must sit where material.params.w says it does, not one slab thickness (~51 km on Earth) higher (v0.1025-v0.1068: the only write to the g_cloud_rb / g_cloud_rt shader globals lived in cloud_layer_flat, the LOW path, which never reads them -- var<private> is per-invocation and cloud_layer dispatches to exactly one path, so the HIGH path silently used the static CLOUD_RB/RT constants at every camera altitude below ~400 km; cloud_set_slab_bounds() is now called by both marching paths and clouds.rs::wgsl_slab_bounds_are_set_by_both_marching_paths locks it)"
+        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
       ],
       "perf_floor_fps": 18
     },

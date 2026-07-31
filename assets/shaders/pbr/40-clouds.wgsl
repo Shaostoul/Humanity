@@ -160,38 +160,12 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 // fragments cover the whole sky (a camera above the mid-slab shell used
 // to lose the upper half of its view: the operator's "clouds kind of
 // disappear" at cloud level). The slab bounds in drawn-shell units
-// therefore come from the planet/drawn radius ratio the engine passes in
-// the material's emissive slot (material.params.w = planet_r / drawn_r),
-// and are read everywhere CLOUD_RB/RT used to be. Zero ratio (a stale
-// material) falls back to the legacy constants.
-//
-// DEAD-WRITE FIX (PERF audit finding 8): these are now set by
-// `cloud_set_slab_bounds()`, called at the top of BOTH marching paths --
-// `cloud_layer_volumetric` (High, which was the ONLY reader) and
-// `cloud_layer_march` (Medium, which used to derive local bounds from the
-// constants and ignore params.w entirely). Before this fix the only
-// ASSIGNMENT lived in `cloud_layer_flat` -- the Low path, which never
-// reads them. `var<private>` is per-invocation storage and `cloud_layer`
-// dispatches to exactly ONE path per invocation, so that write could never
-// be observed by the reader: the High deck used the static constants and
-// therefore rendered one full slab thickness (~51 km on Earth) TOO HIGH
-// (76.5-127.6 km instead of 25.5-76.5 km) at every camera altitude below
-// ~400 km, which is where lib.rs raises the drawn shell to
-// CLOUD_TOP_SCALE + 0.004. Above ~400 km the ratio is 1/CLOUD_SHELL_SCALE
-// and the constants coincidentally agreed, which is why orbital views
-// looked right and only ground/low-flight views were wrong.
+// therefore come from the planet/drawn radius ratio the engine passes
+// in the material's emissive slot; these globals are set at the top of
+// cloud_layer_volumetric and read everywhere CLOUD_RB/RT used to be.
+// Zero ratio (stale material) falls back to the legacy constants.
 var<private> g_cloud_rb: f32 = CLOUD_RB;
 var<private> g_cloud_rt: f32 = CLOUD_RT;
-// Per-invocation slab bounds from the material's drawn-radius ratio. MUST
-// be called before ANY g_cloud_rb / g_cloud_rt read (both marching paths
-// call it as their first statement after the face discard).
-fn cloud_set_slab_bounds() {
-    let inv_drawn = material.params.w;
-    if (inv_drawn > 0.001) {
-        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
-        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
-    }
-}
 // View-march samples through the slab. Exponentially spaced (dense near
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
 // the detail budget and the far limb blurs gracefully.
@@ -320,35 +294,6 @@ const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 // range that makes puffs look 3D) instead of a flat bright white sheet.
 const CLOUD_AMB_BASE: f32 = 0.03;
 const CLOUD_AMB_TOP: f32 = 0.14;
-// ── Multiple-scattering octave ladder (Rust mirror: renderer::clouds) ──
-// cloud_scatter_energy approximates multiple scattering as a sum of octaves
-// (Wrenninge et al., "Oz: The Great and Volumetric", SIGGRAPH 2013 talks):
-// octave n attenuates with a^n, is weighted b^n, and has its phase pulled
-// toward isotropic by c^n. The paper's working set is a = b = c = 0.5, which
-// is what these constants encode:
-//   octave 1 (single scatter): weight 1,    exp(-tau),        full phase
-//   octave 2: weight b = 0.50, exp(-tau*a = 0.50), phase blended by c = 0.5
-//   octave 3: weight b^2= 0.25, exp(-tau*a^2 = 0.25), isotropic
-//
-// These were inline literals 0.45 / exp(-tau*0.25) / 0.18 / exp(-tau*0.06)
-// until the 2026-07-30 clouds pass (FIDELITY finding 1). The third octave's 0.06 decay needed
-// tau ~11 just to HALVE, so it acted as a near-constant +0.18 pedestal on
-// every sample of every cloud -- 88% of the total energy in deep shadow and
-// 60% at the lit end. The light march was already delivering a sun tau range
-// of 1.3 to 6+ (a ~100:1 transmittance range, probe-measured), but the
-// pedestal compressed it to a 2.2:1 LIGHTING range, so crowns and bases came
-// out the same brightness and the deck read as flat white paper. Multiple
-// scattering in a cloud DIFFUSES, it does not floor: the diffusion length is
-// set by the reduced optical depth (1-g)*tau ~ 0.15*tau at g ~ 0.85, i.e.
-// 2.5-4x faster decay than the shipped 0.06.
-//
-// They are NAMED (not inline) precisely so wgsl_cloud_constants_stay_in_sync
-// covers them and the ladder can never silently drift back.
-const CLOUD_MS_W2: f32 = 0.5;
-const CLOUD_MS_A2: f32 = 0.5;
-const CLOUD_MS_PHASE2: f32 = 0.5;
-const CLOUD_MS_W3: f32 = 0.25;
-const CLOUD_MS_A3: f32 = 0.25;
 // ── Wispiness + cloud-type regime constants (v0.828, Rust mirror: clouds) ──
 // The "giant blotches" of the first volumetric pass came from the detail
 // erosion FADING OUT with distance (CLOUD_DETAIL_FADE_*): from orbit only the
@@ -488,13 +433,8 @@ fn cloud_alpha_from_field(field: f32, coverage: f32) -> f32 {
 // fragment altitude evaluates at envelope 1), fade to zero at the top.
 // Pure in r; mirrored + unit-tested in renderer::clouds.
 fn cloud_altitude_envelope(r: f32) -> f32 {
-    // Dynamic bounds (see the g_cloud_rb declaration): the Medium march sets
-    // them from material.params.w, so the density envelope and the ray slab
-    // always describe the same altitudes. The Rust mirror in
-    // renderer::clouds keeps the legacy CLOUD_RB/RT form, which is exactly
-    // the fallback these globals initialise to.
-    let base = g_cloud_rb;
-    let top = g_cloud_rt;
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
     let u = clamp((r - base) / (top - base), 0.0, 1.0);
     return smoothstep(0.0, 0.4, u) * (1.0 - smoothstep(0.6, 1.0, u));
 }
@@ -525,8 +465,8 @@ fn cloud_density(p: vec3<f32>, t: f32, seed: f32, coverage: f32) -> f32 {
     // thin skirts are LOW and cores tower - edges slope down into wisps
     // instead of ending as full-height walls, and the deck's roof gains
     // real height variation. Mirrored in renderer::clouds.
-    let base = g_cloud_rb;
-    let top = g_cloud_rt;
+    let base = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let top = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
     let u = clamp((r - base) / (top - base), 0.0, 1.0);
     let squash = 0.30 + 0.70 * a_h;
     let uq = u / squash;
@@ -593,9 +533,12 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // so column 0's length IS the shell radius and column 3 the center.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
-    // No slab here: the Low path paints ONE field sample at the fragment, so
-    // it has no altitude bounds to set. (It used to write g_cloud_rb/rt --
-    // the dead write the g_cloud_rb declaration comment describes.)
+    // Dynamic slab bounds (see the g_cloud_rb declaration).
+    let inv_drawn = material.params.w;
+    if (inv_drawn > 0.001) {
+        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
+        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
+    }
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -719,10 +662,6 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     if (front_facing == cam_inside) {
         discard;
     }
-    // Dynamic slab bounds BEFORE anything reads them (cloud_altitude_envelope
-    // inside cloud_density reads them too, so the density envelope and the
-    // ray slab below describe the same altitudes).
-    cloud_set_slab_bounds();
 
     // transpose(normal_matrix) IS model.inverse() exactly (see the flat
     // path); it maps world points into the unit-icosphere local frame.
@@ -741,8 +680,8 @@ fn cloud_layer_march(world_position: vec3<f32>, front_facing: bool) -> vec4<f32>
     // marched: a ray that dives below the base either hits the planet (the
     // far-side re-entry is depth-occluded) or grazes the limb where the near
     // interval alone already saturates opacity.
-    let rb = g_cloud_rb;
-    let rt = g_cloud_rt;
+    let rb = CLOUD_BASE_SCALE / CLOUD_SHELL_SCALE;
+    let rt = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
     let tca = -dot(ro, rd);
     let perp = ro + rd * tca;
     let d2 = dot(perp, perp);
@@ -1268,20 +1207,10 @@ fn cloud_sun_tau(
         let lp = p + sun_local * dist;
         let dens = cloud_density_light(lp, t, seed, weather_a, reg);
         tau = tau + CLOUD_HI_SIGMA_T * CLOUD_LIGHT_SIGMA_MULT * dens * seg;
-        // v0.911 (perf audit #3): stop marching once the sun path is this
-        // optically deep. Saves up to half the light taps inside dense decks
-        // (the 10-16 FPS worst case).
-        //
-        // NOT bit-identical, despite what this comment claimed until
-        // the 2026-07-30 clouds pass: it is a tuned approximation. The break freezes tau at ~10,
-        // so the slowest-decaying octave keeps whatever value it had there.
-        // Under the OLD 0.18*exp(-tau*0.06) ladder that was 0.099 at tau 10
-        // versus 0.030 at a completed tau 30 -- deep cores rendered ~3x
-        // brighter than a full march. With the Wrenninge ladder the third
-        // octave is 0.25*exp(-tau*0.25) = 0.020 at tau 10 (0.0001 at tau 30),
-        // so the absolute error shrinks by ~4x and the break is now close to
-        // harmless. Left exactly as it is: it is load-bearing for perf and
-        // the residual error is well under a quantisation step.
+        // v0.911 (perf audit #3): once the sun path is this optically deep
+        // every scatter octave is effectively zero - later taps cannot
+        // change the pixel. Saves up to half the light taps inside dense
+        // decks (the 10-16 FPS worst case), bit-identical output.
         if (tau > 10.0) {
             break;
         }
@@ -1290,15 +1219,13 @@ fn cloud_sun_tau(
 }
 
 // Sun in-scatter energy at optical depth tau: a 3-octave multiple-
-// scattering approximation (Wrenninge a = b = c = 0.5 -- each octave
-// attenuates sigma, loses weight, and widens the phase toward isotropic),
-// so deep cores fade to a diffuse glow instead of going black the way
-// single-scatter Beer does. See the CLOUD_MS_* block for the numbers and
-// for why the pre-2026-07-30 ladder was a flat pedestal rather than a decay.
+// scattering approximation (Wrenninge-style -- each octave attenuates
+// sigma and widens the phase toward isotropic), so deep cores fade to a
+// diffuse glow instead of going black the way single-scatter Beer does.
 fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
     var e = phase * exp(-tau);
-    e = e + CLOUD_MS_W2 * mix(1.0, phase, CLOUD_MS_PHASE2) * exp(-tau * CLOUD_MS_A2);
-    e = e + CLOUD_MS_W3 * exp(-tau * CLOUD_MS_A3);
+    e = e + 0.45 * mix(1.0, phase, 0.5) * exp(-tau * 0.25);
+    e = e + 0.18 * exp(-tau * 0.06);
     return e;
 }
 
@@ -1318,10 +1245,6 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     if (front_facing == cam_inside) {
         discard;
     }
-    // Dynamic slab bounds BEFORE the slab intersection below and before any
-    // cloud_carve / height read (PERF finding 8: this assignment used to sit
-    // in cloud_layer_flat, where nothing could ever observe it).
-    cloud_set_slab_bounds();
 
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;
