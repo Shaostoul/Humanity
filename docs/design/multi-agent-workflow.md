@@ -77,6 +77,21 @@ checkers over eight writers.
   `just perf-sweep` and `just perf-diff` already exist and vantages already carry
   `perf_floor_fps`, so this is mostly wiring rather than new tooling.
 
+### Meta agents (the roster maintains itself)
+
+| Agent | Writes | Why |
+|---|---|---|
+| `toolsmith` | yes | Owns `scripts/`, `tests/*lint*.rs`, the Justfile recipes and the in-app dev pages. Its standing question is "what class of failure shipped, and what check would have caught it?" Seven lints exist because of that question; `just verify` still boots nothing, which is a live gap it owns. |
+| `roster-keeper` | yes (`.claude/agents/` only) | Stewards the roster: gaps, overlap, balance. Explicitly biased toward a SMALLER roster, because a thing that proposes agents will propose agents forever. |
+
+**`roster-keeper` found its first overlap by being used.** Its original draft claimed
+fact-checking agent prompts as its highest-value job, which is precisely what
+`doc-truth` already does for every other kind of document. Corrected on the spot:
+`doc-truth` now explicitly covers `.claude/agents/*.md`, and `roster-keeper` owns
+composition only. Agent prompts are arguably the highest-severity drift surface in the
+repo, because an agent ACTS on what its prompt claims rather than merely misleading a
+reader, and until now nothing checked them at all.
+
 ### Content agents (data-only, safest to automate)
 
 These own data files and never touch `src/`, so several can run at once with almost no
@@ -274,8 +289,15 @@ starts and is not reloaded when you add files mid-session.**
 So the sequence for anyone setting this up is:
 
 1. Write the `.claude/agents/*.md` definitions.
-2. **Restart the Claude Code session.**
+2. **Wait for the registry to pick them up, or restart the session.**
 3. Then invoke the workflow.
+
+**Refined later the same day:** a restart is not strictly required. Two agents created
+mid-session (`toolsmith`, `roster-keeper`) failed to resolve immediately after being
+written, then became available a few minutes later with no restart. So the registry
+does refresh, just not instantly. The practical rule: a newly written agent is not
+usable in the same breath as writing it. If it fails to resolve, do other work and try
+again rather than assuming the definition is malformed. A restart still forces it.
 
 Two smaller findings from the same shakedown, both now fixed in the script:
 

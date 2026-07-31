@@ -1,6 +1,6 @@
 ---
 name: doc-truth
-description: Checks whether documentation and code comments still match the code. Read-only. Use after a restructure, before trusting a doc, or as a periodic sweep. This repo's docs drift constantly and agents act on them.
+description: Checks whether documentation, code comments and AGENT PROMPTS still match the code. Read-only. Use after a restructure, before trusting a doc, or as a periodic sweep. This repo's docs drift constantly and agents act on them.
 tools: Read, Grep, Glob, Bash
 model: opus
 ---
@@ -39,6 +39,11 @@ skipping a check that never ran.
 5. **Counts.** "27 pages", "53 docs", "38 standalone". Count the real thing.
 6. **Instructions that would not work.** Commands, flags and recipes named in docs
    that no longer exist in the `Justfile` or `scripts/`.
+7. **Agent prompts** (`.claude/agents/*.md`). Same drift problem, worse blast radius:
+   an agent ACTS on what its prompt claims. They cite line counts, species counts,
+   vantage counts, release ranges, file paths and `just` recipes, and nothing else
+   checks any of it. Treat a wrong claim here as high severity, because it silently
+   misroutes real work rather than merely misleading a reader.
 
 ## Rules
 
