@@ -13,7 +13,7 @@
 // Infinite-of-X: the categories live HERE, not in code. Add/edit entries freely;
 // the panel renders whatever this file carries. No em dashes in copy (operator rule).
 (
-    intro: "The loops above close. These do not -- and that is the point: they are what community and trade are for.",
+    intro: "Most of the loops above close. These five never do, and one of the seven above (nutrients) does not either, for the reason spelled out in the raw chemistry entry. That is the point: these gaps are what community and trade are for.",
     entries: [
         (
             id: "electronics",
@@ -42,9 +42,9 @@
         (
             id: "raw_chemistry",
             title: "Raw chemistry inputs",
-            body: "Every smelt recipe quietly consumes coal, the freezer needs coolant, the tower parts list marks its mineral nutrient salts as buy, and the tower columns are plastic. Even a closed nutrient loop leaks a little phosphorus, which is mined from the ground, not made. These inputs feel small and cheap only because somewhere a mine and a chemical plant exist.",
-            provided_by: "Traded from mining and chemical industry.",
+            body: "Every smelt recipe quietly consumes coal, the freezer needs coolant, the tower parts list marks its mineral nutrient salts as buy, and the tower columns are plastic. Phosphorus is the sharpest case, and the 2026-07-30 balance pass put a number on it. Crops take up about 1.3 kg of phosphorus a year to feed one person. Composting everything the body and the garden give back returns about 1.17 kg, so roughly 0.13 kg a year leaches away even when nothing is sold, and there is no biological process anywhere that fixes phosphorus the way legumes fix nitrogen. Nothing on the homestead makes it. Worse, the moment you trade a grain surplus you export it: about 1,900 kcal a day of traded wheat carries 0.73 kg of phosphorus and 4.4 kg of nitrogen off the farm each year, more than the resident's own body returns. Trading calories is trading soil, and over 25 years at that rate you ship out about 18 kg of phosphorus you have to buy back as mined rock. Potassium is the same shape and larger in size, about 2.7 kg a year short after the wood stove ash is counted. These inputs feel small and cheap only because somewhere a mine and a chemical plant exist.",
+            provided_by: "Traded from mining and chemical industry. Rock phosphate has no substitute and no renewable source.",
         ),
     ],
-    footer: "A single person can close the survival loops: energy, water, air, nutrients, and nearly all food. These five gaps are why people specialize and trade. Every new neighbor is a step toward a shared workshop, a clinic, a foundry. The gap is not a failure. It is civilization.",
+    footer: "A single person can close energy, water, air, climate, and food, at a named place, with stated assumptions. Nutrients they can only nearly close, because phosphorus is mined and not made. These gaps are why people specialize and trade. Every new neighbor is a step toward a shared workshop, a clinic, a foundry, a phosphate supply. The gap is not a failure. It is civilization.",
 )

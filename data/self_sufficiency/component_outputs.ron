@@ -19,16 +19,26 @@
 //   assumptions  - the editable, human-readable derivation the operator can tune.
 //
 // AGREEMENT with home.ron / homestead-solo-design.md: every value below was cross-checked
-// against the catalog stat strings + design math and AGREES (e.g. solar 400 W x 4.5 sun-h x
-// 0.80 = 1.44 kWh/day, which the catalog rounds to "+1.4 kWh/d"; 8 x 1.44 + 0.7 wind = 12.2
-// kWh/day, the home.ron Energy-loop supply line). No disagreements were found; see the
-// session report for the one rounding note (1.44 vs the catalog's "+1.4").
+// against the catalog stat strings + design math and AGREES internally (e.g. solar 400 W x
+// 4.5 sun-h x 0.80 = 1.44 kWh/day, which the catalog rounds to "+1.4 kWh/d"; 8 x 1.44 + 0.7
+// wind = 12.2 kWh/day, the home.ron Energy-loop supply line).
+//
+// DISAGREEMENT FOUND 2026-07-30 (life-support balance pass, see data/home_outline.json):
+// the solar figure below agrees with the DESIGN DOC but NOT with location.ron sitting in this
+// same folder. The 4.5 sun-hours is a generic "temperate" assumption with no place attached;
+// location.ron names Silverdale, WA, where NREL's NSRDB gives 3.9 peak sun-hours annual
+// average and about 1.3 in December. At that site the honest figures are 1.17 kWh/day annual
+// and 0.39 kWh/day in December, and an off-grid array is sized on December, not the average.
+// The values below are LEFT AS THEY ARE on purpose: `household_energy_supply_sums_kwh_per_day_
+// components` in src/systems/self_sufficiency.rs pins 4 panels to 5.76 +/- 0.5 kWh/day, so
+// correcting the number needs a code change alongside it, not a lone data edit. Do not treat
+// 1.44 as location-honest until that test moves with it.
 (
     components: [
         // ── Energy GENERATION (kWh/day, so household_energy_balance() sums these) ──
         (
             id: "solar_panel", output_value: 1.44, unit: "kWh/day",
-            assumptions: "400 W peak x 4.5 sun-hours/day (temperate) x 0.80 system losses (inverter + wiring + charge). Catalog rounds to +1.4 kWh/d.",
+            assumptions: "400 W peak x 4.5 sun-hours/day (generic temperate, NO location) x 0.80 system losses (inverter + wiring + charge). Catalog rounds to +1.4 kWh/d. CONTESTED: at location.ron's own site (Silverdale, WA) NREL gives 3.9 sun-hours annual and 1.3 in December, and 0.80 omits battery round-trip, so the honest derate is 0.75, giving 1.17 kWh/day annual and 0.39 kWh/day in December. Correcting this value fails a pinned unit test; see the file header.",
         ),
         (
             id: "wind_turbine_small", output_value: 0.7, unit: "kWh/day",
@@ -56,12 +66,12 @@
         // ── Nutrient / waste RECYCLING (kg/day nutrient; also +greywater) ──
         (
             id: "composter", output_value: 1.2, unit: "kg/day",
-            assumptions: "+1.2 kg/day nutrient (fertilizer) from food + crop + human waste, plus +155 L/day greywater back to irrigation (home.ron stats). One person makes ~1.5 kg/day organic.",
+            assumptions: "+1.2 kg/day of FINISHED COMPOST (not of nutrient: the actual N+P+K in 1.2 kg of compost is about 18 g N, 6 g P, 12 g K, roughly 70x smaller) from food + crop + human waste, plus greywater back to irrigation (home.ron stats). NOTE the scale: home.ron is the 3-PERSON home, so its +155 L/day greywater goes with a 240 L/day household, a plausible 65% recovery. For ONE person the household is 85 L/day and greywater is about 59 L/day; the 155 figure must never be copied into a solo design, where it would imply 194% recovery. One person makes about 4.3 kg/day of wet organic material once crop residue is counted, not 1.5 kg/day (that figure is excreta only).",
         ),
         // ── Air GENERATION / life support (L/day of scrubbed fresh air) ──
         (
             id: "air_recycler", output_value: 28800.0, unit: "L/day-air",
-            assumptions: "20 L/min O2-making / CO2-scrubbing blower (home.ron Air OUT port) = 28800 L/day. Sized for a ~3-person sealed household with margin; priority-1 (shed last).",
+            assumptions: "20 L/min O2-making / CO2-scrubbing blower (home.ron Air OUT port) = 28800 L/day. Sized for a ~3-person sealed household with margin; priority-1 (shed last). CONTESTED (2026-07-30): this is an AIR THROUGHPUT figure, and the machine's 25 W draw is about an order of magnitude below what actually MAKING oxygen costs. One person at 2,600 kcal/day consumes 0.77 kg O2/day; electrolysis runs about 6.5 kWh per kg of O2, so 5.0 kWh/day, plus about 0.6 for CO2 removal and 0.2 for trace contaminants. That 5.8 kWh/day is 145% of the whole solo home's 4.0 kWh/day budget. 25 W (0.6 kWh/day) is right for a blower that MOVES air, not for one that regenerates it.",
         ),
     ],
 )
