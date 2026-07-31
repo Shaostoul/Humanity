@@ -3510,6 +3510,17 @@ impl Renderer {
     /// Advance the GPU particle pool, creating it on first use (v0.1068).
     /// `live` is how many slots to simulate this frame; the pool itself only
     /// grows, so dialling density up and down costs nothing after the peak.
+    /// Stop drawing the GPU precipitation pool. Called every frame the GPU
+    /// path is inactive (Clear condition, altitude gate closed, setting off):
+    /// the sim dispatch stopping does NOT stop the draw, so without zeroing
+    /// `live` the last-written verts render forever as rain frozen mid-air
+    /// (operator field report 2026-07-31).
+    pub fn deactivate_gpu_particles(&mut self) {
+        if let Some(g) = self.gpu_particles.as_mut() {
+            g.live = 0;
+        }
+    }
+
     pub fn simulate_gpu_particles(
         &mut self,
         params: particles_gpu::SimParams,

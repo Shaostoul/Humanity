@@ -3534,6 +3534,17 @@ mod native_app {
                                 let _ = up;
                                 state.renderer.simulate_gpu_particles(p, live, live.max(65_536));
                             }
+                        } else {
+                            // Deactivate the pool when the GPU path is not
+                            // running this frame (condition switched to Clear,
+                            // altitude gate closed, or the setting turned off).
+                            // Without this the sim dispatch stops but the draw
+                            // keeps rendering the last-written verts: rain
+                            // frozen mid-air like stopped time (operator field
+                            // report 2026-07-31). live=0 makes the draw skip,
+                            // and the recycling sim re-seeds cleanly on the
+                            // next activation.
+                            state.renderer.deactivate_gpu_particles();
                         }
                         let mut manage: Vec<(String, bool)> =
                             vec![("rain".into(), want_rain), ("snow".into(), want_snow)];
