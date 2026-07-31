@@ -35,7 +35,7 @@ cargo build --features native --release
 node scripts/probe-sweep.js --only <vantage> --exe target/release/HumanityOS.exe
 ```
 
-`tests/visual/vantages.json` holds 21 canonical vantages. Pick ones that exercise the
+`tests/visual/vantages.json` holds the canonical vantages (count moves; read the file). Pick ones that exercise the
 change: ocean vantages for water, `fuji-forest-ground` for vegetation, `limb-400km`
 for atmosphere, a ground vantage for terrain and materials.
 

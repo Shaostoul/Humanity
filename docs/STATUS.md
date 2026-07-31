@@ -285,7 +285,7 @@ Mostly **built and working**; the two voice-parity rows flagged ⚠️/❌ below
 | Day/night cycle | ✅ | GameTime with seasons, sun direction/color (v0.31.0) |
 | Inventory system | ✅ | ItemStack slots, add/remove/transfer (v0.31.0) |
 | Crafting system | ✅ | Recipe matching from recipes.csv (v0.31.0) |
-| Farming / gardening loop | ✅ | `FarmingSystem` registered + ticking: growth (game_time + water/health) **plus the full loop (v0.331.0)**, Plant a seed (Plant button → spawn CropInstance), Water, Harvest a mature crop → produce into inventory → despawn. Garden panel on the inventory page + a "Dev: grow all" affordance. Proven by `farming::gardening_tests`. **#4b** (tracked in gameplay-loops.md): data-driven `harvest_item` column (124/129 plants have no produce item yet), soil/irrigation entities, 3D crop placement/visuals. |
+| Farming / gardening loop | ✅ | `FarmingSystem` registered + ticking: growth (game_time + water/health) **plus the full loop (v0.331.0)**, Plant a seed (Plant button → spawn CropInstance), Water, Harvest a mature crop → produce into inventory → despawn. Garden panel on the inventory page + a "Dev: grow all" affordance. Proven by `farming::gardening_tests`. **#4b** (tracked in gameplay-loops.md): data-driven `harvest_item` column (every plant resolves a produce item (all 164, enforced by every_shipped_plant_resolves_a_harvest_item since the 2026-07-31 fleet batches)), soil/irrigation entities, 3D crop placement/visuals. |
 | InputState | ✅ | Cross-system input sharing (v0.31.0) |
 | Ship interior system | ✅ | ShipDef/DeckDef/RoomDef from RON, room mesh generation, BFS pathfinding (v0.33.0) |
 | AI behavior system | ⚠️ | Native `AISystem` (state machines) implemented but **NOT registered**, never ticks in the native runtime. (The relay drives ambient NPC wander separately, server-side.) See `tests/engine_wiring_lint.rs::DEFERRED_SYSTEMS`. |
@@ -481,9 +481,9 @@ actual binary.
 | Solar system database | ✅ | 70+ celestial bodies with orbital and physical data (v0.42.0) |
 | Materials database | ✅ | 92 materials with properties (v0.42.0) |
 | Components database | ✅ | 102 components for crafting/construction (v0.42.0) |
-| Items and recipes | ✅ | ~829 items, ~444 recipes (`just data-counts`) |
-| Plants database | ✅ | ~166 plants with growth stages and requirements |
-| Creatures database | ✅ | ~127 creatures with behaviors and stats |
+| Items and recipes | ✅ | ~781 items, ~366 recipes (`just data-counts`) |
+| Plants database | ✅ | 164 plants with growth stages and requirements |
+| Creatures database | ✅ | 99 creatures with behaviors and stats |
 | Spells database | ✅ | 149 spells across multiple schools of magic (v0.90.0) |
 | Structures database | ✅ | 163 structures for construction (v0.90.0) |
 | Status effects | ✅ | 80 status effects (buffs, debuffs, conditions) (v0.90.0) |

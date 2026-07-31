@@ -27,9 +27,14 @@ node -p "require('fs').readFileSync('Cargo.toml','utf8').match(/^version\s*=\s*\
 # 2. Read latest GitHub release tag
 gh release list --repo Shaostoul/Humanity --limit 1
 
-# 3. If they differ: push all changes, tag, and create release
-git add -A
-git diff --cached --quiet || git commit -m "v<VERSION>: <description>"
+# 3. If they differ: push YOUR changes, tag, and create release.
+# NEVER `git add -A` / `git commit -a`: several Claude sessions share this one
+# checkout, and a blanket add sweeps their in-flight work into your commit
+# (it happened three times on 2026-07-30; see CLAUDE.md "Sharing this checkout").
+# Stage your own files by name, and use -F for any multi-line message (PS 5.1
+# mangles -m, see the gotchas):
+just mine <your files>            # stage exactly what you changed
+git commit -F <msgfile>
 git push origin main
 git tag v<VERSION>
 git push origin v<VERSION>

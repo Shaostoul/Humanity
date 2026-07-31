@@ -41,7 +41,7 @@ bar.
    opens the window behind whatever the operator is doing and never grabs the cursor.
    A direct boot yanks him out of a video or a game; he has one screen. If you truly
    need a plain boot, `HUMANITY_NO_FOCUS=1 just launch-bg`.
-   `tests/visual/vantages.json` has 21 canonical vantages with an `expect` golden spec
+   `tests/visual/vantages.json` holds the canonical vantages (count moves; read the file) with an `expect` golden spec
    and a `regressions` list. Read the PNG.
 2. **Compare against real reference.** Photographs, physical measurements, published
    values. Search for them if needed. This repo already grounds in real data (NASA

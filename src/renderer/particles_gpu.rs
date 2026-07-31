@@ -275,15 +275,39 @@ mod tests {
     }
 
     /// The compute shader writes the draw's vertex layout directly, which is
-    /// what keeps the draw path unchanged. If ParticleVertexData ever grows,
-    /// the shader's ParticleVertex must grow with it.
+    /// what keeps the draw path unchanged. The CONTRACT changed in v0.1071
+    /// (BUG-050): a WGSL struct cannot mirror the tightly packed 52-byte
+    /// ParticleVertexData, because vec3 in a storage buffer aligns to 16 and
+    /// the struct version silently wrote 64-byte records (giant spheres, cyan
+    /// snow). The shader now hand-packs 13 floats per record into array<f32>.
+    /// This test pins BOTH halves of that contract: the Rust struct stays 52
+    /// bytes / 13 floats, and the shader packs exactly that many by hand and
+    /// never reintroduces the padded-struct trap.
     #[test]
     fn vertex_layout_is_shared_with_the_draw() {
         assert_eq!(std::mem::size_of::<ParticleVertexData>(), 52);
+        assert_eq!(std::mem::size_of::<ParticleVertexData>() % 4, 0);
+        let floats = std::mem::size_of::<ParticleVertexData>() / 4;
+        assert_eq!(floats, 13, "ParticleVertexData grew: update VERT_FLOATS in particle_sim.wgsl AND the 13 packed writes, then this test");
         let src = include_str!("../../assets/shaders/particle_sim.wgsl");
-        assert!(src.contains("struct ParticleVertex"));
-        for f in ["position", "color", "size_emissive", "stretch"] {
-            assert!(src.contains(f), "shader vertex missing {f}");
+        assert!(
+            src.contains("const VERT_FLOATS: u32 = 13u;"),
+            "shader VERT_FLOATS must match size_of::<ParticleVertexData>()/4 = {floats}"
+        );
+        assert!(
+            src.contains("var<storage, read_write> verts: array<f32>;"),
+            "verts must stay a raw float array; a WGSL struct re-pads vec3 to 16 bytes (BUG-050)"
+        );
+        assert!(
+            !src.contains("struct ParticleVertex"),
+            "the padded-struct trap is back: WGSL vec3 storage alignment writes 64-byte records into the 52-byte stream (BUG-050)"
+        );
+        // All 13 scalar writes are present (base + 0..12).
+        for i in 0..13 {
+            assert!(
+                src.contains(&format!("verts[base + {i}u]")),
+                "shader missing packed write verts[base + {i}u]"
+            );
         }
     }
 }

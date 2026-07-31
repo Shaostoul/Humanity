@@ -20,7 +20,7 @@ compute-bound". The cost was assumed to be in the wrong place until it was measu
 Optimising an unmeasured guess wastes the work and often makes things slower.
 
 ```bash
-just perf-sweep                              # fps + frame_ms for all 21 vantages
+just perf-sweep                              # fps + frame_ms for every vantage
 just perf-diff .probe-rig/sweeps/<old>/manifest.json   # regression vs a baseline
 node scripts/probe-sweep.js --only <vantage> --exe target/release/HumanityOS.exe
 ```
@@ -30,8 +30,8 @@ the window opens behind whatever the operator is doing and never grabs the curso
 direct boot pulls him out of a video or a game; he has one screen and no second
 monitor. If you truly need a plain boot: `HUMANITY_NO_FOCUS=1 just launch-bg`.
 
-**9 of the 21** vantages in `tests/visual/vantages.json` carry a `perf_floor_fps`; the
-other 12 have none, and `perf-report.js` prints `-` for those rather than flagging
+**a minority** of vantages (9 at last audit) in `tests/visual/vantages.json` carry a `perf_floor_fps`; the
+rest have none, and `perf-report.js` prints `-` for those rather than flagging
 anything. The file's own `_perf_note` calls it "an advisory lower bound ... a smoke
 threshold, not a hard gate", so treat a dip below it as worth investigating, NOT as a
 proven bug, and never report a regression on a vantage that has no floor at all.

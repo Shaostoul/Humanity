@@ -63,7 +63,7 @@ Source of truth: `GuiPage` enum in `src/gui/mod.rs`.
 | Cosmos | `cosmos.rs` | Three-mode astronomical map: System (Sol planets), Galactic (nearby stars in ly), Night Sky (Earth-centered celestial sphere with constellations). Added v0.203.0. | everyone | both |
 | Homes | `homes.rs` | Your offline homestead (v0.379): the Fibonacci homestead blueprint as a browsable design, pick a build scale (Solo/Family/Community/Colony), see power/water demand for that scale. | everyone | both |
 | Testing | `testing.rs` | QA testing tasks; operator-facing checklist, Mark Passed / Report Issue posts to chat. From `data/testing/qa_tasks.json`. | dev | native-only |
-| Dev | `dev.rs` | Developer tools (v0.777, a Platform section not a GuiPage variant): spawn any of the 92 creatures.csv species in front of the player, despawn-all, live creature count; documents the walk-up creature editor (look at a creature, press G). Cheats-gated (Settings toggle). | dev | native-only |
+| Dev | `dev.rs` | Developer tools (v0.777, a Platform section not a GuiPage variant): spawn any of the 99 creatures.csv species in front of the player, despawn-all, live creature count; documents the walk-up creature editor (look at a creature, press G). Cheats-gated (Settings toggle). | dev | native-only |
 | Browser | `browser.rs` | Curated bookmarks (5 categories); opens links in the OS default browser. Foundation for a future in-app browser (not built). | everyone | web-only |
 
 ### Merged super-tabs (fold multiple pages into one `section_nav` sidebar; page carve v0.358-360, still evolving)

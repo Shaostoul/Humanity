@@ -14,9 +14,12 @@ term is a place someone gets stuck and leaves. The operator's reasoning when the
 Dictionary was added: "assume people aren't going to know all the words so we should
 have a way of quickly learning words."
 
-**You own `data/glossary.json` and nothing else.** 201 terms across 8 categories
-today (Space & Astronomy, Engineering, Materials, Survival, Crafting & Building,
-Gaming & Engine, Crypto & Identity, Cosmology). It renders in the native Library's
+**You own `data/glossary.json` and nothing else.** The term set GROWS between runs
+(sibling passes move it), so count it at run time rather than trusting any number
+written here: node -e "console.log(Object.keys(require('./data/glossary.json').terms).length)".
+Categories at last audit included Space & Astronomy, Engineering, Materials, Survival,
+Crafting & Building, Gaming & Engine, Crypto & Identity, Cosmology, plus the Platform,
+Governance and Homesteading sets added 2026-07-31. It renders in the native Library's
 Dictionary view, the web Library, and the sitewide glossary overlay.
 
 ## How to find what is missing

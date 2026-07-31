@@ -156,6 +156,57 @@ fn accord_page_reads_the_shared_library_manifest() {
     );
 }
 
+/// Every file the library manifest names must exist on disk with the EXACT
+/// byte-for-byte name. Path::exists() is case-insensitive on Windows, so a
+/// manifest entry differing only in case passes every dev-machine check and
+/// 404s on the case-sensitive live server: exactly how the v0.1064 Library
+/// shipped with a live 404 (ONBOARDING.md vs onboarding.md, two source docs
+/// whose basenames collided only case-insensitively; found 2026-07-31).
+#[test]
+fn library_manifest_files_exist_case_exact() {
+    let manifest = read("data/library/index.json");
+    let dir = repo().join("data/library");
+    let on_disk: std::collections::HashSet<String> = std::fs::read_dir(&dir)
+        .expect("read data/library")
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+
+    // Pull every "file": "..." value out of the manifest.
+    let mut missing = Vec::new();
+    let mut seen_lower = std::collections::HashMap::new();
+    let mut from = 0usize;
+    while let Some(i) = manifest[from..].find("\"file\":") {
+        let start = from + i + 7;
+        let rest = manifest[start..].trim_start();
+        if let Some(stripped) = rest.strip_prefix('"') {
+            if let Some(end) = stripped.find('"') {
+                let name = &stripped[..end];
+                if !on_disk.contains(name) {
+                    missing.push(name.to_string());
+                }
+                if let Some(prev) = seen_lower.insert(name.to_lowercase(), name.to_string()) {
+                    if prev != name {
+                        missing.push(format!(
+                            "case-collision: {prev} vs {name} (same file on Windows)"
+                        ));
+                    }
+                }
+            }
+        }
+        from = start;
+    }
+
+    assert!(
+        missing.is_empty(),
+        "\n\ndata/library/index.json names files that do not exist CASE-EXACTLY on \
+         disk (they will 404 on the live Linux server even though Windows finds \
+         them):\n  {}\n\nRe-run `node scripts/build-library.js` (its collision check \
+         is case-insensitive as of 2026-07-31) or fix the manifest.\n",
+        missing.join("\n  ")
+    );
+}
+
 /// The retired files must stay retired. They were merged into
 /// data/external/catalog.json on 2026-07-30; if one reappears, the three-way
 /// split is back and the pages will drift again.

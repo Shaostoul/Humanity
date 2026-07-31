@@ -447,7 +447,7 @@ Local-first note editor with auto-save, search, markdown preview, export.
 ### Tools Catalog
 37 free open-source apps across 11 categories with search/filter.
 - Web: `web/pages/tools.html`, `web/pages/tools-app.js`
-- Data: `data/tools/catalog.json`
+- Data: `data/external/catalog.json` (tools+services merged 2026-07-30)
 
 ### Resources Page
 45 curated real-world resource links (education, health, housing, etc.) + in-game guides.
@@ -904,7 +904,7 @@ Save and load game world state (entities, terrain, player progress).
 ### Data-Driven Tools (v0.90.7)
 tools.rs loads tool catalog from external JSON instead of hardcoded data.
 - Native: `src/gui/pages/tools.rs`
-- Data: `data/tools/catalog.json`
+- Data: `data/external/catalog.json` (tools+services merged 2026-07-30)
 
 ### Data-Driven Sounds (v0.90.7)
 sounds.rs loads sound configuration from TOML instead of hardcoded data.
@@ -1771,7 +1771,7 @@ Manhattan/service-height auto-router that runs pipes up to the ceiling and down 
 - Data: `data/components.csv`
 
 ### Items Database
-~829 items for crafting, construction, and gameplay. (Counts here are
+~781 items for crafting, construction, and gameplay. (Counts here are
 approximate and drift as data grows; run `just data-counts` for live figures.)
 - Data: `data/items.csv`
 
@@ -1780,11 +1780,11 @@ approximate and drift as data grows; run `just data-counts` for live figures.)
 - Data: `data/recipes.csv`
 
 ### Plants Database
-~166 plants with growth stages, climate requirements, and harvest data.
+164 plants with growth stages, climate requirements, and harvest data.
 - Data: `data/plants.csv`
 
 ### Creatures Database
-~127 creatures with behaviors, stats, habitats, and loot tables.
+99 creatures with behaviors, stats, habitats, and loot tables.
 - Data: `data/creatures.csv`
 
 ### Spells Database (v0.90.0)

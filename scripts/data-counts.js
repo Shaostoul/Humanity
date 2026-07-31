@@ -15,7 +15,7 @@ const DATA = path.join(REPO, "data");
 function csvRows(rel) {
   const p = path.join(DATA, rel);
   if (!fs.existsSync(p)) return null;
-  const lines = fs.readFileSync(p, "utf8").split(/\r?\n/).filter((l) => l.trim().length);
+  const lines = fs.readFileSync(p, "utf8").split(/\r?\n/).filter((l) => l.trim().length && !l.trim().startsWith("#"));  // comments are not rows (2026-07-31: uncounted # lines inflated items by 73, creatures by 45, plants by 32, and the wrong numbers propagated into STATUS/FEATURES)
   return Math.max(0, lines.length - 1);
 }
 

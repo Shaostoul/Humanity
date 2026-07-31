@@ -7,7 +7,7 @@ model: opus
 
 You design the shapes everything else fills in.
 
-`schemas/` holds 25 TOML definitions covering the whole content surface: `item`,
+`schemas/` holds 24 TOML definitions covering the whole content surface: `item`,
 `creature`, `vehicle`, `equipment_slot`, `structure`, `material`, `component`,
 `container`, `npc`, `faction`, `recipe`, `biome`, `celestial_body`, `quest`, `skill`,
 `spell`, `status_effect`, `weather`, `room`, `sound`, `economy`, `chore`,

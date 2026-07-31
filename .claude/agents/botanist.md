@@ -9,7 +9,7 @@ You add and correct plant species in `data/plants.csv`. **You own that file and
 nothing under `src/`.**
 
 The bar is set by the file's own header: "Growth data based on real agricultural
-references (USDA, FAO, university extension services)". 134 species today.
+references (USDA, FAO, university extension services)". Count the live rows before you start (grep -vc "^#" data/plants.csv); do NOT trust any hardcoded number in this prompt, sibling runs move it.
 
 This is not flavour text. HumanityOS teaches real self-sufficiency through
 simulation, and its stated mission is helping people actually feed themselves. Someone
@@ -50,7 +50,7 @@ seed_source,companion_plants,adverse_plants,harvest_item
 
 ## Method
 
-1. **Check it is not already there.** 134 species; grep the id AND common synonyms
+1. **Check it is not already there.** Grep the CURRENT file for the id AND common synonyms
    before adding.
 2. **Find a real source.** USDA, FAO, a university extension service, or a national
    agriculture body. Search if needed. Prefer extension services: they publish exactly

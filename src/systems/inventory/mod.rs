@@ -430,6 +430,166 @@ mod item_registry_csv_tests {
         assert_eq!(reg2.class_for("iron_ore_0"), "solid", "absent column -> solid");
         assert_eq!(reg2.class_for("nonexistent"), "solid");
     }
+
+    /// Duplicate ids that exist in shipped data RIGHT NOW and have not been
+    /// resolved yet, as (path relative to `data/`, duplicated id).
+    ///
+    /// This list is a countdown, not a parking lot. Two properties keep it
+    /// honest: a duplicate id that is NOT listed here fails the test, and a
+    /// listed id that is no longer duplicated ALSO fails the test (telling you
+    /// to delete the line). So it can only shrink.
+    ///
+    /// `recipes.csv` (2026-07-31): three recipe ids are defined twice. Picking
+    /// a winner is a crafting-content call (the pairs have different
+    /// ingredients, times and skill levels), not a data-hygiene one, so it is
+    /// left to the crafting lane. `RecipeRegistry::from_csv` keeps the LAST
+    /// row, so today the game runs: craft_compass = the copper/40 s/skill-3
+    /// version (line 431), craft_binoculars = the plastic/60 s version
+    /// (line 432), refine_fuel = the "processing" 2-output version (line 441).
+    /// The earlier rows (265, 266, 36) are dead weight. Note `data/recipes.json`
+    /// is GENERATED from the CSV by `node scripts/gen-recipes-json.js` and
+    /// carries the same three duplicates, so regenerate it after the fix.
+    const KNOWN_DUPLICATES: &[(&str, &str)] = &[
+        ("recipes.csv", "craft_compass"),
+        ("recipes.csv", "craft_binoculars"),
+        ("recipes.csv", "refine_fuel"),
+    ];
+
+    /// Every id-keyed CSV under `data/` must have UNIQUE ids.
+    ///
+    /// Registries load rows into a `HashMap` keyed by id (`ItemRegistry::from_csv`
+    /// above, `PlantRegistry::from_csv`, `RecipeRegistry::from_csv`, ...), so a
+    /// repeated id is not an error and not a warning: the LAST row silently
+    /// overwrites the earlier one and a whole definition vanishes from the game.
+    ///
+    /// `data/items.csv` shipped FIVE of these undetected (backpack_small_0,
+    /// backpack_large_0, flashlight_0, binoculars_0, compass_0 -- each defined
+    /// twice, with different mass, volume, stack size and category).
+    ///
+    /// It is worse than "one definition wins", because the two readers of
+    /// items.csv disagree about WHICH one wins: the registry keeps the LAST
+    /// row, while the Inventory page's `lookup_item_details`
+    /// (src/gui/pages/inventory.rs) returns the FIRST match. A duplicated item
+    /// therefore SHOWS the player one weight and volume and does its storage
+    /// math with another.
+    ///
+    /// The files are discovered, not listed, so a new id-keyed CSV is covered
+    /// the day it is added with no test edit. A file whose header does not
+    /// start with an `id` column is skipped (it is keyed on something else).
+    /// Runs in `just validate-data`.
+    #[test]
+    fn shipped_id_keyed_csvs_have_no_duplicate_ids() {
+        /// First comma-separated field, trimmed of spaces and CSV quotes.
+        fn first_field(line: &str) -> &str {
+            line.split(',').next().unwrap_or("").trim().trim_matches('"')
+        }
+
+        fn collect_csvs(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+            paths.sort();
+            for path in paths {
+                if path.is_dir() {
+                    collect_csvs(&path, out);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("csv") {
+                    out.push(path);
+                }
+            }
+        }
+
+        let data_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data");
+        let mut files = Vec::new();
+        collect_csvs(&data_dir, &mut files);
+
+        let mut failures: Vec<String> = Vec::new();
+        let mut matched_known: Vec<(String, String)> = Vec::new();
+        let mut id_keyed_files = 0usize;
+
+        for path in &files {
+            let bytes = std::fs::read(path).unwrap_or_else(|e| {
+                panic!("read {}: {e}", path.display());
+            });
+            let text = String::from_utf8_lossy(&bytes);
+            let rel = path
+                .strip_prefix(&data_dir)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+
+            // Mirror crate::assets::loader::parse_csv: '#' comment lines are
+            // stripped BEFORE the csv reader sees the file, so the first
+            // surviving non-blank line is the header row.
+            let mut rows = text
+                .lines()
+                .enumerate()
+                .filter(|(_, l)| !l.trim_start().starts_with('#') && !l.trim().is_empty());
+            let Some((_, header)) = rows.next() else {
+                continue;
+            };
+            if first_field(header) != "id" {
+                continue; // keyed on something else (elements.csv, game.csv, ...)
+            }
+            id_keyed_files += 1;
+
+            // id -> (1-based file line number, full row text) of its FIRST definition.
+            let mut first_seen: HashMap<&str, (usize, &str)> = HashMap::new();
+            for (idx, line) in rows {
+                let id = first_field(line);
+                if id.is_empty() {
+                    continue;
+                }
+                let line_no = idx + 1;
+                if let Some((prev_no, prev_line)) = first_seen.insert(id, (line_no, line)) {
+                    if KNOWN_DUPLICATES.iter().any(|(f, k)| *f == rel && *k == id) {
+                        matched_known.push((rel.clone(), id.to_string()));
+                        continue;
+                    }
+                    failures.push(format!(
+                        "  data/{rel}: id '{id}' is defined TWICE.\n\
+                         \x20   line {prev_no}: {prev_line}\n\
+                         \x20   line {line_no}: {line}",
+                    ));
+                }
+            }
+        }
+
+        // The discovery itself must not silently match nothing -- a check that
+        // cannot fail is worse than no check.
+        assert!(
+            id_keyed_files >= 15,
+            "\n\nDuplicate-id scan found only {id_keyed_files} id-keyed CSV file(s) under \
+             data/ (expected 20+). The scan is broken or data/ moved, so this test is \
+             currently protecting nothing. Fix the walk in \
+             src/systems/inventory/mod.rs::shipped_id_keyed_csvs_have_no_duplicate_ids.\n"
+        );
+
+        // A resolved entry must be REMOVED from the list, or the list rots into
+        // a permanent hole.
+        for (file, id) in KNOWN_DUPLICATES {
+            if !matched_known.iter().any(|(f, i)| f == file && i == id) {
+                failures.push(format!(
+                    "  data/{file}: '{id}' is listed in KNOWN_DUPLICATES but is NOT \
+                     duplicated any more. Delete that line from KNOWN_DUPLICATES in \
+                     src/systems/inventory/mod.rs."
+                ));
+            }
+        }
+
+        assert!(
+            failures.is_empty(),
+            "\n\nDuplicate ids in shipped data. The loaders key on id in a HashMap, so \
+             the LAST row silently wins and the other definition disappears from the \
+             game with no warning. Worse, src/gui/pages/inventory.rs::lookup_item_details \
+             shows the player the FIRST row, so the item's displayed weight/volume and \
+             its real storage math come from different definitions.\n\n{}\n\n\
+             Fix: delete the row the game is NOT using (normally the EARLIER one, since \
+             the later row is what loads today), or give one of them a distinct id and \
+             repoint whatever references it. Re-check with `just validate-data`.\n",
+            failures.join("\n\n")
+        );
+    }
 }
 
 #[cfg(test)]

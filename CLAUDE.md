@@ -251,7 +251,7 @@ just launch           # launch latest build (no compile)
 just build-relay      # headless server build (no GPU)
 just status           # git + CI + live API health
 just logs             # tail server logs
-just snapshots        # headless: render all 26 egui pages to tests/snapshots/*.png (no GPU)
+just snapshots        # headless: render all 38 egui pages to tests/snapshots/*.png (no GPU)
 just snapshot <name>  # headless: render just one page, e.g. `just snapshot construction`
 ```
 
@@ -287,7 +287,7 @@ src/                        ← single crate, everything lives here
 
 web/                        ← website frontend (HTML/JS/CSS, served by nginx)
 data/                       ← hot-reloadable game data (140 entries: CSV, TOML, RON, JSON)
-schemas/                    ← TOML schema definitions for data files (23 schemas)
+schemas/                    ← TOML schema definitions for data files (24 schemas)
 assets/                     ← shared media (icons, shaders, models, textures, audio)
 
 Binary modes:
@@ -393,20 +393,20 @@ When you change any of these in code, update this table + status in the same com
 | `web/shared/events.js` | Lightweight event bus (`hos.on/off/emit/gather`) |
 | `web/shared/shell.js` | Nav injection IIFE -- loaded first on every page |
 | `web/shared/settings.js` | Settings panel + gear button |
-| `web/shared/glossary.js` | 150+ term glossary overlay |
+| `web/shared/glossary.js` | 442-term glossary overlay |
 | `web/shared/i18n.js` | Localization (5 languages) |
 | `web/shared/accessibility.js` | High contrast, colorblind, reduced motion modes |
 | `web/pages/*.html` | Standalone feature pages -- tasks, maps, civilization, settings, etc. |
 | `web/pages/data.html` | Data management UI (saves, backups, sync tiers, USB import/export) |
 | `web/activities/` | Game/real-world activities -- gardening, download, etc. |
 | `assets/` | All shared media -- icons, shaders, models, textures, audio |
-| `schemas/` | TOML schema definitions for data files (23 schemas: items, recipes, biomes, etc.) |
+| `schemas/` | TOML schema definitions for data files (24 schemas: items, recipes, biomes, etc.) |
 | `data/` | Hot-reloadable game data -- 140 entries (CSV, TOML, RON, JSON) |
-| `data/chemistry/` | 396 entries: elements, alloys, compounds, gases, toxins |
+| `data/chemistry/` | 483 entries: elements, alloys, compounds, gases, toxins |
 | `data/solar_system/` | 70+ celestial bodies, planet RON definitions |
-| `data/glossary.json` | 150+ term definitions for glossary overlay |
+| `data/glossary.json` | 442 term definitions for glossary overlay |
 | `data/i18n/` | Translation files (en, es, fr, ja, zh) |
-| `data/tools/` | Open-source tools catalog (37 entries) |
+| `data/external/` | The external catalog: 40 software + 63 help services, one file for the Tools page on both clients (replaced data/tools/ + data/resources/ 2026-07-30) |
 | `docs/` | ALL documentation -- design, accord, history, website |
 | `Justfile` | Dev command runner -- `just --list` for all recipes |
 | `Cargo.toml` | Single crate manifest (no workspace) with feature flags: native, relay, wasm |
@@ -482,7 +482,7 @@ sig_by_new = sign(old_key + "\n" + timestamp, new_private_key)
 **AES-256-GCM + PBKDF2-SHA256** (vault, notes, backup):
 `deriveKeyFromPassphrase(passphrase, salt)` → CryptoKey
 - Web client: 600,000 iterations
-- Native vault (`src/config.rs::PBKDF2_ITERATIONS`): 100,000 iterations (legacy; pending upgrade)
+- Native vault: 600,000 iterations (`PBKDF2_ITERATIONS_NEW`, v0.277.0; `_LEGACY` 100k is decrypt-only for old vaults)
 - Relay-stored secrets: Argon2id via `src/relay/core/kdf.rs` (replaces PBKDF2 for server-side)
 
 **Rate limiting**: Fibonacci backoff per public key in `src/relay/relay.rs`

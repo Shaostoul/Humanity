@@ -116,11 +116,16 @@ for (const cat of CATEGORIES) {
     if (!fs.existsSync(d.src)) { missing.push(d.src); continue; }
     // Collision-safe target name: basename first; if taken (README.md
     // exists in four source folders), fall back to the full path slug.
+    // The check is CASE-INSENSITIVE: ONBOARDING.md (docs/user) and
+    // onboarding.md (docs/ai) are different keys to a Set but the SAME file
+    // on Windows, so one silently overwrote the other while the manifest
+    // listed both; the case-sensitive live server then 404ed the loser
+    // (found by the 2026-07-31 doc-truth sweep).
     let file = path.basename(d.src);
-    if (used.has(file)) {
+    if (used.has(file.toLowerCase())) {
       file = d.src.replace(/^docs\//, '').replace(/[\/\\]/g, '-');
     }
-    used.add(file);
+    used.add(file.toLowerCase());
     fs.copyFileSync(d.src, path.join(LIB, file));
     entry.docs.push({ title: d.title, file });
     copied++;

@@ -41,8 +41,6 @@ helmet_hard_0,Hard Hat,clothing,headwear,hdpe,0.4,1,200,Impact-resistant safety 
 helmet_combat_0,Combat Helmet,clothing,headwear,kevlar,1.4,1,300,Ballistic protection headgear,solid,19.4
 goggles_safety_0,Safety Goggles,clothing,eyewear,polycarbonate,0.15,1,150,Splash and impact eye guards,solid,2.50
 sunglasses_0,Sunglasses,clothing,eyewear,polycarbonate,0.05,1,80,UV-blocking eye shades,solid,0.83
-backpack_small_0,Small Backpack,clothing,carry,nylon,0.8,1,120,Day-trip rucksack 20L,solid,13.9
-backpack_large_0,Large Backpack,clothing,carry,nylon,1.5,1,180,Expedition rucksack 60L,solid,26.1
 belt_0,Belt,clothing,accessory,leather,0.3,1,100,Waist strap with buckle,solid,6.98
 scarf_0,Scarf,clothing,accessory,wool,0.15,5,50,Neck and face wrap,solid,2.29
 apron_0,Apron,clothing,work,canvas,0.4,1,100,Front-body work protector,solid,5.19
@@ -338,11 +336,8 @@ water_tank_0,Water Tank,furniture,container,hdpe,5.0,1,200,Potable water storage
 grain_silo_0,Grain Silo,furniture,container,steel,60.0,1,400,Bulk crop storage cylinder,solid,63.7
 #
 # === ELECTRONICS / GADGETS ===
-flashlight_0,Flashlight,tool,lighting,aluminum,0.3,1,100,Handheld LED torch,solid,0.32
 lantern_0,Lantern,tool,lighting,steel,0.8,1,120,Portable area light,solid,0.29
 flare_0,Flare,tool,signal,abs_plastic,0.2,10,0,Emergency signal flare stick,solid,0.54
-compass_0,Compass,tool,navigation,brass,0.1,1,100,Magnetic direction finder,solid,0.03
-binoculars_0,Binoculars,tool,optics,aluminum,0.6,1,120,Magnifying distance viewer,solid,0.63
 walkie_talkie_0,Walkie Talkie,tool,communication,abs_plastic,0.3,1,120,Short-range voice radio,solid,0.82
 gps_device_0,GPS Device,tool,navigation,abs_plastic,0.2,1,100,Satellite positioning unit,solid,0.54
 camera_0,Camera,tool,recording,aluminum,0.4,1,120,Digital photography device,solid,0.42
