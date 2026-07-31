@@ -162,9 +162,38 @@ pub const CLOUD_HG_FWD_WEIGHT: f32 = 0.7;
 /// Mirrors `CLOUD_POWDER_STRENGTH`: Beer-powder edge darkening strength.
 pub const CLOUD_POWDER_STRENGTH: f32 = 0.92;
 /// Mirrors `CLOUD_AMB_BASE` / `CLOUD_AMB_TOP`: ambient skylight at the
-/// slab base/top (tops see the sky dome, bases their own shadow).
+/// slab base/top (tops see the sky dome, bases their own shadow). If deep
+/// cores ever read black, THIS is the lever, not the scattering ladder
+/// below -- an ambient floor is the right home for "keep deep shadows
+/// luminous", a physically wrong octave decay is not.
 pub const CLOUD_AMB_BASE: f32 = 0.03;
 pub const CLOUD_AMB_TOP: f32 = 0.14;
+
+// ── Multiple-scattering octave ladder (WGSL: the CLOUD_MS_* block) ──
+// `cloud_scatter_energy` sums three octaves; octave n attenuates with a^n,
+// carries weight b^n, and has its phase pulled toward isotropic by c^n
+// (Wrenninge et al., "Oz: The Great and Volumetric", SIGGRAPH 2013). The
+// paper's working set is a = b = c = 0.5, which is what these encode.
+//
+// The 2026-07-30 clouds pass (FIDELITY finding 1) replaced the inline literals
+// 0.45 / exp(-tau*0.25) / 0.18 / exp(-tau*0.06). The third octave's 0.06
+// decay needed tau ~11 just to halve, so it was a near-constant +0.18
+// pedestal on every sample: the light march delivered a probe-measured sun
+// tau range of 1.3..6+ (~100:1 in transmittance) and the pedestal squashed
+// it to a 2.2:1 lighting range, which is why crowns and bases rendered the
+// same brightness and the deck read as flat white paper. Measured effect at
+// ocean-storm-low: cloud-pixel luminance p05..p95 spread 24 -> 39 of 255.
+//
+/// Mirrors `CLOUD_MS_W2` / `CLOUD_MS_A2` / `CLOUD_MS_PHASE2`: second octave
+/// weight (b), extinction scale (a), and phase-toward-isotropic blend (c).
+pub const CLOUD_MS_W2: f32 = 0.5;
+pub const CLOUD_MS_A2: f32 = 0.5;
+pub const CLOUD_MS_PHASE2: f32 = 0.5;
+/// Mirrors `CLOUD_MS_W3` / `CLOUD_MS_A3`: third octave weight (b^2) and
+/// extinction scale (a^2). Isotropic phase (c^2 is small enough to drop).
+pub const CLOUD_MS_W3: f32 = 0.25;
+pub const CLOUD_MS_A3: f32 = 0.25;
+
 
 /// Mirrors `CLOUD_MAX_ALPHA` in pbr_simple.wgsl: peak opacity of the
 /// thickest cloud core, deliberately < 1 so the surface stays readable.
@@ -594,10 +623,16 @@ pub fn cloud_stretch_domain(p: [f32; 3], dir: [f32; 3], stretch: f32) -> [f32; 3
 /// Mirrors `cloud_scatter_energy`: 3-octave multiple-scattering
 /// approximation -- deep cores fade to a diffuse glow instead of the black
 /// that single-scatter Beer-Lambert would give.
+///
+/// The octave numbers now come from the shared `CLOUD_MS_*` constants (see
+/// their block above). They used to be inline literals HERE as well as in
+/// the WGSL, i.e. the same magic numbers written twice with nothing
+/// checking they agreed -- which is exactly how a physically wrong third
+/// octave (`0.18 * exp(-tau * 0.06)`, a near-constant pedestal) survived.
 pub fn cloud_scatter_energy(tau: f32, phase: f32) -> f32 {
     let mut e = phase * (-tau).exp();
-    e += 0.45 * mix(1.0, phase, 0.5) * (-tau * 0.25).exp();
-    e += 0.18 * (-tau * 0.06).exp();
+    e += CLOUD_MS_W2 * mix(1.0, phase, CLOUD_MS_PHASE2) * (-tau * CLOUD_MS_A2).exp();
+    e += CLOUD_MS_W3 * (-tau * CLOUD_MS_A3).exp();
     e
 }
 
@@ -841,6 +876,15 @@ mod tests {
             ("CLOUD_POWDER_STRENGTH", CLOUD_POWDER_STRENGTH),
             ("CLOUD_AMB_BASE", CLOUD_AMB_BASE),
             ("CLOUD_AMB_TOP", CLOUD_AMB_TOP),
+            // Multiple-scattering octave ladder (FIDELITY finding 1). These
+            // were INLINE literals in cloud_scatter_energy until 2026-07-30 and
+            // therefore uncovered by this test -- which is exactly how a
+            // physically wrong third-octave decay survived for months.
+            ("CLOUD_MS_W2", CLOUD_MS_W2),
+            ("CLOUD_MS_A2", CLOUD_MS_A2),
+            ("CLOUD_MS_PHASE2", CLOUD_MS_PHASE2),
+            ("CLOUD_MS_W3", CLOUD_MS_W3),
+            ("CLOUD_MS_A3", CLOUD_MS_A3),
         ];
         for (name, rust_val) in expect {
             let needle = format!("const {name}: f32 = ");
@@ -881,6 +925,111 @@ mod tests {
                 "{name} drifted: WGSL {parsed} vs Rust {rust_val}"
             );
         }
+    }
+
+    #[test]
+    fn multiple_scattering_ladder_decays_instead_of_flooring() {
+        // FIDELITY finding 1. The value test above locks the NUMBERS; this
+        // locks the SHAPE, which is what actually broke: any ladder whose
+        // slowest octave decays too slowly acts as a constant pedestal and
+        // erases the base-to-crown tonal ordering no matter what the light
+        // march computes.
+        //
+        // The light march's own measured working range is sun tau 1.3 (p05)
+        // to 6+ (p95). Require the energy to fall by at least 3x across it;
+        // the pre-2026-07-30 ladder managed only ~1.9x, which is the 2.2:1
+        // lighting range the probe read off a 100:1 transmittance range.
+        let phase = 1.0; // isotropic reference, so only the ladder is tested
+        let lit = cloud_scatter_energy(1.3, phase);
+        let deep = cloud_scatter_energy(6.0, phase);
+        assert!(
+            lit / deep >= 3.0,
+            "scatter ladder too flat across the measured tau band: \
+             e(1.3)={lit} e(6.0)={deep} ratio {}",
+            lit / deep
+        );
+        // Strictly monotone decreasing (a pedestal that RISES anywhere would
+        // invert the shading).
+        let mut prev = f32::INFINITY;
+        for i in 0..=60 {
+            let e = cloud_scatter_energy(i as f32 * 0.5, phase);
+            assert!(e < prev, "scatter energy not monotone at tau {}", i as f32 * 0.5);
+            prev = e;
+        }
+        // Octave weights must follow b^n (each octave weaker than the last)
+        // and extinction a^n (each octave slower), or it is not a diffusion
+        // ladder at all.
+        assert!(CLOUD_MS_W3 < CLOUD_MS_W2 && CLOUD_MS_W2 < 1.0);
+        assert!(CLOUD_MS_A3 < CLOUD_MS_A2 && CLOUD_MS_A2 < 1.0);
+        // And the slowest octave must still be genuinely dead deep inside a
+        // core: under 2% of the single-scatter peak by tau 20.
+        assert!(
+            CLOUD_MS_W3 * (-20.0f32 * CLOUD_MS_A3).exp() < 0.02,
+            "third octave still floors at tau 20"
+        );
+    }
+
+    #[test]
+    fn wgsl_scatter_ladder_uses_the_named_constants() {
+        // The literals were inline before 2026-07-30, which is precisely why
+        // wgsl_cloud_constants_stay_in_sync could not see them. Fail if any
+        // of them is ever re-inlined.
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let start = wgsl
+            .find("fn cloud_scatter_energy(")
+            .expect("cloud_scatter_energy missing from the megashader");
+        let body_end = wgsl[start..]
+            .find("\n}")
+            .expect("cloud_scatter_energy body unterminated")
+            + start;
+        let body = &wgsl[start..body_end];
+        for name in [
+            "CLOUD_MS_W2",
+            "CLOUD_MS_A2",
+            "CLOUD_MS_PHASE2",
+            "CLOUD_MS_W3",
+            "CLOUD_MS_A3",
+        ] {
+            assert!(
+                body.contains(name),
+                "cloud_scatter_energy no longer references {name} -- \
+                 the ladder was re-inlined and is now un-mirrored"
+            );
+        }
+    }
+
+    #[test]
+    fn wgsl_slab_bounds_are_set_by_both_marching_paths() {
+        // PERF finding 8 (the dead g_cloud_rb write). `var<private>` is
+        // per-invocation storage and `cloud_layer` dispatches to exactly ONE
+        // path per invocation, so an assignment in `cloud_layer_flat` (the
+        // Low path, which never reads them) could never be observed by
+        // `cloud_layer_volumetric` (the High path, the only reader). The
+        // High deck therefore used the static CLOUD_RB/RT and rendered one
+        // full slab thickness (~51 km on Earth) too high at every camera
+        // altitude below ~400 km. Lock the setter into both marching paths.
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        for f in ["fn cloud_layer_volumetric(", "fn cloud_layer_march("] {
+            let start = wgsl.find(f).unwrap_or_else(|| panic!("{f} missing"));
+            let end = wgsl[start..]
+                .find("\n}")
+                .unwrap_or_else(|| panic!("{f} body unterminated"))
+                + start;
+            assert!(
+                wgsl[start..end].contains("cloud_set_slab_bounds()"),
+                "{f} does not call cloud_set_slab_bounds() -- the dynamic \
+                 slab bounds are dead again and the deck will render at the \
+                 wrong altitude"
+            );
+        }
+        // And the Low path must NOT set them: that was the dead write.
+        let s = wgsl.find("fn cloud_layer_flat(").expect("flat path missing");
+        let e = wgsl[s..].find("\n}").expect("flat body unterminated") + s;
+        assert!(
+            !wgsl[s..e].contains("g_cloud_rb ="),
+            "cloud_layer_flat writes g_cloud_rb again -- the Low path never \
+             reads it, so that assignment is unobservable dead code"
+        );
     }
 
     #[test]
@@ -1101,16 +1250,37 @@ mod tests {
     }
 
     #[test]
-    fn scatter_energy_decays_but_never_reaches_black() {
+    fn scatter_energy_decays_and_the_ambient_floor_keeps_cores_off_black() {
         let side_phase = cloud_phase(0.0);
         let thin = cloud_scatter_energy(0.0, side_phase);
         let mid = cloud_scatter_energy(2.0, side_phase);
         let deep = cloud_scatter_energy(12.0, side_phase);
         assert!(thin > mid && mid > deep, "not decaying: {thin} {mid} {deep}");
-        // The multiple-scattering octaves keep deep cores glowing (the
-        // whole point vs single-scatter Beer).
-        assert!(deep > 0.05, "deep core went black: {deep}");
         assert!(thin < 2.0, "side-view thin energy blown out: {thin}");
+        // This assertion used to read `deep > 0.05`, and the ladder was tuned
+        // to satisfy it -- that is what the 0.18 * exp(-tau * 0.06) third
+        // octave WAS: a pedestal bolted on so deep cores would not go black.
+        // The cost was the whole base-to-crown tonal range (FIDELITY finding
+        // 1). Keeping deep shadows luminous is a real requirement; the
+        // scattering ladder is simply the wrong place to buy it. The right
+        // home is the ambient skylight floor, which is a separate additive
+        // term in the shader (`lit = direct * ... + amb * ao`) and therefore
+        // cannot flatten the direct lighting's dynamic range.
+        assert!(deep > 0.0, "scatter energy hit exactly zero: {deep}");
+        assert!(
+            CLOUD_AMB_BASE > 0.0,
+            "no ambient floor left -- deep cores WILL read black"
+        );
+        // Deep-core radiance is dominated by ambient, not by the ladder,
+        // which is exactly the intended split.
+        assert!(
+            deep < CLOUD_AMB_BASE,
+            "the scatter ladder still out-glows the ambient floor deep inside \
+             a core ({deep} vs {CLOUD_AMB_BASE}) -- that is the pedestal again"
+        );
+        // Field evidence that this does not go black in practice: at
+        // ocean-storm-low the darkest 5% of cloud pixels measured 173/255
+        // after this change (2026-07-30 probe rig), i.e. mid-grey undersides.
     }
 
     #[test]
