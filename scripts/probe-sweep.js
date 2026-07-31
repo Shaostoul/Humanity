@@ -77,6 +77,15 @@ function setupRig() {
   // portable.txt: keeps identity/config/saves inside the rig and lets the dev
   // autopilot run (it refuses against a real installed identity).
   fs.writeFileSync(path.join(RIG, "portable.txt"), "probe sweep rig\n");
+  // no_focus.txt: the ENGINE reads this marker beside its exe and boots
+  // background (visible-inactive, no cursor grab) even when the spawner
+  // forgot HUMANITY_NO_FOCUS. Agents hand-roll boots and copy this rig
+  // pattern, so the marker travels with the copies (v0.1079, after the env
+  // var alone failed to stop focus steals for the third time).
+  fs.writeFileSync(
+    path.join(RIG, "no_focus.txt"),
+    "engine marker: boot background, never steal focus. delete only if you want this exe to take focus.\n"
+  );
   ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
   ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
   // Offline autopilot seed the game expects to exist for zero-click entry.

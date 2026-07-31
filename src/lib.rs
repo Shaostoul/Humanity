@@ -877,7 +877,22 @@ mod native_app {
             // the swapchain and break the offscreen screenshot capture), so
             // headless verification keeps working. Normal launches (env unset)
             // are unchanged and focus as before.
-            let background = std::env::var("HUMANITY_NO_FOCUS").is_ok();
+            // Background = the env var OR a `no_focus.txt` marker beside the
+            // exe (v0.1079). The env var alone kept failing in practice:
+            // agents hand-roll boot commands (the scratch-rig dirs at the repo
+            // root are the evidence) and every forgotten env var stole the
+            // operator's focus again. The marker rides IN the directories
+            // agents boot from (the probe rig writes it at materialization,
+            // target/release/ carries one), so a copied rig inherits
+            // quietness with zero cooperation from whoever spawns it. The
+            // operator's own launch surfaces (the repo-root stable/archive
+            // exes via `just play` / `just launch`) have no marker and still
+            // take focus by design.
+            let background = std::env::var("HUMANITY_NO_FOCUS").is_ok()
+                || std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
+                    .unwrap_or(false);
             let window_attrs = Window::default_attributes()
                 .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
@@ -1835,7 +1850,14 @@ mod native_app {
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 window_focused: true,
-                background_no_cursor: std::env::var("HUMANITY_NO_FOCUS").is_ok(),
+                // Same env-OR-marker rule as window creation (v0.1079): a
+                // hand-rolled agent boot without the env var must not grab
+                // the cursor either.
+                background_no_cursor: std::env::var("HUMANITY_NO_FOCUS").is_ok()
+                    || std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
+                        .unwrap_or(false),
                 far_tree_mesh: None,
                 far_tree_anchor: glam::DVec3::ZERO,
                 far_tree_built_cam: glam::DVec3::splat(1.0e30),
