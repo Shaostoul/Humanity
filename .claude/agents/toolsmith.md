@@ -33,14 +33,20 @@ Worked examples of the pattern, all real:
 - A background launch stole focus for many releases because one line ran
   unconditionally. Nothing measured whether the window took focus.
 
-Seven lints exist because of this pattern. Adding the eighth is normal work.
+Eight checks run in `just lints` because of this pattern. Adding the ninth is normal
+work.
 
 ## What you own
 
 - `scripts/` - the rigs and checkers (`probe-sweep.js`, `perf-report.js`,
-  `snapshot-diff.js`, `check-doc-links.js`, `agent-status.js`, `validate-data`).
-- `tests/*lint*.rs` - the std-only file scanners. Compiled standalone with `rustc` so
-  they never link the native bin (Windows LNK1318 PDB limit); keep it that way.
+  `snapshot-diff.js`, `check-doc-links.js`, `agent-status.js`). Note `just
+  validate-data` is a Justfile recipe running filtered cargo tests, not a script.
+- **Every check in the `just lints` loop**, not only the files matching `*lint*`.
+  `tests/theme_editor_coverage.rs` runs there and is documented in CLAUDE.md as
+  mandatory, but its name does not match the glob, so a scope defined as `tests/*lint*`
+  silently excludes a required check. All eight are std-only file scanners compiled
+  standalone with `rustc` so they never link the native bin (Windows LNK1318 PDB
+  limit); keep it that way.
 - The `Justfile` recipes that expose all of it.
 - The in-app dev surfaces: `src/gui/pages/{dev,testing,bugs,files}.rs`.
 

@@ -134,6 +134,11 @@ pub const CHUNK_SPLIT_PX: f32 = 12.0;
 /// selection's priority heap refines biggest-screen-error-first, so when
 /// this budget saturates it is the FINEST (least visible) splits that are
 /// skipped, degrading gracefully.
+// NOTE (audit 2026-07-30): the comment above justified this cap by "one 1024-slot
+// object-uniform buffer (renderer MAX_OBJECTS)". MAX_OBJECTS is 16384
+// (src/renderer/mod.rs), 16x larger, so the buffer is NOT what bounds this. The 640
+// is a draw-submission budget, not a buffer limit. Do not raise it on the assumption
+// that the buffer is the constraint without measuring the draw cost first.
 pub const MAX_CHUNK_LEAVES: usize = 640;
 
 /// Patch mesh builds per frame across all planets. Each build is ~153

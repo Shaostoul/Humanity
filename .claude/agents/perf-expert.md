@@ -30,9 +30,11 @@ the window opens behind whatever the operator is doing and never grabs the curso
 direct boot pulls him out of a video or a game; he has one screen and no second
 monitor. If you truly need a plain boot: `HUMANITY_NO_FOCUS=1 just launch-bg`.
 
-Each vantage in `tests/visual/vantages.json` carries a `perf_floor_fps`. That is the
-contract: below the floor is a bug, above it with a big drop from baseline is a
-regression worth investigating.
+**9 of the 21** vantages in `tests/visual/vantages.json` carry a `perf_floor_fps`; the
+other 12 have none, and `perf-report.js` prints `-` for those rather than flagging
+anything. The file's own `_perf_note` calls it "an advisory lower bound ... a smoke
+threshold, not a hard gate", so treat a dip below it as worth investigating, NOT as a
+proven bug, and never report a regression on a vantage that has no floor at all.
 
 **Start by identifying which of these is actually the limit**, and say how you decided:
 GPU compute (ALU in the fragment shader), memory bandwidth (texture fetches, buffer
@@ -50,8 +52,11 @@ stacked), or CPU simulation.
 
 **2. N instances, the infinite-of-x question.** Cost of drawing it ten thousand times.
 - **Draw submission.** Are they batched or instanced, or is it one draw each? Live
-  example: water shells still go through the classic per-object path at roughly 640
-  draws worst case. Instancing is usually the single biggest win here.
+  example: the water shell is drawn as many separate alpha-blended patches, capped by
+  WATER_MAX_LEAVES = 1024 in src/terrain/planet_chunks.rs. Do NOT confuse that with
+  MAX_CHUNK_LEAVES = 640, which is the LAND patch cap per planet per frame; they are
+  different constants and the water one is larger. Instancing is usually the single
+  biggest win here.
 - **Culling.** Is anything drawn that cannot be seen? Frustum, distance, and
   occlusion. Prior art: 16.8M stars stopped drawing at noon, which was pure waste.
 - **LOD.** Does the mesh and the shader get simpler with distance, and are the
@@ -70,7 +75,7 @@ stacked), or CPU simulation.
   alters appearance is a fidelity regression; report it as such rather than accepting
   it.
 - **Quantify.** "Saves about 6 noise evaluations per pixel at distance" or "collapses
-  640 draws to 3". A proposal without a number is a guess.
+  1024 draws to 3". A proposal without a number is a guess.
 - **Respect the platform floor.** Cheap, old, low-power hardware is an explicit goal
   of this project, so a win that only appears on a 4070 is a partial win. Say which
   hardware class benefits.

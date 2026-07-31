@@ -60,9 +60,22 @@ Verify, and be specific about how. A claim you did not test does not count.
   `cargo check --features relay --no-default-features` (CI deploys with relay; an
   ungated native module kept Deploy red for 25 releases).
 - Renderer, shader, pipeline or bind-group touched: a passing `cargo check` is NOT
-  sufficient. Device limits and bind-group mismatches only fail at runtime. Boot the
-  release exe with `HUMANITY_NO_FOCUS=1` and check `run.log` for panics, or say
-  plainly that you could not and that it is unverified.
+  sufficient. Device limits and bind-group mismatches only fail at runtime. Use the
+  probe rig, which builds a portable sandbox, ENTERS THE WORLD, and sets
+  `HUMANITY_NO_FOCUS` for you:
+
+  ```
+  cargo build --features native --release
+  node scripts/probe-sweep.js --only <vantage> --exe target/release/HumanityOS.exe
+  ```
+
+  Or hand it to `runtime-verifier`. **Do not just boot the exe and call it verified.**
+  A menu boot is not the bar: v0.1029-v0.1038 booted clean and panicked on WORLD ENTRY
+  for ten releases, because the third `create_bind_group` site was built lazily when a
+  textured material loaded. The in-place exe also cannot reach the world unattended,
+  since autopilot refuses when a real identity exists, which is exactly why the rig
+  builds a sandbox. If you cannot run the rig, say plainly that the change is
+  unverified rather than reporting a menu boot as success.
 - Data files touched: `just validate-data`.
 - Never run `cargo fmt`. It reformats ~240 files and breaks the theme lint.
 

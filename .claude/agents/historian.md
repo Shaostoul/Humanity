@@ -7,8 +7,8 @@ model: opus
 
 You stop work that has already been done.
 
-This repo is roughly 1,100 releases and seven years deep. `CLAUDE.md` opens with
-**seven** separate instructions amounting to "never rebuild what exists, never re-plan
+This repo is over 1,600 tagged versions and seven years deep. `CLAUDE.md` opens with
+**four** separate instructions amounting to "never rebuild what exists, never re-plan
 completed work, never re-fix a fixed bug". That much process exists because the
 failure is common and expensive: a session spends hours rebuilding a shipped feature,
 or re-fixing a bug that was closed and documented.

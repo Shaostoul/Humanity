@@ -435,13 +435,25 @@ play: build-game
 launch:
     @node scripts/archive-build.js --launch-only
 
-# Launch WITHOUT stealing focus: the window opens behind whatever you are doing
-# and never grabs the cursor. This is the ONLY launch an agent may use, because
-# the operator has one screen and an agent boot must not pull him out of a video
-# or a game. Verification should normally go through `just probe-sweep`, which
-# sets this automatically; use this when you need a plain boot.
+# Launch the FRESHLY BUILT exe without stealing focus: the window opens behind
+# whatever you are doing and never grabs the cursor.
+#
+# Boots target/release/ DIRECTLY and deliberately. It must not go through
+# archive-build.js --launch-only, which boots the newest v*_HumanityOS.exe in the
+# repo root instead: that is the last `just build-game` ARCHIVE, which is older
+# than the build you just made. An agent verifying a renderer change against a
+# binary that predates the change sees no panic and reports success, which is
+# exactly the v0.782-784 / v0.1029-1038 failure class. Found by a doc-truth audit
+# on 2026-07-30, hours after this recipe was written with that bug in it.
+#
+# NOTE this is still only a MENU boot. World entry is the real bar, and the
+# in-place exe refuses autopilot when a real identity exists, so it cannot reach
+# the world unattended. For anything renderer-shaped use `just probe-sweep`,
+# which builds a portable sandbox, enters the world, and sets HUMANITY_NO_FOCUS
+# for you.
 launch-bg:
-    HUMANITY_NO_FOCUS=1 node scripts/archive-build.js --launch-only
+    @test -f target/release/HumanityOS.exe || (echo "No target/release/HumanityOS.exe. Run: cargo build --features native --release" && exit 1)
+    HUMANITY_NO_FOCUS=1 ./target/release/HumanityOS.exe
 
 # Check game code for errors (fast, no binary)
 check-game:

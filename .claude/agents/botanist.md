@@ -41,8 +41,12 @@ seed_source,companion_plants,adverse_plants,harvest_item
   documented; fennel suppressing many neighbours is documented. Do NOT copy folklore
   from companion-planting charts that have no evidence behind them. If it is
   traditional but unproven, leave it out and say so.
-- **harvest_item**: must match a real item id, or the harvest produces nothing. Grep
-  the items data to confirm before using it.
+- **harvest_item**: must match a real id in `data/items.csv`. **A bad id does NOT fail
+  loudly.** `resolve_harvest_item` logs a warning and then falls through to a prefix
+  search over `vegetable_/fruit_/grain_` (`src/systems/farming/mod.rs`), so the harvest
+  still yields something, possibly the wrong item, and the only trace is a log line
+  nobody reads. Grep `data/items.csv` and confirm the exact id before using it. All 134
+  current values resolve; keep it that way.
 
 ## Method
 
@@ -72,7 +76,10 @@ arid region needs species that work there, not only temperate garden crops.
 - **Verify after editing**: `just validate-data`, and confirm the row count went up by
   what you expect. A malformed row can silently truncate the loader.
 - **Watch for comma injection.** Descriptions containing commas break the CSV. Keep
-  descriptions comma-free or quote them the way existing rows do.
+  them comma-free: not one of the 134 existing rows uses a quoted field, so there is
+  no quoting convention here to copy and you should not be the first to introduce one.
+  A row that fails to parse is skipped with only a warning, so the species silently
+  does not exist.
 - Stage with `just mine data/plants.csv`. Never `git add -A`.
 
 ## Output

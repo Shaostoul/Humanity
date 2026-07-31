@@ -101,7 +101,7 @@ sends a prompt and we resume from disk (this is why the commit-early / journal-
 current / nothing-uncommitted discipline matters MORE, not less: a hard cutoff can
 land any time, so keep the tree shippable). The ONLY remaining limiter is
 CORRECTNESS: parallelism is still gated by real file-conflict risk (this repo
-funnels through a 17k-line `lib.rs` + one megashader `pbr_simple.wgsl`, so >2-3
+funnels through a 17.5k-line `lib.rs` + the shared shader tail `assets/shaders/pbr/90-fragment-main.wgsl` (the PBR shader is SEVEN numbered files under `assets/shaders/pbr/`, not one megashader; `pbr_simple.wgsl` has not existed for a long time), so >2-3
 agents editing the SAME shader branch / lib region create genuine 3-way-merge
 correctness hazards, not just merge chores) and by independent verification of
 every merge. So the shape is: fan out WIDE on disjoint file sets; when tasks must
@@ -232,7 +232,7 @@ just mine <paths>     # stage ONLY your files                ← do this first
 just ship "message"   # commit what YOU staged + push + sync ← daily driver
 just sync             # force-sync VPS now               ← when CI breaks
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
-just verify           # native+relay checks + lib tests + 6 lints ← before pushing Rust
+just verify           # native+relay checks + lib tests + 8 lints ← before pushing Rust
 just validate-data    # one-shot data-loader check (~0.2s)   ← after editing data/
 just build-game       # bump version, compile, archive versioned exe
 just play             # build-game + launch
@@ -275,7 +275,7 @@ src/                        ← single crate, everything lives here
   └ lib.rs                  ← engine init, main loop
 
 web/                        ← website frontend (HTML/JS/CSS, served by nginx)
-data/                       ← hot-reloadable game data (76 entries: CSV, TOML, RON, JSON)
+data/                       ← hot-reloadable game data (140 entries: CSV, TOML, RON, JSON)
 schemas/                    ← TOML schema definitions for data files (23 schemas)
 assets/                     ← shared media (icons, shaders, models, textures, audio)
 
@@ -390,7 +390,7 @@ When you change any of these in code, update this table + status in the same com
 | `web/activities/` | Game/real-world activities -- gardening, download, etc. |
 | `assets/` | All shared media -- icons, shaders, models, textures, audio |
 | `schemas/` | TOML schema definitions for data files (23 schemas: items, recipes, biomes, etc.) |
-| `data/` | Hot-reloadable game data -- 76 entries (CSV, TOML, RON, JSON) |
+| `data/` | Hot-reloadable game data -- 140 entries (CSV, TOML, RON, JSON) |
 | `data/chemistry/` | 396 entries: elements, alloys, compounds, gases, toxins |
 | `data/solar_system/` | 70+ celestial bodies, planet RON definitions |
 | `data/glossary.json` | 150+ term definitions for glossary overlay |
