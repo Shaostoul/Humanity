@@ -53,7 +53,10 @@ function laneFor(file) {
 
 function isShared(file) {
   const f = norm(file);
-  return ((map.shared && map.shared.paths) || []).some((p) => norm(p) === f);
+  return ((map.shared && map.shared.paths) || []).some((p) => {
+    const s = norm(p);
+    return s.endsWith('/') ? f.startsWith(s) : f === s;
+  });
 }
 
 function printMap() {

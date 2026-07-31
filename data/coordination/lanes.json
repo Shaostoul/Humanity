@@ -62,6 +62,8 @@
       "Cargo.toml",
       "Justfile",
       "CLAUDE.md",
+      ".claude/agents/",
+      ".claude/workflows/",
       "docs/PRIORITIES.md",
       "data/coordination/lanes.json",
       "data/coordination/orchestrator_state.json",
