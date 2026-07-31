@@ -304,6 +304,12 @@ pub struct Renderer {
     /// is what turns underwater extinction from a whole-screen switch into a
     /// per-ray path integral - the over-under waterline.
     pub sea_sphere: [f32; 4],
+    /// Foliage wind for the type-20 vertex branch (v0.1080): xyz = world wind
+    /// direction (unit), w = speed m/s. lib.rs sets it each frame from the live
+    /// weather; poked into BOTH camera buffers (colour + shadow) at offset 576,
+    /// because the shadow pass runs the same vs_main off its own buffer and a
+    /// one-buffer poke would cast shadows from a differently-posed tree.
+    pub foliage_wind: [f32; 4],
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1252,6 +1258,9 @@ impl Renderer {
             water_caster_mats: Vec::new(),
             water_depth_write: false,
             sea_sphere: [0.0, 0.0, 0.0, 0.0],
+            // Matches the shader's own fallback direction; speed 0 means the
+            // shader uses its 4 m/s default until lib.rs stamps live weather.
+            foliage_wind: [0.86, 0.0, 0.32, 0.0],
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2782,6 +2791,11 @@ impl Renderer {
         // Sea sphere in light6_cone_inner.xyzw (offset 560), v0.1061.
         self.queue
             .write_buffer(&self.camera_buffer, 560, bytemuck::cast_slice(&self.sea_sphere));
+        // Foliage wind in light7_cone_inner.xyzw (offset 576), v0.1080:
+        // xyz = world wind direction (unit), w = speed m/s. Must land AFTER
+        // the celestial_uniforms() stamp (same trap as the fill light above).
+        self.queue
+            .write_buffer(&self.camera_buffer, 576, bytemuck::cast_slice(&self.foliage_wind));
         // Fill DIRECTION, COLOUR and intensity (v0.998 intensity, v0.1052 the
         // rest). This pass stamps camera.celestial_uniforms() over the whole
         // buffer first, which carries the DEFAULT fill - so the fill that
@@ -2903,6 +2917,16 @@ impl Renderer {
                 &self.light_camera_buffer,
                 636,
                 bytemuck::bytes_of(&time_s),
+            );
+            // 576 = foliage wind (v0.1080). The shadow pass runs the SAME
+            // vs_main with the SAME type-20 wind branch off THIS buffer; omit
+            // this and the shadow map records a near-upright fallback-wind
+            // tree while the colour pass draws one leaning metres downwind
+            // (up to ~10 texels of detachment at storm speeds).
+            self.queue.write_buffer(
+                &self.light_camera_buffer,
+                576,
+                bytemuck::cast_slice(&self.foliage_wind),
             );
             let mut su = [0.0_f32; 24];
             su[..16].copy_from_slice(&vp.to_cols_array());

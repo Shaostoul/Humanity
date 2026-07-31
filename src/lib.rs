@@ -13091,6 +13091,26 @@ mod native_app {
                             event: w.event_name.clone(),
                             warning: String::new(),
                         });
+                        // Foliage wind (v0.1080): publish the live weather
+                        // wind to the renderer so the trees lean and gust
+                        // with the SAME wind the ocean and clouds already
+                        // consume. Direction is a unit world vector; speed
+                        // rides in w. The renderer pokes it into both camera
+                        // buffers (colour + shadow) at offset 576.
+                        {
+                            let d = w.wind_direction;
+                            let len = (d.x * d.x + d.y * d.y + d.z * d.z).sqrt();
+                            if len > 1.0e-3 {
+                                state.renderer.foliage_wind = [
+                                    (d.x / len) as f32,
+                                    (d.y / len) as f32,
+                                    (d.z / len) as f32,
+                                    w.wind_speed,
+                                ];
+                            } else {
+                                state.renderer.foliage_wind[3] = w.wind_speed;
+                            }
+                        }
                         // Sea state from wind (v0.909): 2 m/s or less reads
                         // glassy, ~15 m/s is a full storm sea. The showcase
                         // {"sea":x} override wins for dev shots. Smoothed
