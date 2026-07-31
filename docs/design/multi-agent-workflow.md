@@ -77,6 +77,32 @@ checkers over eight writers.
   `just perf-sweep` and `just perf-diff` already exist and vantages already carry
   `perf_floor_fps`, so this is mostly wiring rather than new tooling.
 
+### Content agents (data-only, safest to automate)
+
+These own data files and never touch `src/`, so several can run at once with almost no
+collision risk. This is the cheapest real throughput available.
+
+| Agent | Owns | Why it matters |
+|---|---|---|
+| `lexicographer` | `data/glossary.json` | 201 terms. Mission is explicitly tech-illiterate-first; every undefined word is where someone gets stuck and leaves. |
+| `botanist` | `data/plants.csv` | 134 species on a 27-column schema already sourced from USDA/FAO/extension services. Someone may plant a real garden based on this, so a wrong number teaches someone to fail at growing food. |
+| `homestead-engineer` | `data/home_outline.json`, `data/self_sufficiency/`, the homestead design docs | Mass-and-energy balance for the solo homestead. Get one resident exactly right, then N is mostly arithmetic. |
+
+### Animations: NOT an agent yet, and why
+
+There is currently **no 3D animation system in this repo**. No skeletal rig, no glTF
+animation support, no animation data, no keyframe or pose code. The apparent hits are
+UI easing inside `src/gui/`.
+
+So an "animations agent" would not be populating or improving a domain, it would be
+designing and building a subsystem from nothing. That is a different job with a
+different shape, and a `domain-writer` pointed at an empty domain will invent an
+architecture nobody reviewed. **The right first step is a design pass** (`challenger`
+plus the built-in `Plan`) answering: skeletal or vertex, authored in Blender or
+procedural, how it interacts with the instancing the renderer already relies on, and
+what it costs at forest scale. Once a system exists and has owned files, a normal
+`domain-writer` covers it and no special agent is needed.
+
 ## The three mechanisms available
 
 1. **Subagents** (`.claude/agents/*.md`). Named roles with their own system prompt,
@@ -232,6 +258,31 @@ workflow returns a report. Landing it is the operator's call, because agent work
 has been wrong in ways that passed every local check.
 
 Requires a built release exe and a GPU: two phases drive the real game.
+
+## Custom agents load at SESSION START (found the hard way, 2026-07-30)
+
+The first `domain-pass` run failed with:
+
+    agent type 'historian' not found. Available agents: claude, claude-code-guide,
+    Explore, general-purpose, Plan, statusline-setup
+
+That list is exactly the built-in set from the start of the session, before
+`.claude/agents/` existed. The definitions were on disk and correctly formed; they
+were simply not discovered, because **the agent registry is built when the session
+starts and is not reloaded when you add files mid-session.**
+
+So the sequence for anyone setting this up is:
+
+1. Write the `.claude/agents/*.md` definitions.
+2. **Restart the Claude Code session.**
+3. Then invoke the workflow.
+
+Two smaller findings from the same shakedown, both now fixed in the script:
+
+- `args` can arrive as a JSON **string** rather than an object. `domain-pass.js` now
+  parses it either way instead of relying on the caller to get it right.
+- The argument guard fired correctly and cost nothing: 0 agents, 15 ms. A workflow
+  that validates its inputs before spawning anything is worth the few lines.
 
 ## Hard-won constraints any workflow must respect
 

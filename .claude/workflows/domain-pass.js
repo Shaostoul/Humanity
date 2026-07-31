@@ -100,12 +100,20 @@ const VERDICT = {
   },
 }
 
-const domain = (args && args.domain) || null
-const owns = (args && args.owns) || []
-const vantages = (args && args.vantages) || []
+// `args` can arrive either as a real object or as a JSON string, depending on how
+// the caller passed it. Tolerate both rather than making every caller get it right.
+let input = args
+if (typeof input === 'string') {
+  try { input = JSON.parse(input) } catch (e) { input = null }
+}
+
+const domain = (input && input.domain) || null
+const owns = (input && input.owns) || []
+const vantages = (input && input.vantages) || []
 
 if (!domain || !owns.length) {
   log('domain-pass needs { domain, owns: [...paths], vantages: [...ids] }')
+  log('got args of type ' + typeof args + ': ' + JSON.stringify(args).slice(0, 200))
   return { error: 'missing domain or owns' }
 }
 
