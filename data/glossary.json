@@ -559,6 +559,72 @@
       "definition": "A strong, transparent thermoplastic. Impact resistance is 250 times greater than glass. Used in eyewear, bulletproof windows, phone cases, and medical devices.",
       "link": "https://en.wikipedia.org/wiki/Polycarbonate"
     },
+    "stainless_steel": {
+      "term": "Stainless Steel",
+      "category": "materials",
+      "definition": "Steel with at least a tenth chromium added, which forms an invisible skin that stops it rusting. It is the standard choice where water, food, or weather are involved, at a few times the price of plain steel.",
+      "link": "https://en.wikipedia.org/wiki/Stainless_steel"
+    },
+    "pvc": {
+      "term": "PVC",
+      "category": "materials",
+      "definition": "A cheap, rigid plastic used for drain pipe, conduit, and fittings, joined with solvent glue rather than heat. It is easy to cut and work with, but softens in heat and is not suitable for hot water lines.",
+      "link": "https://en.wikipedia.org/wiki/Polyvinyl_chloride"
+    },
+    "hdpe": {
+      "term": "HDPE",
+      "category": "materials",
+      "definition": "High-density polyethylene: the tough, waxy plastic of milk jugs, water tanks, and buried pipe. It shrugs off chemicals and sunlight better than most plastics and is one of the easiest to recycle at home.",
+      "link": "https://en.wikipedia.org/wiki/High-density_polyethylene"
+    },
+    "abs_plastic": {
+      "term": "ABS Plastic",
+      "category": "materials",
+      "definition": "A hard, impact-resistant plastic used for tool housings, pipe fittings, and 3D printing. It is stronger and more heat-tolerant than the common PLA printing plastic, but it warps as it cools and smells while printing.",
+      "link": "https://en.wikipedia.org/wiki/Acrylonitrile_butadiene_styrene"
+    },
+    "epoxy": {
+      "term": "Epoxy",
+      "category": "materials",
+      "definition": "A two-part glue or coating that sets by chemical reaction when resin and hardener are mixed, rather than by drying. It bonds almost anything, fills gaps, and is the binder inside fiberglass and carbon fiber parts.",
+      "link": "https://en.wikipedia.org/wiki/Epoxy"
+    },
+    "silicone": {
+      "term": "Silicone",
+      "category": "materials",
+      "definition": "A rubber-like material built on silicon rather than carbon, which keeps it flexible from deep cold to well past boiling. It is used for seals, gaskets, bakeware, and waterproof sealant around joints.",
+      "link": "https://en.wikipedia.org/wiki/Silicone"
+    },
+    "neoprene": {
+      "term": "Neoprene",
+      "category": "materials",
+      "definition": "A synthetic rubber that stays flexible in cold and resists oil, weather, and sunlight. Foamed into a sheet it is what wetsuits are made of; solid, it makes gaskets and hoses.",
+      "link": "https://en.wikipedia.org/wiki/Neoprene"
+    },
+    "burlap": {
+      "term": "Burlap",
+      "category": "materials",
+      "definition": "A coarse, loosely woven cloth made from jute or hemp fiber, cheap and breathable. Sacks, sandbags, and root-ball wrapping are the classic uses, and it rots away harmlessly in soil.",
+      "link": "https://en.wikipedia.org/wiki/Hessian_fabric"
+    },
+    "sinew": {
+      "term": "Sinew",
+      "category": "materials",
+      "definition": "The tough fiber of animal tendon, dried and split into threads. Before manufactured cord it was the strong-thread of choice for stitching, bowstrings, and hafting a blade to a handle.",
+      "link": "https://en.wikipedia.org/wiki/Tendon"
+    },
+    "resin": {
+      "term": "Resin",
+      "category": "materials",
+      "definition": "A sticky substance that hardens into a solid, either bled from trees or made synthetically. Pine resin mixed with charcoal makes a serviceable glue and waterproofing; synthetic resins are the base of epoxy and most plastics.",
+      "link": "https://en.wikipedia.org/wiki/Resin"
+    },
+    "lithium": {
+      "term": "Lithium",
+      "category": "materials",
+      "definition": "The lightest metal, soft enough to cut with a knife and reactive enough to burn in water. Its weight is why it dominates rechargeable batteries, from phones to home power storage.",
+      "link": "https://en.wikipedia.org/wiki/Lithium"
+    },
     "shelter": {
       "term": "Shelter",
       "category": "survival",
@@ -1265,7 +1331,7 @@
     "trust_score": {
       "term": "Trust Score",
       "category": "platform",
-      "definition": "A number from 0 to 1 summarizing how much a person's history backs them up: credentials received, who has vouched for them, how varied their activity is, account age, and stake. Every input is shown so you can check the result yourself, and it is capped at 0.95 when it weights a governance vote."
+      "definition": "A number from 0 to 1 summarizing how much a person's history backs them up: credentials received, how many different people have vouched for them, how varied their activity has been over the last 90 days, and how long the identity has existed. Every input is shown so you can check the result yourself, and it is capped at 0.95 when it weights a governance vote."
     },
     "vouch": {
       "term": "Vouch",
@@ -1389,6 +1455,131 @@
       "category": "platform",
       "definition": "One part whose failure stops the whole system. HumanityOS avoids having one by not using home servers: your identity is a key on your device, so any server can be replaced by another.",
       "link": "https://en.wikipedia.org/wiki/Single_point_of_failure"
+    },
+    "api": {
+      "term": "API",
+      "category": "platform",
+      "definition": "The set of named requests one program will answer for another, like a menu of things it can be asked to do. HumanityOS pages get their data by calling a server's API, which is why an error message often shows an address beginning with /api."
+    },
+    "endpoint": {
+      "term": "Endpoint",
+      "category": "platform",
+      "definition": "One address inside a server's API that does one job, such as looking up a profile or listing files. The Identity page prints the endpoint behind each panel so you can see exactly where the information came from."
+    },
+    "websocket": {
+      "term": "WebSocket",
+      "category": "platform",
+      "definition": "A connection that stays open between the app and a server so messages arrive the instant they are sent, instead of the app having to keep asking. Disconnecting from a server closes it, and your identity stays on your device either way."
+    },
+    "vps": {
+      "term": "VPS (Virtual Private Server)",
+      "category": "platform",
+      "definition": "A slice of a computer rented in a data center that stays powered on all the time. Most HumanityOS relays run on one, which is what lets a server keep taking messages while its owner sleeps."
+    },
+    "ssh": {
+      "term": "SSH",
+      "category": "platform",
+      "definition": "A way to run commands on another computer over the network with everything encrypted in transit. The Relay Control page uses it to restart your server or fetch its logs for you, so you never have to open a terminal, and it only works from a machine whose key is already set up."
+    },
+    "uptime": {
+      "term": "Uptime",
+      "category": "platform",
+      "definition": "How long something has been running since it last started. The Relay Control health panel shows the server's uptime, and the Studio page shows how long the current session has been live."
+    },
+    "bandwidth": {
+      "term": "Bandwidth",
+      "category": "platform",
+      "definition": "How much data a connection can carry each second. It matters most when broadcasting, because every extra viewer costs the server that amount again: 25 viewers at 2000 kbps is 50 Mbps leaving the machine."
+    },
+    "bitrate": {
+      "term": "Bitrate",
+      "category": "platform",
+      "definition": "How much data one second of video or audio uses, usually written in kilobits per second (kbps). Higher is sharper and costs more bandwidth for you and for everyone watching; 3000 to 6000 kbps is a common range for 1080p."
+    },
+    "rate_limit": {
+      "term": "Rate Limit",
+      "category": "platform",
+      "definition": "A cap on how often you may do something, used to stop one person flooding everyone else. HumanityOS chat spaces your messages by a growing delay (1, 1, 2, 3, 5, 8, 13, then 21 seconds) that resets the moment you slow down, and a brand-new identity waits at least 5 seconds between messages for its first 10 minutes."
+    },
+    "gossip": {
+      "term": "Gossip (federation)",
+      "category": "platform",
+      "definition": "Servers passing signed copies of messages and profiles along to the other servers they federate with. A channel marked federated gossips its messages outward, so the conversation and its history survive even if this server goes down."
+    },
+    "trust_tier": {
+      "term": "Trust Tier (server)",
+      "category": "platform",
+      "definition": "The rating an admin gives another server, from 0 (untrusted) to 3 (fully trusted). A partner has to sit at tier 2 or higher before this server will accept its federated messages at all."
+    },
+    "kick": {
+      "term": "Kick",
+      "category": "platform",
+      "definition": "Disconnecting someone from a server right now. They can come straight back, which is what separates it from a ban: it interrupts without ending anyone's access."
+    },
+    "ban": {
+      "term": "Ban",
+      "category": "platform",
+      "definition": "Blocking an identity from a server, so its key is refused at connection and only an admin can lift it. Chat bans and game bans are separate systems here: a game ban blocks the shared 3D world only and leaves every channel and private message untouched."
+    },
+    "mute": {
+      "term": "Mute",
+      "category": "platform",
+      "definition": "Taking away someone's ability to post while leaving them able to read everything. Their role is untouched, so unmuting restores them exactly as they were. The same word also means switching off your own microphone in a voice call."
+    },
+    "mention": {
+      "term": "Mention",
+      "category": "platform",
+      "definition": "Naming someone in a message by typing @ and their name, which highlights it and notifies them. Clicking a highlighted mention opens that person's profile, and you can turn mention notifications off in Settings."
+    },
+    "pin": {
+      "term": "Pin (message)",
+      "category": "platform",
+      "definition": "Marking a message so it stays easy to find from the channel header, no matter how much is said afterwards. Anyone can list a channel's pins; adding and removing them is a moderator action."
+    },
+    "friend_code": {
+      "term": "Friend Code",
+      "category": "platform",
+      "definition": "A short code you generate and hand to someone so you can connect without either of you typing a long key. It works once, expires after 24 hours, and redeeming it makes the two of you follow each other."
+    },
+    "link_code": {
+      "term": "Device Link Code",
+      "category": "platform",
+      "definition": "A one-time code that puts your existing identity onto a second device. It expires after 5 minutes, and once redeemed the new device is registered under the same name as the first."
+    },
+    "registered_name": {
+      "term": "Registered Name",
+      "category": "platform",
+      "definition": "The name you have claimed on a server, bound to your identity key so nobody else can post or broadcast under it there. An admin can release a name, which unlinks every device key from it and lets someone else claim it."
+    },
+    "stream_key": {
+      "term": "Stream Key",
+      "category": "platform",
+      "definition": "A secret string most streaming platforms make you paste in to prove a broadcast is yours, and which lets anyone who copies it broadcast as you. HumanityOS does not use one: you stream under your registered name, proven by your signed identity, so there is nothing to leak."
+    },
+    "invite_code": {
+      "term": "Invite Code",
+      "category": "platform",
+      "definition": "A single-use code that lets one new person register on a server even while registration is closed. An admin generates it from Server Settings and it arrives privately in chat, to be passed on to exactly one person."
+    },
+    "headless": {
+      "term": "Headless",
+      "category": "platform",
+      "definition": "Running a program with no window and no graphics, driven by configuration instead of clicks. The HumanityOS server is the same app started with --headless, which is how one download is both the game and the server."
+    },
+    "protocol": {
+      "term": "Protocol",
+      "category": "platform",
+      "definition": "The agreed rules two programs follow so they can understand each other. Federation works because every HumanityOS server speaks the same protocol, whoever runs it."
+    },
+    "qr_code": {
+      "term": "QR Code",
+      "category": "platform",
+      "definition": "A square pattern of dots a camera can read, holding a short piece of text. HumanityOS can show one to carry your identity to another device, so treat it exactly like your seed phrase: anyone who scans it becomes you."
+    },
+    "snapshot": {
+      "term": "Snapshot (backup)",
+      "category": "platform",
+      "definition": "A copy of a database taken at one instant, complete enough to restore from later. Server Settings can take one while the server keeps running, and lists the ones already on the host."
     },
     "humanity_accord": {
       "term": "Humanity Accord",
@@ -1566,6 +1757,74 @@
       "category": "governance",
       "definition": "Able to be corrected. The Accord requires its own text, and the systems built under it, to stay open to revision rather than being declared final."
     },
+    "legitimacy": {
+      "term": "Legitimacy",
+      "category": "governance",
+      "definition": "The standing to act on other people's behalf, earned through consent, transparency, and accountability rather than by holding power. The Accord treats it as conditional: an authority that breaks the absolute prohibitions forfeits it, and is owed no obedience."
+    },
+    "jurisdiction": {
+      "term": "Jurisdiction",
+      "category": "governance",
+      "definition": "The territory and the people a given government's rules cover. The Accord binds a state to everyone under its jurisdiction, which includes AI systems and institutions, not only its citizens."
+    },
+    "amendment": {
+      "term": "Amendment",
+      "category": "governance",
+      "definition": "A formal change to the wording of a constitution or agreement. Amending the Accord takes three quarters of the states that have ratified it plus a 90-day public comment period, and Accord amendment is also the heaviest kind of proposal you can put to a vote in the app."
+    },
+    "sentience": {
+      "term": "Sentience",
+      "category": "governance",
+      "definition": "The capacity to actually experience things, including suffering and wellbeing, as opposed to merely processing information. The Accord ties voting to it, which is why AI agents take part in everything else here but are left out of vote tallies.",
+      "link": "https://en.wikipedia.org/wiki/Sentience"
+    },
+    "participant": {
+      "term": "Participant (Accord)",
+      "category": "governance",
+      "definition": "The Accord's word for anyone it binds and protects: a person, an institution, a collective, or an AI system a state has granted legal personality. One word keeps every article applying to humans and AI alike."
+    },
+    "delegation": {
+      "term": "Delegation",
+      "category": "governance",
+      "definition": "Handing a decision or a task to somebody or something else, including software. The Accord's rule is that delegating never moves the responsibility: the outcome is still yours, and the authority you handed over stays revocable."
+    },
+    "dehumanization": {
+      "term": "Dehumanization",
+      "category": "governance",
+      "definition": "Treating people as objects, resources, or expendable units rather than as persons. The Accord lists it among the absolute prohibitions because it reliably comes before atrocity and counts as one in itself."
+    },
+    "power_asymmetry": {
+      "term": "Power Asymmetry",
+      "category": "governance",
+      "definition": "A gap in power so wide that the weaker side cannot meaningfully refuse or push back. It is why a governance vote here is weighted by trust but capped at 0.95, so no single trusted person can decide a result alone."
+    },
+    "auditable": {
+      "term": "Auditable",
+      "category": "governance",
+      "definition": "Built so an outsider can check it instead of having to take your word. The Accord asks for auditable rules, code, money, and decisions, which is why votes, proposals, and profiles here are signed and open to inspection."
+    },
+    "tally": {
+      "term": "Tally",
+      "category": "governance",
+      "definition": "The running count of votes for and against a proposal. An abstain is counted toward quorum but kept out of the tally, and votes here are final once cast."
+    },
+    "vote_weight": {
+      "term": "Vote Weight",
+      "category": "governance",
+      "definition": "How much one person's vote counts toward the result. In HumanityOS it equals your trust score at the moment you vote, capped at 0.95, so a long and well-vouched history counts for more but never for everything."
+    },
+    "biosphere": {
+      "term": "Biosphere",
+      "category": "governance",
+      "definition": "The whole living layer of a world: every organism, plus the air, water, and soil they depend on. The Accord treats it as a commons to be protected from irreversible damage, on Earth and on any world we settle.",
+      "link": "https://en.wikipedia.org/wiki/Biosphere"
+    },
+    "biodiversity": {
+      "term": "Biodiversity",
+      "category": "governance",
+      "definition": "The variety of living things in a place, counted across species, genes, and habitats. Variety is what lets a living system absorb a shock, which is why the Accord protects it rather than only protecting individual species.",
+      "link": "https://en.wikipedia.org/wiki/Biodiversity"
+    },
     "homestead": {
       "term": "Homestead",
       "category": "homestead",
@@ -1686,6 +1945,22 @@
       "category": "homestead",
       "definition": "Living without a connection to the public electricity supply, generating and storing all your own power. It can be a deliberate choice or simply the reality where no grid reaches.",
       "link": "https://en.wikipedia.org/wiki/Off-the-grid"
+    },
+    "reservoir": {
+      "term": "Reservoir (growing)",
+      "category": "homestead",
+      "definition": "The tank of water and dissolved nutrients a soil-free growing system pumps around its plants. Everything sharing one reservoir has to accept the same water, so the Home page checks whether your chosen plants agree on acidity, temperature, and humidity before you plant them together."
+    },
+    "ph": {
+      "term": "pH",
+      "category": "homestead",
+      "definition": "A scale from 0 to 14 for how acidic or alkaline water is, where 7 is neutral, lower is acidic, and higher is alkaline. Most crops in HumanityOS want something between about 5.5 and 7.5, and each plant lists the range it will accept.",
+      "link": "https://en.wikipedia.org/wiki/PH"
+    },
+    "makerspace": {
+      "term": "Makerspace",
+      "category": "homestead",
+      "definition": "A shared workshop where people use tools and machines they could not afford alone, usually for a small membership, often with training and help on hand. It is the tool library idea with the workbench included: you use the equipment on site rather than taking it home."
     },
     "grid": {
       "term": "Grid (electrical)",
@@ -1892,6 +2167,36 @@
       "definition": "The time measured by a clock travelling with you, which is the time you actually live through. Clocks moving differently or sitting deeper in gravity tick at different rates, so distant parties must publish their own proper time alongside any shared timestamp.",
       "link": "https://en.wikipedia.org/wiki/Proper_time"
     },
+    "eclipse": {
+      "term": "Eclipse",
+      "category": "space",
+      "definition": "When one body blocks the light of another or passes into its shadow. The Cosmos page marks solar eclipses as partial, annular (a ring of Sun still showing, because the Moon is too far from Earth to cover it) or total, along with how much of the Sun is hidden.",
+      "link": "https://en.wikipedia.org/wiki/Eclipse"
+    },
+    "terminator": {
+      "term": "Terminator (day-night line)",
+      "category": "space",
+      "definition": "The moving line between the lit and dark halves of a planet or moon, where the Sun is on the horizon. Seen from space it is the warmest, softest band on the globe, because sunlight there passes through the most air.",
+      "link": "https://en.wikipedia.org/wiki/Terminator_(solar)"
+    },
+    "near_earth_object": {
+      "term": "Near-Earth Object",
+      "category": "space",
+      "definition": "An asteroid or comet whose orbit brings it close to Earth's. The Cosmos page lists near-Earth asteroids separately because they are both the easiest to reach and the ones worth watching.",
+      "link": "https://en.wikipedia.org/wiki/Near-Earth_object"
+    },
+    "gnss": {
+      "term": "GNSS / GPS",
+      "category": "space",
+      "definition": "Satellite networks that let a receiver work out where it is on Earth, of which the American GPS is one. Their satellites sit in a belt roughly 20,000 km up and lap the planet twice a day.",
+      "link": "https://en.wikipedia.org/wiki/Satellite_navigation"
+    },
+    "atmospheric_scattering": {
+      "term": "Atmospheric Scattering",
+      "category": "space",
+      "definition": "Sunlight bouncing off the molecules in the air, which is why the sky is blue, sunsets are red, and far-off hills fade to pale. HumanityOS shades planets this way, so a world shows a blue rim from orbit and a washed-out horizon from the ground.",
+      "link": "https://en.wikipedia.org/wiki/Rayleigh_scattering"
+    },
     "hud": {
       "term": "HUD (Heads-Up Display)",
       "category": "gaming",
@@ -2040,6 +2345,55 @@
       "definition": "A structure made of points, called nodes, and the links between them, called edges. Roads, rails, and pipe runs in HumanityOS are built this way: you drop nodes, then wire edges between them.",
       "link": "https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)"
     },
+    "gpu": {
+      "term": "GPU (Graphics Card)",
+      "category": "gaming",
+      "definition": "The chip that draws the picture on your screen. Nearly every graphics setting trades GPU work for detail, which is why turning things down raises your frame rate.",
+      "link": "https://en.wikipedia.org/wiki/Graphics_processing_unit"
+    },
+    "cpu": {
+      "term": "CPU (Processor)",
+      "category": "gaming",
+      "definition": "The chip that runs the program itself: the simulation, the physics, and the loading of the world. A setting described as costing CPU will not be helped by a better graphics card.",
+      "link": "https://en.wikipedia.org/wiki/Central_processing_unit"
+    },
+    "texture": {
+      "term": "Texture",
+      "category": "gaming",
+      "definition": "An image wrapped onto a 3D surface to give it color and detail, like wallpaper on a shape. Sharper textures look better close up and take more graphics memory.",
+      "link": "https://en.wikipedia.org/wiki/Texture_mapping"
+    },
+    "particle": {
+      "term": "Particle",
+      "category": "gaming",
+      "definition": "One of the many tiny images a game draws in bulk to make rain, snow, smoke, or sparks. Each is cheap on its own but there can be hundreds of thousands at once, so the weather settings cap how many may exist."
+    },
+    "respawn": {
+      "term": "Respawn",
+      "category": "gaming",
+      "definition": "Coming back into the world after your character dies, at a fixed safe spot rather than where you fell. In HumanityOS you wake in the respawner with nothing lost, and press Respawn on the death screen to continue."
+    },
+    "stack_size": {
+      "term": "Stack Size",
+      "category": "gaming",
+      "definition": "How many of one item fit in a single inventory slot before a second slot is needed. It is listed on every item's detail panel, and a stack size of 1 means the item never stacks."
+    },
+    "durability": {
+      "term": "Durability",
+      "category": "gaming",
+      "definition": "How much wear an item can take before it breaks, counted down as you use it. The inventory panel only shows the figure for items that can wear out at all."
+    },
+    "resolution": {
+      "term": "Resolution",
+      "category": "gaming",
+      "definition": "The number of pixels in an image, written as width by height, such as 1920x1080. Higher is sharper and costs more work to draw, plus more data to send when broadcasting.",
+      "link": "https://en.wikipedia.org/wiki/Display_resolution"
+    },
+    "encoder": {
+      "term": "Encoder",
+      "category": "gaming",
+      "definition": "The part that squeezes raw video down into a much smaller stream before it is sent. When it cannot keep up it skips ahead rather than falling behind, which is what a dropped-frame count is telling you."
+    },
     "post_quantum": {
       "term": "Post-Quantum Cryptography",
       "category": "crypto",
@@ -2123,6 +2477,61 @@
       "term": "Testnet / Devnet",
       "category": "crypto",
       "definition": "Practice copies of a blockchain network where the tokens are free and worthless. Solana runs two of them, Devnet and Testnet, so you can try things without risking anything."
+    },
+    "blockchain": {
+      "term": "Blockchain",
+      "category": "crypto",
+      "definition": "A shared record of transactions that thousands of computers each keep a copy of, added to in batches called blocks and impossible to quietly rewrite. Solana is the blockchain HumanityOS uses for optional payments; nothing else in the app depends on one.",
+      "link": "https://en.wikipedia.org/wiki/Blockchain"
+    },
+    "token": {
+      "term": "Token",
+      "category": "crypto",
+      "definition": "A unit of value issued on top of a blockchain rather than being the network's own coin. On Solana, SOL is the coin and everything else, such as USDC, is a token."
+    },
+    "stablecoin": {
+      "term": "Stablecoin",
+      "category": "crypto",
+      "definition": "A token deliberately held at a steady value, usually one US dollar, instead of rising and falling like most cryptocurrencies. It is what people use to hold value on a blockchain without riding the price swings.",
+      "link": "https://en.wikipedia.org/wiki/Stablecoin"
+    },
+    "swap": {
+      "term": "Swap",
+      "category": "crypto",
+      "definition": "Trading one token straight for another from your own wallet, with no company holding your money in between. The price can move slightly between pressing the button and the trade completing, which is what slippage tolerance allows for."
+    },
+    "smart_contract": {
+      "term": "Smart Contract",
+      "category": "crypto",
+      "definition": "A program stored on a blockchain that runs exactly as written whenever someone calls it, with no company in the middle. Swapping tokens and staking work by calling one.",
+      "link": "https://en.wikipedia.org/wiki/Smart_contract"
+    },
+    "proof_of_stake": {
+      "term": "Proof of Stake",
+      "category": "crypto",
+      "definition": "The method a blockchain uses to decide who adds the next block: computers put their own coins up as a deposit and lose them if they cheat. It replaces the electricity-hungry mining that older chains use.",
+      "link": "https://en.wikipedia.org/wiki/Proof_of_stake"
+    },
+    "ciphertext": {
+      "term": "Ciphertext",
+      "category": "crypto",
+      "definition": "A message after encryption: unreadable to anyone without the key. Your private messages reach the server only as ciphertext, which is why whoever runs it cannot read them."
+    },
+    "forward_secrecy": {
+      "term": "Forward Secrecy",
+      "category": "crypto",
+      "definition": "A design where getting hold of today's key does not unlock yesterday's messages, because each stretch of conversation uses a fresh one. A private HumanityOS group issues a new key each time someone joins, so newcomers read from that moment on but not before; groups set to shared history keep one key instead, and give that protection up."
+    },
+    "hexadecimal": {
+      "term": "Hexadecimal (hex)",
+      "category": "crypto",
+      "definition": "Counting in sixteens, using 0 to 9 and then a to f, which is a compact way to write raw computer data. Keys are usually shown as hex, which is why an identity looks like a long run of digits and letters.",
+      "link": "https://en.wikipedia.org/wiki/Hexadecimal"
+    },
+    "unlock_pin": {
+      "term": "PIN (quick unlock)",
+      "category": "crypto",
+      "definition": "A short number, 4 to 12 digits here, used instead of your full passphrase on one device you trust. HumanityOS keeps a random device secret in the operating system's keychain and your PIN unlocks it, so someone who steals only one of the two gets nothing."
     }
   }
 }
