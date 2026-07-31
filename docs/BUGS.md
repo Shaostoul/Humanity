@@ -349,3 +349,23 @@ with no check that could fail.
 key; permanent vantage ground-snow-gpu exercises the experimental path with the bug
 signature in its regressions. **Open gap**: no mechanical Rust-vs-WGSL layout check
 exists; any shared-buffer struct change still relies on eyes. Toolsmith candidate.
+
+## BUG-051: Snow followed the camera into orbit, second recurrence (fixed v0.1073.0)
+
+**Found**: 2026-07-31 by the operator ("The snow is in space again"), FTL orbit view
+with Snow active. **Class history**: v0.1064 fixed rain persisting to space in low
+flight with a surface_mode + altitude < 4000 m gate.
+
+**Root cause of the recurrence**: the gate read surface_altitude_m.unwrap_or(0.0).
+The altitude readout is None whenever no surface is frame-locked (reset every frame
+on the FTL/fly branch), so "no reading" was treated as "0 m, standing on the
+ground" and the gate passed in deep space. Fixed to map_or(false): no reading = no
+precipitation. Single choke point, covers both CPU and GPU paths.
+
+**Countermeasure**: permanent vantage orbit-snow-gate (blue-marble camera + Snow +
+gpu_precip) expects ZERO flakes in frame; ground-snow-gpu proves the fix does not
+kill legitimate snowfall. Both captured clean on v0.1073.0.
+
+**Lesson**: unwrap_or on an Option encodes a default-state ASSUMPTION. For gates,
+absence of data must fail SAFE (here: not-near-surface), never default to the
+permissive branch.

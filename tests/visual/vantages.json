@@ -490,6 +490,23 @@
     "gpu_precip": "1"
    },
    "settle_s": 12
+  },
+  {
+   "id": "orbit-snow-gate",
+   "desc": "Earth from orbit with an active Snow condition: precipitation must NOT follow the camera into space. This class has recurred twice (v0.1064 low flight; 2026-07-31 the None-altitude hole from FTL).",
+   "expect": "The blue marble in clean black space. Weather HUD says Snow, but ZERO flakes anywhere in frame: precipitation lives under the cloud deck.",
+   "regressions": [
+    "NO white flakes over the planet or the starfield (snow-in-space: surface_altitude_m None was defaulted to 0 m, so the tropopause gate passed in orbit)"
+   ],
+   "camera": {
+    "body": "earth",
+    "altitude_km": 12000
+   },
+   "showcase": {
+    "weather": "snow",
+    "gpu_precip": "1"
+   },
+   "settle_s": 12
   }
  ]
 }

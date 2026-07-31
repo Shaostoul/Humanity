@@ -3397,11 +3397,21 @@ mod native_app {
                                 // there is nothing to fall past you.
                                 Some((cond, inten, wind, wdir, ev))
                                     if state.camera.surface_mode
+                                        // map_or(false, ..), NOT unwrap_or(0.0):
+                                        // the altitude readout is None whenever no
+                                        // surface is frame-locked (reset each frame
+                                        // at the FTL/fly branch), and defaulting
+                                        // None to 0 m meant "no data = standing on
+                                        // the ground", so the gate PASSED in orbit
+                                        // and snow followed the camera into space.
+                                        // v0.1064 closed this for low flight; the
+                                        // None hole reopened it from FTL (operator,
+                                        // 2026-07-31: "The snow is in space
+                                        // again."). No reading = no precipitation.
                                         && state
                                             .gui_state
                                             .surface_altitude_m
-                                            .unwrap_or(0.0)
-                                            < 4000.0 =>
+                                            .map_or(false, |a| a < 4000.0) =>
                                 {
                                     use crate::systems::weather::WeatherCondition as WC;
                                     let (r, s) = match cond {
