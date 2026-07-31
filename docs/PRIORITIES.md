@@ -37,6 +37,11 @@
 >    distance). REMAINING rungs: batch water shells through the patch
 >    arena (still classic per-object, ~640 draws worst case); measure
 >    the 4-layer transparent overdraw (backstop+shell+atmo+clouds).
+>    PARTIAL 2026-07-31 overnight: full 24-vantage fps baseline recorded
+>    (.probe-rig/sweeps latest manifest, all vantages at/above floor; slow end =
+>    ground snow/storm 13-19 fps), and the CLOUDS layer measured ~free (domain-pass
+>    interleaved ON/OFF A/B, no delta beyond noise). REMAINING: decompose
+>    backstop/wave-shell/atmo contributions the same interleaved way.
 >    RE-AIMED 2026-07-31 by the clouds domain pass: the CLOUDS quarter is
 >    now measured and it is not the problem. Feature-off A/B on the probe
 >    rig (RTX 4070, 3 captures per arm, >=15 s settle): WATER costs 7.8 ms
