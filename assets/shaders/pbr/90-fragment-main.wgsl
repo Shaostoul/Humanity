@@ -1164,6 +1164,22 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // The fine pass is the expensive one, so it only runs within ~3 m.
         let micro = 1.0 - smoothstep(0.8, 3.0, plant_dist);
 
+        // OBJECT-FIXED material domain (v0.1078, operator: "a blemish on a
+        // tree is literally moving"). in.world_position is RENDER space =
+        // world - camera, rebased continuously by the floating origin, so any
+        // noise sampled there slides across the mesh at exactly camera speed
+        // (one vein cell per 1.8 cm of travel at the 55/m frequency).
+        // Reconstruct true object space instead: transpose(normal_matrix) is
+        // model^-1 for the rotation + uniform-scale transforms plants use
+        // (same identity the water branch uses at 00-bindings-vertex:618).
+        // Bonus: object +Y IS the trunk axis by construction, so bark
+        // fissures run along the bole at every latitude (world-Y "up" only
+        // matched the trunk at the poles; at Fuji they ran 55 deg diagonal).
+        // Plant pixels only, within the 12 m detail radius.
+        let obj_inv = transpose(obj_normal_matrix());
+        let obj_p = (obj_inv * vec4<f32>(in.world_position - obj_model()[3].xyz, 0.0)).xyz;
+        let obj_n = normalize((obj_inv * vec4<f32>(normal, 0.0)).xyz);
+
         if (is_leaf && detail > 0.001) {
             // A leaf-plane coordinate. There is no per-leaf UV to sample, so
             // this projects world position onto the face's dominant axis pair.
@@ -1171,7 +1187,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // vein pattern is RETICULATE (voronoi cell borders) rather than
             // striped. A reticulate net has no preferred axis, so the
             // misalignment is invisible, and real dicot venation IS a net.
-            let lp = triplanar_uv(in.world_position, normal);
+            let lp = triplanar_uv(obj_p, obj_n);
 
             // Primary vein net, plus a finer secondary net inside its cells.
             // voronoi_EDGE, not voronoi: veins are cell BORDERS. Frequencies are
@@ -1256,8 +1272,8 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // streaks that read as sawn plywood; real bark fissures are
             // elongated but they branch, merge and terminate.
             let bp = vec2<f32>(
-                (in.world_position.x + in.world_position.z) * 2.4,
-                in.world_position.y * 1.0,
+                (obj_p.x + obj_p.z) * 2.4,
+                obj_p.y * 1.0,
             );
             // Deep fissures: voronoi_edge borders again, stretched into long
             // vertical cracks by the coordinate scaling above.
@@ -1289,7 +1305,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // Fruit skin is a taut, waxy surface, not paper: far smoother than
             // a leaf, with a broad blush of colour variation and (up close) a
             // faint pore stipple. Low-poly fruit spheres lean hard on this.
-            let fp = triplanar_uv(in.world_position, normal);
+            let fp = triplanar_uv(obj_p, obj_n);
             let blush = fbm(fp * 45.0);
             albedo = albedo * (1.0 + (blush - 0.5) * 0.30 * detail);
             if (micro > 0.001) {
