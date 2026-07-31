@@ -328,3 +328,24 @@ tests/visual/vantages.json carries the regression line; any storm re-land must p
 **Lesson**: a verify set that only samples the default environment cannot catch a
 regression gated on environment state. Weather conditions are part of the render state
 space and the vantage set must sample them.
+
+## BUG-050: GPU-path precipitation rendered as giant colored spheres/blobs (v0.1068.0-v0.1070.2)
+
+**Found**: 2026-07-31 by the operator (experimental GPU particles + heavy snow: a
+screen-filling blue sphere, cyan flake-blobs, magenta clusters). **Fixed**: v0.1071.0.
+
+**Root cause**: particle_sim.wgsl declared the shared vertex buffer as a WGSL struct
+annotated "matches ParticleVertexData byte for byte". It cannot: vec3 in a WGSL
+storage buffer aligns to 16 bytes, so the sim wrote 64-byte records into the 52-byte
+packed stream the vertex path reads; every instance drifted 12 bytes further out of
+phase (sizes read world coordinates, colors read neighbouring floats).
+
+**Why nothing caught it**: default-off setting, so the rig never exercised the path
+(portable sandbox boots default config), and the byte-parity claim lived in a comment
+with no check that could fail.
+
+**Countermeasures**: sim now packs 13 floats by hand into array<f32> (keeps the tight
+52-byte layout the CPU path was optimized to); showcase IPC gained a gpu_precip flip
+key; permanent vantage ground-snow-gpu exercises the experimental path with the bug
+signature in its regressions. **Open gap**: no mechanical Rust-vs-WGSL layout check
+exists; any shared-buffer struct change still relies on eyes. Toolsmith candidate.

@@ -270,6 +270,14 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         state.debug_test_light_intensity = iv.clamp(0.1, 200.0);
         log::info!("Test light intensity: {}", state.debug_test_light_intensity);
     }
+    // "gpu_precip":"1"/"0" flips the experimental GPU particle SETTING live so
+    // the probe rig can exercise that path (BUG-050 was invisible to every rig
+    // run because the portable sandbox boots with the default config, gpu
+    // particles off). Same live-flip pattern as lights_tiled below.
+    if let Some(t) = grab("gpu_precip") {
+        state.gui_state.settings.gpu_particles = t == "1";
+        log::info!("Showcase: gpu_particles -> {}", state.gui_state.settings.gpu_particles);
+    }
     if let Some(t) = grab("lights_tiled") {
         state.gui_state.settings.lights_tiled = t == "1";
         log::info!("Tiled light lists: {}", state.gui_state.settings.lights_tiled);

@@ -468,6 +468,28 @@
     "weather": "storm"
    },
    "settle_s": 12
+  },
+  {
+   "id": "ground-snow-gpu",
+   "desc": "Heavy snow on the EXPERIMENTAL GPU particle path (gpu_precip flip). The stride-mismatch class only manifests here, never on the default CPU path.",
+   "expect": "Ordinary falling snow: small white flakes over the forest scene, ground and trees clearly visible. Identical in character to the CPU-path snow.",
+   "regressions": [
+    "NO giant colored spheres, blobs or streaks (BUG-050: the sim shader wrote 64-byte vec3-aligned records into the 52-byte packed vertex stream, so every instance after the first read shifted garbage; sizes picked up world coordinates, colors picked up neighbouring floats)",
+    "flakes must be small and white, not cyan/magenta ellipses"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 35.3,
+    "lon": 138.8,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "showcase": {
+    "time": "12.0",
+    "weather": "snow",
+    "gpu_precip": "1"
+   },
+   "settle_s": 12
   }
  ]
 }

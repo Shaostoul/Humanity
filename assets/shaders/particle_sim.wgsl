@@ -51,17 +51,17 @@ struct ParticleState {
     lifetime: f32,
 };
 
-// Matches renderer::particles::ParticleVertexData byte for byte.
-struct ParticleVertex {
-    position: vec3<f32>,
-    color: vec4<f32>,
-    size_emissive: vec3<f32>,
-    stretch: vec3<f32>,
-};
+// The draw side reads renderer::particles::ParticleVertexData: TIGHTLY packed
+// 52-byte records (pos 0, color 12, size_emissive 28, stretch 40). A WGSL
+// struct CANNOT mirror that: vec3 in a storage buffer aligns to 16, so the
+// struct version of this silently wrote 64-byte records and every instance
+// after the first read shifted garbage (BUG-050: giant spheres, cyan snow).
+// So the verts buffer is a raw float array and we pack all 13 floats by hand.
+const VERT_FLOATS: u32 = 13u;
 
 @group(0) @binding(0) var<uniform> params: SimParams;
 @group(0) @binding(1) var<storage, read_write> state: array<ParticleState>;
-@group(0) @binding(2) var<storage, read_write> verts: array<ParticleVertex>;
+@group(0) @binding(2) var<storage, read_write> verts: array<f32>;
 
 // Integer hash -> uniform [0,1). Same shape as the CPU xorshift so the two
 // paths produce statistically identical seas of particles, not identical
@@ -145,14 +145,20 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Build the draw vertex in the same pass - the data is already in
     // registers, so this is nearly free and saves a second dispatch.
     let t = clamp(s.age / max(s.lifetime, 1.0e-4), 0.0, 1.0);
-    var v: ParticleVertex;
-    v.position = s.position;
-    v.color = mix(params.color_start, params.color_end, t);
-    v.size_emissive = vec3<f32>(
-        mix(params.size_shape.x, params.size_shape.y, t),
-        params.size_shape.z,
-        params.size_shape.w,
-    );
-    v.stretch = s.velocity * params.count_frame_streak.z;
-    verts[idx] = v;
+    let col = mix(params.color_start, params.color_end, t);
+    let stretch = s.velocity * params.count_frame_streak.z;
+    let base = idx * VERT_FLOATS;
+    verts[base + 0u] = s.position.x;
+    verts[base + 1u] = s.position.y;
+    verts[base + 2u] = s.position.z;
+    verts[base + 3u] = col.x;
+    verts[base + 4u] = col.y;
+    verts[base + 5u] = col.z;
+    verts[base + 6u] = col.w;
+    verts[base + 7u] = mix(params.size_shape.x, params.size_shape.y, t);
+    verts[base + 8u] = params.size_shape.z;
+    verts[base + 9u] = params.size_shape.w;
+    verts[base + 10u] = stretch.x;
+    verts[base + 11u] = stretch.y;
+    verts[base + 12u] = stretch.z;
 }
