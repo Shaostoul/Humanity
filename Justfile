@@ -37,11 +37,64 @@ bump kind="patch":
 
 # THE ONE COMMAND: bump + regen theme + bundle web + commit + push + force-sync VPS
 ship msg="chore: update":
+    @if git diff --cached --quiet; then just _nothing-staged; exit 1; fi
     @just bump
     @just theme
     @just bundle-web
+    @just _stage-generated
     @just _commit "{{msg}}"
     @just sync
+
+# Internal: stage the files `ship` itself generates (version stamps, theme CSS,
+# the bundled app/web tree). These are ship's own output, so they belong in the
+# commit, but they must be added by NAME rather than by `git add -A`, which
+# would also sweep in whatever the other sessions have open.
+_stage-generated:
+    -@git add -- Cargo.toml web/shared/sw.js web/pages/settings-app.js web/pages/ops.html web/shared/shell.js web/pages/download.html web/pages/index.html 2>/dev/null
+    -@git add -- web/shared/theme.css web/shared/theme-presets.js 2>/dev/null
+    -@git add -- app/web 2>/dev/null
+
+# Same as `ship`, but stages EVERYTHING in the tree first (the pre-2026-07-30
+# behaviour). Only correct when you are the only one working in this checkout.
+# With several Claude sessions sharing the directory this commits their
+# half-finished work under your message, so reach for plain `just ship` and
+# stage your own files instead.
+ship-all msg="chore: update":
+    git add -A
+    @just ship "{{msg}}"
+
+# Print the lane map: who owns what while multiple sessions share this checkout.
+# Read this before editing outside your lane, and before staging anything.
+lanes:
+    @node scripts/lanes.js
+
+# Stage exactly the paths you name, show what you staged, and stop. Commit with
+# `just ship "msg"` afterwards. The safe way to prepare a commit in a shared tree.
+mine +paths:
+    git add -- {{paths}}
+    @echo "staged:"
+    @git diff --cached --name-only | sed 's/^/  /'
+    @node scripts/lanes.js --check-staged
+
+# Internal: the message shown when `just ship` finds nothing staged.
+# NOTE: single quotes only. Backticks inside a double-quoted echo are COMMAND
+# SUBSTITUTION, so an earlier version of this help text containing `just ship`
+# actually RAN just ship, recursively, bumping the version five times before it
+# was caught.
+_nothing-staged:
+    @echo ''
+    @echo 'x Nothing staged, so there is nothing to ship.'
+    @echo ''
+    @echo '  just ship commits only what YOU staged. It does not stage the whole'
+    @echo '  tree, because other Claude sessions share this checkout and a blanket'
+    @echo '  add would sweep their in-flight work into your commit.'
+    @echo ''
+    @echo '  Stage your own files, then ship:'
+    @echo '      just mine src/gui/pages/library.rs web/pages/library.html'
+    @echo '      just ship "what you changed and why"'
+    @echo ''
+    @echo '  Truly want everything in the tree? just ship-all "msg"'
+    @echo ''
 
 # Regenerate data/stars.bin (compact binary star catalog, ~1.8 MB) from
 # data/stars.csv (HYG, 34 MB). The native renderer parses the .bin at startup;
@@ -88,14 +141,23 @@ deploy msg="chore: update":
     @echo ""
     @echo "✓ Pushed. CI deploy triggered — watch with: just ci"
 
-# Internal: stage everything, commit, and push (skips if nothing staged).
+# Internal: commit what is ALREADY STAGED, then push (skips if nothing staged).
+#
+# This deliberately does NOT `git add -A`. Several Claude sessions share this one
+# working directory, so a blanket add sweeps every other session's in-flight work
+# into your commit. That happened three times on 2026-07-30: another lane's edits
+# shipped under an unrelated commit message, and one of those sweeps came within a
+# minute of committing a renderer mid-refactor that did not compile. Stage your own
+# files (`git add <paths>`), then ship. Use `just ship-all` if you genuinely want
+# everything in the tree.
 # Pushes to BOTH `origin` (GitHub — visibility, CI, releases API) and `forge`
 # (git.united-humanity.us — sovereignty mirror). Forge push uses `-` so a
 # transient outage on the sovereignty mirror doesn't block a GitHub-driven
 # ship; same for the tag push. Tags trigger the Build Desktop App workflow
 # on GitHub which produces the platform binaries linked from download.html.
 _commit msg:
-    git add -A
+    @if git diff --cached --quiet; then just _nothing-staged; exit 1; fi
+    @node scripts/lanes.js --check-staged
     @printf '%s' "{{msg}}" > .git/COMMIT_HUMANITY_MSG
     git diff --cached --quiet || git commit -F .git/COMMIT_HUMANITY_MSG
     @rm -f .git/COMMIT_HUMANITY_MSG

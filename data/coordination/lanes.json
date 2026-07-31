@@ -1,0 +1,71 @@
+{
+  "_comment": "Lane map for concurrent Claude sessions sharing ONE checkout of this repo (data-driven per docs/design/infinite-of-x.md: add a lane here, not in code). A lane is a DOMAIN of work, not a directory: a single change can legitimately touch src/, web/, docs/ and tests/ within one lane. Read with `just lanes`. This is advisory, it tells you what someone else is probably editing right now so you do not clobber them; the mechanical protection is that `just ship` only commits what you staged. Shared files listed at the bottom are the ones most likely to collide.",
+  "version": 1,
+  "lanes": [
+    {
+      "id": "ui",
+      "label": "UI, UX and docs",
+      "owns": [
+        "src/gui/",
+        "web/",
+        "docs/",
+        "data/library/",
+        "data/onboarding/",
+        "data/external/",
+        "data/gui/",
+        "scripts/build-library.js",
+        "scripts/lanes.js",
+        "tests/page_registry_lint.rs",
+        "tests/page_parity_lint.rs",
+        "tests/settings_persistence_lint.rs",
+        "tests/theme_token_lint.rs",
+        "tests/theme_editor_coverage.rs",
+        "tests/icon_glyph_lint.rs",
+        "tests/emdash_lint.rs"
+      ]
+    },
+    {
+      "id": "engine",
+      "label": "Renderer, terrain and engine",
+      "owns": [
+        "src/renderer/",
+        "src/terrain/",
+        "src/physics/",
+        "src/engine/",
+        "src/ecs/",
+        "src/systems/",
+        "src/ship/",
+        "assets/shaders/",
+        "data/particles.ron",
+        "tests/visual/",
+        "tests/engine_wiring_lint.rs"
+      ]
+    },
+    {
+      "id": "relay",
+      "label": "Relay, networking and storage",
+      "owns": [
+        "src/relay/",
+        "src/net/",
+        "src/mods/",
+        ".github/workflows/deploy.yml",
+        "scripts/pq-wipe.sh"
+      ]
+    }
+  ],
+  "shared": {
+    "_comment": "Touched by every lane, so they are where concurrent edits actually collide. Keep your edit small, re-read the file immediately before editing, and never reformat.",
+    "paths": [
+      "src/lib.rs",
+      "src/gui/mod.rs",
+      "src/config.rs",
+      "Cargo.toml",
+      "Justfile",
+      "CLAUDE.md",
+      "docs/PRIORITIES.md",
+      "data/coordination/lanes.json",
+      "data/coordination/orchestrator_state.json",
+      "data/coordination/agent_registry.ron"
+    ]
+  }
+}

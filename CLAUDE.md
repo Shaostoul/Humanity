@@ -109,6 +109,51 @@ touch the same hot files, run them as back-to-back waves and merge serially, but
 never sit idle to "save budget." "Efficient" now means throughput, not frugality.
 See memory `feedback_usage_budget_pacing.md`.
 
+## Sharing this checkout with other Claude sessions (MANDATORY, 2026-07-30)
+
+The operator commonly runs **two or three Claude sessions at once, all in this one
+working directory**. Not worktrees, not clones: the same files, the same git index.
+Assume at any moment that another session has half-finished edits open in files you
+are not looking at.
+
+**The rule: stage your own files by name, never the whole tree.**
+
+```bash
+just lanes                                   # who owns what (data/coordination/lanes.json)
+just mine src/gui/pages/library.rs docs/PAGES.md   # stage exactly your files
+just ship "what changed and why"             # commits ONLY what you staged
+```
+
+`just ship` no longer runs `git add -A`; it refuses when nothing is staged and tells
+you what to do. `just ship-all` keeps the old sweep behaviour for when you genuinely
+are alone in the checkout. **`git add -A` and `git commit -a` are banned** while
+another session may be active.
+
+Why this is a real rule and not tidiness: on 2026-07-30 a blanket add swept another
+session's work into an unrelated commit three times. The author's commit message (the
+only record of WHY a change was made) was lost each time, and one sweep came within a
+minute of committing a renderer mid-refactor that did not compile, which would have
+put a broken build on main.
+
+Other things that follow from a shared checkout:
+
+- **A red build is often not yours.** Before debugging, check which files the errors
+  point at. If they are outside your lane, another session is mid-edit; do your other
+  work and re-check rather than "fixing" their file. (Borrow-check errors, E05xx, mean
+  type-checking already passed, so your own changes are probably fine.)
+- **Never revert, stash, or `git checkout --` a file outside your lane.** If you must
+  clean up, list exactly what you are restoring first and confirm it is yours.
+- **Version bumps collide.** If `Cargo.toml` is already bumped but uncommitted, that is
+  someone's pending `build-game` stamp: do NOT bump again (see the Version SOP), just
+  commit your source and let their stamp carry the version.
+- **`just clean-worktrees` stays operator-only** (see the START HERE note); it is even
+  more dangerous with several sessions live.
+
+Lane assignments live in `data/coordination/lanes.json` and are advisory: they tell you
+who is probably in a file right now. The mechanical protection is the staged-only
+commit. `just mine` and `just ship` both print a warning when the staged set spans
+three or more lanes, because that is the signature of an accidental sweep.
+
 ## Cross-session persistence (perpetual)
 
 Your memory between sessions is the **disk, not the conversation**. Anything only "internalized" in-context is lost at session end — or sooner, on a crash or context compaction. So **persist durable knowledge to its store the moment it's established, not deferred to session end** (the session may not get a clean end). What goes where:
@@ -159,7 +204,9 @@ AI agents are first-class citizens of HumanityOS. See `docs/ai/onboarding.md` fo
 
 ```
 just brief            # ONE-SHOT ORIENT: version drift + CI + signing + journal ← run first
-just ship "message"   # commit + push + force-sync VPS  ← daily driver
+just lanes            # who owns what (several sessions share this checkout)
+just mine <paths>     # stage ONLY your files                ← do this first
+just ship "message"   # commit what YOU staged + push + sync ← daily driver
 just sync             # force-sync VPS now               ← when CI breaks
 just sync-web         # assets only, no rebuild (fast)   ← front-end changes
 just verify           # native+relay checks + lib tests + 6 lints ← before pushing Rust
