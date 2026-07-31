@@ -837,6 +837,14 @@ pub struct Selection {
     /// (only the first frames after activation, before the 20 pinned roots
     /// finish building). The caller draws the uniform sphere instead then.
     pub fully_covered: bool,
+    /// Built patches the walk DEPENDED ON without drawing them: split parents
+    /// and provably-invisible drops. The LRU must stamp these too (v0.1077,
+    /// operator standstill flicker): a required-but-undrawn patch is invisible
+    /// to both eviction guards, so at a capped cache it ages out on the
+    /// 120-frame LRU line, its whole subtree collapses to one giant leaf, it
+    /// rebuilds, and the cycle repeats every ~6 s. Standing still made it
+    /// WORSE because a frozen draw set leaves only these as eviction victims.
+    pub required: Vec<PatchId>,
     pub stats: SelectStats,
 }
 
@@ -963,6 +971,7 @@ pub fn select_patches_sticky(
     // (id, err) of leaves emitted this frame, before fallback substitution.
     let mut leaves: Vec<(PatchId, f32)> = Vec::new();
     let mut requests: Vec<(PatchId, f32)> = Vec::new();
+    let mut required: Vec<PatchId> = Vec::new();
     let mut prefetches: usize = 0;
 
     // Visibility check shared by roots and children. Returns None when
@@ -1054,6 +1063,10 @@ pub fn select_patches_sticky(
             let hot = node.err_px > 1000.0;
             if vis.is_empty() {
                 if hot { stats.hot_vis_empty += 1; }
+                // This node is BUILT (only built nodes reach the heap) and the
+                // selector depended on its residency to reach this decision,
+                // but it is never drawn: keep the LRU aware of it (v0.1077).
+                required.push(node.id);
                 // The 4 children exactly cover the parent and their bounds
                 // are conservative SUPERSETS of their regions, so if every
                 // child is culled the parent region is provably invisible:
@@ -1107,6 +1120,10 @@ pub fn select_patches_sticky(
                 continue;
             }
             if hot { stats.hot_split += 1; }
+            // Split parents are protected by the drawn-leaf ancestor chains
+            // only while a descendant actually draws; a subtree that fully
+            // drops leaves its parent unprotected. Required covers both.
+            required.push(node.id);
             for k in vis {
                 heap.push(k);
             }
@@ -1213,7 +1230,7 @@ pub fn select_patches_sticky(
         }
     }
 
-    Selection { draws, build_requests, fully_covered, stats }
+    Selection { draws, build_requests, fully_covered, stats, required }
 }
 
 // ── Patch mesh generation ──
@@ -3572,6 +3589,80 @@ mod tests {
         assert!(!none.fully_covered);
         assert!(none.draws.is_empty());
         assert_eq!(none.build_requests[0].depth, 0, "holes build first");
+    }
+
+    /// The standstill-flicker contract (v0.1077, from the operator's field
+    /// report + run.log forensics): the walk depends on built patches it never
+    /// draws (split parents, provably-invisible drops). Those must be reported
+    /// in `Selection::required` so the LRU stamps them, because evicting ONE
+    /// collapses the subtree below it (restricted descent draws the stalled
+    /// parent as a single giant leaf: the operator's log showed draws=12,877
+    /// collapsing to draws=1 on a 6.1 s cycle while parked at 11 m altitude).
+    /// This test documents both halves: required is non-empty at a ground
+    /// camera, and losing one required node really does collapse the cover.
+    #[test]
+    fn required_patches_are_reported_and_losing_one_collapses_the_cover() {
+        let def = earth_like();
+        let params = params_for(&def);
+        // Near-ground camera like the operator's parked session.
+        let cam = DVec3::new(def.radius + 50.0, 0.0, 0.0);
+        let tight = tight_band(&def);
+        let all_built = |_: &PatchId| Some(tight);
+        let sel = select_patches(cam, None, &all_built, &params);
+        assert!(sel.fully_covered);
+        assert!(
+            !sel.required.is_empty(),
+            "a ground camera must produce required-but-undrawn patches \
+             (split parents at minimum); if this is ever empty the LRU \
+             stamping in lib.rs protects nothing"
+        );
+        // None of the required nodes may also be drawn (they would be
+        // double-stamped harmlessly, but the sets are disjoint by design).
+        for r in &sel.required {
+            assert!(
+                !sel.draws.contains(r),
+                "{r:?} is both drawn and required; the walk should report it once"
+            );
+        }
+        // Losing a single required node must collapse the cover, which is
+        // exactly why eviction of one caused the flicker. Pick a mid-depth
+        // one (a root would trivially collapse; mid-depth shows the class).
+        let victim = sel
+            .required
+            .iter()
+            .find(|r| r.depth >= 2)
+            .copied()
+            .unwrap_or(sel.required[0]);
+        // The victim must have DRAWN descendants for the collapse to be
+        // observable (a leaf-budget-saturated count can mask it, so assert
+        // the structure, not the count).
+        let victim = sel
+            .required
+            .iter()
+            .filter(|r| r.depth >= 2)
+            .find(|r| sel.draws.iter().any(|d| r.is_ancestor_of(d)))
+            .copied()
+            .expect("some mid-depth required node has drawn descendants");
+        let without = |id: &PatchId| (*id != victim).then_some(tight);
+        let sel2 = select_patches(cam, None, &without, &params);
+        let descendants_before =
+            sel.draws.iter().filter(|d| victim.is_ancestor_of(d)).count();
+        let descendants_after =
+            sel2.draws.iter().filter(|d| victim.is_ancestor_of(d)).count();
+        assert!(descendants_before > 0);
+        assert_eq!(
+            descendants_after, 0,
+            "with required {victim:?} evicted, nothing below it can draw \
+             (restricted descent stalls at the missing node)"
+        );
+        assert!(
+            sel2.draws
+                .iter()
+                .any(|d| d.is_ancestor_of(&victim) || *d == victim.parent().unwrap()),
+            "an ANCESTOR of the evicted node must take over as one giant \
+             leaf: that leaf covering {descendants_before} former draws IS \
+             the terrain-vanishing flicker the LRU stamp prevents"
+        );
     }
 
     #[test]

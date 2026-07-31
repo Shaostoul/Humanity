@@ -421,3 +421,33 @@ streaks.
 **Class note**: third GPU-pool defect in two days (BUG-050 stride, BUG-051 gate,
 BUG-053 lifecycle). The pattern: state the CPU path managed implicitly (emitter
 lists rebuilt per frame) that the GPU pool must manage explicitly.
+
+## BUG-054: Terrain vanished and reappeared on a ~6 s cycle while standing still (fixed v0.1077.0)
+
+**Found**: 2026-07-31 by the operator; root-caused from his own run.log (78 of 880
+diag ticks collapsed, 20 of them to a single 389-million-px triangle at 11 m).
+
+**Root cause**: patches the selector DEPENDS ON but never draws (split parents,
+provably-invisible drops) were invisible to both LRU eviction guards. At maxed
+terrain sliders the patch cache genuinely reaches its 1536 MiB cap, eviction
+engages, and the oldest entries are exactly these load-bearing never-drawn
+patches; evicting one stalls restricted descent and the subtree collapses to one
+giant leaf until the rebuild, 120 frames later, forever. Standing still made it
+worse BY CONSTRUCTION: a frozen draw set leaves only these as eviction victims.
+
+**Why no rig run ever saw it**: fresh rig configs use the default patch budget
+(3072), where the cache never approaches the cap and eviction never fires. The
+enabling condition only exists at slider max (12288 + split_px 2).
+
+**Fix**: `Selection::required` reports every built node the walk depended on
+without drawing; the LRU stamps draws AND required each frame. Guarded by
+`required_patches_are_reported_and_losing_one_collapses_the_cover` (structural:
+descendants of an evicted required node vanish and an ancestor takes over as one
+leaf). Rig re-run at the operator's exact settings shows healthy ramps and zero
+collapse ticks; the conclusive validation is the next long parked session.
+
+**Still open from the same investigation** (parked in PRIORITIES): the root-cause
+alternative (do not let a provably-invisible child block its parent at all), and
+a real secondary find: the v0.1062 arena rebalance over-corrected, vertex arena
+now binds first (130k "vertex arena full" warnings, 1.2-2.4k classic fallbacks
+per frame vs the commit's claimed 0-374).

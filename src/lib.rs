@@ -8882,7 +8882,11 @@ mod native_app {
                                 // evicting it between selection and draw
                                 // would open a one-frame hole.
                                 let frame = cs.frame;
-                                for id in &selection.draws {
+                                // draws AND required (v0.1077): a patch the
+                                // selector depends on without drawing must not
+                                // age out of the LRU, or its subtree collapses
+                                // (the standstill terrain flicker).
+                                for id in selection.draws.iter().chain(selection.required.iter()) {
                                     if let Some(e) = cs.cache.get_mut(id) {
                                         e.last_used = frame;
                                     }
