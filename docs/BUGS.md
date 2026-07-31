@@ -406,3 +406,18 @@ a per-feature delta. Fixing this unblocks the cleanest perf-measurement path we 
 **Acceptance**: toggle VSync off in Settings > Graphics on a normal boot, and again under
 `HUMANITY_NO_FOCUS=1`; expect 0 PANIC in run.log and a frame rate that rises above the
 refresh interval.
+
+## BUG-053: Disabling rain froze it mid-air instead of clearing (fixed v0.1076.0)
+
+**Found**: 2026-07-31 by the operator ("it just freezes in place like time
+stopped"), GPU particle path. **Root cause**: leaving rain/snow skips the whole
+GPU block, so simulate() stops dispatching, but the pool's live count and vertex
+buffer keep their last state and the draw renders the stale verts every frame.
+**Fix**: deactivate_gpu_particles() (live = 0) runs every frame the path is
+inactive; draw skips at live == 0, the recycling sim re-seeds on reactivation.
+Verified with an in-session rain-to-Clear transition at the rig: zero residual
+streaks.
+
+**Class note**: third GPU-pool defect in two days (BUG-050 stride, BUG-051 gate,
+BUG-053 lifecycle). The pattern: state the CPU path managed implicitly (emitter
+lists rebuilt per frame) that the GPU pool must manage explicitly.
