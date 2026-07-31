@@ -109,6 +109,29 @@ touch the same hot files, run them as back-to-back waves and merge serially, but
 never sit idle to "save budget." "Efficient" now means throughput, not frugality.
 See memory `feedback_usage_budget_pacing.md`.
 
+## Never steal the operator's focus (MANDATORY)
+
+The operator has ONE computer and ONE screen. Every time an agent boots HumanityOS
+and the window takes focus, he is pulled out of whatever he was doing and has to
+click back manually.
+
+**Never launch `HumanityOS.exe` directly.** Use a path that sets `HUMANITY_NO_FOCUS=1`:
+
+```bash
+just probe-sweep --only <vantage>    # verification: sets it automatically
+just launch-bg                       # plain boot, opens behind, no cursor grab
+HUMANITY_NO_FOCUS=1 target/release/HumanityOS.exe    # if you must, by hand
+```
+
+`just play` and `just launch` DO take focus, by design: those are the operator's own
+interactive launches. They are not for agents.
+
+The engine honours the flag in two places, and both are needed (v0.1069): the window
+is created with `with_active(false)` AND created already-visible, because the normal
+path's later `set_visible(true)` goes through `ShowWindow(SW_SHOW)` on Windows, which
+activates the window and defeats `with_active(false)` a few lines after it was set.
+That was a real bug: every probe-rig boot stole focus despite asking not to.
+
 ## Sharing this checkout with other Claude sessions (MANDATORY, 2026-07-30)
 
 The operator commonly runs **two or three Claude sessions at once, all in this one

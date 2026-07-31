@@ -435,6 +435,14 @@ play: build-game
 launch:
     @node scripts/archive-build.js --launch-only
 
+# Launch WITHOUT stealing focus: the window opens behind whatever you are doing
+# and never grabs the cursor. This is the ONLY launch an agent may use, because
+# the operator has one screen and an agent boot must not pull him out of a video
+# or a game. Verification should normally go through `just probe-sweep`, which
+# sets this automatically; use this when you need a plain boot.
+launch-bg:
+    HUMANITY_NO_FOCUS=1 node scripts/archive-build.js --launch-only
+
 # Check game code for errors (fast, no binary)
 check-game:
     cargo check --features native

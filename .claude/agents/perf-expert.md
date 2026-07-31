@@ -25,6 +25,11 @@ just perf-diff .probe-rig/sweeps/<old>/manifest.json   # regression vs a baselin
 node scripts/probe-sweep.js --only <vantage> --exe target/release/HumanityOS.exe
 ```
 
+**NEVER boot `HumanityOS.exe` directly.** These commands set `HUMANITY_NO_FOCUS=1`, so
+the window opens behind whatever the operator is doing and never grabs the cursor. A
+direct boot pulls him out of a video or a game; he has one screen and no second
+monitor. If you truly need a plain boot: `HUMANITY_NO_FOCUS=1 just launch-bg`.
+
 Each vantage in `tests/visual/vantages.json` carries a `perf_floor_fps`. That is the
 contract: below the floor is a bug, above it with a big drop from baseline is a
 regression worth investigating.

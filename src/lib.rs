@@ -883,7 +883,18 @@ mod native_app {
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
                 .with_maximized(true)
                 .with_active(!background)
-                .with_visible(false);
+                // A normal launch creates the window HIDDEN and shows it once the
+                // renderer is ready, so the operator never sees a white flash.
+                //
+                // A background launch must create it VISIBLE-but-inactive instead
+                // (v0.1069). `with_active(false)` alone was not enough: the later
+                // `set_visible(true)` goes through ShowWindow(SW_SHOW) on Windows,
+                // which ACTIVATES the window, so every probe-rig boot stole focus
+                // a few lines after carefully asking not to. The operator has one
+                // screen and was being pulled out of a video on every agent run.
+                // Creating it already-visible and inactive never calls ShowWindow
+                // with activation, so the window appears behind and stays there.
+                .with_visible(background);
 
             let t_boot = std::time::Instant::now();
             let window = Arc::new(
@@ -912,7 +923,12 @@ mod native_app {
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
             boot_timer.since("renderer_init", t_boot);
 
-            window.set_visible(true);
+            // Only the normal launch needs this: a background window was already
+            // created visible+inactive above, and calling set_visible on it would
+            // activate it and steal focus, which is the whole thing we are avoiding.
+            if !background {
+                window.set_visible(true);
+            }
 
             // ── DEFERRED: 3D world init is skipped here, done lazily on first Enter World ──
             // Only set up the data directory path for later use.

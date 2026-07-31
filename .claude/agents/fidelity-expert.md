@@ -36,6 +36,11 @@ bar.
 
 1. **Look at the current output.** Use the probe rig; do not reason from source alone.
    `node scripts/probe-sweep.js --only <vantage> --exe target/release/HumanityOS.exe`
+
+   **NEVER boot `HumanityOS.exe` directly.** The rig sets `HUMANITY_NO_FOCUS=1`, which
+   opens the window behind whatever the operator is doing and never grabs the cursor.
+   A direct boot yanks him out of a video or a game; he has one screen. If you truly
+   need a plain boot, `HUMANITY_NO_FOCUS=1 just launch-bg`.
    `tests/visual/vantages.json` has 21 canonical vantages with an `expect` golden spec
    and a `regressions` list. Read the PNG.
 2. **Compare against real reference.** Photographs, physical measurements, published

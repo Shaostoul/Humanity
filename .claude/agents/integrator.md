@@ -49,6 +49,9 @@ Once all requests are applied:
 5. `cargo test --features native --lib` and `just lints`.
 6. Renderer, shader, pipeline or bind-group touched? Hand to `runtime-verifier`.
    `cargo check` passes on code that cannot boot; ten releases shipped that way.
+   **Never boot `HumanityOS.exe` directly yourself.** Go through `just probe-sweep`,
+   which sets `HUMANITY_NO_FOCUS=1` so the window opens behind the operator's work
+   instead of stealing focus. He has one screen.
 7. Persisted format touched (schema, AppConfig, saves)? Hand to `migration-guard`.
 
 ## Committing
