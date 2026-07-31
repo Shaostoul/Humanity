@@ -132,6 +132,8 @@ click back manually.
 just probe-sweep --only <vantage>    # verification: sets it automatically
 just launch-bg                       # plain boot, opens behind, no cursor grab
 HUMANITY_NO_FOCUS=1 target/release/HumanityOS.exe    # if you must, by hand
+# (v0.1079: a no_focus.txt beside the exe forces background even without the env
+#  var; the rig and target/release carry it, so forgotten env vars are harmless)
 ```
 
 `just play` and `just launch` DO take focus, by design: those are the operator's own
