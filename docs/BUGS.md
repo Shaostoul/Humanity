@@ -451,3 +451,61 @@ alternative (do not let a provably-invisible child block its parent at all), and
 a real secondary find: the v0.1062 arena rebalance over-corrected, vertex arena
 now binds first (130k "vertex arena full" warnings, 1.2-2.4k classic fallbacks
 per frame vs the commit's claimed 0-374).
+
+## BUG-055: Every "quiet" background boot could steal focus when nobody was typing (fixed v0.1081.0)
+
+Agent-booted HumanityOS instances kept yanking the operator out of games/videos
+despite THREE prior countermeasures (env var v0.828, create-visible-inactive
+v0.1069, no_focus.txt marker v0.1079). Verbose foreground tracing on 2026-07-31
+proved the v0.1069 mechanism NEVER worked: a window created VISIBLE is activated
+by the system whenever no foreground input lock is held, i.e. exactly when the
+operator is watching rather than typing. Every earlier "verified quiet"
+measurement had passed only because active typing held the input lock. The trace:
+`background=true` logged correctly, window foreground from sample 0 anyway.
+
+Fix (two layers, `src/engine/launch_focus.rs`):
+1. POLICY INVERSION: focus requires proof of a human launch -- explorer.exe as
+   the parent process (real double-click; toolhelp32 FFI) or HUMANITY_TAKE_FOCUS
+   (set only by `just play` / `just launch`; updater restart scripts propagate).
+   Scripts get background BY DEFAULT; a DEAD parent also means background (only
+   script launchers exit instantly -- the first hostile test caught this fallback
+   pointing the wrong way and stealing).
+2. MECHANISM: all windows now create HIDDEN (hidden windows cannot activate);
+   background instances are shown via raw ShowWindow(SW_SHOWNOACTIVATE) +
+   SetWindowPos(HWND_BOTTOM), which never activates regardless of input-lock
+   state. winit's set_visible(true) always activates on Windows -- never use it
+   for a background window.
+
+Guard: `tests/focus_optin_lint.rs` pins HUMANITY_TAKE_FOCUS to an allowlist so
+no script or agent definition can ever set it. Verified: hostile dead-parent
+boot with the operator's browser foregrounded stayed focus-clean across a
+24-sample trace; probe rig still enters the world and captures.
+
+LESSON for any future focus work: a focus test is only valid when NO input lock
+is held (nobody typing). Test with a detached spawn whose parent exits, sampling
+GetForegroundWindow -- not by watching whether a window "seems" to come up behind.
+
+## BUG-056: Tree canopies shaded as bark -- transmission and flutter dead on 5 of 8 species (fixed v0.1081.0)
+
+Backlit crowns on sakura/momiji/oak/birch/acacia read as black shards (canopy/sky
+luma ratio 0.026 measured; real foliage is ~0.5). Root cause: tree_mesh::blade()
+emitted foliage through PlantMeshBuilder::tri2, which never sets the organ tag,
+so ORGAN_BIT_LEAF (bit 19) stayed clear, `is_leaf` was false in
+90-fragment-main.wgsl, and every leaf took the BARK shading branch. The
+subsurface transmission shipped in v0.1078 and the leaf flutter shipped in
+v0.1080 never executed on any of those species (palm alone used b.leaf()).
+This was also the mechanism behind the operator's "textures look like one big
+chlorophyll sheet with leaf cutouts" report.
+
+Fix: plant_mesh gains pub(crate) set_organ(); blade() tags Organ::Leaf around
+its tri2 calls. After: ratio 0.448, dark fraction 22.8%, independently
+reproduced by an adversarial reviewer with its own PNG classifier.
+
+Guards: tree_mesh unit test asserts procedural species emit leaf-tagged
+geometry (pre-fix count was exactly 0); fuji-forest-ground vantage carries a
+quantified NO-black-backlit-canopy regression with its classifier spelled out.
+
+LESSON: when a "missing feature" is reported (no transmission, no flutter),
+check whether the feature is GATED ON A TAG the geometry never sets before
+building more feature. Two shipped features were dead for 3 releases because
+the gate bit was never written.
