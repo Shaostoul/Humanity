@@ -333,6 +333,16 @@ the commit message. The before number is 93.7 ms +/- 5.8; the expected after is
 roughly the measured zero-classic state, 60-65 ms, but it is a measurement, not
 a promise.
 
+MEASURE FRAME TIME AT `ground-storm-inslab`, NOT at `fuji-forest-ground`
+(added v0.1081). Four runs of a byte-identical `fuji-forest-ground` config
+returned 39.7 and 85.3 ms and failed to capture in 2 of 4, because the walking
+player settled on different ground each time (alt 1240-1424 m); it now carries
+`hold_altitude`, but its reproducible-enough twin is `ground-storm-inslab` at
+50.7 ms +/- 1.8 (n=3), and that is the number an A/B is judged against. Also
+note every rig frame time is quantized to the refresh interval - the config
+runs `vsync: true`, and setting it false currently panics at boot in
+`Surface::configure` - so read a change of less than one 16.7 ms step as noise.
+
 Plus the new `fuji-forest-hillside` vantage (earth, lat 35.3, lon 138.8,
 altitude_km 0.15, look_offset_deg 72), added in this brief's commit. There were
 25 vantages, exactly one forest one, and both forest cameras sat at 30 m INSIDE
@@ -407,14 +417,29 @@ Each of these is real work that someone will be tempted to fold in. Do not.
   because grass is 0.147 untextured tufts per square metre. It is the reserved
   instancing increment 1 and needs no atlas bake, which is exactly why it is
   independent of this work.
-- **The black-canopy ambient fix.** `90-fragment-main.wgsl:1457` is
-  `albedo * vec3(0.005, 0.005, 0.006)`, a 0.5% grey, and the type-20 leaf
-  transmission is gated off past 12 m by the `smoothstep(2.5, 12.0, plant_dist)`
-  at `:1163`, so a leaf edge-on to both the sun and the single fill light goes
-  to pure black at local noon. This is the next-highest QUALITY item after this
-  increment. It still gets its own wave, because a two-colour hemispheric
-  ambient plus a sky-view LUT tap is a change to the shared BRDF region of the
-  shader tail, which is the merge hazard CLAUDE.md calls out, and because it must
-  be judged on its own before/after rather than tangled with a silhouette change.
+- **The black canopy. FIXED v0.1081, and the cause was NOT ambient.** This
+  bullet used to name `90-fragment-main.wgsl`'s `albedo * vec3(0.005, 0.005,
+  0.006)` ambient plus the 12 m detail gate as the reason a backlit crown went
+  black, and defer a hemispheric-ambient rewrite of the shared BRDF. That
+  diagnosis was wrong at the root, so do not re-defer that rewrite on its
+  strength. The real mechanism was an ORGAN TAG that was never set:
+  `tree_mesh::blade()` emitted foliage through `PlantMeshBuilder::tri2`, and
+  `tri2` bakes whatever `self.organ` currently is - always `Organ::Stem`,
+  because only `plant_mesh::leaf`/`petal` ever assigned `Organ::Leaf` and
+  `blade()` called neither. Bit 19 was therefore clear on every foliage face of
+  sakura, momiji, oak, birch and acacia (76% of the stand at Fuji, effectively
+  100% in a shipped build with no `assets/models/`), `is_leaf` evaluated false,
+  and the canopy was shaded by the BARK branch - stretched voronoi fissures,
+  0.42x crevice darkening, roughness 0.78-0.96, and no transmission term at all.
+  Palm was the only species that ever looked right, because its fronds go
+  through `b.leaf()`. Measured before: canopy median luma 8.4 against sky 133.8,
+  a ratio of 0.063, with 53.9% of canopy pixels under luma 16. The fix is
+  `PlantMeshBuilder::set_organ` plus three lines in `blade()`, and hoisting the
+  two transmission terms out of the `detail > 0.001` gate so transmittance
+  (a material property) runs to the 120 m model cutoff while venation, mottle,
+  pucker, wax and `micro` stay distance-faded. Gated by the new "NO black
+  backlit canopy" regression on `fuji-forest-ground`. A hemispheric ambient is
+  still a legitimate future want, but it is now an ordinary quality item, not
+  the lever for this defect.
 - **Wind.** Separate file, separate task, no conflict. See
   `docs/design/foliage-wind-from-weather.md`.

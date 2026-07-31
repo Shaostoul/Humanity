@@ -1232,30 +1232,9 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // most of why the current plants look papery. Wax is smoother
             // between the veins and scuffed along them.
             roughness = mix(0.9, mix(0.30, 0.55, vein), detail);
-
-            // Subsurface transmission (the cheap Frostbite/DICE form): light
-            // that came THROUGH the blade. A backlit leaf glowing green is the
-            // single strongest cue that vegetation is alive rather than
-            // plastic. Rides on proc_emissive so the shared BRDF below is
-            // untouched. KNOWN SIMPLIFICATION: not shadowed, so a leaf in
-            // deep shade still transmits a little; the term is small enough
-            // that it reads as ambient bounce rather than a bug.
-            let sun_l = normalize(camera.sun_direction.xyz);
-            let lt = normalize(-sun_l + normal * 0.4);
-            // Exponent 1.6, not 3: a tight lobe only glows when you line the
-            // sun up exactly behind a leaf, which left a backlit canopy reading
-            // as black silhouettes (first Fuji capture). Real foliage is thin
-            // enough that it stays luminous across a wide arc.
-            let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
-            // Plus a floor that depends only on how backlit the leaf is, so a
-            // blade whose lambert term is ~0 still carries colour instead of
-            // going to black. This is the cheap stand-in for wrap diffuse,
-            // which would mean touching the shared BRDF.
-            let backlit = max(-dot(normal, sun_l), 0.0);
-            proc_emissive = proc_emissive
-                + albedo * camera.sun_color.rgb
-                    * (trans * 1.05 + backlit * 0.35)
-                    * (0.35 + 0.65 * detail);
+            // (Subsurface transmission used to live here, scaled by `detail`.
+            //  It is a MATERIAL property, not a detail term, so it moved out of
+            //  this gate - see the block after this if/else chain, v0.1081.)
         } else if (!is_leaf && !is_fruit && detail > 0.001) {
             // ── BARK (v0.1067) ──
             // Stems previously got NO treatment: one flat colour per face, on a
@@ -1321,6 +1300,41 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 normal = normalize(normal + (t1 * px + t2 * py) * 0.30 * micro);
             }
             roughness = mix(0.9, 0.24, detail);
+        }
+
+        // ── SUBSURFACE TRANSMISSION, UNGATED BY DISTANCE (v0.1081) ──
+        // Light that came THROUGH the blade. A backlit leaf glowing green is
+        // the single strongest cue that vegetation is alive rather than
+        // plastic. Rides on proc_emissive, so the shared BRDF below is
+        // untouched.
+        //
+        // This used to sit INSIDE the `is_leaf && detail > 0.001` block and was
+        // additionally scaled by (0.35 + 0.65 * detail), so it faded out by
+        // 12 m - while the near-tree models run to the 120 m
+        // tree_model_distance and a ground-level frame is mostly stand at
+        // 2-40 m. Leaf transmittance is a MATERIAL property (a broadleaf passes
+        // 5-12% of visible light); it does not fall off with viewing distance,
+        // and the fade was a large part of why the Fuji canopy measured at 6%
+        // of sky luminance where a real backlit crown holds 10-50%. Venation,
+        // mottle, pucker, wax and `micro` stay gated - those ARE detail.
+        if (is_leaf) {
+            let sun_l = normalize(camera.sun_direction.xyz);
+            let lt = normalize(-sun_l + normal * 0.4);
+            // Exponent 1.6, not 3: a tight lobe only glows when you line the
+            // sun up exactly behind a leaf, which left a backlit canopy reading
+            // as black silhouettes (first Fuji capture). Real foliage is thin
+            // enough that it stays luminous across a wide arc.
+            let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
+            // Plus a floor that depends only on how backlit the leaf is, so a
+            // blade whose lambert term is ~0 still carries colour instead of
+            // going to black. This is the cheap stand-in for wrap diffuse,
+            // which would mean touching the shared BRDF.
+            // KNOWN SIMPLIFICATION: not shadowed, so a leaf in deep shade still
+            // transmits a little; the term is small enough that it reads as
+            // ambient bounce rather than a bug.
+            let backlit = max(-dot(normal, sun_l), 0.0);
+            proc_emissive = proc_emissive
+                + albedo * camera.sun_color.rgb * (trans * 1.05 + backlit * 0.35);
         }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
