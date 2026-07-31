@@ -37,6 +37,20 @@
 >    distance). REMAINING rungs: batch water shells through the patch
 >    arena (still classic per-object, ~640 draws worst case); measure
 >    the 4-layer transparent overdraw (backstop+shell+atmo+clouds).
+>    RE-AIMED 2026-07-31 by the clouds domain pass: the CLOUDS quarter is
+>    now measured and it is not the problem. Feature-off A/B on the probe
+>    rig (RTX 4070, 3 captures per arm, >=15 s settle): WATER costs 7.8 ms
+>    at land-sandstorm (31% of the frame, on a DESERT vantage) and 6.6 ms
+>    at ground-storm-inslab, while clouds cost nil at 3 of 4 vantages
+>    (only limb-400km shows +4.0 ms). Sun shadows are 2.8 ms at
+>    ground-storm-inslab. So the remaining transparent-overdraw work
+>    belongs to THIS water arc, which is already the top item. Two rig
+>    caveats for whoever measures next: blue-marble-12000km is
+>    present-capped at exactly 16.1 ms and can never show a delta, and an
+>    8 s settle leaves streaming spikes inside the 120-frame ring (repeats
+>    of one config disagreed by up to 15 ms). Resolving per-LAYER cost
+>    properly needs wgpu timestamp queries around each transparent draw,
+>    not frame-average differencing.
 >    Original report: 16-18 FPS in ocean-heavy views vs 30-40 over land - profile
 >    the water pass at budget defaults (operator suspects water is a top
 >    perf hit; the checkerboard artifacts suggest overdraw or per-patch
@@ -183,7 +197,74 @@
 > froxels + wind FIELD, rivers. (cloud coverage_boost/tint consumption
 > SHIPPED v0.1037.1 per docs/history/2026-07-28.md, stale marker caught
 > by the 2026-07-31 clouds domain-pass historian gate. Cloud tonal-range
-> fidelity pass SHIPPED v0.1069.0, same workflow.)
+> fidelity pass shipped v0.1069.0 and was REVERTED v0.1070.0 as BUG-049;
+> it re-lands as rung 1 of the CLOUDS RUNGS block below.)
+
+> **>>> CLOUDS RUNGS (2026-07-31 clouds domain pass; strict order, ONE
+> commit each, each measured at the probe rig before the next starts).**
+> RUNG 0 SHIPPED (v0.1074, this pass): the High-path slab-bounds dead
+> write. `cloud_layer_volumetric` never consumed `material.params.w`, so
+> below ~400 km altitude the deck marched at 76-128 km instead of its
+> designed 25.5-76.5 km - above the visible atmosphere, three times its
+> intended distance, at every ground and low-flight view. Fixed by
+> `cloud_set_slab_bounds()` at the top of the High path only; the Medium
+> path was deliberately NOT touched (Medium consuming params.w for the
+> first time is exactly what caused BUG-049, and Medium has ZERO probe-rig
+> coverage - no vantage selects it and probe-sweep never sets a cloud
+> quality, so every sweep runs the "high" default from src/config.rs).
+> The gate vantage `ground-storm-inslab` was repaired in the same commit:
+> its global clock 12.0 at lon 138.8 was local ~21:00, so the permanent
+> BUG-049 daylight gate had been silently judging cloud lighting in the
+> dark since v0.1070.
+> 1. WRENNINGE TONAL LADDER (the reverted v0.1069 Step B, on its own).
+>    Reason: cloud undersides render white instead of grey because the
+>    multiple-scattering third octave is a constant pedestal, flattening a
+>    ~100:1 light-march range into ~1.3:1 of lit energy. MUST be
+>    re-measured AGAINST THE MOVED DECK - the "19 -> 38 tonal spread"
+>    number was measured on the misplaced 76-128 km slab, so it is not a
+>    valid baseline any more, and the physical target at this exposure is
+>    ~107.
+> 2. AERIAL PERSPECTIVE ON THE DECK. Reason: the deck is the only surface
+>    in the renderer that never gets it - `aerial_apply` already exists at
+>    `assets/shaders/pbr/90-fragment-main.wgsl:11` with its uniforms live
+>    in the celestial pass, and clouds are the third surface found
+>    skipping it (the water shell was the last one, v0.1053). Measured
+>    backwards today: clouds at the horizon are BRIGHTER than clouds
+>    overhead. Includes retiring `cloud_low_cam_haze`'s alpha kill.
+> 3. CLOUD GROUND SHADOWS. Reason: the shadow is sampled at the fragment's
+>    own planet direction (so it never displaces with sun angle), uses the
+>    uncarved weather blob instead of the cloud silhouette, and is capped
+>    at 35% of albedo where a cumulus removes ~95% of the direct beam.
+>    Gets MORE visible now that rung 0 removed the view parallax that was
+>    faking the offset.
+> 4. TWO-RATE MARCH. Reason: the visible optically-thick skin gets 2-3
+>    view samples for a 0.5-1.8 km puff band, i.e. below Nyquist, so close
+>    range reads as airbrushed cotton; coarse-then-fine stepping gives the
+>    skin 8-12x resolution at roughly unchanged average cost.
+> 5. PERF's FOUR SHADER EARLY-OUTS (cloud_weather octave skips, the
+>    unreachable clear-sky gate, the cloud_carve pre-fetch threshold, the
+>    low-camera haze bail). Reason: -2.2 ms measured at limb-400km with an
+>    unchanged image - but RE-MEASURE AFTER THE DECK MOVES: that number
+>    was taken on the pre-fix image, and PERF finding 1 rewrites
+>    `cloud_weather`, which collides head-on with the ground-shadow rework
+>    in rung 3. Land rung 3 first or plan the merge.
+> The froxel arc stays RESERVED where it is (the HYPER-REALISM ROADMAP
+> block below) - it is the vehicle for a troposphere-scale 0-14 km slab
+> with 2-8 km cells, not a rung.
+
+> **>>> BUG-052: Settings VSync OFF panics the app at boot (OPEN, found
+> 2026-07-31, NOT a clouds bug).** With `vsync: false` the boot-frame
+> settings-apply calls `Renderer::set_vsync` (`src/renderer/mod.rs:1305`),
+> `surface.configure` fires while a swapchain image looks to still be
+> acquired, and the app panics with "Invalid surface" during world entry.
+> Reproduced deterministically twice on v0.1073.1. Two reasons it ranks:
+> it is shipped and user-facing (anyone who turns VSync off), and it
+> blocks the cleanest perf-measurement path we have - with vsync off,
+> frame_ms stops being bounded by the refresh interval (which is why
+> blue-marble-12000km reads exactly 16.1 ms in every configuration and
+> must never be used for a perf claim). Full writeup + acceptance:
+> docs/BUGS.md BUG-052. Likely fix shape: defer the reconfigure to the top
+> of the next frame, before the surface texture is acquired.
 > MODEL TIERING (operator 2026-07-28): docs/ai/model-tiering.md is the
 > plan for spending the never-touched Opus/Sonnet 50% of the sub -
 > Sonnet-ready data packages (full dictionary via Wiktionary/WordNet,

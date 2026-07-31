@@ -160,12 +160,53 @@ const CLOUD_RT: f32 = CLOUD_TOP_SCALE / CLOUD_SHELL_SCALE;
 // fragments cover the whole sky (a camera above the mid-slab shell used
 // to lose the upper half of its view: the operator's "clouds kind of
 // disappear" at cloud level). The slab bounds in drawn-shell units
-// therefore come from the planet/drawn radius ratio the engine passes
-// in the material's emissive slot; these globals are set at the top of
-// cloud_layer_volumetric and read everywhere CLOUD_RB/RT used to be.
-// Zero ratio (stale material) falls back to the legacy constants.
+// therefore come from the planet/drawn radius ratio the engine passes in
+// the material's emissive slot (material.params.w = planet_r / drawn_r).
+// Zero ratio (a stale material) falls back to the legacy constants.
+//
+// WHO ACTUALLY SETS THEM (corrected 2026-07-31; the comment here used to
+// claim "set at the top of cloud_layer_volumetric", which was false and is
+// how a dead write survived from v0.1025 to v0.1073):
+//   High   (cloud_layer_volumetric) - CALLS cloud_set_slab_bounds() as its
+//          first statement after the face discard. It is the only writer,
+//          and the reader of everything below.
+//   Medium (cloud_layer_march)      - does NOT call it. It still derives
+//          local bounds from the CLOUD_*_SCALE constants and ignores
+//          params.w. Deliberate: Medium has ZERO probe-rig coverage (no
+//          vantage in tests/visual/vantages.json selects it, and
+//          scripts/probe-sweep.js never sets a cloud quality, so every
+//          sweep runs High per the src/config.rs "high" default), and
+//          Medium consuming params.w for the first time is exactly what
+//          caused BUG-049. It gets its own bounds only once it has its own
+//          storm + in-slab vantage.
+//   Low    (cloud_layer_flat)       - never reads them at all. It used to
+//          hold the ONLY assignment, which was unobservable: `var<private>`
+//          is per-invocation storage and cloud_layer dispatches to exactly
+//          ONE path per invocation, so the Low path's write could never
+//          reach the High path's read.
+//
+// WHAT THE DEAD WRITE COST: High fell back to the static CLOUD_RB/RT
+// (0.996032 / 1.003968), but src/lib.rs raises the DRAWN shell to
+// CLOUD_TOP_SCALE + 0.004 = 1.016 R whenever the camera is inside
+// ~1.05 * CLOUD_TOP_SCALE (altitude below ~399 km), so the marched slab
+// landed at 0.996032*1.016 .. 1.003968*1.016 = 1.01197..1.02003 R, i.e.
+// 76.3-127.6 km altitude on Earth instead of the intended 25.5-76.5 km -
+// one full slab thickness too high, above the visible atmosphere, at every
+// camera altitude below ~400 km. Above ~400 km the ratio is
+// 1/CLOUD_SHELL_SCALE and the constants coincidentally agree, which is
+// exactly why the orbital blue marble looked right and every ground and
+// low-flight view did not.
 var<private> g_cloud_rb: f32 = CLOUD_RB;
 var<private> g_cloud_rt: f32 = CLOUD_RT;
+// Per-invocation slab bounds from the material's drawn-radius ratio. MUST
+// be called before ANY g_cloud_rb / g_cloud_rt read.
+fn cloud_set_slab_bounds() {
+    let inv_drawn = material.params.w;
+    if (inv_drawn > 0.001) {
+        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
+        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
+    }
+}
 // View-march samples through the slab. Exponentially spaced (dense near
 // the entry point -- see CLOUD_HI_STEP_EXP) so the puffy foreground gets
 // the detail budget and the far limb blurs gracefully.
@@ -533,12 +574,10 @@ fn cloud_layer_flat(world_position: vec3<f32>, front_facing: bool) -> vec4<f32> 
     // so column 0's length IS the shell radius and column 3 the center.
     let center = obj_model()[3].xyz;
     let shell_r = length(obj_model()[0].xyz);
-    // Dynamic slab bounds (see the g_cloud_rb declaration).
-    let inv_drawn = material.params.w;
-    if (inv_drawn > 0.001) {
-        g_cloud_rb = CLOUD_BASE_SCALE * inv_drawn;
-        g_cloud_rt = CLOUD_TOP_SCALE * inv_drawn;
-    }
+    // No slab bounds here: the Low path paints ONE field sample at the
+    // fragment, so it has no altitude bounds to set and never reads
+    // g_cloud_rb/rt. (It used to write them - the dead write described in
+    // the g_cloud_rb declaration comment, removed 2026-07-31.)
 
     // Exactly ONE shell layer (same rule as the atmosphere): the transparent
     // pipeline draws both faces (cull off, shared with glass). Keep front
@@ -1245,6 +1284,12 @@ fn cloud_layer_volumetric(world_position: vec3<f32>, front_facing: bool) -> vec4
     if (front_facing == cam_inside) {
         discard;
     }
+    // Dynamic slab bounds BEFORE the slab intersection below and before any
+    // cloud_carve / height read. This is the ONLY writer of g_cloud_rb/rt:
+    // the assignment used to sit in cloud_layer_flat, where nothing could
+    // ever observe it, so this path marched one whole slab thickness too
+    // high (76-128 km instead of 25.5-76.5 km) below ~400 km altitude.
+    cloud_set_slab_bounds();
 
     let inv_model = transpose(obj_normal_matrix());
     let ro = (inv_model * vec4<f32>(camera.view_pos.xyz, 1.0)).xyz;

@@ -1,6 +1,7 @@
 {
  "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
  "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
+ "_clock_note": "READ THIS BEFORE PICKING A `time`. The showcase `time` field is a GLOBAL clock, not the local solar hour at the vantage (src/engine/ipc.rs:200-205 feeds it straight into the world clock). The local solar hour is roughly `time + lon/15`. So time 12.0 is local noon only near lon 0; at lon 138.8 (the Fuji vantages) time 12.0 is about 21:15 LOCAL and the frame comes back as a night scene. Pick `time = desired_local_hour - lon/15`, wrapped into 0..24. This trap cost `ground-storm-inslab` its whole purpose from v0.1070 to v0.1073: it was installed as the permanent BUG-049 daylight gate and was silently rendering at night, so every cloud LIGHTING change was being judged in the dark.",
  "vantages": [
   {
    "id": "sahara-noon-ground",
@@ -64,7 +65,7 @@
     "look_offset_deg": 85
    },
    "settle_s": 8,
-   "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet.",
+   "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet. SKY: the deck overhead is a few LARGE masses with a defined base that dissolves into the horizon haze band, not a distant field of small uniform puffs (reworded v0.1074, when the High path started marching the slab at its designed 25.5-76.5 km instead of 76-128 km). NOTE: this vantage pins `sea` but NOT `weather`, so the live condition drifts - it captured as Clear at v0.1074. Judge the SEA STATE here, which `sea` does pin; use ground-storm-inslab for storm lighting.",
    "regressions": [
     "no full-white ocean (v0.906 whiteout)",
     "foam on crests only, not flat areas",
@@ -76,10 +77,11 @@
   {
    "id": "ocean-high-eye",
    "desc": "Open ocean from a 30 m eye - the water-shell COVERAGE case.",
-   "expect": "Wave field carries to the horizon. NO flat pale plates: those are the coarse backstop shell showing through where the wave shell ran out of leaves. A high eye sees far more sea than a 3 m eye, so this is where the water leaf budget is actually tested (v0.1048: the operator hit it at 13 m with terrain_split_px = 2).",
+   "expect": "Wave field carries to the horizon. NO flat pale plates: those are the coarse backstop shell showing through where the wave shell ran out of leaves. A high eye sees far more sea than a 3 m eye, so this is where the water leaf budget is actually tested (v0.1048: the operator hit it at 13 m with terrain_split_px = 2). SKY: the cloud deck reads as a few LARGE near masses with a defined, continuous base, subtending tens of degrees. (Reworded v0.1074: the old text was written against a deck the High path was marching at 76-128 km, three times its designed distance, where it read as a remote field of small same-sized puffs under a scalloped edge. The slab now marches at 25.5-76.5 km, so the same weather draws far fewer, far bigger elements.)",
    "regressions": [
     "water-shell coverage / backstop show-through",
-    "cross-LOD seams at distance"
+    "cross-LOD seams at distance",
+    "no remote painted ceiling of many small same-sized puffs - if the deck's elements are small and uniform again, cloud_layer_volumetric has stopped consuming material.params.w and is marching a slab thickness too high (the v0.1025-v0.1073 dead write, fixed v0.1074)"
    ],
    "camera": {
     "body": "earth",
@@ -136,9 +138,31 @@
    "expect": "The curved planet surface below a THIN bright blue atmosphere limb that fades smoothly into a black star-filled sky. Stars visible right down to the edge of the atmosphere band.",
    "regressions": [
     "NO hard-edged opaque black shell/ring around the planet (v0.925 orbital occlusion bug)",
-    "the limb fades to stars, it does not cut off"
+    "the limb fades to stars, it does not cut off",
+    "no straight white cloud slivers hovering ABOVE the atmosphere limb against black sky, and no deck jump between a 390 km and a 420 km capture (the drawn-shell ratio flips at ~399 km; before the v0.1074 slab fix the High path ignored that ratio, so the deck sat at 76-128 km below the flip and snapped back into the atmosphere above it)"
    ],
    "perf_floor_fps": 25
+  },
+  {
+   "id": "fly-through-40km",
+   "desc": "Level flight at 40 km looking at the horizon - the camera is INSIDE the cloud slab. The altitude that proves the deck is where the constants say it is; it was the ladder step that exposed the v0.1025-v0.1073 dead write.",
+   "expect": "At 40 km the camera is INSIDE the cloud layer: cloud masses pass at eye level and below, with the blue atmosphere limb and the ocean visible past them. No cloud sits above the black-sky boundary.",
+   "regressions": [
+    "NO cloud ceiling hanging above the camera at 40 km with the atmosphere limb, stars and ocean all BELOW it (v0.1025-v0.1073 dead-write: cloud_layer_volumetric never consumed material.params.w, so the slab marched at 76-128 km instead of 25.5-76.5 km at every altitude under ~400 km)",
+    "no flat white sheet with a straight horizontal top edge (the drawn-shell crossing artifact, visible at 110 km before the fix)"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 40,
+    "look_offset_deg": 90
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "settle_s": 10
   },
   {
    "id": "blue-marble-12000km",
@@ -345,7 +369,7 @@
   {
    "id": "ocean-storm-horizon",
    "desc": "Storm sea from a LOW eye, aimed flat at the horizon - do tall crests occlude the sky?",
-   "expect": "Near wave crests break the horizon line and stand against the sky. A ruler-straight horizon over a 10 m sea means the atmosphere shell is compositing over the crests (fixed v0.1053).",
+   "expect": "Near wave crests break the horizon line and stand against the sky. A ruler-straight horizon over a 10 m sea means the atmosphere shell is compositing over the crests (fixed v0.1053). SKY: the deck is a single large near mass with a defined base sitting well above the horizon line, not a thin remote band riding it (reworded v0.1074 with the slab at its designed 25.5-76.5 km). NOTE: this vantage pins `sea` but NOT `weather` - it captured as Fog at v0.1074, which greys the whole frame and makes the crest judgement impossible. If the capture comes back fogged, re-shoot; the crest test needs clear air.",
    "regressions": [
     "sky shell drawn over near wave crests"
    ],
@@ -449,12 +473,14 @@
   },
   {
    "id": "ground-storm-inslab",
-   "desc": "Ground under an active storm at noon, camera inside/under the low deck. The weather + in-slab + Medium-quality combination clear-sky vantages never exercise.",
-   "expect": "A dark stormy sky with a low ragged deck overhead, rain-dimmed light, terrain and horizon clearly readable. The scene stays recognizable as weather, not abstract shapes.",
+   "desc": "Ground under an active storm at LOCAL noon, camera inside/under the low deck. The weather + in-slab combination clear-sky vantages never exercise. Runs on the HIGH cloud tier: scripts/probe-sweep.js never sets a cloud quality and src/config.rs:739 defaults to \"high\", so this vantage exercises High, NOT Medium. MEDIUM HAS ZERO RIG COVERAGE - no vantage anywhere in this file selects it - which is why any change to the Medium path is unverifiable here and must not be made without adding its own storm + in-slab coverage first.",
+   "expect": "A dark stormy sky with a low ragged deck overhead at LOCAL NOON. Rain-dimmed but clearly DAYLIT: terrain and horizon readable, ground colours identifiable. The scene stays recognizable as weather, not abstract shapes. (showcase `time` is a GLOBAL clock; local solar hour = time + lon/15, so lon 138.8 needs time 2.9 for local noon - see _clock_note.)",
    "regressions": [
     "NO screen-filling concentric rings or banded shells (v0.1069.0 clouds slab-bounds regression: storm lowered the deck, in-slab camera flipped shell_ratio, Medium path consumed params.w bounds for the first time and the march ran on collapsed bounds; caught live by the operator, reverted v0.1070.0)",
     "no giant lattice/mesh silhouette filling the view",
-    "no inverted sky (stars below the horizon at ground level)"
+    "no inverted sky (stars below the horizon at ground level)",
+    "NO stars or Milky Way visible through the sky at any hour - an overcast storm deck is optically opaque (observed at v0.1073)",
+    "whole-frame mean luminance must be above 60 (22.0 at v0.1073, because global clock 12.0 at lon 138.8 was local ~21:00 and this gate was silently a NIGHT scene)"
    ],
    "camera": {
     "body": "earth",
@@ -464,10 +490,10 @@
     "look_offset_deg": 80
    },
    "showcase": {
-    "time": "12.0",
+    "time": "2.9",
     "weather": "storm"
    },
-   "settle_s": 12
+   "settle_s": 15
   },
   {
    "id": "ground-snow-gpu",

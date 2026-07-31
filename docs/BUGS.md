@@ -307,7 +307,9 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 
 ## Open Bugs
 
-None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues
+- **BUG-052** (bottom of this file): Settings VSync OFF panics the app at boot.
+
+Report bugs at https://github.com/Shaostoul/Humanity/issues
 
 ## BUG-049: Storm weather rendered as screen-filling rings/lattice (v0.1069.0-v0.1069.1)
 
@@ -369,3 +371,38 @@ kill legitimate snowfall. Both captured clean on v0.1073.0.
 **Lesson**: unwrap_or on an Option encodes a default-state ASSUMPTION. For gates,
 absence of data must fail SAFE (here: not-near-surface), never default to the
 permissive branch.
+
+## BUG-052: Settings VSync OFF panics the app at boot (OPEN, v0.1073.1)
+
+**Found**: 2026-07-31, by the clouds domain pass's perf agent while trying to lift the
+present-pacing cap off frame-time measurement. Reproduced DETERMINISTICALLY twice on
+v0.1073.1. NOT operator-reported yet, and NOT a clouds bug - filed separately because it
+is shipped and user-facing (any user who turns VSync off in Settings > Graphics).
+
+**Symptom**: with `vsync: false` in config.json the app dies during world entry. Every
+subsequent IPC request times out. Log sequence:
+
+```
+ERROR wgpu_hal::dx12  ResizeBuffers failed: The application made a call that is invalid... (0x887A0001)
+ERROR wgpu_core::device::global  surface configuration failed: window is in use
+PANIC ... In Surface::configure / Invalid surface
+```
+
+**Mechanism (unconfirmed, this is the reading of the log, not a diagnosed fix)**: the
+boot-frame settings-apply calls `Renderer::set_vsync` (`src/renderer/mod.rs:1305`); the
+requested present mode differs from the current one, so `surface.configure` runs - and it
+appears to run while a swapchain image is still acquired. With `vsync: true` the mode
+matches, no reconfigure happens, and the same rig boots and runs normally. A second,
+NON-fatal instance of the same "window is in use" configure shows up occasionally at boot
+even with vsync on, which is what suggests a race rather than something specific to the
+present mode. Likely shape of the fix: defer the reconfigure to the top of the next
+frame, before the surface texture is acquired.
+
+**Why it also matters to engineering**: with vsync off, `frame_ms` becomes a continuous
+measurement instead of one bounded by the refresh interval. `blue-marble-12000km` reads
+exactly 16.1 ms in every configuration because it is present-capped, so it can never show
+a per-feature delta. Fixing this unblocks the cleanest perf-measurement path we have.
+
+**Acceptance**: toggle VSync off in Settings > Graphics on a normal boot, and again under
+`HUMANITY_NO_FOCUS=1`; expect 0 PANIC in run.log and a frame rate that rises above the
+refresh interval.
