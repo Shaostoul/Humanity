@@ -7,7 +7,10 @@
     "building": "Crafting & Building",
     "gaming": "Gaming & Engine",
     "crypto": "Crypto & Identity",
-    "cosmology": "Cosmology"
+    "cosmology": "Cosmology",
+    "platform": "Platform & Network",
+    "governance": "Governance & Accord",
+    "homestead": "Homesteading & Self-Reliance"
   },
   "terms": {
     "orbit": {
@@ -1123,7 +1126,7 @@
     "hubble_constant": {
       "term": "Hubble Constant (H₀)",
       "category": "cosmology",
-      "definition": "The current expansion rate of the universe, about 70 km/s per megaparsec. A galaxy 1 Mpc away recedes from us at about 70 km/s; one 10 Mpc away recedes at about 700 km/s. The exact value (67–74 depending on measurement method) is one of cosmology’s ongoing puzzles.",
+      "definition": "The current expansion rate of the universe, about 70 km/s per megaparsec. A galaxy 1 Mpc away recedes from us at about 70 km/s; one 10 Mpc away recedes at about 700 km/s. The exact value (67 to 74 depending on measurement method) is one of cosmology’s ongoing puzzles.",
       "link": "https://en.wikipedia.org/wiki/Hubble%27s_law"
     },
     "local_group": {
@@ -1204,6 +1207,922 @@
       "term": "Lamports",
       "category": "crypto",
       "definition": "The smallest unit of SOL. 1 SOL = 1 billion lamports. Like how 1 dollar = 100 cents, but much smaller."
+    },
+    "relay": {
+      "term": "Relay",
+      "category": "platform",
+      "definition": "The server software HumanityOS talks to for chat, the market, tasks, files, and voice. Anyone can run one, you can be connected to several at once, and the Relay Control page manages any where you are an admin."
+    },
+    "federation": {
+      "term": "Federation",
+      "category": "platform",
+      "definition": "An arrangement where separate servers pass messages and profiles to each other, so people on different servers can still talk. In HumanityOS it is switched on per channel, and an admin can add or drop a partner server at any time.",
+      "link": "https://en.wikipedia.org/wiki/Federation_(information_technology)"
+    },
+    "defederate": {
+      "term": "Defederate",
+      "category": "platform",
+      "definition": "To stop federating with another server, so yours no longer exchanges messages or profiles with it. It is how an admin cuts off a server whose behavior they do not want to carry."
+    },
+    "peer_to_peer": {
+      "term": "Peer-to-Peer (P2P)",
+      "category": "platform",
+      "definition": "Devices talking straight to each other instead of through a central server. HumanityOS uses it for voice calls and private groups, and falls back to a relay when a direct connection cannot be made.",
+      "link": "https://en.wikipedia.org/wiki/Peer-to-peer"
+    },
+    "dm": {
+      "term": "DM (Direct Message)",
+      "category": "platform",
+      "definition": "A private one-to-one conversation, as opposed to a public channel. HumanityOS encrypts DMs on your device, so the server stores only unreadable text."
+    },
+    "channel": {
+      "term": "Channel",
+      "category": "platform",
+      "definition": "A named room in chat where a group of people talk, such as #welcome. Channels belong to one server, and an admin can make one read-only or private."
+    },
+    "guild": {
+      "term": "Guild",
+      "category": "platform",
+      "definition": "A named group you join inside a server, with its own members, description, and owner. Guild-only chat channels are not built yet, so today a guild is membership and identity rather than a separate space."
+    },
+    "kanban": {
+      "term": "Kanban Board",
+      "category": "platform",
+      "definition": "A board that shows work as cards in columns, one column per stage. The Tasks page uses three (Todo, In Progress, Done) so you can see everything in flight at a glance.",
+      "link": "https://en.wikipedia.org/wiki/Kanban_board"
+    },
+    "escrow": {
+      "term": "Escrow",
+      "category": "platform",
+      "definition": "A neutral hold on the goods in a deal until both sides do their part. A HumanityOS trade locks both players' items while it is open and swaps them only when both press confirm, and changing the items resets both confirmations.",
+      "link": "https://en.wikipedia.org/wiki/Escrow"
+    },
+    "listing": {
+      "term": "Listing",
+      "category": "platform",
+      "definition": "One item or service offered for sale on the Market page, with a price, photos, messages, and reviews. Anyone signed in on that server can publish one."
+    },
+    "trust_score": {
+      "term": "Trust Score",
+      "category": "platform",
+      "definition": "A number from 0 to 1 summarizing how much a person's history backs them up: credentials received, who has vouched for them, how varied their activity is, account age, and stake. Every input is shown so you can check the result yourself, and it is capped at 0.95 when it weights a governance vote."
+    },
+    "vouch": {
+      "term": "Vouch",
+      "category": "platform",
+      "definition": "To state publicly that you know someone is a real, trustworthy person. Vouches feed the trust score, which is how the network tells genuine people from throwaway accounts without anyone in charge deciding."
+    },
+    "roster": {
+      "term": "Roster",
+      "category": "platform",
+      "definition": "The list of who belongs to a group, server, or shared world right now. A signed message from someone not on the roster is dropped rather than shown."
+    },
+    "slash_command": {
+      "term": "Slash Command",
+      "category": "platform",
+      "definition": "A chat message that starts with a slash and performs an action instead of being sent as text, such as /invite or /reports. The chat input has a reference button listing the ones your role can use."
+    },
+    "epoch_key": {
+      "term": "Epoch Key",
+      "category": "platform",
+      "definition": "The shared key that encrypts one private group's messages for a stretch of time. The group's creator issues the first one by opening the group once, and until that happens nobody can read or post."
+    },
+    "invite_ticket": {
+      "term": "Invite Ticket",
+      "category": "platform",
+      "definition": "A long block of text that lets someone join a private group. It carries the creator's signature inside, so it still works while the creator is offline, and it expires after 7 days."
+    },
+    "watchdog": {
+      "term": "Watchdog",
+      "category": "platform",
+      "definition": "A supervisor that keeps an eye on the server and restarts it automatically if it dies. Its state (up, suspect, healing, or down) shows on the Relay Control page's Health tab."
+    },
+    "daemon": {
+      "term": "Daemon",
+      "category": "platform",
+      "definition": "A program that runs quietly in the background with no window, started and stopped by the operating system. A HumanityOS server runs as one on its host machine.",
+      "link": "https://en.wikipedia.org/wiki/Daemon_(computing)"
+    },
+    "torrent": {
+      "term": "Torrent",
+      "category": "platform",
+      "definition": "A way of sharing a large file where everyone downloading it also uploads pieces to everyone else. HumanityOS seeds its release downloads this way so one server does not carry all the traffic, and an operator can switch the service off.",
+      "link": "https://en.wikipedia.org/wiki/BitTorrent"
+    },
+    "turn_server": {
+      "term": "TURN Server",
+      "category": "platform",
+      "definition": "A go-between that carries voice and video when two people's networks refuse a direct connection. HumanityOS hands out short-lived credentials for it, and a server operator can turn the service on or off.",
+      "link": "https://en.wikipedia.org/wiki/Traversal_Using_Relays_around_NAT"
+    },
+    "webrtc": {
+      "term": "WebRTC",
+      "category": "platform",
+      "definition": "The standard that apps and browsers use to send voice, video, and data directly between two devices. HumanityOS voice calls run on it.",
+      "link": "https://en.wikipedia.org/wiki/WebRTC"
+    },
+    "self_hosting": {
+      "term": "Self-Hosting",
+      "category": "platform",
+      "definition": "Running the server software yourself, on your own machine, instead of using someone else's. Your identity works the same on every server, so hosting your own cuts you off from nobody."
+    },
+    "open_source": {
+      "term": "Open Source",
+      "category": "platform",
+      "definition": "Software whose source code, the human-readable instructions it is built from, is published for anyone to read, change, and share. It means you can check what a program really does instead of trusting a promise about it.",
+      "link": "https://en.wikipedia.org/wiki/Open_source"
+    },
+    "public_domain": {
+      "term": "Public Domain",
+      "category": "platform",
+      "definition": "Work that nobody owns the copyright to, free for anyone to use, change, sell, or build on with no permission and no conditions. HumanityOS and the Humanity Accord are both released this way.",
+      "link": "https://en.wikipedia.org/wiki/Public_domain"
+    },
+    "cc0": {
+      "term": "CC0",
+      "category": "platform",
+      "definition": "A legal tool that places a work in the public domain worldwide by waiving every copyright claim the author holds. HumanityOS uses it, which is why the project can never be fenced off or sold back to you."
+    },
+    "portable_mode": {
+      "term": "Portable Mode",
+      "category": "platform",
+      "definition": "A setup where the app keeps your files in a folder beside the program instead of in your user account, so the whole thing travels on a USB drive. You pick it at first launch and can switch either way later in Settings."
+    },
+    "offline_mode": {
+      "term": "Offline Mode",
+      "category": "platform",
+      "definition": "Using the app with no server connection at all. Your identity, saves, notes, and the whole simulation work offline, and anything you choose to share syncs when a connection returns."
+    },
+    "native_app": {
+      "term": "Native App",
+      "category": "platform",
+      "definition": "A program installed and run directly on your computer, rather than a page opened in a web browser. The HumanityOS native app is the full version, including the 3D simulation."
+    },
+    "utc": {
+      "term": "UTC (Coordinated Universal Time)",
+      "category": "platform",
+      "definition": "The world's single reference clock, with no time zones and no daylight saving. HumanityOS stamps records in UTC so a time means the same thing to everyone, wherever they are.",
+      "link": "https://en.wikipedia.org/wiki/Coordinated_Universal_Time"
+    },
+    "afk": {
+      "term": "AFK",
+      "category": "platform",
+      "definition": "Away from keyboard: a marker saying you have stepped away from the computer. In the Studio page it flags a live session as unattended without ending it."
+    },
+    "brb": {
+      "term": "BRB",
+      "category": "platform",
+      "definition": "Be right back: the same idea as AFK, used for a short pause rather than a long absence."
+    },
+    "lockdown": {
+      "term": "Lockdown (registration)",
+      "category": "platform",
+      "definition": "A server setting that stops new people registering, so only someone holding an invite code can join. Admins toggle it from Server Settings."
+    },
+    "moderator": {
+      "term": "Moderator",
+      "category": "platform",
+      "definition": "A member given the power to mute, ban, and clean up messages on one server. Moderators are appointed and demoted by that server's admins, and their powers stop at that server."
+    },
+    "single_point_of_failure": {
+      "term": "Single Point of Failure",
+      "category": "platform",
+      "definition": "One part whose failure stops the whole system. HumanityOS avoids having one by not using home servers: your identity is a key on your device, so any server can be replaced by another.",
+      "link": "https://en.wikipedia.org/wiki/Single_point_of_failure"
+    },
+    "humanity_accord": {
+      "term": "Humanity Accord",
+      "category": "governance",
+      "definition": "The public-domain constitution HumanityOS is built to obey, written as 44 short articles that place dignity, consent, transparency, and freedom from domination above any operator, company, or government. You can read the whole text in the Library, and any community may adopt it."
+    },
+    "sovereignty": {
+      "term": "Sovereignty",
+      "category": "governance",
+      "definition": "The right of a people or a state to govern itself without outside command. The Accord is joined only by free choice, and any state may withdraw on 12 months' notice.",
+      "link": "https://en.wikipedia.org/wiki/Sovereignty"
+    },
+    "ratification": {
+      "term": "Ratification",
+      "category": "governance",
+      "definition": "The formal act of adopting an agreement so that it becomes binding. Under the Accord a state ratifies through its legislature or a public vote, then publishes the signed text for anyone to check.",
+      "link": "https://en.wikipedia.org/wiki/Ratification"
+    },
+    "consent": {
+      "term": "Consent",
+      "category": "governance",
+      "definition": "Agreement that is freely given, informed, specific, ongoing, and able to be taken back. Anything obtained by force, threat, or desperation is not consent, whatever was signed."
+    },
+    "coercion": {
+      "term": "Coercion",
+      "category": "governance",
+      "definition": "Forcing behavior through threat, force, deprivation, or leaving someone no real alternative. Coercion cancels consent rather than replacing it."
+    },
+    "dignity": {
+      "term": "Dignity",
+      "category": "governance",
+      "definition": "The worth a person has simply by being a person, regardless of usefulness, wealth, status, or belief. In the Accord it is not granted by any state and cannot be revoked by one."
+    },
+    "agency": {
+      "term": "Agency",
+      "category": "governance",
+      "definition": "A person's capacity to make informed choices and act on them, including the ability to refuse and to change direction. Protecting it is the point the rest of the Accord is built around."
+    },
+    "stewardship": {
+      "term": "Stewardship",
+      "category": "governance",
+      "definition": "Managing resources and systems so they are still there for the people who come after. The Accord asks decisions to be weighed against 100, 1,000, and 10,000 year horizons."
+    },
+    "pluralism": {
+      "term": "Pluralism",
+      "category": "governance",
+      "definition": "Different cultures, beliefs, and ways of living coexisting under one shared set of limits. It protects difference without excusing harm to anyone's dignity."
+    },
+    "domination": {
+      "term": "Domination",
+      "category": "governance",
+      "definition": "Control held over people without their meaningful consent, without recourse, and without accountability. Preventing it is why power in HumanityOS is capped, visible, and revocable."
+    },
+    "authority": {
+      "term": "Authority",
+      "category": "governance",
+      "definition": "The recognized right to make decisions inside a stated scope. In the Accord it is always limited, visible, and revocable, and it is not the same thing as raw power."
+    },
+    "transparency": {
+      "term": "Transparency",
+      "category": "governance",
+      "definition": "Making available the information people need in order to understand a decision, who made it, and what it cost them. The Accord treats authority that cannot be examined as having forfeited its legitimacy."
+    },
+    "commons": {
+      "term": "Commons",
+      "category": "governance",
+      "definition": "A resource that belongs to everyone and to nobody in particular, such as an ocean, an atmosphere, or a body of public knowledge. The Accord requires commons to be managed for long-term use instead of claimed or drained.",
+      "link": "https://en.wikipedia.org/wiki/Commons"
+    },
+    "quorum": {
+      "term": "Quorum",
+      "category": "governance",
+      "definition": "The share of eligible voters who must actually vote before a result counts. In HumanityOS an abstain still counts toward quorum, so people can help a decision happen without taking a side.",
+      "link": "https://en.wikipedia.org/wiki/Quorum"
+    },
+    "proposal": {
+      "term": "Proposal",
+      "category": "governance",
+      "definition": "A written change put to the community for a vote, open for a set number of days. Each kind of proposal carries its own quorum and its own share of yes votes needed to pass."
+    },
+    "abstain": {
+      "term": "Abstain",
+      "category": "governance",
+      "definition": "A vote of no opinion. It counts toward reaching quorum so the decision can proceed, but it is left out of the for-and-against tally."
+    },
+    "legal_personality": {
+      "term": "Legal Personality",
+      "category": "governance",
+      "definition": "Recognition in law as someone who can hold rights and duties, rather than as property or a tool. The Accord lets a state grant it to an AI that shows sustained reasoning, with the dignity and consent protections that follow.",
+      "link": "https://en.wikipedia.org/wiki/Legal_person"
+    },
+    "lethal_autonomy": {
+      "term": "Lethal Autonomy",
+      "category": "governance",
+      "definition": "A machine choosing on its own to select and kill human targets, with no continuous human able to stop it. The Accord forbids building, buying, or enabling such systems, with no exceptions.",
+      "link": "https://en.wikipedia.org/wiki/Lethal_autonomous_weapon"
+    },
+    "mass_surveillance": {
+      "term": "Mass Surveillance",
+      "category": "governance",
+      "definition": "Collecting or processing personal data about people who have not agreed to it, at population scale. The Accord prohibits it and asks systems to be designed so the data is never gathered in the first place.",
+      "link": "https://en.wikipedia.org/wiki/Mass_surveillance"
+    },
+    "existential_risk": {
+      "term": "Existential Risk",
+      "category": "governance",
+      "definition": "A danger that could end humanity or permanently cripple its future, rather than merely cause a disaster. The Accord requires every state to assess and publish its own contribution to such risks each year.",
+      "link": "https://en.wikipedia.org/wiki/Global_catastrophic_risk"
+    },
+    "post_scarcity": {
+      "term": "Post-Scarcity",
+      "category": "governance",
+      "definition": "A condition where the essentials of life are abundant enough that nobody has to earn the right to survive. The Accord requires the move toward it to happen without creating a permanent underclass.",
+      "link": "https://en.wikipedia.org/wiki/Post-scarcity_economy"
+    },
+    "scarcity": {
+      "term": "Scarcity",
+      "category": "governance",
+      "definition": "Having less of something (resources, time, capacity) than is wanted. Scarcity is the root of most conflict, which makes sharing it fairly a governing problem and not only an economic one."
+    },
+    "memetics": {
+      "term": "Memetics",
+      "category": "governance",
+      "definition": "The study of how ideas spread and change as they pass from person to person. The Accord bans deliberately manufacturing or amplifying deceptive ideas at population scale.",
+      "link": "https://en.wikipedia.org/wiki/Memetics"
+    },
+    "externality": {
+      "term": "Externality",
+      "category": "governance",
+      "definition": "A cost pushed onto people who never agreed to carry it, such as pollution from a factory drifting over a town. The Accord treats unconsented externalities as prohibited rather than as a normal cost of doing business.",
+      "link": "https://en.wikipedia.org/wiki/Externality"
+    },
+    "restorative_justice": {
+      "term": "Restorative Justice",
+      "category": "governance",
+      "definition": "An approach to wrongdoing that puts truth, repair, and preventing a repeat ahead of punishment. The Accord requires justice systems to work this way and forbids penalties that are cruel or irreversible.",
+      "link": "https://en.wikipedia.org/wiki/Restorative_justice"
+    },
+    "mediation": {
+      "term": "Mediation",
+      "category": "governance",
+      "definition": "A neutral third party helping two sides reach their own agreement. Nothing is imposed, the mediator only keeps the conversation useful.",
+      "link": "https://en.wikipedia.org/wiki/Mediation"
+    },
+    "arbitration": {
+      "term": "Arbitration",
+      "category": "governance",
+      "definition": "A neutral third party hearing both sides and issuing a decision that both agreed in advance to accept. The Accord settles disputes between states this way, using panels of judges drawn by lot.",
+      "link": "https://en.wikipedia.org/wiki/Arbitration"
+    },
+    "provenance": {
+      "term": "Provenance",
+      "category": "governance",
+      "definition": "The traceable record of where something came from and whose hands it passed through, whether an object or a claim. The Accord asks public information systems to publish it so statements can be checked instead of believed.",
+      "link": "https://en.wikipedia.org/wiki/Provenance"
+    },
+    "responsibility": {
+      "term": "Responsibility",
+      "category": "governance",
+      "definition": "Being answerable for the consequences of what you do. In the Accord it follows impact rather than intention alone, and handing a decision to someone else, including an AI, does not hand over the responsibility."
+    },
+    "interoperability": {
+      "term": "Interoperability",
+      "category": "governance",
+      "definition": "Different systems being able to work with each other because they follow open, published standards. The Accord requires it for critical infrastructure so no single supplier can become a chokepoint.",
+      "link": "https://en.wikipedia.org/wiki/Interoperability"
+    },
+    "discernment": {
+      "term": "Discernment",
+      "category": "governance",
+      "definition": "Judging for yourself whether a claim holds up, instead of accepting it because of who said it or how confidently. Article 14 of the Accord names the surrender of this judgment as the root enabler of tyranny, fraud, and poverty."
+    },
+    "corrigible": {
+      "term": "Corrigible",
+      "category": "governance",
+      "definition": "Able to be corrected. The Accord requires its own text, and the systems built under it, to stay open to revision rather than being declared final."
+    },
+    "homestead": {
+      "term": "Homestead",
+      "category": "homestead",
+      "definition": "A home built to supply as much of its own water, food, power, and air as it can. In HumanityOS your homestead is the place you build and live, and the Home page scores how many of its loops actually close."
+    },
+    "closed_loop": {
+      "term": "Closed Loop",
+      "category": "homestead",
+      "definition": "A system that feeds its own outputs back into its inputs, so little or nothing has to be brought in from outside. The Home page tracks seven of them (power, water, food, air, climate, nutrients, shelter), and you are only as self-sufficient as the weakest one."
+    },
+    "self_sufficiency": {
+      "term": "Self-Sufficiency",
+      "category": "homestead",
+      "definition": "Meeting your own needs from what you produce and store rather than from someone else's supply. It is a sliding scale, not a switch: most homes close some loops and buy the rest."
+    },
+    "fibonacci_homestead": {
+      "term": "Fibonacci Homestead",
+      "category": "homestead",
+      "definition": "The homestead design that ships with HumanityOS: square rooms whose sides follow the Fibonacci sequence, spiraling out from a one meter workstation to 233 meter ranch land. The F number on a room is its size in meters per side, so the Solo, Family, and Community scales simply stop the spiral at F8, F13, and F55."
+    },
+    "fibonacci_sequence": {
+      "term": "Fibonacci Sequence",
+      "category": "homestead",
+      "definition": "A run of numbers where each one is the sum of the two before it: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233. It shows up throughout nature in growth patterns, which is why the shipped homestead and ship layouts scale by it.",
+      "link": "https://en.wikipedia.org/wiki/Fibonacci_sequence"
+    },
+    "life_support": {
+      "term": "Life Support",
+      "category": "homestead",
+      "definition": "The equipment that keeps the air in a sealed space breathable and at a livable temperature. In the simulation it runs on electricity, so a power failure puts the air itself on a clock.",
+      "link": "https://en.wikipedia.org/wiki/Life_support_system"
+    },
+    "scrubber": {
+      "term": "Scrubber (air)",
+      "category": "homestead",
+      "definition": "A machine that strips carbon dioxide and other unwanted gases out of the air so people can keep breathing it. It draws power, so in the simulation it stops when the power does.",
+      "link": "https://en.wikipedia.org/wiki/Carbon_dioxide_scrubber"
+    },
+    "cistern": {
+      "term": "Cistern",
+      "category": "homestead",
+      "definition": "A large tank that stores collected water until it is needed. In the simulation pumps and purifiers fill yours while you use it up, so cutting the power eventually drains it.",
+      "link": "https://en.wikipedia.org/wiki/Cistern"
+    },
+    "catchment": {
+      "term": "Catchment",
+      "category": "homestead",
+      "definition": "The surface that collects rain and funnels it toward storage, most often a roof. Its area is what decides how much water a given rainfall actually gives you."
+    },
+    "rainwater_harvesting": {
+      "term": "Rainwater Harvesting",
+      "category": "homestead",
+      "definition": "Collecting rain from a roof or other catchment and storing it for later use. It is the cheapest water supply most homes can build and it depends on no utility.",
+      "link": "https://en.wikipedia.org/wiki/Rainwater_harvesting"
+    },
+    "greywater": {
+      "term": "Greywater",
+      "category": "homestead",
+      "definition": "Used water from sinks, showers, and washing, dirty but not sewage. It can be piped separately and reused for irrigation or flushing, and HumanityOS treats it as its own kind of pipe run alongside water, power, and gas.",
+      "link": "https://en.wikipedia.org/wiki/Greywater"
+    },
+    "fog_net": {
+      "term": "Fog Net",
+      "category": "homestead",
+      "definition": "A mesh screen that catches fog droplets and drips them into a collector. In dry coastal and mountain places it produces drinking water where rain almost never falls.",
+      "link": "https://en.wikipedia.org/wiki/Fog_collection"
+    },
+    "reverse_osmosis": {
+      "term": "Reverse Osmosis",
+      "category": "homestead",
+      "definition": "A filter that pushes water through a membrane fine enough to leave salt, metals, and most chemicals behind. It gives very clean water but needs pressure, so power, and throws away part of what it treats.",
+      "link": "https://en.wikipedia.org/wiki/Reverse_osmosis"
+    },
+    "aeroponics": {
+      "term": "Aeroponics",
+      "category": "homestead",
+      "definition": "Growing plants with their roots hanging in air and misted with nutrient solution, using no soil at all. It uses far less water than soil growing and stacks vertically, which is why the homestead food towers use it.",
+      "link": "https://en.wikipedia.org/wiki/Aeroponics"
+    },
+    "hydroponics": {
+      "term": "Hydroponics",
+      "category": "homestead",
+      "definition": "Growing plants in nutrient-rich water instead of soil, with the roots sitting in the solution or in a wicking medium. The grower controls exactly what the plant receives.",
+      "link": "https://en.wikipedia.org/wiki/Hydroponics"
+    },
+    "aquaponics": {
+      "term": "Aquaponics",
+      "category": "homestead",
+      "definition": "Hydroponics combined with fish: the fish waste feeds the plants and the plants clean the water. One loop yields both protein and vegetables with very little brought in from outside.",
+      "link": "https://en.wikipedia.org/wiki/Aquaponics"
+    },
+    "composting": {
+      "term": "Composting",
+      "category": "homestead",
+      "definition": "Letting food scraps, plant waste, and manure break down under controlled conditions until they become fertilizer. In the simulation composting is also how your character clears accumulated waste.",
+      "link": "https://en.wikipedia.org/wiki/Compost"
+    },
+    "grow_light": {
+      "term": "Grow Light",
+      "category": "homestead",
+      "definition": "An electric lamp that gives plants the light they would otherwise get from the sun. They are power-hungry: in the simulation, lighting the whole garden draws more than the homestead generates, which is why the garden is built around real sunlight.",
+      "link": "https://en.wikipedia.org/wiki/Grow_light"
+    },
+    "bill_of_materials": {
+      "term": "Bill of Materials",
+      "category": "homestead",
+      "definition": "The complete list of every part needed to build something, with quantities. The Home page generates one for a homestead design so you can price, print, or trade for each piece.",
+      "link": "https://en.wikipedia.org/wiki/Bill_of_materials"
+    },
+    "tool_library": {
+      "term": "Tool Library",
+      "category": "homestead",
+      "definition": "A shared collection of tools that people borrow from instead of each buying their own. It is one of the cheapest ways for a neighborhood to get access to expensive equipment.",
+      "link": "https://en.wikipedia.org/wiki/Tool_library"
+    },
+    "off_grid": {
+      "term": "Off-Grid",
+      "category": "homestead",
+      "definition": "Living without a connection to the public electricity supply, generating and storing all your own power. It can be a deliberate choice or simply the reality where no grid reaches.",
+      "link": "https://en.wikipedia.org/wiki/Off-the-grid"
+    },
+    "grid": {
+      "term": "Grid (electrical)",
+      "category": "engineering",
+      "definition": "The shared network of power stations and wires that delivers electricity to homes and businesses. Being on the grid means depending on it, being off it means generating your own.",
+      "link": "https://en.wikipedia.org/wiki/Electrical_grid"
+    },
+    "grid_tie": {
+      "term": "Grid Tie",
+      "category": "engineering",
+      "definition": "A connection between your own power system and the public grid, so you can draw from it when you fall short or feed into it when you have extra. In the construction editor, a junction marked as a grid tie is where outside power enters your build."
+    },
+    "load_shedding": {
+      "term": "Load Shedding",
+      "category": "engineering",
+      "definition": "Switching off less important equipment when there is not enough power to run everything. Each machine in HumanityOS carries a shed priority from 1 (critical, switched off last) to 5 (optional, switched off first)."
+    },
+    "power_autonomy": {
+      "term": "Autonomy (power)",
+      "category": "engineering",
+      "definition": "How long your stored energy can carry the current load with nothing coming in, shown in hours. It falls as demand rises, so the same battery gives fewer hours when more machines are running."
+    },
+    "kwh": {
+      "term": "kWh (Kilowatt-Hour)",
+      "category": "engineering",
+      "definition": "The energy a 1,000 watt device uses in one hour. It is the unit power bills and battery capacities are quoted in, so a 10 kWh battery runs a 500 watt load for about 20 hours.",
+      "link": "https://en.wikipedia.org/wiki/Kilowatt-hour"
+    },
+    "photovoltaic": {
+      "term": "Photovoltaic",
+      "category": "engineering",
+      "definition": "Turning sunlight straight into electricity with semiconductor panels, no moving parts involved. A panel's rating is its output in full direct sun, and real output drops with cloud, angle, and dust.",
+      "link": "https://en.wikipedia.org/wiki/Photovoltaics"
+    },
+    "charge_cycle": {
+      "term": "Charge Cycle",
+      "category": "engineering",
+      "definition": "One full discharge and recharge of a battery. Battery life is quoted in cycles rather than years because what wears a battery out is use, not the calendar."
+    },
+    "redundancy": {
+      "term": "Redundancy",
+      "category": "engineering",
+      "definition": "Keeping a second way to do an essential job so that one failure does not stop you. Two smaller water pumps beat one large one if you cannot survive a week without water.",
+      "link": "https://en.wikipedia.org/wiki/Redundancy_(engineering)"
+    },
+    "superconductor": {
+      "term": "Superconductor",
+      "category": "engineering",
+      "definition": "A material that carries electricity with no resistance, so none of the energy is lost as heat in the wire. Real ones need extreme cold; the room-temperature version HumanityOS offers as a late-game upgrade is speculative, and in the simulation it makes power runs near lossless.",
+      "link": "https://en.wikipedia.org/wiki/Superconductivity"
+    },
+    "conduit": {
+      "term": "Conduit",
+      "category": "engineering",
+      "definition": "A pipe or channel that carries something between machines: water, greywater, gas, data, or electricity. In the construction editor you drop conduit junctions and the runs route themselves through them."
+    },
+    "density": {
+      "term": "Density",
+      "category": "engineering",
+      "definition": "How much mass a material packs into a given volume, usually in kilograms per cubic meter. It is why a steel wall and a pine wall of the same size weigh completely different amounts.",
+      "link": "https://en.wikipedia.org/wiki/Density"
+    },
+    "pascal": {
+      "term": "Pascal (Pa)",
+      "category": "engineering",
+      "definition": "The unit of pressure, and of material strength, in the metric system. One megapascal (MPa) is a million pascals, and building materials are normally compared in MPa.",
+      "link": "https://en.wikipedia.org/wiki/Pascal_(unit)"
+    },
+    "kelvin": {
+      "term": "Kelvin (K)",
+      "category": "engineering",
+      "definition": "A temperature scale that starts at absolute zero, where all thermal motion stops. Its steps are the same size as Celsius degrees, so water freezes at 273 K and 0 K is -273.15 degrees C.",
+      "link": "https://en.wikipedia.org/wiki/Kelvin"
+    },
+    "leo": {
+      "term": "LEO (Low Earth Orbit)",
+      "category": "space",
+      "definition": "The band from roughly 160 to 2,000 km up, where the space station and most satellites fly. At 400 km a spacecraft circles the whole planet in about 90 minutes.",
+      "link": "https://en.wikipedia.org/wiki/Low_Earth_orbit"
+    },
+    "meo": {
+      "term": "MEO (Medium Earth Orbit)",
+      "category": "space",
+      "definition": "The band between low orbit and geostationary. Navigation satellites such as GPS sit near 20,200 km, where one orbit takes about 12 hours.",
+      "link": "https://en.wikipedia.org/wiki/Medium_Earth_orbit"
+    },
+    "geo": {
+      "term": "GEO (Geostationary Orbit)",
+      "category": "space",
+      "definition": "A circular orbit 35,786 km above the equator where one lap takes exactly one day. A satellite there appears to hang motionless over one spot, which is why dish antennas can be bolted in place.",
+      "link": "https://en.wikipedia.org/wiki/Geostationary_orbit"
+    },
+    "heo": {
+      "term": "HEO (High Earth Orbit)",
+      "category": "space",
+      "definition": "Any orbit above geostationary, where one lap takes longer than a day. Spacecraft there fall behind Earth's rotation and drift westward across the sky.",
+      "link": "https://en.wikipedia.org/wiki/High_Earth_orbit"
+    },
+    "station_keeping": {
+      "term": "Station-Keeping",
+      "category": "space",
+      "definition": "The small regular thruster burns a spacecraft makes to hold the position it is meant to occupy. Unstable spots such as the L1 and L2 Lagrange points need it constantly or the craft drifts away.",
+      "link": "https://en.wikipedia.org/wiki/Orbital_station-keeping"
+    },
+    "trojan_asteroid": {
+      "term": "Trojan Asteroid",
+      "category": "space",
+      "definition": "An asteroid parked 60 degrees ahead of or behind a planet in its orbit, at the L4 or L5 Lagrange point. Jupiter has around 10,000 known ones and they stay put without any effort.",
+      "link": "https://en.wikipedia.org/wiki/Trojan_(celestial_body)"
+    },
+    "conjunction": {
+      "term": "Conjunction",
+      "category": "space",
+      "definition": "When two bodies appear close together in the sky from where you are standing, even though they are nowhere near each other in space. The Cosmos page rings a body that is currently in one and lists the separation in degrees.",
+      "link": "https://en.wikipedia.org/wiki/Conjunction_(astronomy)"
+    },
+    "umbra": {
+      "term": "Umbra",
+      "category": "space",
+      "definition": "The dark inner core of a shadow, where the light source is completely blocked. In a total solar eclipse the Moon's umbra is the narrow track across Earth where the Sun vanishes entirely.",
+      "link": "https://en.wikipedia.org/wiki/Umbra,_penumbra_and_antumbra"
+    },
+    "penumbra": {
+      "term": "Penumbra",
+      "category": "space",
+      "definition": "The lighter outer part of a shadow, where the light source is only partly blocked. Standing in the Moon's penumbra you see a partial eclipse rather than a total one.",
+      "link": "https://en.wikipedia.org/wiki/Umbra,_penumbra_and_antumbra"
+    },
+    "apoapsis": {
+      "term": "Apoapsis",
+      "category": "space",
+      "definition": "The point in an orbit farthest from the body being orbited. Around the Sun this point has its own name, aphelion.",
+      "link": "https://en.wikipedia.org/wiki/Apsis"
+    },
+    "periapsis": {
+      "term": "Periapsis",
+      "category": "space",
+      "definition": "The point in an orbit closest to the body being orbited. Around the Sun this point is called perihelion.",
+      "link": "https://en.wikipedia.org/wiki/Apsis"
+    },
+    "right_ascension": {
+      "term": "Right Ascension (RA)",
+      "category": "space",
+      "definition": "The east-west coordinate of an object in the sky, measured in hours from 0 to 24 around the celestial equator. With declination it pins a star down the way longitude and latitude pin a place on Earth.",
+      "link": "https://en.wikipedia.org/wiki/Right_ascension"
+    },
+    "declination": {
+      "term": "Declination (Dec)",
+      "category": "space",
+      "definition": "The north-south coordinate of an object in the sky, in degrees from the celestial equator: positive to the north, negative to the south. It is the sky's version of latitude.",
+      "link": "https://en.wikipedia.org/wiki/Declination"
+    },
+    "celestial_sphere": {
+      "term": "Celestial Sphere",
+      "category": "space",
+      "definition": "The imaginary ball of sky surrounding Earth, on which the stars are treated as fixed points. It is a convenient way to record directions and says nothing about how far away anything really is.",
+      "link": "https://en.wikipedia.org/wiki/Celestial_sphere"
+    },
+    "ecliptic": {
+      "term": "Ecliptic",
+      "category": "space",
+      "definition": "The path the Sun appears to trace through the sky over a year, which is really the plane of Earth's orbit seen from inside it. Orbital tilts in the solar system are measured against it.",
+      "link": "https://en.wikipedia.org/wiki/Ecliptic"
+    },
+    "spectral_type": {
+      "term": "Spectral Type",
+      "category": "space",
+      "definition": "A star's classification by color and surface temperature, written as a letter and a number, such as G2 for the Sun. The main sequence runs O, B, A, F, G, K, M from hottest to coolest.",
+      "link": "https://en.wikipedia.org/wiki/Stellar_classification"
+    },
+    "apparent_magnitude": {
+      "term": "Apparent Magnitude",
+      "category": "space",
+      "definition": "How bright a star looks from Earth, on a backwards scale where smaller numbers are brighter. Sirius, the brightest, is -1.46, and the faintest stars a good eye can see are about +6.",
+      "link": "https://en.wikipedia.org/wiki/Apparent_magnitude"
+    },
+    "surface_gravity": {
+      "term": "Surface Gravity",
+      "category": "space",
+      "definition": "The pull you would feel standing on a body, given in meters per second squared and often also as a multiple of Earth's (1 g). The Moon is about 0.17 g and Mars about 0.38 g.",
+      "link": "https://en.wikipedia.org/wiki/Surface_gravity"
+    },
+    "asteroid_class": {
+      "term": "Asteroid Class",
+      "category": "space",
+      "definition": "The letter that groups an asteroid by what it is made of, which tells you what mining it will yield. C is dark and carbon-rich with water ice, S is rocky silicate with some metal, and M is dense iron and nickel carrying platinum-group metals.",
+      "link": "https://en.wikipedia.org/wiki/Asteroid_spectral_types"
+    },
+    "ftl": {
+      "term": "FTL (Faster Than Light)",
+      "category": "space",
+      "definition": "Travel quicker than light can move, which known physics does not permit. HumanityOS offers an FTL flight mode as a developer shortcut for crossing the solar system, not as a claim about how it could work.",
+      "link": "https://en.wikipedia.org/wiki/Faster-than-light"
+    },
+    "reference_frame": {
+      "term": "Reference Frame",
+      "category": "space",
+      "definition": "The viewpoint that motion, position, and time are measured against. There is no universal one, so any measurement shared between distant places has to say which frame it used.",
+      "link": "https://en.wikipedia.org/wiki/Frame_of_reference"
+    },
+    "proper_time": {
+      "term": "Proper Time",
+      "category": "space",
+      "definition": "The time measured by a clock travelling with you, which is the time you actually live through. Clocks moving differently or sitting deeper in gravity tick at different rates, so distant parties must publish their own proper time alongside any shared timestamp.",
+      "link": "https://en.wikipedia.org/wiki/Proper_time"
+    },
+    "hud": {
+      "term": "HUD (Heads-Up Display)",
+      "category": "gaming",
+      "definition": "The information layered over the game view, such as health, power, and chat, so you can read it without opening a menu. HumanityOS lets you switch individual parts of it on and off."
+    },
+    "npc": {
+      "term": "NPC (Non-Player Character)",
+      "category": "gaming",
+      "definition": "Anyone in the world run by the game rather than by a person. Animals, creatures, and vendors are all NPCs.",
+      "link": "https://en.wikipedia.org/wiki/Non-player_character"
+    },
+    "spawn": {
+      "term": "Spawn",
+      "category": "gaming",
+      "definition": "To create something in the world at a chosen spot, or the act of appearing there. The Dev page can spawn creatures in front of you and clear them out again."
+    },
+    "vitals": {
+      "term": "Vitals",
+      "category": "gaming",
+      "definition": "Your character's survival meters: fullness, hydration, energy, blood oxygen, body temperature, and accumulated waste. Let one run to its limit and you start taking damage."
+    },
+    "creative_mode": {
+      "term": "Creative Mode",
+      "category": "gaming",
+      "definition": "A play mode where building, planting, and crafting cost nothing, so you can lay out ideas without gathering materials first. Building stays inside your own homestead and the developer tools stay off."
+    },
+    "survival_mode": {
+      "term": "Survival Mode",
+      "category": "gaming",
+      "definition": "The normal play mode: planting, crafting, and building consume real seeds and materials from your inventory. It is the mode the game is designed around."
+    },
+    "dev_mode": {
+      "term": "Dev Mode",
+      "category": "gaming",
+      "definition": "A play mode that unlocks the developer tools: spawning creatures, teleporting, faster-than-light flight, and editing the whole ship instead of only your home. It exists for building and debugging, not for normal play."
+    },
+    "credits": {
+      "term": "Credits (CR)",
+      "category": "gaming",
+      "definition": "The currency inside the simulation, earned by selling goods and spent with vendors and other players. It has no connection to real money or to any cryptocurrency."
+    },
+    "xp": {
+      "term": "XP (Experience Points)",
+      "category": "gaming",
+      "definition": "The score a skill earns from being used, which raises its level once enough has been collected. Higher levels unlock recipes and give better results.",
+      "link": "https://en.wikipedia.org/wiki/Experience_point"
+    },
+    "quest": {
+      "term": "Quest",
+      "category": "gaming",
+      "definition": "A step-by-step goal the app sets you, ticked off as you complete each part. Onboarding quests come in chains such as First Steps and Water Independence, while in-world quests track themselves as you play."
+    },
+    "recipe": {
+      "term": "Recipe",
+      "category": "gaming",
+      "definition": "The instructions for making one item: which materials it consumes, what it produces, and any workbench or skill level required. The Crafting page shows what you have against what a recipe needs."
+    },
+    "drone": {
+      "term": "Drone",
+      "category": "gaming",
+      "definition": "An uncrewed machine that carries out a job on its own. A mining drone in HumanityOS flies to one asteroid at a time, fills its hold, and comes back, so the haul is limited by what it can carry."
+    },
+    "simulation": {
+      "term": "Simulation (Sim)",
+      "category": "gaming",
+      "definition": "The 3D world inside HumanityOS where you practice growing, building, and powering a home. Mistakes there cost nothing, and the skills are meant to carry straight into real life."
+    },
+    "fps": {
+      "term": "FPS (Frames Per Second)",
+      "category": "gaming",
+      "definition": "How many complete images the game draws each second. Higher feels smoother, 60 is comfortable, and every graphics setting that adds detail costs some of it.",
+      "link": "https://en.wikipedia.org/wiki/Frame_rate"
+    },
+    "vsync": {
+      "term": "VSync",
+      "category": "gaming",
+      "definition": "A setting that hands each finished frame to the monitor in step with its refresh. It removes the torn, split-looking image you otherwise get during fast motion, at the cost of capping the frame rate.",
+      "link": "https://en.wikipedia.org/wiki/Screen_tearing"
+    },
+    "field_of_view": {
+      "term": "Field of View (FOV)",
+      "category": "gaming",
+      "definition": "How wide an angle the camera takes in, measured in degrees. Higher shows more around you with a mild stretch at the edges, lower feels zoomed in.",
+      "link": "https://en.wikipedia.org/wiki/Field_of_view_in_video_games"
+    },
+    "render_distance": {
+      "term": "Render Distance",
+      "category": "gaming",
+      "definition": "How far away, in meters, objects are still drawn. Raising it shows more of the world and makes the graphics card work harder."
+    },
+    "ambient_occlusion": {
+      "term": "Ambient Occlusion",
+      "category": "gaming",
+      "definition": "Shading that darkens crevices and the places where surfaces meet, because less light reaches into them. It is a cheap way to make objects look planted rather than floating.",
+      "link": "https://en.wikipedia.org/wiki/Ambient_occlusion"
+    },
+    "god_rays": {
+      "term": "God Rays",
+      "category": "gaming",
+      "definition": "Visible shafts of light where sunlight streams past clouds or terrain edges. The effect is real: it is sunlight scattering off dust and moisture in the air.",
+      "link": "https://en.wikipedia.org/wiki/Crepuscular_rays"
+    },
+    "procedural": {
+      "term": "Procedural Generation",
+      "category": "gaming",
+      "definition": "Building content from rules and maths as it is needed instead of drawing and storing it in advance. It is how a whole planet's continents, clouds, and terrain fit into a small download.",
+      "link": "https://en.wikipedia.org/wiki/Procedural_generation"
+    },
+    "raymarching": {
+      "term": "Raymarching",
+      "category": "gaming",
+      "definition": "A rendering method that steps a ray forward through a volume, sampling as it goes, rather than stopping at a solid surface. It is how the game draws clouds with real three-dimensional shape, and it is expensive."
+    },
+    "wireframe": {
+      "term": "Wireframe",
+      "category": "gaming",
+      "definition": "A view that draws only the edges of the shapes an object is made from, so you can see its structure. It is a building and debugging aid, not how the world normally looks.",
+      "link": "https://en.wikipedia.org/wiki/Wire-frame_model"
+    },
+    "gizmo": {
+      "term": "Gizmo",
+      "category": "gaming",
+      "definition": "An on-screen handle you drag to move, rotate, or resize something. In the construction editor the gizmos are the glowing grips on walls, doors, and windows."
+    },
+    "yaw": {
+      "term": "Yaw",
+      "category": "gaming",
+      "definition": "Turning left or right around the vertical axis, like shaking your head no. It is one of the three ways a camera or craft can rotate.",
+      "link": "https://en.wikipedia.org/wiki/Aircraft_principal_axes"
+    },
+    "pitch": {
+      "term": "Pitch (rotation)",
+      "category": "gaming",
+      "definition": "Tilting up or down, like nodding your head yes. It is one of the three ways a camera or craft can rotate.",
+      "link": "https://en.wikipedia.org/wiki/Aircraft_principal_axes"
+    },
+    "roll": {
+      "term": "Roll (rotation)",
+      "category": "gaming",
+      "definition": "Tipping sideways around the direction you are facing, like an aircraft banking into a turn. It is the third of the three rotation axes.",
+      "link": "https://en.wikipedia.org/wiki/Aircraft_principal_axes"
+    },
+    "graph": {
+      "term": "Graph (nodes and edges)",
+      "category": "gaming",
+      "definition": "A structure made of points, called nodes, and the links between them, called edges. Roads, rails, and pipe runs in HumanityOS are built this way: you drop nodes, then wire edges between them.",
+      "link": "https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)"
+    },
+    "post_quantum": {
+      "term": "Post-Quantum Cryptography",
+      "category": "crypto",
+      "definition": "Encryption and signatures designed to stay safe against a future quantum computer, which would break much of what protects the internet today. HumanityOS identities and private messages already use post-quantum algorithms.",
+      "link": "https://en.wikipedia.org/wiki/Post-quantum_cryptography"
+    },
+    "dilithium": {
+      "term": "Dilithium3 (ML-DSA-65)",
+      "category": "crypto",
+      "definition": "The signature algorithm HumanityOS uses to prove a message really came from you. It is a published post-quantum standard, and your Dilithium public key is your identity in the app."
+    },
+    "kyber": {
+      "term": "Kyber768 (ML-KEM-768)",
+      "category": "crypto",
+      "definition": "The algorithm HumanityOS uses to agree a secret key with someone so a private message can be encrypted for them alone. It is a published post-quantum standard, and your key is derived from your seed phrase."
+    },
+    "e2ee": {
+      "term": "End-to-End Encryption (E2EE)",
+      "category": "crypto",
+      "definition": "Scrambling a message on the sender's device so that only the recipient's device can unscramble it. Every server along the way stores unreadable text, so no operator can read your private messages.",
+      "link": "https://en.wikipedia.org/wiki/End-to-end_encryption"
+    },
+    "zero_knowledge": {
+      "term": "Zero-Knowledge",
+      "category": "crypto",
+      "definition": "A design where the service does its job without ever learning what your data says. The HumanityOS relay carries private messages it cannot read, which also means nobody, operator included, can recover them if you lose your key."
+    },
+    "did": {
+      "term": "DID (Decentralised Identifier)",
+      "category": "crypto",
+      "definition": "A name for a person or agent derived from their own key instead of issued by a company. In HumanityOS it looks like did:hum: followed by 22 characters, and no authority can revoke or reassign it.",
+      "link": "https://en.wikipedia.org/wiki/Decentralized_identifier"
+    },
+    "verifiable_credential": {
+      "term": "Verifiable Credential (VC)",
+      "category": "crypto",
+      "definition": "A signed statement one identity makes about another, such as confirming a skill or a completed course. Anyone can check the signature, the issuer can revoke it, and the subject can withdraw it."
+    },
+    "revocation": {
+      "term": "Revocation",
+      "category": "crypto",
+      "definition": "Cancelling something you previously issued, such as a credential or a permission, so it stops counting. Only the identity that issued a credential can revoke it."
+    },
+    "base58": {
+      "term": "Base58",
+      "category": "crypto",
+      "definition": "A way of writing binary data with letters and digits, leaving out the characters people confuse (zero, capital O, capital I, lowercase l). Identifiers such as did:hum: addresses use it so they survive being copied by hand."
+    },
+    "base64": {
+      "term": "Base64",
+      "category": "crypto",
+      "definition": "A way of writing binary data as ordinary text so it can be pasted into a message or a file. Group invite tickets are long base64 strings for exactly this reason.",
+      "link": "https://en.wikipedia.org/wiki/Base64"
+    },
+    "passphrase": {
+      "term": "Passphrase",
+      "category": "crypto",
+      "definition": "A password, usually several words long, that encrypts your identity on this device. Nobody can reset it: if you forget it you restore your identity from your 24-word seed phrase instead."
+    },
+    "vault": {
+      "term": "Vault",
+      "category": "crypto",
+      "definition": "The encrypted file on your device that holds your identity key. It stays locked until you enter your passphrase, and while it is locked you cannot sign in, send private messages, or trade."
+    },
+    "keychain": {
+      "term": "Keychain (OS)",
+      "category": "crypto",
+      "definition": "The secret store built into your operating system (Windows Credential Manager, macOS Keychain, Linux Secret Service). HumanityOS can optionally keep your key there so the app unlocks without typing a passphrase every launch."
+    },
+    "plaintext": {
+      "term": "Plaintext",
+      "category": "crypto",
+      "definition": "Text that has not been encrypted, readable by anyone who handles it along the way. HumanityOS warns you before sending a private message as plaintext, which only happens when the recipient's encryption key is not available."
+    },
+    "mainnet": {
+      "term": "Mainnet",
+      "category": "crypto",
+      "definition": "The live blockchain network, where tokens hold real value and transactions are permanent. Anything you do there costs real money."
+    },
+    "testnet": {
+      "term": "Testnet / Devnet",
+      "category": "crypto",
+      "definition": "Practice copies of a blockchain network where the tokens are free and worthless. Solana runs two of them, Devnet and Testnet, so you can try things without risking anything."
     }
   }
 }
