@@ -577,6 +577,54 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     if (material.params.z >= 19.5 && material.params.z < 20.5) {
         let t = camera.sun_color.w;
         let h = max(vertex.position.y, 0.0);
+        // ── LIVE WIND INPUT (v0.1079) ────────────────────────────────────
+        // light7_cone_inner = (wind_dir_world.xyz, wind_speed_m_s), poked by
+        // the renderer from WeatherState. The light0..7 cone_inner fields are
+        // LEGACY (see the struct comment above: real scene lights moved to the
+        // uncapped storage buffer in v0.782), which is why light4/5/6 already
+        // carry the ocean anchor, sea crest and sea sphere. light7 was the last
+        // free one.
+        //
+        // THE POKE MUST LIVE BESIDE THE SEA POKES in the CELESTIAL-pass
+        // uniform stamp (renderer/mod.rs, the block that re-writes offsets
+        // 528/544/560 after celestial_uniforms() has stamped the whole
+        // buffer). Planet-surface trees are pushed as celestial_objects, so a
+        // poke made only against the main-pass stamp never reaches them.
+        //
+        // FALLBACK, deliberately not a zero: an unwritten or zero slot means
+        // "no publisher yet / weather off", and a zero wind speed would freeze
+        // every plant on the planet - strictly worse than what shipped before.
+        // A 4 m/s default breeze reproduces the pre-v0.1079 look.
+        var wind_w = camera.light7_cone_inner.xyz;
+        var wind_v = camera.light7_cone_inner.w;
+        if (dot(wind_w, wind_w) < 0.25 || wind_v <= 0.0) {
+            wind_w = vec3<f32>(0.86, 0.0, 0.32);
+            wind_v = 4.0;
+        }
+        wind_w = normalize(wind_w);
+        // World wind -> OBJECT space. transpose(normal_matrix) is model^-1 for
+        // the rotation + uniform-scale transforms plants use (the same
+        // identity the water branch uses below and the leaf-detail branch in
+        // 90-fragment-main uses). This is the fix for the fanning stand: the
+        // displacement is applied BEFORE obj_model(), so undoing the instance
+        // yaw here is exactly what makes every tree in a stand lean the SAME
+        // compass direction. Before this the wind vector was a CONSTANT in
+        // object space, so each tree's random yaw (planet_chunks.rs, `az`)
+        // rotated it and neighbours swayed in opposite directions.
+        //
+        // Object +Y IS the trunk axis by construction, so zeroing it leaves a
+        // purely tangential lean: trees bend across the ground, never into or
+        // out of it, at any latitude.
+        var wind_dir = (transpose(obj_normal_matrix()) * vec4<f32>(wind_w, 0.0)).xyz;
+        wind_dir.y = 0.0;
+        let wl = length(wind_dir);
+        if (wl < 1.0e-4) {
+            // Wind blowing straight down the trunk axis (only at a pole or on
+            // a tipped-over instance): pick any tangent rather than NaN.
+            wind_dir = vec3<f32>(1.0, 0.0, 0.0);
+        } else {
+            wind_dir = wind_dir / wl;
+        }
         // Per-plant phase so a stand does not sway in lockstep.
         //
         // Built to be EXACTLY 64 m-PERIODIC in both horizontal axes. The
@@ -589,26 +637,61 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         let o = obj_model()[3].xyz;
         let k = 6.283185307 / 64.0;
         let phase = o.x * k * 3.0 + o.z * k * 5.0;
-        // A steady breeze with a slow gust envelope on top.
-        let gust = 0.65 + 0.35 * sin(t * 0.23 + phase * 0.5);
-        let wind_dir = normalize(vec3<f32>(0.86, 0.0, 0.32));
-        // Trunk sway: slow, amplitude growing with height so the bole stays
-        // planted while the crown travels.
-        var wind_pos = vertex.position + wind_dir * (sin(t * 0.9 + phase) * 0.035 * h * gust);
+        // TRAVELLING GUST FRONT. A gust is a spatial cell advecting downwind
+        // at roughly the mean wind speed (the visible wave that crosses a
+        // canopy), not a standing pulse - the old envelope used a
+        // position-derived phase with no time-space coupling, so it throbbed
+        // in place.
+        //
+        // The travel direction is SNAPPED to integer harmonics of TAU/64 for
+        // the same reason the per-plant phase is: an arbitrary dot(o, wind)
+        // is not 64 m-periodic and every floating-origin rebase would pop the
+        // whole forest. Rounding the horizontal wind to a x2 integer lattice
+        // gives a 32-64 m gust wavelength and an angular resolution far finer
+        // than anyone can read off a canopy.
+        var nz = round(vec2<f32>(wind_w.x, wind_w.z) * 2.0);
+        if (abs(nz.x) + abs(nz.y) < 0.5) {
+            nz = vec2<f32>(1.0, 0.0);
+        }
+        let kv = nz * k;
+        // Phase = K.x - |K| v t: the crests move downwind at the wind speed.
+        let travel = o.x * kv.x + o.z * kv.y - length(kv) * wind_v * t;
+        let gust = 0.65 + 0.35 * sin(travel);
+        // STATIC LEAN. Drag on a crown goes as v^2, so a stand holds a mean
+        // downwind deflection proportional to the square of the wind speed and
+        // oscillates ABOUT that lean; at Beaufort 8 (17-20 m/s) the textbook
+        // description is "whole trees in motion". A zero-mean sway, which is
+        // all this branch had, renders a hurricane as a calm day.
+        //
+        // hn is a cantilever profile: zero at the foot, growing to the tip, and
+        // normalised against a 12 m reference so a 22 m fir does not fold flat
+        // while an 8 m cherry barely moves. lean_frac is capped at 0.30 so even
+        // a 25 m/s hurricane roll bends the stand hard without laying it down.
+        let v2 = wind_v * wind_v;
+        let lean_frac = min(6.0e-4 * v2, 0.30);
+        let hn = clamp(h / 12.0, 0.1, 1.0);
+        let lean_m = h * hn * lean_frac;
+        // Sway about the lean: a wind-scaled term plus a small calm-air term,
+        // so a still day still breathes instead of freezing.
+        let sway_amp = h * (0.020 + 0.55 * hn * lean_frac);
+        let sway = sway_amp * sin(t * (0.9 + 0.02 * wind_v) + phase);
+        var wind_pos = vertex.position + wind_dir * ((lean_m + sway) * gust);
         // Leaf flutter: blades only (organ bit 19), faster and smaller, partly
         // across the wind so foliage shimmers rather than shunting sideways.
         let packed = u32(round(max(vertex.uv.x, 0.0)));
         if ((packed & 524288u) != 0u) {
             // Flutter scales with plant size. A flat amplitude made a 0.3 m
             // strawberry shake as hard as an 18 m oak, and the crop path uses
-            // this same material.
+            // this same material. fv adds the wind-speed response: leaves are
+            // the first thing to show a rising wind and the last to stop.
             let fl = clamp(h * 0.35, 0.10, 1.0);
-            let f = sin(t * 5.1 + phase * 3.7 + h * 2.3);
-            let g = cos(t * 6.7 + phase * 2.1 + h * 1.7);
+            let fv = clamp(wind_v / 6.0, 0.35, 3.0);
+            let f = sin(t * (5.1 + 0.15 * wind_v) + phase * 3.7 + h * 2.3);
+            let g = cos(t * (6.7 + 0.20 * wind_v) + phase * 2.1 + h * 1.7);
             wind_pos = wind_pos
-                + wind_dir * (f * 0.055 * gust * fl)
-                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl)
-                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x) * (g * 0.040 * gust * fl);
+                + wind_dir * (f * 0.055 * gust * fl * fv)
+                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv)
+                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x) * (g * 0.040 * gust * fl * fv);
         }
         world_pos = obj_model() * vec4<f32>(wind_pos, 1.0);
         world_pos = vec4<f32>(world_pos.xyz, 1.0);

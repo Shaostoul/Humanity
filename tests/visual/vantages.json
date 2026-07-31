@@ -111,14 +111,41 @@
     "altitude_km": 0.03,
     "look_offset_deg": 80
    },
-   "settle_s": 25,
-   "expect": "Dense green ground with real 3D conifer trees standing around the camera - visible brown trunks, needled canopies - and flatter silhouette-card trees carrying the forest toward the horizon. Grass underfoot.",
+   "_settle_note": "75 s, NOT the 25 s this carried through v0.1078. MEASURED 2026-07-31: at 25 s this vantage captures 43-48 ms while the scene is still streaming, and it keeps getting heavier for another ~40 s before it settles at 93.7 ms +/- 5.8 (10.7 fps) on the operator's max-quality rig config. So the sweep was reporting 21.3 and 18.8 fps and passing an 18 fps floor at 55% of the real number. Every perf figure taken here before v0.1079 is measuring a half-built forest. probe-sweep.js `settle_s` is a plain sleep (scripts/probe-sweep.js:236) with no steady-state detection; a proper fix waits for [PatchBatch] to stop changing in run.log, which is a rig change, not a data change.",
+   "settle_s": 75,
+   "expect": "Dense green ground with real 3D conifer trees standing around the camera - visible brown trunks, needled canopies - and BAKED SILHOUETTE cards, ragged crown outlines with sky visible through their edges, never plain rectangles, carrying the forest toward the horizon. Grass underfoot.",
    "regressions": [
     "3D tree MODELS present, not just flat cards (v0.923 default-off regression)",
     "no bare ground where a forest should be (bare-forest card-hide bug)",
-    "trunks visible, not floating canopies"
+    "trunks visible, not floating canopies",
+    "NO flat rectangular slabs anywhere in the tree field: every card past the 3D-model ring shows a crown outline with sky visible through its edge. 6 of the 8 rows in data/vegetation/trees.ron are procedural (model: \"\") and had NO atlas tile, so they fell through planet_chunks.rs:1925 to plain coloured trunk+canopy rectangles; fir and pine took the sprite path but a SHIPPED build has no assets/models/ (.github/workflows/build-desktop.yml copies data/ + assets/icons/ + assets/shaders/ only), so the bake aborted, tree_atlas_ready stayed false and their cards painted the flat green fallback at 90-fragment-main.wgsl:824. Photographed as a picket fence of grey slabs at v0.1078.",
+    "NO storm-strength lean in calm weather: the same wind uniform (light7_cone_inner, wind_dir_world.xyz + speed m/s) must produce a near-upright stand here. Crowns sway but stay centred over their bases."
    ],
    "perf_floor_fps": 18
+  },
+  {
+   "id": "fuji-forest-hillside",
+   "desc": "150 m above a forested Fuji slope, looking down across the canopy. The CARD rung seen from above, which is where the operator's \"black squares in a grid\" verdict came from. Added 2026-07-31: there were 25 vantages and exactly one forest one, and both forest vantages sat at 30 m INSIDE the stand, so the 70 m-to-cutoff card stage - the largest-screen-area vegetation LOD at any elevated view - had no clean rig coverage at all.",
+   "showcase": {
+    "time": "2.9",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 35.3,
+    "lon": 138.8,
+    "altitude_km": 0.15,
+    "look_offset_deg": 72
+   },
+   "hold_altitude": true,
+   "settle_s": 75,
+   "expect": "A forested slope filling the lower two-thirds of the frame, seen from above the canopy: individual crowns readable as separate ragged silhouettes with a clear sunlit-top / shaded-flank split, the canopy mass reading DARKER than the open ground beyond it. (look_offset_deg is measured from straight down, so 72 aims about 18 degrees below the horizon. showcase `time` is a GLOBAL clock; local solar hour = time + lon/15, so lon 138.8 needs time 2.9 for local noon - see _clock_note.)",
+   "regressions": [
+    "NO flat rectangular slabs in the canopy band - the finding-1 gate, at the distance where it is most visible",
+    "the forest band's mean luminance must be BELOW that of the adjacent open ground (real canopy albedo 0.08-0.15 vs grass 0.20-0.25). Card shading normals were pinned to the radial up at planet_chunks.rs:1686 and :1727 (the v0.896 black-slab fix), so cards lit exactly like the terrain and a distant forest read as a flat green carpet painted on the hillside",
+    "per-tree luminance variance in the canopy band must exceed 8/255 - a uniform flat mass means the cards still have no directional shading",
+    "NO black slabs either: the v0.896 failure this replaced. A card normal blended toward the card facing must never reach N.L = 0 under an overhead sun, and a two-sided card must not go dark on its back face"
+   ]
   },
   {
    "id": "limb-400km",
@@ -480,7 +507,9 @@
     "no giant lattice/mesh silhouette filling the view",
     "no inverted sky (stars below the horizon at ground level)",
     "NO stars or Milky Way visible through the sky at any hour - an overcast storm deck is optically opaque (observed at v0.1073)",
-    "whole-frame mean luminance must be above 60 (22.0 at v0.1073, because global clock 12.0 at lon 138.8 was local ~21:00 and this gate was silently a NIGHT scene)"
+    "whole-frame mean luminance must be above 60 (22.0 at v0.1073, because global clock 12.0 at lon 138.8 was local ~21:00 and this gate was silently a NIGHT scene)",
+    "NO flat rectangular slabs anywhere in the tree field - the mid-field vegetation is clearest here of any vantage (photographed at v0.1078: a row of pale grey vertical slabs with hard straight tops and hard vertical sides, repeating across the frame). Every card past the 3D-model ring must show a crown outline with sky through its edge",
+    "Under 12-25 m/s storm wind the whole stand LEANS DOWNWIND: every crown visibly displaced from over its base, and every tree in frame leaning the SAME compass direction, displacement growing with tree height. NO upright calm-day forest under a storm, and NO fanning (no two crowns leaning in opposite directions). Before v0.1079 the foliage wind was a hardcoded OBJECT-space vector at 00-bindings-vertex.wgsl:594 with a zero-mean sway and no WeatherState wind-speed input, and each instance's random yaw (planet_chunks.rs:1883) rotated it, so trees swayed in random directions at one fixed calm-day amplitude"
    ],
    "camera": {
     "body": "earth",
