@@ -843,3 +843,18 @@ grain_sesame_0,Sesame Seed,food,grain,plant_fiber,0.5,20,0,Threshed sesame seed 
 grain_rapeseed_0,Rapeseed,food,grain,plant_fiber,0.5,20,0,Threshed rapeseed for oil pressing 500g,dry_goods,0.93
 fruit_olive_0,Olive,food,fruit,plant_fiber,0.3,20,0,Fresh harvested olive,solid,0.45
 fruit_date_palm_0,Dates,food,fruit,plant_fiber,0.3,20,0,Fresh harvested dates,solid,0.45
+grain_spelt_0,Spelt Grain,food,grain,plant_fiber,0.5,20,0,Dehulled spelt kernels 500g,dry_goods,0.93
+grain_finger_millet_0,Finger Millet Grain,food,grain,plant_fiber,0.5,20,0,Threshed finger millet seed 500g,dry_goods,0.93
+grain_camelina_0,Camelina Seed,food,grain,plant_fiber,0.5,20,0,Threshed camelina seed for oil pressing 500g,dry_goods,0.93
+grain_safflower_0,Safflower Seed,food,grain,plant_fiber,0.5,20,0,Threshed safflower seed for oil pressing 500g,dry_goods,0.93
+legume_lupin_0,White Lupin,food,legume,plant_fiber,0.3,20,0,Fresh harvested white lupin seed,solid,0.45
+legume_mung_bean_0,Mung Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested mung bean,solid,0.45
+legume_bambara_groundnut_0,Bambara Groundnut,food,legume,plant_fiber,0.3,20,0,Fresh harvested bambara groundnut pods,solid,0.45
+vegetable_oca_0,Oca,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested oca tuber,solid,0.45
+vegetable_sugar_beet_0,Sugar Beet,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested sugar beet root,solid,0.45
+vegetable_moringa_0,Moringa Leaves,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested moringa leaves and pods,solid,0.45
+fruit_chestnut_0,Chestnut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested sweet chestnuts,solid,0.45
+fruit_hazelnut_0,Hazelnut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested hazelnuts in shell,solid,0.45
+fruit_walnut_0,Walnut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested walnuts in shell,solid,0.45
+fruit_breadfruit_0,Breadfruit,food,fruit,plant_fiber,0.3,20,0,Fresh harvested breadfruit,solid,0.45
+fruit_prickly_pear_0,Prickly Pear,food,fruit,plant_fiber,0.3,20,0,Fresh harvested prickly pear fruit,solid,0.45
