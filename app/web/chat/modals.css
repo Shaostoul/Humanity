@@ -635,3 +635,87 @@
   #login-screen input { width: 100%; max-width: 340px; }
   #login-screen button { width: 100%; max-width: 340px; }
 }
+
+/* ── Game Admin overlay (web mirror of the native Game Admin page) ──
+   Game-world bans, kept visually + structurally distinct from chat moderation.
+   Reuses .profile-modal-overlay / .profile-modal; these are the net-new bits.
+   Theme tokens only. */
+.gameadmin-disclaimer {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-card);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-lg);
+}
+.gameadmin-disclaimer h3 { color: var(--text); font-size: var(--text-md); margin: 0 0 var(--space-sm); }
+.gameadmin-disclaimer p { color: var(--text-secondary); font-size: var(--text-sm); margin: 0; line-height: 1.4; }
+.gameadmin-section { color: var(--text); font-size: var(--text-md); margin: var(--space-lg) 0 var(--space-xs); }
+.gameadmin-hint { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 var(--space-sm); line-height: 1.4; }
+.profile-modal #gameadmin-key,
+.profile-modal #gameadmin-reason { margin-bottom: var(--space-sm); }
+.gameadmin-danger-btn {
+  background: var(--danger); color: #fff; border: none;
+  padding: var(--space-sm) var(--space-xl); border-radius: var(--radius-sm);
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
+}
+.gameadmin-danger-btn:hover { filter: brightness(1.1); }
+.gameadmin-toolbar { display: flex; align-items: center; gap: var(--space-md); margin-bottom: var(--space-sm); }
+.gameadmin-refresh-btn {
+  background: var(--bg-input); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md); cursor: pointer; font-size: var(--text-sm);
+}
+.gameadmin-refresh-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.gameadmin-count { color: var(--text-muted); font-size: var(--text-sm); }
+.gameadmin-row {
+  display: flex; align-items: center; gap: var(--space-md);
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-xs);
+}
+.gameadmin-row .ga-key { font-family: monospace; color: var(--text); font-size: var(--text-sm); }
+.gameadmin-row .ga-reason { color: var(--text-secondary); flex: 1; font-size: var(--text-sm);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gameadmin-row .ga-date { color: var(--text-muted); font-size: var(--text-xs); }
+.gameadmin-unban-btn {
+  margin-left: auto; background: var(--bg-input); color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md); cursor: pointer; font-size: var(--text-sm);
+}
+.gameadmin-unban-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.gameadmin-status { color: var(--accent); font-size: var(--text-sm); margin-top: var(--space-md); min-height: 1.2em; }
+
+/* ---- Per-user voice control modal (v0.484) ----
+   Three role-tiered sections, colored by tier: standard red, mod green, admin
+   blue (matching the ci() context-menu tiers). Theme vars only. */
+.vmodal .vmodal-section {
+  border-left: 3px solid var(--border);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+}
+.vmodal .vmodal-section h3 { margin: 0 0 var(--space-sm); font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.04em; }
+.vmodal .vmodal-tier-standard { border-left-color: var(--danger); }
+.vmodal .vmodal-tier-standard h3 { color: var(--danger); }
+.vmodal .vmodal-tier-mod { border-left-color: var(--success); }
+.vmodal .vmodal-tier-mod h3 { color: var(--success); }
+.vmodal .vmodal-tier-admin { border-left-color: #56b; }
+.vmodal .vmodal-tier-admin h3 { color: #88f; }
+.vmodal .vmodal-action {
+  display: block; width: 100%; text-align: left;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-md); margin: 3px 0;
+  font-size: var(--text-sm); cursor: pointer;
+}
+.vmodal .vmodal-action:hover { border-color: var(--text-muted); background: var(--bg-hover); }
+.vmodal .vmodal-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.vmodal .vmodal-action.vmodal-danger { color: var(--danger); }
+.vmodal .vmodal-slider { display: flex; align-items: center; gap: var(--space-sm); margin: var(--space-xs) 0; }
+.vmodal .vmodal-slider label { font-size: var(--text-sm); color: var(--text-secondary); min-width: 52px; }
+.vmodal .vmodal-slider input[type="range"] { flex: 1; accent-color: var(--accent); }
+.vmodal .vmodal-slider .vmodal-val { font-size: var(--text-sm); color: var(--text); min-width: 42px; text-align: right; }
+.vmodal .vmodal-toggle { display: flex; align-items: center; gap: var(--space-sm); margin: var(--space-xs) 0; font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; }
+.vmodal .vmodal-toggle input { accent-color: var(--accent); }
+.vmodal .vmodal-note { font-size: var(--text-xs); color: var(--text-muted); margin: var(--space-xs) 0 0; line-height: 1.4; }

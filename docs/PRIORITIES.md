@@ -193,6 +193,17 @@
 >   session): species variety needs matching far-field cards + atlas
 >   entries or the card handoff pops; models are already on disk
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
+> - ORGAN-TAG FIX shipped first (v0.1081, wf_11009ff9 domain pass): the
+>   challenger STOPPED the atlas increment because the black-canopy crux
+>   was a tag bug, not missing cards - blade() never set Organ::Leaf, so
+>   5 of 8 species shaded foliage as BARK and the v0.1078 transmission +
+>   v0.1080 flutter never ran on them. Fixed + gated (unit test counts
+>   leaf-tagged geometry; fuji vantage carries a quantified no-black-
+>   canopy regression). The ATLAS REGISTRY increment (bake tiles for the
+>   6 procedural species; billboard-bake-generalization.md increment 1 +
+>   feeding tree_mesh CPU buffers in as BakeParts) remains designed, NOT
+>   built - it is the next vegetation rung, and the picket-fence far
+>   field is its acceptance test. Tree seam welding rides with it.
 > WEATHER ARC STATUS (2026-07-28 afternoon loop): advection (v0.1032),
 > precipitation particles (v0.1033), extreme-weather events schema +
 > LIVE consumption (v0.1034-v0.1035: eligibility rolls, rarity weights,

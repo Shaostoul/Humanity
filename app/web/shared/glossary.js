@@ -30,7 +30,7 @@
   style.id = 'glossary-styles';
   style.textContent =
     /* Clickable term styling */
-    '[data-term]{cursor:help;border-bottom:1px dotted var(--accent,#FF8811);' +
+    '[data-term]{cursor:help;border-bottom:1px dotted var(--accent,#ed8c24);' +
     'transition:border-color 0.15s;}' +
     '[data-term]:hover{border-bottom-color:var(--text,#e0e0e0);}' +
 
@@ -45,7 +45,7 @@
     '.glossary-tooltip.visible{opacity:1;transform:translateY(0);}' +
 
     /* Term heading */
-    '.glossary-tooltip__term{font-weight:700;font-size:0.95rem;color:var(--accent,#FF8811);' +
+    '.glossary-tooltip__term{font-weight:700;font-size:0.95rem;color:var(--accent,#ed8c24);' +
     'margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;}' +
 
     /* Category badge */
@@ -61,7 +61,7 @@
     'justify-content:space-between;gap:8px;}' +
 
     /* Learn more link */
-    '.glossary-tooltip__link{font-size:0.78rem;color:var(--accent,#FF8811);' +
+    '.glossary-tooltip__link{font-size:0.78rem;color:var(--accent,#ed8c24);' +
     'text-decoration:none;opacity:0.85;}' +
     '.glossary-tooltip__link:hover{opacity:1;text-decoration:underline;}' +
 

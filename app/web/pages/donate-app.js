@@ -128,8 +128,8 @@
       var card = document.createElement('div');
       card.className = 'source-card';
 
-      var abbrev = networkAbbrev(entry.network);
-      var color = networkColor(entry.network);
+      var abbrev = entry.abbrev || networkAbbrev(entry.network);
+      var color = entry.color || networkColor(entry.network);
       var label = entry.label || '';
       var value = entry.value || '';
       var hasValue = value && value.length > 0;
@@ -335,6 +335,35 @@
     } catch (e) { /* quota exceeded or private mode */ }
   }
 
+  // ── Charities the maintainer endorses (data/donate/charities.json) ──
+  // Independent nonprofits, not HumanityOS funding. Rendered into their own grid.
+
+  async function renderCharities() {
+    var grid = document.getElementById('charities-grid');
+    if (!grid) return;
+    var list = [];
+    try {
+      var resp = await fetch('/data/donate/charities.json', { cache: 'no-cache' });
+      var json = await resp.json();
+      if (json && Array.isArray(json.charities)) list = json.charities;
+    } catch (e) { /* optional; leave the section empty if absent */ }
+    grid.innerHTML = '';
+    list.forEach(function (c) {
+      if (!c || !c.name) return;
+      var color = c.color || '#4a9';
+      var abbrev = c.abbrev || c.name.replace(/[^a-zA-Z]/g, '').substring(0, 3).toUpperCase();
+      var iconHtml = '<span class="source-icon" style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:' + color + ';color:#fff;font-size:0.7rem;font-weight:700;flex-shrink:0;">' + escHtml(abbrev) + '</span>';
+      var card = document.createElement('div');
+      card.className = 'source-card';
+      card.innerHTML =
+        '<h3>' + iconHtml + ' ' + escHtml(c.name) + '</h3>' +
+        '<p>' + escHtml(c.mission || '') + '</p>' +
+        (c.note ? '<div class="coming-soon" style="font-style:normal;color:var(--text-muted);">' + escHtml(c.note) + '</div>' : '') +
+        (c.url ? '<a href="' + escHtml(c.url) + '" target="_blank" rel="noopener" class="btn-sponsor">Donate</a>' : '');
+      grid.appendChild(card);
+    });
+  }
+
   // ── Fetch totals (works with both new addresses and legacy sources) ──
 
   async function fetchTotals(addresses) {
@@ -398,6 +427,23 @@
       useNewFormat = true;
     }
 
+    // Merge the direct-support link methods (data/donate/methods.json) into the
+    // grid, de-duped by network name so a server-config GitHub isn't doubled.
+    // Only in the new-format path (renderAddressCards handles url + address).
+    if (useNewFormat) {
+      try {
+        var mResp = await fetch('/data/donate/methods.json', { cache: 'no-cache' });
+        var mJson = await mResp.json();
+        if (mJson && Array.isArray(mJson.methods)) {
+          var have = {};
+          entries.forEach(function (e) { if (e.network) have[e.network.toLowerCase()] = true; });
+          mJson.methods.forEach(function (m) {
+            if (m && m.network && !have[m.network.toLowerCase()]) entries.push(m);
+          });
+        }
+      } catch (e) { /* methods.json is optional; ignore if absent */ }
+    }
+
     // Render cards using appropriate renderer
     if (useNewFormat) {
       renderAddressCards(entries);
@@ -418,6 +464,9 @@
 
     // Breakdown
     renderBreakdown(entries);
+
+    // Endorsed charities (independent of the maintainer-support entries above).
+    await renderCharities();
   }
 
   // Expose copy function for inline onclick handlers

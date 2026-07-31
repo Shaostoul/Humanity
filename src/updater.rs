@@ -743,9 +743,19 @@ fn apply_update(exe_path: &std::path::Path, update_path: &std::path::Path) -> Re
 pub fn create_restart_script(exe_path: &std::path::Path) -> Result<PathBuf, String> {
     let bat_path = exe_path.with_extension("restart.bat");
     let exe_str = exe_path.to_string_lossy();
+    // The relaunched exe's parent is cmd.exe, which the focus policy
+    // (engine/launch_focus.rs) reads as a script launch -> background. So
+    // the restart script must carry this instance's OWN focus state
+    // forward: a foreground app that updates comes back foreground, a
+    // background rig that updates stays behind.
+    let focus_line = if crate::engine::launch_focus::launch_in_background() {
+        "set HUMANITY_NO_FOCUS=1"
+    } else {
+        "set HUMANITY_TAKE_FOCUS=1"
+    };
     let script = format!(
-        "@echo off\r\ntimeout /t 2 /nobreak >nul\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
-        exe_str
+        "@echo off\r\ntimeout /t 2 /nobreak >nul\r\n{}\r\nstart \"\" \"{}\"\r\ndel \"%~f0\"\r\n",
+        focus_line, exe_str
     );
     std::fs::write(&bat_path, script)
         .map_err(|e| format!("Failed to write restart script: {}", e))?;

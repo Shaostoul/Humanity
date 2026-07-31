@@ -352,7 +352,7 @@
       color: #4caf50;
     }
     .modal-btn.primary:hover { background: #1e481e; }
-    .modal-btn.danger { background: #2a1010; border-color: #5a2a2a; color: #e74c3c; }
+    .modal-btn.danger { background: #2a1010; border-color: #5a2a2a; color: var(--danger); }
     .modal-btn.danger:hover { background: #381010; }
 
     /* ═══════════════════════════════════════════
@@ -615,10 +615,10 @@
   <!-- Sidebar -->
   <nav id="inv-sidebar">
     <!-- PLAYER -->
-    <div class="inv-section" id="sec-player" style="--section-color:#e74c3c">
+    <div class="inv-section" id="sec-player" style="--section-color:var(--nav-red)">
       <div class="inv-section-header" onclick="toggleSection('player')">
-        <div class="dot" style="background:#e74c3c"></div>
-        <span class="label" style="color:#e74c3c"><span data-icon="dot-red" data-size="12"></span> Player</span>
+        <div class="dot" style="background:var(--nav-red)"></div>
+        <span class="label" style="color:var(--nav-red)"><span data-icon="dot-red" data-size="12"></span> Player</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">
@@ -642,10 +642,10 @@
     </div>
 
     <!-- HOME -->
-    <div class="inv-section" id="sec-home" style="--section-color:#2ecc71">
+    <div class="inv-section" id="sec-home" style="--section-color:var(--nav-green)">
       <div class="inv-section-header" onclick="toggleSection('home')">
-        <div class="dot" style="background:#2ecc71"></div>
-        <span class="label" style="color:#2ecc71"><span data-icon="dot-green" data-size="12"></span> Home</span>
+        <div class="dot" style="background:var(--nav-green)"></div>
+        <span class="label" style="color:var(--nav-green)"><span data-icon="dot-green" data-size="12"></span> Home</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">
@@ -669,10 +669,10 @@
     </div>
 
     <!-- FLEET -->
-    <div class="inv-section" id="sec-fleet" style="--section-color:#3498db">
+    <div class="inv-section" id="sec-fleet" style="--section-color:var(--nav-blue)">
       <div class="inv-section-header" onclick="toggleSection('fleet')">
-        <div class="dot" style="background:#3498db"></div>
-        <span class="label" style="color:#3498db"><span data-icon="dot-blue" data-size="12"></span> Fleet</span>
+        <div class="dot" style="background:var(--nav-blue)"></div>
+        <span class="label" style="color:var(--nav-blue)"><span data-icon="dot-blue" data-size="12"></span> Fleet</span>
         <span class="chevron">▾</span>
       </div>
       <div class="inv-section-items">

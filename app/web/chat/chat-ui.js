@@ -444,17 +444,19 @@ function showUserContextMenu(e, name, publicKey) {
   const ci = (onclick, label, tier) => {
     const borderStyle = {
       mod:    'border-left:3px solid var(--success);padding-left:9px;',
-      admin:  'border-left:3px solid #56b;padding-left:9px;',
-      danger: 'border-left:3px solid var(--danger);padding-left:9px;color:#e88;',
+      admin:  'border-left:3px solid var(--info);padding-left:9px;',
+      danger: 'border-left:3px solid var(--danger);padding-left:9px;color:var(--danger);',
     }[tier] || '';
     return '<div class="ctx-item" style="' + borderStyle + '" onclick="' + onclick + '">' + label + '</div>';
   };
 
-  // Role badge for target user header
+  // Role badge for target user header.
+  // Badge text stays #fff (white on a saturated colored badge, legible in both
+  // light and dark themes); theme.css has no "always-white" token, so it is kept.
   const roleBadge = {
-    admin: '<span style="font-size:0.68rem;background:#56b;color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">ADMIN</span>',
+    admin: '<span style="font-size:0.68rem;background:var(--info);color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">ADMIN</span>',
     mod:   '<span style="font-size:0.68rem;background:var(--success);color:#fff;padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">MOD</span>',
-  }[targetRole] || '<span style="font-size:0.68rem;background:#444;color:var(--text-muted);padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">USER</span>';
+  }[targetRole] || '<span style="font-size:0.68rem;background:var(--border);color:var(--text-muted);padding:1px 5px;border-radius:var(--radius-sm);margin-left:4px;">USER</span>';
 
   const isBot = publicKey && publicKey.startsWith('bot_');
   let html = '';
@@ -493,7 +495,7 @@ function showUserContextMenu(e, name, publicKey) {
         html += ci("ctxCommand('/ban')", '\uD83D\uDEB7 Ban', 'danger');
       }
       if (amAdmin) {
-        html += '<div class="ctx-item" style="font-size:0.68rem;color:#56b;pointer-events:none;padding-top:var(--space-sm);">\u2014 Admin Actions \u2014</div>';
+        html += '<div class="ctx-item" style="font-size:0.68rem;color:var(--info);pointer-events:none;padding-top:var(--space-sm);">\u2014 Admin Actions \u2014</div>';
         html += ci("ctxCommand('/verify')", '\u2736 Verify', 'admin');
         html += ci("ctxCommand('/mod')", '\u2B06\uFE0F Promote to Mod', 'admin');
         html += ci("ctxCommand('/unmod')", '\u2B07\uFE0F Demote', 'admin');
@@ -658,25 +660,25 @@ document.getElementById('peer-list').addEventListener('contextmenu', function(e)
 // Profile system, block list -> see chat-profile.js
 
 // ── Import file handler (login screen) ──
-// Handles both plain JSON backups and passphrase-encrypted backups.
+// The hidden #import-file-input on the login screen (index.html) points here.
+// It no longer owns a modal of its own: it parses the picked file and hands it
+// to the ONE restore surface (openLoginRestoreModal below), opened on its
+// "Backup file" tab. Plain and passphrase-encrypted backups both land there, so
+// there is a single place where the user sees what is about to become their
+// identity on this device, with a Cancel.
 async function handleImportFile(event) {
   const file = event.target.files[0];
   if (!file) return;
+  const errEl = document.getElementById('login-error');
   try {
-    const text = await file.text();
-    const jsonData = JSON.parse(text);
-
-    if (jsonData.encrypted) {
-      // Show passphrase modal for encrypted backups
-      showPassphraseModal(jsonData);
-    } else {
-      const identity = await importIdentityFromJSON(jsonData);
-      finishImport(identity);
-    }
+    const jsonData = JSON.parse(await file.text());
+    if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }
+    openLoginRestoreModal({ tab: 'file', backup: jsonData, fileName: file.name });
   } catch (e) {
-    const errEl = document.getElementById('login-error');
-    errEl.textContent = '❌ Import failed: ' + e.message;
-    errEl.style.display = 'block';
+    if (errEl) {
+      errEl.textContent = '❌ Import failed: ' + e.message;
+      errEl.style.display = 'block';
+    }
   }
   // Reset file input so the same file can be re-selected
   event.target.value = '';
@@ -692,165 +694,445 @@ function finishImport(identity) {
   connect();
 }
 
-/** Modal for entering passphrase to decrypt an encrypted backup. */
-function showPassphraseModal(jsonData) {
+// ── Restore your identity (login screen) ─────────────────────────────────────
+// ONE surface, two methods. This used to be two modals that asked for different
+// halves of the same question ("how do you want to prove this identity is
+// yours?"): a seed-phrase modal, and a passphrase modal that only appeared when
+// an encrypted backup file happened to be picked (and was the last chat modal
+// still painted in hardcoded hex). They are one tabbed modal now:
+//
+//   Seed phrase  -> restoreIdentityFromMnemonic()  (the 24 BIP39 words)
+//   Backup file  -> importIdentityBackup()         (plain OR encrypted .json)
+//
+// NO KEY HANDLING LIVES HERE. Both tabs call the SAME crypto.js functions the
+// old modals called, with the same arguments. This code only collects input,
+// shape-checks it (via the shared normalizeMnemonicInput in crypto.js, so the
+// word rules cannot drift between restore surfaces), and reports errors.
+// Secrets are never logged, never put in the URL, and never written anywhere
+// except through those existing crypto.js paths.
+//
+// Styling is 100% theme tokens (data/gui/theme.ron -> theme.css). No hex.
+
+/**
+ * Open the restore modal.
+ * @param {object} [opts]
+ * @param {'seed'|'file'} [opts.tab='seed'] - Tab to open on.
+ * @param {object} [opts.backup]   - Already-parsed backup JSON, pre-staged on the
+ *                                   file tab (the login screen's Import button
+ *                                   parses the file, then hands it over).
+ * @param {string} [opts.fileName] - Its filename, echoed back so the user can
+ *                                   confirm they picked the right file.
+ */
+function openLoginRestoreModal(opts) {
+  opts = opts || {};
+
+  // Only ever one restore surface on screen.
+  const existing = document.getElementById('login-restore-overlay');
+  if (existing) existing.remove();
+
+  // The staged backup lives in this closure for the life of the modal: not in
+  // localStorage, not on window, and gone the moment the modal closes.
+  let stagedBackup = opts.backup || null;
+  let stagedFileName = opts.fileName || '';
+
   const overlay = document.createElement('div');
-  overlay.id = 'passphrase-modal-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
+  overlay.id = 'login-restore-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg-modal);z-index:6000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = `
-    <div style="background:#181818;border:1px solid #2a2a2a;border-radius:12px;padding:1.5rem;width:100%;max-width:420px;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-serif">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent,#f80);margin:0 0 .5rem">🔒 Encrypted Backup</h2>
-      <p style="font-size:.82rem;color:#888;line-height:1.5;margin:0 0 1rem">Enter the passphrase you used when creating this backup.</p>
-      <div style="position:relative;margin-bottom:.75rem">
-        <input id="pp-input" type="password" placeholder="Passphrase" autocomplete="current-password"
-          style="width:100%;background:#111;border:1px solid #333;border-radius:6px;padding:.5rem .75rem;padding-right:2.5rem;color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box">
-        <button id="pp-toggle" type="button" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#666;cursor:pointer;font-size:.75rem;padding:4px 6px" title="Show/hide passphrase">Show</button>
-      </div>
-      <div id="pp-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:.75rem"></div>
-      <div style="display:flex;gap:.5rem;justify-content:flex-end">
-        <button id="pp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="pp-submit" style="background:var(--accent,#f80);color:#000;border:none;border-radius:6px;padding:.4rem 1rem;font-size:.82rem;font-weight:700;cursor:pointer">Decrypt & Import</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const input = document.getElementById('pp-input');
-  const toggle = document.getElementById('pp-toggle');
-  const msg = document.getElementById('pp-msg');
-  const submit = document.getElementById('pp-submit');
-
-  // Show/hide passphrase toggle
-  toggle.addEventListener('click', () => {
-    const isPassword = input.type === 'password';
-    input.type = isPassword ? 'text' : 'password';
-    toggle.textContent = isPassword ? 'Hide' : 'Show';
-  });
-
-  // Cancel
-  document.getElementById('pp-cancel').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-
-  // Submit
-  async function doSubmit() {
-    const pass = input.value;
-    if (!pass) { msg.innerHTML = '<span style="color:#e55">Enter your passphrase.</span>'; return; }
-    submit.disabled = true; submit.textContent = 'Decrypting…';
-    msg.innerHTML = '';
-    try {
-      const identity = await importIdentityBackup(jsonData, pass);
-      overlay.remove();
-      finishImport(identity);
-    } catch (e) {
-      msg.innerHTML = '<span style="color:#e55">' + (e.message || 'Decryption failed') + '</span>';
-      submit.disabled = false; submit.textContent = 'Decrypt & Import';
-    }
-  }
-  submit.addEventListener('click', doSubmit);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSubmit(); });
-  input.focus();
-}
-
-// ── Login-screen seed phrase recovery ──
-// Shows a modal with a textarea for 24 words + a name input, then restores
-// the identity and connects to the network without a page reload.
-function openLoginSeedRecovery() {
-  const overlay = document.createElement('div');
-  overlay.id = 'login-seed-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:6000;display:flex;align-items:center;justify-content:center;padding:1rem;box-sizing:border-box;';
-
-  overlay.innerHTML = `
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:540px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);max-height:90vh;overflow-y:auto">
-      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Recover from Seed Phrase</h2>
-      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-xl)">
-        Enter the 24-word recovery phrase and choose a display name to rejoin the network.
+    <style>
+      #login-restore-overlay [hidden] { display: none !important; }
+      #login-restore-overlay .lr-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: var(--space-2xl);
+        width: 100%;
+        max-width: 540px;
+        max-height: 90vh;
+        overflow-y: auto;
+        color: var(--text);
+        box-sizing: border-box;
+      }
+      #login-restore-overlay h2 {
+        font-size: var(--text-base);
+        font-weight: 700;
+        color: var(--accent);
+        margin: 0 0 var(--space-sm);
+      }
+      #login-restore-overlay .lr-sub {
+        font-size: var(--text-sm);
+        color: var(--text-muted);
+        line-height: 1.5;
+        margin: 0 0 var(--space-xl);
+      }
+      #login-restore-overlay .lr-tabs {
+        display: flex;
+        gap: var(--space-sm);
+        border-bottom: 1px solid var(--border);
+        margin-bottom: var(--space-xl);
+      }
+      #login-restore-overlay .lr-tab {
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        color: var(--text-muted);
+        font: inherit;
+        font-size: var(--text-sm);
+        padding: var(--space-md) var(--space-lg);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-tab:hover { color: var(--text); }
+      #login-restore-overlay .lr-tab[aria-selected="true"] {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: 700;
+      }
+      #login-restore-overlay .lr-field { margin-bottom: var(--space-lg); }
+      #login-restore-overlay label {
+        display: block;
+        font-size: var(--text-sm);
+        color: var(--text-muted);
+        margin-bottom: var(--space-sm);
+      }
+      #login-restore-overlay input[type="text"],
+      #login-restore-overlay input[type="password"],
+      #login-restore-overlay input[type="file"],
+      #login-restore-overlay textarea {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: var(--space-md) var(--space-lg);
+        color: var(--text);
+        font-size: var(--text-sm);
+        outline: none;
+        box-sizing: border-box;
+      }
+      #login-restore-overlay input[type="file"] { color: var(--text-muted); cursor: pointer; }
+      #login-restore-overlay textarea {
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+        resize: vertical;
+      }
+      #login-restore-overlay input:focus,
+      #login-restore-overlay textarea:focus { border-color: var(--border-focus); }
+      #login-restore-overlay .lr-pass-wrap { position: relative; }
+      #login-restore-overlay .lr-pass-wrap input { padding-right: var(--space-3xl); }
+      #login-restore-overlay .lr-reveal {
+        position: absolute;
+        right: var(--space-sm);
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        font: inherit;
+        font-size: var(--text-xs);
+        padding: var(--space-xs) var(--space-sm);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-reveal:hover { color: var(--text); }
+      #login-restore-overlay .lr-hint {
+        font-size: var(--text-xs);
+        color: var(--text-muted);
+        margin-top: var(--space-sm);
+        line-height: 1.5;
+      }
+      #login-restore-overlay .lr-hint.ok { color: var(--success); }
+      #login-restore-overlay .lr-msg {
+        font-size: var(--text-sm);
+        color: var(--danger);
+        min-height: 1.2em;
+        margin-bottom: var(--space-lg);
+        line-height: 1.5;
+      }
+      #login-restore-overlay .lr-actions {
+        display: flex;
+        gap: var(--space-lg);
+        justify-content: flex-end;
+      }
+      #login-restore-overlay .lr-btn {
+        background: none;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        border-radius: var(--radius);
+        padding: var(--space-md) var(--space-xl);
+        font: inherit;
+        font-size: var(--text-sm);
+        cursor: pointer;
+      }
+      #login-restore-overlay .lr-btn:hover { color: var(--text); border-color: var(--border-focus); }
+      #login-restore-overlay .lr-btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--text-on-accent);
+        font-weight: 700;
+      }
+      #login-restore-overlay .lr-btn-primary:hover {
+        background: var(--accent-hover);
+        border-color: var(--accent-hover);
+        color: var(--text-on-accent);
+      }
+      #login-restore-overlay .lr-btn[disabled] { opacity: 0.6; cursor: default; }
+      #login-restore-overlay :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+    </style>
+    <div class="lr-card" role="dialog" aria-modal="true" aria-labelledby="lr-title">
+      <h2 id="lr-title">🔑 Restore your identity</h2>
+      <p class="lr-sub">
+        Two ways back in: the 24 words you wrote down, or a backup file you saved.
+        Both rebuild the same key in this browser. Nothing is uploaded.
       </p>
 
-      <div style="margin-bottom:var(--space-lg)">
-        <label for="lsr-name" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Display name</label>
-        <input id="lsr-name" type="text" placeholder="Choose a name" autocomplete="off" maxlength="24"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none;box-sizing:border-box">
+      <div class="lr-tabs" role="tablist" aria-label="Restore method">
+        <button type="button" class="lr-tab" id="lr-tab-seed" role="tab"
+          aria-selected="true" aria-controls="lr-panel-seed">🌱 Seed phrase</button>
+        <button type="button" class="lr-tab" id="lr-tab-file" role="tab"
+          aria-selected="false" aria-controls="lr-panel-file" tabindex="-1">💾 Backup file</button>
       </div>
 
-      <div style="margin-bottom:var(--space-lg)">
-        <label for="lsr-words" style="font-size:.78rem;color:var(--text-muted);display:block;margin-bottom:var(--space-sm)">Recovery phrase (24 words)</label>
-        <textarea id="lsr-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-          style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
-        <div id="lsr-word-count" style="font-size:.7rem;color:var(--text-muted);margin:var(--space-sm) 0 0">0 / 24 words</div>
-      </div>
+      <section id="lr-panel-seed" role="tabpanel" aria-labelledby="lr-tab-seed">
+        <div class="lr-field">
+          <label for="lr-name">Display name</label>
+          <input id="lr-name" type="text" placeholder="Choose a name" autocomplete="off" maxlength="24">
+        </div>
+        <div class="lr-field">
+          <label for="lr-words">Recovery phrase (24 words)</label>
+          <textarea id="lr-words" rows="3" placeholder="word1 word2 word3 … word24"
+            autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+            aria-describedby="lr-word-count"></textarea>
+          <div id="lr-word-count" class="lr-hint" aria-live="polite">0 / 24 words</div>
+        </div>
+        <div id="lr-seed-msg" class="lr-msg" role="status" aria-live="polite"></div>
+        <div class="lr-actions">
+          <button type="button" class="lr-btn" data-lr-close>Cancel</button>
+          <button type="button" class="lr-btn lr-btn-primary" id="lr-seed-submit">Recover and connect</button>
+        </div>
+      </section>
 
-      <div id="lsr-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
-      <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
-        <button id="lsr-cancel"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>
-        <button id="lsr-submit"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;font-weight:700;cursor:pointer">Recover & Connect</button>
-      </div>
+      <section id="lr-panel-file" role="tabpanel" aria-labelledby="lr-tab-file" hidden>
+        <div class="lr-field">
+          <label for="lr-file">Backup file (.json)</label>
+          <input id="lr-file" type="file" accept=".json,application/json" aria-describedby="lr-file-name">
+          <div id="lr-file-name" class="lr-hint" aria-live="polite"></div>
+        </div>
+        <div class="lr-field" id="lr-pass-field">
+          <label for="lr-pass">Passphrase</label>
+          <div class="lr-pass-wrap">
+            <input id="lr-pass" type="password" placeholder="Passphrase" autocomplete="off"
+              autocorrect="off" autocapitalize="off" spellcheck="false" aria-describedby="lr-pass-hint">
+            <button type="button" class="lr-reveal" id="lr-pass-toggle"
+              aria-pressed="false" aria-label="Show passphrase">Show</button>
+          </div>
+          <div id="lr-pass-hint" class="lr-hint">Only encrypted backups need one. Leave it blank for a plain backup file.</div>
+        </div>
+        <div id="lr-file-msg" class="lr-msg" role="status" aria-live="polite"></div>
+        <div class="lr-actions">
+          <button type="button" class="lr-btn" data-lr-close>Cancel</button>
+          <button type="button" class="lr-btn lr-btn-primary" id="lr-file-submit">Decrypt and import</button>
+        </div>
+      </section>
     </div>
   `;
   document.body.appendChild(overlay);
 
-  // Close on overlay click or Cancel
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  document.getElementById('lsr-cancel').addEventListener('click', () => overlay.remove());
+  // Scope every lookup to the overlay: ids stay local to this modal and can
+  // never collide with the other identity modals (chat-profile.js).
+  const el = (id) => overlay.querySelector('#' + id);
 
-  // Word counter
-  const ta = document.getElementById('lsr-words');
-  const counter = document.getElementById('lsr-word-count');
-  ta.addEventListener('input', () => {
-    const count = ta.value.trim().split(/\s+/).filter(Boolean).length;
-    counter.textContent = `${count} / 24 words`;
-    counter.style.color = count === 24 ? 'var(--success)' : 'var(--text-muted)';
+  // ── Close (Cancel button, backdrop click, Escape) ──
+  function onKeydown(e) { if (e.key === 'Escape') closeModal(); }
+  function closeModal() {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+  }
+  document.addEventListener('keydown', onKeydown);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  overlay.querySelectorAll('[data-lr-close]').forEach((b) => b.addEventListener('click', closeModal));
+
+  // ── Tabs (WAI-ARIA tab pattern: click, plus Left/Right arrows) ──
+  const tabs = { seed: el('lr-tab-seed'), file: el('lr-tab-file') };
+  const panels = { seed: el('lr-panel-seed'), file: el('lr-panel-file') };
+
+  function showTab(which, focusTheTab) {
+    ['seed', 'file'].forEach((key) => {
+      const on = key === which;
+      tabs[key].setAttribute('aria-selected', on ? 'true' : 'false');
+      tabs[key].tabIndex = on ? 0 : -1;
+      panels[key].hidden = !on;
+    });
+    if (focusTheTab) { tabs[which].focus(); return; }
+    // Land on the first control the user actually needs to fill in.
+    if (which === 'seed') el('lr-words').focus();
+    else (stagedBackup ? el('lr-pass') : el('lr-file')).focus();
+  }
+  tabs.seed.addEventListener('click', () => showTab('seed'));
+  tabs.file.addEventListener('click', () => showTab('file'));
+  overlay.querySelector('.lr-tabs').addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    showTab(tabs.seed.getAttribute('aria-selected') === 'true' ? 'file' : 'seed', true);
   });
 
-  // Pre-fill name from login input if user already typed one
-  const loginName = document.getElementById('name-input');
-  if (loginName && loginName.value.trim()) {
-    document.getElementById('lsr-name').value = loginName.value.trim();
+  // ── Method 1: 24-word seed phrase ──
+  const wordsEl = el('lr-words');
+  const wordCountEl = el('lr-word-count');
+  const seedBtn = el('lr-seed-submit');
+  const seedMsg = el('lr-seed-msg');
+
+  // Live word counter, shares the SAME normalizer the submit path uses, so what
+  // the counter calls "24 / 24" is exactly what gets submitted.
+  wordsEl.addEventListener('input', () => {
+    const shape = normalizeMnemonicInput(wordsEl.value);
+    wordCountEl.textContent = shape.wordCount + ' / ' + MNEMONIC_WORD_COUNT + ' words';
+    wordCountEl.classList.toggle('ok', shape.ok);
+  });
+
+  // Carry over whatever name the user already typed on the login screen.
+  const loginNameInput = document.getElementById('name-input');
+  if (loginNameInput && loginNameInput.value.trim()) {
+    el('lr-name').value = loginNameInput.value.trim();
   }
 
-  // Submit handler
-  const submitBtn = document.getElementById('lsr-submit');
-  const msgEl = document.getElementById('lsr-msg');
-
-  async function doRecover() {
-    const name = document.getElementById('lsr-name').value.trim();
-    const mnemonic = ta.value.trim().toLowerCase().replace(/\s+/g, ' ');
-    const wordCount = mnemonic.split(' ').filter(Boolean).length;
+  async function doSeedRecover() {
+    const name = el('lr-name').value.trim();
+    const shape = normalizeMnemonicInput(wordsEl.value);
 
     if (!name || !/^[A-Za-z0-9_-]{1,24}$/.test(name)) {
-      msgEl.innerHTML = '<span style="color:var(--danger)">Enter a valid name (letters, numbers, underscores, dashes, max 24 chars).</span>';
+      seedMsg.textContent = 'Enter a valid name (letters, numbers, underscores, dashes, max 24 chars).';
       return;
     }
-    if (wordCount !== 24) {
-      msgEl.innerHTML = `<span style="color:var(--danger)">Expected 24 words, got ${wordCount}. Check for extra spaces or missing words.</span>`;
-      return;
-    }
+    if (!shape.ok) { seedMsg.textContent = shape.error; return; }
 
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Recovering…';
-    msgEl.innerHTML = '';
+    seedBtn.disabled = true;
+    seedBtn.textContent = 'Recovering…';
+    seedMsg.textContent = '';
 
     try {
-      // Validate checksum and restore identity
-      await restoreIdentityFromMnemonic(mnemonic);
+      // Unchanged crypto path: crypto.js checks the BIP39 checksum, rebuilds the
+      // Ed25519 seed key, and persists it (IndexedDB + localStorage backup).
+      await restoreIdentityFromMnemonic(shape.mnemonic);
 
-      // Set name and populate login input so connect() picks it up
+      // Name goes back into the login input so connect() picks it up.
       localStorage.setItem('humanity_name', name);
-      document.getElementById('name-input').value = name;
+      if (loginNameInput) loginNameInput.value = name;
 
-      overlay.remove();
+      closeModal();
       connect();
     } catch (e) {
-      const isChecksum = /checksum/i.test(e.message);
-      msgEl.innerHTML = `<span style="color:var(--danger)">${isChecksum ? 'Invalid recovery phrase, check your words and try again.' : e.message}</span>`;
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Recover & Connect';
+      const isChecksum = /checksum/i.test(e.message || '');
+      seedMsg.textContent = isChecksum
+        ? 'Invalid recovery phrase, check your words and try again.'
+        : (e.message || 'Recovery failed.');
+      seedBtn.disabled = false;
+      seedBtn.textContent = 'Recover and connect';
     }
   }
+  seedBtn.addEventListener('click', doSeedRecover);
+  wordsEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.ctrlKey) doSeedRecover(); });
 
-  submitBtn.addEventListener('click', doRecover);
-  ta.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) doRecover(); });
-  document.getElementById('lsr-name').focus();
+  // ── Method 2: backup file (plain or passphrase-encrypted) ──
+  const fileEl = el('lr-file');
+  const fileNameEl = el('lr-file-name');
+  const passField = el('lr-pass-field');
+  const passEl = el('lr-pass');
+  const passToggle = el('lr-pass-toggle');
+  const fileMsg = el('lr-file-msg');
+  const fileBtn = el('lr-file-submit');
+
+  // Reflect the staged file back at the user: which file, whether it is
+  // encrypted (so a passphrase is required), and who it will sign them in as.
+  // textContent everywhere: a hostile backup file cannot inject markup here.
+  function renderStagedFile() {
+    if (!stagedBackup) {
+      fileNameEl.textContent = '';
+      fileNameEl.classList.remove('ok');
+      passField.hidden = false;
+      fileBtn.textContent = 'Decrypt and import';
+      return;
+    }
+    const encrypted = !!stagedBackup.encrypted;
+    const label = stagedFileName || 'Backup file';
+    if (encrypted) {
+      fileNameEl.textContent = label + ' is encrypted. Enter its passphrase below.';
+      fileNameEl.classList.remove('ok');
+      fileBtn.textContent = 'Decrypt and import';
+    } else {
+      fileNameEl.textContent = label + ' is ready to import'
+        + (stagedBackup.name ? ' as "' + stagedBackup.name + '"' : '') + '.';
+      fileNameEl.classList.add('ok');
+      fileBtn.textContent = 'Import identity';
+    }
+    passField.hidden = !encrypted;
+  }
+
+  fileEl.addEventListener('change', async () => {
+    const f = fileEl.files && fileEl.files[0];
+    if (!f) return;
+    fileMsg.textContent = '';
+    try {
+      stagedBackup = JSON.parse(await f.text());
+      stagedFileName = f.name;
+    } catch (e) {
+      stagedBackup = null;
+      stagedFileName = '';
+      fileMsg.textContent = 'That file is not valid JSON. Pick the .json backup you downloaded.';
+    }
+    renderStagedFile();
+  });
+
+  passToggle.addEventListener('click', () => {
+    const wasHidden = passEl.type === 'password';
+    passEl.type = wasHidden ? 'text' : 'password';
+    passToggle.textContent = wasHidden ? 'Hide' : 'Show';
+    passToggle.setAttribute('aria-pressed', wasHidden ? 'true' : 'false');
+    passToggle.setAttribute('aria-label', wasHidden ? 'Hide passphrase' : 'Show passphrase');
+    passEl.focus();
+  });
+
+  async function doFileImport() {
+    if (!stagedBackup) { fileMsg.textContent = 'Choose your backup file first.'; return; }
+    const encrypted = !!stagedBackup.encrypted;
+    const passphrase = passEl.value;
+    if (encrypted && !passphrase) {
+      fileMsg.textContent = 'Enter the passphrase you used when creating this backup.';
+      return;
+    }
+
+    const restoreLabel = fileBtn.textContent;
+    fileBtn.disabled = true;
+    fileBtn.textContent = encrypted ? 'Decrypting…' : 'Importing…';
+    fileMsg.textContent = '';
+
+    try {
+      // Unchanged crypto path, and the one entry point that already handles BOTH
+      // shapes: an encrypted bundle (PBKDF2 600k -> AES-256-GCM, needs the
+      // passphrase) and a plain JSON backup (delegates to importIdentityFromJSON).
+      const identity = await importIdentityBackup(stagedBackup, passphrase || undefined);
+      closeModal();
+      finishImport(identity);
+    } catch (e) {
+      fileMsg.textContent = e.message || 'Import failed.';
+      fileBtn.disabled = false;
+      fileBtn.textContent = restoreLabel;
+    }
+  }
+  fileBtn.addEventListener('click', doFileImport);
+  passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') doFileImport(); });
+
+  renderStagedFile();
+  showTab(opts.tab === 'file' ? 'file' : 'seed');
+}
+
+/**
+ * The login screen's "Recover from Seed Phrase" button (index.html) calls this.
+ * It is simply the seed-phrase door into the one restore modal above.
+ */
+function openLoginSeedRecovery() {
+  openLoginRestoreModal({ tab: 'seed' });
 }
 
 // Handle /profile, /block, /unblock, /blocklist commands.
@@ -867,6 +1149,19 @@ sendMessage = async function() {
   if (val === '/export') {
     input.value = '';
     downloadIdentityBackup(myName);
+    return;
+  }
+  // Security & recovery, always available (mirrors the Account & Identity menu in
+  // the header). Reuses the existing modals in chat-profile.js; the /seed reveal
+  // goes through the same confirm guard as the menu button.
+  if (val === '/seed') {
+    input.value = '';
+    confirmRevealSeedPhrase();
+    return;
+  }
+  if (val === '/backup') {
+    input.value = '';
+    openEncryptedBackupModal();
     return;
   }
   if (val === '/blocklist') {
@@ -966,81 +1261,89 @@ sendMessage = async function() {
     }
     return;
   }
-  // If in group view, send as group message.
-  if (activeGroupId) {
-    if (val && ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        type: 'group_msg',
-        group_id: activeGroupId,
-        content: val,
-      }));
-      input.value = '';
-      input.style.height = 'auto';
-    }
-    return;
-  }
-  // If in DM view, send as DM instead of chat.
-  if (activeDmPartner) {
-    // Client-side DM permission pre-check
-    const myRole = (window.myPeerRole || '').toLowerCase();
-    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
-      if (myRole !== 'verified' && myRole !== 'donor') {
-        addSystemMessage('🔒 Verify your account to send DMs.');
-        return;
-      }
-      if (!isFriend(activeDmPartner)) {
-        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
-        return;
-      }
-    }
-    if (val && ws && ws.readyState === WebSocket.OPEN) {
-      // The relay only length-limits PLAINTEXT DMs (a PQ ciphertext blob
-      // is opaque and ~9 KB even for a short note), so enforce the
-      // user-visible limit here, before sealing.
-      const DM_PLAINTEXT_MAX = 2000;
-      if (val.length > DM_PLAINTEXT_MAX) {
-        addSystemMessage(`Message too long (${val.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
-        return;
-      }
-      const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub now
-      let dmPayload = {
-        type: 'dm',
-        from: myKey,
-        from_name: myName,
-        to: activeDmPartner,
-        content: val,
-        timestamp: Date.now(),
-      };
-      // Full-PQ E2EE, FAIL CLOSED. A DM is only ever sent sealed. If the
-      // recipient hasn't advertised a Kyber key yet, or our own PQ
-      // identity isn't ready, ABORT, never transmit plaintext to the
-      // relay. The relay is zero-knowledge; friendship is access control,
-      // NOT confidentiality (the operator can read the DB). (Security
-      // review HIGH-1: the old "graceful plaintext fallback" leaked DMs.)
-      if (!peerKyber) {
-        addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
-        return;
-      }
-      const enc = await encryptDmContent(val, peerKyber);
-      if (!enc) {
-        addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
-        return;
-      }
-      dmPayload.content = enc.content;
-      dmPayload.nonce = enc.nonce;
-      dmPayload.encrypted = true;
-      ws.send(JSON.stringify(dmPayload));
-      // Show locally immediately (plaintext) and keep DM list persistent.
-      const sentTs = Date.now();
-      addDmMessage(myName, val, sentTs, myKey, activeDmPartner, false);
-      upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), val, sentTs, false);
-      input.value = '';
-      input.style.height = 'auto';
+  // Group or DM view: route through the single content-routing authority
+  // (sendComposedContent) so a typed message and a file attachment follow
+  // the EXACT same path. The DM/group send logic (incl. Kyber E2EE fail-
+  // closed, friend/verify gating, the 2000-char plaintext cap) lives there,
+  // once, so it can never drift from the attachment path (privacy bug
+  // 2026-07-04). Input is cleared only on a successful send.
+  if (activeGroupId || activeDmPartner) {
+    if (val) {
+      const ok = await sendComposedContent(val);
+      if (ok) { input.value = ''; input.style.height = 'auto'; }
     }
     return;
   }
   await _origSendMessage2();
 };
+
+// Single routing authority for composed content -- a typed message OR an
+// uploaded file URL. Sends to whatever target is in view: group, DM (E2EE,
+// fail-closed), or the public channel. Both sendMessage() and the file
+// attachment handlers (chat-messages.js) go through here, so an attachment
+// can never leak into the public channel while a DM/group is open (privacy
+// bug fixed 2026-07-04: attach/paste/drop used to always post a public
+// `chat` while echoing into the DM pane, so it looked private and was not).
+// Returns true if it sent, false if blocked (permissions, no key, too long).
+async function sendComposedContent(content) {
+  if (!content || !ws || ws.readyState !== WebSocket.OPEN) return false;
+
+  // Group view -> group message (server round-trips the echo, like text).
+  if (activeGroupId) {
+    ws.send(JSON.stringify({ type: 'group_msg', group_id: activeGroupId, content }));
+    return true;
+  }
+
+  // DM view -> Kyber E2EE, FAIL CLOSED. Never transmit plaintext to the
+  // relay and never fall back to a public channel. Mirrors the text-DM path.
+  if (activeDmPartner) {
+    const myRole = (window.myPeerRole || '').toLowerCase();
+    if (myRole !== 'admin' && myRole !== 'mod' && !myKey.startsWith('bot_')) {
+      if (myRole !== 'verified' && myRole !== 'donor') {
+        addSystemMessage('🔒 Verify your account to send DMs.');
+        return false;
+      }
+      if (!isFriend(activeDmPartner)) {
+        addSystemMessage('🔒 You must be friends to DM this user. Use /follow <name>, if they follow you back, you\'ll be friends.');
+        return false;
+      }
+    }
+    const DM_PLAINTEXT_MAX = 2000;
+    if (content.length > DM_PLAINTEXT_MAX) {
+      addSystemMessage(`Message too long (${content.length}/${DM_PLAINTEXT_MAX} chars). Please shorten it.`);
+      return false;
+    }
+    const peerKyber = getPeerEcdhPublic(activeDmPartner); // Kyber768 pub
+    if (!peerKyber) {
+      addSystemMessage("🔒 Can't send yet, this person hasn't come online with a current post-quantum client, so there's no key to encrypt to. Try again once they've reconnected.");
+      return false;
+    }
+    const enc = await encryptDmContent(content, peerKyber);
+    if (!enc) {
+      addSystemMessage("🔒 Your encryption identity isn't ready yet. Wait a moment and resend (reload the page if it persists).");
+      return false;
+    }
+    ws.send(JSON.stringify({
+      type: 'dm', from: myKey, from_name: myName, to: activeDmPartner,
+      content: enc.content, nonce: enc.nonce, encrypted: true, timestamp: Date.now(),
+    }));
+    const sentTs = Date.now();
+    addDmMessage(myName, content, sentTs, myKey, activeDmPartner, false);
+    upsertDmConversation(activeDmPartner, activeDmPartnerName || (peerData[activeDmPartner]?.display_name || shortKey(activeDmPartner)), content, sentTs, false);
+    return true;
+  }
+
+  // Channel view -> public Dilithium-signed chat with local echo.
+  const timestamp = Date.now();
+  const msg = { type: 'chat', from: myKey, from_name: myName, content, timestamp, channel: activeChannel };
+  const pqSig = await pqSignChatMessage(content, timestamp);
+  if (pqSig) msg.pq_signature = pqSig;
+  ws.send(JSON.stringify(msg));
+  seenTimestamps.add(myKey + ':' + timestamp);
+  addChatMessage(myName, content, timestamp, myKey, false, !!pqSig);
+  return true;
+}
+window.sendComposedContent = sendComposedContent;
 
 // ── Sidebar Tab Navigation ──
 // Federated servers cache (fetched from API).
@@ -1399,15 +1702,28 @@ var federatedServersFetched = false;
       const title = ch.description ? ` title="${esc(ch.description)}"` : '';
       const badges = (ch.read_only ? CH_BADGE_READONLY : '') + (ch.federated ? CH_BADGE_FEDERATED : '');
       // Mic sits LEFT of the # (native order: mic, cog, #name). Clickable -
-      // toggles voice join/leave for the channel; joined = accent + filled.
-      const voiceJoined = !!(window._voiceJoinedChannels && window._voiceJoinedChannels.has(ch.name));
+      // joins/leaves the REAL relay voice room for the channel. "joined" reflects
+      // the actual mesh connection (_currentRoomId), not the old dead per-channel
+      // toggle. (v0.481: collapsed the two voice systems into one.)
+      // Voice is per-channel (v0.493): the room id IS this text channel's id, so
+      // match the live roster + join by id (not by name).
+      const vc = (window._voiceChannels || []).find(c => String(c.id) === String(ch.id));
+      const voiceJoined = String(ch.id) === String(window._currentRoomId);
       const micHtml = ch.voice_enabled
-        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.name)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
+        ? `<span class="ch-mic${voiceJoined ? ' joined' : ''}" data-voice-channel="${esc(ch.id)}" title="${voiceJoined ? 'Leave voice' : 'Join voice'}">${MIC_SVG}</span>`
         : '';
       const cogHtml = (myRoleCh === 'admin' || myRoleCh === 'mod') ? `<span class="channel-cog" data-cog-type="text" data-cog-id="${esc(ch.id)}" data-cog-name="${esc(ch.name)}">⚙️</span>` : '';
+      // Live voice roster under the channel: who is connected to voice here
+      // (from the relay's voice_channel_list broadcast). (v0.481)
+      const vpHtml = (vc && vc.participants) ? vc.participants.map(p => {
+        const isMe = p.public_key === myKey;
+        const nm = esc(p.display_name || '(in voice)') + (isMe ? '  (you)' : '');
+        return `<div class="vr-participant${isMe ? ' vr-self' : ''}" data-participant-key="${esc(p.public_key)}" data-participant-name="${esc(p.display_name || 'Player')}">${nm}</div>`;
+      }).join('') : '';
       // .srv-chan suppresses the auto "# " ::before so the mic can sit before the
-      // hash; the hash is rendered as part of the label instead.
-      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>`;
+      // hash; the hash is rendered as part of the label instead. .in-voice marks
+      // the channel whose voice you are currently connected to.
+      return `<div class="channel-item srv-chan${isActive ? ' active' : ''}${voiceJoined ? ' in-voice' : ''}"${title} data-channel-id="${esc(ch.id)}">${micHtml}${cogHtml}<span class="ch-label"># ${esc(ch.name)}</span>${badges}</div>${vpHtml}`;
     }).join('');
 
     // Text channel create button (admin/mod only)
@@ -1500,6 +1816,19 @@ var federatedServersFetched = false;
       }
       return;
     }
+    // Voice roster participant click: open the per-user controls (v0.484).
+    // Prefers the dedicated voice modal (chat-voice-modal.js) once loaded, and
+    // falls back to the existing per-user context menu.
+    const vp = e.target.closest('.vr-participant');
+    if (vp) {
+      const key = vp.getAttribute('data-participant-key');
+      const name = vp.getAttribute('data-participant-name') || 'Player';
+      if (key) {
+        if (typeof openVoiceUserModal === 'function') openVoiceUserModal(name, key);
+        else if (typeof showUserContextMenu === 'function') showUserContextMenu(e, name, key);
+      }
+      return;
+    }
     // Toggle server collapse
     const toggle = e.target.closest('[data-server-toggle]');
     if (toggle) {
@@ -1516,11 +1845,19 @@ var federatedServersFetched = false;
       saveCollapsedServers(collapsed);
       return;
     }
-    // Channel mic, toggle voice join/leave for this channel (don't switch to it).
+    // Channel mic: join/leave the REAL relay voice room for this channel (don't
+    // switch to it). v0.481: repointed from the dead per-channel toggle
+    // (toggleChannelVoice / voice_join, which the relay never handled) to the
+    // live mesh join/leave, so clicking the mic actually connects you.
     const micEl = e.target.closest('.ch-mic');
     if (micEl) {
+      // data-voice-channel is now the text channel's id (voice is per-channel,
+      // v0.493): join/leave that channel's voice directly, no name lookup.
       const vch = micEl.getAttribute('data-voice-channel');
-      if (vch) toggleChannelVoice(vch);
+      if (vch && typeof joinVoiceRoom === 'function' && typeof leaveVoiceRoom === 'function') {
+        if (String(vch) === String(window._currentRoomId)) leaveVoiceRoom();
+        else joinVoiceRoom(vch);
+      }
       return;
     }
     // Channel click (skip if clicking the settings cog)
@@ -1798,6 +2135,7 @@ const CMD_PALETTE_ACTIONS = {
   sendFriendCodeRequest: function() { sendFriendCodeRequest(); },
   toggleSearch:          function() { toggleSearch(); },
   openServerStats:       function() { window.open('/info', '_blank'); },
+  openGameAdmin:         function() { if (typeof openGameAdminModal === 'function') openGameAdminModal(); },
 };
 fetch('/data/commands.json', { cache: 'no-cache' })
   .then(function(r) { return r.ok ? r.json() : null; })

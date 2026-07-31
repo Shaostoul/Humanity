@@ -78,9 +78,19 @@
       return null;
     }
 
-    const url = `/api/admin/stats?key=${encodeURIComponent(auth.key)}&timestamp=${auth.timestamp}&sig=${encodeURIComponent(auth.sig)}`;
+    // POST, not a query string: the Dilithium key + signature are ~10KB together,
+    // which as URL params exceeded nginx's default header buffer and returned
+    // HTTP 414 URI Too Long. The relay accepts the same signed auth in the body.
     try {
-      const res = await fetch(url);
+      const res = await fetch('/api/admin/stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          key: auth.key,
+          timestamp: auth.timestamp,
+          sig: auth.sig,
+        }),
+      });
       if (res.status === 403) {
         showAuthGate('Your account does not have admin privileges.');
         return null;

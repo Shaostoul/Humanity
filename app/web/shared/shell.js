@@ -53,17 +53,16 @@
       st.textContent =
         '.hos-help-backdrop{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:hos-help-fade 0.15s ease-out;}' +
         '@keyframes hos-help-fade{from{opacity:0}to{opacity:1}}' +
-        '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#FF8811);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
+        '.hos-help-modal{background:var(--bg-card,#161616);border:1px solid var(--border,#333);border-left:3px solid var(--accent,#ed8c24);border-radius:var(--radius,8px);max-width:480px;width:100%;padding:28px;color:var(--text,#e0e0e0);box-shadow:0 12px 40px rgba(0,0,0,0.5);font-family:inherit;}' +
         '.hos-help-modal h3{margin:0 0 14px;font-size:1.15rem;font-weight:700;color:var(--text,#fff);}' +
         '.hos-help-body{font-size:0.95rem;line-height:1.65;color:var(--text-muted,#bbb);margin-bottom:22px;}' +
         '.hos-help-body p{margin:0 0 12px;}' +
         '.hos-help-body p:last-child{margin-bottom:0;}' +
         '.hos-help-body strong{color:var(--text,#fff);}' +
-        '.hos-help-close{background:var(--accent,#FF8811);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
+        '.hos-help-close{background:var(--accent,#ed8c24);color:#000;border:none;padding:10px 22px;border-radius:var(--radius,6px);font-weight:600;cursor:pointer;font-family:inherit;font-size:0.92rem;transition:filter 0.15s;}' +
         '.hos-help-close:hover{filter:brightness(1.1);}' +
         '.hos-help-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:transparent;border:1px solid var(--border,#333);color:var(--text-muted,#888);font-size:0.72rem;font-weight:700;cursor:pointer;font-family:inherit;margin-left:8px;transition:all 0.15s;line-height:1;padding:0;flex-shrink:0;}' +
-        '.hos-help-btn:hover{border-color:var(--accent,#FF8811);color:var(--accent,#FF8811);}' +
-        '.context-wrap{display:inline-flex;align-items:center;}';
+        '.hos-help-btn:hover{border-color:var(--accent,#ed8c24);color:var(--accent,#ed8c24);}';
       document.head.appendChild(st);
     }
     var existing = document.getElementById('hos-help-modal-root');
@@ -108,9 +107,6 @@
       })
       .catch(function (err) {
         console.warn('[HOS] Could not load help topics:', err);
-        // Fallback: register a minimal real-sim topic so the ? icon still works.
-        window.hosHelp.register('real-sim', 'Real mode vs. Sim mode',
-          '<p>Real mode uses real-life data. Sim mode uses game-world data. Same tools, different context.</p>');
       });
   })();
 
@@ -137,6 +133,69 @@
     }
   }
 
+  // ── Load shared accessibility / i18n / glossary modules on EVERY page ──
+  // These deliver the landing-page promises (high-contrast, colorblind and
+  // reduced-motion modes; multiple languages; a plain-language glossary) site
+  // wide. Loading them here is the single wiring point: every page loads
+  // shell.js first, so every page gets them for free.
+  //
+  //  - accessibility.js self-applies its saved prefs on DOMContentLoaded
+  //    (a11y.apply), so simply loading it is enough to restore the user's
+  //    high-contrast / reduced-motion / colorblind / font-scale choices.
+  //  - glossary.js self-loads /data/glossary.json and scans the DOM for
+  //    [data-term] elements (it also watches for later additions), so loading
+  //    it is enough.
+  //  - i18n.js does NOT self-init (it exposes load()/setLanguage() only), so we
+  //    call i18n.load() once it is present, reading the saved `humanity_language`
+  //    preference. This sets <html lang>/<dir> and fires `languagechange` early,
+  //    before page content that listens for it renders.
+  function loadSharedModule(src, onload) {
+    var sc = document.createElement('script');
+    sc.src = src;
+    if (onload) sc.onload = onload;
+    document.head.appendChild(sc);
+  }
+  if (!window.a11y) loadSharedModule('/shared/accessibility.js');
+  if (!window.glossary) loadSharedModule('/shared/glossary.js');
+  if (!window.i18n) {
+    loadSharedModule('/shared/i18n.js', function () {
+      // Apply the stored language as early as possible. Falls back to English
+      // inside i18n.load() when a language file is missing, so this never throws.
+      try {
+        if (window.i18n && typeof window.i18n.load === 'function') {
+          window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
+        }
+      } catch (e) { /* non-fatal */ }
+    });
+  } else if (typeof window.i18n.load === 'function') {
+    window.i18n.load(window.i18n.getStoredLanguage()).catch(function () {});
+  }
+
+  // ── Extra accessibility toggles applier (site-wide) ──
+  // Three Accessibility settings have no dedicated module: "Disable RGB Effects",
+  // "Large Cursor Focus", and "Dyslexia-Friendly Font". They are applied as
+  // data-* attributes on <html> with matching CSS in theme.css. Read them from
+  // the shared `humanity_settings` blob and apply on every page load so the
+  // choice persists across pages. Exposed globally so the Settings page can
+  // re-run it instantly when a toggle changes.
+  window.hosApplyA11yToggles = function () {
+    var s = {};
+    try { s = JSON.parse(localStorage.getItem('humanity_settings')) || {}; } catch (e) { s = {}; }
+    var root = document.documentElement;
+    function setAttr(name, on) {
+      if (on) root.setAttribute(name, '');
+      else root.removeAttribute(name);
+    }
+    setAttr('data-no-rgb', !!s['no-rgb']);
+    setAttr('data-focus-ring', !!s['focus-ring']);
+    setAttr('data-dyslexia-font', !!s['dyslexia-font']);
+    // Space background (the faint galactic-core image behind every page).
+    // ON by default; the attribute marks the OFF state so pages without
+    // saved settings still get the galaxy.
+    setAttr('data-space-bg-off', s['space-bg'] === false);
+  };
+  window.hosApplyA11yToggles();
+
   // If prior shell artifacts somehow exist, remove them before injecting once.
   // Also remove the old standalone #footer-toggle that existed before the toggle
   // was moved inside .site-footer.
@@ -144,23 +203,88 @@
     if (el && el.parentNode) el.parentNode.removeChild(el);
   });
 
+  // ── Space background: the faint galactic core behind every page ──
+  // The image is a crop of OUR OWN Milky Way bake (data/galaxy_glow_ultra.png,
+  // integrated from a real 25M-star catalog by scripts/build-galaxy-glow.js),
+  // so the website background IS the same sky the game renders. Two layers:
+  // the outer carries a very slow drift zoom (CSS transform, composited); the
+  // inner carries scroll parallax (JS translate3d, composited, rAF-throttled).
+  // Solid-background surfaces (cards, panels, chat) naturally cover it, which
+  // is what keeps text readable. Guards: reduced motion stops all movement,
+  // high contrast and the light theme hide it entirely, and Settings can turn
+  // it off (data-space-bg-off, set in hosApplyA11yToggles above).
+  (function injectSpaceBg() {
+    if (document.getElementById('hos-space-bg')) return;
+    var css = document.createElement('style');
+    css.id = 'hos-space-bg-style';
+    css.textContent =
+      '#hos-space-bg{position:fixed;top:0;left:0;right:0;bottom:0;z-index:-1;overflow:hidden;pointer-events:none;}' +
+      // The image layer is 60vh taller than the viewport (30vh headroom above
+      // and below) so the scroll parallax has real travel room.
+      '#hos-space-bg .hos-space-img{position:absolute;left:0;right:0;top:-30vh;height:160vh;' +
+        'background:url(/shared/bg/galaxy-core.jpg) center 35%/cover no-repeat;' +
+        'opacity:0.34;will-change:transform;}' +
+      // Pages that WANT the galaxy loud (the landing) set data-space-bright on
+      // <html>; everything else stays faint for readability.
+      '[data-space-bright] #hos-space-bg .hos-space-img{opacity:0.6;}' +
+      '@media (prefers-reduced-motion: no-preference){' +
+        '#hos-space-bg{animation:hos-space-drift 240s ease-in-out infinite alternate;}}' +
+      '@keyframes hos-space-drift{from{transform:scale(1);}to{transform:scale(1.06);}}' +
+      '[data-reduced-motion] #hos-space-bg{animation:none !important;}' +
+      '[data-high-contrast] #hos-space-bg,' +
+      '[data-space-bg-off] #hos-space-bg,' +
+      '[data-theme="light"] #hos-space-bg{display:none;}';
+    document.head.appendChild(css);
+
+    var bg = document.createElement('div');
+    bg.id = 'hos-space-bg';
+    bg.setAttribute('aria-hidden', 'true');
+    bg.innerHTML = '<div class="hos-space-img"></div>';
+    document.body.insertBefore(bg, document.body.firstChild);
+
+    // Scroll parallax: the sky scrolls at 28% of content speed, clamped to the
+    // layer's 28vh of headroom so long pages never run the image off its edge.
+    // Skipped entirely when the user prefers reduced motion.
+    var img = bg.firstChild;
+    var ticking = false;
+    function reducedMotion() {
+      return document.body.hasAttribute('data-reduced-motion') ||
+        (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(function () {
+        ticking = false;
+        if (reducedMotion()) { img.style.transform = ''; return; }
+        var max = window.innerHeight * 0.28;
+        var y = Math.min(max, window.scrollY * 0.28);
+        img.style.transform = 'translate3d(0,' + (-y) + 'px,0)';
+      });
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  })();
+
   // ── Detect active tab ──
   const scriptTag = document.currentScript;
   let active = scriptTag && scriptTag.getAttribute('data-active');
   if (!active) {
     const p = location.pathname;
-    if (p === '/') active = 'landing';
+    // Active keys mirror the native app's top-nav tabs (v0.469.1): the web header is an
+    // exact mirror of the app header. Web-only pages still light up where sensible.
+    if (p === '/') active = 'humanity';
     else if (p.startsWith('/chat'))      active = 'chat';
-    else if (p.startsWith('/activities/game')) active = 'games';
-    else if (p.startsWith('/dashboard')) active = 'dashboard';
+    else if (p.startsWith('/studio'))    active = 'studio';
     else if (p.startsWith('/profile'))   active = 'profile';
     else if (p.startsWith('/identity'))   active = 'identity';
     else if (p.startsWith('/governance')) active = 'governance';
+    else if (p.startsWith('/laws'))       active = 'laws';
+    else if (p.startsWith('/shared-files')) active = 'shared-files';
     else if (p.startsWith('/recovery'))   active = 'recovery';
     else if (p.startsWith('/agents'))     active = 'agents';
-    else if (p.startsWith('/ai-usage'))   active = 'ai-usage';
     else if (p.startsWith('/home'))      active = 'home';
     else if (p.startsWith('/inventory')) active = 'gear';
+    else if (p.startsWith('/onboarding')) active = 'quests';
     else if (p.startsWith('/tasks'))     active = 'tasks';
     else if (p.startsWith('/calendar'))  active = 'calendar';
     else if (p.startsWith('/notes'))     active = 'notes';
@@ -168,19 +292,24 @@
     else if (p.startsWith('/maps'))      active = 'map';
     else if (p.startsWith('/market'))    active = 'market';
     else if (p.startsWith('/wallet'))    active = 'wallet';
+    else if (p.startsWith('/platform'))  active = 'platform';
+    // Tools is its own top-level tab as of v0.1063 (the external catalog:
+    // software + real-world help services), no longer a Platform section.
+    else if (p.startsWith('/tools'))     active = 'tools';
     else if (p.startsWith('/web'))       active = 'web';
     else if (p.startsWith('/settings'))  active = 'settings';
     else if (p.startsWith('/ops') || p.startsWith('/pages/ops'))  active = 'ops';
-    else if (p.startsWith('/download'))  active = 'download';
+    else if (p.startsWith('/download'))  active = 'play';
     else if (p.startsWith('/dev'))       active = 'dev';
     else if (p.startsWith('/roadmap'))   active = 'roadmap';
-    else if (p.startsWith('/projects'))  active = 'projects';
-    else if (p.startsWith('/activities/gardening')) active = 'garden';
     else if (p.startsWith('/donate'))    active = 'donate';
-    else if (p.startsWith('/data'))     active = 'data';
     else if (p.startsWith('/crafting')) active = 'crafting';
     else if (p.startsWith('/civilization')) active = 'civilization';
-    else if (p.startsWith('/resources')) active = 'resources';
+    // Library = everything you READ. /library is the full document tree plus the
+    // dictionary; /accord is the Accord on its own public permalink. Both light
+    // up the Library tab.
+    else if (p.startsWith('/library'))   active = 'library';
+    else if (p.startsWith('/accord'))    active = 'library';
     else if (p.startsWith('/bugs'))     active = 'bugs';
     else active = '';
   }
@@ -203,7 +332,10 @@
       background: rgba(13, 13, 13, 0.95);
       backdrop-filter: blur(12px);
       padding: 0 0.5rem;
-      height: 40px;
+      /* min-height (not height) so a wrapped multi-row nav grows instead of the
+         extra rows overflowing below a fixed 40px box (v0.859 word-wrap). */
+      min-height: 40px;
+      align-content: center;
       gap: 0.2rem;
       flex-shrink: 0;
       position: fixed;
@@ -213,49 +345,42 @@
       z-index: 5500;
       isolation: isolate;
       font-size: 15px !important; /* fixed so global font-size slider doesn't break nav */
-      /* Web-native parity (Track W): labels are always shown (below), so the
-         row can exceed the viewport width, scroll horizontally rather than
-         clip/overflow. Thin scrollbar keeps it unobtrusive. */
-      overflow-x: auto;
-      overflow-y: hidden;
-      scrollbar-width: thin;
+      /* v0.859: WRAP overflowing buttons into a second row instead of hiding them
+         behind a horizontal scroll (operator: "any that go off screen are made
+         visible again"). The spacer height below is kept in sync with the actual
+         (possibly multi-row) nav height by a ResizeObserver in JS. */
+      flex-wrap: wrap;
+      overflow: visible;
+      row-gap: 2px;
     }
-    .hub-nav::-webkit-scrollbar { height: 4px; }
-    .hub-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    /* Spacer pushes page content below the fixed nav */
+    /* Spacer pushes page content below the fixed nav. JS sets its height to the
+       nav's real height so a wrapped 2-row nav never overlaps the page. */
     .hub-nav-spacer {
-      height: 41px; /* 40px nav + 1px separator */
+      height: 41px; /* default: 40px nav + 1px separator, overridden by JS */
       flex-shrink: 0;
       pointer-events: none;
     }
+    /* ── Button presentation modes (v0.859), a user toggle for screenshots +
+       accessibility. Default is icon+text; compact is icon-only; text-only drops
+       the glyphs. The context toggle + help button stay visible in every mode. */
+    .hub-nav[data-navmode="icon"] .tab .tab-label { display: none; }
+    .hub-nav[data-navmode="text"] .tab .tab-icon { display: none; }
+    /* The mode-cycle button itself. */
+    .hub-nav .navmode-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      height: 28px; padding: 0 0.5rem; margin-left: 0.15rem;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text-muted);
+      font-size: 0.7rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+      white-space: nowrap; font-family: inherit;
+    }
+    .hub-nav .navmode-btn:hover { color: var(--text); border-color: var(--accent); }
 
-    /* ── Brand ── */
-    .hub-nav .brand {
-      font-size: 1.1rem;
-      font-weight: 900;
-      color: #FF8811;
-      width: 32px;
-      height: 28px;
-      border-radius: var(--radius);
-      box-shadow: inset 0 0 0 1px #2a6;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      margin-right: 0.3rem;
-      cursor: pointer;
-      transition: box-shadow 0.15s ease;
-    }
-    .hub-nav .brand:hover {
-      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
-    }
-    .hub-nav .brand.active {
-      color: #fff;
-      animation: channeling 3s linear infinite;
-    }
-
-    /* ── Tab (icon + label, native-parity: labels always shown) ── */
+    /* ── Tab (icon + label, native-parity pill: category-tinted fill +
+       category border, exactly like nav_group() in escape_menu.rs:
+       fill alpha 10/255 idle, 18/255 hover, 30/255 active; 1px border at
+       60/255 idle; hover border = nav blue; active border = the channeling
+       animation web already shares with native. ── */
     .hub-nav .tab {
       position: relative;
       display: inline-flex;
@@ -267,11 +392,13 @@
       gap: 0.3rem;
       color: var(--text-muted);
       cursor: pointer;
-      border-radius: var(--radius);
+      border-radius: 6px;
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.04);
+      border: 1px solid rgba(var(--tab-cat-rgb, 148, 148, 159), 0.235);
       user-select: none;
       text-decoration: none;
       flex-shrink: 0;
-      transition: color 0.1s, box-shadow 0.1s;
+      transition: color 0.1s, box-shadow 0.1s, background 0.1s, border-color 0.1s;
       overflow: visible;
     }
     .hub-nav .tab .tab-icon {
@@ -303,9 +430,10 @@
       color: inherit;
     }
 
-    /* ── Hover: tooltip below, icon stays fully visible ── */
+    /* ── Hover: brighter category tint + the nav blue border (native) ── */
     .hub-nav .tab:not(.active):hover {
-      box-shadow: inset 0 0 0 2px #48f, 0 0 8px rgba(68,136,255,0.3);
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.07);
+      border-color: var(--nav-blue);
       color: var(--text);
     }
     .hub-nav .tab:not(.active):hover .tab-icon img,
@@ -330,12 +458,13 @@
       letter-spacing: 0.03em;
     }
 
-    /* ── Active: expand to show icon + label, RGB border ── */
+    /* ── Active: strongest category tint, white text, RGB channeling border ── */
     .hub-nav .tab.active {
       width: auto;
       padding: 0 0.5rem;
       gap: 0.3rem; /* match the base tab gap now that all tabs show icon+label */
       color: #fff;
+      background: rgba(var(--tab-cat-rgb, 148, 148, 159), 0.12);
       animation: channeling 3s linear infinite;
     }
     .hub-nav .tab.active .tab-label { display: inline; }
@@ -367,7 +496,7 @@
     }
 
     [data-theme="light"] .hub-nav { background: rgba(244,244,244,0.95); border-bottom-color: #ccc; }
-    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); box-shadow: inset 0 0 0 1px #2a6; }
+    [data-theme="light"] .hub-nav .tab { color: var(--text-muted); }
     [data-theme="light"] .hub-nav .tab.active { color: #1a1a1a; }
     [data-theme="light"] .hub-nav .nav-divider { background: #ccc; }
 
@@ -386,7 +515,14 @@
 
     /* ── Mobile hamburger, hidden on desktop ── */
     .hub-nav .mobile-menu-btn {
-      display: none;
+      /* v0.699.2: shown on desktop too as a "More" overflow menu. The drawer
+         holds every page that doesn't fit the 14-tab app-mirror row, so on
+         desktop those pages (Trade, Guilds, Wallet, Market, Governance,
+         Calendar, Notes, ...) were unreachable by click -- exactly the
+         "hidden pages I can't access" the 2026-07-04 audit surfaced. */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       background: transparent;
       border: 1px solid #2a6;
       color: var(--text);
@@ -500,64 +636,161 @@
     }
     .footer-toggle:hover { color: #fff; background: rgba(30,20,10,0.98); }
 
-    /* ── Mobile drawer ── */
+    /* ── Mobile / More menu: clean FULL-SCREEN popup ──
+       The hamburger opens this as a full-screen overlay that fully covers the page
+       (opaque var(--bg)), giving a clean separation between menu and page. Layout is
+       a flex column: a NON-scrolling header band that pins the RGB close control at
+       top-center so it never scrolls away (the "like the footer menu" feel the
+       operator asked for), and a scrolling body that holds the grouped page list. */
     #mobile-hub-backdrop {
+      /* Opaque so the page is instantly blanked while the drawer slides up. */
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.45);
+      background: var(--bg);
       z-index: 7600;
       display: none;
     }
+    #mobile-hub-backdrop.open { display: block; }
     #mobile-hub-drawer {
       position: fixed;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100vw;
       height: 100vh;
-      background: rgba(13,13,13,0.92);
+      background: var(--bg);
       z-index: 7700;
-      transform: translateX(100%);
-      transition: transform 0.2s ease;
-      overflow-y: auto;
-      padding: 0.65rem 0.6rem 1rem;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.22s ease;
       box-sizing: border-box;
-      backdrop-filter: blur(2px);
     }
-    #mobile-hub-drawer.open { transform: translateX(0); }
-    #mobile-hub-backdrop.open { display: block; }
-    .mobile-hub-group { margin-bottom: 0.65rem; border:1px solid var(--border); border-radius:var(--radius); }
-    .mobile-hub-group h4 { margin:0; padding:0.45rem 0.55rem; font-size:0.72rem; color:var(--text-muted); border-bottom:1px solid var(--border); text-transform:uppercase; letter-spacing:.08em; }
-    .mobile-hub-group a { display:block; color:var(--text); text-decoration:none; padding:0.5rem 0.55rem; font-size:0.86rem; border-bottom:1px solid var(--bg-secondary); }
-    .mobile-hub-group a:last-child { border-bottom:none; }
-    .mobile-hub-group a:hover { background: rgba(255,255,255,0.05); }
-    .mobile-hub-group a.active {
-      color: #fff;
-      background: rgba(255,255,255,0.06);
-      animation: channeling 3s linear infinite;
+    #mobile-hub-drawer.open { transform: translateY(0); }
+    /* Header band: flex-shrink:0 so it never scrolls, keeping the close button put. */
+    .mobile-hub-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-lg) var(--space-md);
+      border-bottom: 1px solid var(--border);
+    }
+    /* Circular RGB "channeling" close control: accent glow, cycles the same 6-stop
+       rainbow the nav brand + active tabs use, so it reads as the same accent family. */
+    #mobile-hub-close {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 3.25rem;
+      height: 3.25rem;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 2px solid var(--accent);
+      color: var(--text);
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      font-family: inherit;
+      touch-action: manipulation;
+      animation: mobile-hub-close-rgb 3s linear infinite;
+      transition: transform 0.12s ease;
+    }
+    #mobile-hub-close:hover { transform: scale(1.06); }
+    #mobile-hub-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    /* Honor the Accessibility "Disable RGB Effects" toggle (data-no-rgb on <html>).
+       theme.css already covers the other RGB elements; this covers the new button. */
+    [data-no-rgb] #mobile-hub-close { animation: none; border-color: var(--accent); }
+    @keyframes mobile-hub-close-rgb {
+      /* Literal rainbow stops are inherent to the RGB accent effect (same 6-stop
+         cycle as @keyframes channeling above); theme vars cannot express a gradient. */
+      0%   { border-color:#f44; box-shadow:0 0 14px rgba(255,68,68,0.55); }
+      16%  { border-color:#f80; box-shadow:0 0 14px rgba(255,136,0,0.55); }
+      33%  { border-color:#ff0; box-shadow:0 0 14px rgba(255,255,0,0.55); }
+      50%  { border-color:#0f4; box-shadow:0 0 14px rgba(0,255,68,0.55); }
+      66%  { border-color:#08f; box-shadow:0 0 14px rgba(0,136,255,0.55); }
+      83%  { border-color:#80f; box-shadow:0 0 14px rgba(136,0,255,0.55); }
+      100% { border-color:#f44; box-shadow:0 0 14px rgba(255,68,68,0.55); }
+    }
+    /* Scrolling body: holds the page list, comfortable large touch targets. */
+    .mobile-hub-scroll {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: var(--space-lg) var(--space-md) 2rem;
+      box-sizing: border-box;
+    }
+    .mobile-hub-group {
+      margin: 0 auto var(--space-lg);
+      max-width: 30rem;
+      border: 1px solid var(--border);
       border-radius: var(--radius);
-      margin: 0.15rem;
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+    .mobile-hub-group h4 {
+      margin: 0;
+      padding: var(--space-md) var(--space-lg);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .mobile-hub-group a {
+      display: flex;
+      align-items: center;
+      min-height: 3rem;
+      color: var(--text);
+      text-decoration: none;
+      padding: var(--space-md) var(--space-lg);
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mobile-hub-group a:last-child { border-bottom: none; }
+    .mobile-hub-group a:hover,
+    .mobile-hub-group a:focus-visible {
+      background: var(--bg-secondary);
+      color: var(--accent-hover);
+      outline: none;
+    }
+    .mobile-hub-group a.active {
+      color: var(--text);
+      background: var(--bg-secondary);
+      animation: channeling 3s linear infinite;
     }
 
-    /* ── Nav group wrappers ── */
+    /* ── Nav group wrappers ──
+       Each wrapper sets the category color its tabs tint from, mirroring the
+       native nav_group() categories (escape_menu.rs): red = platform entry
+       (Humanity, Chat, Studio, Library), green = you (Profile, Home),
+       sim purple = the game (Play, Quests, Tasks, Inventory, Crafting, Map),
+       blue = tools (Platform), gray = Settings. */
     .hub-nav .nav-group-red,
     .hub-nav .nav-group-green,
-    .hub-nav .nav-group-blue {
+    .hub-nav .nav-group-blue,
+    .hub-nav .nav-group-sim,
+    .hub-nav .nav-group-settings {
       display: inline-flex;
       align-items: center;
       gap: 0.2rem;
     }
+    .hub-nav .nav-group-red      { --tab-cat: var(--nav-red);      --tab-cat-rgb: var(--nav-red-rgb); }
+    .hub-nav .nav-group-green    { --tab-cat: var(--nav-green);    --tab-cat-rgb: var(--nav-green-rgb); }
+    .hub-nav .nav-group-blue     { --tab-cat: var(--nav-blue);     --tab-cat-rgb: var(--nav-blue-rgb); }
+    .hub-nav .nav-group-sim      { --tab-cat: var(--nav-sim);      --tab-cat-rgb: var(--nav-sim-rgb); }
+    .hub-nav .nav-group-settings { --tab-cat: var(--nav-settings); --tab-cat-rgb: var(--nav-settings-rgb); }
 
     /* ── Responsive: hide flat tabs on mobile, show hamburger ── */
     @media (max-width: 768px) {
-      .hub-nav { padding: 0 0.4rem; gap: 0.15rem; height: 36px; }
+      .hub-nav { padding: 0 0.4rem; gap: 0.15rem; min-height: 36px; }
       .hub-nav .tab { display: none !important; }
       .hub-nav .nav-divider { display: none !important; }
       .hub-nav .nav-group-red,
       .hub-nav .nav-group-green,
-      .hub-nav .nav-group-blue { display: none !important; }
+      .hub-nav .nav-group-blue,
+      .hub-nav .nav-group-sim,
+      .hub-nav .nav-group-settings { display: none !important; }
       .hub-nav .spacer { display: none !important; }
-      .hub-nav .context-toggle { display: none !important; }
-      .hub-nav .brand { margin-right: 0.25rem; }
       .hub-nav .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; margin-left:auto; }
       .hub-nav-spacer { height: 37px; }
     }
@@ -576,82 +809,94 @@
     '</a>';
   }
 
-  // ── Context toggle (Real / Game) ──
-  var savedContext = localStorage.getItem('humanity_context') || 'real';
-  // Backward compat: treat legacy "game" as "sim"
-  if (savedContext === 'game') { savedContext = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
-  if (savedContext !== 'real' && savedContext !== 'sim') savedContext = 'real';
-  Object.defineProperty(window, 'hos_context', {
-    get: function() {
-      var v = localStorage.getItem('humanity_context') || 'real';
-      if (v === 'game') { v = 'sim'; localStorage.setItem('humanity_context', 'sim'); }
-      return v;
-    },
-    configurable: true
-  });
-
-  function buildContextToggle() {
-    var ctx = window.hos_context;
-    return '<div class="context-wrap">' +
-      '<div class="context-toggle ctx-' + ctx + '" id="hos-context-toggle">' +
-        '<span class="ctx-seg' + (ctx === 'real' ? ' active' : '') + '" data-ctx="real">Real</span>' +
-        '<span class="ctx-seg' + (ctx === 'sim' ? ' active' : '') + '" data-ctx="sim">Sim</span>' +
-      '</div>' +
-      '<button class="hos-help-btn" type="button" aria-label="What does Real/Sim mean?" data-help-id="real-sim" title="What does this do?">?</button>' +
-    '</div>';
-  }
+  // ── The app commits to one reality: your real life. ──
+  // There is NO Real/Sim toggle (removed from native in v0.197.0; the web
+  // machinery was excised for parity 2026-07-16). App pages are always your
+  // real life; game systems live inside the 3D world, entered via Play. The
+  // two realities are separated by navigation, not a mode switch. See
+  // docs/design/two-realities.md.
 
   // ── Inject Nav ──
   const nav = document.createElement('div');
   nav.innerHTML =
     '<nav class="hub-nav">' +
-      /* Brand */
-      // v0.196.0: H brand button now goes to /chat (the cooperative
-      // platform's primary surface) instead of the marketing landing
-      // page. Operator: "the H stands for Humanity ... fitting because
-      // chat IS the cooperative platform." Marketing/landing is reached
-      // via the standalone /pages/index.html for unsigned visitors.
-      '<a href="/chat" class="brand' + (active === 'chat' ? ' active' : '') + '" data-tip="Home, Chat">H</a>' +
+      /* ── Web header = EXACT MIRROR of the native app's top nav (v0.469.3). Order:
+         Play, Humanity, Chat, Studio, Profile, Home, Quests, Tasks, Inventory,
+         Crafting, Map, Platform, Library, Settings. The app has NO separate logo, so
+         neither do we -- the leading "Humanity" tab (with an H mark, like the app) is
+         the single home/Humanity button (this removes the old duplicate "H" brand).
+         App-only desktop features map to their nearest web target (Play/Studio ->
+         Download, Platform -> Tools, Library -> Resources); the former web-only utility
+         tabs (Wallet, Market, Donate, Ops, Bugs, Dev, Audit, ...) stay reachable via
+         the mobile drawer + URL. Category colors mirror the native nav_group()
+         calls in escape_menu.rs: SIM PURPLE = the game (Play, Quests, Tasks,
+         Inventory, Crafting, Map), RED = platform entry (Humanity, Chat, Studio,
+         Library), GREEN = you (Profile, Home), BLUE = tools (Platform), GRAY =
+         Settings. Tabs render as category-bordered pills like the app. ── */
+      '<span class="nav-group-sim">' +
+        navTab('/download', 'games', 'Play', 'play') +
+      '</span>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Red group: core identity (never changes with context) */
       '<span class="nav-group-red">' +
-        navTab('/chat',     'network',  'Chat',     'chat') +
-        navTab('/wallet',   'coin',     'Wallet',   'wallet') +
-        navTab('/donate',   'heart',    'Donate',   'donate') +
+        '<a href="/" class="tab' + (active === 'humanity' ? ' active' : '') + '" data-tip="Humanity">' +
+          '<span class="tab-icon" style="font-weight:900;color:var(--accent);font-size:15px;line-height:1;">H</span>' +
+          '<span class="tab-label">Humanity</span>' +
+        '</a>' +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Green group: context-sensitive (data changes with Real/Game) */
+      '<span class="nav-group-red">' +
+        navTab('/chat',     'chat',  'Chat',   'chat') +
+        navTab('/download', 'video', 'Studio', 'studio') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
       '<span class="nav-group-green">' +
-        navTab('/profile',   'profile',    'Profile',   'profile') +
-        navTab('/civilization', 'globe',   'Civilization', 'civilization') +
-        navTab('/tasks',     'tasklist',   'Tasks',     'tasks') +
-        navTab('/inventory', 'inventory',  'Inventory', 'gear') +
-        navTab('/maps',      'map',        'Maps',      'map') +
-        navTab('/market',    'market',     'Market',    'market') +
+        navTab('/profile', 'profile', 'Profile', 'profile') +
+        navTab('/home',    'home',    'Home',    'home') +
       '</span>' +
 
       '<div class="nav-divider"></div>' +
 
-      /* Blue group: system/config */
+      '<span class="nav-group-sim">' +
+        navTab('/onboarding', 'compass',   'Quests',    'quests') +
+        navTab('/tasks',      'tasklist',  'Tasks',     'tasks') +
+        navTab('/inventory',  'inventory', 'Inventory', 'gear') +
+        navTab('/crafting',   'crafting',  'Crafting',  'crafting') +
+        navTab('/maps',       'map',       'Map',       'map') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
       '<span class="nav-group-blue">' +
-        navTab('/projects', 'folder',    'Projects',  'projects') +
-        navTab('/audit',    'coin',      'Audit',     'audit') +
-        navTab('/settings', 'settings',  'Settings',  'settings') +
-        navTab('/download', 'download', 'Download', 'download') +
-        navTab('/ops',      'ops',       'Ops',       'ops') +
-        navTab('/bugs',     'bug',       'Bugs',      'bugs') +
-        navTab('/dev',      'dev',       'Dev',       'dev') +
+        navTab('/platform',  'grid',     'Platform', 'platform') +
+        navTab('/tools',     'tool',     'Tools',    'tools') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-red">' +
+        navTab('/library',   'journal',  'Library',  'library') +
+      '</span>' +
+
+      '<div class="nav-divider"></div>' +
+
+      '<span class="nav-group-settings">' +
+        navTab('/settings',  'settings', 'Settings', 'settings') +
       '</span>' +
 
       /* Spacer pushes hamburger to the right */
       '<div class="spacer"></div>' +
 
+      /* Button-presentation cycle: icon+text -> icon -> text (v0.859). */
+      '<button class="navmode-btn" id="hos-navmode-btn" type="button" aria-label="Change how header buttons are shown" title="Header buttons: icon + text">Aa</button>' +
+
       /* Mobile hamburger, only visible on small screens */
-      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="Open menu">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
+      '<button class="mobile-menu-btn" id="mobile-hub-menu-btn" type="button" aria-label="More pages" title="More pages" data-tip="More pages">' + (window.hosIcon ? hosIcon('menu', 18) : '☰') + '</button>' +
     '</nav>' +
     '<div id="webview-tabs-bar" style="display:none;height:32px;background:rgba(13,13,13,0.95);border-bottom:1px solid var(--border);align-items:center;padding:0 var(--space-xl);gap:var(--space-sm);overflow-x:auto;"></div>' +
     '<div class="nav-separator"></div>';
@@ -660,6 +905,49 @@
   var navSpacer = document.createElement('div');
   navSpacer.className = 'hub-nav-spacer';
   nav.insertAdjacentElement('afterend', navSpacer);
+
+  // ── Header button-presentation mode (v0.859) ──
+  // icon+text (default) / icon-only / text-only. Persisted so it holds across
+  // pages; the spacer tracks the nav's real height so a wrapped row never hides
+  // page content.
+  (function setupNavMode() {
+    var navEl = nav.querySelector('.hub-nav');
+    if (!navEl) return;
+    var MODES = ['both', 'icon', 'text'];
+    var LABELS = { both: 'icon + text', icon: 'icon only', text: 'text only' };
+    var GLYPH = { both: 'Aa', icon: 'A', text: 'aa' };
+    function applyMode(m) {
+      if (MODES.indexOf(m) === -1) m = 'both';
+      navEl.setAttribute('data-navmode', m);
+      var btn = document.getElementById('hos-navmode-btn');
+      if (btn) { btn.textContent = GLYPH[m]; btn.title = 'Header buttons: ' + LABELS[m]; }
+      syncSpacer();
+    }
+    function syncSpacer() {
+      // A wrapped nav can be taller than one row; keep the spacer matched (+1px
+      // separator) so nothing slides under the fixed nav.
+      var h = Math.ceil(navEl.getBoundingClientRect().height) + 1;
+      navSpacer.style.height = h + 'px';
+    }
+    var btn = document.getElementById('hos-navmode-btn');
+    if (btn) {
+      btn.addEventListener('click', function() {
+        var cur = localStorage.getItem('humanity_navmode') || 'both';
+        var next = MODES[(MODES.indexOf(cur) + 1) % MODES.length];
+        localStorage.setItem('humanity_navmode', next);
+        applyMode(next);
+      });
+    }
+    // React to a resize (viewport width change re-wraps the row).
+    if (window.ResizeObserver) {
+      new ResizeObserver(syncSpacer).observe(navEl);
+    } else {
+      window.addEventListener('resize', syncSpacer);
+    }
+    applyMode(localStorage.getItem('humanity_navmode') || 'both');
+    // One more sync after layout/fonts settle.
+    setTimeout(syncSpacer, 60);
+  })();
 
   // Mobile drawer fallback menu (for reliable touch nav)
   var mobileBackdrop = document.createElement('div');
@@ -672,42 +960,102 @@
     return '<a href="' + path + '"' + (isActive ? ' class="active"' : '') + '>' + label + '</a>';
   }
 
+  // Mobile drawer holds EVERYTHING: the app-mirrored main tabs PLUS the web-only
+  // utility pages that dropped off the desktop row, so nothing is unreachable. (v0.469.1)
+  // Full-screen popup: role=dialog + aria-modal for assistive tech; aria-hidden is
+  // toggled in open/close so it is not announced while closed.
+  mobileDrawer.setAttribute('role', 'dialog');
+  mobileDrawer.setAttribute('aria-modal', 'true');
+  mobileDrawer.setAttribute('aria-label', 'Site menu');
+  mobileDrawer.setAttribute('aria-hidden', 'true');
   mobileDrawer.innerHTML =
-    '<div class="mobile-hub-group group-red"><h4>Identity</h4>' +
-      mobileLink('/chat',      'Chat') +
-      mobileLink('/profile',   'Profile') +
-      mobileLink('/wallet',    'Wallet') +
-      mobileLink('/donate',    'Donate') +
+    // Header band pins the always-reachable RGB close button at top-center.
+    '<div class="mobile-hub-header">' +
+      '<button id="mobile-hub-close" type="button" aria-label="Close menu">X</button>' +
     '</div>' +
-    '<div class="mobile-hub-group group-green"><h4>Activities</h4>' +
-      mobileLink('/identity',  'Identity') +
-      mobileLink('/governance', 'Governance') +
-      mobileLink('/recovery',  'Recovery') +
-      mobileLink('/civilization', 'Civilization') +
+    // Scrolling body holds the full grouped page list beneath the fixed close button.
+    '<div class="mobile-hub-scroll">' +
+    '<div class="mobile-hub-group group-red"><h4>Main (mirrors the app)</h4>' +
+      mobileLink('/',          'Humanity') +
+      mobileLink('/chat',      'Chat') +
+      mobileLink('/download',  'Play / Studio (desktop app)') +
+      mobileLink('/profile',   'Profile') +
+      mobileLink('/home',      'Home') +
+      mobileLink('/onboarding','Quests') +
       mobileLink('/tasks',     'Tasks') +
       mobileLink('/inventory', 'Inventory') +
-      mobileLink('/maps',      'Maps') +
-      mobileLink('/market',    'Market') +
+      mobileLink('/crafting',  'Crafting') +
+      mobileLink('/maps',      'Map') +
+      mobileLink('/platform',  'Platform') +
+      // Tools = the external catalog (software + real-world help services).
+      // Library = everything we wrote. Split by what you DO with them (v0.1063).
+      mobileLink('/tools',     'Tools') +
+      mobileLink('/library',   'Library') +
+      mobileLink('/accord',    'Humanity Accord') +
+      mobileLink('/settings',  'Settings') +
     '</div>' +
-    '<div class="mobile-hub-group group-blue"><h4>System</h4>' +
-      mobileLink('/agents',               'Agents') +
-      mobileLink('/ai-usage',             'AI Usage') +
-      mobileLink('/audit',                'Audit') +
-      mobileLink('/settings',             'Settings') +
-      mobileLink('/bugs',                  'Bug Reports') +
-      mobileLink('/download',   'Download') +
-    '</div>';
+    '<div class="mobile-hub-group group-green"><h4>Community and trade</h4>' +
+      // Live streams broadcast from the desktop app's Studio page, fanned out by our
+      // own relay. No third-party platform, and no account needed to watch. (v0.855)
+      mobileLink('/watch',   'Watch live') +
+      mobileLink('/wallet',    'Wallet') +
+      mobileLink('/market',    'Market') +
+      mobileLink('/trade',     'Trade') +
+      mobileLink('/guilds',    'Guilds') +
+      mobileLink('/donate',    'Donate') +
+      mobileLink('/civilization', 'Civilization') +
+      mobileLink('/governance', 'Governance') +
+      mobileLink('/laws',      'Laws') +
+      mobileLink('/shared-files', 'Shared Files') +
+      mobileLink('/identity',  'Identity') +
+      mobileLink('/recovery',  'Recovery') +
+      mobileLink('/roadmap',   'Roadmap') +
+    '</div>' +
+    '<div class="mobile-hub-group group-blue"><h4>Tools, system and dev</h4>' +
+      mobileLink('/calculator','Calculator') +
+      mobileLink('/calendar',  'Calendar') +
+      mobileLink('/notes',     'Notes') +
+      mobileLink('/web',       'Bookmarks') +
+      mobileLink('/files',     'Files') +
+      mobileLink('/ops',       'Ops') +
+      mobileLink('/bugs',      'Bug Reports') +
+      mobileLink('/dev',       'Dev') +
+    '</div>' +
+    '</div>'; // close .mobile-hub-scroll
   document.body.appendChild(mobileBackdrop);
   document.body.appendChild(mobileDrawer);
 
   var mobileMenuBtn = document.getElementById('mobile-hub-menu-btn');
+  var mobileCloseBtn = document.getElementById('mobile-hub-close');
+  // Escape closes the full-screen overlay. Declared as a hoisted function so
+  // closeMobileDrawer (below) can removeEventListener it.
+  function onMobileDrawerKey(e) {
+    if (e.key === 'Escape') closeMobileDrawer();
+  }
   function closeMobileDrawer() {
     mobileBackdrop.classList.remove('open');
     mobileDrawer.classList.remove('open');
+    // Drive the slide via inline style with !important, not the .open class: some
+    // webviews do not reliably apply the higher-specificity `.open` transform (or
+    // even a plain inline transform) over the base rule, leaving the menu stuck
+    // off-screen. An !important inline style wins in every engine.
+    mobileDrawer.style.setProperty('transform', 'translateY(100%)', 'important');
+    mobileDrawer.setAttribute('aria-hidden', 'true');
+    // Restore the page's body scroll (locked while the overlay was open).
+    document.body.style.overflow = mobileDrawer._prevBodyOverflow || '';
+    document.removeEventListener('keydown', onMobileDrawerKey);
   }
   function openMobileDrawer() {
     mobileBackdrop.classList.add('open');
     mobileDrawer.classList.add('open');
+    mobileDrawer.style.setProperty('transform', 'translateY(0)', 'important'); // see closeMobileDrawer note
+    mobileDrawer.setAttribute('aria-hidden', 'false');
+    // Lock body scroll so the page behind cannot scroll under the full-screen menu.
+    mobileDrawer._prevBodyOverflow = document.body.style.overflow || '';
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', onMobileDrawerKey);
+    // Move focus to the close button for keyboard / screen-reader users.
+    if (mobileCloseBtn) { try { mobileCloseBtn.focus(); } catch (err) {} }
   }
   if (mobileMenuBtn) {
     mobileMenuBtn.addEventListener('click', function(e) {
@@ -723,6 +1071,18 @@
       else openMobileDrawer();
     }, { passive: false });
   }
+  if (mobileCloseBtn) {
+    mobileCloseBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMobileDrawer();
+    });
+    mobileCloseBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeMobileDrawer();
+    }, { passive: false });
+  }
   mobileBackdrop.addEventListener('click', closeMobileDrawer);
   mobileDrawer.addEventListener('click', function(e) {
     const link = e.target.closest('a[href]');
@@ -736,28 +1096,6 @@
     e.preventDefault();
     e.stopPropagation();
     window.hosHelp.show(helpBtn.dataset.helpId);
-  });
-
-  // ── Context toggle handler ──
-  document.addEventListener('click', function(e) {
-    // Click anywhere on the toggle to switch (not just the text)
-    var toggle = e.target.closest('.context-toggle');
-    if (!toggle) return;
-    // Clicking anywhere on the pill toggles to the other context
-    var newCtx = window.hos_context === 'real' ? 'sim' : 'real';
-    if (!newCtx) return;
-    localStorage.setItem('humanity_context', newCtx);
-    // Update all toggle instances on the page
-    document.querySelectorAll('.context-toggle .ctx-seg').forEach(function(el) {
-      el.classList.toggle('active', el.getAttribute('data-ctx') === newCtx);
-    });
-    // Update color coding on toggle containers
-    document.querySelectorAll('.context-toggle').forEach(function(el) {
-      el.classList.toggle('ctx-real', newCtx === 'real');
-      el.classList.toggle('ctx-sim', newCtx === 'sim');
-    });
-    // Dispatch event so pages can react
-    window.dispatchEvent(new CustomEvent('hos-context-change', { detail: { context: newCtx } }));
   });
 
   // Rich tooltips (label + short explanation)
@@ -1262,7 +1600,7 @@
   // WHY: Light up the download button with RGB when a new version is available
   // so the user knows at a glance. Checks GitHub releases once per session.
   (function updateChecker() {
-    var CURRENT_VERSION = '0.422.0';
+    var CURRENT_VERSION = '0.1081.0';
     var CACHE_KEY = 'hos_latest_version';
     var CACHE_TS_KEY = 'hos_latest_version_ts';
     var CHECK_INTERVAL = 30 * 60 * 1000; // 30 min
@@ -1395,5 +1733,48 @@
       }
     });
   }
+
+  // ── Keybinding dispatcher (v0.937.2) ──
+  // Executes the user's page shortcuts everywhere. The registry is
+  // data/keybindings/web.json (defaults + hrefs); per-browser rebinds live in
+  // localStorage hos_keybinds_v1 (written by Settings > Keybindings). Before
+  // this existed the settings panel captured bindings NOTHING ran. Combo
+  // format matches the capture: modifiers + e.code, e.g. "Ctrl+KeyK".
+  (function initKeybinds() {
+    var actions = {}; // combo -> href
+    function rebuild(groups) {
+      var stored = {};
+      try { stored = JSON.parse(localStorage.getItem('hos_keybinds_v1')) || {}; } catch (e) { stored = {}; }
+      actions = {};
+      groups.forEach(function (g) {
+        (g.binds || []).forEach(function (b) {
+          var combo = stored[b.id] !== undefined ? stored[b.id] : b.default;
+          if (combo && b.href) actions[combo] = b.href;
+        });
+      });
+    }
+    fetch('/data/keybindings/web.json')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && Array.isArray(d.groups)) rebuild(d.groups); })
+      .catch(function () { /* offline: no shortcuts, no harm */ });
+
+    document.addEventListener('keydown', function (e) {
+      // Never steal keys from typing surfaces or bare keys without a target.
+      var t = e.target;
+      if (t && (t.closest && t.closest('input, textarea, select, [contenteditable="true"]'))) return;
+      if (['Control', 'Alt', 'Shift', 'Meta'].indexOf(e.key) >= 0) return;
+      var combo = '';
+      if (e.ctrlKey) combo += 'Ctrl+';
+      if (e.altKey) combo += 'Alt+';
+      if (e.shiftKey) combo += 'Shift+';
+      if (e.metaKey) combo += 'Meta+';
+      combo += e.code;
+      var href = actions[combo];
+      if (href) {
+        e.preventDefault();
+        window.location.href = href;
+      }
+    });
+  })();
 
 })();

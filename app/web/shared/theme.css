@@ -6,10 +6,6 @@
  * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
  * Regenerate with: node scripts/gen-theme-css.js
  * ========================================================================= */
-/* =========================================================================
- * AUTO-GENERATED from data/gui/theme.ron — do not edit by hand.
- * Regenerate with: node scripts/gen-theme-css.js
- * ========================================================================= */
 :root {
   /* Backgrounds */
   --bg: #000000;
@@ -58,13 +54,13 @@
   --badge-radius: 3px;
 
   /* Spacing (derived from native tokens via x/16 rem conversion) */
-  --space-xs: 0rem;
-  --space-sm: 0.0377rem;
-  --space-md: 0.1418rem;
-  --space-lg: 0.2013rem;
-  --space-xl: 0.2408rem;
-  --space-2xl: 0.3612rem;
-  --space-3xl: 0.4816rem;
+  --space-xs: 0.125rem;
+  --space-sm: 0.375rem;
+  --space-md: 0.625rem;
+  --space-lg: 0.875rem;
+  --space-xl: 1.125rem;
+  --space-2xl: 1.6875rem;
+  --space-3xl: 2.25rem;
 
   /* Typography */
   --text-xs: 0.6814rem;
@@ -96,6 +92,19 @@
   --avatar-gap: 8px;
   --pill-radius: 9px;
 
+  /* Nav group colors — native nav_legacy_* tokens (RED = platform entry,
+     GREEN = your stuff, BLUE = system). The -rgb triples exist for rgba() use. */
+  --nav-red: #e74c3c;
+  --nav-green: #2ecc71;
+  --nav-blue: #3498db;
+  --nav-sim: #6c5ce7;
+  --nav-settings: #7f8c8d;
+  --nav-red-rgb: 231, 76, 60;
+  --nav-green-rgb: 46, 204, 113;
+  --nav-blue-rgb: 52, 152, 219;
+  --nav-sim-rgb: 108, 92, 231;
+  --nav-settings-rgb: 127, 140, 141;
+
   /* Chat section tints — shared with native draw_dm/groups/servers_section */
   --dm-bg: #2d0f0f;
   --dm-row-bg: #371414;
@@ -107,7 +116,6 @@
   --server-row-bg: #141437;
   --server-row-hover: #191946;
 }
-/* ======================== END AUTO-GENERATED ======================== */
 /* ======================== END AUTO-GENERATED ======================== */
 
 /* ── Light theme — toggled by adding data-theme="light" to <html> ── */
@@ -175,74 +183,13 @@ h4 { font-size: var(--text-base); }
   --space-3xl: 1.2rem;
 }
 
-/* ── Nav Group Color Indicators ── */
-/* Uses ::before so it doesn't conflict with ::after tooltips on hover */
-.nav-group-red .tab::before,
-.nav-group-green .tab::before,
-.nav-group-blue .tab::before {
-  content: '';
-  position: absolute;
-  bottom: 2px;
-  left: 2px;
-  right: 2px;
-  height: 3px;
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.4;
-}
-.nav-group-red .tab::before { background: #e74c3c; }
-.nav-group-green .tab::before { background: #2ecc71; }
-.nav-group-blue .tab::before { background: #3498db; }
-.nav-group-red .tab.active::before { opacity: 1; }
-.nav-group-green .tab.active::before { opacity: 1; }
-.nav-group-blue .tab.active::before { opacity: 1; }
-
-/* ── Context Toggle (Real/Sim pill) ── */
-.context-toggle {
-  display: inline-flex;
-  align-items: center;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1px;
-  flex-shrink: 0;
-  height: 24px;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  user-select: none;
-}
-.context-toggle .ctx-seg {
-  padding: 2px 10px;
-  border-radius: 12px;
-  color: var(--text-muted);
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
-  white-space: nowrap;
-}
-.context-toggle .ctx-seg.active {
-  color: #fff;
-}
-.context-toggle.ctx-real .ctx-seg.active {
-  background: #27ae60;
-}
-.context-toggle.ctx-sim .ctx-seg.active {
-  background: #6c5ce7;
-}
-.context-toggle .ctx-seg:not(.active):hover {
-  color: var(--text);
-}
-[data-theme="light"] .context-toggle {
-  background: var(--bg-input);
-  border-color: #bbb;
-}
+/* (The nav-group bottom color bars were replaced 2026-07-16 by app-style
+   category-bordered pills, styled with the nav tabs in shell.js.) */
 
 /* Mobile drawer colored section headers */
-.mobile-hub-group.group-red h4 { color: rgba(231, 76, 60, 0.85); }
-.mobile-hub-group.group-green h4 { color: rgba(46, 204, 113, 0.85); }
-.mobile-hub-group.group-blue h4 { color: rgba(52, 152, 219, 0.85); }
+.mobile-hub-group.group-red h4 { color: rgba(var(--nav-red-rgb), 0.85); }
+.mobile-hub-group.group-green h4 { color: rgba(var(--nav-green-rgb), 0.85); }
+.mobile-hub-group.group-blue h4 { color: rgba(var(--nav-blue-rgb), 0.85); }
 
 /* -- Accessibility -- */
 [data-high-contrast] { --bg: #000; --text: #fff; --border: #fff; --accent: #ff0; }
@@ -250,6 +197,35 @@ h4 { font-size: var(--text-base); }
 [data-colorblind="protanopia"] { filter: url(#protanopia); }
 [data-colorblind="deuteranopia"] { filter: url(#deuteranopia); }
 [data-colorblind="tritanopia"] { filter: url(#tritanopia); }
+
+/* Disable RGB Effects: kill the colour-cycling / glow animations on the nav,
+   footer toggle, and separator while leaving other transitions intact. The
+   selectors mirror the animated rules in shell.js (channeling, rgb-separator,
+   footer-toggle-rgb, badgePulse). */
+[data-no-rgb] .hub-nav .tab.active,
+[data-no-rgb] .hub-nav .tab.tab-update-ready,
+[data-no-rgb] .hub-nav .tab .tab-update-badge,
+[data-no-rgb] .nav-separator,
+[data-no-rgb] .footer-toggle,
+[data-no-rgb] .mobile-hub-group a.active { animation: none !important; }
+
+/* Large Cursor Focus: thick, high-visibility outline on the focused element. */
+[data-focus-ring] :focus,
+[data-focus-ring] :focus-visible {
+  outline: 3px solid var(--accent, #ed8c24) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px;
+}
+
+/* Dyslexia-Friendly Font: switch the whole UI to a high-legibility font stack
+   with wider letter spacing and looser word spacing. Uses widely available
+   system faces (no web-font download needed on old / offline hardware). */
+[data-dyslexia-font],
+[data-dyslexia-font] * {
+  font-family: "Comic Sans MS", "Trebuchet MS", Verdana, Tahoma, sans-serif !important;
+  letter-spacing: 0.03em !important;
+  word-spacing: 0.08em !important;
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }

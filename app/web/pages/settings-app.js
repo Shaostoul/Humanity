@@ -130,6 +130,74 @@ function showSection(id) {
   if (sec) sec.classList.add('active');
 }
 
+// ── Accessibility bridge ──────────────────────────────────────────────────
+// The Accessibility toggles used to only write into the `humanity_settings`
+// blob, which NOTHING read, so they were inert. The real engine is
+// shared/accessibility.js (window.a11y), loaded site-wide by shell.js. It owns
+// its own localStorage keys (a11y_high_contrast / a11y_reduced_motion /
+// a11y_colorblind_mode) and applies modes by toggling data-* attributes on
+// <body> (theme.css has the matching rules). These bridges push the control
+// state THROUGH the module so the setting both persists in the module's keys
+// and takes effect instantly on this page and every other page.
+function applyA11yPrefs() {
+  if (!window.a11y) return;
+  var hc = document.getElementById('pref-high-contrast');
+  var rm = document.getElementById('pref-reduce-motion');
+  var cb = document.getElementById('pref-colorblind');
+  if (hc) window.a11y.setHighContrast(hc.checked);
+  if (rm) window.a11y.setReducedMotion(rm.checked);
+  if (cb) window.a11y.setColorblindMode(cb.value);
+}
+
+// Mirror the module's persisted state back into the controls on load, so the
+// switches reflect what is actually applied (a value may have been set on a
+// different page before the settings blob knew about it). Module keys are the
+// source of truth for the three a11y modes.
+function reflectA11yPrefs() {
+  if (!window.a11y) return;
+  var hc = document.getElementById('pref-high-contrast');
+  var rm = document.getElementById('pref-reduce-motion');
+  var cb = document.getElementById('pref-colorblind');
+  if (hc) hc.checked = window.a11y.getHighContrast();
+  if (rm) rm.checked = window.a11y.getReducedMotion();
+  if (cb) cb.value = window.a11y.getColorblindMode();
+}
+
+// ── Language bridge ───────────────────────────────────────────────────────
+// shared/i18n.js (window.i18n) is loaded site-wide by shell.js. setLanguage()
+// persists the choice to `humanity_language`, sets <html lang>/<dir>, and fires
+// a `languagechange` event so any i18n-aware UI re-renders. The settings blob
+// also keeps a copy under `language`, but i18n's key is the one the module
+// reads on every page load.
+function applyLanguagePref() {
+  var sel = document.getElementById('pref-language');
+  if (!sel || !window.i18n || typeof window.i18n.setLanguage !== 'function') return;
+  window.i18n.setLanguage(sel.value).catch(function (e) {
+    console.warn('Language switch failed:', e);
+  });
+}
+
+// Reflect the stored language into the control on load.
+function reflectLanguagePref() {
+  var sel = document.getElementById('pref-language');
+  if (!sel || !window.i18n) return;
+  var lang = window.i18n.getStoredLanguage();
+  // Only override the control if the stored language is one of its options.
+  if (lang && [].some.call(sel.options, function (o) { return o.value === lang; })) {
+    sel.value = lang;
+  }
+}
+
+// ── Extra accessibility toggles (no dedicated module) ─────────────────────
+// Disable RGB Effects, Large Cursor Focus, and Dyslexia-Friendly Font are
+// driven by data-* attributes on <html> with CSS backing in theme.css. The
+// site-wide applier lives in shell.js (window.hosApplyA11yToggles) so the
+// choice takes effect on every page; here we just persist via savePref() (the
+// inline handler already did) and re-run the applier so it updates instantly.
+function applyExtraA11yToggles() {
+  if (typeof window.hosApplyA11yToggles === 'function') window.hosApplyA11yToggles();
+}
+
 // ── Theme Customizer live updates ──
 function applyCustomizerLive() {
   var doc = document.documentElement;
@@ -220,7 +288,7 @@ function resetThemeDefaults() {
   document.getElementById('pref-success-color').value = '#44aa99';
   document.getElementById('pref-danger-color').value = '#cc4444';
   document.getElementById('pref-warning-color').value = '#ccaa33';
-  document.getElementById('pref-accent').value = '#FF8811';
+  document.getElementById('pref-accent').value = '#ed8c24';
   applyCustomizerLive();
   savePref();
 }
@@ -368,52 +436,23 @@ function importData(e) {
 
 // ── Keyboard Shortcuts ──
 const KEYBIND_STORAGE = 'hos_keybinds_v1';
-const KEYBIND_DEFS = [
+// Keybinding registry lives in data/keybindings/web.json (infinite-of-x);
+// shell.js dispatches the stored bindings globally. The literal below is only
+// the offline fallback. Rebinds persist per-browser in hos_keybinds_v1.
+let KEYBIND_DEFS = [
   { group: 'Navigation', binds: [
-    { id: 'nav-network',    label: 'Go to Network',    default: '' },
-    { id: 'nav-dashboard',  label: 'Go to Dashboard',  default: '' },
-    { id: 'nav-profile',    label: 'Go to Profile',    default: '' },
-    { id: 'nav-home',       label: 'Go to Home',       default: '' },
-    { id: 'nav-skills',     label: 'Go to Skills',     default: '' },
-    { id: 'nav-inventory',  label: 'Go to Inventory',  default: '' },
-    { id: 'nav-equipment',  label: 'Go to Equipment',  default: '' },
-    { id: 'nav-quests',     label: 'Go to Quests',     default: '' },
-    { id: 'nav-calendar',   label: 'Go to Calendar',   default: '' },
-    { id: 'nav-logbook',    label: 'Go to Logbook',    default: '' },
-    { id: 'nav-notes',      label: 'Go to Notes',      default: '' },
-    { id: 'nav-vault',      label: 'Go to Vault',      default: '' },
-    { id: 'nav-tasks',      label: 'Go to Tasks',      default: '' },
-    { id: 'nav-market',     label: 'Go to Market',     default: '' },
-    { id: 'nav-maps',       label: 'Go to Maps',       default: '' },
-    { id: 'nav-settings',   label: 'Go to Settings',   default: '' },
-  ]},
-  { group: 'Chat', binds: [
-    { id: 'chat-search',     label: 'Open Search',      default: 'Ctrl+K' },
-    { id: 'chat-command',    label: 'Command Palette',   default: 'Ctrl+Shift+P' },
-    { id: 'chat-focus-input',label: 'Focus Chat Input',  default: '' },
-    { id: 'chat-upload',     label: 'Upload File',       default: '' },
-    { id: 'chat-emoji',      label: 'Open Emoji Picker', default: '' },
-  ]},
-  { group: 'Voice', binds: [
-    { id: 'voice-mute',      label: 'Toggle Mute',       default: 'Ctrl+Shift+M' },
-    { id: 'voice-deafen',    label: 'Toggle Deafen',     default: 'Ctrl+Shift+D' },
-    { id: 'voice-ptt',       label: 'Push to Talk',      default: 'KeyV' },
-    { id: 'voice-camera',    label: 'Toggle Camera',     default: '' },
-    { id: 'voice-screen',    label: 'Toggle Screen Share',default: '' },
-    { id: 'voice-leave',     label: 'Leave Voice',       default: '' },
-  ]},
-  { group: 'Media', binds: [
-    { id: 'media-afk',       label: 'Toggle AFK',        default: '' },
-    { id: 'media-brb',       label: 'Toggle BRB',        default: '' },
-    { id: 'media-pip',       label: 'Picture in Picture', default: '' },
-  ]},
-  { group: 'App', binds: [
-    { id: 'app-sidebar',     label: 'Toggle Sidebar',    default: '' },
-    { id: 'app-clear-cache', label: 'Clear Cache',       default: 'Ctrl+Shift+Delete' },
-    { id: 'app-theme',       label: 'Toggle Theme',      default: '' },
-    { id: 'app-fullscreen',  label: 'Toggle Fullscreen', default: 'F11' },
+    { id: 'nav-settings', label: 'Go to Settings', default: '', href: '/settings' },
   ]},
 ];
+fetch('/data/keybindings/web.json')
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (d) {
+    if (d && Array.isArray(d.groups) && d.groups.length) {
+      KEYBIND_DEFS = d.groups;
+      renderKeybinds();
+    }
+  })
+  .catch(function () { /* offline: keep the fallback */ });
 
 let keybinds = {};
 
@@ -670,7 +709,7 @@ savePref = function() { _origSavePref(); updateRangeLabels(); };
 // Version tag
 try {
   const vEl = document.getElementById('version-tag');
-  if (vEl) vEl.textContent = 'HumanityOS, v0.422.0 · ' + new Date().getFullYear();
+  if (vEl) vEl.textContent = 'HumanityOS, v0.1081.0 · ' + new Date().getFullYear();
 } catch(e) {}
 
 // Inject hosIcon SVGs into action bar buttons
@@ -964,6 +1003,38 @@ calculateStorage();
 updateRangeLabels();
 initDndDropdowns();
 loadPushPrefs();
+
+// ── Sync accessibility + language controls with their shared modules ──
+// shell.js loads accessibility.js / i18n.js asynchronously, so window.a11y and
+// window.i18n may not exist yet at this point. Poll briefly until they are, then
+// reflect the modules' persisted state into the controls. We also push the
+// settings blob's saved values INTO the modules on first sight, so a value the
+// user set here (before the modules existed) takes effect, the modules' own keys
+// stay authoritative thereafter.
+(function syncA11yAndLanguage() {
+  var tries = 0;
+  function tick() {
+    tries++;
+    if (window.a11y) {
+      // If the module has no stored high-contrast key yet but the settings blob
+      // does, seed the module from the blob (one-time bridge for legacy prefs).
+      if (localStorage.getItem('a11y_high_contrast') === null && prefs['high-contrast']) {
+        window.a11y.setHighContrast(true);
+      }
+      if (localStorage.getItem('a11y_reduced_motion') === null && prefs['reduce-motion']) {
+        window.a11y.setReducedMotion(true);
+      }
+      if (localStorage.getItem('a11y_colorblind_mode') === null && prefs['colorblind'] && prefs['colorblind'] !== 'none') {
+        window.a11y.setColorblindMode(prefs['colorblind']);
+      }
+      reflectA11yPrefs();
+    }
+    if (window.i18n) reflectLanguagePref();
+    if ((window.a11y && window.i18n) || tries > 40) return; // ~4s max
+    setTimeout(tick, 100);
+  }
+  tick();
+})();
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Wallet Settings ──
@@ -1834,12 +1905,12 @@ async function settingsOpenBackup() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">🔐 Download Encrypted Backup</h2>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter a passphrase to encrypt your private key. Store the file in your cloud, it\'s useless without the passphrase.</p>' +
     '<input id="set-bkp-pass" type="password" placeholder="Passphrase (8+ characters)" autocomplete="new-password" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;margin-bottom:var(--space-md);">' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end;margin-top:var(--space-lg);">' +
     '<button id="set-bkp-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-    '<button id="set-bkp-go" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
+    '<button id="set-bkp-go" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.2rem;font-size:.82rem;font-weight:700;cursor:pointer">Download</button>' +
     '</div>' +
     '<div id="set-bkp-msg" style="font-size:.75rem;margin-top:var(--space-md);min-height:1em;"></div>' +
     '</div>';
@@ -1869,7 +1940,7 @@ function settingsOpenRestore() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:480px;color:#e0e0e0;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">📥 Restore from Backup File</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Select your encrypted backup file and enter the passphrase you used when creating it.</p>' +
     '<input id="set-rst-file" type="file" accept=".json,.bak" style="margin-bottom:var(--space-md);font-size:.82rem;color:#888;">' +
@@ -1922,17 +1993,17 @@ async function settingsOpenSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   var grid = words.map(function(w, i) {
-    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:#f0a500;font-weight:600">' + w + '</span></div>';
+    return '<div style="background:#0f0f0f;border:1px solid #2a2a2a;border-radius:7px;padding:var(--space-md) var(--space-md);display:flex;align-items:baseline;gap:var(--space-sm)"><span style="font-size:.6rem;color:#444;min-width:16px;text-align:right">' + (i+1) + '.</span><span style="font-size:.86rem;color:var(--accent);font-weight:600">' + w + '</span></div>';
   }).join('');
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:600px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Your 24-Word Seed Phrase</h2>' +
     '<p style="font-size:.78rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>Never screenshot this. Never share it. Anyone who has these words IS you.</strong></p>' +
     '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-md);margin-bottom:var(--space-xl)">' + grid + '</div>' +
     '<div style="display:flex;gap:var(--space-md);flex-wrap:wrap;margin-bottom:var(--space-xl);">' +
     '<button id="set-seed-copy" style="background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:var(--space-sm) var(--space-xl);font-size:.75rem;cursor:pointer">📋 Copy to clipboard</button>' +
     '<span id="set-seed-msg" style="font-size:.7rem;color:#4ec87a;align-self:center;"></span>' +
     '</div>' +
-    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
+    '<div style="display:flex;justify-content:flex-end"><button id="set-seed-done" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Done</button></div>' +
     '</div>';
   document.body.appendChild(overlay);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
@@ -1953,7 +2024,7 @@ function settingsShowNonExtractableOverlay() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-md)">Seed Phrase Unavailable</h2>' +
     '<p style="font-size:.82rem;color:#ccc;line-height:1.6;margin:0 0 var(--space-xl)">' +
       'Your key was created before backup support was added. The private key stored in your browser ' +
       'is marked as non-extractable, so a seed phrase cannot be generated from it.' +
@@ -1965,7 +2036,7 @@ function settingsShowNonExtractableOverlay() {
     '</div>' +
     '<div style="display:flex;gap:var(--space-md);justify-content:flex-end">' +
       '<button id="ne-cancel" style="background:none;border:1px solid #333;color:#888;border-radius:7px;padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Cancel</button>' +
-      '<button id="ne-rotate" style="background:#f0a500;color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
+      '<button id="ne-rotate" style="background:var(--accent);color:#000;border:none;border-radius:7px;padding:var(--space-md) 1.4rem;font-size:.82rem;font-weight:700;cursor:pointer">Rotate Key</button>' +
     '</div>' +
   '</div>';
   document.body.appendChild(overlay);
@@ -2014,7 +2085,7 @@ function settingsOpenRestoreSeed() {
   var overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:8000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);box-sizing:border-box;';
   overlay.innerHTML = '<div style="background:#181818;border:1px solid #2a2a2a;border-radius:14px;padding:1.75rem;width:100%;max-width:540px;color:#e0e0e0;max-height:90vh;overflow-y:auto;">' +
-    '<h2 style="font-size:1rem;font-weight:700;color:#f0a500;margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
+    '<h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin:0 0 var(--space-sm)">🌱 Restore from Seed Phrase</h2>' +
     '<p style="font-size:.8rem;color:#e55;line-height:1.5;margin:0 0 var(--space-md)"><strong>This will permanently replace your current identity on this device.</strong></p>' +
     '<p style="font-size:.8rem;color:#888;line-height:1.5;margin:0 0 var(--space-xl)">Enter your 24 words separated by spaces:</p>' +
     '<textarea id="set-rseed-words" rows="4" placeholder="word1 word2 word3 ... word24" style="width:100%;background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:var(--space-md) var(--space-lg);color:#e0e0e0;font-size:.85rem;outline:none;box-sizing:border-box;resize:vertical;font-family:monospace;"></textarea>' +

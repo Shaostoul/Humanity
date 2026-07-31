@@ -100,7 +100,7 @@
    *   server-side `format!("{}\n{}", content, timestamp)` preimage
    *   in `verify_dilithium_signature`. Known values today:
    *   "vault_sync", "admin_stats", "review", "review_delete",
-   *   "trade_order", "cancel_order", "fill_order".
+   *   "trade_order", "cancel_order", "fill_order", "agent_override".
    * @returns {Promise<{key:string,timestamp:number,sig:string}|null>}
    *   `key` is the 3904-char Dilithium pubkey hex (NOT the Ed25519
    *   pubkey at localStorage['humanity_key'] — the relay keys
@@ -141,5 +141,33 @@
     };
   }
 
+  /**
+   * Load + derive the user's full Dilithium3 identity for standalone pages
+   * that need to SIGN OBJECTS (governance votes, vouches, ...) rather than
+   * the `purpose\ntimestamp` REST auth above. Same seed source
+   * (localStorage `humanity_key_backup`) and the same KAT-locked derivation
+   * (`pqDeriveIdentity` from /chat/pq.js), kept here so seed extraction has
+   * exactly one implementation.
+   *
+   * @returns {Promise<{dilithiumPublicHex:string, dilithiumSecret:Uint8Array}|null>}
+   *   Null on any failure (no identity in localStorage, wrapped-only key,
+   *   pq.js not loaded). Callers MUST show "Sign in via Chat first" on null.
+   */
+  async function getPqIdentity() {
+    if (typeof window.pqDeriveIdentity !== 'function') {
+      console.warn('pq-relay-auth: pq.js helpers not loaded — load /chat/pq.js first');
+      return null;
+    }
+    const seed = await _loadSeed();
+    if (!seed) return null;
+    const id = await window.pqDeriveIdentity(seed);
+    if (!id || !id.dilithiumPublicHex || !id.dilithiumSecret) {
+      console.warn('pq-relay-auth: pqDeriveIdentity returned null');
+      return null;
+    }
+    return id;
+  }
+
   window.getPqSignedAuth = getPqSignedAuth;
+  window.getPqIdentity = getPqIdentity;
 })();

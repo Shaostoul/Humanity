@@ -877,39 +877,28 @@ mod native_app {
             // the swapchain and break the offscreen screenshot capture), so
             // headless verification keeps working. Normal launches (env unset)
             // are unchanged and focus as before.
-            // Background = the env var OR a `no_focus.txt` marker beside the
-            // exe (v0.1079). The env var alone kept failing in practice:
-            // agents hand-roll boot commands (the scratch-rig dirs at the repo
-            // root are the evidence) and every forgotten env var stole the
-            // operator's focus again. The marker rides IN the directories
-            // agents boot from (the probe rig writes it at materialization,
-            // target/release/ carries one), so a copied rig inherits
-            // quietness with zero cooperation from whoever spawns it. The
-            // operator's own launch surfaces (the repo-root stable/archive
-            // exes via `just play` / `just launch`) have no marker and still
-            // take focus by design.
-            let background = std::env::var("HUMANITY_NO_FOCUS").is_ok()
-                || std::env::current_exe()
-                    .ok()
-                    .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
-                    .unwrap_or(false);
+            // Background is now the DEFAULT for script launches (v0.1081):
+            // focus requires proof of a human launch (HUMANITY_TAKE_FOCUS
+            // from the operator's recipes, or explorer.exe as the parent
+            // process, i.e. a real double-click). Env var + marker still
+            // force background explicitly. Full decision order + history:
+            // src/engine/launch_focus.rs.
+            let background = crate::engine::launch_focus::launch_in_background();
             let window_attrs = Window::default_attributes()
                 .with_title(format!("HumanityOS v{}", env!("CARGO_PKG_VERSION")))
                 .with_inner_size(winit::dpi::LogicalSize::new(1280, 720))
                 .with_maximized(true)
                 .with_active(!background)
-                // A normal launch creates the window HIDDEN and shows it once the
-                // renderer is ready, so the operator never sees a white flash.
-                //
-                // A background launch must create it VISIBLE-but-inactive instead
-                // (v0.1069). `with_active(false)` alone was not enough: the later
-                // `set_visible(true)` goes through ShowWindow(SW_SHOW) on Windows,
-                // which ACTIVATES the window, so every probe-rig boot stole focus
-                // a few lines after carefully asking not to. The operator has one
-                // screen and was being pulled out of a video on every agent run.
-                // Creating it already-visible and inactive never calls ShowWindow
-                // with activation, so the window appears behind and stays there.
-                .with_visible(background);
+                // EVERY launch creates the window HIDDEN and shows it once the
+                // renderer is ready (no white flash). Background launches used
+                // to be created visible-but-inactive (v0.1069), but a VISIBLE
+                // creation is activated by the system whenever no foreground
+                // input lock is held -- measured stealing focus from sample 0
+                // with the operator away from the keyboard (2026-07-31). The
+                // background show goes through show_window_behind() below
+                // (SW_SHOWNOACTIVATE + bottom of Z order), which never
+                // activates regardless of the input-lock state.
+                .with_visible(false);
 
             let t_boot = std::time::Instant::now();
             let window = Arc::new(
@@ -938,11 +927,14 @@ mod native_app {
             let mut renderer = pollster::block_on(Renderer::new_native(window.clone()));
             boot_timer.since("renderer_init", t_boot);
 
-            // Only the normal launch needs this: a background window was already
-            // created visible+inactive above, and calling set_visible on it would
-            // activate it and steal focus, which is the whole thing we are avoiding.
+            // Both modes were created hidden. A human launch shows normally
+            // (activating); a background launch shows WITHOUT activation, at
+            // the bottom of the Z order (raw SW_SHOWNOACTIVATE -- winit's
+            // set_visible always activates on Windows).
             if !background {
                 window.set_visible(true);
+            } else {
+                crate::engine::launch_focus::show_window_behind(&window);
             }
 
             // ── DEFERRED: 3D world init is skipped here, done lazily on first Enter World ──
@@ -1850,14 +1842,10 @@ mod native_app {
                 start_time: Instant::now(),
                 last_frame: Instant::now(),
                 window_focused: true,
-                // Same env-OR-marker rule as window creation (v0.1079): a
-                // hand-rolled agent boot without the env var must not grab
-                // the cursor either.
-                background_no_cursor: std::env::var("HUMANITY_NO_FOCUS").is_ok()
-                    || std::env::current_exe()
-                        .ok()
-                        .and_then(|p| p.parent().map(|d| d.join("no_focus.txt").exists()))
-                        .unwrap_or(false),
+                // Same policy as window creation (cached, so they always
+                // agree): a script-launched boot must not grab the cursor
+                // either. See src/engine/launch_focus.rs.
+                background_no_cursor: crate::engine::launch_focus::launch_in_background(),
                 far_tree_mesh: None,
                 far_tree_anchor: glam::DVec3::ZERO,
                 far_tree_built_cam: glam::DVec3::splat(1.0e30),

@@ -126,24 +126,37 @@ The operator has ONE computer and ONE screen. Every time an agent boots Humanity
 and the window takes focus, he is pulled out of whatever he was doing and has to
 click back manually.
 
-**Never launch `HumanityOS.exe` directly.** Use a path that sets `HUMANITY_NO_FOCUS=1`:
+**As of v0.1081 the default is INVERTED: focus requires PROOF of a human launch.**
+A script-launched instance (parent process is bash/node/powershell/cmd/cargo -- 
+anything but explorer.exe) opens in the BACKGROUND automatically, no env var
+needed. The three earlier layers (env var v0.828, create-visible-inactive v0.1069,
+no_focus.txt marker v0.1079) all made background the special case someone had to
+remember to request, and each left a hole (forgotten env vars, bare exes copied to
+fresh dirs, worktree target/ dirs with no marker). Full decision order and the
+FFI parent-process check: `src/engine/launch_focus.rs`.
+
+What still matters in practice:
 
 ```bash
-just probe-sweep --only <vantage>    # verification: sets it automatically
+just probe-sweep --only <vantage>    # verification: background (belt + braces: env + marker + inversion)
 just launch-bg                       # plain boot, opens behind, no cursor grab
-HUMANITY_NO_FOCUS=1 target/release/HumanityOS.exe    # if you must, by hand
-# (v0.1079: a no_focus.txt beside the exe forces background even without the env
-#  var; the rig and target/release carry it, so forgotten env vars are harmless)
+target/release/HumanityOS.exe        # even a bare hand-rolled boot is now background
 ```
 
-`just play` and `just launch` DO take focus, by design: those are the operator's own
-interactive launches. They are not for agents.
+`just play` and `just launch` DO take focus: they set `HUMANITY_TAKE_FOCUS=1`, the
+operator's explicit opt-in. They are not for agents -- and agents must NEVER set
+`HUMANITY_TAKE_FOCUS` themselves; that env var is the operator's proof-of-human,
+and a grep for it in scripts/agent prompts should only ever hit the two Justfile
+recipes, the updater's restart script (which propagates the current instance's
+state), and this paragraph. A user double-clicking the downloaded exe gets a
+focused window because explorer.exe is the parent -- no setup needed.
 
-The engine honours the flag in two places, and both are needed (v0.1069): the window
-is created with `with_active(false)` AND created already-visible, because the normal
-path's later `set_visible(true)` goes through `ShowWindow(SW_SHOW)` on Windows, which
-activates the window and defeats `with_active(false)` a few lines after it was set.
-That was a real bug: every probe-rig boot stole focus despite asking not to.
+The engine honours background in two places, and both are needed (v0.1069): the
+window is created with `with_active(false)` AND created already-visible, because
+the normal path's later `set_visible(true)` goes through `ShowWindow(SW_SHOW)` on
+Windows, which activates the window and defeats `with_active(false)` a few lines
+after it was set. That was a real bug: every probe-rig boot stole focus despite
+asking not to.
 
 ## Sharing this checkout with other Claude sessions (MANDATORY, 2026-07-30)
 

@@ -401,7 +401,7 @@ verify-runtime *ARGS:
 # native bin, which dodges the Windows LNK1318 PDB limit (see CLAUDE.md gotcha).
 # One bash line so the loop + the CARGO_MANIFEST_DIR env share a shell.
 lints:
-    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
+    export CARGO_MANIFEST_DIR="$(pwd)"; for t in emdash_lint theme_token_lint theme_editor_coverage icon_glyph_lint engine_wiring_lint page_registry_lint page_parity_lint settings_persistence_lint file_size_ratchet focus_optin_lint; do rustc --test --edition 2021 -A warnings "tests/$t.rs" -o "/tmp/$t.test.exe" 2>/dev/null && "/tmp/$t.test.exe" >/dev/null 2>&1 && echo ">> lint ok: $t" || { echo "LINT FAILED: $t"; "/tmp/$t.test.exe"; exit 1; }; done
 
 # Render ALL 38 native UI pages to PNGs in tests/snapshots/ for review. Needs a GPU
 # (the dev machine has one); skips gracefully if none. Open the PNGs after. For just
@@ -461,13 +461,18 @@ build-game:
     cargo build --features native --release
     @node scripts/archive-build.js
 
-# Build and launch the game
+# Build and launch the game. HUMANITY_TAKE_FOCUS is the operator's explicit
+# focus opt-in (v0.1081): script-launched instances now open in the background
+# BY DEFAULT (focus requires proof of a human launch -- see
+# src/engine/launch_focus.rs), and these two recipes are the operator's own
+# interactive launches, so they carry the proof. Agents must NEVER use
+# play/launch; they get launch-bg / probe-sweep.
 play: build-game
-    @node scripts/archive-build.js --launch
+    HUMANITY_TAKE_FOCUS=1 node scripts/archive-build.js --launch
 
-# Launch latest build without rebuilding
+# Launch latest build without rebuilding (operator's interactive launch)
 launch:
-    @node scripts/archive-build.js --launch-only
+    HUMANITY_TAKE_FOCUS=1 node scripts/archive-build.js --launch-only
 
 # Launch the FRESHLY BUILT exe without stealing focus: the window opens behind
 # whatever you are doing and never grabs the cursor.

@@ -68,9 +68,46 @@
       border-radius: var(--radius-sm); text-transform: capitalize; white-space: nowrap;
     }
     .status-badge.done { background: rgba(68,170,153,0.15); color: var(--success); }
+    .status-badge.building { background: rgba(255,170,50,0.18); color: var(--warning); }
+    .status-badge.next { background: var(--accent-dim); color: var(--accent); }
+    .status-badge.planned { background: rgba(120,140,200,0.15); color: #8aa0d8; }
+    .status-badge.future { background: rgba(136,136,136,0.15); color: var(--text-muted); }
+    /* legacy aliases (kept so nothing breaks if an old status sneaks in) */
     .status-badge.in-progress { background: rgba(255,170,50,0.15); color: var(--warning); }
     .status-badge.backlog { background: rgba(136,136,136,0.15); color: var(--text-muted); }
     .status-badge.testing { background: rgba(33,150,243,0.15); color: #2196f3; }
+
+    /* ── Right now queue ── */
+    .now-section {
+      margin-bottom: var(--space-2xl); padding: var(--space-lg) var(--space-xl);
+      background: var(--bg-card); border: 1px solid var(--accent-dim);
+      border-radius: var(--radius-lg);
+    }
+    .now-header { display: flex; align-items: baseline; gap: var(--space-md); margin-bottom: var(--space-md); }
+    .now-header h2 { font-size: var(--text-xl); font-weight: 700; }
+    .now-sub { font-size: var(--text-xs); color: var(--text-muted); }
+    .now-list { list-style: none; counter-reset: now; display: flex; flex-direction: column; gap: var(--space-md); }
+    .now-item {
+      counter-increment: now; display: flex; align-items: flex-start; gap: var(--space-md);
+      padding-left: var(--space-xl); position: relative; line-height: 1.5;
+    }
+    .now-item::before {
+      content: counter(now); position: absolute; left: 0; top: 1px;
+      font-size: var(--text-sm); font-weight: 800; color: var(--accent);
+    }
+    .now-text { font-size: var(--text-sm); }
+
+    /* ── Theme item lists ── */
+    .tier-desc { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-md); line-height: 1.5; }
+    .rm-items { list-style: none; display: flex; flex-direction: column; gap: var(--space-sm); }
+    .rm-item { display: flex; align-items: flex-start; gap: var(--space-md); line-height: 1.5; }
+    .rm-text { font-size: var(--text-sm); color: var(--text); }
+    .rm-ver {
+      font-size: var(--text-xs); color: var(--text-muted); font-family: var(--font-mono, monospace);
+      white-space: nowrap;
+    }
+    .rm-ver.lead { color: var(--accent); font-weight: 700; flex-shrink: 0; min-width: 5.5em; }
+    .recent-section .rm-text { color: var(--text-muted); }
     .task-card-labels { display: flex; gap: var(--space-xs); flex-wrap: wrap; margin-top: var(--space-sm); }
     .label-tag {
       font-size: var(--text-xs); color: var(--text-muted); background: var(--bg-hover);
@@ -144,7 +181,7 @@
 <main>
   <div class="roadmap-header">
     <h1>Roadmap</h1>
-    <p>Track progress across every layer of HumanityOS, from infrastructure to civilization-scale systems.</p>
+    <p>Where HumanityOS is going, by theme. This is the same list the maintainers build from: when the to-do list changes, this page changes. Generated from <code>docs/ROADMAP.md</code>.</p>
     <div class="overview-bar" id="overview-bar">
       <div class="overview-stat"><strong id="overview-done">0</strong> done</div>
       <div class="progress-wrap"><div class="progress-fill" id="overview-fill" style="width:0"></div></div>
@@ -160,7 +197,7 @@
     <button class="filter-btn" data-filter="backlog">Backlog</button>
   </div>
 
-  <div id="tiers-container"><div class="loading">Loading tasks...</div></div>
+  <div id="tiers-container"><div class="loading">Loading roadmap...</div></div>
 
   <!-- Proposed Minigames -->
   <section class="minigames-section">

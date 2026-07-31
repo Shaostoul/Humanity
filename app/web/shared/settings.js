@@ -10,7 +10,7 @@
   // AUTO-GENERATED FROM data/themes/presets.json, do not edit by hand.
   // AUTO-GENERATED FROM data/themes/presets.json — do not edit by hand.
   const ACCENT_PRESETS = [
-    { name: "Orange", color: "#FF8811" },
+    { name: "Orange", color: "#ed8c24" },
     { name: "Blue", color: "#4488ff" },
     { name: "Green", color: "#44cc66" },
     { name: "Purple", color: "#9944ff" },
@@ -27,15 +27,15 @@
 
   const THEMES = {
     dark: {
-      "--bg": "#0d0d0d",
-      "--bg-secondary": "#1a1a1a",
-      "--bg-card": "#161616",
-      "--bg-card-hover": "#1c1c1c",
-      "--bg-input": "#222",
-      "--bg-hover": "#252525",
-      "--text": "#e0e0e0",
-      "--text-muted": "#888",
-      "--border": "#333"
+      "--bg": "#000000",
+      "--bg-secondary": "#010101",
+      "--bg-card": "#040404",
+      "--bg-card-hover": "#010101",
+      "--bg-input": "#010101",
+      "--bg-hover": "#010101",
+      "--text": "#e8e8ea",
+      "--text-muted": "#94949f",
+      "--border": "#2a2a35"
     },
     midnight: {
       "--bg": "#080812",

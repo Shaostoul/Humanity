@@ -14,7 +14,7 @@
   <meta name="twitter:title" content="HumanityOS, Network Chat">
   <meta name="twitter:description" content="HumanityOS cooperative chat with Ed25519 identity. No accounts. No tracking.">
   <meta name="twitter:image" content="https://united-humanity.us/favicon.png">
-  <meta name="theme-color" content="#FF8811">
+  <meta name="theme-color" content="#ed8c24">
   <link rel="manifest" href="/shared/manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -66,6 +66,10 @@
         history.replaceState(null, '', location.pathname);
         return;
       }
+      // Opened from a scanned device-link QR (fragment URL): stay here so the
+      // chat app can import that identity, even on a fresh device with no key
+      // yet. Do NOT bounce to the welcome page (it would drop the fragment).
+      if (location.hash.indexOf('devicelink=') !== -1) return;
       try {
         var hasBackup  = !!localStorage.getItem('humanity_key_backup');
         var hasLegacy  = !!localStorage.getItem('humanity_key');
@@ -104,7 +108,7 @@
       <button onclick="openLoginSeedRecovery()" style="background:none;color:var(--text-muted);border:1px solid var(--border);padding:0.5rem 1.5rem;border-radius:6px;font-size:0.85rem;cursor:pointer;width:100%;max-width:280px;">🌱 Recover from Seed Phrase</button>
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none;" onchange="handleImportFile(event)">
-    <p class="subtitle" id="login-error" style="color:#e74c3c; display:none;"></p>
+    <p class="subtitle" id="login-error" style="color:var(--danger,#e64033); display:none;"></p>
     <p class="subtitle" id="crypto-status">Checking Ed25519 support…</p>
     <p class="subtitle" style="margin-top: 1rem; font-size: 0.68rem; max-width: 380px; line-height: 1.5;">
       By entering, you confirm you are <strong style="color:var(--text);">18 years or older</strong> and agree to be respectful.<br>
@@ -182,7 +186,13 @@
           <div id="my-key-display" style="font-family:monospace;font-size:0.55rem;opacity:0.6;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;cursor:pointer;"
             data-tip-title="Your Public Key" data-tip-desc="Click to copy your full public key to clipboard."
             onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='var(--accent)';setTimeout(()=>this.style.color='',800)})"></div>
-          <!-- Security buttons moved to Settings → Security to prevent accidental exposure during streams -->
+          <!-- Security & Recovery lives in the #identity-security section below. This whole
+               #my-identity block is relocated at runtime into the header's "Account & Identity"
+               popover by relocateIdentityToMenu() (chat-ui.js), so these controls are always
+               reachable but are never sitting exposed on the visible sidebar during a stream.
+               (The previous note here pointed at a "Settings > Security" panel that does not
+               exist in web/shared/settings.js, which is how the seed/backup flows ended up
+               reachable only from onboarding step 4.) -->
           <div style="display:flex;gap:0.2rem;margin-top:0.2rem;">
             <button onclick="exportContactCard()"
               data-tip-title="Share Card" data-tip-desc="Generate a QR code contact card for others to scan."
@@ -193,6 +203,27 @@
             <button onclick="syncAllPeers()"
               data-tip-title="Sync Peers" data-tip-desc="Push data to all connected P2P contacts (E2E encrypted)."
               style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:4px;font-size:0.62rem;cursor:pointer;">🔄 Sync</button>
+          </div>
+          <!-- Security & Recovery: the ONLY always-available entry points to the seed phrase and
+               the encrypted identity backup. Previously both were reachable only from onboarding
+               step 4, a one-shot wizard, while onboarding promised they were permanently
+               available. Both buttons reuse the existing modals in chat-profile.js; no key
+               handling happens here. The seed reveal goes through confirmRevealSeedPhrase() so a
+               stray click cannot paint 24 words on screen mid-stream. -->
+          <div id="identity-security" style="margin-top:var(--space-sm);padding-top:var(--space-sm);border-top:1px solid var(--border);">
+            <div style="font-size:0.6rem;color:var(--text-muted);font-weight:600;letter-spacing:0.05em;margin-bottom:0.25rem;">SECURITY &amp; RECOVERY</div>
+            <div style="display:flex;gap:0.2rem;">
+              <button onclick="confirmRevealSeedPhrase()" id="seed-phrase-btn"
+                aria-label="Reveal your 24 word seed phrase"
+                data-tip-title="Seed Phrase" data-tip-desc="Reveal your 24-word recovery phrase. Anyone who reads it controls your identity."
+                data-tip-detail="Asks you to confirm first, so a stray click cannot expose it mid-stream"
+                style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:var(--radius);font-size:0.62rem;cursor:pointer;">🌱 Seed</button>
+              <button onclick="openEncryptedBackupModal()" id="encrypted-backup-btn"
+                aria-label="Download an encrypted backup of your identity"
+                data-tip-title="Encrypted Backup" data-tip-desc="Download a passphrase-encrypted backup file of your identity."
+                data-tip-detail="Keep the file and its passphrase in separate places"
+                style="flex:1;background:var(--bg-input);border:1px solid var(--border);color:var(--text-muted);padding:0.2rem 0.3rem;border-radius:var(--radius);font-size:0.62rem;cursor:pointer;">🔑 Backup</button>
+            </div>
           </div>
         </div>
         <div class="sidebar-tabs" id="sidebar-tabs">
@@ -382,7 +413,7 @@
             data-tip-title="Attach File"
             data-tip-desc="Upload an image or file to share in this channel."
             data-tip-detail="Supports images, video, audio, PDF, text, JSON, ZIP (max 50 MB)"><span class="pg-ico" data-icon="clip" data-size="16"></span></button>
-          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav" onchange="handleFileAttachment(event)">
+          <input type="file" id="file-upload-input" style="display:none;" accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.md,.json,.zip,.tar.gz,.mp3,.mp4,.webm,.ogg,.wav,.blend,.stl,.obj,.gltf,.glb" onchange="handleFileAttachment(event)">
           <textarea id="msg-input" placeholder="Type a message…" rows="1" disabled></textarea>
           <button id="send-btn" onclick="sendMessage()"
             data-tip-title="Send Message"
@@ -453,6 +484,8 @@
       <div class="cmd"><code>/users</code>, List all registered users (online/offline)</div>
       <div class="cmd"><code>/report &lt;name&gt; [reason]</code>, Report a user</div>
       <div class="cmd"><code>/export</code>, Download your identity backup file</div>
+      <div class="cmd"><code>/seed</code>, Reveal your 24-word seed phrase (asks you to confirm first)</div>
+      <div class="cmd"><code>/backup</code>, Download an encrypted backup of your identity</div>
       <div class="cmd"><code>/dm &lt;name&gt; &lt;message&gt;</code>, Send a direct message</div>
       <div class="cmd"><code>/dms</code>, List your DM conversations</div>
       <div class="cmd"><code>/block &lt;name&gt;</code>, Block a user (hides their messages)</div>
@@ -515,73 +548,10 @@
   <!-- User Context Menu -->
   <div id="user-context-menu"></div>
 
-  <!-- Edit Profile Modal -->
-  <div id="edit-profile-overlay" class="profile-modal-overlay" onclick="closeEditProfileModal(event)">
-    <div class="profile-modal" onclick="event.stopPropagation()">
-      <button class="close-btn" onclick="closeEditProfileOverlay()">✕</button>
-      <h2>✏️ Edit Profile</h2>
-
-      <!-- Avatar & Banner URLs -->
-      <label for="profile-avatar-url">🖼️ Avatar URL</label>
-      <input type="text" id="profile-avatar-url" maxlength="512" placeholder="https://example.com/avatar.png">
-      <label for="profile-banner-url">🏔️ Banner URL</label>
-      <input type="text" id="profile-banner-url" maxlength="512" placeholder="https://example.com/banner.png">
-
-      <!-- Bio -->
-      <label for="profile-bio">📝 Bio</label>
-      <textarea id="profile-bio" rows="3" maxlength="280" placeholder="Tell people about yourself…"></textarea>
-      <div class="bio-counter" id="bio-counter">0 / 280</div>
-
-      <!-- Privacy-toggleable fields, lock icon toggles public ↔ private -->
-      <div class="profile-field-row">
-        <label for="profile-pronouns">🏷️ Pronouns</label>
-        <button type="button" class="privacy-toggle" id="privacy-pronouns" data-field="pronouns"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('pronouns')">🌐</button>
-      </div>
-      <input type="text" id="profile-pronouns" maxlength="64" placeholder="she/her, he/him, they/them…">
-
-      <div class="profile-field-row">
-        <label for="profile-location">📍 Location</label>
-        <button type="button" class="privacy-toggle" id="privacy-location" data-field="location"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('location')">🌐</button>
-      </div>
-      <input type="text" id="profile-location" maxlength="128" placeholder="City, Country">
-
-      <div class="profile-field-row">
-        <label for="profile-website-url">🌐 Website</label>
-        <button type="button" class="privacy-toggle" id="privacy-website" data-field="website"
-          data-tip-title="Toggle Visibility"
-          data-tip-desc="Switch this field between public (🌐 visible to all) and private (🔒 friends only)."
-          onclick="togglePrivacyField('website')">🌐</button>
-      </div>
-      <input type="text" id="profile-website-url" maxlength="256" placeholder="https://yoursite.com">
-
-      <!-- Social handles (always public, shown in bio card) -->
-      <label for="profile-website">🌐 Socials, Website</label>
-      <input type="text" id="profile-website" maxlength="200" placeholder="https://yoursite.com">
-      <label for="profile-discord">💬 Discord</label>
-      <input type="text" id="profile-discord" maxlength="100" placeholder="username">
-      <label for="profile-twitter">𝕏 X / Twitter</label>
-      <input type="text" id="profile-twitter" maxlength="100" placeholder="handle (without @)">
-      <label for="profile-youtube">▶️ YouTube</label>
-      <input type="text" id="profile-youtube" maxlength="200" placeholder="https://youtube.com/@channel or channel name">
-      <label for="profile-github">🐙 GitHub</label>
-      <input type="text" id="profile-github" maxlength="200" placeholder="username">
-
-      <p style="font-size:0.7rem;color:var(--text-muted);margin:0.3rem 0 0.6rem;">
-        🌐 = visible to everyone &nbsp;·&nbsp; 🔒 = visible to friends only
-      </p>
-
-      <div class="btn-row">
-        <button class="btn-cancel" onclick="closeEditProfileOverlay()">Cancel</button>
-        <button class="btn-save" onclick="saveProfile()">Save</button>
-      </div>
-    </div>
-  </div>
+  <!-- Edit-Profile modal REMOVED v0.855: profile editing is now the standalone
+       /profile page (the fuller surface, and it mirrors native's profile.rs page).
+       openEditProfileModal() in chat-profile.js opens that page; this dead markup
+       and its onclick="saveProfile()" handlers are gone so nothing stale can fire. -->
 
   <!-- Incoming Call Modal -->
   <div id="incoming-call-overlay">
@@ -633,9 +603,14 @@
         <button onclick="requestDeviceList()" style="font-size:0.8rem;padding:0.3rem 0.6rem;background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">↻ Refresh</button>
         <button onclick="openLinkDeviceModal()"
           data-tip-title="Link New Device"
-          data-tip-desc="Displays a QR code your other device can scan to share this identity."
-          data-tip-detail="Uses encrypted P2P transfer, your private key is never sent to the server"
-          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Link New Device</button>
+          data-tip-desc="Shows a QR + code THIS device's identity, so ANOTHER device can scan/paste it to become you."
+          data-tip-detail="Use this on the device that already has your identity (e.g. your PC)."
+          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">📱 Show my identity (link a device)</button>
+        <button onclick="openLinkThisDeviceModal()"
+          data-tip-title="Link this device"
+          data-tip-desc="Bring your existing identity TO this device: scan a QR, paste a code, or enter your seed phrase."
+          data-tip-detail="Use this on the NEW device (e.g. your phone) to make it your real identity."
+          style="font-size:0.8rem;padding:0.3rem 0.7rem;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);cursor:pointer;">🔗 Link this device to me</button>
       </div>
     </div>
   </div>
@@ -716,7 +691,11 @@
   <script src="/chat/chat-voice-calls.js?v=1"></script>
   <script src="/chat/chat-voice-webrtc.js?v=1"></script>
   <script src="/chat/chat-voice-streaming.js?v=1"></script>
+  <!-- Per-user voice control modal: volume/mute/squelch + role-tiered actions -->
+  <script src="/chat/chat-voice-modal.js?v=1"></script>
   <script src="/chat/chat-profile.js?v=4"></script>
+  <!-- Game Admin: game-world bans (separate from chat moderation), admin-only -->
+  <script src="/chat/chat-game-admin.js?v=1"></script>
   <!-- Onboarding wizard: first-time user guide (ELI5 identity + seed phrase) -->
   <script src="/chat/chat-onboarding.js?v=1"></script>
   <!-- qrcode-generator (public domain, ~18 KB), used by chat-p2p.js for contact card QR codes -->

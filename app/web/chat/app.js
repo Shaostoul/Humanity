@@ -5,6 +5,30 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Device-link import: the page was opened from a scanned device-link QR whose
+// URL carries the identity in the FRAGMENT (never sent to a server -- this is the
+// fix for the 2026-07-12 leak where a raw-JSON QR was searched by a browser).
+// Import that identity onto THIS device after an explicit confirm, and wipe the
+// fragment from the URL + history immediately so the seed doesn't linger.
+document.addEventListener('DOMContentLoaded', async () => {
+  if (location.hash.indexOf('devicelink=') === -1) return;
+  const raw = location.hash;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  if (!confirm('Bring an existing identity onto THIS device?\n\nOnly continue if you just scanned your OWN device-link QR. This replaces any identity currently on this device.')) {
+    return;
+  }
+  try {
+    const parsed = (typeof decodeDeviceLinkPayload === 'function')
+      ? decodeDeviceLinkPayload(raw)
+      : JSON.parse(raw);
+    const result = await importIdentityBackup(parsed);
+    alert('✓ This device is now ' + (result && result.name ? result.name : 'your identity') + '. Reloading…');
+    setTimeout(() => location.reload(), 1000);
+  } catch (e) {
+    alert('Could not import identity from the scanned code: ' + e.message);
+  }
+});
+
 // Open Edit Profile modal when the Account nav button is clicked while already
 // on /chat (hash navigation doesn't trigger a page reload, so we need this).
 window.addEventListener('hashchange', () => {
@@ -22,6 +46,9 @@ let myIdentity = null; // { publicKeyHex, privateKey, publicKey, canSign }
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 const MAX_RECONNECT_DELAY = 30000;
+// Last system message text shown, to suppress a repeated identical banner (a reconnect
+// storm against the relay's rate limit would otherwise print the same line over and over).
+let lastSystemMessageText = '';
 let seenTimestamps = new Set(); // Deduplicate messages
 
 // ── Message stripe state ──
@@ -47,7 +74,12 @@ function resetMsgStripe() {
 
 // Persist name across sessions, auto-login if returning user.
 const savedName = localStorage.getItem('humanity_name');
-if (savedName) {
+// Skip the stale-identity auto-connect when a device-link QR import is pending:
+// otherwise the OLD identity connects as its old/default name for a moment (the
+// "anonymous flash" a second device saw) before the import + reload swaps in the
+// real identity. The device-link handler (below) imports then reloads, and the
+// clean reload auto-connects as the new identity.
+if (savedName && location.hash.indexOf('devicelink=') === -1) {
   document.getElementById('name-input').value = savedName;
   // Skip login screen immediately, show chat with "Connecting..." status.
   document.getElementById('login-screen').style.display = 'none';
@@ -1000,6 +1032,15 @@ async function handleMessage(msg) {
       renderDeviceList(msg.devices);
       break;
     case 'system':
+      // Relay throttled this connection (per-IP identify rate limit). It literally says
+      // "try again in a minute" -- so respect that: back the reconnect off PAST the 60s
+      // window instead of the usual 1.5x ramp (which, starting at 1s, burns ~10 attempts
+      // inside the window and re-trips the limit -> the storm + the banner spam). The
+      // onclose that follows this message will use the new delay.
+      if (msg.message && (msg.message.startsWith('Too many connection attempts')
+          || msg.message.includes('Try again in a minute'))) {
+        reconnectDelay = 65000;
+      }
       // Handle sync data responses (encoded as system messages with prefix).
       if (msg.message && msg.message.startsWith('__sync_data__:')) {
         const payload = msg.message.slice('__sync_data__:'.length);
@@ -1015,6 +1056,23 @@ async function handleMessage(msg) {
       if (msg.message && msg.message.startsWith('__game__:')) {
         try {
           const game = JSON.parse(msg.message.slice('__game__:'.length));
+          // Game-admin replies ride here too (the relay rewrites its private
+          // reply to a system message). game_banned_list = the current bans,
+          // game_admin_error = a refusal/error to surface to the admin.
+          switch (game.type) {
+            case 'game_banned_list':
+              // users: [{public_key, character_id, reason, banned_by, banned_at}]
+              window.gameBans = Array.isArray(game.users) ? game.users : [];
+              if (typeof renderGameAdminList === 'function') renderGameAdminList();
+              break;
+            case 'game_admin_error':
+              if (typeof showGameAdminError === 'function') showGameAdminError(game.message || 'Game admin error.');
+              else console.warn('game_admin_error:', game.message);
+              break;
+            default:
+              break;
+          }
+          // Keep the co-presence hook intact (native/web 3D listeners).
           if (typeof window.onGameMessage === 'function') window.onGameMessage(game);
         } catch (e) { console.warn('Bad __game__ payload', e); }
         break;
@@ -1258,6 +1316,39 @@ function requestSkillEndorsement(peerName, skillId, level) {
 function requestSkillEndorsements(userKey) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify({ type: 'skill_endorsements_request', user_key: userKey || myKey }));
+}
+
+// ── Game-world admin (game bans, STRUCTURALLY SEPARATE from chat bans) ──
+// These hit the relay's disjoint game_banned_keys table: a game ban blocks a
+// player from the shared 3D world only and never touches chat (free speech is a
+// right; MMO play is a privilege). The relay admin-gates every message on the
+// socket's already-authenticated identity and replies privately, so a non-admin
+// who sends these is ignored. Payloads are byte-identical to the native Game
+// Admin page (src/gui/pages/game_admin.rs). The UI lives in chat-game-admin.js.
+
+/**
+ * Ban a player from the game world only. Chat is unaffected.
+ * @param {string} targetKey Player public key (their identity), NOT a display name.
+ * @param {string} reason    Operator-visible reason (may be empty).
+ */
+function sendGameBan(targetKey, reason) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_ban', target: targetKey, reason: reason || '' }));
+}
+
+/**
+ * Lift a game-world ban for a player. Admin-gated server-side.
+ * @param {string} targetKey Player public key.
+ */
+function sendGameUnban(targetKey) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_unban', target: targetKey }));
+}
+
+/** Request the current game-ban list. The relay replies privately (admins only). */
+function sendGameBannedListRequest() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ type: 'game_banned_list_request' }));
 }
 
 async function sendChatCommand(command, channelOverride) {
@@ -1509,6 +1600,10 @@ function addChatMessage(author, body, timestamp, fromKey, isHistory, signed, rep
 }
 
 function addSystemMessage(text) {
+  // Suppress an immediately-repeated identical banner (a reconnect storm against the
+  // relay's per-IP rate limit would otherwise print the same line again and again).
+  if (text === lastSystemMessageText) return;
+  lastSystemMessageText = text;
   // Route certain messages as ephemeral notices instead of permanent system messages.
   const lower = text.toLowerCase();
   // Link codes, ephemeral yellow, 5 minutes (matches server expiry)
@@ -1519,8 +1614,11 @@ function addSystemMessage(text) {
   if (lower.includes('invite code:')) {
     return addNotice(text, 'yellow', 120);
   }
-  // Rate limiting / slow mode, ephemeral cyan, 15s
-  if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')) {
+  // Rate limiting / slow mode / connection throttle, ephemeral cyan, 15s. "Too many
+  // connection attempts" is the relay's per-IP identify throttle -- make it a transient
+  // notice, not a permanent message that piles up during a reconnect storm.
+  if (lower.includes('rate limit') || lower.includes('please wait') || lower.includes('slow mode')
+      || lower.includes('too many connection attempts') || lower.includes('try again in a minute')) {
     return addNotice(text, 'cyan', 15);
   }
   // Kick/ban/mute, important red, 30s

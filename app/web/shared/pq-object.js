@@ -14,7 +14,7 @@
 //
 // Crypto is INJECTED (sign + blake3) so this module stays pure + unit-testable
 // and doesn't hard-bind to a CDN vs vendored bundle. The chat client wires the
-// real Dilithium sign (window.pqSignMessage / HumOS.pq.pqSign) + blake3.
+// real Dilithium sign (window.pqSignMessage) + blake3.
 
 import { encodeObjectCanonical, cborText, cborBytes, cborMap, cborUint, cborArray, decodeCanonicalCbor } from './canonical-cbor.js';
 
@@ -150,6 +150,37 @@ export async function verifyObjectSubmission(submission, { blake3, pqVerify }) {
   } catch (_e) {
     return { ok: false };
   }
+}
+
+/* ── Governance payloads (Phase 5; src/relay/storage/governance.rs) ────── */
+
+/** `vote_v1` payload: `{ choice }` where choice is "yes" | "no" | "abstain".
+ *  Mirrors the native client (src/gui/pages/governance.rs::build_vote). The
+ *  relay indexes any other string as "abstain", so we validate here to keep
+ *  a typo from silently becoming an abstention. */
+export function voteV1Payload(choice) {
+  if (choice !== 'yes' && choice !== 'no' && choice !== 'abstain') {
+    throw new Error(`vote_v1: choice must be yes/no/abstain, got "${choice}"`);
+  }
+  return cborMap([[cborText('choice'), cborText(choice)]]);
+}
+
+/**
+ * Convenience: build + sign a `vote_v1` referencing `proposalId` (the
+ * proposal's object_id hex). One vote per (proposal, voter) — the relay keeps
+ * the FIRST vote and ignores later ones, so votes are final.
+ * Locked byte-for-byte to the Rust encoder by scripts/vote-object-kat.mjs
+ * ↔ src/relay/core/object.rs::vote_v1_cross_language_kat (`just vote-kat`).
+ * Returns `{ objectId (= the vote id), submission }`.
+ */
+export async function buildVoteV1({ proposalId, choice, authorPublicKey, sign, blake3, createdAt }) {
+  return buildSignedObject({
+    objectType: 'vote_v1',
+    payload: voteV1Payload(choice),
+    references: [proposalId],
+    authorPublicKey, sign, blake3,
+    createdAt: createdAt ?? Date.now(),
+  });
 }
 
 /* ── P2P group payloads (docs/design/p2p-groups.md object-format spec) ── */

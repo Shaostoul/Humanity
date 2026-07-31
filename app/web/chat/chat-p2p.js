@@ -215,7 +215,7 @@ function showContactCardImportModal() {
             Cancel
           </button>
         </div>
-        <p id="p2p-import-error" style="color:var(--danger,#e74c3c);font-size:0.8rem;margin-top:var(--space-md);display:none;"></p>
+        <p id="p2p-import-error" style="color:var(--danger,#e64033);font-size:0.8rem;margin-top:var(--space-md);display:none;"></p>
         <p id="p2p-import-success" style="color:var(--success,#2a6);font-size:0.85rem;font-weight:600;margin-top:var(--space-md);display:none;"></p>
       </div>`;
     document.body.appendChild(modal);

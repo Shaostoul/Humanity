@@ -48,7 +48,7 @@
         (inf.voice_channels || 0) + ' voice channels',
         (inf.projects || 0) + ' projects',
         (inf.total_messages || 0).toLocaleString() + ' total messages'
-      ], '#3498db') +
+      ], 'var(--nav-blue)') +
       civCard('Economy', eco.active_listings || 0, 'listings', [
         (eco.total_trades || 0) + ' trades',
         (eco.total_reviews || 0) + ' reviews'
@@ -60,56 +60,13 @@
       ], '#9b59b6') +
       civCard('Social', soc.total_follows || 0, 'connections', [
         (soc.total_dms || 0) + ' direct messages'
-      ], '#e74c3c') +
+      ], 'var(--nav-red)') +
       civCard('Activity', act.messages_today || 0, 'messages today', [
         'Most active: #' + (act.most_active_channel || 'general'),
         'Peak online: ' + (act.peak_online || 0)
       ], '#1abc9c');
 
     // Animate all stat numbers
-    grid.querySelectorAll('.civ-stat-num').forEach(el => {
-      const target = parseInt(el.dataset.target) || 0;
-      animateCounter(el, target, 800);
-    });
-  }
-
-  // ── Render sim-mode dashboard ─────────────────────────────
-  function renderSim() {
-    const grid = document.getElementById('sim-grid');
-    if (!grid) return;
-
-    grid.innerHTML =
-      civCard('Colony Stats', 47, 'colonists', [
-        'Morale: 78%',
-        'Growth Rate: +2/day',
-        'Happiness: Good'
-      ], '#27ae60') +
-      civCard('Buildings', 12, 'structures', [
-        '3 under construction',
-        '0 damaged',
-        '2 upgraded this week'
-      ], '#3498db') +
-      civCard('Technology', 8, 'of 45 researched', [
-        'Current: Advanced Farming',
-        'Progress: 67%',
-        'ETA: 3 days'
-      ], '#e67e22') +
-      civCard('Diplomacy', 2, 'alliances', [
-        '5 trade routes',
-        'Reputation: Friendly',
-        'No active conflicts'
-      ], '#9b59b6') +
-      civCard('Military', 15, 'units', [
-        'Defense Rating: C',
-        'Threats: None',
-        'Patrols: Active'
-      ], '#e74c3c') +
-      civCard('Economy', 12450, 'credits', [
-        'Income: +340/day',
-        'Expenses: -180/day',
-        'Net: +160/day'
-      ], '#1abc9c');
-
     grid.querySelectorAll('.civ-stat-num').forEach(el => {
       const target = parseInt(el.dataset.target) || 0;
       animateCounter(el, target, 800);
@@ -152,52 +109,24 @@
     }
   }
 
-  // ── Context switching ─────────────────────────────────────
-  function applyContext() {
-    const ctx = (localStorage.getItem('humanity_context') || 'real');
-    const realGrid = document.getElementById('real-grid');
-    const simGrid = document.getElementById('sim-grid');
-    const realTitle = document.getElementById('real-title');
-    const simTitle = document.getElementById('sim-title');
-
-    if (ctx === 'sim') {
-      if (realGrid) realGrid.style.display = 'none';
-      if (simGrid) simGrid.style.display = '';
-      if (realTitle) realTitle.style.display = 'none';
-      if (simTitle) simTitle.style.display = '';
-      renderSim();
-    } else {
-      if (realGrid) realGrid.style.display = '';
-      if (simGrid) simGrid.style.display = 'none';
-      if (realTitle) realTitle.style.display = '';
-      if (simTitle) simTitle.style.display = 'none';
-      fetchCivData();
-    }
-  }
-
   // ── Init ──────────────────────────────────────────────────
+  // This is a real-life page (the live community dashboard). Game/colony
+  // stats live inside the desktop app, not behind a web toggle. See
+  // docs/design/two-realities.md.
   document.addEventListener('DOMContentLoaded', function() {
-    applyContext();
+    fetchCivData();
 
     // Auto-refresh
     refreshTimer = setInterval(function() {
-      const ctx = localStorage.getItem('humanity_context') || 'real';
-      if (ctx !== 'sim') fetchCivData();
+      fetchCivData();
       updateTimestamp();
     }, REFRESH_INTERVAL);
 
     // Update "ago" text every 10s
     setInterval(updateTimestamp, 10000);
 
-    // Context toggle
-    document.addEventListener('hos-context-change', applyContext);
-
     // Manual refresh button
     const btn = document.getElementById('civ-refresh');
-    if (btn) btn.addEventListener('click', function() {
-      const ctx = localStorage.getItem('humanity_context') || 'real';
-      if (ctx === 'sim') renderSim();
-      else fetchCivData();
-    });
+    if (btn) btn.addEventListener('click', fetchCivData);
   });
 })();

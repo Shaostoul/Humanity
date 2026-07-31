@@ -109,7 +109,7 @@ function upsertTrade(trade) {
 function renderTradeList() {
   var container = document.getElementById('trade-list-container');
   if (trades.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:var(--space-2xl);">No trades yet. Start one with the + New Trade button.</p>';
+    container.innerHTML = '<p class="trade-empty">No trades yet. Start one with the + New Trade button.</p>';
     return;
   }
 
@@ -130,19 +130,19 @@ function renderTradeList() {
     var myItemCount = isInitiator ? (t.initiator_items || []).length : (t.recipient_items || []).length;
     var theirItemCount = isInitiator ? (t.recipient_items || []).length : (t.initiator_items || []).length;
 
-    html += '<div class="trade-card" onclick="viewTrade(\'' + escHtml(t.id) + '\')">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">';
-    html += '<span style="font-size:.85rem;font-weight:600;">' + (isInitiator ? 'Trade with ' : 'Trade from ') + escHtml(partnerLabel) + '</span>';
+    html += '<div class="trade-card" role="button" tabindex="0" onclick="viewTrade(\'' + escHtml(t.id) + '\')" onkeydown="if(event.key===\'Enter\'){viewTrade(\'' + escHtml(t.id) + '\')}">';
+    html += '<div class="trade-card-head">';
+    html += '<span class="trade-card-title">' + (isInitiator ? 'Trade with ' : 'Trade from ') + escHtml(partnerLabel) + '</span>';
     html += '<span class="status status-' + escHtml(t.status) + '">' + escHtml(t.status) + '</span>';
     html += '</div>';
     if (t.message) {
-      html += '<div style="font-size:.8rem;color:var(--text-muted);margin-bottom:var(--space-sm);">"' + escHtml(t.message) + '"</div>';
+      html += '<div class="trade-card-msg">"' + escHtml(t.message) + '"</div>';
     }
-    html += '<div style="font-size:.75rem;color:var(--text-muted);">Your items: ' + myItemCount + ' | Their items: ' + theirItemCount + '</div>';
+    html += '<div class="trade-card-counts">Your items: ' + myItemCount + ' | Their items: ' + theirItemCount + '</div>';
     if (t.status === 'pending' && !isInitiator) {
-      html += '<div style="margin-top:var(--space-md);display:flex;gap:var(--space-md);">';
-      html += '<button class="btn-confirm" onclick="event.stopPropagation();respondToTrade(\'' + escHtml(t.id) + '\',true)" style="font-size:.75rem;padding:var(--space-sm) var(--space-lg);">Accept</button>';
-      html += '<button class="btn-cancel" onclick="event.stopPropagation();respondToTrade(\'' + escHtml(t.id) + '\',false)" style="font-size:.75rem;padding:var(--space-sm) var(--space-lg);">Decline</button>';
+      html += '<div class="trade-card-actions">';
+      html += '<button class="btn-confirm btn-sm" onclick="event.stopPropagation();respondToTrade(\'' + escHtml(t.id) + '\',true)">Accept</button>';
+      html += '<button class="btn-cancel btn-sm" onclick="event.stopPropagation();respondToTrade(\'' + escHtml(t.id) + '\',false)">Decline</button>';
       html += '</div>';
     }
     html += '</div>';
@@ -158,15 +158,15 @@ function renderTradeDetail() {
 
   // Header
   var headerEl = document.getElementById('trade-detail-header');
-  headerEl.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-    '<h2 style="margin:0;font-size:1.1rem;">Trade with ' + escHtml(partnerKey.slice(0, 16)) + '...</h2>' +
+  headerEl.innerHTML = '<div class="trade-detail-head">' +
+    '<h2 class="trade-detail-title">Trade with ' + escHtml(partnerKey.slice(0, 16)) + '...</h2>' +
     '<span class="status status-' + escHtml(t.status) + '">' + escHtml(t.status) + '</span>' +
     '</div>' +
-    (t.message ? '<p style="color:var(--text-muted);font-size:.8rem;margin:var(--space-sm) 0 0 0;">"' + escHtml(t.message) + '"</p>' : '');
+    (t.message ? '<p class="trade-detail-msg">"' + escHtml(t.message) + '"</p>' : '');
 
   // If pending and we're recipient, show accept/decline
   if (t.status === 'pending' && !isInitiator) {
-    headerEl.innerHTML += '<div style="margin-top:var(--space-lg);display:flex;gap:var(--space-md);">' +
+    headerEl.innerHTML += '<div class="trade-detail-actions">' +
       '<button class="btn-confirm" onclick="respondToTrade(\'' + escHtml(t.id) + '\',true)">Accept Trade</button>' +
       '<button class="btn-cancel" onclick="respondToTrade(\'' + escHtml(t.id) + '\',false)">Decline Trade</button>' +
       '</div>';
@@ -175,7 +175,7 @@ function renderTradeDetail() {
   var viewEl = document.getElementById('trade-detail-view');
 
   if (t.status === 'pending' && isInitiator) {
-    viewEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:var(--space-2xl);">Waiting for the other player to accept your trade request...</p>' +
+    viewEl.innerHTML = '<p class="trade-empty">Waiting for the other player to accept your trade request...</p>' +
       '<div class="trade-actions"><button class="btn-cancel" onclick="cancelTrade(\'' + escHtml(t.id) + '\')">Cancel Trade</button></div>';
     return;
   }
@@ -201,7 +201,7 @@ function renderTwoColumns(t, isInitiator, editable) {
   html += '<div class="trade-column">';
   html += '<h3>Your Items' + (myConfirmed ? '<span class="confirmed-badge">Confirmed</span>' : '') + '</h3>';
   if (myItems.length === 0) {
-    html += '<p style="color:var(--text-muted);font-size:.8rem;">No items added yet.</p>';
+    html += '<p class="trade-col-empty">No items added yet.</p>';
   }
   myItems.forEach(function(item, idx) {
     html += '<div class="trade-item">';
@@ -213,10 +213,10 @@ function renderTwoColumns(t, isInitiator, editable) {
   });
   if (editable) {
     html += '<div class="add-item-form">';
-    html += '<input type="text" id="add-item-name" placeholder="Item name" style="font-size:.8rem;">';
-    html += '<input type="number" id="add-item-qty" placeholder="Qty" value="1" min="1" max="9999" style="max-width:60px;font-size:.8rem;">';
-    html += '<select id="add-item-type" style="font-size:.8rem;max-width:100px;"><option>goods</option><option>service</option><option>currency</option><option>digital</option><option>other</option></select>';
-    html += '<button class="btn-primary" onclick="addMyItem()" style="font-size:.75rem;padding:var(--space-sm) var(--space-md);">Add</button>';
+    html += '<input type="text" id="add-item-name" aria-label="Item name" placeholder="Item name">';
+    html += '<input type="number" id="add-item-qty" class="qty" aria-label="Quantity" placeholder="Qty" value="1" min="1" max="9999">';
+    html += '<select id="add-item-type" class="item-type" aria-label="Item type"><option>goods</option><option>service</option><option>currency</option><option>digital</option><option>other</option></select>';
+    html += '<button class="btn-primary" onclick="addMyItem()">Add</button>';
     html += '</div>';
   }
   html += '</div>';
@@ -228,7 +228,7 @@ function renderTwoColumns(t, isInitiator, editable) {
   html += '<div class="trade-column">';
   html += '<h3>Their Items' + (theirConfirmed ? '<span class="confirmed-badge">Confirmed</span>' : '') + '</h3>';
   if (theirItems.length === 0) {
-    html += '<p style="color:var(--text-muted);font-size:.8rem;">No items added yet.</p>';
+    html += '<p class="trade-col-empty">No items added yet.</p>';
   }
   theirItems.forEach(function(item) {
     html += '<div class="trade-item">';
@@ -382,7 +382,7 @@ function searchOrderBook() {
       renderOrderBook(data.orders || [], data.item_type, data.market_price);
     })
     .catch(function() {
-      document.getElementById('ob-orders-container').innerHTML = '<p style="color:var(--danger,#f44);text-align:center;">Failed to load orders.</p>';
+      document.getElementById('ob-orders-container').innerHTML = '<p class="ob-error">Failed to load orders.</p>';
     });
 }
 
@@ -397,7 +397,7 @@ function renderOrderBook(orders, itemType, marketPrice) {
 
   var container = document.getElementById('ob-orders-container');
   if (orders.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:var(--space-xl);">No open orders for "' + escHtml(itemType) + '".</p>';
+    container.innerHTML = '<p class="ob-empty">No open orders for "' + escHtml(itemType) + '".</p>';
     return;
   }
 
@@ -550,7 +550,7 @@ function loadTradeHistory() {
 function renderTradeHistory(history) {
   var container = document.getElementById('ob-history-container');
   if (!history || history.length === 0) {
-    container.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;">No trade history yet.</p>';
+    container.innerHTML = '<p class="ob-history-empty">No trade history yet.</p>';
     return;
   }
   var html = '<table class="ob-table"><thead><tr>';

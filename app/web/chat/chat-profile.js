@@ -1,193 +1,100 @@
 // ── Profile System ──
-// Goal: manage local profile storage, the Edit Profile modal, the View Profile
-// overlay, and the client-side block list.
+// Goal: keep the local profile store in sync with the relay, render the View
+// Profile overlay, and manage the client-side block list.
+//
+// CANONICAL PROFILE EDITOR (2026-07-14, docs/UI-AUDIT.md section 5):
+// the standalone /profile PAGE (web/pages/profile.html) is the ONE place a user
+// edits their profile. It mirrors the native app's Profile page
+// (src/gui/pages/profile.rs) and is the fuller surface (network profile, socials,
+// interests, skills, streaming, private-only sections).
+//
+// The old in-chat "Edit Profile" modal was a SECOND editor over the same data and
+// had already drifted (it only knew a subset of the fields, and the page kept its
+// own separate localStorage key). It is retired:
+//   - openEditProfileModal() now ROUTES every in-chat entry point to /profile
+//     (the /profile command, the Account nav hash, onboarding step 4, the sidebar
+//     link, which already pointed at the page).
+//   - The leftover #edit-profile-overlay markup in chat/index.html is stripped
+//     from the DOM on load (see removeRetiredEditProfileModal below) so its inline
+//     onclick handlers can never fire now that the modal functions are gone.
+//   - FOLLOW-UP for whoever next owns chat/index.html: delete the "Edit Profile
+//     Modal" block (the #edit-profile-overlay div). Nothing references it any more.
+//
+// The /profile page writes the SAME localStorage object this file reads
+// (`humanity_profile`), and this file owns the only push path to the relay
+// (WS `profile_update`): on connect, and immediately via the cross-tab `storage`
+// event when the page saves while chat is open.
+//
 // Depends on (from app.js): ws, myKey, myName, esc, generateIdenticon,
 //   roleBadge, peerData, isFriend, isFollowing, myFollowing, myFollowers,
 //   addSystemMessage, reRenderMessagesForBlockChange, rerenderUserList.
+
+/** Canonical local store for the network-facing profile. Also written by /profile. */
+const PROFILE_LS_KEY = 'humanity_profile';
 
 /** name (lowercase) → { bio, socials, avatar_url, banner_url, pronouns, location, website } */
 let profileCache = {};
 let lastProfileUpdateSent = 0;
 let pendingProfileView = null; // name we're waiting for profile_data on
-/** per-field privacy state while the edit modal is open: field → 'private' | 'public' */
-let editPrivacyMap = {};
 
 /** Persist the full profile object to localStorage for offline pre-fill. */
 function saveProfileLocal(data) {
-  localStorage.setItem('humanity_profile', JSON.stringify(data));
+  localStorage.setItem(PROFILE_LS_KEY, JSON.stringify(data));
 }
 /** Load the locally cached profile object. */
 function loadProfileLocal() {
   try {
-    return JSON.parse(localStorage.getItem('humanity_profile') || '{}');
+    return JSON.parse(localStorage.getItem(PROFILE_LS_KEY) || '{}');
   } catch { return {}; }
 }
 
-/**
- * Toggle the privacy state of a profile field between public and private.
- * Called by the lock-icon button beside each privacy-capable field.
- * @param {string} field - The field name (e.g. 'pronouns', 'location', 'website').
- */
-function togglePrivacyField(field) {
-  const isPrivate = editPrivacyMap[field] === 'private';
-  editPrivacyMap[field] = isPrivate ? 'public' : 'private';
-  const btn = document.getElementById('privacy-' + field);
-  if (btn) {
-    btn.innerHTML = editPrivacyMap[field] === 'private' ? hosIcon('lock', 14) : '🌐';
-    btn.classList.toggle('is-private', editPrivacyMap[field] === 'private');
-    btn.title = editPrivacyMap[field] === 'private' ? 'Visible to friends only, click to make public' : 'Visible to everyone, click to make private';
-  }
-}
+// The retired modal's markup still ships in chat/index.html and its buttons carry
+// inline onclick="saveProfile()" / "togglePrivacyField(...)" handlers for functions
+// that no longer exist. Remove the node so those handlers are unreachable and no
+// stale second editor can be surfaced by accident.
+(function removeRetiredEditProfileModal() {
+  const dead = document.getElementById('edit-profile-overlay');
+  if (dead && dead.parentNode) dead.parentNode.removeChild(dead);
+})();
 
-// ── Edit Profile Modal ──
 /**
- * Open the Edit Profile modal and pre-fill all fields from local storage.
- * Also resets the per-field privacy toggles to match the saved privacy map.
+ * The single "edit my profile" entry point for the chat client. Every in-chat
+ * affordance calls this (the /profile command in chat-ui.js, the #profile hash
+ * from the Account nav button in app.js, onboarding step 4). It no longer opens a
+ * modal, it routes to the canonical editor at /profile.
+ *
+ * Preference is a NEW TAB so the chat socket stays alive and no in-progress flow
+ * (onboarding, a call, an unsent draft) is torn down. When the browser blocks the
+ * popup we fall back to navigating in place, which always works.
+ *
+ * Kept under the old name deliberately: it is the name all four call sites use,
+ * and renaming it would mean editing files this change does not own.
  */
 function openEditProfileModal() {
-  const overlay = document.getElementById('edit-profile-overlay');
-  const local = loadProfileLocal();
-  const socials = local.socials || {};
-
-  // Core fields.
-  document.getElementById('profile-bio').value = local.bio || '';
-  document.getElementById('profile-avatar-url').value = local.avatar_url || '';
-  document.getElementById('profile-banner-url').value = local.banner_url || '';
-  document.getElementById('profile-pronouns').value = local.pronouns || '';
-  document.getElementById('profile-location').value = local.location || '';
-  document.getElementById('profile-website-url').value = local.website || '';
-
-  // Social handles (stored inside the socials object).
-  document.getElementById('profile-website').value = socials.website || '';
-  document.getElementById('profile-discord').value = socials.discord || '';
-  document.getElementById('profile-twitter').value = socials.twitter || '';
-  document.getElementById('profile-youtube').value = socials.youtube || '';
-  document.getElementById('profile-github').value = socials.github || '';
-
-  // Restore privacy toggles.
-  editPrivacyMap = Object.assign({}, local.privacy || {});
-  for (const field of ['pronouns', 'location', 'website']) {
-    const isPrivate = editPrivacyMap[field] === 'private';
-    const btn = document.getElementById('privacy-' + field);
-    if (btn) {
-      btn.innerHTML = isPrivate ? hosIcon('lock', 14) : '🌐';
-      btn.classList.toggle('is-private', isPrivate);
+  let opened = null;
+  try { opened = window.open('/profile', '_blank'); } catch (e) { opened = null; }
+  if (opened) {
+    try { opened.opener = null; } catch (e) { /* cross-origin guard, same-origin here */ }
+    if (typeof addSystemMessage === 'function') {
+      addSystemMessage('Opened your profile page in a new tab. Anything you save there syncs back here right away.');
     }
+    return;
   }
-
-  updateBioCounter();
-  overlay.classList.add('open');
+  window.location.href = '/profile'; // popup blocked, go there in this tab
 }
 
-function closeEditProfileModal(e) {
-  if (e.target === document.getElementById('edit-profile-overlay')) {
-    closeEditProfileOverlay();
-  }
-}
-function closeEditProfileOverlay() {
-  document.getElementById('edit-profile-overlay').classList.remove('open');
-}
-
-function updateBioCounter() {
-  const bio = document.getElementById('profile-bio').value;
-  const counter = document.getElementById('bio-counter');
-  counter.textContent = bio.length + ' / 280';
-  counter.className = 'bio-counter' + (bio.length > 280 ? ' over' : bio.length > 240 ? ' warn' : '');
-}
-
-document.getElementById('profile-bio').addEventListener('input', updateBioCounter);
-
-/**
- * Read all profile modal fields, save locally, and push to the server.
- * Includes the new extended fields (avatar, banner, pronouns, location, website)
- * along with the per-field privacy map collected from the lock-icon toggles.
- */
-function saveProfile() {
-  const bio = document.getElementById('profile-bio').value.trim().substring(0, 280);
-  const avatar_url = document.getElementById('profile-avatar-url').value.trim().substring(0, 512);
-  const banner_url = document.getElementById('profile-banner-url').value.trim().substring(0, 512);
-  const pronouns   = document.getElementById('profile-pronouns').value.trim().substring(0, 64);
-  const location   = document.getElementById('profile-location').value.trim().substring(0, 128);
-  const website    = document.getElementById('profile-website-url').value.trim().substring(0, 256);
-
-  const socials = {
-    website: document.getElementById('profile-website').value.trim().substring(0, 200),
-    discord: document.getElementById('profile-discord').value.trim().substring(0, 100),
-    twitter: document.getElementById('profile-twitter').value.trim().substring(0, 100),
-    youtube: document.getElementById('profile-youtube').value.trim().substring(0, 200),
-    github:  document.getElementById('profile-github').value.trim().substring(0, 200),
-  };
-
-  // Strip empty socials fields before serialising.
-  const cleanSocials = {};
-  for (const [k, v] of Object.entries(socials)) {
-    if (v) cleanSocials[k] = v;
-  }
-
-  // Build a clean privacy map: only include fields that are explicitly set to private.
-  const privacyMap = {};
-  for (const [field, state] of Object.entries(editPrivacyMap)) {
-    if (state === 'private') privacyMap[field] = 'private';
-  }
-
-  // Save all fields locally so the modal pre-fills correctly next time.
-  saveProfileLocal({ bio, socials: cleanSocials, avatar_url, banner_url, pronouns, location, website, privacy: privacyMap });
-
-  // Push to server.
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    const now = Date.now();
-    if (now - lastProfileUpdateSent < 30000) {
-      addSystemMessage('⏳ Please wait 30 seconds between profile updates.');
-    } else {
-      lastProfileUpdateSent = now;
-      ws.send(JSON.stringify({
-        type: 'profile_update',
-        bio,
-        socials: JSON.stringify(cleanSocials),
-        avatar_url: avatar_url || undefined,
-        banner_url: banner_url || undefined,
-        pronouns:   pronouns   || undefined,
-        location:   location   || undefined,
-        website:    website    || undefined,
-        privacy:    JSON.stringify(privacyMap),
-      }));
-      addSystemMessage('Profile saved.');
-    }
-  } else {
-    addSystemMessage('Profile saved locally. It will sync when you connect.');
-  }
-
-  closeEditProfileOverlay();
-}
-
-/**
- * Push locally cached profile data to the server on connect so the server
- * has the latest version after a page reload or new device login.
- */
-function syncProfileOnConnect() {
-  // Merge any pending sync from the standalone profile.html page.
-  let local = loadProfileLocal();
-  try {
-    const pending = JSON.parse(localStorage.getItem('humanity_profile_pending_sync') || 'null');
-    if (pending) {
-      if (pending.bio)        local.bio        = pending.bio;
-      if (pending.avatar_url) local.avatar_url = pending.avatar_url;
-      if (pending.banner_url) local.banner_url = pending.banner_url;
-      if (pending.pronouns)   local.pronouns   = pending.pronouns;
-      if (pending.location)   local.location   = pending.location;
-      if (pending.website)    local.website    = pending.website;
-      saveProfileLocal(local);
-      localStorage.removeItem('humanity_profile_pending_sync');
-    }
-  } catch (e) { /* ignore parse errors */ }
-
-  const hasData = local.bio
+/** True when the locally stored profile holds anything worth sending. */
+function hasProfileData(local) {
+  return !!(local.bio
     || (local.socials && Object.keys(local.socials).length > 0)
     || local.avatar_url || local.banner_url
-    || local.pronouns  || local.location || local.website;
-  if (!hasData) return;
+    || local.pronouns || local.location || local.website
+    || (local.privacy && Object.keys(local.privacy).length > 0));
+}
 
-  ws.send(JSON.stringify({
+/** Shape the locally stored profile into the relay's profile_update message. */
+function buildProfileUpdate(local) {
+  return {
     type: 'profile_update',
     bio:        local.bio        || '',
     socials:    JSON.stringify(local.socials || {}),
@@ -196,10 +103,54 @@ function syncProfileOnConnect() {
     pronouns:   local.pronouns   || undefined,
     location:   local.location   || undefined,
     website:    local.website    || undefined,
+    // privacy: per-field locks ({pronouns|location|website: "private"}) plus the
+    // member-directory opt-out ({directory: "unlisted"} hides you from /api/members).
     privacy:    JSON.stringify(local.privacy || {}),
-  }));
-  lastProfileUpdateSent = Date.now();
+  };
 }
+
+let profilePushTimer = null;
+
+/**
+ * Push the locally stored profile to the relay. This is the ONLY write path to
+ * the server's copy of the profile; the /profile page edits the local store and
+ * this function ships it.
+ *
+ * Self-throttled to one update per 30s (the server's rate limit). A save inside
+ * that window is DEFERRED, not dropped, so the last edit always lands.
+ */
+function pushProfileToRelay() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const local = loadProfileLocal();
+  if (!hasProfileData(local)) return;
+
+  const waitMs = 30000 - (Date.now() - lastProfileUpdateSent);
+  if (waitMs > 0) {
+    clearTimeout(profilePushTimer);
+    profilePushTimer = setTimeout(pushProfileToRelay, waitMs + 100);
+    return;
+  }
+  lastProfileUpdateSent = Date.now();
+  ws.send(JSON.stringify(buildProfileUpdate(local)));
+}
+
+/**
+ * Push locally cached profile data to the server on connect so the server has the
+ * latest version after a page reload, a new device login, or edits made on
+ * /profile while chat was closed. Called from app.js once the socket is open.
+ */
+function syncProfileOnConnect() {
+  pushProfileToRelay();
+}
+
+// Cross-tab sync: the /profile page writes the same `humanity_profile` store, and
+// the browser fires `storage` in THIS tab when another tab changes it. So a chat
+// tab that is already connected ships profile edits to the relay the moment the
+// user saves them on the profile page, instead of waiting for a reconnect.
+window.addEventListener('storage', (e) => {
+  if (e.key !== PROFILE_LS_KEY) return;
+  pushProfileToRelay();
+});
 
 // ── View Profile Modal ──
 /**
@@ -667,7 +618,7 @@ async function openSeedPhraseModal() {
       </p>
       <div style="display:flex;justify-content:flex-end">
         <button onclick="document.getElementById('seed-phrase-overlay').remove()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-md);font-size:.82rem;font-weight:700;cursor:pointer">Done</button>
       </div>
     </div>
   `;
@@ -726,7 +677,7 @@ function openRestoreFromMnemonicModal() {
       </p>
 
       <!-- Tab: type words -->
-      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl)var(--space-xs);margin-bottom:var(--space-lg)">
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl) var(--space-xs);margin-bottom:var(--space-lg)">
         <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 var(--space-md)">✍️ Type or paste your 24 words</p>
         <textarea id="rm-words" rows="3" placeholder="word1 word2 word3 … word24" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
           style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;font-family:'Courier New',monospace;resize:vertical;outline:none;box-sizing:border-box;line-height:1.6"></textarea>
@@ -734,7 +685,7 @@ function openRestoreFromMnemonicModal() {
       </div>
 
       <!-- Tab: decrypt encrypted file -->
-      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl)var(--space-xs);margin-bottom:var(--space-xl)">
+      <div style="border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-xl) var(--space-xs);margin-bottom:var(--space-xl)">
         <p style="font-size:.82rem;color:var(--text);font-weight:600;margin:0 0 var(--space-sm)">${hosIcon('save', 14)} Restore from encrypted phrase file</p>
         <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 var(--space-md)">If you saved a <code>humanity-phrase-backup.json</code> earlier, upload it here with the passphrase you chose.</p>
         <div style="display:flex;gap:var(--space-md);align-items:center;flex-wrap:wrap">
@@ -751,9 +702,9 @@ function openRestoreFromMnemonicModal() {
       <div id="rm-msg" style="font-size:.75rem;min-height:1.2em;margin-bottom:var(--space-lg)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="document.getElementById('restore-mnemonic-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="rm-btn" onclick="doRestoreFromMnemonic()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
@@ -813,6 +764,27 @@ async function doRestoreFromMnemonic() {
   }
 }
 
+/**
+ * Confirm-then-reveal wrapper for the seed phrase.
+ *
+ * openSeedPhraseModal() paints all 24 words the instant it opens, which is the
+ * last thing you want from a stray click while screen-sharing or streaming. The
+ * permanent entry points (the Account & Identity menu button and the /seed
+ * command) therefore route through this guard. Onboarding step 4 still calls the
+ * modal directly, because there the user is deliberately in a set-up-my-backups
+ * flow and has just been told what the words are for.
+ *
+ * No key material is touched here. This asks, then delegates.
+ */
+function confirmRevealSeedPhrase() {
+  if (!confirm(
+    'Reveal your 24-word seed phrase?\n\n' +
+    'Anyone who reads these words controls your identity permanently.\n' +
+    'Make sure you are NOT screen-sharing, streaming, or being recorded.'
+  )) return;
+  openSeedPhraseModal();
+}
+
 // ── Identity Backup / Restore UI ──
 // Goal: give users a secure, frictionless way to protect and recover their
 // cryptographic identity from loss of device or browser data clear.
@@ -848,9 +820,9 @@ function openEncryptedBackupModal() {
       <div id="eb-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="this.closest('#encrypted-backup-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="eb-btn" onclick="doEncryptedBackup()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Download Encrypted Backup</button>
       </div>
     </div>
   `;
@@ -913,14 +885,184 @@ function openRestoreIdentityModal() {
       <div id="ri-msg" style="font-size:.75rem;margin-bottom:var(--space-xl)"></div>
       <div style="display:flex;gap:var(--space-lg);justify-content:flex-end">
         <button onclick="this.closest('#restore-identity-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         <button id="ri-btn" onclick="doRestoreIdentity()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">Restore Identity</button>
       </div>
     </div>
   `;
   document.body.appendChild(overlay);
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ── Link this device (2026-07-12): the TARGET side of moving your identity to
+// a new device (phone). Presents every method with clear pros/cons, and -- the
+// piece that was missing -- a real CAMERA QR SCANNER so the QR shown by
+// "Link New Device" on another device can actually be scanned instead of
+// pasting a huge JSON blob by hand. Web-derives the SAME key as native from the
+// same seed, so a linked phone becomes your real identity (name + role + all). ──
+
+/**
+ * Open the phone camera and scan for a QR code. Resolves the decoded string via
+ * onResult. Uses the built-in BarcodeDetector (Android Chrome + most mobile
+ * browsers); if it's unavailable (e.g. iOS Safari) it falls back with a clear
+ * message pointing at the Paste / Seed-phrase methods.
+ */
+async function scanQrWithCamera(onResult) {
+  if (!('BarcodeDetector' in window)) {
+    alert('This browser can\'t scan QR codes directly. Use "Paste identity code" or "Seed phrase" instead.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    alert('Camera access was denied. Use "Paste identity code" or "Seed phrase" instead.');
+    return;
+  }
+  const overlay = document.createElement('div');
+  overlay.id = 'qr-scan-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:8000;display:flex;flex-direction:column;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <video id="qr-scan-video" playsinline muted style="width:100%;max-width:480px;max-height:70vh;border-radius:var(--radius);object-fit:cover"></video>
+    <p style="color:#fff;font-size:.85rem;margin:var(--space-lg);text-align:center">Point your camera at the QR code on your other device</p>
+    <button id="qr-scan-cancel" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text);border-radius:var(--radius);padding:var(--space-md) var(--space-2xl);font-size:.85rem;cursor:pointer">Cancel</button>`;
+  document.body.appendChild(overlay);
+  const video = document.getElementById('qr-scan-video');
+  video.srcObject = stream;
+  let done = false;
+  const cleanup = () => { done = true; stream.getTracks().forEach(t => t.stop()); overlay.remove(); };
+  document.getElementById('qr-scan-cancel').onclick = cleanup;
+  try { await video.play(); } catch (e) {}
+  const detector = new BarcodeDetector({ formats: ['qr_code'] });
+  const tick = async () => {
+    if (done) return;
+    try {
+      const codes = await detector.detect(video);
+      if (codes && codes.length) { cleanup(); onResult(codes[0].rawValue); return; }
+    } catch (e) { /* transient decode error; keep trying */ }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+/**
+ * Decode a device-link payload from EITHER the fragment-URL form
+ * (https://.../chat/index.html#devicelink=<base64url(json)>, the current QR
+ * format -- a URL so a system camera navigates instead of searching the seed)
+ * OR raw JSON (pasted code / older QRs). Returns the parsed backup object.
+ */
+function decodeDeviceLinkPayload(str) {
+  str = (str || '').trim();
+  const m = str.match(/[#&]devicelink=([A-Za-z0-9\-_]+)/);
+  if (m) {
+    let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    return JSON.parse(atob(b64));
+  }
+  return JSON.parse(str);
+}
+
+/** Import an identity from a scanned/pasted device-link string (URL or JSON). */
+async function importIdentityFromLinkString(str) {
+  let parsed;
+  try { parsed = decodeDeviceLinkPayload(str); }
+  catch (e) { alert('That doesn\'t look like a valid identity code.'); return; }
+  try {
+    const result = await importIdentityBackup(parsed);
+    alert('✓ This device is now linked to ' + (result && result.name ? result.name : 'your identity') + '. Reloading…');
+    setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    alert('Could not import: ' + e.message + '\n(If the code was encrypted, use "Encrypted backup file" with your passphrase instead.)');
+  }
+}
+
+/**
+ * The TARGET-side chooser: "Link this device to your identity." Lists every
+ * method with a one-line pro/con so the user picks what fits (operator ask,
+ * 2026-07-12). Routes to the camera scanner + existing import/restore flows.
+ */
+function openLinkThisDeviceModal() {
+  const existing = document.getElementById('link-this-device-overlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'link-this-device-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:7000;display:flex;align-items:center;justify-content:center;padding:var(--space-xl);';
+  const method = (icon, title, pro, con, id) => `
+    <button id="${id}" style="display:block;width:100%;text-align:left;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-lg);margin-bottom:var(--space-md);cursor:pointer;color:var(--text)">
+      <div style="font-weight:700;font-size:.9rem;margin-bottom:2px">${icon} ${title}</div>
+      <div style="font-size:.72rem;color:var(--success)">${pro}</div>
+      <div style="font-size:.72rem;color:var(--text-muted)">${con}</div>
+    </button>`;
+  const groupLabel = (text) => `<div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin:var(--space-lg) 0 var(--space-sm)">${text}</div>`;
+  overlay.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
+      <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-sm)">🔗 Link this device to your identity</h2>
+      <p style="font-size:.78rem;color:var(--text-muted);line-height:1.55;margin-bottom:0">
+        Two ways to do this. The first four make this device fully <em>become</em> you (same key: chat, uploads, DMs, history).
+      </p>
+      ${groupLabel('Fully become this identity (recommended)')}
+      ${method('📷', 'Scan a QR code', 'Fastest, no typing. Gets everything incl. DMs.', 'Needs your other device to show its identity QR + a camera here.', 'ltd-scan')}
+      ${method('📋', 'Paste identity code', 'Works on any browser.', 'Copy the code text from your other device\'s "Show my identity" screen.', 'ltd-paste')}
+      ${method('🌱', 'Enter seed phrase', 'From your written 24-word backup; no other device needed.', 'You type/paste 24 words.', 'ltd-seed')}
+      ${method('💾', 'Encrypted backup file', 'A file you saved, protected by your passphrase.', 'You transfer the file to this device first.', 'ltd-file')}
+      ${groupLabel('Companion device (keep this device\'s own key)')}
+      <p style="font-size:.72rem;color:var(--text-muted);line-height:1.5;margin:0 0 var(--space-sm)">
+        On your other device type <code style="color:var(--accent)">/link</code> in chat to get a one-time code, then enter it here. This device shows under your name and can post + upload, but keeps its own key (it can't read your private DMs).
+      </p>
+      ${method('🔗', 'Enter a link code', 'No seed or QR needed.', 'Get the code by typing /link on your other device (5-minute, one-time).', 'ltd-code')}
+      <div style="text-align:right;margin-top:var(--space-md)">
+        <button onclick="document.getElementById('link-this-device-overlay').remove()"
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xl);font-size:.82rem;cursor:pointer">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  const close = () => overlay.remove();
+  document.getElementById('ltd-scan').onclick = () => { close(); scanQrWithCamera(importIdentityFromLinkString); };
+  document.getElementById('ltd-paste').onclick = () => {
+    close();
+    const s = prompt('Paste your identity code (the JSON from the other device\'s "Show my identity" screen):');
+    if (s) importIdentityFromLinkString(s);
+  };
+  document.getElementById('ltd-seed').onclick = () => { close(); openRestoreFromMnemonicModal(); };
+  document.getElementById('ltd-file').onclick = () => { close(); openRestoreIdentityModal(); };
+  document.getElementById('ltd-code').onclick = () => { close(); linkThisDeviceWithCode(); };
+}
+
+/**
+ * Companion-device path: this device KEEPS its own key but registers under your
+ * name by redeeming a one-time /link code from your other device. The relay copies
+ * your role to this device's key (so it can upload), but because DMs are
+ * end-to-end encrypted to a specific key, this device won't read your existing
+ * DMs (use "Enter seed phrase" / QR for that). Reconnects so the code rides the
+ * identify message (app.js consumes `pendingLinkCode`).
+ */
+function linkThisDeviceWithCode() {
+  const name = prompt('Your name (the same name as on your other device):');
+  if (!name) return;
+  const trimmedName = name.trim();
+  if (!/^[A-Za-z0-9_-]{1,24}$/.test(trimmedName)) {
+    alert('Names can only contain letters (A-Z), numbers, underscores, and dashes. Max 24 characters.');
+    return;
+  }
+  const code = prompt('Link code from your other device (type /link there to get one):');
+  if (!code || !code.trim()) return;
+
+  // Set the display name locally + persist it so it survives a reload, then push
+  // the code onto the pending-identify slot and force a clean re-identify.
+  myName = trimmedName;
+  try { localStorage.setItem('humanity_name', trimmedName); } catch (e) {}
+  const nameInput = document.getElementById('name-input');
+  if (nameInput) nameInput.value = trimmedName;
+  pendingLinkCode = code.trim();
+  identityConfirmed = false;
+  if (typeof ws !== 'undefined' && ws) {
+    try { ws.onclose = null; ws.close(); } catch (e) {}
+    ws = null;
+  }
+  openSocket();
+  alert('Linking this device as "' + trimmedName + '"…\nIf the code is valid it will reconnect under that name with your permissions.');
 }
 
 async function doRestoreIdentity() {
@@ -962,7 +1104,7 @@ function openKeyProtectionModal() {
   overlay.innerHTML = `
     <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:var(--space-2xl);width:100%;max-width:500px;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text)">
       <h2 style="font-size:1rem;font-weight:700;color:var(--accent);margin-bottom:var(--space-md)">${hosIcon('lock', 14)} Key Protection</h2>
-      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:1var(--space-xs)">
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:var(--space-xs)">
         ${wrapped
           ? `<span style="color:var(--success);font-weight:600">${hosIcon('check', 14)} Protected</span>, your private key in localStorage is encrypted with a passphrase. It is safe even if someone accesses your browser storage.`
           : `<span style="color:var(--accent);font-weight:600">⚠️ Not protected</span>, your private key is stored as readable plaintext in your browser's <code style="color:var(--text-muted)">localStorage</code>. Anyone with DevTools access, a malicious browser extension, or physical access to your browser profile directory could extract it. Set a passphrase to encrypt it at rest.`
@@ -975,15 +1117,15 @@ function openKeyProtectionModal() {
         <input id="kp-pass2" type="password" placeholder="Confirm passphrase…" autocomplete="new-password"
           style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:var(--radius);padding:var(--space-md) var(--space-lg);color:var(--text);font-size:.85rem;outline:none">
       </div>
-      <div id="kp-msg" style="font-size:.75rem;margin-bottom:.var(--space-md);min-height:1.2em"></div>
+      <div id="kp-msg" style="font-size:.75rem;margin-bottom:var(--space-md);min-height:1.2em"></div>
       <div style="display:flex;gap:var(--space-md);flex-wrap:wrap;justify-content:flex-end">
         <button onclick="document.getElementById('key-protection-overlay').remove()"
-          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
+          style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer">Cancel</button>
         ${wrapped ? `<button id="kp-remove-btn" onclick="doRemoveKeyProtection()"
-          style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md)var(--space-xs);font-size:.82rem;cursor:pointer"
+          style="background:none;border:1px solid var(--danger);color:var(--danger);border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;cursor:pointer"
           title="Remove passphrase protection, key will be stored in plaintext again">Remove Protection</button>` : ''}
         <button id="kp-save-btn" onclick="doEnableKeyProtection()"
-          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) 1var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
+          style="background:var(--accent);color:#000;border:none;border-radius:var(--radius);padding:var(--space-md) var(--space-xs);font-size:.82rem;font-weight:700;cursor:pointer">
           ${wrapped ? 'Change Passphrase' : 'Protect Key'}</button>
       </div>
     </div>
@@ -1031,23 +1173,10 @@ function doRemoveKeyProtection() {
   } catch(e) {}
 }
 
-// ── Key Rotation UI ───────────────────────────────────────────────────────────
-// Goal: let a user generate a new Ed25519 identity that cryptographically
-// inherits their old one. Both keys sign a rotation certificate so peers know
-// the change was authorised, not an impersonation.
-
-/**
- * Open the key rotation modal.
- * Delegates to the shared openKeyRotationModal() in crypto.js.
- * Kept as a thin wrapper for backward compatibility with any callers.
- */
-// openKeyRotationModal and doKeyRotation are now defined in crypto.js
-// and available globally on any page that loads crypto.js.
-
-// Legacy stubs removed -- the canonical implementations live in crypto.js.
-// If chat-profile.js is loaded after crypto.js, the global functions are already available.
-
-// doKeyRotation and storeNewRotatedIdentity moved to crypto.js (_storeRotatedIdentity)
+// (Key-rotation UI removed v0.845.2: the relay's key_rotation WS route was
+// deleted in Inc5b/v0.265 and no caller remained, so the modal sent an ignored
+// message yet swapped the local key regardless, a desync hazard. In-app key
+// replacement now lives in the native Settings "Replace Identity" flow.)
 
 /** Force re-render user list with updated block indicators. */
 function rerenderUserList() {
