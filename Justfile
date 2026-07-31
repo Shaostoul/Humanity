@@ -356,12 +356,45 @@ validate-data:
 # Full local verification: both feature builds + lib tests + the GUI lints.
 # Mirrors what CI cares about (the relay build is the one CI deploys with).
 # just aborts the recipe on the first failing line, so this fails fast.
+#
+# STATIC ONLY: nothing here boots the app, and nothing here can (CI runs it
+# headless with no GPU). Every failure that only appears once the process is
+# running - device-limit rejections at startup (v0.782-784), a bind-group panic
+# on world entry (v0.1029-1038) - lives past the last line of this recipe.
+# `just verify-runtime` is the half that boots. Run both before a renderer push.
+#
+# Static gate: both feature builds + lib tests + 8 lints. Boot half: verify-runtime.
 verify:
     cargo check --features native
     cargo check --features relay --no-default-features
     cargo test --features native --lib
     just lints
     @echo "OK: verify passed"
+    @echo "   (static only - nothing booted the app. For renderer/shader/world changes run: just verify-runtime)"
+
+# The BOOT half of verification, and the answer to "ten releases panicked on
+# world entry while verify stayed green". Boots target/release/HumanityOS.exe in
+# a portable probe rig, enters the world through autopilot, and visits three
+# vantages picked from real incidents (full-disc Earth, a textured forest
+# ground, a low storm sea). FAILS if any vantage cannot be reached or captured,
+# or if the run log holds a single PANIC.
+#
+# Refuses before booting anything when:
+#   - target/release/HumanityOS.exe is missing
+#   - it is OLDER than the newest v*_HumanityOS.exe archive in the repo root
+#     (you would be verifying a build that predates your change - the mistake
+#     `just launch-bg` itself shipped on 2026-07-30)
+#   - src/, assets/shaders/, Cargo.toml or build.rs changed after that build
+#   - another verify-runtime probe is already running
+#
+# NOT in `just verify` and never will be: verify runs headless in CI with no
+# GPU. This needs the dev machine. Takes ~3 minutes. Run it before pushing
+# anything renderer, shader, world or asset shaped. Pass driver args through,
+# e.g. `just verify-runtime --exe v0.1069.1_HumanityOS.exe`.
+#
+# Boot the real binary, enter the world, fail on any panic or missed capture.
+verify-runtime *ARGS:
+    node scripts/verify-runtime.js {{ARGS}}
 
 # The four src/gui file-scanner lints (no em dashes, theme tokens, theme-editor
 # coverage, tofu glyphs). Compiled standalone with rustc so they never link the
@@ -448,11 +481,17 @@ launch:
 #
 # NOTE this is still only a MENU boot. World entry is the real bar, and the
 # in-place exe refuses autopilot when a real identity exists, so it cannot reach
-# the world unattended. For anything renderer-shaped use `just probe-sweep`,
-# which builds a portable sandbox, enters the world, and sets HUMANITY_NO_FOCUS
-# for you.
+# the world unattended. For anything renderer-shaped use `just verify-runtime`
+# (or `just probe-sweep` for a full tour), which builds a portable sandbox,
+# enters the world, and sets HUMANITY_NO_FOCUS for you.
+#
+# The staleness guard is now mechanical (scripts/check-fresh-exe.js) instead of
+# a comment asking you to remember: it refuses when the exe is missing, older
+# than the newest archive, or older than the source it claims to contain.
+#
+# Launch the freshly built exe behind your work, no focus steal, menu only.
 launch-bg:
-    @test -f target/release/HumanityOS.exe || (echo "No target/release/HumanityOS.exe. Run: cargo build --features native --release" && exit 1)
+    @node scripts/check-fresh-exe.js --quiet
     HUMANITY_NO_FOCUS=1 ./target/release/HumanityOS.exe
 
 # Check game code for errors (fast, no binary)
@@ -697,6 +736,10 @@ snapshot-check:
 # rig (junctions to data/ + assets/), boots target/release/HumanityOS.exe,
 # drives the tour, and kills it. Needs a release exe + a GPU. Pass driver args
 # through, e.g. `just probe-sweep --only moon-surface-200m`.
+# This is the exploratory tour (every vantage in the spec, no verdict). For the
+# pass/fail gate over the three incident vantages, use `just verify-runtime`.
+#
+# Tour every canonical 3D vantage and capture a screenshot + fps at each.
 probe-sweep *ARGS:
     node scripts/probe-sweep.js {{ARGS}}
 
