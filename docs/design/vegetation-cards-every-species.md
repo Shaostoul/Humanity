@@ -68,16 +68,18 @@ work, and it schedules exactly this increment.
 
 ## PRECONDITION: land this first, in its own commit
 
-Every acceptance number below is worthless until the rig measures this vantage
-at steady state.
+Two items, one commit. Every acceptance number below is worthless until BOTH
+land: the rig has to settle before it measures, and the counter it measures
+with has to be able to represent the answer.
+
+### P1. `settle_s` 25 -> 75 at `fuji-forest-ground`
 
 `tests/visual/vantages.json`, `fuji-forest-ground`: `settle_s` 25 -> 75.
 Measured 2026-07-31 on the operator's max-quality rig config (terrain_split_px
 2, terrain_patch_budget 12288): at 25 s the sweep captures 43-48 ms while the
 scene is still streaming, and the frame keeps getting heavier for about another
-40 s before settling at 93.7 ms +/- 5.8, which is 10.7 fps. The sweep was
-reporting 21.3 and 18.8 fps and passing an 18 fps floor at 55% of the true
-number.
+40 s before it settles. The sweep was reporting 21.3 and 18.8 fps on a scene
+that had not finished building.
 
 Note that `perf_floor_fps` never gates anything: `scripts/probe-sweep.js:224`
 records it into the manifest and `rec.ok` is set true regardless. The floor is
@@ -87,6 +89,54 @@ changing in `run.log` instead of sleeping a fixed `settle_s`
 NOT part of this increment.
 
 DONE in this brief's commit, along with the acceptance text.
+
+### P2. Unclamp the perf counters
+
+Added v0.1081, and it invalidates every frame-time number in this document.
+
+`src/lib.rs:2882` computes the frame delta as
+`let dt = (now - state.last_frame).as_secs_f32().min(0.1);`. The clamp is
+correct for SIMULATION: it stops a stall from teleporting the player. But that
+same clamped `dt` is what stamps both perf counters,
+`state.gui_state.fps = 1.0 / dt` (`src/lib.rs:11551`) and
+`frame_times.push(dt * 1000.0)` (`src/lib.rs:11555`), which
+`src/engine/ipc.rs:549-550` writes into `screenshot_done.json` and
+`scripts/probe-sweep.js:269-270` records into the sweep manifest.
+
+So fps saturates at exactly 10.0 and frame_ms at exactly 100.0. Nothing slower
+is representable, anywhere in the rig, by anything.
+
+Fix, about five lines, no image change:
+
+- keep the clamp for the simulation `dt`, adding
+  `let raw_dt = (now - state.last_frame).as_secs_f32();` before it;
+- stamp `state.gui_state.fps` and the `frame_times` ring from `raw_dt`;
+- report the MEDIAN of the 120-sample ring alongside the mean.
+  `src/engine/ipc.rs:542-551` writes only `frame_ms_avg` today; add
+  `frame_ms_med` there and record it beside `frame_ms` in
+  `scripts/probe-sweep.js`. The median is not decoration: one 2 s streaming
+  stall shifts a 120-frame mean by about 16 ms, which is a whole vsync step of
+  the A/B this increment is judged on.
+
+CONSEQUENCE, and this is why P2 is a precondition rather than a nicety. Every
+vegetation frame time in this brief was read through the saturating counter and
+is therefore a CENSORED sample, biased toward 100 ms:
+
+- the "before" figure quoted below as 93.7 ms +/- 5.8 / 10.7 fps at
+  `fuji-forest-ground` is a mean over a ring whose slow samples were clamped to
+  100.0;
+- the `ground-storm-inslab` A/B reference quoted as 50.7 ms +/- 1.8 is the same
+  kind of number off the same counter, and that vantage returned a flat
+  "10 fps / 100 ms" in two independent sweeps on 2026-07-31;
+- timed OFF the log instead, between consecutive 60-frame `[ChunkDiag]` lines
+  (`src/lib.rs:8909`), the forest runs about 131 ms, 7.6 fps, where the rig
+  reported 99.1 ms;
+- `fuji-forest-ground` carries `perf_floor_fps: 9` in
+  `tests/visual/vantages.json`. A 9 fps floor CANNOT FAIL against a counter
+  whose floor is 10 fps. That gate has never been able to fire.
+
+Treat every frame-time number in this document as "at most this bad" until P2
+lands. Do not A/B against them; re-measure first.
 
 ## Scope, in the order to do it
 
@@ -216,10 +266,101 @@ variant `0..variants.max(1)`:
 "index i is the tile" contract both go away: the caller now passes the tile index
 alongside the parts.
 
-Bake cost: 24 single ortho passes. The existing six take 1-2 s total per the
-`[Bake]` log at `src/lib.rs:9498`, and that is at 512 px, so 24 at 256 px is
-well under a second of the world-load path. Measure it and put the number in the
-log line.
+BAKE COST, and the claim this paragraph used to make was wrong. "24 at 256 px is
+well under a second" assumed the cost scales with tile RESOLUTION. It does not.
+`run.log` records `[Bake] tree-card atlas ready (6 stems, 0.8s)` (the log line
+is `src/lib.rs:9509`), which is about 133 ms PER TILE, and that time is
+dominated by the per-tile render-pipeline compile, not by rasterising 512x512
+pixels. `bake_billboard_texture` builds, FOR EVERY TILE: a shader module
+(`src/renderer/billboard_bake.rs:179`), a bind-group layout (`:185`), a pipeline
+layout (`:218`), a render pipeline (`:225`, the expensive one), a colour
+texture, a depth texture, a uniform buffer and a sampler; then
+`bake_tree_atlas` adds its own encoder plus `queue.submit` per tile
+(`:104-132`). Dropping to 256 px shrinks none of it.
+
+6 -> 24 tiles is therefore about 3 s of MAIN-THREAD FREEZE on world entry (the
+bake runs inline in the frame loop at `src/lib.rs:9471`) - a quality regression
+this increment would introduce by itself.
+
+Item 2 is already rewriting this function to give each PART its own uniform, so
+do the hoist in the same pass: build the shader module, bind-group layout,
+pipeline layout, render pipeline and sampler ONCE outside the loop, and keep
+per-tile only the MVP/mode uniform and the draw. One compile, not 24. Cheap and
+optional while you are in there: render each tile straight into a viewport plus
+scissor of the atlas texture instead of into a scratch texture followed by
+`copy_texture_to_texture`, which also gives item 3's "leave a failed tile
+zero-filled" behaviour for free out of a single `LoadOp::Clear(TRANSPARENT)`.
+
+Measure it and put the number in the log line, as that line already does.
+Target: `[Bake] tree-card atlas ready (24 stems, X s)` with X under 1.0, against
+the roughly 3 s a naive 24-tile version of today's code would cost.
+
+### 3b. The card FOOTPRINT, which is the piece that changes the image
+
+Do not skip this one. Items 1-4 replace a rectangle with a silhouette; without
+3b they ALSO introduce an artefact worse than the one they remove, in exactly
+the place this rung exists to fix.
+
+`bake_billboard_texture` frames a SQUARE sized on the larger of width and
+height, `let half = 0.5 * w_m.max(h_m) * 1.05;`, centred on the joint AABB
+(`src/renderer/billboard_bake.rs:167-171`), and it RETURNS that footprint.
+`bake_tree_atlas` throws the return away as `_fp`
+(`src/renderer/billboard_bake.rs:103`). `emit_sprite_card` then hardcodes
+`let w = h; // square sprite frame` (`src/terrain/planet_chunks.rs:1717`) and
+maps `v01` 0..1 onto world 0..h measured from the tree's base.
+
+The two agree only when the tree is taller than it is wide. Fir at 22 m by about
+6 m is height-dominant, so the error is just the 5% margin - which is precisely
+why this has never been seen: the sprite path today only ever runs for fir and
+pine.
+
+It stops being invisible the moment the six procedural species get tiles.
+`src/renderer/tree_mesh.rs:545` states the case in its own comment: acacia's
+"crown is WIDER than the tree is tall". Work a 1.3:1 crown through the same
+arithmetic - `half = 0.6825h`, AABB centre `0.5h`, so the frame spans `-0.1825h`
+to `1.1825h`, a span of `1.365h` - and map that onto a card of side `h`:
+
+- the drawn tree is `h / 1.365 = 0.733h`, 27% TOO SHORT;
+- its trunk base sits 13.4% of the card height ABOVE the ground;
+- the crown is squeezed to 74% of its true width.
+
+Palm and sakura land between that and the conifer case.
+
+The eye is unusually good at this one because it is a MOTION cue, not a static
+one. Walking through the 120 m model handoff makes every wide-crowned tree jump
+in height and hop off the ground at the same instant, which reads as the world
+twitching rather than as a distant tree being slightly wrong. Shipping 1-4
+without 3b trades one handoff artefact for a worse one.
+
+FIX, and it is small:
+
+- Widen `bake_billboard_texture`'s return from the square footprint to
+  `(frame_m, h_nominal_m, base_offset)` - all three are values it ALREADY
+  computes, it just throws two of them away: `frame_m = 2 * half`,
+  `h_nominal_m = h_m` (its line 166), and
+  `base_offset = (aabb_min_y - (cy - half)) / (2 * half)`, the dimensionless
+  fraction of the frame between its bottom edge and the tree's base. Stop
+  discarding it as `_fp` at `billboard_bake.rs:103` and store the triple per
+  tile in the SAME `OnceLock` table item 1 already builds.
+- `emit_sprite_card` takes that triple and emits a square of side
+  `side = frame_m * (h / h_nominal_m)`, with its bottom dropped to
+  `base - up * (base_offset * side)`. That replaces both `let w = h;` and the
+  `up * (h * v01)` term with `side`.
+- For a procedural species the scale factor is exactly the `jitter` already
+  computed at `src/terrain/planet_chunks.rs:1918` (`h = sp_h * jitter`, and the
+  bake builds at `t.height_m`), but write it as `h / h_nominal_m` anyway: a
+  model-backed species' baked AABB height is the glTF's, not the registry's, and
+  only the ratio form is right for both.
+
+Conifers keep their present look to within about 2%. Wide crowns land at the
+right height, with their trunks on the ground.
+
+No shader change, no extra vertices, three extra f32 per tile in a table that
+already has to exist. One consequence worth knowing rather than acting on:
+`v01` now spans the card FRAME rather than the tree, so item 6's crown-AO ramp
+is measured on the frame. For the height-dominant case that is the same 2%
+difference; for a wide crown it is what you want, because the frame is what the
+baked pixels occupy.
 
 ### 4. Drop the procedural exclusion
 
@@ -271,6 +412,19 @@ Two correctness notes:
 from 4 coloured cards (48 vertices unindexed) to 2 sprite cards (24 unindexed, 8
 indexed).
 
+LIFESPAN, stated plainly so nobody re-opens the question later. Item 5 is the
+one piece of this increment that the reserved instancing / impostor arc will
+DELETE: once cards are instanced quads there are no per-card vertices in the
+patch mesh to index. Do it now anyway, for two reasons. It is inside a function
+you are rewriting regardless, so its marginal cost is near zero. And
+`src/renderer/patch_arena.rs:194-201` sizes the arena as
+`(1200 MB).min(device.limits().max_buffer_size)`: on any adapter reporting
+wgpu's DEFAULT `max_buffer_size` of 256 MiB the vertex pool is 8.4M vertices
+against the ~36M this scene demands, so every tree-bearing patch falls to the
+classic per-draw path permanently. Indexed, the demand fits. On the cheap and
+old hardware this project explicitly targets, item 5 is the difference between a
+forest that batches and one that never does.
+
 ### 6. Card shading: blend the normal, ramp the crown
 
 Applied to the current coloured rectangles this only produces gradient-shaded
@@ -313,10 +467,40 @@ normal = normalize(mix(up_r, fs, 0.5));
   `90-fragment-main.wgsl:813`: one line, `albedo *= mix(0.55, 1.0,
   smoothstep(0.0, 0.75, v01))`, so the bottom of a card is darker than its top.
 
-The shader half of item 6 is a localized edit to the sprite branch at
-`90-fragment-main.wgsl:808-827`. It is in the shared shader tail that CLAUDE.md
-flags as a merge hazard, so it goes in as a single anchored insertion, not as a
-free-hand pass over the file.
+- **Dissolve the 1500 m cutoff, in the SAME insertion.** The sprite branch
+  hard-discards on `card_dist > shadow_u.params2.x` at
+  `assets/shaders/pbr/90-fragment-main.wgsl:805` (the coloured branch does the
+  same at `:842`) with no fade at all, so the forest ends on a smooth arc drawn
+  across the ground that follows the camera. Measured across one continuous
+  ridge from an 880 m eye at v0.1081: inside the ring, mean luma 29.9 with local
+  (8 px) SD 8.13; just outside it, 45.5 with local SD 1.18. A 34% luminance step
+  and a 6.9x texture step, at a radius centred on the player. Nothing in nature
+  draws a circle of forest around the observer.
+
+  The engine already contains the exact idiom fifteen lines below: the v0.999
+  grass 4x4 Bayer dissolve at `:853-866`, shipped for this same defect one LOD
+  rung in (operator: "a line of light perpendicular to me like 10 meters away").
+  Reuse it verbatim - `let fade = smoothstep(far - 250.0, far, card_dist);` with
+  `far = shadow_u.params2.x`, then the same ordered-Bayer threshold built from
+  `in.clip_position`, and `discard` when `fade >= thresh`. About 10 lines.
+
+  It is nearly free, and it REDUCES fill, because a dissolved fragment discards
+  before the BRDF. It needs no new geometry because the terrain imagery UNDER
+  the cards is already the right colour: that measured 45.5 / rgb(40,49,31) just
+  outside the ring IS NASA albedo of the same forest, so the cards only have to
+  fade into something that already matches.
+
+  This is NOT the `far_tree_sheet` the operator rejected
+  (`src/terrain/far_trees.rs`, default off). It changes nothing beyond 1500 m
+  and adds no mesh.
+
+The shader half of item 6 is ONE anchored insertion into the sprite branch at
+`assets/shaders/pbr/90-fragment-main.wgsl:801-827`, carrying all three pieces
+(blended normal, crown AO, cutoff dissolve) together. Do it against a quoted
+anchor, not as a free-hand pass over the file, and do NOT make two trips:
+`90-fragment-main.wgsl` is the shared shader tail CLAUDE.md flags as a
+three-way-merge hazard, and every extra visit is another chance to corrupt
+another domain's concurrent edit.
 
 ## Acceptance, exactly these
 
@@ -328,17 +512,26 @@ outline with sky visible through its edge.
 `[PatchBatch]` classic-fallback at 0, at the operator's max-quality rig config
 (terrain_split_px 2, terrain_patch_budget 12288).
 
-(c) Record the steady-state frame time before and after, both at 75 s settle, in
-the commit message. The before number is 93.7 ms +/- 5.8; the expected after is
-roughly the measured zero-classic state, 60-65 ms, but it is a measurement, not
-a promise.
+(c) RE-MEASURE the before AND the after with honest counters (precondition P2),
+at `ground-storm-inslab`, and record BOTH in the commit message: the mean and
+the MEDIAN of the 120-frame ring, plus the capture width.
+
+The old form of this gate - "the before number is 93.7 ms +/- 5.8; expect
+roughly 60-65 ms after" - is WITHDRAWN. Both halves were read off the
+saturating counter described in P2, so neither is a measurement. The same
+applies to the `ground-storm-inslab` reference of 50.7 ms +/- 1.8 quoted below:
+that vantage came back as a flat "10 fps / 100 ms" in two independent sweeps on
+2026-07-31, and off-log timing between consecutive 60-frame `[ChunkDiag]` lines
+puts the forest at about 131 ms / 7.6 fps where the rig reported 99.1. Take the
+before number again, on a quiet machine, after P2. Then state it.
 
 MEASURE FRAME TIME AT `ground-storm-inslab`, NOT at `fuji-forest-ground`
 (added v0.1081). Four runs of a byte-identical `fuji-forest-ground` config
 returned 39.7 and 85.3 ms and failed to capture in 2 of 4, because the walking
 player settled on different ground each time (alt 1240-1424 m); it now carries
-`hold_altitude`, but its reproducible-enough twin is `ground-storm-inslab` at
-50.7 ms +/- 1.8 (n=3), and that is the number an A/B is judged against. Also
+`hold_altitude`, but its reproducible-enough twin is `ground-storm-inslab`,
+recorded at 50.7 ms +/- 1.8 (n=3) through the censored counter, and that is the
+vantage an A/B is judged at once the number itself is honest. Also
 note every rig frame time is quantized to the refresh interval - the config
 runs `vsync: true`, and setting it false currently panics at boot in
 `Surface::configure` - so read a change of less than one 16.7 ms step as noise.
@@ -378,6 +571,37 @@ eyeball all 24 tiles before spending a sweep.
 
 Each of these is real work that someone will be tempted to fold in. Do not.
 
+- **Single-sided cards plus a cull-none colour pipeline for the card range.**
+  Both emitters duplicate every triangle with reversed winding so the card
+  survives back-face culling. Dropping the duplicate is another ~2x on card
+  geometry on top of item 5 (a tree would go from 24 vertices + 24 indices to
+  4 + 12), and it also stops every card being rasterised TWICE into the shadow
+  map for zero effect, since both depth-only pipelines are already
+  `cull_mode: None` (`src/renderer/pipeline.rs:560`, "Patch Batch Shadow
+  Pipeline", and `:705`, "Sun Shadow Pipeline"). It is left out because it is
+  not a two-closure edit like item 5: it needs a new colour-pipeline variant, a
+  new field on `PatchSlot`, and a mesh-block reorder to [grid+skirt | cards] so
+  the card index range is contiguous. RE-MEASURE AFTER ITEM 5 FIRST - item 5
+  alone may already put the arena far enough under the ceiling that this buys
+  nothing visible.
+- **MSAA.** The residual black speckle in the near canopy is geometric aliasing
+  of sub-pixel leaf blades, not shading: there is no MSAA anywhere (every
+  `MultisampleState` in `src/renderer/pipeline.rs` is `count: 1`, e.g. `:540`
+  and `:642`, default elsewhere) and no temporal accumulation. MSAA 4x at
+  2560x1440 is roughly 20-30% of frame time and interacts with the bloom/SSAO
+  chain, so it is an operator decision and its own wave. What this increment
+  DOES owe it is one sentence of provenance on the gate, which is why
+  `fuji-forest-ground`'s black-canopy regression now records its capture width:
+  the same v0.1081 build measures 0.448 / 22.8% at 2560x1387 and 0.211 / 35.3%
+  at 1280x720, so the dark-fraction half of that gate passes at one width and
+  fails at the other.
+- **Near-tree frustum culling.** The 256 near 3D models are selected
+  view-independently on purpose (the card-hide radius `covered_r2` has to stay
+  stable), and frustum-testing only the colour-pass push would be
+  image-identical. Left out because it was MEASURED to cost nothing today:
+  disabling the near models ENTIRELY moved 130.9 ms to 132.8 ms, inside the
+  noise. Correct work with no current payoff; revisit when the near models are
+  the limit, not before.
 - **Per-patch card index-range culling.** About 30.8M of the ~32M card vertices
   drawn per frame are discarded on distance by
   `90-fragment-main.wgsl:801-806`, and skipping their index range per patch is
