@@ -179,8 +179,11 @@
 > LIVE consumption (v0.1034-v0.1035: eligibility rolls, rarity weights,
 > Front gusts on exported wind, HUD event name, event emitters union
 > into precipitation). Remaining weather rungs: Vortex spatial wind +
-> hazard damage, precipitation streak sprites (particle shader), cloud
-> coverage_boost/tint consumption, froxels + wind FIELD, rivers.
+> hazard damage, precipitation streak sprites (particle shader),
+> froxels + wind FIELD, rivers. (cloud coverage_boost/tint consumption
+> SHIPPED v0.1037.1 per docs/history/2026-07-28.md, stale marker caught
+> by the 2026-07-31 clouds domain-pass historian gate. Cloud tonal-range
+> fidelity pass SHIPPED v0.1069.0, same workflow.)
 > MODEL TIERING (operator 2026-07-28): docs/ai/model-tiering.md is the
 > plan for spending the never-touched Opus/Sonnet 50% of the sub -
 > Sonnet-ready data packages (full dictionary via Wiktionary/WordNet,
