@@ -828,3 +828,18 @@ wyvern_scale_0,Wyvern Scale,material,creature_part,chitin,0.4,20,0,Hard plating 
 wyvern_wing_0,Wyvern Wing,material,fiber,organic,0.05,20,0,Light material from a creature,solid,0.08
 grain_amaranth_0,Amaranth Grain,food,grain,plant_fiber,0.5,20,0,Threshed amaranth seed 500g,dry_goods,0.93
 herb_dandelion_0,Dandelion Greens,food,herb,plant_fiber,0.05,20,0,Fresh dandelion leaves and flowers,dry_goods,0.15
+grain_quinoa_0,Quinoa Grain,food,grain,plant_fiber,0.5,20,0,Threshed quinoa seed 500g,dry_goods,0.93
+grain_buckwheat_0,Buckwheat Grain,food,grain,plant_fiber,0.5,20,0,Threshed buckwheat groats 500g,dry_goods,0.93
+grain_teff_0,Teff Grain,food,grain,plant_fiber,0.5,20,0,Threshed teff seed 500g,dry_goods,0.93
+legume_cowpea_0,Cowpea,food,legume,plant_fiber,0.3,20,0,Fresh harvested cowpea,solid,0.45
+legume_fava_bean_0,Fava Bean,food,legume,plant_fiber,0.3,20,0,Fresh harvested fava bean,solid,0.45
+legume_pigeon_pea_0,Pigeon Pea,food,legume,plant_fiber,0.3,20,0,Fresh harvested pigeon pea,solid,0.45
+vegetable_cassava_0,Cassava,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested cassava root,solid,0.45
+vegetable_taro_0,Taro,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested taro corm,solid,0.45
+vegetable_yam_0,Yam,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested yam tuber,solid,0.45
+vegetable_jerusalem_artichoke_0,Jerusalem Artichoke,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested jerusalem artichoke,solid,0.45
+vegetable_rutabaga_0,Rutabaga,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested rutabaga,solid,0.45
+grain_sesame_0,Sesame Seed,food,grain,plant_fiber,0.5,20,0,Threshed sesame seed 500g,dry_goods,0.93
+grain_rapeseed_0,Rapeseed,food,grain,plant_fiber,0.5,20,0,Threshed rapeseed for oil pressing 500g,dry_goods,0.93
+fruit_olive_0,Olive,food,fruit,plant_fiber,0.3,20,0,Fresh harvested olive,solid,0.45
+fruit_date_palm_0,Dates,food,fruit,plant_fiber,0.3,20,0,Fresh harvested dates,solid,0.45
