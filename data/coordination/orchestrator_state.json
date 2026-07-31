@@ -13,6 +13,11 @@
   "recent_decisions": [
     {
       "date": "2026-07-31",
+      "decision": "OVERNIGHT FINAL (v0.1075.0): doc-truth six-file sweep + toolsmith duplicate-id lint integrated. Fixed: SOP git add -A recipe; Library case-collision 404 (ONBOARDING vs ai-onboarding, case-exact manifest lint added); data-counts comment inflation (real: 781 items / 366 recipes / 164 plants / 99 creatures, STATUS+FEATURES re-synced); 5 items.csv duplicate ids resolved keep-later (Inventory page read FIRST row while registry kept LAST, so displayed weight != storage weight); particles_gpu lockstep test repointed at the 13-float packed contract (was asserting the struct BUG-050 removed, leaving just verify red); agent prompts no longer hardcode moving counts. OPEN FOR MORNING: recipes.csv 3 duplicate ids (crafting-content pick, operator call, parked in KNOWN_DUPLICATES countdown); enchantments.csv commented-out header (one-line, no loader yet); CLAUDE.md crypto-narrative stale lines 297/312/426/445/473 (table below them is correct; handbook-keeper candidate); cross-file id-reference check (toolsmith tenth); .probe-rig-clouds/ + .probe-rig-opt/ stray rig dirs at repo root, contain junctions, do NOT rm -rf.",
+      "why": "Tree clean, all pushed, releases v0.1070.2 through v0.1075.0 shipped overnight; operator wakes to a green gate and a ranked morning list."
+    },
+    {
+      "date": "2026-07-31",
       "decision": "OVERNIGHT COMPLETE THROUGH FLEET 2 (v0.1074.2): plants 164 (walnut batch corrected 5 wrong juglone rows), glossary 442, homestead round-2 self-corrected round-1 power math (78 panels all-electric December not 39; 9 luxury banks not 8). Perf baseline: all 24 vantages at/above floor, slow end ground snow/storm 13-19 fps, clouds layer measured free. FOUND FOR TOOLSMITH: items.csv has 5 duplicate ids (backpack_small_0 et al), two definitions each, last parse wins silently; duplicate-id check belongs in validate-data.",
       "why": "Everything committed, tagged, released, journaled; tree clean; single worktree; ready for the operator to wake to."
     },
@@ -612,6 +617,6 @@
     "7. Check data/coordination/agent_registry.ron for the canonical scope list.",
     "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
   ],
-  "last_updated": "2026-07-31 overnight complete",
+  "last_updated": "2026-07-31 ~05:30 overnight complete",
   "focus": "v0.1020.1 shipped (the 2026-07-27 evening marathon: v0.1015-v0.1020, six releases). Terrain vertex sharing DONE (258 vs 768 verts/patch). Water arc increments 1-3 + perf pass 1 DONE: per-train fades, anchored-domain chop (f32-at-scale GPU edition), foam lace + beat fix, underwater blend order + backstop shell (seam class CLOSED), coastal de-blue clamp, tree shore floor, surf direction. FPS caps setting + gear swimming + no-focus click-to-wake shipped. NEXT per PRIORITIES: clouds drift-desync rung (structure pinned by live weather vs zonally-drifting texture), then water arena batching + overdraw measurement, then breaking shore waves / Subnautica rungs (underwater god rays, caustics). Operator asleep; overnight = backlog per the standing get-through-the-backlog directive."
 }
