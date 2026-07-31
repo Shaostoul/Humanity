@@ -2879,7 +2879,15 @@ mod native_app {
                         }
                     }
                     let now = Instant::now();
-                    let dt = (now - state.last_frame).as_secs_f32().min(0.1);
+                    // raw_dt is the TRUE frame delta, for the perf counters ONLY.
+                    // The clamped dt below protects the SIMULATION from spiral-of-
+                    // death on hitches -- but stamping fps/frame_times from the
+                    // clamped value CENSORS every reading at exactly 10 fps /
+                    // 100 ms, which hid a true 131 ms forest frame behind "10 fps"
+                    // in every probe manifest until 2026-07-31 (P2, see
+                    // docs/design/vegetation-cards-every-species.md).
+                    let raw_dt = (now - state.last_frame).as_secs_f32();
+                    let dt = raw_dt.min(0.1);
                     state.last_frame = now;
                     // ONE spin for the whole frame (see the field docs).
                     state.current_spin = current_planet_spin(state);
@@ -11547,12 +11555,13 @@ mod native_app {
                         );
                     }
 
-                    // Update FPS counter
-                    state.gui_state.fps = if dt > 0.0 { 1.0 / dt } else { 0.0 };
+                    // Update FPS counter -- from raw_dt, NOT the sim-clamped dt,
+                    // or everything slower than 10 fps reads exactly 10 fps (P2).
+                    state.gui_state.fps = if raw_dt > 0.0 { 1.0 / raw_dt } else { 0.0 };
                     // Frame-time ring buffer for the F2 performance overlay sparkline.
                     {
                         let ft = &mut state.gui_state.frame_times;
-                        ft.push(dt * 1000.0);
+                        ft.push(raw_dt * 1000.0);
                         if ft.len() > 120 {
                             let excess = ft.len() - 120;
                             ft.drain(0..excess);

@@ -268,8 +268,21 @@ async function main() {
         rec.screenshot = destName;
         rec.fps = typeof shot.fps === "number" ? Math.round(shot.fps * 10) / 10 : null;
         rec.frame_ms = typeof shot.frame_ms_avg === "number" ? Math.round(shot.frame_ms_avg * 10) / 10 : null;
+        // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). The window
+        // size is not stable across rig runs (2560x1387 and 1280x720 observed
+        // on the same machine, same config, 2026-07-31) and several vantage
+        // gates are resolution dependent -- a manifest without the width makes
+        // those readings unjudgeable after the fact.
+        try {
+          const hdr = Buffer.alloc(24);
+          const fd = fs.openSync(srcPng, "r");
+          fs.readSync(fd, hdr, 0, 24, 0);
+          fs.closeSync(fd);
+          rec.capture_w = hdr.readUInt32BE(16);
+          rec.capture_h = hdr.readUInt32BE(20);
+        } catch { /* dimensions stay absent rather than wrong */ }
         rec.ok = true;
-        log(`  captured ${destName}  (${rec.fps} fps / ${rec.frame_ms} ms)`);
+        log(`  captured ${destName}  (${rec.fps} fps / ${rec.frame_ms} ms, ${rec.capture_w}x${rec.capture_h})`);
       } catch (e) {
         rec.error = String(e.message || e);
         log(`  FAILED: ${rec.error}`);

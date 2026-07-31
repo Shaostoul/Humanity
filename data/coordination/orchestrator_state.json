@@ -512,6 +512,16 @@
    "date": "2026-07-31",
    "decision": "File-size ratchet shipped (tests/file_size_ratchet.rs, in just lints): 9 monoliths carry line budgets that only go down; growth past budget fails, shrinking 600+ under budget demands the budget be lowered.",
    "why": "v0.941 extraction regrew 2,740 lines in 140 releases because nothing pushed back. Operator asked which files to split; the answer needed a guard, not just a list."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "P2 shipped: perf counters unclamped (raw_dt stamps fps/frame_times; sim dt stays clamped). First honest readings: fuji ground 139 ms / 6.4 fps, hillside 162 ms. Probe manifests now record capture WxH from the PNG header.",
+   "why": "wf_4cbd951f perf agent proved every rig fps figure was CENSORED at exactly 10 fps by the lib.rs:2882 sim clamp feeding the counters. All prior perf floors/baselines are censored samples; restate as vantages get re-measured."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "wf_4cbd951f measurement round merged with integrator corrections: hillside vantage re-aimed to the MEASURED 0.6km/55deg pose (1.0/52 framed beyond the 1500m card cutoff - bare slope), weather pinned clear on elevated vantages, storm-inslab gets settle 75 + hold_altitude (its 50.7ms baseline was half-streamed), bake-cost paragraph rewritten per critic log decomposition (bake is 17-23ms/tile; the freeze is a REDUNDANT second glTF parse).",
+   "why": "Writer produced brief-polish not implementation; critic REFUTED two of its claims; runtime proved the re-aim broken. Merged the sound parts, corrected the refuted parts, atlas implementation dispatched next with the corrected brief."
   }
  ],
  "active_scopes_to_avoid": [

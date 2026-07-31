@@ -266,34 +266,37 @@ variant `0..variants.max(1)`:
 "index i is the tile" contract both go away: the caller now passes the tile index
 alongside the parts.
 
-BAKE COST, and the claim this paragraph used to make was wrong. "24 at 256 px is
-well under a second" assumed the cost scales with tile RESOLUTION. It does not.
-`run.log` records `[Bake] tree-card atlas ready (6 stems, 0.8s)` (the log line
-is `src/lib.rs:9509`), which is about 133 ms PER TILE, and that time is
-dominated by the per-tile render-pipeline compile, not by rasterising 512x512
-pixels. `bake_billboard_texture` builds, FOR EVERY TILE: a shader module
-(`src/renderer/billboard_bake.rs:179`), a bind-group layout (`:185`), a pipeline
-layout (`:218`), a render pipeline (`:225`, the expensive one), a colour
-texture, a depth texture, a uniform buffer and a sampler; then
-`bake_tree_atlas` adds its own encoder plus `queue.submit` per tile
-(`:104-132`). Dropping to 256 px shrinks none of it.
+BAKE COST (corrected TWICE -- the v2 brief's "133 ms/tile pipeline compile"
+claim was itself refuted by log decomposition, don't resurrect either version).
+The `[Bake] tree-card atlas ready (6 stems, 0.9s)` timer at `src/lib.rs:9509`
+starts BEFORE the glTF parse loop (`:9473` vs `bake_tree_atlas` at `:9507`);
+the source comment at `:9469` even says "~1-2 s parse+bake". Decomposed from
+two independent run.logs: the ENTIRE 6-tile bake window is 105-140 ms, so the
+real per-tile bake is <= 17-23 ms. 24 tiles adds ~0.4-0.55 s of bake, not 3 s.
 
-6 -> 24 tiles is therefore about 3 s of MAIN-THREAD FREEZE on world entry (the
-bake runs inline in the frame loop at `src/lib.rs:9471`) - a quality regression
-this increment would introduce by itself.
+The DOMINANT cost in the world-entry freeze is a REDUNDANT SECOND PARSE of the
+same 12 glTF files the near-model loader already parsed seconds earlier
+(`src/lib.rs:9475-9491`, 12 `parse_gltf_mesh_with_texture` calls), with each
+pine bark paying a 2048->1024 texture downscale (~220-275 ms each, visible in
+the log). THAT is the thing to fix: reuse the near-model loader's parsed
+meshes (or cache parse results keyed by path) instead of re-parsing. The
+6 procedural species make this cheaper, not dearer -- their BakeParts come
+from tree_mesh's CPU buffers, no files involved.
 
-Item 2 is already rewriting this function to give each PART its own uniform, so
-do the hoist in the same pass: build the shader module, bind-group layout,
-pipeline layout, render pipeline and sampler ONCE outside the loop, and keep
-per-tile only the MVP/mode uniform and the draw. One compile, not 24. Cheap and
-optional while you are in there: render each tile straight into a viewport plus
-scissor of the atlas texture instead of into a scratch texture followed by
-`copy_texture_to_texture`, which also gives item 3's "leave a failed tile
-zero-filled" behaviour for free out of a single `LoadOp::Clear(TRANSPARENT)`.
+The per-tile pipeline rebuild in `bake_billboard_texture` (shader module
+`billboard_bake.rs:179`, BGL `:185`, pipeline layout `:218`, render pipeline
+`:225`, plus encoder + submit per tile in `bake_tree_atlas:104-132`) is still
+worth hoisting while item 2 rewrites the function -- one compile, not 24 --
+but it is a tens-of-ms nicety, not the freeze. Optional while in there:
+render tiles straight into a viewport+scissor of the atlas texture instead of
+scratch + `copy_texture_to_texture`; a single `LoadOp::Clear(TRANSPARENT)`
+then gives item 3's "failed tile stays zero-filled" for free.
 
-Measure it and put the number in the log line, as that line already does.
-Target: `[Bake] tree-card atlas ready (24 stems, X s)` with X under 1.0, against
-the roughly 3 s a naive 24-tile version of today's code would cost.
+Acceptance: time the BAKE-ONLY window (stamp a second Instant after the parse
+loop) and log both: `[Bake] parse X ms, bake Y ms (24 stems)`. Gate: Y under
+600 ms, and the redundant re-parse eliminated (X near zero when the near-model
+loader already ran). Do NOT gate on the old combined timer -- a correct
+implementation fails a sub-1s combined gate because the parse dominates it.
 
 ### 3b. The card FOOTPRINT, which is the piece that changes the image
 
