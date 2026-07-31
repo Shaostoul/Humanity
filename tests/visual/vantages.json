@@ -1,451 +1,473 @@
 {
-  "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
-  "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
-  "vantages": [
-    {
-      "id": "sahara-noon-ground",
-      "desc": "Ground level in the Sahara at local noon, facing the horizon",
-      "showcase": {
-        "time": "12.0",
-        "sea": "0.3"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 23,
-        "lon": 13,
-        "altitude_km": 0.03,
-        "look_offset_deg": 80
-      },
-      "settle_s": 8,
-      "expect": "A deep, saturated blue sky dome fading to a pale warm band at the horizon, over rolling tan sand. Bright and clearly daytime.",
-      "regressions": [
-        "NO stars visible (v0.913-era daytime star bleed)",
-        "no washed-out near-white dome (v0.918 exposure)",
-        "no hard-edged black shell or ring around the horizon"
-      ],
-      "perf_floor_fps": 20
-    },
-    {
-      "id": "ocean-grazing-calm",
-      "desc": "8 m above a calm sea, grazing angle to the horizon",
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.008,
-        "look_offset_deg": 88
-      },
-      "settle_s": 10,
-      "expect": "Deep rippled blue water reading as gentle rolling swell all the way to a clean horizon, under a blue-to-warm sky. Fine surface structure, not glassy-flat.",
-      "regressions": [
-        "NO black/white zebra banding (v0.921 analytic-wave aliasing)",
-        "no concentric moire interference rings",
-        "no white-out sheet at the grazing angle",
-        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
-      ],
-      "perf_floor_fps": 20
-    },
-    {
-      "id": "ocean-storm-low",
-      "desc": "6 m above a storm sea, grazing angle",
-      "showcase": {
-        "time": "10.55",
-        "sea": "0.9"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.006,
-        "look_offset_deg": 85
-      },
-      "settle_s": 8,
-      "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet.",
-      "regressions": [
-        "no full-white ocean (v0.906 whiteout)",
-        "foam on crests only, not flat areas",
-        "no zebra banding even in chop",
-        "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
-      ],
-      "perf_floor_fps": 18
-    },
-    {
-      "id": "ocean-high-eye",
-      "desc": "Open ocean from a 30 m eye - the water-shell COVERAGE case.",
-      "expect": "Wave field carries to the horizon. NO flat pale plates: those are the coarse backstop shell showing through where the wave shell ran out of leaves. A high eye sees far more sea than a 3 m eye, so this is where the water leaf budget is actually tested (v0.1048: the operator hit it at 13 m with terrain_split_px = 2).",
-      "regressions": [
-        "water-shell coverage / backstop show-through",
-        "cross-LOD seams at distance"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.03,
-        "look_offset_deg": 88
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "settle_s": 10,
-      "hold_altitude": true
-    },
-    {
-      "id": "fuji-forest-ground",
-      "desc": "Ground level near Mt Fuji in a conifer forest, morning",
-      "showcase": {
-        "time": "2.9",
-        "sea": "0.3"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 35.3,
-        "lon": 138.8,
-        "altitude_km": 0.03,
-        "look_offset_deg": 80
-      },
-      "settle_s": 25,
-      "expect": "Dense green ground with real 3D conifer trees standing around the camera - visible brown trunks, needled canopies - and flatter silhouette-card trees carrying the forest toward the horizon. Grass underfoot.",
-      "regressions": [
-        "3D tree MODELS present, not just flat cards (v0.923 default-off regression)",
-        "no bare ground where a forest should be (bare-forest card-hide bug)",
-        "trunks visible, not floating canopies"
-      ],
-      "perf_floor_fps": 18
-    },
-    {
-      "id": "limb-400km",
-      "desc": "400 km over the Sahara, the atmosphere limb in frame against stars",
-      "showcase": {
-        "time": "12.0",
-        "sea": "0.3"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 23,
-        "lon": 13,
-        "altitude_km": 400,
-        "look_offset_deg": -20
-      },
-      "settle_s": 8,
-      "expect": "The curved planet surface below a THIN bright blue atmosphere limb that fades smoothly into a black star-filled sky. Stars visible right down to the edge of the atmosphere band.",
-      "regressions": [
-        "NO hard-edged opaque black shell/ring around the planet (v0.925 orbital occlusion bug)",
-        "the limb fades to stars, it does not cut off"
-      ],
-      "perf_floor_fps": 25
-    },
-    {
-      "id": "blue-marble-12000km",
-      "desc": "12,000 km from Earth, the approved full-disc blue marble",
-      "camera": {
-        "body": "earth",
-        "altitude_km": 12000
-      },
-      "settle_s": 8,
-      "expect": "The full Earth disc as a blue marble with a soft blue atmosphere rim, oceans and continents visible, against stars. The operator-approved from-orbit look.",
-      "regressions": [
-        "disc and rim look unchanged from the approved v0.918 baseline",
-        "no white-out, no missing atmosphere rim"
-      ],
-      "perf_floor_fps": 30
-    },
-    {
-      "id": "australia-limb-12000km",
-      "desc": "Australia near the disc edge from 12,000 km - terrain must stay readable through the limb haze (2026-07-25 field report)",
-      "camera": {
-        "body": "earth",
-        "lat": -5,
-        "lon": 130,
-        "altitude_km": 12000
-      },
-      "settle_s": 8,
-      "expect": "Earth disc with Australia in the lower part, its southern coastline visible toward the disc edge through progressively bluer haze. The continent must read as LAND (tan/brown) well toward the limb, not vanish into flat atmosphere blue.",
-      "regressions": [
-        "southern Australia readable as land, not replaced by uniform blue",
-        "atmosphere rim itself still present and soft"
-      ],
-      "perf_floor_fps": 30,
-      "showcase": {
-        "time": "4.2"
-      }
-    },
-    {
-      "id": "moon-surface-200m",
-      "desc": "200 m over the Moon's cratered surface, sunlit",
-      "camera": {
-        "body": "moon",
-        "lat": 5,
-        "lon": -150,
-        "altitude_km": 0.06,
-        "look_offset_deg": 55
-      },
-      "settle_s": 15,
-      "expect": "Continuous grey cratered lunar regolith with real crater bowls and rims and the true satellite-imagery albedo, under a black star sky. NOT bare flat facets.",
-      "regressions": [
-        "real cratered terrain, NOT the bare uniform icosphere (v0.919 synthesized-heightmap fix)",
-        "no km-wide flat facets with hard creases"
-      ],
-      "perf_floor_fps": 25
-    },
-    {
-      "id": "sunset-over-water",
-      "desc": "Low altitude over water aimed at the setting sun",
-      "showcase": {
-        "time": "16.85",
-        "sea": "0.3"
-      },
-      "camera": {
-        "body": "earth",
-        "lat": 30.8,
-        "lon": 18.5,
-        "altitude_km": 0.012,
-        "aim": "sun"
-      },
-      "settle_s": 6,
-      "expect": "A warm reddened sun low over water with a red/orange ember band along the horizon fading up into deepening blue and emerging stars. Sunlight visibly reddened.",
-      "regressions": [
-        "sun disc reddened not white (v0.915 transmittance)",
-        "no washed dome, no black shell above the glow"
-      ],
-      "perf_floor_fps": 12
-    },
-    {
-      "id": "ocean-150m",
-      "desc": "Open ocean from 150 m - the altitude band where the operator sees far-field plates.",
-      "expect": "Wave field to the horizon, no flat facets.",
-      "regressions": [
-        "water-shell far-field coverage"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.15,
-        "look_offset_deg": 85
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "settle_s": 12,
-      "hold_altitude": true
-    },
-    {
-      "id": "ocean-700m",
-      "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
-      "expect": "Wave field to the horizon, no flat facets.",
-      "regressions": [
-        "water-shell far-field coverage"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.7,
-        "look_offset_deg": 85
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "settle_s": 12,
-      "hold_altitude": true
-    },
-    {
-      "id": "ocean-underwater",
-      "desc": "Submerged, looking down at the SEA FLOOR. (camera_request adds a ~+26 m radial offset from the ship-local camera height, so the requested altitude must overshoot.)",
-      "expect": "Bathymetric relief shading with its own smooth normals. NO diagonal swell banding painted on the floor - that was the seabed being flagged water and shaded as an ocean SURFACE (fixed v0.1049).",
-      "regressions": [
-        "water shell back-face visibility",
-        "coarse-leaf floor opening holes underwater"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": -0.12,
-        "look_offset_deg": 25
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0.3"
-      },
-      "settle_s": 10,
-      "hold_altitude": true
-    },
-    {
-      "id": "ocean-glass",
-      "desc": "Sea state pinned to glass (wind ~0.5 m/s).",
-      "expect": "A near-mirror sea: almost no chop, the sun path collapses toward a single hard highlight.",
-      "regressions": [
-        "wind-driven ocean spectrum"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.02,
-        "look_offset_deg": 87
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "0"
-      },
-      "settle_s": 26,
-      "hold_altitude": true
-    },
-    {
-      "id": "ocean-storm-high",
-      "desc": "Sea state pinned to storm (wind ~25 m/s).",
-      "expect": "Big steep seas with whitecaps - visibly a different ocean from ocean-glass, which is the proof the spectrum is wind-driven.",
-      "regressions": [
-        "wind-driven ocean spectrum"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.02,
-        "look_offset_deg": 87
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "1"
-      },
-      "settle_s": 26,
-      "hold_altitude": true
-    },
-    {
-      "id": "desert-night",
-      "desc": "Sahara at night, low eye - the terrain terminator gate.",
-      "expect": "Uniformly dark ground under starlight. NO bright band toward the sunset azimuth: that was a below-horizon sun still lighting normal-map facets, because the celestial pass has no terminator test (v0.1052).",
-      "regressions": [
-        "night terrain lit by a below-horizon sun"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 23,
-        "lon": 13,
-        "altitude_km": 0.03,
-        "look_offset_deg": 84
-      },
-      "showcase": {
-        "time": "22.0",
-        "sea": "0.3"
-      },
-      "settle_s": 12,
-      "hold_altitude": true
-    },
-    {
-      "id": "ocean-storm-horizon",
-      "desc": "Storm sea from a LOW eye, aimed flat at the horizon - do tall crests occlude the sky?",
-      "expect": "Near wave crests break the horizon line and stand against the sky. A ruler-straight horizon over a 10 m sea means the atmosphere shell is compositing over the crests (fixed v0.1053).",
-      "regressions": [
-        "sky shell drawn over near wave crests"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": 0.006,
-        "look_offset_deg": 90
-      },
-      "showcase": {
-        "time": "10.7",
-        "sea": "1.0"
-      },
-      "settle_s": 26,
-      "hold_altitude": true
-    },
-    {
-      "id": "land-fog",
-      "desc": "Sahara ground under fog - does the AIR change?",
-      "expect": "Visibility collapses to tens of metres with a condition-appropriate tint. Before v0.1059 weather.visibility reached no shader at all and the air was identical in every condition.",
-      "regressions": [
-        "weather-driven fog"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 23,
-        "lon": 13,
-        "altitude_km": 0.03,
-        "look_offset_deg": 80
-      },
-      "showcase": {
-        "time": "12.0",
-        "sea": "0.3",
-        "weather": "fog"
-      },
-      "settle_s": 10
-    },
-    {
-      "id": "land-sandstorm",
-      "desc": "Sahara ground under sandstorm - does the AIR change?",
-      "expect": "Visibility collapses to tens of metres with a condition-appropriate tint. Before v0.1059 weather.visibility reached no shader at all and the air was identical in every condition.",
-      "regressions": [
-        "weather-driven fog"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 23,
-        "lon": 13,
-        "altitude_km": 0.03,
-        "look_offset_deg": 80
-      },
-      "showcase": {
-        "time": "12.0",
-        "sea": "0.3",
-        "weather": "sandstorm"
-      },
-      "settle_s": 10
-    },
-    {
-      "id": "waterline-split",
-      "desc": "Camera AT the waterline over a shallow shelf - the over-under split.",
-      "expect": "One frame containing both: air and sky above the surface line, extinguished blue-green water below it, with the water surface itself crossing the screen. A whole-screen flip to blue means the underwater state is still a binary camera test rather than a per-ray path integral.",
-      "regressions": [
-        "over-under waterline"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 31.5,
-        "lon": 17.5,
-        "altitude_km": -0.0255,
-        "look_offset_deg": 88
-      },
-      "showcase": {
-        "time": "11.0",
-        "sea": "0.25"
-      },
-      "settle_s": 14,
-      "hold_altitude": true
-    },
-    {
-      "id": "snow-close",
-      "desc": "Snowfall at eye level - drift speed and the procedural flake shape.",
-      "expect": "Flakes drift slowly (near 1 m/s terminal, not accelerating) and near ones resolve as six-fold crystals rather than dots. Fast streaking sleet means gravity is accelerating them again.",
-      "regressions": [
-        "snow drift speed",
-        "procedural snowflake"
-      ],
-      "camera": {
-        "body": "earth",
-        "lat": 35.3,
-        "lon": 138.8,
-        "altitude_km": 0.03,
-        "look_offset_deg": 80
-      },
-      "showcase": {
-        "time": "12.0",
-        "weather": "snow"
-      },
-      "settle_s": 14
-    }
-  ]
+ "_purpose": "Canonical 3D-scene vantages for the visual-regression + perf sweeps (scripts/probe-sweep.js). This is the golden spec: each vantage teleports the probe to a fixed camera + time/sea, captures one screenshot, and records fps. The `expect` text is what a correct frame looks like; `regressions` lists the specific failures this vantage exists to catch (each has bitten a real release). Data-driven per the infinite-of-x rule - add a vantage here, both sweeps pick it up. Coordinates are the same debug/camera_request.json + debug/showcase_request.json fields lib.rs polls.",
+ "_perf_note": "perf_floor_fps is an advisory lower bound at this vantage on the dev machine (RTX 4070). The perf sweep flags a stop below it; it is a smoke threshold, not a hard gate.",
+ "vantages": [
+  {
+   "id": "sahara-noon-ground",
+   "desc": "Ground level in the Sahara at local noon, facing the horizon",
+   "showcase": {
+    "time": "12.0",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 23,
+    "lon": 13,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "settle_s": 8,
+   "expect": "A deep, saturated blue sky dome fading to a pale warm band at the horizon, over rolling tan sand. Bright and clearly daytime.",
+   "regressions": [
+    "NO stars visible (v0.913-era daytime star bleed)",
+    "no washed-out near-white dome (v0.918 exposure)",
+    "no hard-edged black shell or ring around the horizon"
+   ],
+   "perf_floor_fps": 20
+  },
+  {
+   "id": "ocean-grazing-calm",
+   "desc": "8 m above a calm sea, grazing angle to the horizon",
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.008,
+    "look_offset_deg": 88
+   },
+   "settle_s": 10,
+   "expect": "Deep rippled blue water reading as gentle rolling swell all the way to a clean horizon, under a blue-to-warm sky. Fine surface structure, not glassy-flat.",
+   "regressions": [
+    "NO black/white zebra banding (v0.921 analytic-wave aliasing)",
+    "no concentric moire interference rings",
+    "no white-out sheet at the grazing angle",
+    "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
+   ],
+   "perf_floor_fps": 20
+  },
+  {
+   "id": "ocean-storm-low",
+   "desc": "6 m above a storm sea, grazing angle",
+   "showcase": {
+    "time": "10.55",
+    "sea": "0.9"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.006,
+    "look_offset_deg": 85
+   },
+   "settle_s": 8,
+   "expect": "Dark blue-grey choppy water with organic white foam streaks riding the wave crests (roughly a third coverage at most). Reads as a rough sea, not a white sheet.",
+   "regressions": [
+    "no full-white ocean (v0.906 whiteout)",
+    "foam on crests only, not flat areas",
+    "no zebra banding even in chop",
+    "no cloud-deck sheet band riding the horizon line (v0.958 low-camera aerial fade; clouds-off A/B 2026-07-25)"
+   ],
+   "perf_floor_fps": 18
+  },
+  {
+   "id": "ocean-high-eye",
+   "desc": "Open ocean from a 30 m eye - the water-shell COVERAGE case.",
+   "expect": "Wave field carries to the horizon. NO flat pale plates: those are the coarse backstop shell showing through where the wave shell ran out of leaves. A high eye sees far more sea than a 3 m eye, so this is where the water leaf budget is actually tested (v0.1048: the operator hit it at 13 m with terrain_split_px = 2).",
+   "regressions": [
+    "water-shell coverage / backstop show-through",
+    "cross-LOD seams at distance"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.03,
+    "look_offset_deg": 88
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "settle_s": 10,
+   "hold_altitude": true
+  },
+  {
+   "id": "fuji-forest-ground",
+   "desc": "Ground level near Mt Fuji in a conifer forest, morning",
+   "showcase": {
+    "time": "2.9",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 35.3,
+    "lon": 138.8,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "settle_s": 25,
+   "expect": "Dense green ground with real 3D conifer trees standing around the camera - visible brown trunks, needled canopies - and flatter silhouette-card trees carrying the forest toward the horizon. Grass underfoot.",
+   "regressions": [
+    "3D tree MODELS present, not just flat cards (v0.923 default-off regression)",
+    "no bare ground where a forest should be (bare-forest card-hide bug)",
+    "trunks visible, not floating canopies"
+   ],
+   "perf_floor_fps": 18
+  },
+  {
+   "id": "limb-400km",
+   "desc": "400 km over the Sahara, the atmosphere limb in frame against stars",
+   "showcase": {
+    "time": "12.0",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 23,
+    "lon": 13,
+    "altitude_km": 400,
+    "look_offset_deg": -20
+   },
+   "settle_s": 8,
+   "expect": "The curved planet surface below a THIN bright blue atmosphere limb that fades smoothly into a black star-filled sky. Stars visible right down to the edge of the atmosphere band.",
+   "regressions": [
+    "NO hard-edged opaque black shell/ring around the planet (v0.925 orbital occlusion bug)",
+    "the limb fades to stars, it does not cut off"
+   ],
+   "perf_floor_fps": 25
+  },
+  {
+   "id": "blue-marble-12000km",
+   "desc": "12,000 km from Earth, the approved full-disc blue marble",
+   "camera": {
+    "body": "earth",
+    "altitude_km": 12000
+   },
+   "settle_s": 8,
+   "expect": "The full Earth disc as a blue marble with a soft blue atmosphere rim, oceans and continents visible, against stars. The operator-approved from-orbit look.",
+   "regressions": [
+    "disc and rim look unchanged from the approved v0.918 baseline",
+    "no white-out, no missing atmosphere rim"
+   ],
+   "perf_floor_fps": 30
+  },
+  {
+   "id": "australia-limb-12000km",
+   "desc": "Australia near the disc edge from 12,000 km - terrain must stay readable through the limb haze (2026-07-25 field report)",
+   "camera": {
+    "body": "earth",
+    "lat": -5,
+    "lon": 130,
+    "altitude_km": 12000
+   },
+   "settle_s": 8,
+   "expect": "Earth disc with Australia in the lower part, its southern coastline visible toward the disc edge through progressively bluer haze. The continent must read as LAND (tan/brown) well toward the limb, not vanish into flat atmosphere blue.",
+   "regressions": [
+    "southern Australia readable as land, not replaced by uniform blue",
+    "atmosphere rim itself still present and soft"
+   ],
+   "perf_floor_fps": 30,
+   "showcase": {
+    "time": "4.2"
+   }
+  },
+  {
+   "id": "moon-surface-200m",
+   "desc": "200 m over the Moon's cratered surface, sunlit",
+   "camera": {
+    "body": "moon",
+    "lat": 5,
+    "lon": -150,
+    "altitude_km": 0.06,
+    "look_offset_deg": 55
+   },
+   "settle_s": 15,
+   "expect": "Continuous grey cratered lunar regolith with real crater bowls and rims and the true satellite-imagery albedo, under a black star sky. NOT bare flat facets.",
+   "regressions": [
+    "real cratered terrain, NOT the bare uniform icosphere (v0.919 synthesized-heightmap fix)",
+    "no km-wide flat facets with hard creases"
+   ],
+   "perf_floor_fps": 25
+  },
+  {
+   "id": "sunset-over-water",
+   "desc": "Low altitude over water aimed at the setting sun",
+   "showcase": {
+    "time": "16.85",
+    "sea": "0.3"
+   },
+   "camera": {
+    "body": "earth",
+    "lat": 30.8,
+    "lon": 18.5,
+    "altitude_km": 0.012,
+    "aim": "sun"
+   },
+   "settle_s": 6,
+   "expect": "A warm reddened sun low over water with a red/orange ember band along the horizon fading up into deepening blue and emerging stars. Sunlight visibly reddened.",
+   "regressions": [
+    "sun disc reddened not white (v0.915 transmittance)",
+    "no washed dome, no black shell above the glow"
+   ],
+   "perf_floor_fps": 12
+  },
+  {
+   "id": "ocean-150m",
+   "desc": "Open ocean from 150 m - the altitude band where the operator sees far-field plates.",
+   "expect": "Wave field to the horizon, no flat facets.",
+   "regressions": [
+    "water-shell far-field coverage"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.15,
+    "look_offset_deg": 85
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "settle_s": 12,
+   "hold_altitude": true
+  },
+  {
+   "id": "ocean-700m",
+   "desc": "Open ocean from 700 m - the altitude band where the operator sees far-field plates.",
+   "expect": "Wave field to the horizon, no flat facets.",
+   "regressions": [
+    "water-shell far-field coverage"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.7,
+    "look_offset_deg": 85
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "settle_s": 12,
+   "hold_altitude": true
+  },
+  {
+   "id": "ocean-underwater",
+   "desc": "Submerged, looking down at the SEA FLOOR. (camera_request adds a ~+26 m radial offset from the ship-local camera height, so the requested altitude must overshoot.)",
+   "expect": "Bathymetric relief shading with its own smooth normals. NO diagonal swell banding painted on the floor - that was the seabed being flagged water and shaded as an ocean SURFACE (fixed v0.1049).",
+   "regressions": [
+    "water shell back-face visibility",
+    "coarse-leaf floor opening holes underwater"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": -0.12,
+    "look_offset_deg": 25
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0.3"
+   },
+   "settle_s": 10,
+   "hold_altitude": true
+  },
+  {
+   "id": "ocean-glass",
+   "desc": "Sea state pinned to glass (wind ~0.5 m/s).",
+   "expect": "A near-mirror sea: almost no chop, the sun path collapses toward a single hard highlight.",
+   "regressions": [
+    "wind-driven ocean spectrum"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.02,
+    "look_offset_deg": 87
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "0"
+   },
+   "settle_s": 26,
+   "hold_altitude": true
+  },
+  {
+   "id": "ocean-storm-high",
+   "desc": "Sea state pinned to storm (wind ~25 m/s).",
+   "expect": "Big steep seas with whitecaps - visibly a different ocean from ocean-glass, which is the proof the spectrum is wind-driven.",
+   "regressions": [
+    "wind-driven ocean spectrum"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.02,
+    "look_offset_deg": 87
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "1"
+   },
+   "settle_s": 26,
+   "hold_altitude": true
+  },
+  {
+   "id": "desert-night",
+   "desc": "Sahara at night, low eye - the terrain terminator gate.",
+   "expect": "Uniformly dark ground under starlight. NO bright band toward the sunset azimuth: that was a below-horizon sun still lighting normal-map facets, because the celestial pass has no terminator test (v0.1052).",
+   "regressions": [
+    "night terrain lit by a below-horizon sun"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 23,
+    "lon": 13,
+    "altitude_km": 0.03,
+    "look_offset_deg": 84
+   },
+   "showcase": {
+    "time": "22.0",
+    "sea": "0.3"
+   },
+   "settle_s": 12,
+   "hold_altitude": true
+  },
+  {
+   "id": "ocean-storm-horizon",
+   "desc": "Storm sea from a LOW eye, aimed flat at the horizon - do tall crests occlude the sky?",
+   "expect": "Near wave crests break the horizon line and stand against the sky. A ruler-straight horizon over a 10 m sea means the atmosphere shell is compositing over the crests (fixed v0.1053).",
+   "regressions": [
+    "sky shell drawn over near wave crests"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": 0.006,
+    "look_offset_deg": 90
+   },
+   "showcase": {
+    "time": "10.7",
+    "sea": "1.0"
+   },
+   "settle_s": 26,
+   "hold_altitude": true
+  },
+  {
+   "id": "land-fog",
+   "desc": "Sahara ground under fog - does the AIR change?",
+   "expect": "Visibility collapses to tens of metres with a condition-appropriate tint. Before v0.1059 weather.visibility reached no shader at all and the air was identical in every condition.",
+   "regressions": [
+    "weather-driven fog"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 23,
+    "lon": 13,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "showcase": {
+    "time": "12.0",
+    "sea": "0.3",
+    "weather": "fog"
+   },
+   "settle_s": 10
+  },
+  {
+   "id": "land-sandstorm",
+   "desc": "Sahara ground under sandstorm - does the AIR change?",
+   "expect": "Visibility collapses to tens of metres with a condition-appropriate tint. Before v0.1059 weather.visibility reached no shader at all and the air was identical in every condition.",
+   "regressions": [
+    "weather-driven fog"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 23,
+    "lon": 13,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "showcase": {
+    "time": "12.0",
+    "sea": "0.3",
+    "weather": "sandstorm"
+   },
+   "settle_s": 10
+  },
+  {
+   "id": "waterline-split",
+   "desc": "Camera AT the waterline over a shallow shelf - the over-under split.",
+   "expect": "One frame containing both: air and sky above the surface line, extinguished blue-green water below it, with the water surface itself crossing the screen. A whole-screen flip to blue means the underwater state is still a binary camera test rather than a per-ray path integral.",
+   "regressions": [
+    "over-under waterline"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 31.5,
+    "lon": 17.5,
+    "altitude_km": -0.0255,
+    "look_offset_deg": 88
+   },
+   "showcase": {
+    "time": "11.0",
+    "sea": "0.25"
+   },
+   "settle_s": 14,
+   "hold_altitude": true
+  },
+  {
+   "id": "snow-close",
+   "desc": "Snowfall at eye level - drift speed and the procedural flake shape.",
+   "expect": "Flakes drift slowly (near 1 m/s terminal, not accelerating) and near ones resolve as six-fold crystals rather than dots. Fast streaking sleet means gravity is accelerating them again.",
+   "regressions": [
+    "snow drift speed",
+    "procedural snowflake"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 35.3,
+    "lon": 138.8,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "showcase": {
+    "time": "12.0",
+    "weather": "snow"
+   },
+   "settle_s": 14
+  },
+  {
+   "id": "ground-storm-inslab",
+   "desc": "Ground under an active storm at noon, camera inside/under the low deck. The weather + in-slab + Medium-quality combination clear-sky vantages never exercise.",
+   "expect": "A dark stormy sky with a low ragged deck overhead, rain-dimmed light, terrain and horizon clearly readable. The scene stays recognizable as weather, not abstract shapes.",
+   "regressions": [
+    "NO screen-filling concentric rings or banded shells (v0.1069.0 clouds slab-bounds regression: storm lowered the deck, in-slab camera flipped shell_ratio, Medium path consumed params.w bounds for the first time and the march ran on collapsed bounds; caught live by the operator, reverted v0.1070.0)",
+    "no giant lattice/mesh silhouette filling the view",
+    "no inverted sky (stars below the horizon at ground level)"
+   ],
+   "camera": {
+    "body": "earth",
+    "lat": 35.3,
+    "lon": 138.8,
+    "altitude_km": 0.03,
+    "look_offset_deg": 80
+   },
+   "showcase": {
+    "time": "12.0",
+    "weather": "storm"
+   },
+   "settle_s": 12
+  }
+ ]
 }

@@ -308,3 +308,23 @@ All known bugs and their resolution status. Check here BEFORE fixing any bug to 
 ## Open Bugs
 
 None currently tracked. Report bugs at https://github.com/Shaostoul/Humanity/issues
+
+## BUG-049: Storm weather rendered as screen-filling rings/lattice (v0.1069.0-v0.1069.1)
+
+**Found**: 2026-07-31, by the operator LIVE (users were on the signed v0.1069.1). Weather
+panel -> Storm: giant concentric rings around a disc, wind-scaled. **Fixed**: v0.1070.0
+(revert of the clouds tonal-range merge).
+
+**Root cause**: the v0.1069.0 clouds change made the Medium-quality cloud path consume
+the params.w slab-bounds ratio for the first time. Under Storm the deck family sits low,
+a ground camera is INSIDE the slab, shell_ratio flips to the fly-through branch, and the
+march ran on collapsed bounds. Wind scales storm intensity, hence "affected by wind".
+
+**Why verification missed it**: the workflow verified three vantages, ALL clear-weather,
+ALL camera-below-slab. The failing combination (weather storm + in-slab camera + Medium
+quality) had zero coverage. **Countermeasure**: permanent vantage ground-storm-inslab in
+tests/visual/vantages.json carries the regression line; any storm re-land must pass it.
+
+**Lesson**: a verify set that only samples the default environment cannot catch a
+regression gated on environment state. Weather conditions are part of the render state
+space and the vantage set must sample them.
