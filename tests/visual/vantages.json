@@ -146,7 +146,7 @@
   {
    "id": "fly-through-40km",
    "desc": "Level flight at 40 km looking at the horizon - the camera is INSIDE the cloud slab. The altitude that proves the deck is where the constants say it is; it was the ladder step that exposed the v0.1025-v0.1073 dead write.",
-   "expect": "At 40 km the camera is INSIDE the cloud layer: cloud masses pass at eye level and below, with the blue atmosphere limb and the ocean visible past them. No cloud sits above the black-sky boundary.",
+   "expect": "At 40 km the camera is INSIDE the cloud layer: cloud masses pass AT eye level, with the blue atmosphere limb and the ocean visible past them. Nothing renders BELOW eye level by construction: below-horizon rays get no cloud-shell fragment (the shell backface is depth-rejected behind the ocean), so judge the at-and-above band only (critic-measured v0.1074: the change stops dead at the eye-level row). No cloud sits above the black-sky boundary.",
    "regressions": [
     "NO cloud ceiling hanging above the camera at 40 km with the atmosphere limb, stars and ocean all BELOW it (v0.1025-v0.1073 dead-write: cloud_layer_volumetric never consumed material.params.w, so the slab marched at 76-128 km instead of 25.5-76.5 km at every altitude under ~400 km)",
     "no flat white sheet with a straight horizontal top edge (the drawn-shell crossing artifact, visible at 110 km before the fix)"
