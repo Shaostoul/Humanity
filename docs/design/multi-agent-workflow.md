@@ -22,9 +22,34 @@ here, it is not worth its tokens.
 | `migration-guard` | no | BUG-046 took the live relay down ~25 min. Fresh-state tests all passed; only the existing database failed. |
 | `critic` | no | Confident-but-false findings, and verification that could not have detected the problem. |
 | `challenger` | no | Approaches adopted by default rather than chosen. |
-| `domain-writer` | **yes** | The only writer. Owns one domain's files, never the shared wiring. |
+| `fidelity-expert` | no | "Why does this not look real?" Names the specific missing cue and the technique, grounded in real-world behaviour. Never proposes lowering quality. |
+| `perf-expert` | no | Makes the SAME image cheaper, at one instance and at infinite-of-x scale. Measures before proposing (v0.1067: the particle loop was memory-bound, not compute-bound, which was the opposite of the assumption). |
+| `domain-writer` | **yes** | Owns one domain's files, never the shared wiring. |
+| `integrator` | **yes** | Applies WIRING REQUESTS to shared files one at a time, verifying between each. The only agent permitted to touch `lib.rs` and friends. |
 
-**Six read-only to one writer is the intended ratio.** The scarce resource in this
+### Fidelity and performance are a PAIR, held in tension
+
+The operator's rule is maximum quality first, then tune performance toward it, and
+never trade fidelity away to buy frames. So these two roles are deliberately opposed
+and deliberately ordered:
+
+- `fidelity-expert` asks **"what specific cue is missing that makes this read as
+  fake?"** and proposes the technique that supplies it. It never proposes cutting
+  quality.
+- `perf-expert` then asks **"how do we get that exact image for less?"** Its output is
+  same-image-less-cost. An optimisation that changes the appearance is reported as a
+  fidelity regression, not accepted as a win.
+
+If a quality target genuinely cannot be afforded, that is escalated to the operator as
+a decision, never resolved silently by degrading the result.
+
+`perf-expert` covers two distinct axes, because they have different answers:
+**one instance** (fragment ALU, texture bandwidth, overdraw, vertex count) and
+**N instances, the infinite-of-x question** (draw submission and instancing, culling,
+LOD, impostors, shared work, memory layout). The live example of the second: water
+shells still go through the classic per-object path at roughly 640 draws worst case.
+
+**Eight read-only to two writers is the intended ratio.** The scarce resource in this
 repo is not code generation, it is trustworthy verification: nearly every expensive
 incident was work that looked verified and was not. Prefer three writers and five
 checkers over eight writers.
@@ -41,27 +66,26 @@ checkers over eight writers.
 
 ### Worth adding when automation actually starts
 
-- **`integrator`** - the counterpart to `domain-writer`. Applies WIRING REQUESTS
-  serially, verifies between each, stages by lane, commits per domain so each change
-  keeps its own rationale. Without it, wiring requests pile up with nobody to apply
-  them. This is the first gap to fill when going automated.
-- **`orchestrator`** - conflict scheduling (see below). Only useful once there are
-  enough parallel domains to schedule.
-- **`accessibility`** - the mission is explicitly tech-illiterate-first and nobody
-  checks it. The tofu-glyph lint and the font-size setting that silently reset are
-  both symptoms. Currently no automated coverage at all.
-- **`perf-warden`** - `probe-sweep.js` already captures fps per vantage, so a
-  regression check is mostly wiring rather than new tooling. The water arc (16-18 fps
-  in ocean views versus 30-40 over land) is TIER 0 right now.
+- **`orchestrator`** - conflict scheduling across several domains at once (see below).
+  Only earns its keep when there are enough parallel domains to schedule; a single
+  domain pass does not need one, which is why `domain-pass.js` has no orchestrator
+  agent in it.
+- **`accessibility`** - the mission is explicitly tech-illiterate-first and nothing
+  checks it. The tofu-glyph lint and the font-size setting that silently reset every
+  launch are both symptoms of that gap. Currently no automated coverage at all.
+- **`perf-warden`** - a scheduled regression check rather than an on-demand analyst.
+  `just perf-sweep` and `just perf-diff` already exist and vantages already carry
+  `perf_floor_fps`, so this is mostly wiring rather than new tooling.
 
 ## The three mechanisms available
 
 1. **Subagents** (`.claude/agents/*.md`). Named roles with their own system prompt,
-   model and tool set. Invoked on demand. Defined here: `challenger`, `critic`,
-   `domain-writer`.
+   model and tool set. Invoked on demand. Ten defined, see the roster above.
 2. **Workflow scripts** (`.claude/workflows/*.js`). Deterministic JS orchestration:
    fan out, pipeline, barriers, judge panels, loop-until-dry. This is the automated
-   part; control flow is code, not model judgement.
+   part; control flow is code, not model judgement. Two exist: `visual-sweep.js`
+   (capture the vantages, judge each against its golden spec) and `domain-pass.js`
+   (the fidelity-then-performance pass described below).
 3. **Worktree isolation** (`isolation: "worktree"` on an agent call). Each agent gets
    its own git worktree, so parallel edits cannot collide in the working tree.
 
@@ -155,9 +179,59 @@ automation, domain agents must run with `isolation: "worktree"`, which gives eac
 own working directory and index. Then attribution is free, `git add -A` inside an
 agent is harmless, and merges become explicit rather than accidental.
 
+### Verified, not assumed (2026-07-30)
+
+Tested against a real worktree on this repo rather than trusting the theory:
+
+| Property | Result |
+|---|---|
+| Edit in worktree shows in main tree | **No.** Main stayed clean. |
+| `git add -A` inside a worktree touches main's index | **No.** Fully contained. |
+| Merge back to main | Clean, `ort` strategy, correct diff. |
+| Cost to create | ~2,600 files checked out, a few seconds. |
+
+So the dangerous primitive (`git add -A`) becomes *safe* inside a worktree, which is
+exactly the property automation needs. The probe was reverted and the worktree and
+branch removed; nothing was left behind.
+
+The caveat that makes this bearable: worktrees share one `.git`, so a branch checked
+out in one cannot be checked out in another. Give each agent its own branch name.
+
 The counterpart requirement: a workflow using worktrees must **never** invoke
 `just clean-worktrees`, which force-deletes worktrees and branches with no check for
 unmerged work and has already destroyed completed, review-approved agent work.
+
+## The first real workflow: `domain-pass.js`
+
+Improves one visual domain end to end, with fidelity and performance in tension.
+
+```
+Workflow({ scriptPath: ".claude/workflows/domain-pass.js",
+           args: { domain: "clouds",
+                   owns: ["src/renderer/clouds.rs", "assets/shaders/pbr/40-clouds.wgsl"],
+                   vantages: ["ocean-storm-low", "limb-400km"] } })
+```
+
+Five phases, and the ordering is the point:
+
+1. **Prior art** - `historian` gates the whole run. If the pass already shipped and
+   there is no remaining gap, the workflow STOPS rather than spending a fleet
+   rebuilding it. Cheapest agent, guarding the most common waste.
+2. **Analyse** - `fidelity-expert` and `perf-expert` in parallel. Both read-only, so
+   they cannot corrupt anything and cannot corrupt each other.
+3. **Decide** - `challenger` sees both reports and returns the single concrete task,
+   or RECONSIDER, which stops the run before any code is written.
+4. **Implement** - ONE `domain-writer`, in its own worktree. Single writer by design:
+   this workflow improves one domain, and parallel writers only pay off across
+   *different* domains.
+5. **Verify** - `runtime-verifier` (does it still boot and enter the world) and
+   `critic` (could the verification have failed) in parallel.
+
+**It does not commit or merge.** The writer leaves work staged in its worktree and the
+workflow returns a report. Landing it is the operator's call, because agent work here
+has been wrong in ways that passed every local check.
+
+Requires a built release exe and a GPU: two phases drive the real game.
 
 ## Hard-won constraints any workflow must respect
 
