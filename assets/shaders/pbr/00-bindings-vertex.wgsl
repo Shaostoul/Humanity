@@ -555,6 +555,65 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     // BACKSTOP shell (v0.1019): the coarse deep-water layer under the
     // wave shell never takes WAVES - but since v0.1043 it DOES take the
     // geomorph weld below, so its own cross-LOD cracks close too.
+    // ── FOLIAGE WIND (type 20, v0.1068) ──────────────────────────────────
+    // Static vegetation reads as dead more than any polygon count does, and
+    // this is the cheapest large fidelity win available: it needs NO vertex
+    // channel, NO new binding and NO new pipeline.
+    //
+    // The wind WEIGHT is free because of how the geometry is authored: a plant
+    // is built with its base at the object origin and +Y up, so the raw
+    // object-space height IS the weight - zero at the trunk foot, largest in
+    // the canopy. The organ tag already in the packed UV separates a stiff
+    // stem from a fluttering blade.
+    //
+    // Displacement happens in OBJECT space, before the model matrix, so it
+    // inherits the instance rotation and scale for free (a bigger tree sways
+    // proportionally further). It also runs in the shadow pass, which shares
+    // this entry point, so shadows sway WITH the foliage instead of detaching.
+    //
+    // f32 safety: everything here is object-space (metres, small) plus a phase
+    // taken from the model matrix translation, which is RENDER space and so
+    // already camera-relative. No planet-radius magnitudes enter the math.
+    if (material.params.z >= 19.5 && material.params.z < 20.5) {
+        let t = camera.sun_color.w;
+        let h = max(vertex.position.y, 0.0);
+        // Per-plant phase so a stand does not sway in lockstep.
+        //
+        // Built to be EXACTLY 64 m-PERIODIC in both horizontal axes. The
+        // translation below is render space, which re-snaps as the floating
+        // origin rebases; an arbitrary phase would jump at every rebase and
+        // pop the whole forest. With integer harmonics of TAU/64 a rebase by a
+        // multiple of 64 m shifts the phase by a whole number of periods, so
+        // the sway is continuous across it. Same discipline the ocean chop
+        // trains use (CLAUDE.md, f32-at-planet-scale).
+        let o = obj_model()[3].xyz;
+        let k = 6.283185307 / 64.0;
+        let phase = o.x * k * 3.0 + o.z * k * 5.0;
+        // A steady breeze with a slow gust envelope on top.
+        let gust = 0.65 + 0.35 * sin(t * 0.23 + phase * 0.5);
+        let wind_dir = normalize(vec3<f32>(0.86, 0.0, 0.32));
+        // Trunk sway: slow, amplitude growing with height so the bole stays
+        // planted while the crown travels.
+        var wind_pos = vertex.position + wind_dir * (sin(t * 0.9 + phase) * 0.035 * h * gust);
+        // Leaf flutter: blades only (organ bit 19), faster and smaller, partly
+        // across the wind so foliage shimmers rather than shunting sideways.
+        let packed = u32(round(max(vertex.uv.x, 0.0)));
+        if ((packed & 524288u) != 0u) {
+            // Flutter scales with plant size. A flat amplitude made a 0.3 m
+            // strawberry shake as hard as an 18 m oak, and the crop path uses
+            // this same material.
+            let fl = clamp(h * 0.35, 0.10, 1.0);
+            let f = sin(t * 5.1 + phase * 3.7 + h * 2.3);
+            let g = cos(t * 6.7 + phase * 2.1 + h * 1.7);
+            wind_pos = wind_pos
+                + wind_dir * (f * 0.055 * gust * fl)
+                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl)
+                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x) * (g * 0.040 * gust * fl);
+        }
+        world_pos = obj_model() * vec4<f32>(wind_pos, 1.0);
+        world_pos = vec4<f32>(world_pos.xyz, 1.0);
+    }
+
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
         let inv_model = transpose(obj_normal_matrix());
         let dir_world = world_pos.xyz - material.base_color.xyz;

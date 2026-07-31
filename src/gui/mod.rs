@@ -6677,6 +6677,10 @@ pub struct SettingsState {
     pub precip_density: f32,
     /// Weather fog/dust extinction multiplier (v0.1060). 0 = no weather fog.
     pub fog_density: f32,
+    /// GPU particle simulation for precipitation (v0.1068). Default OFF while
+    /// it proves itself: the CPU path is the shipped behaviour and stays as the
+    /// fallback, exactly like the FFT-ocean toggle did.
+    pub gpu_particles: bool,
     /// Far-tree canopy card sheet (v0.1022). Default off: reads as grid
     /// squares at altitude; superseded by the impostor arc. Kept for A/B.
     pub far_tree_sheet: bool,
@@ -6788,6 +6792,7 @@ impl Default for SettingsState {
             water_clarity: default_water_clarity(),
             precip_density: default_precip_density(),
             fog_density: default_fog_density(),
+            gpu_particles: false,
             far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,

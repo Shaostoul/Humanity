@@ -501,6 +501,9 @@ pub struct AppConfig {
     /// Weather fog/dust extinction multiplier (v0.1060).
     #[serde(default = "default_fog_density_cfg")]
     pub fog_density: f32,
+    /// GPU particle simulation for precipitation (v0.1068).
+    #[serde(default)]
+    pub gpu_particles: bool,
     /// Far-tree canopy card sheet (v0.1022-v0.1027). Default OFF: the
     /// clump cards read as "black squares in a grid" at altitude (operator,
     /// twice) - proper far coverage arrives with the instancing/impostor
@@ -1083,6 +1086,7 @@ impl AppConfig {
             water_clarity: state.settings.water_clarity,
             precip_density: state.settings.precip_density,
             fog_density: state.settings.fog_density,
+            gpu_particles: state.settings.gpu_particles,
             far_tree_sheet: state.settings.far_tree_sheet,
             cloud_quality: state.settings.cloud_quality.clone(),
             home_variant: state.settings.home_variant.clone(),
@@ -1245,6 +1249,7 @@ impl AppConfig {
         state.settings.water_clarity = self.water_clarity;
         state.settings.precip_density = self.precip_density;
         state.settings.fog_density = self.fog_density;
+        state.settings.gpu_particles = self.gpu_particles;
         state.settings.far_tree_sheet = self.far_tree_sheet;
         // Guard a corrupted saved value: only the three known tiers pass
         // through; anything else falls back to the high default.

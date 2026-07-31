@@ -36,6 +36,7 @@ pub mod patch_arena;
 pub mod plant_mesh;
 pub mod tree_mesh;
 pub mod particles;
+pub mod particles_gpu;
 pub mod pipeline;
 pub mod shader_loader;
 pub mod stars;
@@ -152,6 +153,9 @@ pub struct Renderer {
     /// grow to a high-water mark and are refilled with write_buffer.
     particle_vb_alpha: Option<wgpu::Buffer>,
     particle_vb_additive: Option<wgpu::Buffer>,
+    /// GPU-simulated particle pool (v0.1068). None until first use; created on
+    /// demand so a session that never sees weather never allocates it.
+    pub gpu_particles: Option<particles_gpu::GpuParticles>,
     particle_vb_alpha_cap: usize,
     particle_vb_additive_cap: usize,
     particle_frame_bind_group: wgpu::BindGroup,
@@ -1213,6 +1217,7 @@ impl Renderer {
             particle_frame_buffer,
             particle_vb_alpha: None,
             particle_vb_additive: None,
+            gpu_particles: None,
             particle_vb_alpha_cap: 0,
             particle_vb_additive_cap: 0,
             particle_frame_bind_group,
@@ -3500,6 +3505,87 @@ impl Renderer {
         self.particle_vb_additive = vb_b;
         self.particle_vb_alpha_cap = cap_a;
         self.particle_vb_additive_cap = cap_b;
+    }
+
+    /// Advance the GPU particle pool, creating it on first use (v0.1068).
+    /// `live` is how many slots to simulate this frame; the pool itself only
+    /// grows, so dialling density up and down costs nothing after the peak.
+    pub fn simulate_gpu_particles(
+        &mut self,
+        params: particles_gpu::SimParams,
+        live: u32,
+        capacity_hint: u32,
+    ) {
+        if self.gpu_particles.is_none()
+            || self
+                .gpu_particles
+                .as_ref()
+                .is_some_and(|g| g.capacity() < capacity_hint)
+        {
+            self.gpu_particles = Some(particles_gpu::GpuParticles::new(
+                &self.device,
+                capacity_hint.max(live),
+            ));
+        }
+        if let Some(g) = self.gpu_particles.as_mut() {
+            g.simulate(&self.device, &self.queue, params, live);
+        }
+    }
+
+    /// Draw the GPU-simulated pool. Deliberately the SAME pipeline and the same
+    /// instanced quad the CPU path uses - the compute shader wrote the identical
+    /// vertex layout, so nothing here knows or cares where the data came from.
+    pub fn draw_gpu_particles_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
+        let Some(g) = self.gpu_particles.as_ref() else {
+            return;
+        };
+        if g.live == 0 {
+            return;
+        }
+        // Same billboard basis the CPU path uses - see draw_particles_onto.
+        self.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&self.lit_uniform(camera.uniforms())),
+        );
+        let right = camera.right();
+        let up = right.cross(camera.forward()).normalize_or_zero() * -1.0;
+        let frame: [f32; 8] = [right.x, right.y, right.z, 0.0, up.x, up.y, up.z, 0.0];
+        self.queue
+            .write_buffer(&self.particle_frame_buffer, 0, bytemuck::cast_slice(&frame));
+        let mut enc = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("GPU Particle Encoder"),
+            });
+        {
+            let mut rp = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("GPU Particle Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                ..Default::default()
+            });
+            rp.set_bind_group(0, &self.camera_bind_group, &[]);
+            rp.set_bind_group(1, &self.particle_frame_bind_group, &[]);
+            rp.set_pipeline(&self.particle_pipeline_alpha);
+            rp.set_vertex_buffer(0, g.vertex_buf.slice(..));
+            rp.draw(0..4, 0..g.live);
+        }
+        self.queue.submit(std::iter::once(enc.finish()));
     }
 
     /// Orbit paths drawn with the CELESTIAL far plane (v0.451) so the AU-scale rings

@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HumanityOS, Laws</title>
+  <meta name="description" content="The rules that apply where you live, nested from Humanity down to your town. HumanityOS base set plus plain-language summaries of real laws with sources.">
+  <link rel="manifest" href="/shared/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/shared/theme.css">
+  <style>
+    body { line-height: 1.6; min-height: 100vh; padding-bottom: 80px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    .laws-hero { padding: 40px 0 24px; }
+    .laws-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 8px; }
+    .laws-hero h1 em { font-style: normal; color: var(--accent); }
+    .laws-hero p { color: var(--text-muted); max-width: 720px; font-size: 0.9rem; }
+
+    .disclaimer-card {
+      background: var(--accent-dim); border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius); padding: 14px 18px; margin-bottom: 18px;
+      font-size: 0.85rem; color: var(--text-muted);
+    }
+
+    .where-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 18px;
+    }
+    .where-card h3 {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin: 0 0 10px;
+    }
+    .where-card select {
+      background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; font-size: 0.9rem; font-family: inherit;
+      max-width: 100%;
+    }
+    .where-card select:focus { outline: none; border-color: var(--border-focus); }
+    .where-breadcrumb { margin: 10px 0 0; font-size: 0.82rem; color: var(--text-secondary); }
+
+    .kind-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .kind-tab {
+      padding: 8px 18px; border-radius: var(--radius);
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text); font-weight: 600; font-size: 0.9rem;
+      cursor: pointer; transition: all 0.15s; font-family: inherit;
+    }
+    .kind-tab:hover { border-color: var(--accent); }
+    .kind-tab.active { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+
+    .category-row {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+      font-size: 0.85rem;
+    }
+    .category-pill {
+      padding: 4px 12px; border-radius: 20px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      color: var(--text-muted); cursor: pointer; font-family: inherit; font-size: 0.8rem;
+    }
+    .category-pill:hover { border-color: var(--accent); }
+    .category-pill.active { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+
+    .search-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .search-row label { font-size: 0.85rem; color: var(--text-secondary); }
+    .search-row input {
+      flex: 1; max-width: 420px;
+      background: var(--bg-input); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 8px 12px; font-size: 0.9rem; font-family: inherit;
+    }
+    .search-row input:focus { outline: none; border-color: var(--border-focus); }
+
+    .jur-header {
+      font-size: 1rem; font-weight: 700; color: var(--text);
+      margin: 18px 0 8px;
+    }
+    .laws-list > .jur-header:first-child { margin-top: 0; }
+
+    .law-row {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); margin-bottom: 6px; overflow: hidden;
+    }
+    .law-row-head {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      background: none; border: none; cursor: pointer; text-align: left;
+      padding: 10px 14px; font-family: inherit; color: var(--text);
+    }
+    .law-row-head:hover { background: var(--bg-hover); }
+    .law-title { font-weight: 700; font-size: 0.9rem; color: var(--text); flex-shrink: 0; }
+    .law-cat { font-size: 0.78rem; color: var(--text-muted); flex-shrink: 0; }
+    .law-summary-preview {
+      font-size: 0.82rem; color: var(--text-secondary);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      flex: 1; min-width: 0;
+    }
+    /* Small bordered kind chips, mirroring the native kind_chip:
+       BASE = accent outline + text, REAL = success outline + text. */
+    .kind-chip {
+      display: inline-block; padding: 1px 6px; border-radius: 6px;
+      font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+      border: 1px solid currentColor; background: transparent;
+    }
+    .kind-chip.base { color: var(--accent); }
+    .kind-chip.real { color: var(--success); }
+
+    .law-detail {
+      padding: 4px 14px 12px; border-top: 1px solid var(--border);
+      font-size: 0.88rem; color: var(--text-secondary);
+    }
+    .law-detail p { margin: 8px 0 0; }
+    .law-detail .law-source, .law-detail .law-tags {
+      font-size: 0.78rem; color: var(--text-muted);
+    }
+
+    .empty-state {
+      padding: 40px 24px; text-align: center;
+      background: var(--bg-card); border: 1px dashed var(--border);
+      border-radius: var(--radius); color: var(--text-muted);
+    }
+
+    @media (max-width: 700px) {
+      .law-row-head { flex-wrap: wrap; }
+      .law-summary-preview { flex-basis: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <script src="/shared/events.js?v=1"></script>
+  <script src="/shared/shell.js"></script>
+  <script src="/shared/laws-logic.js"></script>
+
+  <div class="container">
+    <header class="laws-hero">
+      <h1>Laws and <em>Rights</em></h1>
+      <p>The rules that apply where you live, nested from Humanity down to your town. Two kinds: the HumanityOS base set (our framework, from the Humanity Accord) and real laws (plain-language summaries with a source to verify).</p>
+    </header>
+
+    <div class="disclaimer-card" id="laws-disclaimer" hidden></div>
+
+    <section class="where-card">
+      <h3>Where you are</h3>
+      <select id="laws-location" aria-label="Choose your jurisdiction"></select>
+      <p class="where-breadcrumb" id="laws-breadcrumb"></p>
+    </section>
+
+    <div class="kind-tabs" id="laws-kind-tabs" role="tablist" aria-label="Rule kind">
+      <button class="kind-tab active" type="button" data-kind="0">All</button>
+      <button class="kind-tab" type="button" data-kind="1">HumanityOS base</button>
+      <button class="kind-tab" type="button" data-kind="2">Real laws</button>
+    </div>
+
+    <div class="category-row" id="laws-categories" hidden></div>
+
+    <div class="search-row">
+      <label for="laws-search">Search</label>
+      <input type="search" id="laws-search" placeholder="Title, summary, category, or tag" autocomplete="off">
+    </div>
+
+    <div class="laws-list" id="laws-list">
+      <div class="empty-state">Loading laws...</div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+    (function () {
+      var logic = window.hosLawsLogic;
+      var lawsData = null;
+      var state = {
+        location: '',
+        kindTab: 0,
+        category: '',
+        search: ''
+      };
+      // Expanded rule ids survive re-renders (filter/search changes).
+      var expanded = {};
+
+      var listEl = document.getElementById('laws-list');
+      var selectEl = document.getElementById('laws-location');
+      var breadcrumbEl = document.getElementById('laws-breadcrumb');
+      var disclaimerEl = document.getElementById('laws-disclaimer');
+      var categoriesEl = document.getElementById('laws-categories');
+      var searchEl = document.getElementById('laws-search');
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+      }
+
+      function renderJurisdictionSelect() {
+        var html = '';
+        (lawsData.jurisdictions || []).forEach(function (j) {
+          var label = j.name + (j.level ? ' (' + j.level + ')' : '');
+          html += '<option value="' + escapeHtml(j.id) + '"' +
+            (j.id === state.location ? ' selected' : '') + '>' +
+            escapeHtml(label) + '</option>';
+        });
+        selectEl.innerHTML = html;
+      }
+
+      function renderBreadcrumb() {
+        breadcrumbEl.textContent = logic.locationBreadcrumb(lawsData, state.location);
+      }
+
+      function renderCategories() {
+        var cats = lawsData.categories || [];
+        if (!cats.length) { categoriesEl.hidden = true; return; }
+        categoriesEl.hidden = false;
+        var html = '<button class="category-pill' + (state.category === '' ? ' active' : '') +
+          '" type="button" data-category="">All categories</button>';
+        cats.forEach(function (cat) {
+          html += '<button class="category-pill' + (state.category === cat ? ' active' : '') +
+            '" type="button" data-category="' + escapeHtml(cat) + '">' + escapeHtml(cat) + '</button>';
+        });
+        categoriesEl.innerHTML = html;
+      }
+
+      function renderRules() {
+        var rules = logic.filterRules(lawsData, state.location, {
+          kindTab: state.kindTab,
+          category: state.category,
+          search: state.search
+        });
+        if (!rules.length) {
+          var msg = (lawsData.rules || []).length
+            ? 'No rules match. Try the All filter or clear the search.'
+            : 'No laws data is available on this server yet.';
+          listEl.innerHTML = '<div class="empty-state">' + msg + '</div>';
+          return;
+        }
+        // Grouped under jurisdiction headers, broadest (Humanity) first,
+        // exactly like the native page.
+        var html = '';
+        var lastJur = null;
+        rules.forEach(function (r) {
+          if (r.jurisdiction !== lastJur) {
+            lastJur = r.jurisdiction;
+            html += '<h3 class="jur-header">' +
+              escapeHtml(logic.jurisdictionName(lawsData.jurisdictions, r.jurisdiction)) + '</h3>';
+          }
+          var base = logic.isBase(r);
+          var isOpen = !!expanded[r.id];
+          html += '<div class="law-row">' +
+            '<button class="law-row-head" type="button" data-rule-id="' + escapeHtml(r.id) + '"' +
+              ' aria-expanded="' + (isOpen ? 'true' : 'false') + '">' +
+              '<span class="kind-chip ' + (base ? 'base' : 'real') + '">' + (base ? 'BASE' : 'REAL') + '</span>' +
+              (r.category ? '<span class="law-cat">' + escapeHtml(r.category) + '</span>' : '') +
+              '<span class="law-title">' + escapeHtml(r.title) + '</span>' +
+              '<span class="law-summary-preview">' + escapeHtml(r.summary) + '</span>' +
+            '</button>' +
+            '<div class="law-detail"' + (isOpen ? '' : ' hidden') + '>' +
+              '<p>' + escapeHtml(r.summary) + '</p>' +
+              (r.source ? '<p class="law-source">Source: ' + escapeHtml(r.source) + '</p>' : '') +
+              (r.tags && r.tags.length
+                ? '<p class="law-tags">Tags: ' + escapeHtml(r.tags.join(', ')) + '</p>'
+                : '') +
+            '</div>' +
+          '</div>';
+        });
+        listEl.innerHTML = html;
+      }
+
+      function renderAll() {
+        renderBreadcrumb();
+        renderCategories();
+        renderRules();
+      }
+
+      // ── Event wiring ──
+      selectEl.addEventListener('change', function () {
+        state.location = selectEl.value;
+        try { localStorage.setItem('humanity_laws_location', state.location); } catch (e) { /* private mode */ }
+        renderAll();
+      });
+
+      document.getElementById('laws-kind-tabs').addEventListener('click', function (e) {
+        var btn = e.target.closest('.kind-tab');
+        if (!btn) return;
+        state.kindTab = parseInt(btn.dataset.kind, 10) || 0;
+        document.querySelectorAll('.kind-tab').forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        renderRules();
+      });
+
+      categoriesEl.addEventListener('click', function (e) {
+        var btn = e.target.closest('.category-pill');
+        if (!btn) return;
+        var cat = btn.dataset.category || '';
+        // Click the active category again to clear it (native chip behavior).
+        state.category = (cat !== '' && state.category === cat) ? '' : cat;
+        renderCategories();
+        renderRules();
+      });
+
+      searchEl.addEventListener('input', function () {
+        state.search = searchEl.value;
+        renderRules();
+      });
+
+      listEl.addEventListener('click', function (e) {
+        var head = e.target.closest('.law-row-head');
+        if (!head) return;
+        var id = head.dataset.ruleId;
+        expanded[id] = !expanded[id];
+        head.setAttribute('aria-expanded', expanded[id] ? 'true' : 'false');
+        var detail = head.parentElement.querySelector('.law-detail');
+        if (detail) detail.hidden = !expanded[id];
+      });
+
+      // ── Load the shared data file (same JSON the native app reads) ──
+      fetch('/data/laws/laws.json', { cache: 'no-cache' })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+        .then(function (data) {
+          lawsData = data || {};
+          if (data.disclaimer) {
+            disclaimerEl.textContent = data.disclaimer;
+            disclaimerEl.hidden = false;
+          }
+          // Default: most local entry (last in the file), like the native page.
+          // Restore a previously chosen jurisdiction when it still exists.
+          var saved = null;
+          try { saved = localStorage.getItem('humanity_laws_location'); } catch (e) { /* private mode */ }
+          state.location = (saved && logic.findJurisdiction(data.jurisdictions, saved))
+            ? saved
+            : logic.defaultLocation(data);
+          renderJurisdictionSelect();
+          renderAll();
+        })
+        .catch(function (err) {
+          console.warn('[HOS] Could not load laws data:', err);
+          listEl.innerHTML = '<div class="empty-state">Could not load the laws data. Try refreshing.</div>';
+        });
+    })();
+  </script>
+</body>
+</html>

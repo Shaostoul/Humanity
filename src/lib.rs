@@ -3436,6 +3436,68 @@ mod native_app {
                         // tornado adds dust, a meteor shower adds sparks -
                         // and every OTHER event emitter is enumerated so
                         // an ended event's particles deactivate cleanly.
+                        // ── GPU PARTICLE PATH (v0.1068) ──
+                        // When enabled, precipitation is simulated entirely on
+                        // the GPU and the CPU emitters for rain/snow are left
+                        // inactive. Everything else (event emitters, sparks,
+                        // dust) stays on the CPU path, which is correct: those
+                        // are small, bursty and short-lived, exactly the case
+                        // where the measured fork/join and dispatch overheads
+                        // outweigh the work.
+                        if state.gui_state.settings.gpu_particles && (want_rain || want_snow) {
+                            let key = if want_snow { "snow" } else { "rain" };
+                            if let Some(def) = state.particle_system.def(key) {
+                                let dens = state
+                                    .gui_state
+                                    .settings
+                                    .precip_density
+                                    .clamp(0.1, 100.0);
+                                // Same steady-state law the CPU path learned in
+                                // v0.1064: a pool of N living L seconds sustains
+                                // N/L spawns per second, so the POOL is what
+                                // density scales, and the recycling sim keeps it
+                                // permanently full.
+                                let live = ((def.max_particles as f32) * dens) as u32;
+                                let up = state.camera.up;
+                                let p = crate::renderer::particles_gpu::SimParams {
+                                    origin_radius: [
+                                        precip_pos.x,
+                                        precip_pos.y,
+                                        precip_pos.z,
+                                        def.spawn_radius,
+                                    ],
+                                    dir_spread: [
+                                        precip_dir.x,
+                                        precip_dir.y,
+                                        precip_dir.z,
+                                        def.spread_angle_deg.to_radians(),
+                                    ],
+                                    gravity_dt: [
+                                        def.gravity.x,
+                                        def.gravity.y,
+                                        def.gravity.z,
+                                        dt as f32,
+                                    ],
+                                    speed_life: [
+                                        def.speed_min,
+                                        def.speed_max,
+                                        def.lifetime_min,
+                                        def.lifetime_max,
+                                    ],
+                                    size_shape: [
+                                        def.size_start,
+                                        def.size_end,
+                                        def.emissive,
+                                        def.shape,
+                                    ],
+                                    color_start: def.color_start,
+                                    color_end: def.color_end,
+                                    count_frame_streak: [0.0, 0.0, def.streak_stretch, 0.0],
+                                };
+                                let _ = up;
+                                state.renderer.simulate_gpu_particles(p, live, live.max(65_536));
+                            }
+                        }
                         let mut manage: Vec<(String, bool)> =
                             vec![("rain".into(), want_rain), ("snow".into(), want_snow)];
                         if let Some(reg) = state
@@ -16415,6 +16477,16 @@ mod native_app {
                                 {
                                     let (pa, pad) = state.particle_system.collect_split();
                                     state.renderer.draw_particles_onto(&state.camera, &pa, &pad, &view);
+                                    // GPU-simulated precipitation draws after
+                                    // the CPU pool, same pipeline and blend
+                                    // (v0.1068). Nothing here knows where the
+                                    // vertex data came from - the compute pass
+                                    // wrote the identical layout.
+                                    if state.gui_state.settings.gpu_particles {
+                                        state
+                                            .renderer
+                                            .draw_gpu_particles_onto(&state.camera, &view);
+                                    }
                                 }
                                 Ok((output, view))
                             }

@@ -2228,6 +2228,12 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("Replaces the hand-tuned chop waves with a real oceanographic wave spectrum (thousands of simultaneous waves). Early version: same energy, richer structure. Off = the shipped wave look.").color(theme.text_muted()).size(theme.font_size_small));
+        // GPU particle simulation (v0.1068). Same shape as the FFT-ocean
+        // toggle: experimental, default off, CPU path stays as the fallback.
+        if widgets::toggle(ui, theme, "GPU particles (experimental)", &mut state.settings.gpu_particles) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("Simulates rain and snow entirely on the GPU: the pool lives in video memory and the CPU submits one dispatch instead of moving every particle across the bus. The CPU path was measured bandwidth-bound at ~17-20 ns per particle per frame, which capped it near 160k. Off = that shipped CPU path.").color(theme.text_muted()).size(theme.font_size_small));
         // Underwater clarity (v0.1054). Deliberately a slider rather than a
         // toggle: the operator wants the physical fade AND the ability to keep
         // seeing far underwater for exploration, and the honest way to offer

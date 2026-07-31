@@ -456,6 +456,12 @@ impl ParticleSystem {
     }
 
     /// Total live particle count across all emitters.
+    /// Emitter definition by name (v0.1068): the GPU path builds its uniform
+    /// from the SAME RON def the CPU path uses, so the two never drift.
+    pub fn def(&self, name: &str) -> Option<&EmitterDef> {
+        self.emitter_defs.get(name)
+    }
+
     pub fn particle_count(&self) -> usize {
         self.emitters.iter().map(|e| e.particles.len()).sum()
     }
