@@ -13,6 +13,11 @@
   "recent_decisions": [
     {
       "date": "2026-07-31",
+      "decision": "OVERNIGHT SHIFT (operator asleep, asked for all-night subagent operation). Landed so far: v0.1073.0 snow-in-space fix (BUG-051, unwrap_or(0.0) None-hole in the tropopause gate, fail-safe now, orbit + ground vantages both verified); v0.1074.0 clouds re-land increment 1 via domain-pass rerun (High slab marched at 3x designed distance, now 25.5-76.5 km; Medium untouched, zero rig coverage documented; vantage GLOBAL-clock trap found and fixed, the BUG-049 storm gate had judged in the dark for three releases; verified at lit local noon, no rings, verify-runtime 3/3). Workflow validation note: challenger ADJUST prevented a 13-finding program from landing as one blob; runtime-verifier rejected hot-reload as boot evidence and rebuilt; critic refuted one impossible acceptance text, reworded at integration. Remaining night queue: perf baseline running (bqvgpicjo), then content-fleet round 2.",
+      "why": "Event-driven chaining: each task notification advances the queue; ScheduleWakeup 1800s is the fallback heartbeat."
+    },
+    {
+      "date": "2026-07-31",
       "decision": "FIRST ALL-PARALLEL FLEET LANDED (v0.1070.2): botanist +15 sourced staples (plants 134->149, matching items.csv produce rows), lexicographer 201->366 glossary terms (3 new categories, behaviour verified vs code), homestead-engineer corrected the power loop (old 4-panel spec assumed 4.5 sun-h unstated; real site December 1.3 sun-h = 157 kWh deficit; now 11 panels + 3 banks, NREL-sourced, assumptions stated; nutrients loop honestly still open). Toolsmith just verify-runtime gate landed same batch (fixed 3-vantage world-entry set, stale/fresh binary guard, every failure branch proven red). Integration pattern proven: 3 worktrees zero-overlap merged serially with validate-data between each; the merge machinery correctly REFUSED while the toolsmith held staged work in the main index. Earlier same session: BUG-049 storm rings (v0.1069.0 clouds merge) caught live, reverted v0.1070.0, permanent ground-storm-inslab regression vantage added.",
       "why": "Parallel agent throughput is real now; verification gates grew in the same batch, which is the intended ratio."
     },
@@ -602,6 +607,6 @@
     "7. Check data/coordination/agent_registry.ron for the canonical scope list.",
     "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
   ],
-  "last_updated": "2026-07-31 (clouds domain pass)",
+  "last_updated": "2026-07-31 overnight (Fable session)",
   "focus": "v0.1020.1 shipped (the 2026-07-27 evening marathon: v0.1015-v0.1020, six releases). Terrain vertex sharing DONE (258 vs 768 verts/patch). Water arc increments 1-3 + perf pass 1 DONE: per-train fades, anchored-domain chop (f32-at-scale GPU edition), foam lace + beat fix, underwater blend order + backstop shell (seam class CLOSED), coastal de-blue clamp, tree shore floor, surf direction. FPS caps setting + gear swimming + no-focus click-to-wake shipped. NEXT per PRIORITIES: clouds drift-desync rung (structure pinned by live weather vs zonally-drifting texture), then water arena batching + overdraw measurement, then breaking shore waves / Subnautica rungs (underwater god rays, caustics). Operator asleep; overnight = backlog per the standing get-through-the-backlog directive."
 }
