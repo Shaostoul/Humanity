@@ -381,6 +381,20 @@ fn leaf_cluster(
 /// budget, and coverage is the whole difference between a canopy and a few
 /// leaves stapled to a stick. (Palm fronds still use the real `leaf`, where
 /// the elongated shape genuinely reads.)
+///
+/// ORGAN TAG (v0.1081, the "black canopy" fix). `tri2` bakes whatever organ the
+/// builder is currently set to into the packed UV, and it defaults to
+/// `Organ::Stem`. Only `plant_mesh::leaf`/`petal` ever set `Organ::Leaf`, and
+/// this function calls neither - so from v0.1066 to v0.1080 EVERY foliage face
+/// on sakura, momiji, oak, birch and acacia (and every blossom, since
+/// `leaf_cluster` routes `blossom_color` through here too) carried the stem tag.
+/// Bit 19 was clear, `90-fragment-main.wgsl` computed `is_leaf = false`, and the
+/// canopy was shaded by the BARK branch: stretched voronoi fissures, 0.42x
+/// crevice darkening, roughness 0.78-0.96, and NO subsurface transmission at
+/// all. Palm was the only species that looked right, because its fronds go
+/// through `b.leaf()`. The same bit gates the leaf-flutter branch of the wind
+/// vertex shader, so v0.1080's foliage wind had no flutter on these species
+/// either. Set it here, reset after, exactly like the primitives do.
 fn blade(
     b: &mut PlantMeshBuilder,
     at: [f32; 3],
@@ -396,8 +410,10 @@ fn blade(
     let tip = add(at, dir, len);
     let l = add(mid, side, -wid * 0.5);
     let r = add(mid, side, wid * 0.5);
+    b.set_organ(Organ::Leaf);
     b.tri2(at, l, tip, color);
     b.tri2(at, tip, r, color);
+    b.set_organ(Organ::Stem);
 }
 
 /// Recursive limb. Emits a tapered segment, then either children or foliage.
@@ -683,6 +699,51 @@ mod tests {
                     t.height_m
                 );
             }
+        }
+    }
+
+    /// EVERY procedural species must tag its foliage as leaf tissue.
+    ///
+    /// This is the unit-test half of the v0.1081 "black canopy" fix. From
+    /// v0.1066 to v0.1080 `blade()` emitted through `tri2` without ever setting
+    /// `Organ::Leaf`, so bit 19 was clear on every foliage face and the shader
+    /// shaded the whole canopy as BARK (no subsurface transmission, no leaf
+    /// flutter in the wind vertex shader, voronoi fissures on the leaves).
+    /// Nothing caught it, because the geometry was perfectly valid - only the
+    /// material tag was wrong. This asserts the tag directly off the packed UV
+    /// so a future refactor of the blade primitive cannot silently lose it.
+    ///
+    /// Keep the constants in sync with `plant_mesh::ORGAN_BIT_LEAF` and the
+    /// type-20 decode in `assets/shaders/pbr/90-fragment-main.wgsl`.
+    #[test]
+    fn every_procedural_species_tags_its_foliage_as_leaf() {
+        const ORGAN_BIT_LEAF: u32 = 524_288;
+        let r = registry();
+        for t in r.trees.iter().filter(|t| t.is_procedural()) {
+            let mut b = PlantMeshBuilder::new();
+            build_tree(&mut b, t, t.height_m, 7);
+            let total = b.vertices.len();
+            let leaf = b
+                .vertices
+                .iter()
+                .filter(|v| (v.uv[0].max(0.0).round() as u32) & ORGAN_BIT_LEAF != 0)
+                .count();
+            // Foliage is the bulk of a tree's triangles, so a healthy tag rate
+            // is far above zero; 5% is a floor loose enough to survive form
+            // tuning and tight enough that "nothing is tagged" always fails.
+            assert!(
+                leaf * 20 > total,
+                "{}: only {leaf} of {total} vertices carry the leaf organ bit - \
+                 blade()/leaf() stopped tagging foliage, so the shader will \
+                 shade this species' canopy as BARK",
+                t.id
+            );
+            // And stems must NOT be tagged, or the bark branch never runs.
+            assert!(
+                leaf < total,
+                "{}: every vertex carries the leaf bit - set_organ was never reset to Stem",
+                t.id
+            );
         }
     }
 

@@ -186,6 +186,21 @@ impl PlantMeshBuilder {
         PlantMeshBuilder { vertices: Vec::new(), indices: Vec::new(), organ: Organ::Stem }
     }
 
+    /// Tag the faces emitted from here on as belonging to `o`.
+    ///
+    /// The organ primitives below (`leaf`, `petal`, `fruit_sphere`) set this
+    /// themselves, but SIBLING MODULES that build their own geometry out of the
+    /// raw `tri` / `tri2` / `tube` primitives could not, because `organ` is
+    /// private. That was a silent correctness hole, not a convenience gap:
+    /// `tree_mesh::blade` drew every foliage face on every procedural tree
+    /// species through `tri2`, so the whole canopy shipped tagged `Organ::Stem`
+    /// and the shader shaded it as BARK (v0.1080 and earlier). Anything that
+    /// emits leaf tissue must now say so through here, and must reset to
+    /// `Organ::Stem` afterwards the same way the primitives below do.
+    pub(crate) fn set_organ(&mut self, o: Organ) {
+        self.organ = o;
+    }
+
     /// Push one flat-shaded triangle. The face normal is computed from the
     /// winding; the packed color rides identically on all three corners
     /// (material type 12 contract - see module docs).
