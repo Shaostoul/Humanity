@@ -1898,14 +1898,14 @@ mod native_app {
                 WindowEvent::Focused(focused) => {
                     // Drives the foreground/background FPS cap (v0.1016).
                     state.window_focused = focused;
-                    // A HUMANITY_NO_FOCUS instance the user deliberately
-                    // clicked into becomes a NORMAL window (v0.1020): the
-                    // launch flag only means "don't steal focus", never
-                    // "stay half-dead". Cursor management resumes next
-                    // frame via reconcile_cursor.
-                    if focused {
-                        state.background_no_cursor = false;
-                    }
+                    // NOTE (v0.1072): this arm no longer clears
+                    // background_no_cursor. Windows delivers Focused(true)
+                    // during creation with no user action, which disarmed the
+                    // background guard before the boot frame and let
+                    // apply_window_mode's maximize steal focus anyway. The
+                    // deliberate click-in path lives in MouseInput now: the
+                    // launch flag still only means "don't steal focus", never
+                    // "stay half-dead".
                 }
                 WindowEvent::CloseRequested => {
                     // Persist the active offline home before quitting (v0.381). The
@@ -2608,6 +2608,17 @@ mod native_app {
                     let left = button == MouseButton::Left;
                     let right = button == MouseButton::Right;
                     let pressed = btn_state == ElementState::Pressed;
+                    // A CLICK in the window is the one honest signal that the
+                    // operator deliberately entered a HUMANITY_NO_FOCUS
+                    // instance (v0.1072). This used to clear on Focused(true),
+                    // but Windows can deliver a focus event during creation
+                    // without any user action, which disarmed the guard before
+                    // the boot-frame settings_dirty ran apply_window_mode, and
+                    // the maximize there activated the window: every rig boot
+                    // still stole focus a second in, measured at t+1s.
+                    if pressed && state.background_no_cursor {
+                        state.background_no_cursor = false;
+                    }
                     // In-world modal panels own clicks (v0.773 chat, v0.778 creature
                     // editor). egui still receives the click (on_window_event, above)
                     // so the panel's buttons work; but the game must NOT also swing a
@@ -17518,7 +17529,20 @@ mod native_app {
                                 state.renderer.set_vsync(state.gui_state.settings.vsync);
 
                                 // Window presentation mode (v0.454).
-                                apply_window_mode(&state.window, state.gui_state.settings.window_mode);
+                                // Background instances (HUMANITY_NO_FOCUS) must NOT
+                                // apply the window mode: WindowedFullscreen's
+                                // set_maximized(true) goes through ShowWindow on
+                                // Windows, which ACTIVATES the window. This ran on
+                                // the boot-frame settings_dirty ~1s after launch,
+                                // so every rig boot stole focus a second in, even
+                                // after the v0.1069 visible+inactive creation fix
+                                // (measured: foreground flipped at t+1s, this line).
+                                // The flag clears on a genuine click-in (v0.1020),
+                                // so a deliberately-focused instance applies modes
+                                // normally from then on.
+                                if !state.background_no_cursor {
+                                    apply_window_mode(&state.window, state.gui_state.settings.window_mode);
+                                }
 
                                 // Render distance → camera far plane
                                 state.camera.far = state.gui_state.settings.render_distance;

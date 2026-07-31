@@ -109,6 +109,17 @@ touch the same hot files, run them as back-to-back waves and merge serially, but
 never sit idle to "save budget." "Efficient" now means throughput, not frugality.
 See memory `feedback_usage_budget_pacing.md`.
 
+## Nobody is using the platform yet (operator, restated 2026-07-31)
+
+Do NOT weigh "live users" in engineering decisions until launch. The game is not
+playable yet, chat is not in real use (everyone coordinates on Discord during dev),
+and anyone who does poke at it knows it is rapid-dev. Concretely: prefer the RIGHT
+fix over the fast patch, never spend tokens or scope protecting hypothetical users,
+and a revert is justified by getting a clean base to build on, not by user-harm
+urgency. The operator restated this after work was framed around protecting live
+users twice in one night. This note supersedes user-exposure reasoning everywhere
+else in this file until launch; revisit at launch.
+
 ## Never steal the operator's focus (MANDATORY)
 
 The operator has ONE computer and ONE screen. Every time an agent boots HumanityOS
