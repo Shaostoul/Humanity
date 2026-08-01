@@ -165,7 +165,13 @@ pub const MAX_BUILD_REQUESTS: usize = 96;
 /// 4577 per second, requests pinned at the cap, cache pinned at 7,061).
 /// 1.5 GB holds the max working set with real headroom; the LRU only
 /// grows to what the camera actually needs, so low settings stay small.
-pub const PATCH_CACHE_MAX_BYTES: usize = 1536 * 1024 * 1024;
+// 1536 -> 1400 MiB (v0.1084): the cache ceiling was LARGER than the whole
+// patch arena (1470 MiB), and real_bytes counts the same currency, so LRU
+// eviction (graceful) could mathematically never fire before arena overflow
+// (not graceful) at any split. The ceiling must sit BELOW the arena total so
+// the cache is the limiter. Indexed cards cut per-patch bytes ~2/3, so this
+// still holds far more patches than the old ceiling ever did.
+pub const PATCH_CACHE_MAX_BYTES: usize = 1400 * 1024 * 1024;
 
 /// Cache floor applied ONCE when a planet leaves chunked mode (the camera
 /// flew away): shrink to this so a departed planet parks ~64 MB of warm
@@ -209,6 +215,19 @@ pub const TREE_CELL_RAD: f64 = 3.45e-5; // ~220 m at the equator
 /// we can get away with"). Real temperate forest runs 20k-80k/km^2; the
 /// sprite cards (2 quads/tree since v0.961) are what buys the headroom.
 pub const TREES_PER_CELL: u32 = 800;
+
+/// Vegetation density multiplier (v0.1084, operator: fewer trees, free the
+/// GPU). Settings > Graphics "Vegetation: forest density" writes this each
+/// frame from lib.rs (f32 bits in an atomic - patch builds happen on worker
+/// threads). 1.0 = the historical full density; the setting defaults to 0.6.
+pub static VEG_DENSITY_BITS: std::sync::atomic::AtomicU32 =
+    std::sync::atomic::AtomicU32::new(0x3F80_0000); // 1.0f32
+
+#[inline]
+pub fn veg_density() -> f32 {
+    f32::from_bits(VEG_DENSITY_BITS.load(std::sync::atomic::Ordering::Relaxed))
+        .clamp(0.1, 1.0)
+}
 /// Grass cell size (~33 m) and tufts per cell (v0.913: ~0.073 per m^2).
 pub const GRASS_CELL_RAD: f64 = 5.2e-6;
 pub const GRASS_PER_CELL: u32 = 160;
@@ -1863,7 +1882,8 @@ pub fn build_patch_mesh(
             marking_trees.set(is_tree);
             marking_grass.set(!is_tree);
             let cell = if is_tree { TREE_CELL_RAD } else { GRASS_CELL_RAD };
-            let per_cell = if is_tree { TREES_PER_CELL } else { GRASS_PER_CELL };
+            let base_per_cell = if is_tree { TREES_PER_CELL } else { GRASS_PER_CELL };
+            let per_cell = (((base_per_cell as f32) * veg_density()).round() as u32).max(1);
             let salt: u64 = if is_tree { 0x51F0_A11C } else { 0x9A55_77EE };
             let ylo = ((lat_min / cell).floor() as i64) - 1;
             let yhi = ((lat_max / cell).floor() as i64) + 1;
@@ -2241,7 +2261,10 @@ pub fn near_tree_instances(
     });
     for (iy, ix) in cells {
         let cell_lat = (iy as f64 + 0.5) * cell;
-        let count = ((TREES_PER_CELL as f64) * cell_lat.cos().max(0.0)).round() as u32;
+        let count = ((TREES_PER_CELL as f64)
+            * (veg_density() as f64)
+            * cell_lat.cos().max(0.0))
+        .round() as u32;
         {
             // Identical stream to the bake: 6 randoms per item BEFORE any
             // gate, so positions/looks agree exactly with the cards.

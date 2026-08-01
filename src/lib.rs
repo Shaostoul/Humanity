@@ -11343,6 +11343,15 @@ mod native_app {
                                 state.renderer.celestial_sun_day =
                                     ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
                             }
+                            // Publish the vegetation-density setting to the
+                            // patch-build worker threads (v0.1084). New patch
+                            // builds pick it up; existing patches keep their
+                            // density until they rebuild, so a slider change
+                            // appears patch by patch as you move.
+                            crate::terrain::planet_chunks::VEG_DENSITY_BITS.store(
+                                state.gui_state.settings.veg_density.to_bits(),
+                                std::sync::atomic::Ordering::Relaxed,
+                            );
                             let s = state.gui_state.settings.aerial_strength.clamp(0.0, 2.0);
                             let mut sigma = 0.0f32;
                             let mut cap = 25_000.0f32;

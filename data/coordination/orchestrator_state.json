@@ -522,6 +522,26 @@
    "date": "2026-07-31",
    "decision": "wf_4cbd951f measurement round merged with integrator corrections: hillside vantage re-aimed to the MEASURED 0.6km/55deg pose (1.0/52 framed beyond the 1500m card cutoff - bare slope), weather pinned clear on elevated vantages, storm-inslab gets settle 75 + hold_altitude (its 50.7ms baseline was half-streamed), bake-cost paragraph rewritten per critic log decomposition (bake is 17-23ms/tile; the freeze is a REDUNDANT second glTF parse).",
    "why": "Writer produced brief-polish not implementation; critic REFUTED two of its claims; runtime proved the re-aim broken. Merged the sound parts, corrected the refuted parts, atlas implementation dispatched next with the corrected brief."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "Arena baseline banked (perf agent, v0.1082.1): vertex pool binds unambiguously at operator config (97.76% mean / 99.9994% peak occupancy, 477/477 failures vertex-side, 3,660-3,779 classic-fallback draws/frame = 54% of patches; index pool idles at 64.6%). STRUCTURAL cause survived the v0.1062 rebalance: PATCH_CACHE_MAX_BYTES 1536 MiB EXCEEDS the whole arena (1472 MiB) in the same currency, so LRU can never fire before arena overflow at ANY split. INTEGRATION REQUIREMENTS for the indexed-cards change (must land TOGETHER): (a) re-split arena ~1050 MiB verts + ~420 MiB indices (post-indexing ratio flips to 3.0-3.4 i/v, indices become binding under the current split); (b) lower PATCH_CACHE_MAX_BYTES below the arena (~1400 MiB) or the cache grows straight back into overflow since indexed patches cost 2/3 less; (c) judge the A/B on fallback-draws/frame + occupancy-at-failure, NOT frame_ms (frame time did not track a 3-orders-of-magnitude fallback swing at these vantages); (d) the rig MUST be seeded with the operator terrain fields (terrain_patch_budget 12288, veg_tree_card_m 3000, render_distance 2000, planet_max_subdiv 9, terrain_split_px 2, terrain_detail_distance 3, tree_model_distance 300) or the arena never fills and the measurement is vacuous.",
+   "why": "Full report in the perf agent transcript; cards are 85.4% of vertex elements (direct measurement); warnings-per-frame is a latch artifact, never use it as a rate."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "Food data completed v0.1082.2-3 (botanist, 3 rounds): plants.csv 164->189 source-backed, items.csv +13 produce, crop_nutrition.ron 85->142 (ALL 57 gaps closed incl. 32 pre-existing - cassava/yam/taro/quinoa/teff/pulses were 0 kcal, making self-sufficiency misleading). Fennel row closes the last dangling companion reference.",
+   "why": "Follow-ups banked: (1) cereal per-plant yields are ~200x real (test-locked by bed_plant_grow_harvest_yields_grain >=8 + bulk_harvest >=24 in src/systems/farming/mod.rs) - needs a convention decision: cereal plant = sown tray unit (document) OR lower yields+tests together; dry pulses same class. (2) rapeseed + camelina kcal are COMPUTED from proximate composition (no USDA row) - want a second look. (3) items.csv carries a flat 0.3kg placeholder mass on a large block (cassava/taro/yam/olive/chestnut/walnut/breadfruit...) diverging from nutrition unit masses - future items pass."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "Atlas merged + companions shipped v0.1084.0: all-8-species impostor tiles (registry, packed-colour bake, indexed cards, footprint fix), veg_density hook live (default 0.6), arena re-split 1050/420 (post-indexing the INDEX pool binds - measured), PATCH_CACHE ceiling 1400 MiB below the arena so LRU can actually fire. Hillside 142->94 ms at rig defaults.",
+   "why": "Writer report + worktree evidence; contact sheet proves 8 distinct species silhouettes; bake gate [Bake] parse 929ms bake 163-242ms (redundant re-parse deleted)."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "RAIN DOES NOT RENDER AT ALL - wf_0b6aaa09 fidelity agent, 9 captures, both paths, 3 densities, ZERO precipitation pixels (snow included: 900 flakes in a 30m box, not one on screen). My earlier sparse-streaks reading was vegetation sprites - history note corrected. The fog/extinction veil DOES work (weather reaches shaders); the break is between the particle system and the framebuffer.",
+   "why": "Next rain increment = find why zero particles draw (emitter gate at lib.rs:3417 region? draw path? camera.up/surface_mode inputs ruled out by the agent). This supersedes the density/veil/impact ranking until particles are on screen. Also: no vantage gate anywhere asserts a particle pixel exists - add one when fixed."
   }
  ],
  "active_scopes_to_avoid": [

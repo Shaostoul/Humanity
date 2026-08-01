@@ -151,6 +151,16 @@ recipes, the updater's restart script (which propagates the current instance's
 state), and this paragraph. A user double-clicking the downloaded exe gets a
 focused window because explorer.exe is the parent -- no setup needed.
 
+**ONE GPU, same rule as one screen (operator, 2026-07-31): at most ONE booted
+HumanityOS instance machine-wide during working hours.** Three agent rigs ran
+concurrently and the operator's whole computer bogged down -- each instance is a
+full GPU renderer even in the background. Before booting any rig, check
+`tasklist //FI "IMAGENAME eq HumanityOS.exe"`; if an instance is already running
+(another agent's rig or the operator's own game), WAIT for it to exit rather
+than booting beside it. Orchestrators: do not dispatch multiple rig-booting
+agents in parallel -- stagger them so their sweeps serialize. Read-only/code
+work parallelizes fine; GPU boots do not.
+
 The engine honours background in two places, and both are needed (v0.1069): the
 window is created with `with_active(false)` AND created already-visible, because
 the normal path's later `set_visible(true)` goes through `ShowWindow(SW_SHOW)` on

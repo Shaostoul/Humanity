@@ -183,18 +183,21 @@ impl PatchArena {
     /// moved the exhaustion to the VERTEX pool - worth recording so nobody
     /// re-derives it from the tessellation again.)
     ///
-    /// So the shift needed was modest, not drastic: 1200 MB of vertices +
-    /// 272 MB of indices, the same 1472 MB total. That holds ~55k patches by
-    /// vertices and ~66k by indices, and the patch CACHE tops out at ~42k
-    /// (1536 MiB / 38 KB) - so LRU eviction now becomes the limiter, which is
-    /// graceful, instead of arena overflow, which dumps every excess patch onto
-    /// the classic per-draw path. That path was costing 4,442 of 12,294 patches
-    /// per frame, each paying a bind-group set plus two buffer binds plus a
-    /// draw, single-threaded.
+    /// RE-SPLIT v0.1084 for INDEXED CARDS (the third rebalance, and the doc
+    /// above explains why each one chased a moving geometry mix). Indexing
+    /// cut card vertices 3x (12 -> 4 per card) with index count unchanged, so
+    /// the aggregate demand ratio flipped from 1.2-1.3 i/v to 3.0-3.4 i/v and
+    /// the INDEX pool became the binding one: the first deep-LOD session after
+    /// indexing hit "index arena full, 560 of 71M free" with 22% of the vertex
+    /// pool idle. 1050 MiB verts (34.4M elems) + 420 MiB indices (110.1M)
+    /// provisions ~3.2 i/v, matching the measured post-indexing mix, roughly
+    /// 2.2x the measured working set on BOTH pools at once. The patch CACHE
+    /// ceiling (planet_chunks::PATCH_CACHE_MAX_BYTES) sits BELOW this total so
+    /// graceful LRU eviction, not arena overflow, is the limiter.
     fn capacities(device: &wgpu::Device) -> (u32, u32) {
         let max_buf = device.limits().max_buffer_size;
-        let vert_bytes = (1200u64 * 1024 * 1024).min(max_buf);
-        let idx_bytes = (272u64 * 1024 * 1024).min(max_buf);
+        let vert_bytes = (1050u64 * 1024 * 1024).min(max_buf);
+        let idx_bytes = (420u64 * 1024 * 1024).min(max_buf);
         let vcap = (vert_bytes / std::mem::size_of::<Vertex>() as u64) as u32;
         let icap = (idx_bytes / 4) as u32;
         (vcap, icap)
