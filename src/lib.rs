@@ -9502,8 +9502,13 @@ mod native_app {
                                                 );
                                             }
                                             Err(e) => {
-                                                // Insert a sentinel so a missing
-                                                // asset logs once, not per frame.
+                                                // Sentinel so a missing asset logs
+                                                // once, not per frame. The sentinel
+                                                // is ALSO the shipped-build fallback
+                                                // marker: the draw site sees
+                                                // mi == usize::MAX on the model key
+                                                // and switches the species to its
+                                                // procedural twin (use_proc).
                                                 log::warn!(
                                                     "near-tree model {name} failed: {e}"
                                                 );
@@ -9511,6 +9516,72 @@ mod native_app {
                                                     name.to_string(),
                                                     (usize::MAX, usize::MAX),
                                                 );
+                                                // SHIPPED-BUILD FALLBACK (v0.1086,
+                                                // BUG-058): release bundles carry no
+                                                // assets/models/, so fir and pine
+                                                // rendered NOTHING at any distance.
+                                                // Build the species procedurally,
+                                                // exactly like the is_procedural()
+                                                // loop above - AT THE SPECIES
+                                                // HEIGHT, so the draw site's
+                                                // use_proc scale stays ~1.0. (Doing
+                                                // this at model scale and keeping
+                                                // the TREE_MODEL_H divisor would
+                                                // draw a 381 m fir - the critic's
+                                                // trap, journaled 2026-08-01.)
+                                                if !name.ends_with("_bark") {
+                                                    if let Some(vn) = stem
+                                                        .rfind("_v")
+                                                        .and_then(|i| stem[i + 2..].parse::<u32>().ok())
+                                                    {
+                                                        let va = vn.saturating_sub(1);
+                                                        let reg = crate::renderer::tree_mesh::registry();
+                                                        if let Some(t) =
+                                                            reg.trees.iter().find(|t| t.model == base)
+                                                        {
+                                                            let key = format!("proc:{}_v{va}", t.id);
+                                                            if !state
+                                                                .decoration_mesh_cache
+                                                                .contains_key(&key)
+                                                            {
+                                                                let mut b = crate::renderer::plant_mesh::PlantMeshBuilder::new();
+                                                                crate::renderer::tree_mesh::build_tree(
+                                                                    &mut b,
+                                                                    t,
+                                                                    t.height_m,
+                                                                    va.wrapping_mul(2_654_435_761),
+                                                                );
+                                                                let mesh = crate::renderer::mesh::Mesh::from_vertices(
+                                                                    &state.renderer.device,
+                                                                    &b.vertices,
+                                                                    &b.indices,
+                                                                );
+                                                                let mi = state.renderer.add_mesh(mesh);
+                                                                let ma = state.renderer.add_material_typed(
+                                                                    [1.0, 1.0, 1.0, 1.0],
+                                                                    0.0,
+                                                                    0.9,
+                                                                    20.0,
+                                                                );
+                                                                state
+                                                                    .decoration_mesh_cache
+                                                                    .insert(key, (mi, ma));
+                                                                bake_models.insert(
+                                                                    crate::renderer::billboard_bake::proc_key(&t.id, va),
+                                                                    crate::renderer::billboard_bake::BakeCpuModel {
+                                                                        vertices: b.vertices,
+                                                                        indices: b.indices,
+                                                                        texture: None,
+                                                                    },
+                                                                );
+                                                                log::info!(
+                                                                    "[NearTree] {}: procedural fallback built (shipped-build path)",
+                                                                    t.id
+                                                                );
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -9608,8 +9679,22 @@ mod native_app {
                                             Some("pine_sapling_small") => 1,
                                             _ => 0,
                                         };
+                                        // use_proc = the species is procedural by
+                                        // DATA, or its model FAILED to load (the
+                                        // usize::MAX sentinel) and the loader
+                                        // built its procedural twin - the
+                                        // shipped-build path. All three branches
+                                        // below (stem key, scale, suffixes) must
+                                        // agree on this one flag.
+                                        let use_proc = procedural
+                                            || tdef.map_or(false, |t| {
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .get(&format!("{}_v{}", t.model, va + 1))
+                                                    .map_or(false, |&(mi, _)| mi == usize::MAX)
+                                            });
                                         let stem = match tdef {
-                                            Some(t) if procedural => {
+                                            Some(t) if use_proc => {
                                                 format!("proc:{}_v{}", t.id, va)
                                             }
                                             Some(t) => format!("{}_v{}", t.model, va + 1),
@@ -9630,7 +9715,7 @@ mod native_app {
                                         // species height, so the instance scale
                                         // only carries the per-tree jitter.
                                         let scl = match tdef {
-                                            Some(t) if procedural => {
+                                            Some(t) if use_proc => {
                                                 tr.height_m / t.height_m.max(0.01)
                                             }
                                             _ => tr.height_m / TREE_MODEL_H[sp][va],
@@ -9639,7 +9724,7 @@ mod native_app {
                                         // A procedural tree is ONE mesh; the
                                         // photoscans are a trunk + foliage pair.
                                         let suffixes: &[&str] =
-                                            if procedural { &[""] } else { &["", "_bark"] };
+                                            if use_proc { &[""] } else { &["", "_bark"] };
                                         for suffix in suffixes {
                                             let key = format!("{stem}{suffix}");
                                             let Some(&(mi, ma)) =

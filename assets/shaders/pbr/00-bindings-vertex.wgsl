@@ -240,6 +240,13 @@ struct VertexOutput {
     // the baked shoreline depth genuinely interpolate); only the type-12
     // per-face decode reads this. With unshared meshes pack == uv exactly.
     @location(4) @interpolate(flat) pack: vec2<f32>,
+    // World-space wind displacement applied to this vertex (zero outside the
+    // type-20 wind branch). The fragment's plant material domain subtracts it
+    // to sample from the PRE-WIND position, so the bark/leaf pattern rides
+    // the swaying geometry instead of staying nailed to space while the mesh
+    // moves through it (operator: "the texture moves differently than the
+    // leaves... the bark shifts instead of being static", v0.1086).
+    @location(5) wind_offset: vec3<f32>,
 };
 
 // ── Ocean surface waves (material type 16, v0.876 real-water Stage 1) ──
@@ -540,6 +547,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     g_inst_data = vertex.inst_pos_fade;
     var out: VertexOutput;
     var world_pos = obj_model() * vec4<f32>(vertex.position, 1.0);
+    // Wind displacement in world space, for the fragment's pre-wind material
+    // domain (VertexOutput.wind_offset). Written only by the type-20 branch.
+    var wind_off_w = vec3<f32>(0.0, 0.0, 0.0);
     // The model matrix's w ROW carries per-object metadata (model[0].w =
     // LOD crossfade, v0.920), so rebuild the homogeneous w explicitly. For
     // an ordinary TRS matrix this is a no-op; with metadata present it is
@@ -695,6 +705,9 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         }
         world_pos = obj_model() * vec4<f32>(wind_pos, 1.0);
         world_pos = vec4<f32>(world_pos.xyz, 1.0);
+        // The world-space displacement this branch just applied: rotation of
+        // the object-space delta (w=0 - no translation).
+        wind_off_w = (obj_model() * vec4<f32>(wind_pos - vertex.position, 0.0)).xyz;
     }
 
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
@@ -792,6 +805,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         }
     }
     out.world_position = world_pos.xyz;
+    out.wind_offset = wind_off_w;
     out.clip_position = camera.view_proj * world_pos;
     // Water meshes carry the geomorph delta in the normal slot (v0.1041);
     // their geometric normal is the radial, which the water FS re-derives

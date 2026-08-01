@@ -1190,7 +1190,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // matched the trunk at the poles; at Fuji they ran 55 deg diagonal).
         // Plant pixels only, within the 12 m detail radius.
         let obj_inv = transpose(obj_normal_matrix());
-        let obj_p = (obj_inv * vec4<f32>(in.world_position - obj_model()[3].xyz, 0.0)).xyz;
+        // PRE-WIND position (v0.1086): subtract the wind displacement the
+        // vertex stage applied, so the material domain is the UNDEFORMED
+        // object space and the bark/leaf pattern rides the swaying mesh.
+        // Sampling from the displaced position anchored the pattern to
+        // world space while the geometry moved through it - the operator's
+        // "bark shifts instead of being static" / leaf-swim report.
+        let obj_p = (obj_inv
+            * vec4<f32>(in.world_position - in.wind_offset - obj_model()[3].xyz, 0.0)).xyz;
         let obj_n = normalize((obj_inv * vec4<f32>(normal, 0.0)).xyz);
 
         if (is_leaf && detail > 0.001) {

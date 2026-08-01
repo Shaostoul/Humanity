@@ -552,3 +552,29 @@ LESSON: additive light terms must name what LIGHT they scatter. Any term added
 to final color carrying only albedo/geometry factors is a night-glow bug by
 construction. And the emissive slot doubling as a type-specific data channel
 means "grep for emissive" is not an audit -- walk every `+` in the color path.
+
+## BUG-058: Fir and pine rendered NOTHING in a shipped build (fixed v0.1086.0)
+
+Release bundles carry no assets/models/ (build-desktop.yml ships data/ +
+icons + shaders only), and the near-tree loader had no fallback for
+model-backed species: the glTF parse failed, a sentinel was cached, the atlas
+tile stayed empty, and the card discarded on alpha - so the only two conifers
+in the game were invisible AT EVERY DISTANCE for anyone who downloaded it.
+The dev checkout masked it for months because the models exist there; every
+vegetation fidelity number to date blended 62 non-shipping photoscans.
+
+Fix: on parse failure the loader now builds the species PROCEDURALLY (fir
+and pine carry form:"conifer" in trees.ron), at the SPECIES height, cached
+under the proc key and fed to the card baker; the draw site derives use_proc
+from the sentinel and switches stem/scale/suffixes together. The scale had
+to branch BEFORE the TREE_MODEL_H divisor - the naive fallback (build proc,
+keep the model-scale math) draws a 381 m fir, because TREE_MODEL_H are
+~1.3-unit sapling scans (critic catch, journaled before implementation).
+
+Guard: fuji-forest-ground carries a "FIR AND PINE MUST BE VISIBLE IN A
+SHIPPED BUILD" regression naming all three legs of the hole.
+
+LESSON: the dev checkout is a strictly RICHER environment than the shipped
+product. Any feature keyed on an asset's presence needs a fallback tested
+with the asset ABSENT - and the rig junctions the full repo, so rig green
+does not cover it.
