@@ -42,7 +42,7 @@
 
 use super::mesh::Vertex;
 use super::plant_mesh::PlantMeshBuilder;
-use super::tree_mesh::{self, CardFootprint};
+use super::tree_mesh::{self, CardFootprint, ClusterCards, ClusterLayer};
 use super::Renderer;
 use wgpu::util::DeviceExt;
 
@@ -58,6 +58,11 @@ pub enum BakeMode {
     /// `terrain::planet_surface::pack_color_to_uv` (material type 20). Always
     /// covers, so no alpha test.
     PackedColor,
+    /// A cluster card (material type 21): sample the layer's baked sprite with
+    /// the AO-carrying UV decode, alpha-test the cutout. This is how a FAR
+    /// card can show the same crown the near model does - without it the
+    /// atlas tile for a clustered species would bake as a bare stick.
+    ClusterCard,
 }
 
 /// One model part to bake (crown, trunk, ...): CPU geometry + optional
@@ -92,8 +97,30 @@ pub fn proc_key(species_id: &str, variant: u32) -> String {
     format!("proc:{species_id}_v{variant}")
 }
 
+/// One baked cluster sprite, CPU-side, with its full mip chain.
+///
+/// The chain is built HERE rather than on the GPU because each level's alpha
+/// has to be rescaled so its above-cutoff coverage matches level 0's. Plain
+/// box filtering makes a cutout silhouette THIN OUT as it minifies (the
+/// classic alpha-test coverage loss - it is why this baker already had to drop
+/// the sprite cutoff from 0.5 to 0.3 and note that "the fir baked nearly
+/// bare"), which on a canopy reads as the crown dissolving with distance.
+#[derive(Clone, Debug)]
+pub struct ClusterSpriteImage {
+    /// Species id from `data/vegetation/trees.ron`.
+    pub species: String,
+    pub layer: ClusterLayer,
+    /// Side of level 0, texels.
+    pub size: u32,
+    /// RGBA8 levels, biggest first. Level i is `size >> i` square.
+    pub levels: Vec<Vec<u8>>,
+    /// Fraction of level 0's texels above the alpha cutoff - the MEASURED
+    /// number behind the species' `coverage` data field.
+    pub coverage: f32,
+}
+
 /// What one atlas bake did, for the caller's log/telemetry.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct BakeReport {
     /// Tiles that produced real pixels.
     pub tiles_baked: u32,
@@ -103,6 +130,11 @@ pub struct BakeReport {
     pub missing_models: u32,
     /// Time inside the bake itself (mesh generation + GPU submit), ms.
     pub bake_ms: f32,
+    /// Cluster sprites baked this pass, one per (species, layer). The caller
+    /// uploads each as its OWN mipped texture and hands it to a material -
+    /// they deliberately do NOT go in the 6x8 tree atlas, which cannot be
+    /// mipped without tile-border bleed.
+    pub cluster_sprites: Vec<ClusterSpriteImage>,
 }
 
 const BAKE_WGSL: &str = r#"
@@ -130,6 +162,19 @@ fn vs_main(@location(0) pos: vec3<f32>, @location(1) nrm: vec3<f32>, @location(2
 
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    if (u.mode.x > 1.5) {
+        // CLUSTER CARD path. uv.x carries a 6-bit AO code in its integer
+        // part (uv.x = 2*code + u01) - keep this decode identical to
+        // tree_mesh::decode_card_uv and the type-21 branch of
+        // 90-fragment-main.wgsl, or a card samples the wrong column.
+        let code = floor(in.uv.x * 0.5);
+        let cu = in.uv.x - 2.0 * code;
+        let cc = textureSampleLevel(tex, samp, vec2<f32>(cu, in.uv.y), 0.0);
+        if (cc.a < 0.5) {
+            discard;
+        }
+        return vec4<f32>(cc.rgb, 1.0);
+    }
     if (u.mode.x > 0.5) {
         // PACKED-COLOUR path (procedural species). Same three lines as the
         // type-20 decode in 90-fragment-main.wgsl: r and g are integers in
@@ -175,6 +220,38 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 pub const ATLAS_COLS: u32 = 6;
 pub const ATLAS_ROWS: u32 = 8;
 pub const ATLAS_TILE_PX: u32 = 256;
+
+// ── Cluster sprites (v0.1088) ────────────────────────────────────────────
+//
+// Each cluster sprite is its OWN mipped texture, NOT another atlas tile. Two
+// reasons, both load-bearing:
+//   - a 2D atlas cannot be mipped safely (filtering bleeds across tile
+//     borders), and an unmipped cutout crawls the moment it minifies, which
+//     is exactly where a forest gets looked at;
+//   - converting the atlas to a texture_2d_array would be a binding-TYPE
+//     change on a shared layout, i.e. the v0.1029-v0.1038 incident class.
+// A dedicated texture through the per-material albedo slot changes no layout
+// at all.
+
+/// Side of a finished cluster sprite, texels.
+pub const CLUSTER_SPRITE_PX: u32 = 256;
+
+/// Side it is RENDERED at before the box downsample. The bake pipeline is
+/// multisample count 1 and this engine has no MSAA anywhere, so the 4x
+/// supersample is the only anti-aliasing a cutout silhouette is ever going to
+/// get - and an alpha test amplifies whatever jaggedness survives.
+pub const CLUSTER_BAKE_PX: u32 = 1024;
+
+/// Alpha at or above which a cluster texel counts as covered. Keep in lockstep
+/// with the type-21 discard in `assets/shaders/pbr/90-fragment-main.wgsl` and
+/// the cluster branch of BAKE_WGSL above.
+pub const CLUSTER_ALPHA_CUTOFF: f32 = 0.5;
+
+/// Smallest mip level built. Stopping at 4x4 is deliberate: below that a level
+/// holds fewer texels than the coverage gate can meaningfully measure (a 2x2
+/// level quantises coverage to 25% steps), and a 0.5 m card is ~4 px on screen
+/// at the 120 m model/card handoff, so nothing smaller is ever sampled.
+pub const CLUSTER_MIP_MIN_PX: u32 = 4;
 
 /// Everything a bake needs that does NOT change per tile. Built once per atlas
 /// bake instead of once per tile: the old code compiled the shader module,
@@ -234,6 +311,11 @@ impl Renderer {
         dump_dir: Option<&std::path::Path>,
     ) -> BakeReport {
         let t0 = std::time::Instant::now();
+        // Cluster sprites FIRST: the atlas tiles for a clustered species are
+        // baked WITH their cards, so the far card shows the same crown the
+        // near model does. Without this the tile would bake as a bare stick
+        // the moment the blade layer was thinned.
+        let sprites = self.bake_cluster_sprites(dump_dir);
         let rig = self.bake_rig();
         let targets = self.bake_targets(ATLAS_TILE_PX);
         if let Some(dir) = dump_dir {
@@ -260,8 +342,17 @@ impl Renderer {
                     tree_mesh::build_tree(&mut b, t, t.height_m, v.wrapping_mul(2_654_435_761));
                     b
                 });
+                // Cluster cards for this (species, variant). Regenerated here
+                // rather than taken from `models`: the near-model loader
+                // caches only the wood mesh, and both come from the same
+                // deterministic `build_tree_and_cards`, so they agree.
+                let cards: Vec<ClusterCards> = if t.clusters.is_some() {
+                    tree_mesh::build_tree_and_cards(t, t.height_m, v.wrapping_mul(2_654_435_761)).1
+                } else {
+                    Vec::new()
+                };
                 // Model-backed: the stem plus its _bark pair, textured.
-                let parts: Vec<BakePart<'_>> = match (cached_proc, &proc_mesh) {
+                let mut parts: Vec<BakePart<'_>> = match (cached_proc, &proc_mesh) {
                     (Some(cpu), _) => vec![BakePart {
                         vertices: &cpu.vertices,
                         indices: &cpu.indices,
@@ -294,6 +385,20 @@ impl Renderer {
                         })
                         .collect(),
                 };
+                for c in &cards {
+                    let Some(spr) = sprites
+                        .iter()
+                        .find(|s| s.species == t.id && s.layer == c.layer)
+                    else {
+                        continue;
+                    };
+                    parts.push(BakePart {
+                        vertices: &c.mesh.vertices,
+                        indices: &c.mesh.indices,
+                        texture: Some((spr.levels[0].as_slice(), spr.size, spr.size)),
+                        mode: BakeMode::ClusterCard,
+                    });
+                }
                 if parts.is_empty() {
                     // Shipped builds have no assets/models/: log once per stem
                     // and leave the tile transparent. NOT an error - the six
@@ -328,6 +433,7 @@ impl Renderer {
                 }
             }
         }
+        report.cluster_sprites = sprites;
         report.bake_ms = t0.elapsed().as_secs_f32() * 1000.0;
         self.tree_atlas_ready = report.tiles_baked > 0;
         // The acceptance line for the bake-cost item: parse and bake are
@@ -585,7 +691,11 @@ impl Renderer {
             // can hold both.
             let mut ubytes: Vec<f32> = mvp.to_cols_array().to_vec();
             ubytes.extend_from_slice(&[
-                if p.mode == BakeMode::PackedColor { 1.0 } else { 0.0 },
+                match p.mode {
+                    BakeMode::Textured => 0.0,
+                    BakeMode::PackedColor => 1.0,
+                    BakeMode::ClusterCard => 2.0,
+                },
                 0.0,
                 0.0,
                 0.0,
@@ -599,7 +709,7 @@ impl Renderer {
                 });
             // Packed parts never sample, so they bind the fallback view.
             let own_tex = match (p.mode, p.texture) {
-                (BakeMode::Textured, Some((bytes, tw, th))) => {
+                (BakeMode::Textured | BakeMode::ClusterCard, Some((bytes, tw, th))) => {
                     let tex = self.device.create_texture(&wgpu::TextureDescriptor {
                         label: Some("billboard_bake_tex"),
                         size: wgpu::Extent3d { width: tw, height: th, depth_or_array_layers: 1 },
@@ -686,6 +796,185 @@ impl Renderer {
         Some(footprint)
     }
 
+    /// Bake every cluster sprite the registry asks for (v0.1088).
+    ///
+    /// BAKE, DO NOT RASTERIZE. This function writes no procedural sprite
+    /// painter: it hands `bake_parts_into` a sprig of the SAME real-scale
+    /// blades the tree grows (or a segment of flowering twig with real 3.5 cm
+    /// five-petalled flowers), and the existing orthographic path with its
+    /// `wgpu::Color::TRANSPARENT` clear returns true leaf silhouettes and true
+    /// overlap alpha for free. A sprite baked from anything OTHER than the
+    /// species' own geometry could disagree with the near model it hands off
+    /// to, which is the one defect this whole layer exists to avoid.
+    pub fn bake_cluster_sprites(&self, dump_dir: Option<&std::path::Path>) -> Vec<ClusterSpriteImage> {
+        let reg = tree_mesh::registry();
+        if !reg.trees.iter().any(|t| t.clusters.is_some()) {
+            return Vec::new();
+        }
+        let t0 = std::time::Instant::now();
+        let rig = self.bake_rig();
+        let targets = self.bake_targets(CLUSTER_BAKE_PX);
+        let srgb = matches!(
+            self.config.format,
+            wgpu::TextureFormat::Bgra8UnormSrgb | wgpu::TextureFormat::Rgba8UnormSrgb
+        );
+        let mut out: Vec<ClusterSpriteImage> = Vec::new();
+        for t in reg.trees.iter() {
+            let Some(cd) = t.clusters.as_ref() else { continue };
+            for layer in ClusterLayer::ALL {
+                let Some(mesh) = tree_mesh::cluster_sprite_geometry(t, layer, t.height_m) else {
+                    continue;
+                };
+                if mesh.indices.is_empty() {
+                    log::warn!("[Cluster] {} {}: sprite geometry is empty", t.id, layer.key());
+                    continue;
+                }
+                let parts = vec![BakePart {
+                    vertices: &mesh.vertices,
+                    indices: &mesh.indices,
+                    texture: None,
+                    mode: BakeMode::PackedColor,
+                }];
+                if self.bake_parts_into(&rig, &targets, &parts).is_none() {
+                    continue;
+                }
+                let Some(hi) =
+                    self.read_texture_rgba8(&targets.color, CLUSTER_BAKE_PX, CLUSTER_BAKE_PX)
+                else {
+                    log::warn!("[Cluster] {} {}: sprite readback failed", t.id, layer.key());
+                    continue;
+                };
+                let base = box_downsample_rgba(
+                    &hi,
+                    CLUSTER_BAKE_PX,
+                    CLUSTER_BAKE_PX,
+                    CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX,
+                    srgb,
+                );
+                let coverage = alpha_coverage(&base, CLUSTER_ALPHA_CUTOFF);
+                let levels = build_mip_chain(&base, CLUSTER_SPRITE_PX, CLUSTER_ALPHA_CUTOFF, srgb);
+                let want = cd.layer(layer).coverage;
+                // The data field is what the LAI planner spends; the bake is
+                // what actually covers. If they drift the crown misses its
+                // target leaf area silently, so say so out loud.
+                if (coverage - want).abs() > 0.15 {
+                    log::warn!(
+                        "[Cluster] {} {}: baked coverage {:.2} vs data {:.2} - the LAI fit is \
+                         spending the wrong number; correct `coverage` in trees.ron",
+                        t.id,
+                        layer.key(),
+                        coverage,
+                        want
+                    );
+                }
+                log::info!(
+                    "[Cluster] {} {}: {} mips from {}px, coverage {:.3} (data {:.2})",
+                    t.id,
+                    layer.key(),
+                    levels.len(),
+                    CLUSTER_BAKE_PX,
+                    coverage,
+                    want
+                );
+                // DEV AID: every level as a PNG, so the sprite (and the
+                // coverage rescale working down the chain) can be eyeballed
+                // without booting the world. Same trigger as the atlas dump:
+                // a showcase request of {"bake":"trees"}.
+                if let Some(dir) = dump_dir {
+                    let _ = std::fs::create_dir_all(dir);
+                    let mut w = CLUSTER_SPRITE_PX;
+                    for (li, lvl) in levels.iter().enumerate() {
+                        let path = dir.join(format!("cluster_{}_{}_mip{li}.png", t.id, layer.key()));
+                        match image::RgbaImage::from_raw(w, w, lvl.clone()) {
+                            Some(img) => {
+                                if let Err(e) = img.save(&path) {
+                                    log::warn!("[Cluster] png dump failed: {e}");
+                                }
+                            }
+                            None => log::warn!("[Cluster] level {li} is not {w}x{w}"),
+                        }
+                        w /= 2;
+                    }
+                }
+                out.push(ClusterSpriteImage {
+                    species: t.id.clone(),
+                    layer,
+                    size: CLUSTER_SPRITE_PX,
+                    levels,
+                    coverage,
+                });
+            }
+        }
+        log::info!(
+            "[Cluster] {} sprites in {:.0} ms",
+            out.len(),
+            t0.elapsed().as_secs_f32() * 1000.0
+        );
+        out
+    }
+
+    /// Read a bake target back to CPU RGBA8, swizzling BGRA when the
+    /// swapchain format demands it (same logic as `read_texture_to_png`, which
+    /// writes a file instead of handing the pixels back).
+    fn read_texture_rgba8(&self, texture: &wgpu::Texture, w: u32, h: u32) -> Option<Vec<u8>> {
+        if w == 0 || h == 0 {
+            return None;
+        }
+        let bytes_per_row = ((w * 4 + 255) / 256) * 256; // 256-byte row alignment
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("cluster_sprite_readback"),
+            size: (bytes_per_row * h) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("cluster_sprite_readback"),
+            });
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(h),
+                },
+            },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
+        );
+        self.queue.submit([encoder.finish()]);
+        let slice = buffer.slice(..);
+        slice.map_async(wgpu::MapMode::Read, |_| {});
+        let _ = self.device.poll(wgpu::Maintain::Wait);
+        let data = slice.get_mapped_range();
+        let bgra = matches!(
+            self.config.format,
+            wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+        );
+        let mut pixels = Vec::with_capacity((w * h * 4) as usize);
+        for row in 0..h {
+            let start = (row * bytes_per_row) as usize;
+            let row_bytes = &data[start..start + (w * 4) as usize];
+            if bgra {
+                for px in row_bytes.chunks_exact(4) {
+                    pixels.extend_from_slice(&[px[2], px[1], px[0], px[3]]);
+                }
+            } else {
+                pixels.extend_from_slice(row_bytes);
+            }
+        }
+        drop(data);
+        buffer.unmap();
+        Some(pixels)
+    }
+
     /// Copy the freshly rendered scratch tile into its slot of the persistent
     /// atlas. The atlas texture was created at init and is referenced by every
     /// group-3 bind group, so this is an in-place rewrite - no rebuilds.
@@ -722,6 +1011,169 @@ impl Renderer {
     }
 }
 
+// ── Cluster mip chain (pure CPU, so the gate runs in CI) ─────────────────
+
+fn srgb_to_linear(u: u8) -> f32 {
+    let c = u as f32 / 255.0;
+    if c <= 0.040_45 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn linear_to_srgb(v: f32) -> u8 {
+    let c = if v <= 0.003_130_8 {
+        v * 12.92
+    } else {
+        1.055 * v.powf(1.0 / 2.4) - 0.055
+    };
+    (c.clamp(0.0, 1.0) * 255.0 + 0.5) as u8
+}
+
+/// Box-downsample an RGBA8 image by an integer `factor`.
+///
+/// Two details that are not decoration:
+///   - RGB is averaged ALPHA-WEIGHTED, so the transparent black the bake
+///     clears to cannot bleed a dark fringe into a leaf edge as it minifies;
+///   - and when the source is sRGB-encoded (it is, the bake target is the
+///     swapchain format) the average is taken in LINEAR light, because
+///     averaging encoded values darkens every mixed texel.
+/// Alpha is a coverage fraction and is always linear, so it averages directly.
+pub fn box_downsample_rgba(src: &[u8], w: u32, h: u32, factor: u32, srgb: bool) -> Vec<u8> {
+    let f = factor.max(1);
+    let (dw, dh) = ((w / f).max(1), (h / f).max(1));
+    let mut out = vec![0u8; (dw * dh * 4) as usize];
+    let n = (f * f) as f32;
+    for y in 0..dh {
+        for x in 0..dw {
+            let (mut r, mut g, mut b, mut a) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+            for sy in 0..f {
+                for sx in 0..f {
+                    let px = ((y * f + sy) * w + (x * f + sx)) as usize * 4;
+                    if px + 3 >= src.len() {
+                        continue;
+                    }
+                    let av = src[px + 3] as f32 / 255.0;
+                    let (cr, cg, cb) = if srgb {
+                        (
+                            srgb_to_linear(src[px]),
+                            srgb_to_linear(src[px + 1]),
+                            srgb_to_linear(src[px + 2]),
+                        )
+                    } else {
+                        (
+                            src[px] as f32 / 255.0,
+                            src[px + 1] as f32 / 255.0,
+                            src[px + 2] as f32 / 255.0,
+                        )
+                    };
+                    r += cr * av;
+                    g += cg * av;
+                    b += cb * av;
+                    a += av;
+                }
+            }
+            let wsum = a.max(1e-6);
+            let (mr, mg, mb) = (r / wsum, g / wsum, b / wsum);
+            let d = ((y * dw + x) * 4) as usize;
+            if srgb {
+                out[d] = linear_to_srgb(mr);
+                out[d + 1] = linear_to_srgb(mg);
+                out[d + 2] = linear_to_srgb(mb);
+            } else {
+                out[d] = (mr.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+                out[d + 1] = (mg.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+                out[d + 2] = (mb.clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+            }
+            out[d + 3] = ((a / n).clamp(0.0, 1.0) * 255.0 + 0.5) as u8;
+        }
+    }
+    out
+}
+
+/// Fraction of texels whose alpha passes `cutoff`.
+pub fn alpha_coverage(rgba: &[u8], cutoff: f32) -> f32 {
+    coverage_scaled(rgba, cutoff, 1.0)
+}
+
+fn coverage_scaled(rgba: &[u8], cutoff: f32, scale: f32) -> f32 {
+    if rgba.len() < 4 {
+        return 0.0;
+    }
+    let thr = cutoff * 255.0;
+    let mut hit = 0usize;
+    let mut n = 0usize;
+    for px in rgba.chunks_exact(4) {
+        if px[3] as f32 * scale >= thr {
+            hit += 1;
+        }
+        n += 1;
+    }
+    if n == 0 {
+        0.0
+    } else {
+        hit as f32 / n as f32
+    }
+}
+
+/// Scale a level's alpha so its above-cutoff coverage matches `target`.
+///
+/// Binary search on the scale, the standard alpha-coverage-preserving mip
+/// build. Without it a cutout foliage sprite loses coverage every level and
+/// the canopy visibly thins with distance - the same failure mode that made
+/// the fir sprite bake "nearly bare" and forced this baker's 0.3 cutoff.
+fn rescale_alpha_to_coverage(rgba: &mut [u8], cutoff: f32, target: f32) {
+    if target <= 0.0 || rgba.len() < 4 {
+        return;
+    }
+    // The upper bound has to be generous: by the 8x8 level a sparse foliage
+    // silhouette has averaged down to alphas well under the cutoff, and a
+    // timid range would leave the level under-covered (the canopy dissolving
+    // at distance, which is the whole failure being prevented).
+    let (mut lo, mut hi) = (0.0f32, 16.0f32);
+    let mut best = 1.0f32;
+    let mut best_err = f32::MAX;
+    for _ in 0..16 {
+        let mid = 0.5 * (lo + hi);
+        let cov = coverage_scaled(rgba, cutoff, mid);
+        let err = (cov - target).abs();
+        if err < best_err {
+            best_err = err;
+            best = mid;
+        }
+        if cov > target {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    for px in rgba.chunks_exact_mut(4) {
+        px[3] = (px[3] as f32 * best).min(255.0) as u8;
+    }
+}
+
+/// Full mip chain for a square cluster sprite, biggest first.
+///
+/// Each level is box-filtered from the previous UNSCALED level (so the
+/// coverage corrections cannot compound into saturation) and then rescaled to
+/// level 0's coverage.
+pub fn build_mip_chain(base: &[u8], size: u32, cutoff: f32, srgb: bool) -> Vec<Vec<u8>> {
+    let mut levels = vec![base.to_vec()];
+    let target = alpha_coverage(base, cutoff);
+    let mut unscaled = base.to_vec();
+    let mut w = size;
+    while w > CLUSTER_MIP_MIN_PX && w >= 2 {
+        let down = box_downsample_rgba(&unscaled, w, w, 2, srgb);
+        let mut scaled = down.clone();
+        rescale_alpha_to_coverage(&mut scaled, cutoff, target);
+        levels.push(scaled);
+        unscaled = down;
+        w /= 2;
+    }
+    levels
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -741,6 +1193,187 @@ mod tests {
         let worst = (1 + cap) as f32 + 0.5;
         assert_eq!(worst.floor() as u32, cap + 1, "tile index lost integrality");
         assert!((worst.fract() - 0.5).abs() < 1e-6, "u01 fraction lost precision");
+    }
+
+    // ── Cluster sprite mip chain (v0.1088) ───────────────────────────────
+
+    /// A synthetic foliage-like cutout: scattered opaque discs on a
+    /// transparent field, which is the alpha statistic a real leaf-cluster
+    /// sprite has (many small blobs with gaps between them) and the hardest
+    /// case for coverage-preserving minification.
+    fn synthetic_sprite(size: u32, blobs: u32, r: f32) -> Vec<u8> {
+        let mut px = vec![0u8; (size * size * 4) as usize];
+        let mut s: u64 = 0x1234_5678_9abc_def0;
+        let mut next = || {
+            s ^= s >> 12;
+            s ^= s << 25;
+            s ^= s >> 27;
+            (s.wrapping_mul(0x2545_F491_4F6C_DD1D) >> 40) as f32 / (1u64 << 24) as f32
+        };
+        for _ in 0..blobs {
+            let cx = next() * size as f32;
+            let cy = next() * size as f32;
+            let rr = r * (0.6 + 0.8 * next());
+            let (x0, x1) = ((cx - rr).max(0.0) as u32, ((cx + rr) as u32 + 1).min(size));
+            let (y0, y1) = ((cy - rr).max(0.0) as u32, ((cy + rr) as u32 + 1).min(size));
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let d = ((x as f32 - cx).powi(2) + (y as f32 - cy).powi(2)).sqrt();
+                    if d <= rr {
+                        let i = ((y * size + x) * 4) as usize;
+                        px[i] = 60;
+                        px[i + 1] = 120;
+                        px[i + 2] = 40;
+                        px[i + 3] = 255;
+                    }
+                }
+            }
+        }
+        px
+    }
+
+    /// The production path in miniature: a BINARY silhouette rendered at
+    /// `CLUSTER_BAKE_PX` and box-downsampled to `CLUSTER_SPRITE_PX`, which is
+    /// what gives level 0 its smooth partial-coverage alpha. Testing the mip
+    /// build against a binary 256 px image instead would be testing a case
+    /// the baker never produces.
+    fn baked_sprite(blobs: u32, r: f32) -> Vec<u8> {
+        let hi = synthetic_sprite(CLUSTER_BAKE_PX, blobs, r * (CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX) as f32);
+        box_downsample_rgba(
+            &hi,
+            CLUSTER_BAKE_PX,
+            CLUSTER_BAKE_PX,
+            CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX,
+            true,
+        )
+    }
+
+    /// THE CI GATE for the mip build: every level's above-cutoff coverage
+    /// must stay within 5% of level 0's.
+    ///
+    /// Plain box filtering makes an alpha-tested silhouette LOSE coverage at
+    /// every level - a 256 px sprite drawn 6 px wide keeps a fraction of the
+    /// texels it should - so the canopy visibly thins with distance and the
+    /// cutout crawls as the camera moves. That failure already bit this baker
+    /// once (the fir "baked nearly bare", and the cutoff was dropped 0.5 ->
+    /// 0.3 to paper over it).
+    #[test]
+    fn cluster_mip_chain_preserves_alpha_coverage() {
+        let size = CLUSTER_SPRITE_PX;
+        for (blobs, r) in [(60u32, 9.0f32), (160, 5.0), (25, 20.0)] {
+            let base = baked_sprite(blobs, r);
+            let levels = build_mip_chain(&base, size, CLUSTER_ALPHA_CUTOFF, true);
+            let target = alpha_coverage(&base, CLUSTER_ALPHA_CUTOFF);
+            assert!(target > 0.05 && target < 0.95, "degenerate test sprite: coverage {target}");
+            let mut w = size;
+            for (i, lvl) in levels.iter().enumerate() {
+                assert_eq!(
+                    lvl.len(),
+                    (w * w * 4) as usize,
+                    "level {i} is not {w}x{w}"
+                );
+                let cov = alpha_coverage(lvl, CLUSTER_ALPHA_CUTOFF);
+                let texels = (w * w) as f32;
+                // Below 16x16 a level holds so few texels that its coverage
+                // quantises coarser than 5% (an 8x8 level steps in 1.6%
+                // chunks and a 4x4 in 6.25%), so the gate there is what one
+                // texel is worth rather than a percentage nothing could hit.
+                let tol = if texels >= 256.0 { target * 0.05 } else { 1.5 / texels };
+                eprintln!(
+                    "[mip] {blobs} blobs r{r}: level {i} {w}x{w} coverage {cov:.4} vs {target:.4} \
+                     (tol {tol:.4})"
+                );
+                assert!(
+                    (cov - target).abs() <= tol.max(0.005),
+                    "mip level {i} ({w}x{w}) covers {cov:.3} against level 0's {target:.3} - the \
+                     alpha-coverage rescale is gone, so this sprite will thin out with distance"
+                );
+                w /= 2;
+            }
+            assert!(levels.len() >= 6, "chain stopped at {} levels", levels.len());
+        }
+    }
+
+    /// The chain must stop where a level stops being measurable, and every
+    /// level must be square and complete (wgpu validates the level count
+    /// against the texture size at upload).
+    #[test]
+    fn cluster_mip_chain_is_complete_down_to_the_floor() {
+        let base = baked_sprite(80, 8.0);
+        let levels = build_mip_chain(&base, CLUSTER_SPRITE_PX, CLUSTER_ALPHA_CUTOFF, true);
+        let mut w = CLUSTER_SPRITE_PX;
+        for lvl in &levels {
+            assert_eq!(lvl.len(), (w * w * 4) as usize);
+            w /= 2;
+        }
+        assert_eq!(w * 2, CLUSTER_MIP_MIN_PX, "chain did not stop at the {CLUSTER_MIP_MIN_PX}px floor");
+    }
+
+    /// The 4x supersample downsample is the only anti-aliasing a cutout
+    /// silhouette gets (the bake pipeline is multisample count 1 and this
+    /// engine has no MSAA anywhere), so it has to actually average.
+    #[test]
+    fn box_downsample_averages_coverage_and_shrinks_by_the_factor() {
+        // A 4x4 field, half covered: downsampling by 4 must give ONE texel at
+        // half alpha, not a nearest-neighbour pick.
+        let mut src = vec![0u8; 4 * 4 * 4];
+        for i in 0..8 {
+            src[i * 4] = 255;
+            src[i * 4 + 1] = 255;
+            src[i * 4 + 2] = 255;
+            src[i * 4 + 3] = 255;
+        }
+        let out = box_downsample_rgba(&src, 4, 4, 4, false);
+        assert_eq!(out.len(), 4, "expected a single RGBA texel");
+        assert!((out[3] as i32 - 128).abs() <= 1, "alpha averaged to {}", out[3]);
+        // ...and RGB is alpha-weighted, so the transparent half cannot drag
+        // the covered half toward black.
+        assert!(out[0] > 250, "rgb bled toward the transparent clear: {}", out[0]);
+        let big = synthetic_sprite(64, 20, 6.0);
+        let small = box_downsample_rgba(&big, 64, 64, 4, true);
+        assert_eq!(small.len(), (16 * 16 * 4) as usize);
+    }
+
+    /// The bake shader's cluster-card decode must be the SAME arithmetic as
+    /// the generator's `encode_card_uv`, or a card samples the wrong column of
+    /// its sprite. (The megashader's type-21 branch is checked by
+    /// `tree_mesh::tests::card_uv_round_trips_the_ao_code_exactly` plus the
+    /// lockstep scan below once the branch lands.)
+    #[test]
+    fn bake_shader_cluster_decode_matches_the_generator() {
+        for line in ["let code = floor(in.uv.x * 0.5);", "let cu = in.uv.x - 2.0 * code;"] {
+            assert!(BAKE_WGSL.contains(line), "the bake shader lost `{line}`");
+        }
+        // And the WGSL cutoff literal must be the Rust constant.
+        assert!(
+            BAKE_WGSL.contains(&format!("cc.a < {CLUSTER_ALPHA_CUTOFF:.1}")),
+            "bake cutoff drifted from CLUSTER_ALPHA_CUTOFF = {CLUSTER_ALPHA_CUTOFF}"
+        );
+    }
+
+    /// LOCKSTEP with the megashader, conditional until the type-21 branch is
+    /// wired: the moment `90-fragment-main.wgsl` grows a cluster-card branch,
+    /// its decode and its cutoff must match this baker's exactly. Written this
+    /// way so the generator half can ship and be verified on its own without
+    /// asserting a shader branch that is not there yet.
+    #[test]
+    fn megashader_cluster_branch_when_present_matches_the_bake() {
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let has_21 = wgsl.contains("material_type >= 20.5 && material_type < 21.5");
+        if !has_21 {
+            eprintln!(
+                "[lockstep] 90-fragment-main.wgsl has no type-21 branch yet - cluster cards are \
+                 generated and baked but not yet drawn (wiring pending)"
+            );
+            return;
+        }
+        for line in ["floor(in.uv.x * 0.5)", "in.uv.x - 2.0 * code"] {
+            assert!(
+                wgsl.contains(line),
+                "the type-21 cluster decode in 90-fragment-main.wgsl does not contain `{line}` - \
+                 it must match tree_mesh::decode_card_uv and the bake shader exactly"
+            );
+        }
     }
 
     /// The bake shader's packed decode must be the SAME arithmetic as the

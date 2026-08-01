@@ -255,6 +255,26 @@ impl PlantMeshBuilder {
         self.indices.extend_from_slice(&[base, base + 1, base + 2]);
     }
 
+    /// Push one triangle with EXPLICIT per-vertex normals AND explicit UVs.
+    ///
+    /// The cluster-card transport (material type 21, v0.1088) is the one thing
+    /// in this builder that does NOT ride the packed-colour channel: a card
+    /// samples a baked sprite, so `uv` has to survive interpolation as a REAL
+    /// texture coordinate. Colour therefore comes from the sprite, and the
+    /// spare integer part of `uv.x` carries the card's baked ambient-occlusion
+    /// code instead of a packed RGB (see `tree_mesh::encode_card_uv`).
+    ///
+    /// Normals are explicit for the same reason `tri_smooth` exists: a cluster
+    /// card is lit as a rounded tuft, not as the flat quad it geometrically is,
+    /// so every corner carries its own spherified normal.
+    pub(crate) fn card_tri(&mut self, p: [[f32; 3]; 3], n: [[f32; 3]; 3], uv: [[f32; 2]; 3]) {
+        let base = self.vertices.len() as u32;
+        for i in 0..3 {
+            self.vertices.push(Vertex { position: p[i], normal: norm(n[i]), uv: uv[i] });
+        }
+        self.indices.extend_from_slice(&[base, base + 1, base + 2]);
+    }
+
     pub(crate) fn tube(&mut self, from: [f32; 3], to: [f32; 3], r0: f32, r1: f32, sides: u32, color: [f32; 3]) {
         let axis = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
         let alen = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(1e-6);

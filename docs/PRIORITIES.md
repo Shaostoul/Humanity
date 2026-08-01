@@ -11,6 +11,8 @@
 
 ## Active focus
 
+> **>>> THE TOP ITEM IS THE VEGETATION ARC (since 2026-08-01): foliage CLUSTER CARDS, sakura first. The crown is not a canopy (measured leaf area index 0.31-0.50 against a real 3-5), and cluster cards are the only configuration where honest leaf area fits the shipped triangle budget. The WATER ARC below is still open and still ranked, but it is no longer what is being worked on.**
+
 > **>>> WATER ARC (2026-07-27 evening field report, operator: "We need to do
 > a lot of work on the water to make it look better. Maybe the water is one
 > of the biggest performance hits since it's behaving so weird?"). THE
