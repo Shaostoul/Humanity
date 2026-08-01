@@ -120,7 +120,10 @@
                     // SEVERAL umbels at their real along-twig spacing, which
                     // is what reproduces the reference photo (a branch
                     // wrapped in white-pink) at a third of the card count.
-                    size_m: 0.45,
+                    // 0.45 -> 0.62 (v0.1088.2 tuning): at range the pink read
+                    // as flecks among green; a full-bloom yoshino is pink
+                    // MASSES first, leaves second (operator reference photos).
+                    size_m: 0.62,
                     coverage: 0.45,
                     cards_per_sleeve: 4,
                     sleeve_spacing_m: 0.20,
@@ -133,7 +136,9 @@
                     // half-metre patch of blooming crown really does hold
                     // several last-generation twigs, and 4 of them measured
                     // 0.26 coverage against the 0.45 this planner spends.
-                    sprite_runs: 9,
+                    // 9 -> 14 (v0.1088.2): denser twiglet pack = higher real
+                    // coverage = more pink per card at the same overdraw.
+                    sprite_runs: 14,
                 ),
                 // Prunus x yedoensis: 3.5 cm flowers, 3-6 per umbel, umbels a
                 // few centimetres apart on two-year-and-older wood.
