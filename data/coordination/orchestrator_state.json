@@ -577,6 +577,11 @@
    "date": "2026-08-01",
    "decision": "Cluster cards MERGED (compiles, 1249 tests green) but INCOMPLETE: build_tree() wrapper drops the card meshes, so nothing draws them - main probe shows sakura crowns as near-bare skeletons (5/3 sprigs, foliage mass moved to undrawn cards). INTEGRATOR WIRING NEEDED in lib.rs near-tree loader: call build_tree_and_cards, create card meshes + textured materials from the baked cluster sprites (bake_cluster_sprites in billboard_bake.rs), cache + draw them alongside the wood mesh. Writer claim -no wiring requests- meant compiles-unchanged, not draws.",
    "why": "Do NOT ship until sakura crowns show the card mass. If context compacts mid-wiring: read build_tree_and_cards signature in tree_mesh.rs (~:545) and the ClusterCard bake mode in billboard_bake.rs; the draw site is the use_proc block in lib.rs ~9611-9700; card material must keep leaf shading (challenger: NOT bare type 19, would recreate BUG-056)."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "CLUSTER-CARD WIRING SPEC (complete, for post-compaction execution as v0.1088.0): (1) SHADER - new material-type branch in 90-fragment-main.wgsl for cluster cards: sample the sprite texture (per-material albedo slot @group(3)), alpha cutout at 0.5, decode AO from uv.x integer part (encode_card_uv/decode_card_uv contract in tree_mesh.rs ~:988), KEEP leaf shading (transmission) per the challenger - NOT bare type 19; vertex side may need the card wind shear later (rung 2). (2) LIB.RS loop 1 (~:9384) + fallback arm: build_tree_and_cards instead of build_tree; per ClusterCards layer create mesh + textured material with the matching ClusterSpriteImage (bake_cluster_sprites at billboard_bake.rs:809 already runs inside the registry bake at :318 - textures exist at runtime, mips included); cache under proc:{id}_v{v}:cardN keys. (3) DRAW SITE (use_proc block ~:9611): push the card cache entries alongside the wood mesh. (4) Check the design doc WIRING section the writer appended for the exact material contract before coding.",
+   "why": "Main currently has sakura crowns hollow (cards built but never drawn, no shader branch). Not yet released - wire before tagging v0.1088.0. Then: probe fuji for full blossom crowns vs operator reference photos; then bark PBR bake (overnight plan step 2), wind rung 2, grass strands."
   }
  ],
  "active_scopes_to_avoid": [
