@@ -9378,12 +9378,31 @@ mod native_app {
                                     let mut tree_parse_ms = 0.0f32;
                                     // Cluster sprites baked up front (v0.1088): the
                                     // card MATERIALS need the sprite textures at
-                                    // mesh-build time. CPU-only, ~100 ms for the
-                                    // clustered species. The registry atlas bake
-                                    // below re-derives its own copy for the far
-                                    // tiles; deduplicating that is a follow-up.
-                                    let cluster_sprites =
-                                        state.renderer.bake_cluster_sprites(None);
+                                    // mesh-build time. BUG-059 (v0.1088.3): this
+                                    // whole block is PER-FRAME (the moved>12 m
+                                    // hysteresis closes above it, not around it),
+                                    // and the original unconditional call here ran
+                                    // the ~90 ms blocking bake EVERY FRAME - 1671+
+                                    // [Cluster] lines per session on three rigs,
+                                    // costing the whole frame budget. Bake ONLY
+                                    // when a clustered species still lacks its
+                                    // card cache entry (i.e. once, at world entry,
+                                    // and again only if new species stream in).
+                                    let need_sprites = {
+                                        use crate::renderer::tree_mesh;
+                                        tree_mesh::registry().trees.iter().any(|t| {
+                                            t.is_procedural()
+                                                && t.clusters.is_some()
+                                                && !state.decoration_mesh_cache.contains_key(
+                                                    &format!("proc:{}_v0:card0", t.id),
+                                                )
+                                        })
+                                    };
+                                    let cluster_sprites = if need_sprites {
+                                        state.renderer.bake_cluster_sprites(None)
+                                    } else {
+                                        Vec::new()
+                                    };
                                     {
                                         use crate::renderer::tree_mesh;
                                         let reg = tree_mesh::registry();

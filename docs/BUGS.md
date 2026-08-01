@@ -578,3 +578,22 @@ LESSON: the dev checkout is a strictly RICHER environment than the shipped
 product. Any feature keyed on an asset's presence needs a fallback tested
 with the asset ABSENT - and the rig junctions the full repo, so rig green
 does not cover it.
+
+## BUG-059: The cluster-sprite bake ran every frame (fixed v0.1088.3)
+
+The v0.1088.0 card wiring called bake_cluster_sprites unconditionally inside
+the near-tree block, which is PER-FRAME - the moved>12m hysteresis closes
+ABOVE the call, not around it. Every consumer below is guarded by cache
+checks, so from frame 2 the ~90 ms blocking bake (device.poll Wait) was
+computed and discarded: 1,671-4,576 [Cluster] lines per session on three
+independent rigs, eating the entire frame budget (fuji 8.5 fps). Found by a
+domain-pass challenger agent measuring a different thing entirely.
+
+Fix: bake only when a clustered species lacks its card cache entry. After:
+6 [Cluster] lines per session, 24.5 fps / 40.7 ms at the same vantage.
+
+LESSON: "runs once" must be enforced by a guard you can point at, not by
+assumption about the enclosing block - the near-tree block LOOKS like a
+once-per-arrival block and is not. And a frame-time regression right after
+a wiring change is the wiring until proven otherwise - I attributed the
+drop to card draw cost without measuring.
