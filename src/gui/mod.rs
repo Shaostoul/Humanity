@@ -6604,7 +6604,8 @@ pub struct SettingsState {
     /// only). Grass/tree silhouette cards continue past this range.
     pub tree_model_distance: f32,
     /// Vegetation spawn density multiplier (v0.1083, operator: fewer trees,
-    /// free up GPU). Scales TREES_PER_CELL and GRASS_PER_CELL at patch build;
+    /// free up GPU). Scales TREES_PER_CELL at patch build and GRASS_PEAK_PER_M2
+    /// in the near-field strand harvest;
     /// 1.0 = the historical full density, default 0.6.
     pub veg_density: f32,
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff in metres -
