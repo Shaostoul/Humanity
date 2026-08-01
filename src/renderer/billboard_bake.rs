@@ -234,13 +234,30 @@ pub const ATLAS_TILE_PX: u32 = 256;
 // at all.
 
 /// Side of a finished cluster sprite, texels.
-pub const CLUSTER_SPRITE_PX: u32 = 256;
+///
+/// 256 -> 512 (v0.1090). A card settles at 0.5-0.86 m on sakura, so 256 px is
+/// 2.0-3.4 mm per texel: a 35 mm cherry blossom got 10-17 texels across and a
+/// 90 mm leaf blade got 26-45, which is enough for a MASS and not enough for a
+/// FLOWER. The operator's close-up is exactly the range where that shows. At
+/// 512 the same card carries 1.0-1.7 mm texels, so a petal notch - the shape
+/// cue that separates a cherry from every other white five-petalled flower -
+/// survives the bake instead of being averaged away.
+///
+/// Memory is not the constraint: one sprite is 512*512*4 = 1 MB plus a third
+/// for its mip chain, and the shipped registry bakes two of them.
+pub const CLUSTER_SPRITE_PX: u32 = 512;
 
 /// Side it is RENDERED at before the box downsample. The bake pipeline is
 /// multisample count 1 and this engine has no MSAA anywhere, so the 4x
 /// supersample is the only anti-aliasing a cutout silhouette is ever going to
 /// get - and an alpha test amplifies whatever jaggedness survives.
-pub const CLUSTER_BAKE_PX: u32 = 1024;
+///
+/// This must stay an integer multiple of `CLUSTER_SPRITE_PX` (the downsample is
+/// a box filter of factor `CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX`), and the
+/// multiple must stay 4 or the silhouette loses the only anti-aliasing it gets.
+/// 2048 is a quarter of the 8192 minimum guaranteed `max_texture_dimension_2d`,
+/// so no device-limit risk (the v0.782 incident class).
+pub const CLUSTER_BAKE_PX: u32 = 2048;
 
 /// Alpha at or above which a cluster texel counts as covered. Keep in lockstep
 /// with the type-21 discard in `assets/shaders/pbr/90-fragment-main.wgsl` and
@@ -914,6 +931,59 @@ impl Renderer {
         out
     }
 
+    /// The material one cluster-card layer draws with: material type 21, the
+    /// layer's sprite in the per-material albedo slot, and - the point of this
+    /// function - its FULL MIP CHAIN behind a trilinear sampler (v0.1090).
+    ///
+    /// `bake_cluster_sprites` has built that chain since v0.1088 and the only
+    /// consumer uploaded `levels[0]` through `add_textured_material`, which
+    /// takes ONE level and binds the shared `albedo_sampler` (mipmap filter
+    /// Nearest, address mode Repeat in U - both right for equirect planet
+    /// imagery, both wrong for an alpha-tested card sprite). So the whole
+    /// coverage-preserving mip build, and the `CLUSTER_MIP_MIN_PX` floor, and
+    /// the reason cluster sprites are separate textures instead of atlas tiles
+    /// at all, were being thrown away at the upload: an unmipped cutout crawls
+    /// the moment it minifies, which is exactly where a forest is looked at.
+    ///
+    /// Bindings are unchanged - level count and sampler are texture and
+    /// bind-group STATE, not layout state, so this touches none of the three
+    /// `create_bind_group` sites' entry counts (the v0.1029-v0.1038 incident
+    /// class).
+    ///
+    /// The sampler is created per call rather than memoized on `Renderer`
+    /// (that struct is not this module's to extend): the shipped registry asks
+    /// for two cluster materials per session, so two sampler objects.
+    pub fn cluster_sprite_material(&mut self, spr: &ClusterSpriteImage) -> usize {
+        let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Cluster Sprite Sampler"),
+            // CLAMP on both axes: a card's UV runs 0..1 and nothing tiles, so
+            // repeating would let the linear filter pull the opposite edge in
+            // at the border.
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            // wgpu requires all three filters Linear when anisotropy_clamp > 1,
+            // and a real chain to filter between - which this has.
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..Default::default()
+        });
+        let refs: Vec<&[u8]> = spr.levels.iter().map(|l| l.as_slice()).collect();
+        let bg = self.build_material_texture_bind_group(&refs, spr.size, spr.size, &sampler);
+        let idx = self.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.9, 21.0, 0.0);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        log::info!(
+            "[Cluster] {} {}: material {idx} with {} mip levels from {}px",
+            spr.species,
+            spr.layer.key(),
+            spr.levels.len(),
+            spr.size
+        );
+        idx
+    }
+
     /// Read a bake target back to CPU RGBA8, swizzling BGRA when the
     /// swapchain format demands it (same logic as `read_texture_to_png`, which
     /// writes a file instead of handing the pixels back).
@@ -1015,12 +1085,22 @@ impl Renderer {
 // ── Cluster mip chain (pure CPU, so the gate runs in CI) ─────────────────
 
 fn srgb_to_linear(u: u8) -> f32 {
-    let c = u as f32 / 255.0;
-    if c <= 0.040_45 {
-        c / 12.92
-    } else {
-        ((c + 0.055) / 1.055).powf(2.4)
-    }
+    // EXACT, not an approximation: the input is a u8, so the whole function has
+    // 256 possible answers and a table is the same numbers without the powf.
+    // That matters because `box_downsample_rgba` calls this once per source
+    // CHANNEL - at the v0.1090 cluster bake size that is 2048*2048*3 = 12.6
+    // million calls per sprite, and `powf` is ~40 ns, so the table is the
+    // difference between a ~500 ms bake and a ~300 ms one. Built once per
+    // process by `OnceLock`.
+    static LUT: std::sync::OnceLock<[f32; 256]> = std::sync::OnceLock::new();
+    LUT.get_or_init(|| {
+        let mut t = [0.0f32; 256];
+        for (i, v) in t.iter_mut().enumerate() {
+            let c = i as f32 / 255.0;
+            *v = if c <= 0.040_45 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) };
+        }
+        t
+    })[u as usize]
 }
 
 fn linear_to_srgb(v: f32) -> u8 {
@@ -1324,13 +1404,28 @@ mod tests {
         px
     }
 
+    /// Reference sprite side the test cases below are written against.
+    ///
+    /// `blobs` and `r` describe a 256 px sprite; `baked_sprite` rescales both
+    /// to whatever `CLUSTER_SPRITE_PX` currently is so the COVERAGE statistic
+    /// the mip gate exercises is invariant. Without this the 256 -> 512 bump
+    /// (v0.1090) quartered every case's coverage and the sparsest one fell
+    /// through the gate's own "degenerate test sprite" floor - a test failing
+    /// because the constant it is parameterised by moved, not because the code
+    /// under test broke.
+    const REF_PX: u32 = 256;
+
     /// The production path in miniature: a BINARY silhouette rendered at
     /// `CLUSTER_BAKE_PX` and box-downsampled to `CLUSTER_SPRITE_PX`, which is
     /// what gives level 0 its smooth partial-coverage alpha. Testing the mip
-    /// build against a binary 256 px image instead would be testing a case
-    /// the baker never produces.
+    /// build against a binary sprite instead would be testing a case the baker
+    /// never produces.
     fn baked_sprite(blobs: u32, r: f32) -> Vec<u8> {
-        let hi = synthetic_sprite(CLUSTER_BAKE_PX, blobs, r * (CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX) as f32);
+        // Radius scales with the SIDE, count with the AREA, so coverage holds.
+        let k = CLUSTER_SPRITE_PX as f32 / REF_PX as f32;
+        let n = ((blobs as f32 * k * k).round() as u32).max(1);
+        let ss = (CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX) as f32;
+        let hi = synthetic_sprite(CLUSTER_BAKE_PX, n, r * k * ss);
         box_downsample_rgba(
             &hi,
             CLUSTER_BAKE_PX,
@@ -1338,6 +1433,42 @@ mod tests {
             CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX,
             true,
         )
+    }
+
+    /// The cluster bake is a 4x SUPERSAMPLE followed by a box downsample, and
+    /// that is the only anti-aliasing an alpha-tested cutout ever gets in this
+    /// engine (multisample count 1, no MSAA anywhere).
+    ///
+    /// Raising `CLUSTER_SPRITE_PX` without raising `CLUSTER_BAKE_PX` with it
+    /// would silently drop the factor to 2 or 1 - the silhouette would still
+    /// bake, still mip and still pass every other test in this file, and the
+    /// only symptom would be jaggier flower edges in a screenshot. Lock it.
+    #[test]
+    fn cluster_bake_keeps_its_four_times_supersample() {
+        assert_eq!(
+            CLUSTER_BAKE_PX % CLUSTER_SPRITE_PX,
+            0,
+            "the box downsample factor {}/{} is not a whole number",
+            CLUSTER_BAKE_PX,
+            CLUSTER_SPRITE_PX
+        );
+        assert_eq!(
+            CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX,
+            4,
+            "cluster sprites bake at {}x supersample, not 4x",
+            CLUSTER_BAKE_PX / CLUSTER_SPRITE_PX
+        );
+        assert!(
+            CLUSTER_SPRITE_PX.is_power_of_two() && CLUSTER_BAKE_PX.is_power_of_two(),
+            "the mip chain halves from {CLUSTER_SPRITE_PX} and needs a power of two"
+        );
+        // wgpu's downlevel-guaranteed `max_texture_dimension_2d` is 8192; the
+        // bake target is square and the readback allocates a 4-byte row per
+        // texel, so this also bounds the readback at 64 MB.
+        assert!(
+            CLUSTER_BAKE_PX <= 8192,
+            "a {CLUSTER_BAKE_PX} px bake target risks a device-limit rejection at world entry"
+        );
     }
 
     /// THE CI GATE for the mip build: every level's above-cutoff coverage
