@@ -290,43 +290,55 @@ pub(crate) fn poll_showcase_request(state: &mut EngineState) {
         log::info!("Planet clouds: {}", state.gui_state.settings.planet_clouds);
     }
     // Optional "bake":"trees" runs the automated billboard sprite baker
-    // (v0.959) over the six conifers: each stem's crown + _bark trunk
-    // render side-on into debug/bakes/<stem>.png with transparent
-    // background. The verification surface for the model-to-card pipeline.
+    // (v0.959) over EVERY species in data/vegetation/trees.ron (v0.1083, was
+    // the six hardcoded conifers): each tile renders side-on into
+    // debug/bakes/tileNN_<id>_vN.png with a transparent background. The
+    // verification surface for the model-to-card pipeline, and the way to
+    // eyeball all 24 tiles without spending a probe-rig run.
     if grab("bake").as_deref() == Some("trees") {
         let out_dir = std::path::Path::new("debug").join("bakes");
-        for base in ["fir_sapling", "pine_sapling_small"] {
-            for v in 1..=3 {
-                let stem = format!("{base}_v{v}");
-                let mut loaded = Vec::new();
+        // Model-backed species need their glTF parsed; procedural ones build
+        // themselves inside the baker.
+        let mut models: std::collections::HashMap<
+            String,
+            crate::renderer::billboard_bake::BakeCpuModel,
+        > = std::collections::HashMap::new();
+        let t_parse = std::time::Instant::now();
+        for t in crate::renderer::tree_mesh::registry().trees.iter() {
+            if t.is_procedural() {
+                continue;
+            }
+            for v in 1..=t.variants.max(1) {
                 for suffix in ["", "_bark"] {
-                    let rel = format!("assets/models/plants/{base}/{stem}{suffix}.gltf");
+                    let rel = format!(
+                        "assets/models/plants/{m}/{m}_v{v}{suffix}.gltf",
+                        m = t.model
+                    );
                     match state.asset_manager.parse_gltf_mesh_with_texture(&rel) {
-                        Ok(pair) => loaded.push(pair),
-                        Err(e) => log::warn!("[Bake] {stem}{suffix}: {e}"),
+                        Ok((cpu, tex)) => {
+                            models.insert(
+                                rel,
+                                crate::renderer::billboard_bake::BakeCpuModel {
+                                    vertices: cpu.vertices,
+                                    indices: cpu.indices,
+                                    texture: tex,
+                                },
+                            );
+                        }
+                        Err(e) => log::warn!("[Bake] {rel}: {e}"),
                     }
-                }
-                let parts: Vec<crate::renderer::billboard_bake::BakePart> = loaded
-                    .iter()
-                    .map(|(cpu, tex)| crate::renderer::billboard_bake::BakePart {
-                        vertices: &cpu.vertices,
-                        indices: &cpu.indices,
-                        texture: tex.as_ref().map(|(b, w, h)| (b.as_slice(), *w, *h)),
-                    })
-                    .collect();
-                if parts.is_empty() {
-                    continue;
-                }
-                let path = out_dir.join(format!("{stem}.png"));
-                match state.renderer.bake_billboard_to_png(&parts, 512, &path) {
-                    Ok((w_m, h_m)) => log::info!(
-                        "[Bake] {stem}: sprite {} ({w_m:.2} x {h_m:.2} m footprint)",
-                        path.display()
-                    ),
-                    Err(e) => log::error!("[Bake] {stem} FAILED: {e}"),
                 }
             }
         }
+        let parse_ms = t_parse.elapsed().as_secs_f32() * 1000.0;
+        let report = state
+            .renderer
+            .bake_tree_atlas_from_registry(&models, parse_ms, Some(&out_dir));
+        log::info!(
+            "[Bake] dump -> {} ({} tiles)",
+            out_dir.display(),
+            report.tiles_baked
+        );
     }
     // Optional "enter":"default" mimics the Play button: load the default
     // character into the world (machines + garden come alive), falling

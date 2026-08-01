@@ -670,3 +670,384 @@ Each of these is real work that someone will be tempted to fold in. Do not.
   the lever for this defect.
 - **Wind.** Separate file, separate task, no conflict. See
   `docs/design/foliage-wind-from-weather.md`.
+
+## WIRING REQUESTS (v0.1083 implementation, items 1-5)
+
+Written by the implementing agent. Items 1, 2, 3, 3b, 4 and 5 are DONE inside
+the four owned files (`src/renderer/billboard_bake.rs`,
+`src/renderer/tree_mesh.rs`, `src/terrain/planet_chunks.rs`,
+`data/vegetation/trees.ron`). The edits below are the ones that fall in files
+the implementer does not own; apply them serially, in this order. Nothing
+compiles until 1 and 2 are both in (the baker's public API changed).
+
+The same edits are also present, UNSTAGED, in the implementing worktree
+`C:\Humanity\.claude\worktrees\agent-a70336a7735bebff3` - `git diff -- src/lib.rs
+src/engine/ipc.rs assets/shaders/pbr/90-fragment-main.wgsl` there is the
+verbatim patch these anchors describe, and it is what the release build and
+the probe sweep were run against.
+
+### W0. `src/renderer/mod.rs` - NOTHING TO DO
+
+The brief expected an edit at `renderer/mod.rs:944-945`. There is none: that
+site already derives the texture size symbolically
+(`billboard_bake::ATLAS_COLS * billboard_bake::ATLAS_TILE_PX` by
+`ATLAS_ROWS * ATLAS_TILE_PX`), so the atlas becomes 1536 x 2048 the moment the
+constants change. Do not touch it.
+
+### W1. `assets/shaders/pbr/90-fragment-main.wgsl` - the tile decode
+
+ONE visit, two anchored replacements, both inside the type-12 sprite branch.
+
+Anchor A (find):
+
+```
+                let a_enc = -in.uv.x;
+                let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 5u);
+                let u01 = clamp(fract(a_enc) * 2.0, 0.0, 1.0);
+                let v01 = clamp(in.uv.y, 0.0, 1.0);
+                let tuv = vec2<f32>(
+                    (f32(tile % 3u) + u01) / 3.0,
+                    (f32(tile / 3u) + (1.0 - v01)) / 2.0,
+                );
+```
+
+Replace with:
+
+```
+                let a_enc = -in.uv.x;
+                let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 47u);
+                let u01 = clamp(fract(a_enc) * 2.0, 0.0, 1.0);
+                let v01 = clamp(in.uv.y, 0.0, 1.0);
+                let tuv = vec2<f32>(
+                    (f32(tile % 6u) + u01) / 6.0,
+                    (f32(tile / 6u) + (1.0 - v01)) / 8.0,
+                );
+```
+
+Anchor B (find, the comment directly above `if (in.uv.x < -0.5) {`):
+
+```
+        // uv.x < -0.5 marks a card textured from the baked conifer atlas
+        // (group 3 binding 14): |uv.x| = (1 + tile) + u01 * 0.5 (the small
+        // base keeps u01 interpolation sub-texel), uv.y = v01 (0 ground,
+        // 1 top). Lighting normal is the interpolated radial up, same as
+        // the legacy colored cards. params.w bit 2 = atlas resident; until
+        // the bake lands the card shades flat conifer green (never
+        // invisible).
+```
+
+Replace with:
+
+```
+        // uv.x < -0.5 marks a card textured from the baked tree atlas
+        // (group 3 binding 14): |uv.x| = (1 + tile) + u01 * 0.5 (the small
+        // base keeps u01 interpolation sub-texel), uv.y = v01. v0.1083: v01
+        // spans the baked FRAME (0 = its bottom edge, 1 = its top), which is
+        // square on max(width, height) of the tree and so is NOT the tree's
+        // own height for a wide crown - the CPU emitter sizes and drops the
+        // quad from the tile's footprint. Lighting normal is the interpolated
+        // radial up, same as the legacy colored cards. params.w bit 2 = atlas
+        // resident; until the bake lands the card shades flat conifer green
+        // (never invisible). The 6x8 grid below is compile-time in BOTH
+        // places: renderer::tree_mesh::tests::atlas_tile_constants_match_the_shader
+        // fails if these literals drift from billboard_bake::ATLAS_COLS/ROWS.
+```
+
+WHY: the atlas went from 3x2x512 to 6x8x256 so all 24 (species, variant) pairs
+have a tile with 48 slots of headroom. The three literals are the only place
+the GPU learns the grid; a uniform would cost a slot and could drift silently,
+so they stay compile-time and the lockstep test scans this file for them.
+Anchor B is comment-only (the v01 semantics genuinely changed) - drop it if
+another domain has this hunk open, the code half is anchor A alone.
+
+### W2. `src/lib.rs` - registry-driven bake + one parse per file
+
+Three anchored edits inside the near-tree block (~9360-9540). All three are
+required together.
+
+W2a. Declare the shared CPU-mesh cache just BEFORE the procedural-mesh block.
+Anchor (find):
+
+```
+                                    // only trees a RELEASE build has, because
+                                    // the bundle does not ship assets/models/.
+                                    {
+                                        use crate::renderer::tree_mesh;
+```
+
+Replace with:
+
+```
+                                    // only trees a RELEASE build has, because
+                                    // the bundle does not ship assets/models/.
+                                    // v0.1083: every CPU mesh built or parsed
+                                    // in this block is ALSO handed to the card
+                                    // bake below, so nothing is generated or
+                                    // parsed twice. Before this, the bake
+                                    // re-parsed the same 12 glTF files (each
+                                    // pine bark paying a 2048->1024 texture
+                                    // downscale, 220-275 ms apiece in the log)
+                                    // - that redundant second parse, not the
+                                    // GPU bake, was the dominant cost of the
+                                    // world-entry freeze the bake was blamed
+                                    // for.
+                                    let mut bake_models: std::collections::HashMap<
+                                        String,
+                                        crate::renderer::billboard_bake::BakeCpuModel,
+                                    > = std::collections::HashMap::new();
+                                    let mut tree_parse_ms = 0.0f32;
+                                    {
+                                        use crate::renderer::tree_mesh;
+```
+
+W2b. Hand each procedural mesh to the baker. Anchor (find, the tail of the
+procedural loop - note the INDENTATION distinguishes it from the model loop's
+identical-looking insert):
+
+```
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(key, (mi, ma));
+                                            }
+                                        }
+                                    }
+```
+
+Replace with:
+
+```
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(key, (mi, ma));
+                                                // The card baker wants the same
+                                                // geometry; hand it over rather
+                                                // than regenerating it there.
+                                                bake_models.insert(
+                                                    crate::renderer::billboard_bake::proc_key(
+                                                        &t.id, v,
+                                                    ),
+                                                    crate::renderer::billboard_bake::BakeCpuModel {
+                                                        vertices: b.vertices,
+                                                        indices: b.indices,
+                                                        texture: None,
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    }
+```
+
+W2c. Model loop parses to CPU once and keeps the pair; bake block becomes one
+call. Anchor (find):
+
+```
+                                        match state.asset_manager.parse_gltf_mesh_textured(
+                                            &state.renderer.device,
+                                            &rel,
+                                        ) {
+                                            Ok((mesh, tex)) => {
+                                                let mi = state.renderer.add_mesh(mesh);
+```
+
+Replace with:
+
+```
+                                        let t_parse = std::time::Instant::now();
+                                        let parsed = state
+                                            .asset_manager
+                                            .parse_gltf_mesh_with_texture(&rel);
+                                        tree_parse_ms +=
+                                            t_parse.elapsed().as_secs_f32() * 1000.0;
+                                        match parsed {
+                                            Ok((cpu, tex)) => {
+                                                let mesh =
+                                                    crate::renderer::mesh::Mesh::from_vertices(
+                                                        &state.renderer.device,
+                                                        &cpu.vertices,
+                                                        &cpu.indices,
+                                                    );
+                                                let mi = state.renderer.add_mesh(mesh);
+```
+
+...then, in the same `Ok` arm, `tex` is now borrowed rather than moved. Anchor
+(find):
+
+```
+                                                let ma = match tex {
+                                                    Some((rgba, w, h)) => {
+                                                        state.renderer.add_textured_material(
+                                                            [1.0, 1.0, 1.0, 1.0],
+                                                            0.0,
+                                                            0.9,
+                                                            19.0,
+                                                            0.0,
+                                                            &rgba,
+                                                            w,
+                                                            h,
+                                                        )
+                                                    }
+```
+
+Replace with:
+
+```
+                                                let ma = match &tex {
+                                                    Some((rgba, w, h)) => {
+                                                        state.renderer.add_textured_material(
+                                                            [1.0, 1.0, 1.0, 1.0],
+                                                            0.0,
+                                                            0.9,
+                                                            19.0,
+                                                            0.0,
+                                                            rgba,
+                                                            *w,
+                                                            *h,
+                                                        )
+                                                    }
+```
+
+...and the parsed pair joins the cache. Anchor (find, the model loop's insert):
+
+```
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(name.to_string(), (mi, ma));
+                                            }
+                                            Err(e) => {
+```
+
+Replace with:
+
+```
+                                                state
+                                                    .decoration_mesh_cache
+                                                    .insert(name.to_string(), (mi, ma));
+                                                bake_models.insert(
+                                                    rel,
+                                                    crate::renderer::billboard_bake::BakeCpuModel {
+                                                        vertices: cpu.vertices,
+                                                        indices: cpu.indices,
+                                                        texture: tex,
+                                                    },
+                                                );
+                                            }
+                                            Err(e) => {
+```
+
+W2d. Replace the whole hardcoded bake block. Anchor (find) is the entire
+region from `// Sprite atlas bake (v0.961, billboard` through the closing brace
+of `if !state.renderer.tree_atlas_ready && !state.tree_atlas_attempted { ... }`
+(the 58 lines that build `stems`, map them into `tree_parts`, and `match
+state.renderer.bake_tree_atlas(&tree_parts)`). Replace the whole region with:
+
+```
+                                    // Sprite atlas bake (v0.961 increment 2;
+                                    // registry-driven since v0.1083): once per
+                                    // session, render EVERY (species, variant)
+                                    // in data/vegetation/trees.ron side-on
+                                    // into its atlas tile, so the terrain card
+                                    // stage textures its quads with the SAME
+                                    // trees the near field draws in 3D.
+                                    // Procedural species build their mesh
+                                    // inside the baker (no files); model
+                                    // species come from the parse cache above,
+                                    // and a missing model just leaves its tile
+                                    // transparent instead of aborting the
+                                    // whole atlas the way it used to.
+                                    if !state.renderer.tree_atlas_ready && !state.tree_atlas_attempted {
+                                        state.tree_atlas_attempted = true;
+                                        state.renderer.bake_tree_atlas_from_registry(
+                                            &bake_models,
+                                            tree_parse_ms,
+                                            None,
+                                        );
+                                    }
+```
+
+WHY: `bake_tree_atlas(&[Vec<BakePart>])` is gone. Its "index i is the tile"
+contract cannot express a registry-driven allocation, its `?` on the first
+empty part list is exactly what made a shipped build render zero correct cards,
+and it had no way to reach procedural species at all. The replacement walks the
+registry itself, so `src/lib.rs` no longer names a species anywhere. The bake
+must stay INSIDE this block and AFTER both loops: `bake_models` is populated by
+them on the same frame (both loops skip entries already in
+`decoration_mesh_cache`, and `tree_atlas_attempted` fires on the same first
+pass). It logs its own `[Bake] parse X ms, bake Y ms (N stems, ...)` line.
+
+### W3. `src/engine/ipc.rs` - the `{"bake":"trees"}` showcase dump
+
+Replace the whole `if grab("bake").as_deref() == Some("trees") { ... }` body
+(it constructed `BakePart` literals directly, which no longer compile - the
+struct gained a per-part `mode`). New body, which also makes the dev tool cover
+all 24 tiles instead of the 6 hardcoded conifers:
+
+```rust
+    if grab("bake").as_deref() == Some("trees") {
+        let out_dir = std::path::Path::new("debug").join("bakes");
+        // Model-backed species need their glTF parsed; procedural ones build
+        // themselves inside the baker.
+        let mut models: std::collections::HashMap<
+            String,
+            crate::renderer::billboard_bake::BakeCpuModel,
+        > = std::collections::HashMap::new();
+        let t_parse = std::time::Instant::now();
+        for t in crate::renderer::tree_mesh::registry().trees.iter() {
+            if t.is_procedural() {
+                continue;
+            }
+            for v in 1..=t.variants.max(1) {
+                for suffix in ["", "_bark"] {
+                    let rel = format!(
+                        "assets/models/plants/{m}/{m}_v{v}{suffix}.gltf",
+                        m = t.model
+                    );
+                    match state.asset_manager.parse_gltf_mesh_with_texture(&rel) {
+                        Ok((cpu, tex)) => {
+                            models.insert(
+                                rel,
+                                crate::renderer::billboard_bake::BakeCpuModel {
+                                    vertices: cpu.vertices,
+                                    indices: cpu.indices,
+                                    texture: tex,
+                                },
+                            );
+                        }
+                        Err(e) => log::warn!("[Bake] {rel}: {e}"),
+                    }
+                }
+            }
+        }
+        let parse_ms = t_parse.elapsed().as_secs_f32() * 1000.0;
+        let report = state
+            .renderer
+            .bake_tree_atlas_from_registry(&models, parse_ms, Some(&out_dir));
+        log::info!(
+            "[Bake] dump -> {} ({} tiles)",
+            out_dir.display(),
+            report.tiles_baked
+        );
+    }
+```
+
+Its comment header changes from "over the six conifers ... debug/bakes/<stem>.png"
+to "over EVERY species in data/vegetation/trees.ron ...
+debug/bakes/tileNN_<id>_vN.png".
+
+WHY: this is the only other `BakePart` construction site in the tree, so it has
+to move with the API. Making it registry-driven at the same time is what gives
+the brief's "eyeball all 24 tiles before spending a sweep" an actual surface -
+and it now writes the tiles into the live atlas as a side effect, which is
+correct (the dump IS the bake).
+
+### What the owned files now expose (for reviewers)
+
+- `billboard_bake::{ATLAS_COLS = 6, ATLAS_ROWS = 8, ATLAS_TILE_PX = 256}`,
+  `BakeMode`, `BakePart{..., mode}`, `BakeCpuModel`, `proc_key`, `BakeReport`,
+  `Renderer::bake_tree_atlas_from_registry`, `Renderer::bake_billboard_texture`
+  (now returns `CardFootprint`), `Renderer::bake_billboard_to_png` (same).
+  `Renderer::bake_tree_atlas` is DELETED.
+- `tree_mesh::{ATLAS_TILES, tiles_in_use, tile_of, CardFootprint,
+  card_footprint_table, set_card_footprint}`. `TreeDef::sprite_tile` is DELETED
+  (and with it the field from all 8 rows of `data/vegetation/trees.ron`).
+- `planet_chunks::sprite_card_frame` (pub(crate)) - the card framing contract,
+  unit-tested.
