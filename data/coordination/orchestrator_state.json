@@ -597,6 +597,11 @@
    "date": "2026-08-01",
    "decision": "BARK FULL PBR dispatched as domain-pass wf_c038960c (task wbdsycs03) with SOLE-WRITER GRANT on renderer files (no other writers active). Increment: baked albedo + packed surface texture (normal.xy/roughness/AO, ONE new binding), real cylindrical UVs on bark tubes under NEW material type 22, in-fragment cotangent-frame TBN (no vertex-format change), v0.1029 bind-group site-count lesson mandatory, world-entry verify on two vantages.",
    "why": "BGL surgery needs fresh agent contexts + the full verify chain, not tail-of-context solo work. INTEGRATION when it lands: read verdicts (challenger/runtime/critic) before merging as always; then wind rung 2 + grass strands remain from the overnight plan. If context compacted: this journal + overnight_plan_2026_08_01 are the handoff."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1088.3/4 shipped: BUG-059 per-frame sprite bake fixed (8.5 -> 24.5 fps at fuji). Bark-PBR round wf_c038960c produced a critic-corrected THREE-COMMIT BRIEF (in its journal.jsonl, results 5+6), not code - THIRD brief-only round on this family. Key critic corrections for whoever implements: (a) type 19 is NOT plant-exclusive - furniture/machines use it (home_meshes.rs:561, 15 models in home.ron) so central wind-stamping by type makes sofas sway; wind class needs its own signal; (b) bark needs NO new binding - ride the existing per-material albedo bind group like cluster cards do; bindings 11/12 are the atmosphere LUTs, do not touch; (c) bake fidelity case is ironclad (bark detail measured AT the 8-bit floor beyond 3 m vs the repo photoscan at 10-30x).",
+   "why": "ROSTER HARDENING ITEM: the domain-pass writer stage briefs instead of codes on renderer-heavy domains even when told a brief is a failed round - the writer template needs a mechanical code-only gate (e.g. reject if git diff is empty of .rs/.wgsl). Overnight remaining: implement the corrected 3-commit plan (memoize DONE as BUG-059; wind rung 2 with a real wind-class signal; bark bake via albedo path), grass strands. Morning report pending operator."
   }
  ],
  "active_scopes_to_avoid": [
