@@ -587,6 +587,11 @@
    "date": "2026-08-01",
    "decision": "v0.1088.0/1 SHIPPED: cluster cards draw end-to-end (type-21 shader branch + sprite pre-bake + card materials + draw wiring). Pipeline live, look needs DATA TUNING next: ClusterDef in trees.ron (card side/count/blossom share), verify with a SAKURA confirmed in frame; then extend ClusterDef rows to oak/birch/momiji/acacia. Follow-ups journaled: sprite mip upload (levels exist, material path takes level 0 only), dedupe the double sprite bake.",
    "why": "Overnight sequence position: cluster cards DONE-functional -> next per plan: card tuning pass, then bark full PBR bake (albedo+normal+roughness, cylindrical trunk UVs), then wind rung 2, then grass strands. Frame time 117 ms at fuji cloudy - re-baseline after tuning."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1088.2 blossom tuning shipped (data-only). Canopy CLOSED at hillside; pink distributes through crowns. OPEN TASTE CALLS for the operator morning: (1) mixed-stand pink-patches vs orchard pink-sea - reference photos are pure sakura orchards; consider a sakura GROVE vantage/region for screenshot material (region_radius already supports it in trees.ron); (2) in-crown leaf/blossom balance, judge in play under a tree. NEXT overnight rungs remaining: bark full PBR bake, wind rung 2, grass strands - all fenced in overnight_plan; fresh-context jobs.",
+   "why": "Tuning loop is RON-edit + probe, no compile - cheap iteration for the operator too (trees.ron is hot data)."
   }
  ],
  "active_scopes_to_avoid": [
