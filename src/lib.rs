@@ -1709,6 +1709,11 @@ mod native_app {
                 decoration_mesh_cache: std::collections::HashMap::new(),
                 near_trees: Vec::new(),
                 near_trees_center: glam::DVec3::splat(f64::MAX),
+                near_grass: Vec::new(),
+                near_grass_center: glam::DVec3::splat(f64::MAX),
+                near_grass_depth: 0,
+                near_grass_at_s: -1.0,
+                grass_instances: Vec::new(),
                 grow_positions: Vec::new(),
                 plant_objects: Vec::new(),
                 plant_mesh_sig: 0,
@@ -6631,6 +6636,12 @@ mod native_app {
                     // guarantees no stale draws referencing freed arena
                     // ranges survive a frame where chunked mode drops out.
                     state.renderer.patch_draws.clear();
+                    // Same contract for the grass instance set (v0.1091): the
+                    // planet block below re-publishes it every frame it draws
+                    // ground, so zeroing here means a frame that never
+                    // reaches that block (space, menus, a non-chunked body)
+                    // cannot leave a stale sward hanging in the sky.
+                    state.renderer.set_grass_instances(&[]);
                     // Transparent celestial shells (planet atmospheres, v0.763): alpha-blended
                     // after the opaque bodies inside the SAME celestial pass, so they share
                     // its far plane and depth-test against the planets.
@@ -9957,6 +9968,220 @@ mod native_app {
                                 } else if !state.near_trees.is_empty() && alt_over > 4000.0 {
                                     state.near_trees.clear();
                                     state.near_trees_center = glam::DVec3::splat(f64::MAX);
+                                }
+                                // ── Near-field GRASS STRANDS (v0.1091) ──
+                                //
+                                // TWO CLOCKS, and the split is the whole
+                                // design (see near_grass_instances):
+                                //
+                                //  * The HARVEST runs at most once every
+                                //    GRASS_REHARVEST_M of walking and returns
+                                //    a SUPERSET - every tiller any camera
+                                //    within GRASS_HARVEST_MARGIN_M could
+                                //    want. It is the expensive half.
+                                //  * The DRAW set is re-derived EVERY FRAME
+                                //    from the live camera distance. So the
+                                //    density ramp is always anchored on where
+                                //    the player actually is, and recentring
+                                //    the harvest changes nothing on screen.
+                                //
+                                // The alternative (harvest on hysteresis and
+                                // draw whatever it returned) re-anchors the
+                                // ramp every few metres: a tiller 6 m from a
+                                // new pose was 14 m from the old one, where
+                                // grass_density_at is 4x smaller, so a whole
+                                // annulus of blades pops in at once. That is
+                                // exactly the population ring the vantage's
+                                // NO GRASS RING regression forbids.
+                                //
+                                // The harvest is INLINE, not on a worker,
+                                // deliberately: it has to see the same
+                                // streamed tile tier the patch mesh saw or
+                                // every base sits on ground that is not the
+                                // ground you can see, and TerrainTiles is
+                                // owned + mutated by the frame thread. What
+                                // makes that affordable is the drawn-surface
+                                // vertex memo - at the depths the selector
+                                // actually reaches, a few thousand tillers
+                                // share a few hundred lattice samples.
+                                //
+                                // HEIGHT ABOVE THE GROUND, not above the
+                                // datum. `alt_over` is elevation above the
+                                // nominal sphere, which at Fuji is 1,244 m
+                                // while the player is standing ON it - a
+                                // datum-keyed gate switches the whole layer
+                                // off at every vantage that has any relief,
+                                // silently (measured: the first probe run of
+                                // this increment harvested 0 tillers at
+                                // Fuji and logged nothing after world entry).
+                                // `last_ground_r` is the sampled ground the
+                                // walk clamp is already using, so this asks
+                                // the same question the player's feet do.
+                                let cam_dir_now = cam_local.normalize();
+                                let above_ground = if state.last_ground_r > 0.0
+                                    && (state.last_ground_dir - cam_dir_now).length()
+                                        * d.radius
+                                        < 200.0
+                                {
+                                    cam_local.length() - state.last_ground_r
+                                } else {
+                                    f64::MAX
+                                };
+                                // The ramp is zero past GRASS_FAR_M of SURFACE
+                                // distance, so an eye much higher than that
+                                // sees nothing anyway; the headroom covers
+                                // eye height, jumping and standing on a rock.
+                                let grass_on = chunked_drawn
+                                    && above_ground < 60.0
+                                    && state.gui_state.settings.veg_density > 0.001;
+                                if grass_on {
+                                    // The drawn ground's own LOD: the finest
+                                    // patch on screen is the one under the
+                                    // camera. Bases are interpolated on THAT
+                                    // mesh, so a change here invalidates the
+                                    // whole set.
+                                    let draw_depth = cs
+                                        .last_drawn
+                                        .iter()
+                                        .map(|p| p.depth)
+                                        .max()
+                                        .unwrap_or(0);
+                                    let moved =
+                                        (state.near_grass_center - cam_local).length();
+                                    // Rate limit, for the streaming walk-up.
+                                    // During world entry the selector climbs
+                                    // depth 1 -> 13 over a handful of frames
+                                    // and each step is a depth CHANGE, so the
+                                    // layer re-harvested 13 times in a row at
+                                    // one standing pose - 13 ms apiece, 170 ms
+                                    // of hitching, twelve of them thrown away.
+                                    // A depth floor would be the wrong fix:
+                                    // 13 IS the settled depth at Fuji (the T1
+                                    // cap - 53.8 m triangles), and grass has to
+                                    // draw on whatever the ground is really
+                                    // drawn at. The trigger stays latched, so a
+                                    // skipped change is taken on the next frame
+                                    // past the limit.
+                                    let now_s = state.start_time.elapsed().as_secs_f32();
+                                    let ready = state.near_grass.is_empty()
+                                        || now_s - state.near_grass_at_s >= 0.4;
+                                    if draw_depth > 0
+                                        && ready
+                                        && (moved > chunks::GRASS_REHARVEST_M
+                                            || draw_depth != state.near_grass_depth)
+                                    {
+                                        let src = chunks::ElevationSource::Heightmap {
+                                            hm,
+                                            detail: &cs.detail,
+                                            tiles: tiles_ref,
+                                            ocean: ocean_ref,
+                                        };
+                                        let t0 = std::time::Instant::now();
+                                        state.near_grass = chunks::near_grass_instances(
+                                            d,
+                                            &src,
+                                            state
+                                                .planet_albedos
+                                                .get(&b.id)
+                                                .map(|a| a.as_ref()),
+                                            cam_local.normalize(),
+                                            chunks::GRASS_FAR_M as f64,
+                                            chunks::GRASS_HARVEST_MARGIN_M,
+                                            draw_depth,
+                                            60_000,
+                                        );
+                                        state.near_grass_center = cam_local;
+                                        state.near_grass_depth = draw_depth;
+                                        state.near_grass_at_s = now_s;
+                                        log::info!(
+                                            "[Grass] harvest: {} tillers (superset) at depth {} \
+                                             in {:.1} ms (eye {:.1} m above ground)",
+                                            state.near_grass.len(),
+                                            draw_depth,
+                                            t0.elapsed().as_secs_f64() * 1000.0,
+                                            above_ground
+                                        );
+                                    }
+                                } else if !state.near_grass.is_empty() {
+                                    state.near_grass.clear();
+                                    state.near_grass_center =
+                                        glam::DVec3::splat(f64::MAX);
+                                    state.near_grass_depth = 0;
+                                    state.near_grass_at_s = -1.0;
+                                }
+                                // Per-frame: the LIVE gate. Reject in f64
+                                // against the real camera, keep what is
+                                // visible, and hand the renderer one packed
+                                // instance array for a single draw.
+                                {
+                                    let tg = std::time::Instant::now();
+                                    let cam_dir = cam_local.normalize();
+                                    let radius = d.radius.max(1.0);
+                                    let inst = &mut state.grass_instances;
+                                    inst.clear();
+                                    for t in &state.near_grass {
+                                        // Small-angle surface distance: the
+                                        // chord IS the arc under 30 m on a
+                                        // 6,371 km sphere, and this is the
+                                        // same measure the harvest used.
+                                        let d_m =
+                                            ((t.dir - cam_dir).length() * radius) as f32;
+                                        let e = chunks::grass_live_emerge(t.thr, d_m);
+                                        if e <= 0.0 {
+                                            continue;
+                                        }
+                                        let base_local = t.dir * t.r_m;
+                                        let p = render_off + rot_d * base_local;
+                                        let up = (rot_d * t.dir).as_vec3().normalize();
+                                        inst.push(
+                                            crate::renderer::mesh::GrassInstance {
+                                                pos_fade: [
+                                                    p.x as f32,
+                                                    p.y as f32,
+                                                    p.z as f32,
+                                                    0.0,
+                                                ],
+                                                up_scale: [
+                                                    up.x,
+                                                    up.y,
+                                                    up.z,
+                                                    t.height_m * e,
+                                                ],
+                                                grass: [
+                                                    t.yaw,
+                                                    t.phase,
+                                                    crate::renderer::mesh::GrassInstance
+                                                        ::pack_color(t.color),
+                                                    0.0,
+                                                ],
+                                            },
+                                        );
+                                    }
+                                    let n = inst.len();
+                                    let insts =
+                                        std::mem::take(&mut state.grass_instances);
+                                    state.renderer.set_grass_instances(&insts);
+                                    state.grass_instances = insts;
+                                    // 1 Hz diag beside the tree handoff.
+                                    if n > 0 {
+                                        use std::sync::atomic::{AtomicU64, Ordering};
+                                        static LASTG: AtomicU64 = AtomicU64::new(0);
+                                        let now = std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .map(|x| x.as_secs())
+                                            .unwrap_or(0);
+                                        if LASTG.swap(now, Ordering::Relaxed) != now {
+                                            log::info!(
+                                                "[Grass] drawn={} of {} harvested (depth {}), \
+                                                 {} tris, per-frame CPU {:.2} ms",
+                                                n,
+                                                state.near_grass.len(),
+                                                state.near_grass_depth,
+                                                n * 90,
+                                                tg.elapsed().as_secs_f64() * 1000.0,
+                                            );
+                                        }
+                                    }
                                 }
                                 // ── Far-tree card sheet (v0.1022, vegetation
                                 // instancing arc increment 1) ── one streamed

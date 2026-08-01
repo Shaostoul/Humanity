@@ -218,10 +218,51 @@ struct VertexInput {
     @location(2) uv: vec2<f32>,
     // Per-INSTANCE data from vertex buffer slot 1 (step_mode Instance):
     // xyz = batched-patch translation, w = LOD fade. Classic draws bind a
-    // 16-byte zero dummy here and never read it; the terrain-batch
+    // 48-byte zero dummy here and never read it; the terrain-batch
     // variant's accessors are built from it.
     @location(4) inst_pos_fade: vec4<f32>,
+    // GRASS STRANDS ONLY (material type 23, v0.1091). The shared tiller mesh
+    // is drawn once per tiller, so a tiller's whole transform has to arrive
+    // per instance: xyz = its local radial UP in render space, w = the height
+    // it stands at RIGHT NOW in metres (nominal height x live emergence, so
+    // the CPU can grow a blade in without touching the mesh).
+    @location(5) inst_up_scale: vec4<f32>,
+    // x = yaw about that up, y = wind phase, z = packed albedo (8:8:8 as an
+    // exact integer, see mesh::GrassInstance::pack_color), w spare.
+    @location(6) inst_grass: vec4<f32>,
 };
+
+// ── The transform vs_main actually uses (v0.1091) ────────────────────────
+// Identical to obj_model()/obj_normal_matrix() for everything on the planet
+// EXCEPT grass strands. A grass tiller has no object uniform of its own: it
+// is one of tens of thousands of instances of one shared mesh, and its
+// position, orientation and height arrive on vertex slot 1. Rather than
+// fork the whole wind + water block, the branch below fills these two and
+// every use in vs_main goes through the accessors.
+//
+// Only the VERTEX stage needs this. The fragment stage's uses of
+// obj_model() are all inside branches grass never takes.
+var<private> g_inst_xform: bool = false;
+var<private> g_inst_model: mat4x4<f32> = mat4x4<f32>(
+    vec4<f32>(1.0, 0.0, 0.0, 0.0),
+    vec4<f32>(0.0, 1.0, 0.0, 0.0),
+    vec4<f32>(0.0, 0.0, 1.0, 0.0),
+    vec4<f32>(0.0, 0.0, 0.0, 1.0),
+);
+var<private> g_inst_rot: mat4x4<f32> = mat4x4<f32>(
+    vec4<f32>(1.0, 0.0, 0.0, 0.0),
+    vec4<f32>(0.0, 1.0, 0.0, 0.0),
+    vec4<f32>(0.0, 0.0, 1.0, 0.0),
+    vec4<f32>(0.0, 0.0, 0.0, 1.0),
+);
+fn vs_model() -> mat4x4<f32> {
+    if (g_inst_xform) { return g_inst_model; }
+    return obj_model();
+}
+fn vs_rot() -> mat4x4<f32> {
+    if (g_inst_xform) { return g_inst_rot; }
+    return obj_normal_matrix();
+}
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -546,7 +587,41 @@ const WATER_WELD_MORPH_END: f32 = 1.74;
 fn vs_main(vertex: VertexInput) -> VertexOutput {
     g_inst_data = vertex.inst_pos_fade;
     var out: VertexOutput;
-    var world_pos = obj_model() * vec4<f32>(vertex.position, 1.0);
+    // ── GRASS STRAND TRANSFORM (type 23, v0.1091) ────────────────────────
+    // The shared tiller mesh is built at UNIT height in a Y-up frame, so an
+    // instance is: rotate Y onto the local radial up, spin by yaw, scale by
+    // the height it stands at, translate to its base. Assembled here as a
+    // matrix so the wind + normal code below is shared verbatim with trees.
+    let is_grass = material.params.z >= 22.5 && material.params.z < 23.5;
+    if (is_grass) {
+        let up = normalize(vertex.inst_up_scale.xyz);
+        let scl = max(vertex.inst_up_scale.w, 1.0e-4);
+        // Any tangent will do (the mesh's own fan covers every azimuth and
+        // the yaw below randomises what is left); pick the axis furthest
+        // from `up` so the cross product never degenerates.
+        var refv = vec3<f32>(0.0, 1.0, 0.0);
+        if (abs(up.y) > 0.9) { refv = vec3<f32>(1.0, 0.0, 0.0); }
+        let e0 = normalize(cross(refv, up));
+        let e1 = cross(up, e0);
+        let cs = cos(vertex.inst_grass.x);
+        let sn = sin(vertex.inst_grass.x);
+        let sx = e0 * cs + e1 * sn;
+        let sz = e1 * cs - e0 * sn;
+        g_inst_rot = mat4x4<f32>(
+            vec4<f32>(sx, 0.0),
+            vec4<f32>(up, 0.0),
+            vec4<f32>(sz, 0.0),
+            vec4<f32>(0.0, 0.0, 0.0, 1.0),
+        );
+        g_inst_model = mat4x4<f32>(
+            vec4<f32>(sx * scl, 0.0),
+            vec4<f32>(up * scl, 0.0),
+            vec4<f32>(sz * scl, 0.0),
+            vec4<f32>(vertex.inst_pos_fade.xyz, 1.0),
+        );
+        g_inst_xform = true;
+    }
+    var world_pos = vs_model() * vec4<f32>(vertex.position, 1.0);
     // Wind displacement in world space, for the fragment's pre-wind material
     // domain (VertexOutput.wind_offset). Written by the wind branch below for
     // every wind class (v0.1089; it used to be the type-20 branch alone).
@@ -612,6 +687,8 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         wind_class = 2.0; // type 21: foliage cluster card
     } else if (wind_mt >= 21.5 && wind_mt < 22.5) {
         wind_class = 1.0; // type 22: baked-bark wood mesh
+    } else if (wind_mt >= 22.5 && wind_mt < 23.5) {
+        wind_class = 2.0; // type 23: grass strand (its own constants below)
     } else if (wind_mt >= 18.5 && wind_mt < 19.5) {
         wind_class = clamp(material.params.w, 0.0, 2.0); // type 19: opt-in
     }
@@ -631,8 +708,13 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // for BOTH mesh paths, and dividing the object-space displacement back
         // by s makes the WORLD displacement depend only on metres. No new
         // per-material data, no vertex channel, no wiring.
-        let iscale = max(length(obj_model()[0].xyz), 1.0e-4);
+        let iscale = max(length(vs_model()[0].xyz), 1.0e-4);
         let h = max(vertex.position.y, 0.0) * iscale;
+        // Reference height for the cantilever profile. A tree bends against a
+        // 12 m stand; a 35 cm grass blade IS the whole cantilever, so its own
+        // height is the reference - otherwise `hn` sits on its 0.1 floor and
+        // the sward is rigid in a gale.
+        let wind_ref_m = select(12.0, iscale, is_grass);
         // ── LIVE WIND INPUT (v0.1079) ────────────────────────────────────
         // light7_cone_inner = (wind_dir_world.xyz, wind_speed_m_s), poked by
         // the renderer from WeatherState. The light0..7 cone_inner fields are
@@ -671,7 +753,7 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // Object +Y IS the trunk axis by construction, so zeroing it leaves a
         // purely tangential lean: trees bend across the ground, never into or
         // out of it, at any latitude.
-        var wind_dir = (transpose(obj_normal_matrix()) * vec4<f32>(wind_w, 0.0)).xyz;
+        var wind_dir = (transpose(vs_rot()) * vec4<f32>(wind_w, 0.0)).xyz;
         wind_dir.y = 0.0;
         let wl = length(wind_dir);
         if (wl < 1.0e-4) {
@@ -690,9 +772,16 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // multiple of 64 m shifts the phase by a whole number of periods, so
         // the sway is continuous across it. Same discipline the ocean chop
         // trains use (CLAUDE.md, f32-at-planet-scale).
-        let o = obj_model()[3].xyz;
+        let o = vs_model()[3].xyz;
         let k = 6.283185307 / 64.0;
-        let phase = o.x * k * 3.0 + o.z * k * 5.0;
+        // Grass adds its OWN phase from the planet-fixed stream. The
+        // positional term alone spans 0.29 rad/m, and tillers stand 15 cm
+        // apart at peak density, so a whole clump would sway in lockstep -
+        // which is what a stiff mat looks like, not a sward. The stream phase
+        // is a per-tiller constant, so it survives every floating-origin
+        // rebase exactly like the 64 m-periodic term does.
+        let phase = o.x * k * 3.0 + o.z * k * 5.0
+            + select(0.0, vertex.inst_grass.y, is_grass);
         // TRAVELLING GUST FRONT. A gust is a spatial cell advecting downwind
         // at roughly the mean wind speed (the visible wave that crosses a
         // canopy), not a standing pulse - the old envelope used a
@@ -723,14 +812,31 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // normalised against a 12 m reference so a 22 m fir does not fold flat
         // while an 8 m cherry barely moves. lean_frac is capped at 0.30 so even
         // a 25 m/s hurricane roll bends the stand hard without laying it down.
+        //
+        // GRASS (type 23) uses the same shape with its own two numbers, and
+        // both have to move together. A 35 cm blade is a slender cantilever
+        // with almost no section modulus: at 10 m/s it lies well over, where
+        // a 20 m fir has barely started. Raising only the CAP would change
+        // nothing - 6.0e-4 * 10^2 is 0.06, so the tree curve never reaches
+        // even the tree cap at grass-relevant speeds. So the coefficient goes
+        // up 10x AND the cap goes to 0.85: 4 m/s (the fallback breeze) leans
+        // ~10%, 10 m/s leans ~60%, and anything past ~12 m/s pins at 0.85,
+        // which is laid over without folding the blade through the ground.
         let v2 = wind_v * wind_v;
-        let lean_frac = min(6.0e-4 * v2, 0.30);
-        let hn = clamp(h / 12.0, 0.1, 1.0);
+        let lean_frac = select(
+            min(6.0e-4 * v2, 0.30),
+            min(6.0e-3 * v2, 0.85),
+            is_grass,
+        );
+        let hn = clamp(h / wind_ref_m, 0.1, 1.0);
         let lean_m = h * hn * lean_frac;
         // Sway about the lean: a wind-scaled term plus a small calm-air term,
-        // so a still day still breathes instead of freezing.
+        // so a still day still breathes instead of freezing. Grass ripples at
+        // roughly twice a tree's period - the visible wave crossing a meadow
+        // is a fast one.
         let sway_amp = h * (0.020 + 0.55 * hn * lean_frac);
-        let sway = sway_amp * sin(t * (0.9 + 0.02 * wind_v) + phase);
+        let sway_hz = select(0.9 + 0.02 * wind_v, 1.9 + 0.06 * wind_v, is_grass);
+        let sway = sway_amp * sin(t * sway_hz + phase);
         // Metres of displacement -> OBJECT units (see iscale above).
         let obj_per_m = 1.0 / iscale;
         var wind_pos = vertex.position
@@ -748,21 +854,28 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
             // strawberry shake as hard as an 18 m oak, and the crop path uses
             // this same material. fv adds the wind-speed response: leaves are
             // the first thing to show a rising wind and the last to stop.
-            let fl = clamp(h * 0.35, 0.10, 1.0);
+            // Grass: the same amplitudes are metres tuned for a ~10 cm tree
+            // leaf, so a 35 cm blade needs its own weight (1.6/m puts a
+            // full-height blade tip at ~0.56, i.e. ~3 cm of flutter), and it
+            // flutters at roughly TWICE the frequency - a blade is far
+            // lighter and stiffer relative to its length than a leaf on a
+            // petiole, so it buzzes where foliage wafts.
+            let fl = clamp(h * select(0.35, 1.6, is_grass), 0.10, 1.0);
             let fv = clamp(wind_v / 6.0, 0.35, 3.0);
-            let f = sin(t * (5.1 + 0.15 * wind_v) + phase * 3.7 + h * 2.3);
-            let g = cos(t * (6.7 + 0.20 * wind_v) + phase * 2.1 + h * 1.7);
+            let fmul = select(1.0, 2.0, is_grass);
+            let f = sin(t * (5.1 + 0.15 * wind_v) * fmul + phase * 3.7 + h * 2.3);
+            let g = cos(t * (6.7 + 0.20 * wind_v) * fmul + phase * 2.1 + h * 1.7);
             wind_pos = wind_pos
                 + wind_dir * (f * 0.055 * gust * fl * fv * obj_per_m)
                 + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv * obj_per_m)
                 + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x)
                     * (g * 0.040 * gust * fl * fv * obj_per_m);
         }
-        world_pos = obj_model() * vec4<f32>(wind_pos, 1.0);
+        world_pos = vs_model() * vec4<f32>(wind_pos, 1.0);
         world_pos = vec4<f32>(world_pos.xyz, 1.0);
         // The world-space displacement this branch just applied: rotation of
         // the object-space delta (w=0 - no translation).
-        wind_off_w = (obj_model() * vec4<f32>(wind_pos - vertex.position, 0.0)).xyz;
+        wind_off_w = (vs_model() * vec4<f32>(wind_pos - vertex.position, 0.0)).xyz;
     }
 
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
@@ -868,11 +981,25 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     if (material.params.z >= 15.5 && material.params.z < 16.5) {
         out.world_normal = normalize(world_pos.xyz - material.base_color.xyz);
     } else {
-        out.world_normal = normalize((obj_normal_matrix() * vec4<f32>(vertex.normal, 0.0)).xyz);
+        out.world_normal = normalize((vs_rot() * vec4<f32>(vertex.normal, 0.0)).xyz);
     }
     out.uv = vertex.uv;
     out.pack = vertex.uv;
-    out.inst_data = vertex.inst_pos_fade;
+    // inst_data is the terrain-batch variant's per-patch transport. Grass is
+    // never drawn through that variant, so for a grass instance the slot
+    // carries the per-tiller ALBEDO instead - which is the only per-instance
+    // thing the fragment stage needs and costs no new interpolant.
+    if (is_grass) {
+        let cpk = u32(round(max(vertex.inst_grass.z, 0.0)));
+        out.inst_data = vec4<f32>(
+            f32((cpk >> 16u) & 255u) / 255.0,
+            f32((cpk >> 8u) & 255u) / 255.0,
+            f32(cpk & 255u) / 255.0,
+            0.0,
+        );
+    } else {
+        out.inst_data = vertex.inst_pos_fade;
+    }
     return out;
 }
 

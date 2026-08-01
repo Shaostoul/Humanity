@@ -3206,9 +3206,13 @@ mod tests {
         );
         // And the displacement must be normalised by the instance scale, or a
         // photoscan (0.70-1.27 model units for a 16-22 m tree) leans ~11% of
-        // what it should.
+        // what it should. `vs_model()` rather than `obj_model()` since
+        // v0.1091: grass strands have no object uniform at all, so the vertex
+        // stage's model matrix comes from an accessor that returns the
+        // per-instance transform for type 23 and the object uniform for
+        // everything else.
         assert!(
-            wgsl.contains("let iscale = max(length(obj_model()[0].xyz), 1.0e-4);"),
+            wgsl.contains("let iscale = max(length(vs_model()[0].xyz), 1.0e-4);"),
             "the wind branch lost its per-mesh height normalisation"
         );
     }

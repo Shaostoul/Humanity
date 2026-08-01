@@ -985,28 +985,12 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
                 discard;
             }
         }
-        // Grass distance dissolve (v0.999, operator: "a line of light
-        // perpendicular to me like 10 meters away"): grass tufts only bake
-        // on the deepest terrain patches, so their field ended at a hard
-        // patch boundary that ringed the camera and lit up at grazing sun.
-        // Bit 18 marks grass cards; they Bayer-dissolve over 30..45 m so
-        // the field fades out well inside the guaranteed-grass region and
-        // the moving edge disappears.
-        if ((packed & 262144u) != 0u) {
-            let tuft_dist = length(camera.view_pos.xyz - in.world_position);
-            let fade = smoothstep(30.0, 45.0, tuft_dist);
-            if (fade > 0.0) {
-                let gpx = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
-                let gbx = gpx.x % 4u;
-                let gby = gpx.y % 4u;
-                let gbits = (gbx & 1u) | ((gby & 1u) << 1u) | (((gbx >> 1u) & 1u) << 2u) | (((gby >> 1u) & 1u) << 3u);
-                let ginter = ((gbits & 1u) << 3u) | (((gbits >> 1u) & 1u) << 2u) | (((gbits >> 2u) & 1u) << 1u) | ((gbits >> 3u) & 1u);
-                let gthresh = (f32(ginter) + 0.5) / 16.0;
-                if (fade >= gthresh) {
-                    discard;
-                }
-            }
-        }
+        // (v0.1091: the bit-18 grass-card distance dissolve that used to sit
+        // here is GONE, along with the baked cards it dissolved. Grass is an
+        // instanced strand layer now - material type 23 below - whose density
+        // ramps to zero with distance on the CPU, so there is no hard field
+        // edge for a dither to hide. Nothing writes bit 18 any more; do not
+        // re-use it without reading the note in planet_surface.rs.)
         let pw_bits = u32(round(max(material.params.w, 0.0)));
         let has_tex = (pw_bits & 1u) != 0u;
         let detail_on = (pw_bits & 2u) != 0u;
@@ -1486,6 +1470,41 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // midnight scored backlit ~1.0 against the below-horizon sun and
             // the canopy glowed brighter than its own daytime diffuse.
             // Transmission is transmitted SUNLIGHT; it dies with the sun.
+            let leaf_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+            proc_emissive = proc_emissive
+                + albedo * camera.sun_color.rgb
+                    * (trans * 1.05 + backlit * 0.35) * leaf_sun_day;
+        }
+    } else if (material_type >= 22.5 && material_type < 23.5) {
+        // ── Type 23: GRASS STRAND (v0.1091) ──────────────────────────────
+        // The shared tiller mesh carries NO colour of its own - it is drawn
+        // once per tiller, so a baked tint would make it one mesh per tiller
+        // and destroy the single instanced draw. What its packed channel
+        // carries instead is a GREY Beer-Lambert ramp, 0.30 at the crown to
+        // 1.00 at the tip: at the LAI a real sward runs, the base of the
+        // canopy sits at 20-30% of top-of-canopy irradiance, and a uniformly
+        // lit blade is a large part of what reads as a plastic sticker.
+        //
+        // The tiller's actual albedo (the ground colour it grows in, lifted
+        // and jittered, pulled toward straw for its senescent fraction) rides
+        // the per-instance channel. Multiply, and the ramp modulates whatever
+        // colour that particular tiller is.
+        let packed = u32(round(max(in.pack.x, 0.0)));
+        let shade = f32((packed >> 8u) & 255u) / 255.0;
+        albedo = clamp(in.inst_data.rgb, vec3<f32>(0.0), vec3<f32>(1.0)) * shade;
+        metallic = 0.0;
+        roughness = 0.92;
+        emissive_strength = 0.0;
+        // The mesh sets the LEAF organ bit on every face, so a backlit sward
+        // glows exactly the way a backlit canopy does. This is the same
+        // transmission term the type-20 branch uses; grass is thin tissue
+        // with the sun behind it more often than a tree crown is, because it
+        // is under your feet and the sun is always somewhere above it.
+        if ((packed & 524288u) != 0u) {
+            let sun_l = normalize(camera.sun_direction.xyz);
+            let lt = normalize(-sun_l + normal * 0.4);
+            let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
+            let backlit = max(-dot(normal, sun_l), 0.0);
             let leaf_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
             proc_emissive = proc_emissive
                 + albedo * camera.sun_color.rgb

@@ -61,10 +61,6 @@ pub struct SurfaceVertexData {
     /// model stands inside it (Settings tree-model distance). Grass cards
     /// stay unmarked - they have no model replacement.
     pub tree_card: bool,
-    /// True on GRASS tuft faces (v0.999): rides as bit 18 so the shader can
-    /// Bayer-dissolve the tuft field with distance instead of ending it at
-    /// a hard patch boundary (the operator's moving "line of light").
-    pub grass_card: bool,
 }
 
 /// CPU-side planet surface mesh: flat-shaded triangles, sequential indices.
@@ -514,23 +510,18 @@ pub fn pack_color_to_uv(c: [f32; 3], water: bool) -> [f32; 2] {
 
 /// Flag-carrying variant (v0.912): bit 16 = water, bit 17 = tree card.
 /// All values stay well under f32's 2^24 exact-integer ceiling.
+///
+/// BIT 18 IS FREE AGAIN (v0.1091). It used to mark a baked grass card so
+/// the fragment stage could Bayer-dissolve the tuft field with distance;
+/// the baked cards are gone (grass is an instanced strand layer whose
+/// density ramps to zero on its own) and the shader branch that read the
+/// bit went with them. Do not resurrect it as a general-purpose flag
+/// without checking `renderer::plant_mesh`, which parks the organ tags
+/// immediately above it at bits 19 and 20.
 pub fn pack_color_to_uv_flags(c: [f32; 3], water: bool, tree_card: bool) -> [f32; 2] {
-    pack_color_to_uv_flags2(c, water, tree_card, false)
-}
-
-/// v0.999 variant: bit 18 = grass card (distance-dissolved in the shader).
-pub fn pack_color_to_uv_flags2(
-    c: [f32; 3],
-    water: bool,
-    tree_card: bool,
-    grass_card: bool,
-) -> [f32; 2] {
     let mut uv = pack_color_to_uv(c, water);
     if tree_card {
         uv[0] += 131072.0;
-    }
-    if grass_card {
-        uv[0] += 262144.0;
     }
     uv
 }
@@ -538,11 +529,6 @@ pub fn pack_color_to_uv_flags2(
 /// Mirror of the WGSL bit-17 decode; unit-tested round trip below.
 pub fn unpack_uv_tree_card(uv: [f32; 2]) -> bool {
     (uv[0].round().max(0.0) as u32 & 0x2_0000) != 0
-}
-
-/// Mirror of the WGSL bit-18 decode (grass card); round-trip tested.
-pub fn unpack_uv_grass_card(uv: [f32; 2]) -> bool {
-    (uv[0].round().max(0.0) as u32 & 0x4_0000) != 0
 }
 
 /// Rust mirror of the WGSL decode in pbr_simple.wgsl (material type 12).
@@ -625,8 +611,7 @@ pub fn build_surface_mesh(
                     normal: n.to_array(),
                     color,
                     water: true,
-                tree_card: false,
-                grass_card: false,
+                    tree_card: false,
                 });
             }
         } else {
@@ -648,8 +633,7 @@ pub fn build_surface_mesh(
                     normal: n.to_array(),
                     color,
                     water: false,
-                tree_card: false,
-                grass_card: false,
+                    tree_card: false,
                 });
             }
         }

@@ -259,10 +259,26 @@ pub const TREELINE_M: f32 = 1700.0;
 // (v0.999 operator report: "a line of light perpendicular to me like 10
 // meters away").
 
-/// Strand cell size in radians of arc: ~8 m at Earth's radius. Small enough
-/// that a whole cell can be distance-culled tightly against the density ramp
-/// below, large enough that the per-cell stream setup is not the cost.
-pub const GRASS_CELL_RAD: f64 = 1.2557e-6;
+/// The reference scale of the strand FIELDS (clumping, height, dryness), in
+/// radians of arc: ~8 m at Earth's radius. Everything spatial about how the
+/// sward LOOKS is expressed as a fraction of this, and nothing about how it
+/// is streamed - so the stream cell below can be retuned for cost without
+/// moving a single clump.
+pub const GRASS_FIELD_RAD: f64 = 1.2557e-6;
+/// Stream cell size in radians of arc: ~3 m at Earth's radius.
+///
+/// SIZED BY THE RAMP, not by the field. A cell's whole item stream is
+/// budgeted from the density at its NEAREST corner, so on the steep leg of
+/// the ramp a big cell evaluates far more candidates than it can accept: at
+/// ~8 m cells the harvest drew 285,000 candidates to accept 46,000 (6.2x),
+/// and 232,000 of those were in ramp-straddling cells. At ~3 m the cell's
+/// nearest corner is close to its whole extent, and that overhead shrinks.
+///
+/// Smaller still stops paying: per-cell setup (sort key, stream seed) is
+/// fixed cost, and the cell count grows with the square. The live cost is
+/// printed by `near_grass_density_matches_a_real_sward`; measure there
+/// rather than reasoning about it.
+pub const GRASS_CELL_RAD: f64 = 4.7087e-7;
 /// Peak tiller density (tillers per m^2 of ground) inside `GRASS_NEAR_M`,
 /// before `veg_density()` scales it. 45 x the shipped 0.6 density setting =
 /// 27 tillers/m^2 = 189 drawn blades/m^2.
@@ -307,28 +323,55 @@ pub const GRASS_HEIGHT_MIN_M: f32 = 0.24;
 pub const GRASS_HEIGHT_MAX_M: f32 = 0.52;
 /// Downward bias applied to every tiller base, in metres. MEASURED, not
 /// guessed - `grass_bases_sit_on_the_drawn_surface` ray-casts real strands
-/// against the real built patch mesh at two sites.
+/// against the real built patch mesh at two sites and two depths.
 ///
-/// It is SMALL because the brief's expected systematic float turned out not
-/// to exist: strands sample the same `drawn_elevation_normalized` the
-/// player's ground clamp uses, so on flat ground (Amazon, depth-20 mesh) the
-/// raw median offset is within a couple of centimetres of zero and the whole
-/// spread is 3 cm. This 6 cm buries that sub-decimetre float so no blade
-/// crown hovers, and it is far under the 24 cm shortest blade so nothing
-/// disappears.
+/// It is SMALL because a tiller base is now placed ON THE DRAWN TRIANGLE
+/// (`DrawnPatchSurface`, below), not on a direct sample of the elevation
+/// field. Interpolating the resident patch mesh's own face is exact at any
+/// depth and any slope by construction, so the residual is f64 rounding plus
+/// the tiller's own sub-millimetre offset from the plane. The bias exists
+/// only to make sure a crown is never seen hovering by a pixel; it is far
+/// under the 24 cm shortest blade, so nothing disappears into the ground.
 ///
-/// What it CANNOT fix, and must not be enlarged to chase: on a steep flank
-/// the ground sampler itself steps by 1.7 m between adjacent metres (the f32
-/// staircase - see `ground_sampler_is_smooth_at_blade_scale_on_gentle_terrain`),
-/// so a patch vertex and a strand 20 cm away legitimately disagree by metres.
-/// No constant offset corrects quantization noise.
-pub const GRASS_GROUND_BIAS_M: f64 = 0.06;
-/// Ground-GATE lattice spacing as a fraction of `GRASS_CELL_RAD`: the
+/// HISTORY, so nobody re-enlarges it: while the base came from a DIRECT
+/// `drawn_elevation_normalized` sample, Fuji at depth 17 measured p95 +1.06 m
+/// with 23.8% of tillers fully buried, because the mesh samples the f32
+/// base-heightmap staircase at its own 0.84 m lattice and LERPS between those
+/// samples while a direct sample lands on whatever ~1.4 m tread it hits.
+/// A constant offset cannot correct that; interpolating the drawn face does.
+pub const GRASS_GROUND_BIAS_M: f64 = 0.03;
+/// How far the camera travels while a tiller grows from nothing to its full
+/// height, in metres. See `grass_live_emerge`: this is the ONE number that
+/// decides whether a blade appears or emerges. At a 5 m/s sprint and 30 fps
+/// the camera covers 0.17 m in a frame, so 2 m of grow-in caps the tallest
+/// thing that can appear between two frames at ~8% of a blade.
+pub const GRASS_EMERGE_LEN_M: f32 = 2.0;
+/// How far the CPU harvest over-reaches, in metres. The harvest is a
+/// SUPERSET: it accepts every tiller that any camera position within this
+/// radius of the harvest centre could want, which is what lets the harvest
+/// re-anchor without the visible population changing at all (the drawn set is
+/// re-derived from the LIVE camera every frame - `grass_live_emerge`).
+///
+/// Sized against the re-harvest trigger, not against comfort: lib.rs
+/// re-harvests after `GRASS_REHARVEST_M` of camera movement, and the worker
+/// takes tens of milliseconds, so the margin has to cover the trigger plus
+/// the latency of a fast walk. Bigger costs harvest time (the superset grows
+/// with the square of the peak-density radius); smaller thins the leading
+/// edge while a harvest is in flight.
+pub const GRASS_HARVEST_MARGIN_M: f64 = 6.0;
+/// Camera movement that triggers a re-harvest, metres. Strictly less than
+/// `GRASS_HARVEST_MARGIN_M` so the in-flight superset always still covers.
+pub const GRASS_REHARVEST_M: f64 = 4.0;
+/// Ground-GATE lattice spacing as a fraction of `GRASS_FIELD_RAD`: the
 /// elevation band and surface colour that decide WHETHER a tiller exists are
-/// evaluated on a PLANET-FIXED lattice at cell/8 (~1 m) and bilinearly
-/// interpolated, because those are yes/no questions about ground that varies
-/// over hundreds of metres. The tiller's standing POSITION is not: it is
-/// sampled directly, per surviving tiller (see the comment at that call).
+/// evaluated on a PLANET-FIXED lattice at ~1 m and bilinearly interpolated,
+/// because those are yes/no questions about ground that varies over hundreds
+/// of metres. The tiller's standing POSITION is not: it comes off the drawn
+/// patch face, per surviving tiller (see the comment at that call).
+///
+/// Keyed on the FIELD scale, not the stream cell: this is a cost/accuracy
+/// tradeoff about the GROUND, and it must not move when the stream cell is
+/// retuned - a finer gate lattice is thousands more elevation samples.
 ///
 /// Planet-fixed matters even for the gates: a camera-relative lattice shifts
 /// under the field every time the harvest recentres, so tillers would wink in
@@ -624,6 +667,468 @@ pub fn drawn_elevation_normalized(
 /// Depth high enough that `DetailNoise::sample_m` enables EVERY fine octave
 /// (all `DETAIL_FINE_MIN_DEPTH` gates), so the clamp sees the finest drawn ground.
 const FINEST_DETAIL_DEPTH: u8 = 24;
+
+// ── The DRAWN surface, exactly (v0.1091) ──────────────────────────────────
+//
+// `drawn_elevation_normalized` above answers "what does the elevation FIELD
+// say here". That is NOT what you can see. What you see is a mesh: the
+// resident patch samples that field at its own lattice (PATCH_TESS steps
+// along each patch edge) and the rasteriser LINEARLY INTERPOLATES between
+// those samples. The two answers differ by up to a whole quantization tread
+// of the base sampler - measured at Fuji, 1.06 m at the 95th percentile,
+// with 23.8% of grass tillers placed entirely underground - because the base
+// heightmap sampler is an f32 staircase with ~1.4 m treads on a steep flank
+// and the mesh's lattice is 0.84 m at depth 17.
+//
+// So anything that has to SIT ON the visible ground (a blade base, and in
+// time the player's boots) must interpolate the drawn face, not re-sample
+// the field. `DrawnPatchSurface` does exactly that, and it is exact at any
+// depth and any slope by construction: same patch, same lattice, same
+// elevation formula, same linear interpolation.
+//
+// The two costs that make it practical:
+//   * LOCATING the patch is pure barycentric arithmetic. Radially projecting
+//     the planar medial subdivision of a triangle gives exactly the spherical
+//     child triangles the patch tree uses, so "which child contains this
+//     direction" is a compare on three floats and the child's barycentrics
+//     are an affine map of the parent's - no point-in-triangle tests, no
+//     normalize per level.
+//   * SAMPLING is memoized per lattice VERTEX. Neighbouring queries share
+//     corners, so on a coarse patch (0.84 m lattice) a few thousand tillers
+//     cost a few hundred elevation samples.
+
+/// Lattice-vertex memo: a DIRECT-MAPPED cache, not a HashMap.
+///
+/// The access pattern is tiny and extremely local - a harvest touches a few
+/// thousand distinct lattice vertices and asks for each of them a couple of
+/// dozen times, in spatial order - so probing, tombstones and growth are all
+/// dead weight. A collision simply overwrites and the loser is recomputed
+/// later, which is correct because every entry is a pure function of its key.
+///
+/// The DIRECTION is cached beside the radius. It is a 3-scale, 2-add and a
+/// square root, which turned out to cost as much as the lookup guarding it.
+struct VertexMemo {
+    slots: Vec<(u64, DVec3, f64)>,
+    mask: usize,
+}
+
+impl VertexMemo {
+    fn new() -> Self {
+        // 65,536 slots = 3 MB. A 30 m harvest disc touches ~4,000 distinct
+        // lattice vertices at depth 17 and ~50,000 at depth 20, so the table
+        // is sized for the deep case and effectively collision-free.
+        let n = 1 << 16;
+        Self { slots: vec![(0, DVec3::ZERO, 0.0); n], mask: n - 1 }
+    }
+    #[inline]
+    fn slot(&self, key: u64) -> usize {
+        let mut h = key;
+        h ^= h >> 33;
+        h = h.wrapping_mul(0xFF51_AFD7_ED55_8CCD);
+        h ^= h >> 29;
+        (h as usize) & self.mask
+    }
+}
+
+/// The radius of the DRAWN patch surface along a direction, at a given patch
+/// tree depth. Reproduces `build_patch_mesh`'s geometry exactly: the same
+/// lattice directions, the same depth-gated elevation, and the same flat
+/// triangle between them.
+///
+/// Stateful because it memoizes; create one per harvest and reuse it.
+pub struct DrawnPatchSurface<'a, 'b> {
+    def: &'a PlanetDef,
+    source: &'a ElevationSource<'b>,
+    depth: u8,
+    bathymetric: bool,
+    /// Root icosahedron face of the last query (the fast path: a whole
+    /// harvest disc is thousands of times smaller than a root face).
+    face: u8,
+    /// Child index taken at each level of the last query, and the patch
+    /// corners AFTER that step. `corners[0]` is the root face itself, so
+    /// `corners[l + 1]` is the patch at depth `l + 1`.
+    path: Vec<u8>,
+    corners: Vec<[DVec3; 3]>,
+    /// Per level, the lengths |c0+c1|/2, |c1+c2|/2, |c2+c0|/2 of that
+    /// level's UNNORMALIZED edge midpoints. The descent needs them to
+    /// re-express a point's barycentrics in the child's basis (see the note
+    /// in `radius_at`); they are a property of the level's corners, so they
+    /// are cached beside them and recomputed only where the path diverges.
+    mids: Vec<[f64; 3]>,
+    /// Running patch-identity key per level, so the vertex memo's key does
+    /// not have to fold the whole path on every query.
+    pkeys: Vec<u64>,
+    /// Deepest level whose patch is known to contain EVERY query (set by
+    /// `set_region`). Levels below it are re-walked per query; levels above
+    /// are fixed for the whole harvest, so a depth-20 lookup can start at
+    /// level 13 and walk 7 levels instead of 20.
+    base_level: usize,
+    memo: VertexMemo,
+    /// Count of elevation samples actually taken (diagnostics + tests).
+    pub samples: usize,
+}
+
+impl<'a, 'b> DrawnPatchSurface<'a, 'b> {
+    pub fn new(def: &'a PlanetDef, source: &'a ElevationSource<'b>, depth: u8) -> Self {
+        let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
+        Self {
+            def,
+            source,
+            depth,
+            bathymetric,
+            face: u8::MAX,
+            path: Vec::with_capacity(depth as usize),
+            corners: Vec::with_capacity(depth as usize + 1),
+            mids: Vec::with_capacity(depth as usize + 1),
+            pkeys: Vec::with_capacity(depth as usize + 1),
+            base_level: 0,
+            memo: VertexMemo::new(),
+            samples: 0,
+        }
+    }
+
+    /// Pin the descent to the deepest patch that wholly contains a spherical
+    /// cap, so every later query walks only the levels BELOW it.
+    ///
+    /// A harvest disc is ~30 m and a root face is ~7,000 km, so 12-14 of a
+    /// depth-20 walk's levels are the same for every tiller in the harvest.
+    /// Walking them 47,000 times is most of the cost of the walk. This runs
+    /// the shared prefix ONCE.
+    ///
+    /// Safe by construction: if a later query somehow falls outside the
+    /// pinned patch (a caller that changed centre without re-pinning), the
+    /// containment test in `radius_at` fails and it re-walks from the root.
+    pub fn set_region(&mut self, center: DVec3, ang_rad: f64) {
+        self.face = u8::MAX;
+        self.path.clear();
+        self.corners.clear();
+        self.mids.clear();
+        self.pkeys.clear();
+        self.base_level = 0;
+        let c = center.normalize();
+        let Some((f, root)) = root_face_corners()
+            .iter()
+            .enumerate()
+            .find(|(_, rc)| Self::bary(rc, c).is_some())
+        else {
+            return;
+        };
+        let root = *root;
+        if !Self::cap_inside(&root, c, ang_rad) {
+            return;
+        }
+        self.face = f as u8;
+        self.corners.push(root);
+        self.mids.push(Self::mid_lens(&root));
+        self.pkeys.push(f as u64);
+        for _ in 0..self.depth as usize {
+            let cur = self.corners[self.base_level];
+            let kids = child_corners(&cur);
+            let Some((ci, kid)) = kids
+                .iter()
+                .enumerate()
+                .find(|(_, k)| Self::cap_inside(k, c, ang_rad))
+            else {
+                break;
+            };
+            let kid = *kid;
+            self.corners.push(kid);
+            self.mids.push(Self::mid_lens(&kid));
+            self.pkeys.push(
+                self.pkeys[self.base_level]
+                    .wrapping_mul(4)
+                    .wrapping_add(ci as u64 + 1),
+            );
+            self.path.push(ci as u8);
+            self.base_level += 1;
+        }
+    }
+
+    /// Is the spherical cap (`center`, `ang_rad`) wholly inside the spherical
+    /// triangle `c`? Each edge is a great circle whose inward unit normal is
+    /// the normalized cross product of its endpoints; the cap clears the edge
+    /// when the centre is at least `sin(ang)` inside it.
+    fn cap_inside(c: &[DVec3; 3], center: DVec3, ang_rad: f64) -> bool {
+        let s = ang_rad.sin();
+        for i in 0..3 {
+            let n = c[i].cross(c[(i + 1) % 3]);
+            let nl = n.length();
+            if nl < 1e-18 {
+                return false;
+            }
+            // Orient inward using the opposite corner.
+            let n = if n.dot(c[(i + 2) % 3]) < 0.0 { -n / nl } else { n / nl };
+            if n.dot(center) < s {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// |c0+c1|/2, |c1+c2|/2, |c2+c0|/2 - the lengths the edge midpoints have
+    /// BEFORE `midpoint()` normalizes them.
+    #[inline]
+    fn mid_lens(c: &[DVec3; 3]) -> [f64; 3] {
+        [
+            (c[0] + c[1]).length() * 0.5,
+            (c[1] + c[2]).length() * 0.5,
+            (c[2] + c[0]).length() * 0.5,
+        ]
+    }
+
+    /// Barycentric weights of `dir` in the spherical triangle `c`, normalized
+    /// to sum 1, or None when `dir` is not inside it.
+    ///
+    /// THE SIGN OF THE SUM IS PART OF THE TEST, not a normalisation detail.
+    /// The root faces are CCW from outside, so the scalar triple product is
+    /// positive and a contained direction has three positive raw weights. The
+    /// ANTIPODAL face has three NEGATIVE raw weights - and dividing three
+    /// negatives by their negative sum yields three positives, so a test that
+    /// only checks the normalised signs accepts the face on the far side of
+    /// the planet. That is not theoretical: it picked the wrong root face at
+    /// Amazon (but not at Fuji, which is why it looked like a depth-20 bug)
+    /// and returned a radius of exactly -R, the far-side plane crossing.
+    #[inline]
+    fn bary(c: &[DVec3; 3], dir: DVec3) -> Option<[f64; 3]> {
+        let b0 = dir.dot(c[1].cross(c[2]));
+        let b1 = dir.dot(c[2].cross(c[0]));
+        let b2 = dir.dot(c[0].cross(c[1]));
+        if b0 < 0.0 || b1 < 0.0 || b2 < 0.0 {
+            return None;
+        }
+        let s = b0 + b1 + b2;
+        if s < 1e-300 {
+            return None;
+        }
+        Some([b0 / s, b1 / s, b2 / s])
+    }
+
+    /// The elevation formula `build_patch_mesh` uses, at THIS depth.
+    fn mesh_elevation(&self, dir: DVec3) -> f32 {
+        match self.source {
+            ElevationSource::Heightmap { hm, detail, tiles, .. } => {
+                let (base, from_tile) = tile_or_base(hm, *tiles, dir, self.depth);
+                let range_m = hm.max_meters() - hm.min_meters();
+                if range_m <= 0.0 {
+                    return base.clamp(0.0, 1.0);
+                }
+                let sea = self.def.sea_level.clamp(0.0, 1.0);
+                let above_sea_m = (base - sea) * range_m;
+                let mask = smoothstep01(above_sea_m / DETAIL_LAND_FADE_M);
+                let e = if mask > 0.0 {
+                    let dm = if from_tile {
+                        detail.sample_m_tile_gated(dir, self.depth)
+                    } else {
+                        detail.sample_m(dir, self.depth)
+                    };
+                    base + (dm * mask) / range_m
+                } else {
+                    base
+                };
+                e.clamp(0.0, 1.0)
+            }
+            ElevationSource::Noise(s) => s.elevation_at(dir.as_vec3()),
+        }
+    }
+
+    /// Planet-local radius in metres of the mesh vertex at lattice (r, c) of
+    /// the patch whose corners are `c3` and whose identity key is `pkey`.
+    fn vertex(&mut self, pkey: u64, c3: &[DVec3; 3], r: u32, cc: u32) -> (DVec3, f64) {
+        let n = PATCH_TESS;
+        let w0 = (n - r) as f64;
+        let w1 = (r - cc) as f64;
+        let w2 = cc as f64;
+        // The key is unique per (patch, lattice node), and non-zero so slot
+        // 0 can never be mistaken for a filled entry.
+        let key = pkey
+            .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ ((r as u64) << 8)
+            ^ (cc as u64)
+            ^ 0x2545_F491_4F6C_DD1D;
+        let si = self.memo.slot(key);
+        {
+            let e = &self.memo.slots[si];
+            if e.0 == key {
+                return (e.1, e.2);
+            }
+        }
+        // Bit-identical to build_patch_mesh vertex direction: same integer
+        // weights, same product-and-sum order, same normalize.
+        let dir = (c3[0] * w0 + c3[1] * w1 + c3[2] * w2).normalize();
+        let e = self.mesh_elevation(dir);
+        let r_m = self.def.radius
+            * if self.bathymetric {
+                displaced_radius_f64_true(self.def, e as f64)
+            } else {
+                displaced_radius_f64(self.def, e as f64)
+            };
+        self.memo.slots[si] = (key, dir, r_m);
+        self.samples += 1;
+        (dir, r_m)
+    }
+
+    /// Radius (planet-local metres from the planet centre) at which a ray
+    /// along `dir` leaves the drawn patch surface.
+    pub fn radius_at(&mut self, dir: DVec3) -> f64 {
+        let d = dir.normalize();
+        // ── Entry level ──
+        // Normally the pinned region (set_region) - the deepest patch that
+        // contains every query in this harvest, so the walk starts there.
+        // Falls back to a full root walk when nothing is pinned or when a
+        // query lands outside the pinned patch.
+        let mut b = [0.0f64; 3];
+        let mut start = self.base_level;
+        let mut found = false;
+        if start > 0 && start < self.corners.len() {
+            if let Some(t) = Self::bary(&self.corners[start], d) {
+                b = t;
+                found = true;
+            }
+        }
+        if !found {
+            start = 0;
+            if self.face != u8::MAX {
+                let c = root_face_corners()[self.face as usize];
+                if let Some(t) = Self::bary(&c, d) {
+                    b = t;
+                    found = true;
+                }
+            }
+            if !found {
+                for (f, c) in root_face_corners().iter().enumerate() {
+                    if let Some(t) = Self::bary(c, d) {
+                        b = t;
+                        self.face = f as u8;
+                        self.path.clear();
+                        self.corners.clear();
+                        self.mids.clear();
+                        self.pkeys.clear();
+                        self.base_level = 0;
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    // Numerically on an edge of every face: fall back to the
+                    // field sample rather than returning nonsense.
+                    return self.def.radius
+                        * displaced_radius_f64(self.def, self.mesh_elevation(d) as f64);
+                }
+            }
+            if self.corners.is_empty() {
+                let c = root_face_corners()[self.face as usize];
+                self.corners.push(c);
+                self.mids.push(Self::mid_lens(&c));
+                self.pkeys.push(self.face as u64);
+            }
+        }
+        // ── Descend ──
+        //
+        // Radially projecting the PLANAR medial subdivision of a triangle
+        // gives exactly the spherical children `patch_corners` builds: an
+        // edge midpoint normalizes onto the same ray as the planar midpoint,
+        // and a great-circle edge is the projection of the straight one. So
+        // "which child contains this direction" is `b[i] >= 0.5` on the
+        // parent's barycentrics - three compares, no point-in-triangle test.
+        //
+        // RE-EXPRESSING the barycentrics in the child's basis is where this
+        // gets subtle, and getting it wrong is silent. Write P in the child's
+        // UNNORMALIZED basis first (for child 0, that is c0 and the raw
+        // midpoints (c0+c1)/2 and (c2+c0)/2):
+        //
+        //   P = (b0-b1-b2) c0  +  2*b1 * (c0+c1)/2  +  2*b2 * (c2+c0)/2
+        //
+        // then convert each raw midpoint to the UNIT corner the patch tree
+        // actually uses, which scales that coefficient by the midpoint's
+        // length. Skipping that scaling looks right (the coefficients still
+        // sum to 1 and the child selection still works) and quietly drifts the
+        // lattice position: measured 138 m of error at Fuji depth 17, because
+        // a root-face midpoint is only 0.851 long and the distortion compounds
+        // down the first few levels.
+        let depth = self.depth as usize;
+        for level in start..depth {
+            let m = self.mids[level];
+            let (child, nb): (u8, [f64; 3]) = if b[0] >= 0.5 {
+                (0, [b[0] - b[1] - b[2], 2.0 * b[1] * m[0], 2.0 * b[2] * m[2]])
+            } else if b[1] >= 0.5 {
+                (1, [b[1] - b[2] - b[0], 2.0 * b[2] * m[1], 2.0 * b[0] * m[0]])
+            } else if b[2] >= 0.5 {
+                (2, [b[2] - b[0] - b[1], 2.0 * b[0] * m[2], 2.0 * b[1] * m[1]])
+            } else {
+                (
+                    3,
+                    [
+                        (1.0 - 2.0 * b[2]) * m[0],
+                        (1.0 - 2.0 * b[0]) * m[1],
+                        (1.0 - 2.0 * b[1]) * m[2],
+                    ],
+                )
+            };
+            let s = nb[0] + nb[1] + nb[2];
+            b = if s.abs() < 1e-300 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [nb[0] / s, nb[1] / s, nb[2] / s]
+            };
+            // Extend / repair the cached corner chain. Levels whose child is
+            // unchanged keep their corners, midpoint lengths and patch key,
+            // which is why a harvest disc metres wide only ever pays for its
+            // last few levels: the prefix is shared by every query in it.
+            let want = level + 1;
+            let stale = self.path.len() <= level
+                || self.path[level] != child
+                || self.corners.len() <= want;
+            if stale {
+                self.path.truncate(level);
+                self.corners.truncate(want);
+                self.mids.truncate(want);
+                self.pkeys.truncate(want);
+                let kid = child_corners(&self.corners[level])[child as usize];
+                self.corners.push(kid);
+                self.mids.push(Self::mid_lens(&kid));
+                self.pkeys
+                    .push(self.pkeys[level].wrapping_mul(4).wrapping_add(child as u64 + 1));
+                self.path.push(child);
+            }
+        }
+        self.path.truncate(depth);
+        self.corners.truncate(depth + 1);
+        self.mids.truncate(depth + 1);
+        self.pkeys.truncate(depth + 1);
+        let c3 = self.corners[depth];
+        let pkey = self.pkeys[depth];
+        // ── Lattice cell ──
+        // Vertex (r, c) carries integer weights (n-r, r-c, c), so
+        // r = n*(1-b0) and c = n*b2.
+        let n = PATCH_TESS;
+        let nf = n as f64;
+        let v = ((1.0 - b[0]) * nf).clamp(0.0, nf);
+        let u = (b[2] * nf).clamp(0.0, v);
+        let ri = (v.floor() as u32).min(n - 1);
+        let ci = (u.floor() as u32).min(ri);
+        let fv = v - ri as f64;
+        let fu = u - ci as f64;
+        // Upward cell (fu <= fv) or downward cell - the same two triangles
+        // build_patch_mesh emits per lattice square.
+        let tri = if fu <= fv {
+            [(ri, ci), (ri + 1, ci), (ri + 1, ci + 1)]
+        } else {
+            [(ri, ci), (ri + 1, ci + 1), (ri, ci + 1)]
+        };
+        let (d0, r0) = self.vertex(pkey, &c3, tri[0].0, tri[0].1);
+        let (d1, r1) = self.vertex(pkey, &c3, tri[1].0, tri[1].1);
+        let (d2, r2) = self.vertex(pkey, &c3, tri[2].0, tri[2].1);
+        let (p0, p1, p2) = (d0 * r0, d1 * r1, d2 * r2);
+        // Where the ray leaves the drawn FACE. Plane intersection rather than
+        // a weighted mean of the three radii: the face is what rasterises.
+        let nrm = (p1 - p0).cross(p2 - p0);
+        let den = d.dot(nrm);
+        if den.abs() < 1e-9 {
+            return (r0 + r1 + r2) / 3.0;
+        }
+        p0.dot(nrm) / den
+    }
+}
 
 // ── Patch identity + geometry derivation ──
 
@@ -1788,7 +2293,6 @@ pub fn build_patch_mesh(
             color: [0.0; 3], // overwritten by the emitter
             water: water_flavor,
             tree_card: false,
-            grass_card: false,
         },
         &mut vertices,
         &mut indices,
@@ -1856,7 +2360,6 @@ pub fn build_patch_mesh(
                     color,
                     water: false,
                     tree_card: marking_trees.get(),
-                    grass_card: false,
                 });
             }
             // p00=0, p01=1, p11=2, p10=3
@@ -1925,7 +2428,6 @@ pub fn build_patch_mesh(
                     color: col,
                     water: false,
                     tree_card: true,
-                    grass_card: false,
                 });
             }
             // c00=0, c10=1, c11=2, c01=3: the original
@@ -2206,8 +2708,7 @@ pub fn build_patch_mesh(
                     normal: nrm,
                     color,
                     water: skirt_water,
-                        tree_card: false,
-                        grass_card: false,
+                    tree_card: false,
                 });
             }
         }
@@ -2526,11 +3027,61 @@ pub struct NearGrass {
     /// sway in lockstep; derived from the planet-fixed stream, so it is
     /// stable across harvests.
     pub phase: f32,
-    /// 0..1 ramp-in. A tiller that has only just crossed the density
-    /// threshold comes in short and grows to full as the camera closes, so
-    /// approaching the field does not pop rows of blades into existence.
-    /// Multiply the instance scale by this.
-    pub emerge: f32,
+    /// This tiller's place in its cell's acceptance order, expressed as the
+    /// NORMALIZED DENSITY at which it starts to exist: it is drawn exactly
+    /// while `grass_density_at(live distance) / GRASS_PEAK_PER_M2 > thr`,
+    /// i.e. inside `grass_appear_distance(thr)` of the camera.
+    ///
+    /// This is the whole reason the layer has no population ring. The CPU
+    /// harvest is a camera-relative SUPERSET, re-run only every
+    /// `GRASS_REHARVEST_M`; the visible set is re-derived from the LIVE
+    /// camera distance every frame through `grass_live_emerge`, so the
+    /// density ramp is anchored on where you actually are, never on where
+    /// the last harvest happened. Recentring the harvest changes nothing
+    /// on screen.
+    pub thr: f32,
+}
+
+/// The surface distance at which a tiller of this threshold starts to exist:
+/// the inverse of the density ramp. Beyond it the local density is below the
+/// tiller's own threshold and it is not drawn; inside it, it is.
+///
+/// Closed form because `grass_density_at` is piecewise linear, and exact
+/// rather than a search because it is evaluated per tiller per frame.
+pub fn grass_appear_distance(thr: f32) -> f32 {
+    if thr >= 1.0 {
+        return 0.0;
+    }
+    if thr <= 0.0 {
+        return GRASS_FAR_M;
+    }
+    let m = GRASS_MID_PER_M2 / GRASS_PEAK_PER_M2;
+    if thr >= m {
+        // On the peak-to-mid leg: density/PEAK falls 1 -> m over NEAR..MID.
+        let t = (thr - 1.0) / (m - 1.0);
+        GRASS_NEAR_M + (GRASS_MID_M - GRASS_NEAR_M) * t
+    } else {
+        // On the mid-to-zero leg: density/PEAK falls m -> 0 over MID..FAR.
+        let t = 1.0 - thr / m;
+        GRASS_MID_M + (GRASS_FAR_M - GRASS_MID_M) * t
+    }
+}
+
+/// How tall this tiller stands right now, as a fraction of `height_m`, for a
+/// camera `d_m` surface-metres away. Zero means "not drawn at all".
+///
+/// The density ramp and the grow-in are ONE function evaluated at draw time:
+/// a tiller grows from nothing to full height over the last
+/// `GRASS_EMERGE_LEN_M` metres of the camera's approach, wherever on the ramp
+/// its own threshold happens to sit. Expressing the band in METRES OF CAMERA
+/// TRAVEL rather than in units of density is what makes the grow-in rate
+/// uniform: the ramp's slope varies 4x between its two legs, so a fixed
+/// density band pops blades in on the steep leg (measured: a 0.22 m blade
+/// appearing from nothing in a single 25 cm step) while over-fading them on
+/// the shallow one.
+#[inline]
+pub fn grass_live_emerge(thr: f32, d_m: f32) -> f32 {
+    ((grass_appear_distance(thr) - d_m) / GRASS_EMERGE_LEN_M).clamp(0.0, 1.0)
 }
 
 /// Tillers per m^2 of ground at `d_m` surface metres from the camera, BEFORE
@@ -2611,8 +3162,8 @@ fn lattice_noise01(lat: f64, lon: f64, cell: f64, salt: u64) -> f32 {
 /// than on a 3D direction because lat/lon are already in hand at that point
 /// (they come straight out of the stream, no transcendentals needed).
 pub fn grass_clump_gain(lat: f64, lon: f64) -> f32 {
-    let coarse = lattice_noise01(lat, lon, GRASS_CELL_RAD * 0.22, 0x51E5_C0FF_EEA1_1CE5);
-    let fine = lattice_noise01(lat, lon, GRASS_CELL_RAD * 0.09, 0xD1CE_5EED_0BAD_F00D);
+    let coarse = lattice_noise01(lat, lon, GRASS_FIELD_RAD * 0.22, 0x51E5_C0FF_EEA1_1CE5);
+    let fine = lattice_noise01(lat, lon, GRASS_FIELD_RAD * 0.09, 0xD1CE_5EED_0BAD_F00D);
     let c = coarse * 0.75 + fine * 0.25;
     // LINEAR about the field's own mean of 0.5, so the multiplier's mean is
     // 1.0 by construction and the peak density stays the number the constant
@@ -2629,7 +3180,7 @@ pub fn grass_clump_gain(lat: f64, lon: f64) -> f32 {
 /// short - a real sward's height is strongly correlated over tens of metres,
 /// where the bake drew every tuft's height as an independent uniform.
 pub fn grass_height_field(lat: f64, lon: f64) -> f32 {
-    let n = lattice_noise01(lat, lon, GRASS_CELL_RAD * 1.2, 0x600D_5EED_1234_5678);
+    let n = lattice_noise01(lat, lon, GRASS_FIELD_RAD * 1.2, 0x600D_5EED_1234_5678);
     0.85 + n * 0.30
 }
 
@@ -2687,42 +3238,49 @@ struct GrassGroundNode {
 ///   * GATES RIDE A LATTICE, POSITION DOES NOT. The elevation band and the
 ///     biome colour are yes/no questions about ground that varies over
 ///     hundreds of metres, so they come off a planet-fixed ~1 m lattice. The
-///     standing position is sampled directly per surviving tiller, because a
-///     lattice aliases the base sampler's f32 staircase (measured: up to
-///     1.72 m of disagreement).
-///   * ELEVATION IS THE DRAWN ONE, not the base grid the trees gate on. A
-///     tiller is 30 cm tall and stands where you are standing, so it has to
-///     agree with the surface the player's feet are clamped to; a tree is
-///     20 m tall and its base being a metre out is invisible.
+///     standing position does not: it comes off the DRAWN patch triangle.
+///   * THE BASE SITS ON THE MESH, not on the elevation field. A tiller is
+///     30 cm tall and stands where you are standing, so a metre of
+///     disagreement with the visible ground is the whole layer failing.
+///     `DrawnPatchSurface` interpolates the resident patch's own face, which
+///     is exact at any depth and any slope - see the long note there for
+///     what a direct field sample gets wrong and by how much.
 ///
-/// WIRING - this function cannot draw anything by itself, and all three of
-/// these are in files this increment does not own:
-///   1. `src/lib.rs` calls this ON A WORKER with the same hysteresis the near
-///      trees use (~8-16 m of camera movement). MEASURED cost, release build,
-///      22 m radius: 20,822 tillers and 19-21 ms at veg_density 1.0, roughly
-///      12,500 tillers and 11-13 ms at the shipped 0.6. That is fine on a
-///      worker every few seconds of walking and would be catastrophic on the
-///      frame thread.
-///   2. `src/renderer/` uploads `grass_tiller_mesh()` ONCE and issues ONE
-///      instanced draw of it against a per-instance buffer. Not one draw per
-///      tiller: there are ~12,500. The per-instance record needs position,
-///      yaw, height x emerge, phase and colour - more than the existing
-///      16-byte `inst_pos_fade` slot at shader location 4 carries, so it
-///      needs its own layout or a storage buffer.
-///   3. The material is a NEW type in the 19-22 wind family so the shipped
-///      gust front, per-plant phase and v^2 lean apply for free. Grass wants
-///      a much larger lean fraction than the tree cap of 0.30 (a 30 cm blade
-///      lies nearly flat at 10 m/s) and a higher flutter frequency. Its
-///      fragment branch multiplies the mesh's grey Beer-Lambert ramp by the
-///      per-instance colour and takes the existing `is_leaf` transmission
-///      path, which the mesh already opts into via the leaf organ bit.
-/// The exact edits are in this increment's report as WIRING REQUESTS.
+/// THE HARVEST IS A SUPERSET, and that is the design, not a slop budget.
+/// Acceptance is evaluated at `(distance - margin_m)`, so every tiller ANY
+/// camera position within `margin_m` of `center_dir` could want is in the
+/// returned set. The caller then decides what is actually drawn, every
+/// frame, from the LIVE camera distance via `grass_live_emerge`. That split
+/// is what makes re-harvesting invisible: the density ramp is anchored on
+/// the real camera at all times, so moving the harvest centre cannot pop,
+/// thin or ring the field the way a plain hysteresis would (a tiller 6 m
+/// from a new pose was 14 m from the old one, and `grass_density_at` differs
+/// by 4x across that).
+///
+/// `depth` is the patch tree depth of the ground actually being DRAWN under
+/// the camera - `lib.rs` reads it from the drawn leaf set. Getting it wrong
+/// by a level costs sub-decimetre accuracy; leaving it at a fixed guess
+/// costs metres on a coarse mesh.
+///
+/// COST, and the known follow-up: this runs INLINE on the frame thread,
+/// once per `GRASS_REHARVEST_M` of camera movement. MEASURED in release at
+/// `veg_density` 1.0, 47,000 tillers: 27 ms at Fuji depth 17, 31 ms at
+/// Amazon depth 20 (roughly 16 and 18 at the shipped 0.6 density). That is
+/// one doubled frame every few seconds of walking - real, and the honest
+/// next increment is to TIME-SLICE it: the cell walk is sorted nearest-first
+/// and every cell is independent, so it can be resumed across frames with
+/// the previous superset still live (which the margin already guarantees is
+/// valid). A worker thread is the wrong shape here - the harvest must see
+/// the same streamed tile tier the patch mesh saw, and `TerrainTiles` is
+/// owned and mutated by the frame thread.
 pub fn near_grass_instances(
     def: &PlanetDef,
     source: &ElevationSource,
     albedo: Option<&PlanetAlbedo>,
     center_dir: DVec3,
     far_m: f64,
+    margin_m: f64,
+    depth: u8,
     max_n: usize,
 ) -> Vec<NearGrass> {
     let mut out: Vec<NearGrass> = Vec::new();
@@ -2734,7 +3292,10 @@ pub fn near_grass_instances(
         return out;
     }
     let lon_c = (-center.z).atan2(center.x);
-    let far_m = far_m.clamp(1.0, GRASS_FAR_M as f64);
+    let margin_m = margin_m.clamp(0.0, GRASS_FAR_M as f64);
+    // The superset reaches `margin_m` further than the ramp does: a camera
+    // that far from the harvest centre still sees the last of the ramp.
+    let far_m = far_m.clamp(1.0, GRASS_FAR_M as f64) + margin_m;
     let ang = far_m / def.radius.max(1.0);
     let cos_ang = ang.cos();
     let sea = def.sea_level.clamp(0.0, 1.0);
@@ -2742,8 +3303,14 @@ pub fn near_grass_instances(
         ElevationSource::Heightmap { hm, .. } => hm.max_meters() - hm.min_meters(),
         ElevationSource::Noise(_) => 1.0,
     };
-    let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
+    let mut ground = DrawnPatchSurface::new(def, source, depth);
+    // Pin the shared prefix of the patch walk to the whole harvest disc
+    // (plus a cell of slop). Without this, every one of ~47,000 base
+    // placements re-walks 15-20 tree levels that are identical for all of
+    // them; with it, only the last few levels differ. MEASURED: 22.7 ms of
+    // the harvest before, 6-8 ms after.
     let cell = GRASS_CELL_RAD;
+    ground.set_region(center, ang + cell);
     let salt: u64 = 0x9A55_77EE_0F5A_11D5;
     let density_scale = veg_density();
     // Metres per radian of latitude; longitude is this times cos(lat).
@@ -2755,7 +3322,7 @@ pub fn near_grass_instances(
     // cell / GRASS_LATTICE_DIV (~1 m). Indices are ABSOLUTE, so the same
     // node carries the same value from any camera position and the field
     // cannot jiggle vertically when the harvest recentres.
-    let lcell = cell / GRASS_LATTICE_DIV as f64;
+    let lcell = GRASS_FIELD_RAD / GRASS_LATTICE_DIV as f64;
     let lat_span = ang / lcell;
     let lon_span = ang / (lcell * coslat);
     let nylo = (lat_c / lcell).floor() as i64 - lat_span.ceil() as i64 - 1;
@@ -2879,8 +3446,11 @@ pub fn near_grass_instances(
         }
         // Acceptance is index < count * p with p = want * gain / GAIN_MAX; p
         // can never exceed `want` at the cell's nearest point, so the stream
-        // can stop there instead of running the full cell.
-        let p_ceiling = (grass_density_at(near_m as f32) / GRASS_PEAK_PER_M2).min(1.0);
+        // can stop there instead of running the full cell. The superset
+        // margin (see the fn doc) enters here as a distance discount, which
+        // is what makes the bound valid for any camera within it.
+        let p_ceiling =
+            (grass_density_at((near_m - margin_m).max(0.0) as f32) / GRASS_PEAK_PER_M2).min(1.0);
         let take = ((count as f32) * p_ceiling).ceil() as u32;
         if take == 0 {
             continue;
@@ -2934,15 +3504,19 @@ pub fn near_grass_instances(
             if gain <= 0.0 {
                 continue; // bare scrape
             }
-            let p = (grass_density_at(d_m) / GRASS_PEAK_PER_M2 * gain
-                / GRASS_CLUMP_GAIN_MAX)
-                .min(1.0);
-            let accept = (count as f32) * p;
-            if (item as f32) >= accept {
+            // The tiller's THRESHOLD: the normalized density at which it
+            // starts to exist, from its index in the cell's stream. Invert
+            // the acceptance rule `item < count * (density/PEAK) * gain/GMAX`
+            // to get a per-tiller constant that carries no camera distance at
+            // all, so the draw-time gate can re-evaluate the ramp live.
+            let thr = (item as f32 / count as f32) * (GRASS_CLUMP_GAIN_MAX / gain);
+            // SUPERSET acceptance: discount the distance by the margin, so
+            // any camera within it still finds this tiller in the set.
+            let p_here = grass_density_at(((d_m as f64 - margin_m).max(0.0)) as f32)
+                / GRASS_PEAK_PER_M2;
+            if thr >= p_here {
                 continue;
             }
-            // Grow the last ~8% of the accepted band in rather than popping.
-            let emerge = ((accept - item as f32) / (accept * 0.08 + 1.0)).clamp(0.0, 1.0);
             let cl = lat.cos();
             let dir = DVec3::new(cl * lon.cos(), lat.sin(), -cl * lon.sin());
             if dir.dot(center) < cos_ang {
@@ -2959,29 +3533,11 @@ pub fn near_grass_instances(
             if !veg_biome_ok(sc) {
                 continue;
             }
-            // Elevation for the actual STANDING POSITION is sampled directly,
-            // per surviving tiller, because the base heightmap sampler is a
-            // ~0.9 m STAIRCASE: `PlanetHeightmap::normalized_at` takes an f32
-            // Vec3 and `dir_to_latlon_deg` returns f32 DEGREES, whose ulp at
-            // lon 138.8 is 8.3e-6 deg = 0.75 m on the ground. On Fuji's flank
-            // (a ~0.38 m/m base gradient, x4 vertical exaggeration) one tread
-            // of that staircase is ~1.4 m of drawn radius. A 1 m lattice
-            // ALIASES it: measured, lattice-vs-direct disagreed by up to
-            // 1.72 m, while direct-vs-mesh agreed to 0.35 m for most strands.
-            // Only survivors pay, which is what keeps this affordable.
-            let e = match source {
-                ElevationSource::Heightmap { hm, detail, tiles, .. } => {
-                    drawn_elevation_normalized(hm, def, detail, *tiles, dir)
-                }
-                ElevationSource::Noise(sm) => sm.elevation_at(dir.as_vec3()),
-            };
-            let r = def.radius
-                * if bathymetric {
-                    displaced_radius_f64_true(def, e as f64)
-                } else {
-                    displaced_radius_f64(def, e as f64)
-                }
-                - GRASS_GROUND_BIAS_M;
+            // STANDING POSITION: the DRAWN patch face, per surviving tiller.
+            // Not a direct elevation sample - see the DrawnPatchSurface note.
+            // Only survivors pay, and the vertex memo means neighbours in the
+            // same lattice cell share their three corner samples.
+            let r = ground.radius_at(dir) - GRASS_GROUND_BIAS_M;
             let hf = grass_height_field(lat, lon);
             let jitter = 0.82 + (r3 % 1000) as f32 / 1000.0 * 0.36;
             let height_m = ((GRASS_HEIGHT_MIN_M + GRASS_HEIGHT_MAX_M) * 0.5 * hf * jitter)
@@ -3018,7 +3574,7 @@ pub fn near_grass_instances(
                 height_m,
                 color,
                 phase: (r5 % 6283) as f32 / 1000.0,
-                emerge,
+                thr,
             });
         }
     }
@@ -3366,7 +3922,6 @@ pub fn build_water_patch_mesh_at(
                 color: depth_colors[i],
                 water: true,
                 tree_card: false,
-                grass_card: false,
             });
         }
     };
@@ -3748,7 +4303,6 @@ mod tests {
             color: [0.0; 3],
             water,
             tree_card: false,
-            grass_card: false,
         }
     }
 
@@ -4464,7 +5018,7 @@ mod tests {
             .mesh
             .vertices
             .iter()
-            .filter(|v| v.tree_card || v.grass_card)
+            .filter(|v| v.tree_card)
             .count();
         assert_eq!(
             card_verts * 3,
@@ -5503,6 +6057,14 @@ mod tests {
 
     /// The patch of `depth` whose spherical triangle contains `dir`: descend
     /// from the root face, taking whichever child covers the direction.
+    /// Surface distance from a harvest/camera centre to a tiller, in metres.
+    /// The SAME small-angle chord measure `near_grass_instances` accepts on
+    /// and `lib.rs` re-gates on every frame, so a test that uses anything
+    /// else is measuring a different field than the one that draws.
+    fn surf_d(def: &PlanetDef, center: DVec3, dir: DVec3) -> f32 {
+        ((dir - center.normalize()).length() * def.radius) as f32
+    }
+
     fn patch_containing(dir: DVec3, depth: u8) -> PatchId {
         let inside = |id: &PatchId, d: DVec3| -> bool {
             let c = patch_corners(id);
@@ -5575,38 +6137,34 @@ mod tests {
         best
     }
 
-    /// THE UNTESTED ASSUMPTION (this increment's brief): a strand samples the
-    /// elevation field directly while the patch under it is a mesh of
-    /// triangles, so a blade base can float or sink. Measured against the REAL
-    /// drawn patch mesh - a ray from the planet centre through each strand,
-    /// intersected with the patch's grid faces - not guessed at.
+    /// THE GROUND-CONTACT GATE. A tiller is 24-52 cm tall and stands exactly
+    /// where the player stands, so "close enough" is a few centimetres, not a
+    /// few metres. Measured against the REAL drawn patch mesh - a ray from the
+    /// planet centre through each strand, intersected with the patch's grid
+    /// faces - never against the elevation field the strand came from.
     ///
-    /// WHAT THE MEASUREMENT FOUND, in order of size:
+    /// WHERE THIS GATE IS SET, and why it moved (v0.1091):
     ///
-    ///  1. THE LATTICE WAS THE PROBLEM, and is gone. Interpolating the ground
-    ///     on a 1 m lattice disagreed with a direct sample by up to 1.72 m,
-    ///     because the base sampler is an f32 staircase (see
-    ///     `ground_sampler_is_smooth_at_blade_scale_on_gentle_terrain`) and a
-    ///     1 m lattice aliases a ~1.4 m tread. Strand POSITION is sampled
-    ///     directly now; only the gates ride the lattice.
+    ///  1. IT GATES AT FUJI, AT THE DEPTH THE SELECTOR ACTUALLY REACHES. The
+    ///     first version of this test gated only at AMAZON at depth 20 - flat
+    ///     ground on the finest possible mesh, i.e. the one combination that
+    ///     could not fail. It printed the interesting rows and asserted on
+    ///     none of them: Fuji at depth 17 measured p95 +1.060 m with 23.8% of
+    ///     tillers buried whole, and nothing turned red. Fuji IS the vantage
+    ///     the grass regression exists for, and 17 IS where its LOD stops.
     ///
-    ///  2. ON GENTLE GROUND THE LAYER IS ALREADY COPLANAR. At Amazon the raw
-    ///     median offset is within a couple of centimetres of zero, which is
-    ///     why `GRASS_GROUND_BIAS_M` is 6 cm and not the "small downward bias"
-    ///     the brief expected to be needed - the bias exists only to bury the
-    ///     sub-decimetre float, not to correct a systematic error.
+    ///  2. THE FIX WAS NOT A BIAS, IT WAS THE REFERENCE SURFACE. A direct
+    ///     elevation sample is not the ground you can see: the mesh samples
+    ///     the f32 base-heightmap staircase at ITS lattice (0.84 m at depth
+    ///     17) and interpolates linearly between those samples, while a
+    ///     direct sample lands on whatever ~1.4 m tread it happens to hit.
+    ///     `DrawnPatchSurface` interpolates the drawn face instead, which is
+    ///     exact at any depth and any slope, so the residual here is f64
+    ///     rounding plus `GRASS_GROUND_BIAS_M`.
     ///
-    ///  3. ON A STEEP FLANK NOTHING CAN SIT ON THE GROUND, and that is a
-    ///     terrain defect, not a grass one. At Fuji the ground sampler steps
-    ///     by 1.708 m between adjacent metres; a patch vertex and a strand
-    ///     20 cm away legitimately land on different treads, so the residual
-    ///     is metres wide no matter what grass does. Recorded, not gated.
-    ///
-    ///  4. THE COARSE MESH IS ITS OWN PROBLEM. At depth 17 (3.36 m triangles,
-    ///     which is as deep as the LOD selector actually gets at Fuji's
-    ///     elevation) the disagreement is far worse than at depth 20. That is
-    ///     the depth-cap ticket, and the same offset applies to the player's
-    ///     feet, because the ground clamp reads the same field grass does.
+    ///  3. BURIED IS MEASURED AT HALF A BLADE, not a whole one. A tiller sunk
+    ///     by its full height is invisible; one sunk by half is a visibly
+    ///     stunted patch, and a field of them reads as bald ground.
     #[test]
     fn grass_bases_sit_on_the_drawn_surface() {
         let (hm, albedo, def) = real_earth();
@@ -5617,96 +6175,131 @@ mod tests {
             tiles: None,
             ocean: None,
         };
-        // (name, lat, lon, gated). Amazon is flat, so its numbers are the
-        // grass layer's own; Fuji is the steep flank the brief named, kept for
-        // the record because it is where the terrain staircase shows.
-        let sites = [("amazon", -3.0_f64, -60.0_f64, true), ("fuji", 35.3, 138.8, false)];
-        for (name, lat, lon, gated) in sites {
+        // (name, lat, lon, depth). The depth is the one the LOD selector
+        // really reaches at that site, measured in the running game:
+        // Fuji's 1,224 m of elevation caps it at 17 (that is terrain ticket
+        // T1, filed separately); the Amazon floodplain reaches 20.
+        let sites = [("fuji", 35.3_f64, 138.8_f64, 17u8), ("amazon", -3.0, -60.0, 20)];
+        for (name, lat, lon, depth) in sites {
             let center = dir_of(lat, lon);
-            let g = near_grass_instances(&def, &src, Some(&albedo), center, 12.0, 4000);
+            let g = near_grass_instances(&def, &src, Some(&albedo), center, 12.0, 0.0, depth, 4000);
             assert!(
                 g.len() >= 50,
                 "{name}: only {} strands - the harvest is not producing a sward",
                 g.len()
             );
-            let mut p95_by_depth = Vec::new();
-            for depth in [17u8, 20u8] {
-                let id = patch_containing(center, depth);
-                let pm = build_patch_mesh(&def, &src, Some(&albedo), &id);
-                let mut errs: Vec<f64> = Vec::new();
-                let (mut sunk, mut hit) = (0, 0);
-                for t in g.iter().take(400) {
-                    if let Some(r) = drawn_radius_along(&pm, t.dir) {
-                        let off = t.r_m - r; // + = floating, - = buried
-                        errs.push(off);
-                        hit += 1;
-                        if off < -(t.height_m as f64) {
-                            sunk += 1;
-                        }
+            let id = patch_containing(center, depth);
+            let pm = build_patch_mesh(&def, &src, Some(&albedo), &id);
+            let mut errs: Vec<f64> = Vec::new();
+            let (mut sunk, mut hit) = (0, 0);
+            for t in g.iter().take(400) {
+                if let Some(r) = drawn_radius_along(&pm, t.dir) {
+                    let off = t.r_m - r; // + = floating, - = buried
+                    errs.push(off);
+                    hit += 1;
+                    if off < -(t.height_m as f64) * 0.5 {
+                        sunk += 1;
                     }
                 }
-                assert!(
-                    errs.len() >= 50,
-                    "{name}: only {} of {} strands hit the depth-{depth} patch",
-                    errs.len(),
-                    g.len()
-                );
-                errs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-                let mean = errs.iter().sum::<f64>() / errs.len() as f64;
-                let med = errs[errs.len() / 2];
-                let p95 = errs[errs.len() * 95 / 100];
-                let sunk_frac = sunk as f64 / hit as f64;
-                println!(
-                    "[grass ground] {name} depth {depth} ({:.2} m triangles): n={} \
-                     mean {:+.3}  median {:+.3}  p95 {:+.3}  max {:+.3}  min {:+.3}  \
-                     buried {:.1}%",
-                    patch_edge_arc_m(depth, def.radius) / PATCH_TESS as f64,
-                    errs.len(),
-                    mean,
-                    med,
-                    p95,
-                    errs.last().unwrap(),
-                    errs[0],
-                    sunk_frac * 100.0
-                );
-                p95_by_depth.push(p95);
-                // GATE only on gentle ground at the finest depth. A blade is
-                // 22-50 cm tall: floating by more than a third of the shortest
-                // one is a visibly hovering mat, and a tiller sunk out of sight
-                // is lost coverage. FLOATING is the failure that reads as a
-                // bug; burying is one absent blade among thousands, so it gets
-                // a fraction budget rather than a hard bound.
-                if gated && depth == 20 {
-                    assert!(
-                        p95 < 0.30,
-                        "{name}: 5% of strands float more than {p95:.3} m above the drawn \
-                         ground (median {med:+.3}) - adjust GRASS_GROUND_BIAS_M (currently \
-                         {GRASS_GROUND_BIAS_M})"
-                    );
-                    assert!(
-                        med.abs() < 0.15,
-                        "{name}: the whole sward sits {med:+.3} m off the ground - that is \
-                         a systematic offset, not sampling noise"
-                    );
-                    assert!(
-                        sunk_frac < 0.04,
-                        "{name}: {:.1}% of strands are buried out of sight - the bias is \
-                         too big or the ground sampler has drifted from the mesh's",
-                        sunk_frac * 100.0
-                    );
-                }
             }
-            // The coarse mesh is always the worse of the two. If that ever
-            // stops being true the depth-cap ticket has been fixed and these
-            // numbers want re-deriving.
             assert!(
-                p95_by_depth[0] > p95_by_depth[1],
-                "{name}: depth 17 ({:+.3} p95) is no worse than depth 20 ({:+.3}) - \
-                 re-derive GRASS_GROUND_BIAS_M and rewrite this note",
-                p95_by_depth[0],
-                p95_by_depth[1]
+                errs.len() >= 50,
+                "{name}: only {} of {} strands hit the depth-{depth} patch",
+                errs.len(),
+                g.len()
+            );
+            errs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let mean = errs.iter().sum::<f64>() / errs.len() as f64;
+            let med = errs[errs.len() / 2];
+            let p95 = errs[errs.len() * 95 / 100];
+            let sunk_frac = sunk as f64 / hit as f64;
+            println!(
+                "[grass ground] {name} depth {depth} ({:.2} m triangles): n={} \
+                 mean {:+.3}  median {:+.3}  p95 {:+.3}  max {:+.3}  min {:+.3}  \
+                 buried-past-half {:.1}%",
+                patch_edge_arc_m(depth, def.radius) / PATCH_TESS as f64,
+                errs.len(),
+                mean,
+                med,
+                p95,
+                errs.last().unwrap(),
+                errs[0],
+                sunk_frac * 100.0
+            );
+            // A blade is 24-52 cm tall: floating by more than a third of the
+            // shortest one is a visibly hovering mat. FLOATING is the failure
+            // that reads as a bug, so it gets the hard percentile bound.
+            assert!(
+                p95 < 0.30,
+                "{name} (depth {depth}): 5% of strands float more than {p95:.3} m above the \
+                 drawn ground (median {med:+.3}) - the base is no longer being taken from \
+                 the drawn patch face, or GRASS_GROUND_BIAS_M ({GRASS_GROUND_BIAS_M}) drifted"
+            );
+            assert!(
+                med.abs() < 0.15,
+                "{name} (depth {depth}): the whole sward sits {med:+.3} m off the ground - \
+                 that is a systematic offset, not sampling noise"
+            );
+            assert!(
+                sunk_frac <= 0.0,
+                "{name} (depth {depth}): {:.1}% of strands are buried past half their height \
+                 - a stunted patch reads as bald ground",
+                sunk_frac * 100.0
             );
         }
+    }
+
+    /// The reference surface is the WHOLE fix, so prove the two references
+    /// really do disagree by metres on a coarse mesh. Without this, someone
+    /// "simplifying" `DrawnPatchSurface` back to a direct elevation sample
+    /// would only see the gate above go red with no explanation of why.
+    #[test]
+    fn drawn_patch_surface_beats_a_direct_elevation_sample_on_a_coarse_mesh() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let center = dir_of(35.3, 138.8); // Fuji's flank
+        let depth = 17u8;
+        let id = patch_containing(center, depth);
+        let pm = build_patch_mesh(&def, &src, Some(&albedo), &id);
+        let mut surf = DrawnPatchSurface::new(&def, &src, depth);
+        // A 12 m transect at 20 cm steps, i.e. blade spacing.
+        let mut worst_direct = 0.0f64;
+        let mut worst_interp = 0.0f64;
+        let mut n = 0;
+        let east = DVec3::new(-center.z, 0.0, center.x).normalize();
+        for i in 0..60 {
+            let dir = (center + east * (i as f64 * 0.2 / def.radius)).normalize();
+            let Some(mesh_r) = drawn_radius_along(&pm, dir) else { continue };
+            let e = drawn_elevation_normalized(&hm, &def, &detail, None, dir);
+            let direct_r = def.radius * displaced_radius_f64(&def, e as f64);
+            worst_direct = worst_direct.max((direct_r - mesh_r).abs());
+            worst_interp = worst_interp.max((surf.radius_at(dir) - mesh_r).abs());
+            n += 1;
+        }
+        assert!(n >= 30, "only {n} transect samples hit the patch");
+        println!(
+            "[grass ground ref] fuji depth {depth}: worst |direct - mesh| {worst_direct:.3} m, \
+             worst |interpolated - mesh| {worst_interp:.4} m over {n} samples \
+             ({} lattice elevation samples for {n} queries)",
+            surf.samples
+        );
+        assert!(
+            worst_interp < 0.01,
+            "the interpolated surface is {worst_interp:.4} m off the mesh it is supposed to BE - \
+             the lattice walk or the sub-triangle pick has drifted from build_patch_mesh"
+        );
+        assert!(
+            worst_direct > 0.5,
+            "a direct elevation sample is only {worst_direct:.3} m off the drawn mesh here, so \
+             the coarse-mesh staircase this machinery exists for is gone - re-derive the note \
+             on DrawnPatchSurface before deleting anything"
+        );
     }
 
     /// CI TWIN for the "there is no grass where you stand" finding: the layer
@@ -5730,12 +6323,19 @@ mod tests {
             ocean: None,
         };
         let (_, stats) = grass_tiller_mesh();
-        // Full-radius harvest cost, printed not asserted (debug and release
-        // differ by more than an order of magnitude). This is the number the
-        // caller budgets against: it runs on a worker with the same ~8-16 m
-        // hysteresis the near-tree harvest uses, NOT on the frame thread.
-        {
-            let c = dir_of(-3.0, -60.0);
+        // FULL-COST harvest, exactly as lib.rs runs it: the whole ramp plus
+        // the superset margin, at the depth each site's LOD really reaches.
+        // Printed, not asserted - debug and release differ by more than an
+        // order of magnitude - but this is the number the caller budgets
+        // against, and it runs INLINE on the frame thread at most once per
+        // GRASS_REHARVEST_M of walking. If it ever grows past a frame's
+        // worth, move it to a worker (which then needs its own view of the
+        // streamed tile tier - see the note on near_grass_instances).
+        for (name, lat, lon, depth) in [
+            ("fuji", 35.3_f64, 138.8_f64, 17u8),
+            ("amazon", -3.0, -60.0, 20),
+        ] {
+            let c = dir_of(lat, lon);
             let t0 = std::time::Instant::now();
             let g = near_grass_instances(
                 &def,
@@ -5743,13 +6343,19 @@ mod tests {
                 Some(&albedo),
                 c,
                 GRASS_FAR_M as f64,
+                GRASS_HARVEST_MARGIN_M,
+                depth,
                 80_000,
             );
+            let drawn = g
+                .iter()
+                .filter(|t| grass_live_emerge(t.thr, surf_d(&def, c, t.dir)) > 0.0)
+                .count();
             println!(
-                "[grass cost] full {GRASS_FAR_M} m harvest: {} tillers, {} triangles, \
-                 {:.1} ms (this build profile)",
+                "[grass cost] {name} depth {depth}: {} tillers harvested (superset), \
+                 {drawn} drawn, {} triangles drawn, {:.1} ms (this build profile)",
                 g.len(),
-                g.len() * stats.triangles,
+                drawn * stats.triangles,
                 t0.elapsed().as_secs_f64() * 1000.0
             );
         }
@@ -5764,7 +6370,16 @@ mod tests {
             ("black_forest", 48.2, 8.2),
         ] {
             let c = dir_of(lat, lon);
-            let g = near_grass_instances(&def, &src, Some(&albedo), c, GRASS_NEAR_M as f64, 40_000);
+            let g = near_grass_instances(
+                &def,
+                &src,
+                Some(&albedo),
+                c,
+                GRASS_NEAR_M as f64,
+                0.0,
+                20,
+                40_000,
+            );
             // Everything inside GRASS_NEAR_M is at peak density, so the disc
             // area is the denominator.
             let area = std::f64::consts::PI * (GRASS_NEAR_M as f64).powi(2);
@@ -5772,11 +6387,14 @@ mod tests {
             let tillers_m2 = n / area;
             let blades_m2 = tillers_m2 * stats.blades as f64;
             // LAI: one-sided leaf area per unit ground. The mesh is built at
-            // unit height, so an instance carries area * height^2.
+            // unit height, so an instance carries area * height^2 - and the
+            // height is the LIVE one, exactly what the renderer scales by.
             let leaf: f64 = g
                 .iter()
                 .map(|t| {
-                    let h = (t.height_m * t.emerge) as f64;
+                    let h = (t.height_m
+                        * grass_live_emerge(t.thr, surf_d(&def, c, t.dir)))
+                        as f64;
                     stats.one_sided_area_unit as f64 * h * h
                 })
                 .sum();
@@ -5833,6 +6451,8 @@ mod tests {
                     Some(&albedo),
                     c,
                     GRASS_NEAR_M as f64,
+                    0.0,
+                    20,
                     40_000,
                 );
                 if g.len() < 200 {
@@ -5916,7 +6536,7 @@ mod tests {
             ("siberian_taiga", 58.0, 98.0),
         ] {
             let c = dir_of(lat, lon);
-            let g = near_grass_instances(&def, &src, Some(&albedo), c, 8.0, 4000);
+            let g = near_grass_instances(&def, &src, Some(&albedo), c, 8.0, 0.0, 20, 4000);
             assert!(!g.is_empty(), "{name}: no grass to check");
             let ground = surface_color(
                 &def,
@@ -5975,14 +6595,25 @@ mod tests {
         // senescence across tillers; the count of visibly-yellowed tillers is
         // printed alongside for context and is naturally larger, because a
         // tiller at 20% senescence reads as tinged rather than dead.
-        let mut sen_sum = 0.0f32;
+        //
+        // AVERAGE OVER THE REAL JITTER DISTRIBUTION, not over its two
+        // endpoints. `grass_senescence` clamps at 0, so it is not linear in
+        // the jitter and the endpoint mean systematically OVERSTATES the
+        // expectation - by 2.4x in a lush hollow, where the whole low half of
+        // the jitter range is clamped to zero and the endpoint average keeps
+        // crediting half of it. The v0.1090 test published 18.8% that way
+        // when the true field mean was near 12%. The jitter is
+        // `(r % 1000) / 1000` and enters nowhere else, so sampling all 1000
+        // values IS the exact expectation, not an approximation of it.
+        let mut sen_sum = 0.0f64;
         let mut sen_n = 0usize;
         for (lat, lon) in &sen_pos {
-            sen_sum += grass_senescence(*lat, *lon, 0);
-            sen_sum += grass_senescence(*lat, *lon, 999);
-            sen_n += 2;
+            for r in 0..1000u64 {
+                sen_sum += grass_senescence(*lat, *lon, r) as f64;
+                sen_n += 1;
+            }
         }
-        let mean_sen = sen_sum / sen_n as f32;
+        let mean_sen = (sen_sum / sen_n as f64) as f32;
         let pooled = yellowed as f32 / tillers as f32;
         println!(
             "[grass colour] pooled: mean senescent tissue {:.1}%, visibly yellowed \
@@ -6183,8 +6814,8 @@ mod tests {
         let a_dir = dir_of(-3.0, -60.0);
         // ~4 m east.
         let b_dir = dir_of(-3.0, -60.0 + (4.0 / def.radius).to_degrees());
-        let a = near_grass_instances(&def, &src, Some(&albedo), a_dir, 6.0, 40_000);
-        let b = near_grass_instances(&def, &src, Some(&albedo), b_dir, 6.0, 40_000);
+        let a = near_grass_instances(&def, &src, Some(&albedo), a_dir, 6.0, 0.0, 20, 40_000);
+        let b = near_grass_instances(&def, &src, Some(&albedo), b_dir, 6.0, 0.0, 20, 40_000);
         assert!(a.len() > 200 && b.len() > 200, "not enough grass to compare");
         // 1e11 on a unit direction = 64 micrometres of key resolution. 1e9
         // (6.4 mm) was tried first and produced ~5 false collisions among
@@ -6242,6 +6873,156 @@ mod tests {
         assert!(
             worst < GRASS_PEAK_PER_M2 * 0.02,
             "the ramp steps by {worst:.2} tillers/m2 in 10 cm - that is an edge"
+        );
+    }
+
+    /// THE HARVEST DESIGN GATE (v0.1091), and the CI twin for NO GRASS RING.
+    ///
+    /// The density ramp is a function of distance FROM THE CAMERA. If the
+    /// drawn set were whatever the last harvest returned, then every time the
+    /// harvest re-centred, the ramp would re-anchor: a tiller 6 m from the
+    /// new pose was 14 m from the old one, where `grass_density_at` is 4x
+    /// smaller, so a whole annulus of blades would appear at once. That is a
+    /// breathing population ring, exactly what the vantage's regression
+    /// forbids, and no amount of hysteresis tuning removes it - a bigger
+    /// hysteresis makes the ring bigger, a smaller one makes it more often.
+    ///
+    /// The design instead splits the two: the harvest returns a SUPERSET for
+    /// a whole ball of camera positions, and the drawn set is re-derived from
+    /// the LIVE camera every frame. This test pins both halves of that:
+    ///
+    ///   1. COVERAGE - a superset harvested at C really does contain
+    ///      everything a camera anywhere within GRASS_HARVEST_MARGIN_M of C
+    ///      draws. If it does not, the leading edge thins as you walk.
+    ///   2. INVARIANCE - re-harvesting at a different centre changes NOTHING
+    ///      about what is drawn from a given camera pose. That is the ring
+    ///      gate stated exactly: same pose, different harvest, same sward.
+    #[test]
+    fn grass_harvest_recentring_cannot_change_what_is_drawn() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let harvest = |c: DVec3, margin: f64| {
+            near_grass_instances(
+                &def,
+                &src,
+                Some(&albedo),
+                c,
+                GRASS_FAR_M as f64,
+                margin,
+                20,
+                80_000,
+            )
+        };
+        // A "drawn set" keyed by planet-fixed position, with the live height
+        // each tiller stands at from a given camera pose. 1e11 on a unit
+        // direction is 64 micrometres of key resolution (see the note in
+        // grass_is_planet_fixed_not_camera_fixed).
+        let drawn_at = |set: &[NearGrass], cam: DVec3| {
+            let mut m: std::collections::HashMap<(i64, i64, i64), f32> =
+                std::collections::HashMap::new();
+            for t in set {
+                let e = grass_live_emerge(t.thr, surf_d(&def, cam, t.dir));
+                if e <= 0.0 {
+                    continue;
+                }
+                let p = t.dir * 1.0e11;
+                m.insert(
+                    (p.x.round() as i64, p.y.round() as i64, p.z.round() as i64),
+                    t.height_m * e,
+                );
+            }
+            m
+        };
+        let c0 = dir_of(-3.0, -60.0);
+        let sup = harvest(c0, GRASS_HARVEST_MARGIN_M);
+        assert!(sup.len() > 2_000, "only {} tillers harvested", sup.len());
+
+        // ── 1. COVERAGE ──
+        // Walk to the edge of the margin ball in four directions and check the
+        // superset still contains everything a local harvest would draw.
+        let east = DVec3::Y.cross(c0).normalize();
+        let north = c0.cross(east).normalize();
+        let mut worst_missing = 0usize;
+        let mut worst_of = 0usize;
+        for (dx, dy) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (-0.7, -0.7)] {
+            let step = (east * dx + north * dy) * (GRASS_HARVEST_MARGIN_M / def.radius);
+            let cam = (c0 + step).normalize();
+            let local = harvest(cam, 0.0);
+            let want = drawn_at(&local, cam);
+            let have = drawn_at(&sup, cam);
+            let missing = want.keys().filter(|k| !have.contains_key(*k)).count();
+            if missing > worst_missing {
+                worst_missing = missing;
+                worst_of = want.len();
+            }
+        }
+        assert_eq!(
+            worst_missing, 0,
+            "the superset is missing {worst_missing} of {worst_of} tillers a camera at the \
+             edge of GRASS_HARVEST_MARGIN_M ({GRASS_HARVEST_MARGIN_M} m) draws - the leading \
+             edge of the sward thins while a harvest is in flight"
+        );
+
+        // ── 2. INVARIANCE (the ring gate) ──
+        // Same camera pose, two harvests centred metres apart. The drawn set
+        // must be IDENTICAL - same tillers, same heights, to the bit.
+        let cam = (c0 + east * (3.0 / def.radius)).normalize();
+        let a = drawn_at(&sup, cam);
+        let b = drawn_at(&harvest(cam, GRASS_HARVEST_MARGIN_M), cam);
+        assert!(a.len() > 1_000, "only {} tillers drawn", a.len());
+        assert_eq!(
+            a.len(),
+            b.len(),
+            "re-harvesting at a different centre changed the drawn population from {} to {} \
+             at the SAME camera pose - the density ramp has re-anchored on the harvest \
+             instead of on the camera, which is a population ring",
+            a.len(),
+            b.len()
+        );
+        for (k, ha) in &a {
+            let hb = b.get(k).copied().unwrap_or(-1.0);
+            assert!(
+                (ha - hb).abs() < 1.0e-6,
+                "a tiller stands {ha:.4} m tall from one harvest and {hb:.4} m from another \
+                 at the same camera pose"
+            );
+        }
+
+        // ── 3. NO STEP AS YOU WALK ──
+        // Nothing may appear at a visible height IN ONE FRAME. The step is
+        // 0.17 m, which is what a 5 m/s sprint covers at 30 fps - the fastest
+        // the camera legitimately moves on foot.
+        const FRAME_STEP_M: f64 = 0.17;
+        let mut prev = drawn_at(&sup, c0);
+        let mut worst_pop_in = 0.0f32;
+        let mut worst_step = 0.0f32;
+        for i in 1..=30 {
+            let cam = (c0 + east * (i as f64 * FRAME_STEP_M / def.radius)).normalize();
+            let now = drawn_at(&sup, cam);
+            for (k, h) in &now {
+                match prev.get(k) {
+                    None => worst_pop_in = worst_pop_in.max(*h),
+                    Some(p) => worst_step = worst_step.max((h - p).abs()),
+                }
+            }
+            prev = now;
+        }
+        println!(
+            "[grass ring] walking 5 m in {FRAME_STEP_M} m frames: tallest blade to appear \
+             from nothing {worst_pop_in:.4} m, largest height change of a standing blade \
+             {worst_step:.4} m (shortest blade is {GRASS_HEIGHT_MIN_M} m, grow-in runs over \
+             {GRASS_EMERGE_LEN_M} m of approach)"
+        );
+        assert!(
+            worst_pop_in < GRASS_HEIGHT_MIN_M * 0.25,
+            "a {worst_pop_in:.3} m blade appeared from nothing in one {FRAME_STEP_M} m frame - \
+             GRASS_EMERGE_LEN_M is too short and blades are popping in at height"
         );
     }
 }
