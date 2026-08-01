@@ -647,6 +647,11 @@
    "date": "2026-08-01",
    "decision": "RESOURCE BUDGETS arc opened (operator idea, in-play): per-system hardware allocation via pie charts - GPU/CPU/VRAM/RAM pies over a data-driven system registry; locked bases, extra-headroom redistribution, stacked-on-mobile. Design doc docs/design/resource-budgets.md. Increment 1 (MEASURE: wgpu timestamp queries per pass + CPU stage timing + VRAM inventory + read-only live pie widget on the Performance page) dispatched; increment 2 ALLOCATE (draggable ceilings, AppConfig persistence); increment 3 GOVERN (feedback controller stepping quality knobs so allocations are enforced, with hysteresis and visible steps).",
    "why": "Reframes settings from opaque sliders to visible trade-offs; foundations already exist (honest counters, per-system knobs, arena inventory). Registry per infinite-of-X; widget per universal-widgets norm; dev-tooling value is permanent per forever-dev."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Grass de-bundle MERGED (spread crowns, filler stubble on the complement field, decorrelated splay; 1277 tests) + harvest cap 70k. Main now holds THREE unshipped verified merges awaiting the world-entry probe: material extraction (v0.1029-class bind-group site), de-bundle, cap bump. Operator game still running (PID 15264) - tag v0.1093.0 + archive + stamp + probes (blue-marble-12000km + fuji-grass-underfoot) fire the moment the GPU frees. Resource-budgets increment-1 writer still in flight.",
+   "why": "One-GPU rule held by every writer today; visual proof of the de-bundle belongs to the operator next boot anyway."
   }
  ],
  "active_scopes_to_avoid": [
