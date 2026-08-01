@@ -582,6 +582,11 @@
    "date": "2026-08-01",
    "decision": "CLUSTER-CARD WIRING SPEC (complete, for post-compaction execution as v0.1088.0): (1) SHADER - new material-type branch in 90-fragment-main.wgsl for cluster cards: sample the sprite texture (per-material albedo slot @group(3)), alpha cutout at 0.5, decode AO from uv.x integer part (encode_card_uv/decode_card_uv contract in tree_mesh.rs ~:988), KEEP leaf shading (transmission) per the challenger - NOT bare type 19; vertex side may need the card wind shear later (rung 2). (2) LIB.RS loop 1 (~:9384) + fallback arm: build_tree_and_cards instead of build_tree; per ClusterCards layer create mesh + textured material with the matching ClusterSpriteImage (bake_cluster_sprites at billboard_bake.rs:809 already runs inside the registry bake at :318 - textures exist at runtime, mips included); cache under proc:{id}_v{v}:cardN keys. (3) DRAW SITE (use_proc block ~:9611): push the card cache entries alongside the wood mesh. (4) Check the design doc WIRING section the writer appended for the exact material contract before coding.",
    "why": "Main currently has sakura crowns hollow (cards built but never drawn, no shader branch). Not yet released - wire before tagging v0.1088.0. Then: probe fuji for full blossom crowns vs operator reference photos; then bark PBR bake (overnight plan step 2), wind rung 2, grass strands."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1088.0/1 SHIPPED: cluster cards draw end-to-end (type-21 shader branch + sprite pre-bake + card materials + draw wiring). Pipeline live, look needs DATA TUNING next: ClusterDef in trees.ron (card side/count/blossom share), verify with a SAKURA confirmed in frame; then extend ClusterDef rows to oak/birch/momiji/acacia. Follow-ups journaled: sprite mip upload (levels exist, material path takes level 0 only), dedupe the double sprite bake.",
+   "why": "Overnight sequence position: cluster cards DONE-functional -> next per plan: card tuning pass, then bark full PBR bake (albedo+normal+roughness, cylindrical trunk UVs), then wind rung 2, then grass strands. Frame time 117 ms at fuji cloudy - re-baseline after tuning."
   }
  ],
  "active_scopes_to_avoid": [
