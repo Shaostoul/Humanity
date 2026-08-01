@@ -10088,7 +10088,7 @@ mod native_app {
                                             chunks::GRASS_FAR_M as f64,
                                             chunks::GRASS_HARVEST_MARGIN_M,
                                             draw_depth,
-                                            60_000,
+                                            70_000,
                                         );
                                         state.near_grass_center = cam_local;
                                         state.near_grass_depth = draw_depth;
