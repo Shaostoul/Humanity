@@ -310,6 +310,12 @@ pub struct Renderer {
     /// because the shadow pass runs the same vs_main off its own buffer and a
     /// one-buffer poke would cast shadows from a differently-posed tree.
     pub foliage_wind: [f32; 4],
+    /// Camera-local day factor for the celestial pass's sun intensity
+    /// (v0.1083, BUG-057 #1). 1.0 in space / by default; lib.rs writes the
+    /// terminator value each frame when frame-locked to a body. Without it
+    /// the celestial pass lit every tree and prop with a constant-2.5 sun
+    /// all night (terrain has its own per-fragment gate; nothing else did).
+    pub celestial_sun_day: f32,
     /// Fill-light intensity scale for the CELESTIAL pass (v0.998, operator:
     /// "trees were still being illuminated at night"): the default cool fill
     /// never dimmed after sunset, so night forests glowed. lib.rs sets this
@@ -1261,6 +1267,7 @@ impl Renderer {
             // Matches the shader's own fallback direction; speed 0 means the
             // shader uses its 4 m/s default until lib.rs stamps live weather.
             foliage_wind: [0.86, 0.0, 0.32, 0.0],
+            celestial_sun_day: 1.0,
             fill_scale: 1.0,
             patch_arena: None,
             patch_indirect,
@@ -2832,7 +2839,13 @@ impl Renderer {
         // instead of a fixed up-and-right fake light. (The Sun body itself is emissive, so its
         // own shading is unaffected.)
         if sun_dir != Vec3::ZERO {
-            let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32];
+            // Intensity scaled by the camera-local day factor (BUG-057 #1):
+            // this used to be a bare 2.5 day and night, so everything in the
+            // celestial pass without its own terminator gate (trees, props -
+            // all types except terrain's 12) was sunlit at midnight. The
+            // shaders read w as 2.5 * day and normalize with * 0.4 where they
+            // need the plain day factor.
+            let sd = [sun_dir.x, sun_dir.y, sun_dir.z, 2.5_f32 * self.celestial_sun_day];
             // w carries the cloud clock (written above at 636); this full
             // vec4 write would stomp it back to a constant otherwise.
             let sc = [1.0_f32, 0.97, 0.92, time_s];

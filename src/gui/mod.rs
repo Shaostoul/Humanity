@@ -6603,6 +6603,10 @@ pub struct SettingsState {
     /// Near-field real tree model distance in metres (v0.911; 0 = cards
     /// only). Grass/tree silhouette cards continue past this range.
     pub tree_model_distance: f32,
+    /// Vegetation spawn density multiplier (v0.1083, operator: fewer trees,
+    /// free up GPU). Scales TREES_PER_CELL and GRASS_PER_CELL at patch build;
+    /// 1.0 = the historical full density, default 0.6.
+    pub veg_density: f32,
     /// Vegetation LOD (v0.923): tree silhouette-card far cutoff in metres -
     /// the card stage's outer distance. More ladder stages follow.
     pub veg_tree_card_m: f32,
@@ -6774,6 +6778,7 @@ impl Default for SettingsState {
             terrain_detail_distance: 1.5,
             terrain_builds_per_frame: 64.0,
             tree_model_distance: crate::lod_registry::category("tree").map(|c| c.model_m).unwrap_or(120.0),
+            veg_density: 0.6,
             veg_tree_card_m: crate::lod_registry::category("tree").map(|c| c.card_m).unwrap_or(1500.0),
             water_detail_depth: 20.0,
             sun_shadows: true,

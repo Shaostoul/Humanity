@@ -2146,6 +2146,10 @@ pub(crate) fn draw_graphics_content(ui: &mut egui::Ui, theme: &Theme, state: &mu
             state.settings_dirty = true;
         }
         ui.label(RichText::new("The far tree stage: flat silhouette cards carry the forest from the 3D-model range out to this distance, then trees stop drawing. Higher = forests visible from further away, slightly more GPU.").color(theme.text_muted()).size(theme.font_size_small));
+        if widgets::labeled_slider(ui, theme, "Vegetation: forest density", &mut state.settings.veg_density, 0.1..=1.0) {
+            state.settings_dirty = true;
+        }
+        ui.label(RichText::new("How thickly trees and grass populate the land. 1.0 is the old full-density forest; the default 0.6 keeps woodland feeling like woodland while costing far less GPU. Rebuilds terrain as you move, so the change appears patch by patch.").color(theme.text_muted()).size(theme.font_size_small));
         if widgets::labeled_slider(ui, theme, "Water: wave mesh detail (14-20)", &mut state.settings.water_detail_depth, 14.0..=20.0) {
             state.settings_dirty = true;
         }

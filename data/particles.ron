@@ -291,7 +291,11 @@
         size_end: 0.02,
         color_start: (0.75, 0.82, 1.0, 0.55),  // faint starlit blue-white
         color_end: (0.75, 0.82, 1.0, 0.0),
-        emissive: 0.6,
+        // 0.6 -> 0.0 (v0.1083 emissive audit): the ONLY nonzero-emissive
+        // alpha-blended emitter; every other alpha emitter (smoke, rain,
+        // snow, dust, bubbles, leaf_drift) is 0.0. Space dust is lit motes,
+        // not glowing sparks.
+        emissive: 0.0,
         blend_mode: "alpha",
         spawn_radius: 30.0,
     ),

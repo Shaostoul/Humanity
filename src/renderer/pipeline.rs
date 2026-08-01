@@ -17,7 +17,13 @@ pub struct ObjectUniforms {
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct MaterialUniforms {
     pub base_color: [f32; 4],
-    /// x = metallic, y = roughness, z/w unused
+    /// x = metallic, y = roughness, z = material_type, w = emissive strength.
+    /// WARNING: w is REPURPOSED as a data channel by several material types
+    /// (12: surface bitfield, 15: cloud shell ratio, 18: gas-giant palette
+    /// index) - safe only because their shader branches never reach the
+    /// generic emissive path. Never treat z/w as free space without checking
+    /// the type dispatch in 90-fragment-main.wgsl. (The old comment here said
+    /// "z/w unused", which is exactly how accidental-glow bugs get written.)
     pub params: [f32; 4],
 }
 

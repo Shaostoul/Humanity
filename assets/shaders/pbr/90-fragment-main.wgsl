@@ -116,7 +116,12 @@ fn underwater_apply(color_in: vec3<f32>, world_pos: vec3<f32>) -> vec3<f32> {
     // In-scattered ambient of the water column: what remains once everything
     // else is absorbed. Blue-green and dark - what a distant seabed dissolves
     // INTO rather than staying visible against.
-    let inscatter = vec3<f32>(0.008, 0.030, 0.055);
+    // SCALED BY DAYLIGHT (BUG-057 #3): this was a bare constant, so the
+    // through-water half of a coastal frame was bit-identical at noon and
+    // midnight - the beach glowed all night. In-scatter IS sunlight that
+    // scattered; no sun, no glow. sun_direction.w = 2.5 * day since v0.1083.
+    let sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+    let inscatter = vec3<f32>(0.008, 0.030, 0.055) * sun_day;
     return color_in * t + inscatter * (vec3<f32>(1.0) - t);
 }
 
@@ -438,8 +443,11 @@ fn ocean_shell(in: VertexOutput) -> vec4<f32> {
     // bright white, almost like it is glowing" - the old constant foam
     // color ignored the sun entirely). Night foam goes dark with the sea.
     let foam_day = clamp(dot(n_geo, normalize(camera.sun_direction.xyz)), 0.0, 1.0);
+    // The 0.015 floor is scaled by daylight too (BUG-057 #5): unscaled it
+    // painted a faint glowing surf line along the waterline all night.
+    let foam_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
     let foam_col = vec3<f32>(0.75, 0.81, 0.86)
-        * (foam_day * camera.sun_direction.w * 0.42 + 0.015);
+        * (foam_day * camera.sun_direction.w * 0.42 + 0.015 * foam_sun_day);
     // Shoreline surf (v0.917, operator: "the water to land interface is
     // still behaving very weird"): an animated foam band hugs the beach in
     // the 0.2-2.2 m depth band - waves arriving, breaking, and receding.
@@ -1333,8 +1341,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             // transmits a little; the term is small enough that it reads as
             // ambient bounce rather than a bug.
             let backlit = max(-dot(normal, sun_l), 0.0);
+            // Scaled by daylight (BUG-057 #2): unscaled, an up-facing leaf at
+            // midnight scored backlit ~1.0 against the below-horizon sun and
+            // the canopy glowed brighter than its own daytime diffuse.
+            // Transmission is transmitted SUNLIGHT; it dies with the sun.
+            let leaf_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
             proc_emissive = proc_emissive
-                + albedo * camera.sun_color.rgb * (trans * 1.05 + backlit * 0.35);
+                + albedo * camera.sun_color.rgb
+                    * (trans * 1.05 + backlit * 0.35) * leaf_sun_day;
         }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly

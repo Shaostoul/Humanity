@@ -11318,6 +11318,23 @@ mod native_app {
                         // sunset transmittance as the sun light, so evening
                         // haze warms while noon haze stays blue-grey.
                         {
+                            // Celestial-pass day factor (v0.1083, BUG-057 #1):
+                            // the celestial pass stamps sun intensity as a
+                            // CONSTANT 2.5, so trees/props on the night side
+                            // were lit by a below-horizon sun at full strength
+                            // (terrain has its own per-fragment terminator
+                            // gate; nothing else in that pass did). Camera-
+                            // local day factor, same formula as the sky below;
+                            // off-planet stays 1.0 (the sun never sets in
+                            // space).
+                            state.renderer.celestial_sun_day = 1.0;
+                            if state.frame_lock_body.is_some() {
+                                let up_w = glam::DQuat::from_rotation_y(state.current_spin)
+                                    * state.frame_lock_anchor.normalize_or_zero();
+                                let mu = up_w.dot(sun_dir) as f32;
+                                state.renderer.celestial_sun_day =
+                                    ((mu + 0.02) / 0.27).clamp(0.0, 1.0);
+                            }
                             let s = state.gui_state.settings.aerial_strength.clamp(0.0, 2.0);
                             let mut sigma = 0.0f32;
                             let mut cap = 25_000.0f32;
@@ -11452,11 +11469,18 @@ mod native_app {
                                     // Tint toward the fog colour, keeping some of
                                     // the real sky so sunset still reads through a
                                     // light mist.
+                                    // No luminance floor (BUG-057 #4): the old
+                                    // lum.max(0.25) resurrected daytime-bright
+                                    // fog at midnight (measured 139/143/147
+                                    // against a predicted 139/143/146 - exact).
+                                    // Fog scatters the light that exists; at
+                                    // night that is none. sky[] is already
+                                    // day-scaled, so lum carries the gate.
                                     let lum = (sky[0] + sky[1] + sky[2]) / 3.0;
                                     let sky_w = [
-                                        sky[0] * (1.0 - t) + tint[0] * lum.max(0.25) * t,
-                                        sky[1] * (1.0 - t) + tint[1] * lum.max(0.25) * t,
-                                        sky[2] * (1.0 - t) + tint[2] * lum.max(0.25) * t,
+                                        sky[0] * (1.0 - t) + tint[0] * lum * t,
+                                        sky[1] * (1.0 - t) + tint[1] * lum * t,
+                                        sky[2] * (1.0 - t) + tint[2] * lum * t,
                                     ];
                                     sigma = sigma_w;
                                     cap = cap_w;

@@ -99,10 +99,10 @@ pub(crate) fn apply_homestead_meshes(state: &mut EngineState, homestead: crate::
         let mesh = Mesh::from_vertices(&state.renderer.device, &homestead.mirrors.0, &homestead.mirrors.1);
         if let Some((mi, ma)) = prior {
             state.renderer.replace_mesh(mi, mesh);
-            state.renderer.update_material_full(ma, [0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6);
+            state.renderer.update_material_full(ma, [0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 0.0);
             Some((mi, ma))
         } else {
-            Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 1.6)))
+            Some((state.renderer.add_mesh(mesh), state.renderer.add_material_full([0.30, 0.55, 1.0, 1.0], 0.2, 0.15, 1.0, 0.0)))
         }
     } else { None };
     // v0.539: a glass roof renders the ceiling TRANSPARENT (you see the stars through the

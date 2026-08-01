@@ -509,3 +509,46 @@ LESSON: when a "missing feature" is reported (no transmission, no flutter),
 check whether the feature is GATED ON A TAG the geometry never sets before
 building more feature. Two shipped features were dead for 3 releases because
 the gate bit was never written.
+
+## BUG-057: The night side glowed -- four unlit-light leaks (fixed v0.1083.0)
+
+Operator: "check all the shaders/textures to make sure they're not slipping in
+emissiveness anywhere... I think the beach water might be as well." A three-way
+audit (shader terms, asset inventory, night captures) found and MEASURED four
+defects, each pixel-predicted before fixing:
+
+1. **Trees sunlit at midnight.** The celestial pass stamped sun intensity as a
+   constant 2.5 day and night; only terrain (type 12) has a per-fragment
+   terminator gate, so every tree/prop rendered warm-lit against black ground
+   (trunks 19.7 mean luma vs terrain 0.0). Fix: renderer.celestial_sun_day,
+   camera-local day factor scaling the stamped intensity (lib.rs computes it
+   beside the sky's day term; 1.0 off-planet).
+2. **Leaf transmission un-gated.** The subsurface term was not multiplied by any
+   light amount; an up-facing leaf at midnight scored backlit ~1.0 against the
+   below-horizon sun. Now scaled by the day factor (shader reads
+   sun_direction.w * 0.4).
+3. **Beach/underwater in-scatter was a constant.** vec3(0.008,0.030,0.055)
+   added un-multiplied: the through-water half of a coastal frame was
+   BIT-IDENTICAL at noon and midnight (measured 8,41,63 both). This was the
+   operator's suspected beach glow. Now scaled by daylight; the noon frame is
+   unchanged, the night frame goes dark.
+4. **Night fog rendered at daytime brightness.** The weather-fog sky tint used
+   lum.max(0.25), resurrecting a light-independent floor after the sky was
+   correctly day-scaled to zero (measured 139/143/147 vs predicted 139/143/146
+   -- exact). Floor removed; fog scatters the light that exists.
+
+Also closed from the audit: home MIRRORS kept 1.6 emissive (same class as the
+v0.780 window fix, missed); space_dust was the only alpha-blended emitter with
+nonzero emissive (0.6 -> 0.0); the MaterialUniforms doc comment claimed "z/w
+unused" when w is emissive AND repurposed as a data channel by types 12/15/18
+(comment now warns -- that lie is how the next glow bug gets written).
+
+Verified: rebuilt, re-ran the audit's own six night scenarios -- Fuji forest at
+local midnight is black with stars through the canopy (and rolled fog stayed
+dark, covering #4); beach noon vs night now differ (bright turquoise vs
+near-black). Captures in the session scratchpad night-out/.
+
+LESSON: additive light terms must name what LIGHT they scatter. Any term added
+to final color carrying only albedo/geometry factors is a night-glow bug by
+construction. And the emissive slot doubling as a type-specific data channel
+means "grep for emissive" is not an audit -- walk every `+` in the color path.
