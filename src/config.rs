@@ -506,8 +506,12 @@ pub struct AppConfig {
     /// Weather fog/dust extinction multiplier (v0.1060).
     #[serde(default = "default_fog_density_cfg")]
     pub fog_density: f32,
-    /// GPU particle simulation for precipitation (v0.1068).
-    #[serde(default)]
+    /// GPU particle simulation for precipitation (v0.1068). DEFAULT ON as of
+    /// v0.1085 (operator: "I'd prefer GPU be default" - higher particle
+    /// counts, and the operator confirmed GPU rain renders in play while the
+    /// CPU path measured zero pixels on the rig). CPU path stays as the
+    /// fallback toggle.
+    #[serde(default = "default_gpu_particles")]
     pub gpu_particles: bool,
     /// Far-tree canopy card sheet (v0.1022-v0.1027). Default OFF: the
     /// clump cards read as "black squares in a grid" at altitude (operator,
@@ -751,6 +755,7 @@ fn default_terrain_detail_distance() -> f32 { 1.5 }
 fn default_godray_intensity() -> f32 { 0.55 }
 fn default_tree_model_distance() -> f32 { 120.0 }
 fn default_veg_density() -> f32 { 0.6 }
+fn default_gpu_particles() -> bool { true }
 fn default_veg_tree_card_m() -> f32 { 1500.0 }
 fn default_aerial_strength() -> f32 { 1.0 }
 fn default_ssao_strength() -> f32 { 0.55 }

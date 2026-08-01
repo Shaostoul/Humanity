@@ -542,6 +542,11 @@
    "date": "2026-07-31",
    "decision": "RAIN DOES NOT RENDER AT ALL - wf_0b6aaa09 fidelity agent, 9 captures, both paths, 3 densities, ZERO precipitation pixels (snow included: 900 flakes in a 30m box, not one on screen). My earlier sparse-streaks reading was vegetation sprites - history note corrected. The fog/extinction veil DOES work (weather reaches shaders); the break is between the particle system and the framebuffer.",
    "why": "Next rain increment = find why zero particles draw (emitter gate at lib.rs:3417 region? draw path? camera.up/surface_mode inputs ruled out by the agent). This supersedes the density/veil/impact ranking until particles are on screen. Also: no vantage gate anywhere asserts a particle pixel exists - add one when fixed."
+  },
+  {
+   "date": "2026-07-31",
+   "decision": "Operator field report at v0.1084.1 (playing, screenshots) fences the VEGETATION-FIDELITY arc, ranked: (1) LEAF TEXTURE SWIMS vs geometry - wind displaces vertices but triplanar samples the DISPLACED position, so the pattern stays space-anchored and slides through moving leaves; fix = sample from pre-wind position (pass undisplaced pos from vertex shader). (2) Trunk/branch seams still unwelded (tube joints). (3) Full PBR on procedural trees: procedural bark NORMAL (voronoi derivative), roughness variation, then parallax/POM bark depth - everything is diffuse-flat today. (4) Grass reads as billboard cards, wants strands. (5) Environment clutter for interest: rocks, fallen logs, ferns, leaf litter. GPU particles now DEFAULT (operator sees GPU rain render in play).",
+   "why": "Operator: textures/shaders do not match plant shape/movement; everything looks flat like diffuse-only. RAIN RECORD v3: GPU path RENDERS in play; the rig measured zero on both paths - so the rig discrepancy (config/showcase key not engaging the pool?) is itself the next diagnostic lead for why the rig cannot see what the player sees."
   }
  ],
  "active_scopes_to_avoid": [

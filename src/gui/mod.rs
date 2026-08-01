@@ -6797,7 +6797,7 @@ impl Default for SettingsState {
             water_clarity: default_water_clarity(),
             precip_density: default_precip_density(),
             fog_density: default_fog_density(),
-            gpu_particles: false,
+            gpu_particles: true,
             far_tree_sheet: false,
             cloud_quality: "high".to_string(),
             lights_tiled: false,
