@@ -572,6 +572,11 @@
    "date": "2026-08-01",
    "decision": "Overnight autonomy granted; plan written to overnight_plan_2026_08_01 key. Focus: permanent architectures - cluster cards, bark full PBR (albedo+normal+roughness bake), wind coverage, grass strands.",
    "why": "Operator: money tight, photorealistic screenshots = donation/grant material. Permanent over temporary, explicitly."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Cluster cards MERGED (compiles, 1249 tests green) but INCOMPLETE: build_tree() wrapper drops the card meshes, so nothing draws them - main probe shows sakura crowns as near-bare skeletons (5/3 sprigs, foliage mass moved to undrawn cards). INTEGRATOR WIRING NEEDED in lib.rs near-tree loader: call build_tree_and_cards, create card meshes + textured materials from the baked cluster sprites (bake_cluster_sprites in billboard_bake.rs), cache + draw them alongside the wood mesh. Writer claim -no wiring requests- meant compiles-unchanged, not draws.",
+   "why": "Do NOT ship until sakura crowns show the card mass. If context compacts mid-wiring: read build_tree_and_cards signature in tree_mesh.rs (~:545) and the ClusterCard bake mode in billboard_bake.rs; the draw site is the use_proc block in lib.rs ~9611-9700; card material must keep leaf shading (challenger: NOT bare type 19, would recreate BUG-056)."
   }
  ],
  "active_scopes_to_avoid": [
