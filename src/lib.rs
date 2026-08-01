@@ -9438,16 +9438,15 @@ mod native_app {
                                                     // Type 21 = cluster card (sprite
                                                     // texture, AO-coded UVs, foliage
                                                     // transmission in the shader).
-                                                    let cma = state.renderer.add_textured_material(
-                                                        [1.0, 1.0, 1.0, 1.0],
-                                                        0.0,
-                                                        0.9,
-                                                        21.0,
-                                                        0.0,
-                                                        &spr.levels[0],
-                                                        spr.size,
-                                                        spr.size,
-                                                    );
+                                                    // Carries the sprite's FULL MIP
+                                                    // CHAIN behind a trilinear clamped
+                                                    // sampler (v0.1090): the chain was
+                                                    // already baked and the old
+                                                    // add_textured_material upload
+                                                    // threw it away, so every cluster
+                                                    // card crawled as it minified.
+                                                    let cma =
+                                                        state.renderer.cluster_sprite_material(spr);
                                                     state.decoration_mesh_cache.insert(
                                                         format!("proc:{}_v{v}:card{ci}", t.id),
                                                         (cmi, cma),

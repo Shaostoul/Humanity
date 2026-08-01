@@ -102,6 +102,7 @@
    "desc": "Ground level near Mt Fuji in a conifer forest, morning",
    "showcase": {
     "time": "2.9",
+    "weather": "clear",
     "sea": "0.3"
    },
    "camera": {
