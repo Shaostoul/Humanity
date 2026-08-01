@@ -548,7 +548,8 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     var world_pos = obj_model() * vec4<f32>(vertex.position, 1.0);
     // Wind displacement in world space, for the fragment's pre-wind material
-    // domain (VertexOutput.wind_offset). Written only by the type-20 branch.
+    // domain (VertexOutput.wind_offset). Written by the wind branch below for
+    // every wind class (v0.1089; it used to be the type-20 branch alone).
     var wind_off_w = vec3<f32>(0.0, 0.0, 0.0);
     // The model matrix's w ROW carries per-object metadata (model[0].w =
     // LOD crossfade, v0.920), so rebuild the homogeneous w explicitly. For
@@ -584,9 +585,54 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
     // f32 safety: everything here is object-space (metres, small) plus a phase
     // taken from the model matrix translation, which is RENDER space and so
     // already camera-relative. No planet-radius magnitudes enter the math.
-    if (material.params.z >= 19.5 && material.params.z < 20.5) {
+    // ── WHICH MATERIALS SWAY (v0.1089, wind coverage) ────────────────────
+    // Through v0.1088 the gate was `type == 20` alone, so the two OTHER halves
+    // of a tree stood dead still in an 18 m/s storm: the photoscanned conifers
+    // (type 19) and the cluster cards that ARE the crown of a clustered species
+    // (type 21). A crown displaced downwind over a rigid trunk, or a stand of
+    // firs standing to attention beside a bending procedural stand, is a worse
+    // artifact than no wind at all.
+    //
+    // The class is decided BY TYPE for the three plant-exclusive types, and by
+    // an explicit per-material opt-in for type 19 - because type 19 is NOT
+    // plant-exclusive. The same "textured mesh" type draws furniture and
+    // machine glTFs (engine/home_meshes.rs) and world decorations
+    // (engine/world_load.rs); stamping it wholesale would give every bed, sofa
+    // and fridge a permanent indoor 4 cm sway (the fallback breeze below never
+    // reaches zero), shadows included, forever. So type 19 sways only when its
+    // creation site says so through params.w, which is free on this type: the
+    // fragment branch zeroes emissive_strength for type 19 unconditionally.
+    //   0 = static, 1 = woody (lean + sway), 2 = foliage (lean + sway, and
+    //   flutter on faces carrying the leaf organ bit).
+    var wind_class = 0.0;
+    let wind_mt = material.params.z;
+    if (wind_mt >= 19.5 && wind_mt < 20.5) {
+        wind_class = 2.0; // type 20: procedural plant mesh (leaves + stems)
+    } else if (wind_mt >= 20.5 && wind_mt < 21.5) {
+        wind_class = 2.0; // type 21: foliage cluster card
+    } else if (wind_mt >= 21.5 && wind_mt < 22.5) {
+        wind_class = 1.0; // type 22: baked-bark wood mesh
+    } else if (wind_mt >= 18.5 && wind_mt < 19.5) {
+        wind_class = clamp(material.params.w, 0.0, 2.0); // type 19: opt-in
+    }
+    if (wind_class >= 0.5) {
         let t = camera.sun_color.w;
-        let h = max(vertex.position.y, 0.0);
+        // ── PER-MESH HEIGHT NORMALISATION (v0.1089) ──────────────────────
+        // Everything below is written in METRES, and the cantilever profile
+        // `hn` divides by a 12 m reference. Object-space height is metres for
+        // a procedural tree (built at t.height_m, instance scale ~1) but MODEL
+        // UNITS for a photoscan: the fir/pine meshes are 0.70-1.27 units tall
+        // and are scaled 15.1-31.4x at draw time (TREE_MODEL_H in lib.rs). Raw
+        // object height would therefore ask a 22 m fir to bend like a 1.27 m
+        // shrub - about 11% of the intended lean, i.e. visually nothing.
+        //
+        // `length(obj_model()[0].xyz)` is the instance's uniform scale (every
+        // tree is pushed with Vec3::splat), so h * s is a metric height valid
+        // for BOTH mesh paths, and dividing the object-space displacement back
+        // by s makes the WORLD displacement depend only on metres. No new
+        // per-material data, no vertex channel, no wiring.
+        let iscale = max(length(obj_model()[0].xyz), 1.0e-4);
+        let h = max(vertex.position.y, 0.0) * iscale;
         // ── LIVE WIND INPUT (v0.1079) ────────────────────────────────────
         // light7_cone_inner = (wind_dir_world.xyz, wind_speed_m_s), poked by
         // the renderer from WeatherState. The light0..7 cone_inner fields are
@@ -685,11 +731,19 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
         // so a still day still breathes instead of freezing.
         let sway_amp = h * (0.020 + 0.55 * hn * lean_frac);
         let sway = sway_amp * sin(t * (0.9 + 0.02 * wind_v) + phase);
-        var wind_pos = vertex.position + wind_dir * ((lean_m + sway) * gust);
+        // Metres of displacement -> OBJECT units (see iscale above).
+        let obj_per_m = 1.0 / iscale;
+        var wind_pos = vertex.position
+            + wind_dir * ((lean_m + sway) * gust * obj_per_m);
         // Leaf flutter: blades only (organ bit 19), faster and smaller, partly
         // across the wind so foliage shimmers rather than shunting sideways.
+        // Foliage class only, and structurally impossible on the other two
+        // transports anyway: a cluster card's uv.x is 2*ao_code + u01 (max 127)
+        // and a bark tube's is a tile coordinate, so bit 19 can never be set on
+        // either - which is exactly why the class, not the packed bit, decides
+        // whether a mesh sways at all.
         let packed = u32(round(max(vertex.uv.x, 0.0)));
-        if ((packed & 524288u) != 0u) {
+        if (wind_class >= 1.5 && (packed & 524288u) != 0u) {
             // Flutter scales with plant size. A flat amplitude made a 0.3 m
             // strawberry shake as hard as an 18 m oak, and the crop path uses
             // this same material. fv adds the wind-speed response: leaves are
@@ -699,9 +753,10 @@ fn vs_main(vertex: VertexInput) -> VertexOutput {
             let f = sin(t * (5.1 + 0.15 * wind_v) + phase * 3.7 + h * 2.3);
             let g = cos(t * (6.7 + 0.20 * wind_v) + phase * 2.1 + h * 1.7);
             wind_pos = wind_pos
-                + wind_dir * (f * 0.055 * gust * fl * fv)
-                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv)
-                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x) * (g * 0.040 * gust * fl * fv);
+                + wind_dir * (f * 0.055 * gust * fl * fv * obj_per_m)
+                + vec3<f32>(0.0, 1.0, 0.0) * (g * 0.030 * gust * fl * fv * obj_per_m)
+                + vec3<f32>(-wind_dir.z, 0.0, wind_dir.x)
+                    * (g * 0.040 * gust * fl * fv * obj_per_m);
         }
         world_pos = obj_model() * vec4<f32>(wind_pos, 1.0);
         world_pos = vec4<f32>(world_pos.xyz, 1.0);

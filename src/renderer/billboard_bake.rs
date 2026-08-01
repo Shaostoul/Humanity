@@ -347,7 +347,8 @@ impl Renderer {
                 // caches only the wood mesh, and both come from the same
                 // deterministic `build_tree_and_cards`, so they agree.
                 let cards: Vec<ClusterCards> = if t.clusters.is_some() {
-                    tree_mesh::build_tree_and_cards(t, t.height_m, v.wrapping_mul(2_654_435_761)).1
+                    tree_mesh::build_tree_and_cards(t, t.height_m, v.wrapping_mul(2_654_435_761))
+                        .cards
                 } else {
                     Vec::new()
                 };
@@ -1158,6 +1159,52 @@ fn rescale_alpha_to_coverage(rgba: &mut [u8], cutoff: f32, target: f32) {
 /// Each level is box-filtered from the previous UNSCALED level (so the
 /// coverage corrections cannot compound into saturation) and then rescaled to
 /// level 0's coverage.
+/// Mip chain for an OPAQUE, TILING texture - the baked bark (v0.1089).
+///
+/// Deliberately NOT `build_mip_chain`: that one serves alpha-cutout cluster
+/// sprites and does two things that would corrupt bark. (1) It rescales alpha
+/// per level to preserve silhouette coverage; bark's alpha is a linear
+/// height/AO channel, not coverage, so rescaling would flatten its relief with
+/// distance. (2) `box_downsample_rgba` averages RGB alpha-WEIGHTED (right for
+/// a cutout: transparent black must not bleed into a leaf edge), which here
+/// would weight colour by height and darken every ridge.
+///
+/// So: a straight box filter. RGB averaged in LINEAR light because the texture
+/// is sRGB-encoded (averaging encoded values darkens every mixed texel), alpha
+/// averaged directly, all the way down to 1x1 - a trunk at 200 m is a fraction
+/// of a pixel and must still sample something sane rather than shimmer.
+pub fn build_opaque_mip_chain(base: &[u8], size: u32) -> Vec<Vec<u8>> {
+    let mut levels = vec![base.to_vec()];
+    let mut w = size;
+    while w >= 2 {
+        let src = levels.last().expect("level 0 pushed above");
+        let dw = w / 2;
+        let mut out = vec![0u8; (dw * dw * 4) as usize];
+        for y in 0..dw {
+            for x in 0..dw {
+                let (mut r, mut g, mut b, mut a) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
+                for sy in 0..2u32 {
+                    for sx in 0..2u32 {
+                        let px = (((y * 2 + sy) * w) + (x * 2 + sx)) as usize * 4;
+                        r += srgb_to_linear(src[px]);
+                        g += srgb_to_linear(src[px + 1]);
+                        b += srgb_to_linear(src[px + 2]);
+                        a += src[px + 3] as f32 / 255.0;
+                    }
+                }
+                let d = ((y * dw + x) * 4) as usize;
+                out[d] = linear_to_srgb(r * 0.25);
+                out[d + 1] = linear_to_srgb(g * 0.25);
+                out[d + 2] = linear_to_srgb(b * 0.25);
+                out[d + 3] = (a * 0.25 * 255.0 + 0.5) as u8;
+            }
+        }
+        levels.push(out);
+        w = dw;
+    }
+    levels
+}
+
 pub fn build_mip_chain(base: &[u8], size: u32, cutoff: f32, srgb: bool) -> Vec<Vec<u8>> {
     let mut levels = vec![base.to_vec()];
     let target = alpha_coverage(base, cutoff);
@@ -1193,6 +1240,51 @@ mod tests {
         let worst = (1 + cap) as f32 + 0.5;
         assert_eq!(worst.floor() as u32, cap + 1, "tile index lost integrality");
         assert!((worst.fract() - 0.5).abs() < 1e-6, "u01 fraction lost precision");
+    }
+
+    // ── Bark mip chain (v0.1089) ─────────────────────────────────────────
+
+    /// The bark chain must run all the way to 1x1 and must PRESERVE the alpha
+    /// channel, because on bark alpha is a linear height/AO field, not
+    /// coverage. If it were routed through `build_mip_chain` instead, the
+    /// coverage rescale would drive every level's alpha toward saturation and
+    /// the relief would flatten with distance - the exact fade this increment
+    /// exists to delete.
+    #[test]
+    fn opaque_mip_chain_reaches_1x1_and_keeps_the_height_channel() {
+        let size = 64u32;
+        let mut base = vec![0u8; (size * size * 4) as usize];
+        let mut sum = 0.0f64;
+        for y in 0..size {
+            for x in 0..size {
+                let i = ((y * size + x) * 4) as usize;
+                // A plate-like field: alpha ramps, rgb tracks it.
+                let a = (((x / 8 + y / 4) % 5) * 50).min(255) as u8;
+                base[i] = a / 2;
+                base[i + 1] = a / 3;
+                base[i + 2] = a / 4;
+                base[i + 3] = a;
+                sum += a as f64;
+            }
+        }
+        let levels = build_opaque_mip_chain(&base, size);
+        assert_eq!(levels.len(), 7, "64 -> 1 is seven levels");
+        for (i, l) in levels.iter().enumerate() {
+            let w = (size >> i).max(1) as usize;
+            assert_eq!(l.len(), w * w * 4, "level {i} is {w}x{w}");
+        }
+        let mean0 = sum / (size * size) as f64;
+        let last = levels.last().unwrap();
+        assert!(
+            (last[3] as f64 - mean0).abs() < 2.0,
+            "1x1 level's height {} drifted from the mean {mean0:.1}",
+            last[3]
+        );
+        // Level 1's alpha must still SPREAD - a flattened chain is the bug.
+        let l1 = &levels[1];
+        let lo = l1.chunks_exact(4).map(|p| p[3]).min().unwrap();
+        let hi = l1.chunks_exact(4).map(|p| p[3]).max().unwrap();
+        assert!(hi - lo > 100, "level 1 height range {lo}..{hi} collapsed");
     }
 
     // ── Cluster sprite mip chain (v0.1088) ───────────────────────────────
@@ -1367,13 +1459,34 @@ mod tests {
             );
             return;
         }
-        for line in ["floor(in.uv.x * 0.5)", "in.uv.x - 2.0 * code"] {
-            assert!(
-                wgsl.contains(line),
-                "the type-21 cluster decode in 90-fragment-main.wgsl does not contain `{line}` - \
-                 it must match tree_mesh::decode_card_uv and the bake shader exactly"
-            );
-        }
+        // NAME-AGNOSTIC (fixed v0.1089). The check used to demand the literal
+        // string `in.uv.x - 2.0 * code`, but the megashader's branch names its
+        // local `cc_code` (every local in that 1500-line function carries a
+        // branch prefix), so this test went red the day the type-21 branch
+        // landed in v0.1088 and stayed red - asserting a variable NAME, not the
+        // arithmetic it was written to protect. Recover the identifier from the
+        // floor() line and check the decode uses that same one.
+        assert!(
+            wgsl.contains("floor(in.uv.x * 0.5)"),
+            "the type-21 cluster decode in 90-fragment-main.wgsl lost `floor(in.uv.x * 0.5)` - \
+             it must match tree_mesh::decode_card_uv and the bake shader exactly"
+        );
+        let at = wgsl.find("= floor(in.uv.x * 0.5)").expect("checked above");
+        let ident: String = wgsl[..at]
+            .trim_end()
+            .chars()
+            .rev()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        let want = format!("in.uv.x - 2.0 * {ident}");
+        assert!(
+            wgsl.contains(&want),
+            "the type-21 cluster decode in 90-fragment-main.wgsl does not contain `{want}` - \
+             it must match tree_mesh::decode_card_uv and the bake shader exactly"
+        );
     }
 
     /// The bake shader's packed decode must be the SAME arithmetic as the

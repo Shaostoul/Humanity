@@ -507,6 +507,417 @@ fn segments_for(depth: u32) -> u32 {
 /// toss lands a few dozen triangles either side of the prediction.
 const BUDGET_TARGET: f32 = 0.96;
 
+// ── Wood as its own mesh, with real bark UVs (v0.1089) ───────────────────
+//
+// Through v0.1088 a procedural tree was ONE mesh on material type 20 and every
+// bark pixel was invented in the fragment shader from object-space noise. That
+// is why bark read as moulded plastic tubing past arm's reach: procedural noise
+// has no mip chain, so it aliases the moment a trunk minifies, so the shader
+// had to FADE IT OUT with distance (`detail`/`micro` in
+// 90-fragment-main.wgsl) - and past ~3 m nothing was left but the flat
+// per-face colour, on a 4-to-8-sided cylinder.
+//
+// A BAKED texture has mips, so it needs no fade at all. Sampling one needs real
+// UVs, and the packed-colour transport every plant face uses IS the uv channel
+// (`plant_mesh::tri_smooth` overwrites it). So the wood moves onto its own mesh
+// with its own material type (22), exactly the way cluster cards (type 21)
+// already do - no vertex-format change, no new bind group, no layout change.
+//
+// ONE build produces THREE meshes:
+//   `foliage`      leaves, blossoms, and any tube that is NOT bark (the palm
+//                  rachis carries LEAF colour and must stay leaf-green, so it
+//                  is deliberately not wood) ................... type 20
+//   `wood`         bark tubes with cylindrical UVs .............. type 22
+//   `wood_packed`  the SAME bark tubes with packed colour, merged with the
+//                  foliage into `TreeBuild::bake` for the two consumers that
+//                  need one self-contained mesh whose only decode is the
+//                  packed one: the sprite-atlas bake (its shader knows nothing
+//                  else) and the shipped-build procedural fallback.
+
+/// Metres of limb covered by ONE tile of the baked bark texture.
+///
+/// Derived from the species' own `height_m` instead of a new data field: bark
+/// plates scale with the tree that grew them (a 22 m fir's plates are
+/// hand-sized, a 7 m maple's are thumb-sized), and height is the one size
+/// number every registry row already carries. The clamp stops a sapling tiling
+/// at millimetre scale and a giant smearing one plate over a metre.
+///
+/// A per-species `bark_scale_m` in `data/vegetation/trees.ron` is the honest
+/// long-term home for this; that file is outside this module's lane, so the
+/// derivation lives here and is unit-tested (`bark_tile_scales_with_species`).
+///
+/// THE CONSTANT IS SET BY WHAT SURVIVES TO THE EYE, not by taste. A tile holds
+/// 3-6 plate cells, so cell width is tile/5-ish; at 10 m a screen pixel covers
+/// ~1.2 cm (1280 px, 90 deg FOV), and a feature needs 4+ pixels to read as a
+/// feature rather than as noise the mip chain will eat. That puts the floor at
+/// ~5 cm cells, i.e. a ~0.3 m tile. The first cut of this used height*0.022
+/// (a 0.18 m tile on sakura, 3 cm cells) and the probe capture came back with
+/// visibly SMOOTH trunks at 8 m even though the baked texture was correct -
+/// the detail was real and entirely below Nyquist. Measured, not guessed.
+pub fn bark_tile_m(def: &TreeDef) -> f32 {
+    (def.height_m * 0.045).clamp(0.30, 1.0)
+}
+
+/// The three meshes one tree build emits (see the block comment above).
+pub(crate) struct TreeParts {
+    pub foliage: PlantMeshBuilder,
+    pub wood: PlantMeshBuilder,
+    pub wood_packed: PlantMeshBuilder,
+    /// Metres per bark texture tile for this species.
+    tile_m: f32,
+}
+
+impl TreeParts {
+    fn new(def: &TreeDef) -> Self {
+        TreeParts {
+            foliage: PlantMeshBuilder::new(),
+            wood: PlantMeshBuilder::new(),
+            wood_packed: PlantMeshBuilder::new(),
+            tile_m: bark_tile_m(def),
+        }
+    }
+
+    /// Triangles emitted so far across the drawn parts. `MAX_TRIS` bounds the
+    /// TREE, not one of its meshes, so the recursion's budget check must see
+    /// wood and foliage together exactly as it did when they shared a builder.
+    fn tri_count(&self) -> usize {
+        (self.foliage.indices.len() + self.wood.indices.len()) / 3
+    }
+
+    /// A bark tube: geometrically identical to `PlantMeshBuilder::tube` (same
+    /// ring positions, same smooth cone normals), emitted into the WOOD mesh
+    /// with real cylindrical UVs - u around the ring, v along the limb, both
+    /// measured in TILES of `tile_m` metres.
+    ///
+    /// WORLD-SPACE TEXEL DENSITY, not model-space. u spans
+    /// `circumference / tile_m` tiles rather than a fixed 0..1, so the bark on
+    /// a 0.7 m bole and the bark on a 2 cm twig are the same physical size. A
+    /// fixed 0..1 would squeeze the whole texture around a twig and smear it
+    /// 30x, which is the classic silent UV failure.
+    ///
+    /// The repeat count is ROUNDED TO A WHOLE NUMBER so the ring closes exactly
+    /// on a texture period: with a tileable bake (`bake_bark_rgba`) that makes
+    /// the wrap seam invisible. The ring is also NOT uv-wrapped - every quad
+    /// carries its own vertices, so u runs 0..reps monotonically and the
+    /// derivative used for mip selection never jumps.
+    ///
+    /// `v0_m` is the running arc length from the START of this limb, so a
+    /// six-segment bole is one continuous texture run instead of restarting the
+    /// pattern at each joint.
+    #[allow(clippy::too_many_arguments)]
+    fn bark_tube(
+        &mut self,
+        from: [f32; 3],
+        to: [f32; 3],
+        r0: f32,
+        r1: f32,
+        sides: u32,
+        color: [f32; 3],
+        v0_m: f32,
+    ) {
+        // The packed-colour twin for the single-mesh consumers. Same call, so
+        // the two representations can never disagree about geometry.
+        self.wood_packed.tube(from, to, r0, r1, sides, color);
+        let axis = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
+        let alen = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2])
+            .sqrt()
+            .max(1e-6);
+        let ax = [axis[0] / alen, axis[1] / alen, axis[2] / alen];
+        let helper = if ax[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+        let side = norm(cross(ax, helper));
+        let up = cross(side, ax);
+        let n = sides.max(3);
+        let tile = self.tile_m.max(1e-3);
+        // Repeats are fixed for the WHOLE tube (one ring count, or a lengthwise
+        // edge would carry a du and the fissures would spiral), and they are
+        // taken from the FAT end. A tapered tube therefore holds true density
+        // where it is thickest - the bole you stand next to - and compresses
+        // toward the tip, which is the direction real bark goes anyway: young
+        // thin wood carries finer plates than an old butt log. Taking the mean
+        // radius instead would let the base STRETCH up to 2x, and stretched
+        // bark reads as smeared plastic; compression never does.
+        let reps = ((std::f32::consts::TAU * r0) / tile).round().max(1.0);
+        let (v_a, v_b) = (v0_m / tile, (v0_m + alen) / tile);
+        let slope = (r0 - r1) / alen;
+        for i in 0..n {
+            let a0 = (i as f32) / (n as f32) * std::f32::consts::TAU;
+            let a1 = ((i + 1) as f32) / (n as f32) * std::f32::consts::TAU;
+            let p = |ang: f32, at: [f32; 3], r: f32| {
+                [
+                    at[0] + (side[0] * ang.cos() + up[0] * ang.sin()) * r,
+                    at[1] + (side[1] * ang.cos() + up[1] * ang.sin()) * r,
+                    at[2] + (side[2] * ang.cos() + up[2] * ang.sin()) * r,
+                ]
+            };
+            let rad = |ang: f32| {
+                norm([
+                    side[0] * ang.cos() + up[0] * ang.sin() + ax[0] * slope,
+                    side[1] * ang.cos() + up[1] * ang.sin() + ax[1] * slope,
+                    side[2] * ang.cos() + up[2] * ang.sin() + ax[2] * slope,
+                ])
+            };
+            let (b0, b1) = (p(a0, from, r0), p(a1, from, r0));
+            let (t0, t1) = (p(a0, to, r1), p(a1, to, r1));
+            let (n0, n1) = (rad(a0), rad(a1));
+            let u0 = (i as f32) / (n as f32) * reps;
+            let u1 = ((i + 1) as f32) / (n as f32) * reps;
+            self.wood
+                .card_tri([b0, t0, t1], [n0, n0, n1], [[u0, v_a], [u0, v_b], [u1, v_b]]);
+            self.wood
+                .card_tri([b0, t1, b1], [n0, n1, n1], [[u0, v_a], [u1, v_b], [u1, v_a]]);
+        }
+    }
+}
+
+// ── The baked bark texture (v0.1089) ─────────────────────────────────────
+//
+// One RGBA8 sRGB image per species, generated on the CPU at world entry and
+// handed to the EXISTING per-material albedo slot - the same slot cluster
+// cards use. No new @group(3) binding: bindings 11 and 12 look free in the
+// WGSL but are the atmosphere LUTs in the Rust layout (pipeline.rs), and a
+// new texture_2d<f32> there would type-match, raise no validation error and
+// silently sample a 256x64 atmosphere LUT as bark.
+//
+// CHANNELS. RGB is `trunk_color` modulated by the plate field. ALPHA is that
+// same field as a LINEAR height/ambient-occlusion scalar (0 = deepest fissure,
+// 1 = ridge crest). Alpha in an Rgba8UnormSrgb texture is NOT gamma-encoded,
+// so it is the one clean linear channel available without a second texture,
+// and the type-22 fragment branch differentiates it for relief and reads it
+// for roughness. That is the whole "full PBR" claim: albedo, normal and
+// roughness out of one fetch.
+//
+// WHY sRGB IS A FIDELITY WIN HERE, not just a convention: a fir's trunk_color
+// is 0.075 linear. Encoded sRGB that is ~76/255, and a +/-40% shade swing
+// spans ~50 codes; the same swing in the LINEAR framebuffer domain the old
+// procedural bark worked in spans about 8. The shipped bark measured 0.27
+// luma levels of detail against a 0.258-level quantization floor - it was
+// literally at the 8-bit floor. This is off it by an order of magnitude.
+
+/// Side of one baked bark texture, texels. At the 0.12-0.55 m tile
+/// (`bark_tile_m`) that is 0.23-1.07 mm per texel - finer than a real fissure
+/// edge - and it mips down to 1x1 for the far field.
+pub const BARK_PX: u32 = 512;
+
+/// Hash one lattice cell of a WRAPPING lattice, so every field below tiles
+/// exactly at the texture border. Wrapping is the whole reason this is not
+/// just a CPU copy of the shader's `hash21`: a texture that does not tile
+/// draws a hard seam down every trunk.
+fn bark_hash(ix: i32, iy: i32, cx: i32, cy: i32, salt: u32) -> f32 {
+    let x = ix.rem_euclid(cx.max(1)) as u32;
+    let y = iy.rem_euclid(cy.max(1)) as u32;
+    let mut h = 0x9e37_79b9u32 ^ salt.wrapping_mul(0x85eb_ca6b);
+    h = h.wrapping_add(x.wrapping_mul(0xc2b2_ae35));
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x27d4_eb2f).wrapping_add(y.wrapping_mul(0x1656_67b1));
+    h ^= h >> 16;
+    h = h.wrapping_mul(0x85eb_ca6b);
+    h ^= h >> 15;
+    (h >> 8) as f32 / 16_777_216.0
+}
+
+/// Distance to the nearest voronoi EDGE (F2 - F1), on a wrapping lattice.
+///
+/// Same estimator as `voronoi_edge` in `assets/shaders/pbr/10-lighting-
+/// patterns.wgsl`, which is what the procedural bark used, so the baked plates
+/// are the same FAMILY of shapes the shipped look established - just resolved
+/// once at 512 px with mips instead of re-evaluated per pixel with a distance
+/// fade papering over the aliasing.
+fn bark_voronoi_edge(px: f32, py: f32, cx: i32, cy: i32, salt: u32) -> f32 {
+    let ix = px.floor();
+    let iy = py.floor();
+    let (fx, fy) = (px - ix, py - iy);
+    let (mut d1, mut d2) = (8.0f32, 8.0f32);
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let cell_x = ix as i32 + dx;
+            let cell_y = iy as i32 + dy;
+            let jx = bark_hash(cell_x, cell_y, cx, cy, salt);
+            let jy = bark_hash(cell_x, cell_y, cx, cy, salt ^ 0x5bf0_3635);
+            let ex = dx as f32 + jx - fx;
+            let ey = dy as f32 + jy - fy;
+            let d = ex * ex + ey * ey;
+            if d < d1 {
+                d2 = d1;
+                d1 = d;
+            } else if d < d2 {
+                d2 = d;
+            }
+        }
+    }
+    d2.sqrt() - d1.sqrt()
+}
+
+/// Value noise on the same wrapping lattice (smoothstep-interpolated).
+fn bark_value_noise(px: f32, py: f32, cx: i32, cy: i32, salt: u32) -> f32 {
+    let ix = px.floor();
+    let iy = py.floor();
+    let (fx, fy) = (px - ix, py - iy);
+    let (sx, sy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
+    let (i, j) = (ix as i32, iy as i32);
+    let a = bark_hash(i, j, cx, cy, salt);
+    let b = bark_hash(i + 1, j, cx, cy, salt);
+    let c = bark_hash(i, j + 1, cx, cy, salt);
+    let d = bark_hash(i + 1, j + 1, cx, cy, salt);
+    let top = a + (b - a) * sx;
+    let bot = c + (d - c) * sx;
+    top + (bot - top) * sy
+}
+
+/// Three octaves of wrapping value noise. THREE, not one: a single octave is
+/// the "one flat grain frequency" tell, and the acceptance bar for this work
+/// is multi-octave detail with no octave holding the whole energy.
+fn bark_fbm(u: f32, v: f32, cx: i32, cy: i32, salt: u32) -> f32 {
+    let mut sum = 0.0;
+    let mut amp = 0.5;
+    let mut mul = 1;
+    for o in 0..3u32 {
+        sum += amp
+            * bark_value_noise(
+                u * (cx * mul) as f32,
+                v * (cy * mul) as f32,
+                cx * mul,
+                cy * mul,
+                salt ^ o.wrapping_mul(0x9e37_79b9),
+            );
+        amp *= 0.5;
+        mul *= 2;
+    }
+    sum / 0.875
+}
+
+fn bark_smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
+    let t = ((x - e0) / (e1 - e0).max(1e-6)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn linear_to_srgb_u8(c: f32) -> u8 {
+    let c = c.clamp(0.0, 1.0);
+    let s = if c <= 0.003_130_8 { c * 12.92 } else { 1.055 * c.powf(1.0 / 2.4) - 0.055 };
+    (s * 255.0 + 0.5) as u8
+}
+
+/// Bake one species' bark: RGBA8 sRGB, `BARK_PX` square, tileable both ways.
+///
+/// MORPHOLOGY IS DERIVED FROM DATA, not from a species table (infinite-of-X:
+/// adding a tree stays a data row). Two data inputs drive it:
+///   - the species id, hashed, sets plate count, elongation and fissure depth,
+///     so no two rows share a field;
+///   - `trunk_color`'s luminance drives the smooth/papery axis, because pale
+///     barks in the real world (birch, aspen, young cherry) are smooth sheets
+///     with HORIZONTAL lenticels while dark barks (oak, fir, acacia) are
+///     deeply fissured vertical plates. That is a genuine correlation, not a
+///     coincidence, and it means the registry already carries the signal.
+/// A per-species `bark_style` field in data/vegetation/trees.ron would be the
+/// better long-term home; that file is outside this lane.
+pub fn bake_bark_rgba(def: &TreeDef) -> Vec<u8> {
+    use rayon::prelude::*;
+    let n = BARK_PX;
+    // Per-species knobs, hashed from the id (FNV-1a).
+    let mut hs: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in def.id.bytes() {
+        hs ^= byte as u64;
+        hs = hs.wrapping_mul(0x100_0000_01b3);
+    }
+    let k = |shift: u32| ((hs >> shift) & 0xff) as f32 / 255.0;
+    let salt = (hs & 0xffff_ffff) as u32;
+    // Plates AROUND one tile vs ALONG it. More around than along is what makes
+    // a plate taller than it is wide, which is what bark is. Kept LOW (3-6, not
+    // 4-8) for the same Nyquist reason `bark_tile_m` is sized the way it is:
+    // the primary structure has to be plate-scale (10-25 cm), because that is
+    // what is still resolvable across a forest, and the finer octave below
+    // carries the close-range fissures.
+    let cells_u = 3 + (k(0) * 3.0).round() as i32;
+    let cells_v = 1 + (k(8) * 1.0).round() as i32;
+    let crack_w = 0.15 + k(16) * 0.14;
+    let grain_amp = 0.24 + k(24) * 0.14;
+    // Smooth/papery axis from trunk_color luminance (Rec.709).
+    let luma = 0.2126 * def.trunk_color[0] + 0.7152 * def.trunk_color[1] + 0.0722 * def.trunk_color[2];
+    let papery = bark_smoothstep(0.10, 0.34, luma);
+    let base = def.trunk_color;
+    let rows: Vec<Vec<u8>> = (0..n)
+        .into_par_iter()
+        .map(|y| {
+            let mut row = vec![0u8; (n * 4) as usize];
+            let v = (y as f32 + 0.5) / n as f32;
+            for x in 0..n {
+                let u = (x as f32 + 0.5) / n as f32;
+                // Primary plate field, elongated along the limb.
+                let e1 = bark_voronoi_edge(
+                    u * cells_u as f32,
+                    v * cells_v as f32,
+                    cells_u,
+                    cells_v,
+                    salt,
+                );
+                let crack = 1.0 - bark_smoothstep(0.0, crack_w, e1);
+                // Second, finer plate octave inside the first's cells: real
+                // fissures branch and terminate at more than one scale.
+                let e2 = bark_voronoi_edge(
+                    u * (cells_u * 3) as f32,
+                    v * (cells_v * 3) as f32,
+                    cells_u * 3,
+                    cells_v * 3,
+                    salt ^ 0x2545_f491,
+                );
+                let crack2 = 1.0 - bark_smoothstep(0.0, crack_w * 0.55, e2);
+                // Fine grain: three octaves, stretched along the limb.
+                let grain = bark_fbm(u, v, cells_u * 4, cells_v * 2, salt ^ 0x1656_67b1);
+                // Horizontal lenticels for pale/papery barks: short dashes
+                // ACROSS the trunk, the birch signature. Stretched the other
+                // way round from the fissures on purpose.
+                let lent = if papery > 0.01 {
+                    let f = bark_voronoi_edge(
+                        u * 3.0,
+                        v * 26.0,
+                        3,
+                        26,
+                        salt ^ 0x7ee_5eed,
+                    );
+                    (1.0 - bark_smoothstep(0.0, 0.34, f)) * papery
+                } else {
+                    0.0
+                };
+                // HEIGHT / AO (alpha). Ridges at 1, fissures cut down toward 0.
+                let fissure = (crack * (1.0 - papery * 0.75) + crack2 * 0.45).clamp(0.0, 1.0);
+                let h = (1.0 - fissure * 0.72 - lent * 0.35 + (grain - 0.5) * 0.20)
+                    .clamp(0.06, 1.0);
+                // ALBEDO. Same shape as the shipped procedural bark (a scalar
+                // multiple of trunk_color: crevices darker, ridges catching
+                // more light) so the species keeps its colour - but with real
+                // contrast. The shipped fragment version ran 0.72..0.96 of
+                // trunk_color BEFORE its distance fade pulled it further
+                // toward flat; this runs ~0.27..1.0, a 3.7:1 range, which is
+                // where a photographed bark's albedo histogram actually sits.
+                let shade = (0.68 + grain_amp * grain) * (1.0 - 0.62 * fissure)
+                    - lent * 0.24 * (1.0 - papery * 0.4);
+                let shade = shade.max(0.12);
+                let i = (x * 4) as usize;
+                row[i] = linear_to_srgb_u8(base[0] * shade);
+                row[i + 1] = linear_to_srgb_u8(base[1] * shade);
+                row[i + 2] = linear_to_srgb_u8(base[2] * shade);
+                // Alpha is LINEAR in an sRGB texture: store height directly.
+                row[i + 3] = (h * 255.0 + 0.5) as u8;
+            }
+            row
+        })
+        .collect();
+    rows.concat()
+}
+
+/// Everything one tree build hands back.
+pub struct TreeBuild {
+    /// Leaves, blossoms and non-bark tubes - material type 20.
+    pub mesh: PlantMeshBuilder,
+    /// Bark tubes with real cylindrical UVs - material type 22.
+    pub wood: PlantMeshBuilder,
+    /// `mesh` + the wood in its packed-colour form: ONE self-contained mesh on
+    /// material type 20, which is what the sprite-atlas bake and the
+    /// shipped-build fallback need.
+    pub bake: PlantMeshBuilder,
+    /// One entry per cluster-card layer - material type 21.
+    pub cards: Vec<ClusterCards>,
+}
+
 /// Build one tree into `b`, centred on the origin with +Y up.
 ///
 /// `height_m` is the FINAL height (the caller already applied per-instance
@@ -528,11 +939,17 @@ const BUDGET_TARGET: f32 = 0.96;
 /// changing how many leaves a sprig draws cannot move a branch. Cost is one
 /// extra mesh build for 24 meshes, once, at world entry.
 pub fn build_tree(b: &mut PlantMeshBuilder, def: &TreeDef, height_m: f32, seed: u32) {
-    let (wood, _cards) = build_tree_and_cards(def, height_m, seed);
+    let built = build_tree_and_cards(def, height_m, seed);
+    // The SINGLE-MESH form (v0.1089): foliage plus the packed-colour twin of
+    // the wood, so this API keeps behaving exactly as it did when a tree was
+    // one type-20 mesh. Its two callers - the sprite-atlas bake and the
+    // shipped-build procedural fallback - have no second draw to spend on a
+    // type-22 wood mesh, and the atlas bake shader only knows the packed decode.
+    let merged = built.bake;
     // Merge (the callers hand us a fresh builder, but never assume that).
     let base = b.vertices.len() as u32;
-    b.vertices.extend_from_slice(&wood.vertices);
-    b.indices.extend(wood.indices.iter().map(|i| i + base));
+    b.vertices.extend_from_slice(&merged.vertices);
+    b.indices.extend(merged.indices.iter().map(|i| i + base));
 }
 
 /// The full build: the wood-and-blades mesh (material type 20) plus one card
@@ -542,16 +959,12 @@ pub fn build_tree(b: &mut PlantMeshBuilder, def: &TreeDef, height_m: f32, seed: 
 ///
 /// A species with no `clusters` block returns an empty card list and a mesh
 /// bit-identical to what `build_tree` produced through v0.1087.
-pub fn build_tree_and_cards(
-    def: &TreeDef,
-    height_m: f32,
-    seed: u32,
-) -> (PlantMeshBuilder, Vec<ClusterCards>) {
+pub fn build_tree_and_cards(def: &TreeDef, height_m: f32, seed: u32) -> TreeBuild {
     let h = height_m.max(0.5);
     let mut twigs: Vec<Twig> = Vec::new();
     let first = build_at_density(def, h, seed, 1.0, &mut twigs);
-    let total = first.indices.len() / 3;
-    let leaves = leaf_tri_count(&first);
+    let total = first.tri_count();
+    let leaves = leaf_tri_count(&first.foliage);
     let wood_tris = total.saturating_sub(leaves);
 
     let cards = match &def.clusters {
@@ -578,7 +991,7 @@ pub fn build_tree_and_cards(
         if !(0.97..=1.03).contains(&scale) {
             let mut sink = Vec::new();
             let second = build_at_density(def, h, seed, scale, &mut sink);
-            let st = second.indices.len() / 3;
+            let st = second.tri_count();
             if def.clusters.is_some() {
                 // Clustered species are aiming DOWN, so the v0.1086 rule
                 // ("only accept a rebuild that grew") would reject every
@@ -599,7 +1012,17 @@ pub fn build_tree_and_cards(
     } else {
         first
     };
-    (best, cards)
+    // The single-mesh form: foliage first, then the wood's packed-colour twin.
+    // Draw order is irrelevant (opaque, depth-tested) and the atlas bake reads
+    // one decode for both halves.
+    let mut bake = PlantMeshBuilder::new();
+    bake.vertices.extend_from_slice(&best.foliage.vertices);
+    bake.indices.extend_from_slice(&best.foliage.indices);
+    let base = bake.vertices.len() as u32;
+    bake.vertices.extend_from_slice(&best.wood_packed.vertices);
+    bake.indices
+        .extend(best.wood_packed.indices.iter().map(|i| i + base));
+    TreeBuild { mesh: best.foliage, wood: best.wood, bake, cards }
 }
 
 /// Crown envelope of a species as the card planner sees it. Public so the
@@ -619,8 +1042,8 @@ fn build_at_density(
     seed: u32,
     density: f32,
     twigs: &mut Vec<Twig>,
-) -> PlantMeshBuilder {
-    let mut b = PlantMeshBuilder::new();
+) -> TreeParts {
+    let mut b = TreeParts::new(def);
     let mut rng = Rng::new(seed as u64 ^ 0x7ee_5eed);
     match def.form.as_str() {
         "conifer" => conifer(&mut b, def, h, density, &mut rng),
@@ -650,7 +1073,7 @@ fn leaf_tri_count(b: &PlantMeshBuilder) -> usize {
 ///
 /// Returns the top of the bole so the caller can branch from it.
 fn trunk(
-    b: &mut PlantMeshBuilder,
+    b: &mut TreeParts,
     def: &TreeDef,
     base: [f32; 3],
     dir: [f32; 3],
@@ -661,6 +1084,9 @@ fn trunk(
     let segs = 6;
     let mut p = base;
     let mut d = dir;
+    // Running arc length for the bark v coordinate: the bole is ONE texture
+    // run, not six restarts (v0.1089).
+    let mut v = 0.0f32;
     for s in 0..segs {
         let f0 = s as f32 / segs as f32;
         let f1 = (s + 1) as f32 / segs as f32;
@@ -674,8 +1100,11 @@ fn trunk(
         let to = add(p, d, seg);
         // Same joint overshoot as `limb`: the bole sways slightly between
         // segments, and without the overlap each sway opens a hairline slit.
-        b.tube(p, add(p, d, seg + rb * 0.5), ra, rb, 8, def.trunk_color);
+        b.bark_tube(p, add(p, d, seg + rb * 0.5), ra, rb, 8, def.trunk_color, v);
         p = to;
+        // The SPINE advances by `seg`; the extra `rb * 0.5` is joint overshoot
+        // that overlaps the next segment, so v must not count it twice.
+        v += seg;
         // A very slight sway so the bole is not a plumb line.
         d = norm([d[0] + 0.012, d[1], d[2] - 0.008]);
     }
@@ -1408,8 +1837,8 @@ pub fn mean_card_side(def: &TreeDef, layer: ClusterLayer) -> f32 {
     let mut sum = 0.0f32;
     let mut n = 0u32;
     for v in 0..def.variants.max(1) {
-        let (_, cards) = build_tree_and_cards(def, def.height_m, v.wrapping_mul(2_654_435_761));
-        if let Some(c) = cards.iter().find(|c| c.layer == layer) {
+        let built = build_tree_and_cards(def, def.height_m, v.wrapping_mul(2_654_435_761));
+        if let Some(c) = built.cards.iter().find(|c| c.layer == layer) {
             sum += c.card_side_m;
             n += 1;
         }
@@ -1578,7 +2007,7 @@ fn welded_root(from: [f32; 3], dir: [f32; 3], parent_r: f32, r0: f32, len: f32) 
 /// whatever it grows out of - the bole top.
 #[allow(clippy::too_many_arguments)]
 fn limb(
-    b: &mut PlantMeshBuilder,
+    b: &mut TreeParts,
     def: &TreeDef,
     from: [f32; 3],
     dir: [f32; 3],
@@ -1591,7 +2020,7 @@ fn limb(
     rng: &mut Rng,
     twigs: &mut Vec<Twig>,
 ) {
-    if b.indices.len() / 3 > MAX_TRIS || len < 0.05 {
+    if b.tri_count() > MAX_TRIS || len < 0.05 {
         return;
     }
     let r1 = r0 * 0.68;
@@ -1619,7 +2048,17 @@ fn limb(
         // Overshoot the joint by a fraction of the radius so the kink between
         // two spine segments cannot open a slit on the outside of the bow. The
         // spine itself still advances by exactly `seg_len`.
-        b.tube(p, add(p, d, seg_len + rb * 0.7), ra, rb, sides_for(depth), def.trunk_color);
+        // v runs from the BURIED root, so a bowing limb's bark is one
+        // continuous run across its spine joints (v0.1089).
+        b.bark_tube(
+            p,
+            add(p, d, seg_len + rb * 0.7),
+            ra,
+            rb,
+            sides_for(depth),
+            def.trunk_color,
+            x,
+        );
         p = to;
         x += seg_len;
         // Bow: droop grows toward the tip, and the trunk stays straighter than
@@ -1654,7 +2093,7 @@ fn limb(
         } else {
             8
         };
-        leaf_cluster(b, at, dir, f, color, sprigs, rng);
+        leaf_cluster(&mut b.foliage, at, dir, f, color, sprigs, rng);
         if tip {
             return;
         }
@@ -1680,7 +2119,7 @@ fn limb(
 }
 
 fn broadleaf(
-    b: &mut PlantMeshBuilder,
+    b: &mut TreeParts,
     def: &TreeDef,
     h: f32,
     density: f32,
@@ -1733,7 +2172,7 @@ fn broadleaf(
     }
 }
 
-fn conifer(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
+fn conifer(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
     // A single straight leader with whorls of short, steeply drooping branches
     // that shorten toward the top: the classic conical silhouette.
     let r_base = h * 0.022;
@@ -1743,10 +2182,19 @@ fn conifer(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &
     // old flat `r_base * 0.22`, the topmost whorl's root ring (0.22 r_base) was
     // FATTER than the leader there (0.194 r_base) and stuck out through it.
     let leader_r = |f: f32| r_base * (1.0 + (0.16 - 1.0) * f);
-    b.tube([0.0, 0.0, 0.0], top, r_base, r_base * 0.16, 8, def.trunk_color);
+    b.bark_tube([0.0, 0.0, 0.0], top, r_base, r_base * 0.16, 8, def.trunk_color, 0.0);
     // Close the leader's open apex ring with a short cone (16 triangles). It is
-    // the one hole on a conifer you look straight down into from the air.
-    b.tube(top, [0.0, h + h * 0.012, 0.0], r_base * 0.16, 0.0, 8, def.trunk_color);
+    // the one hole on a conifer you look straight down into from the air. Its
+    // bark v continues from the leader's top so the pattern does not restart.
+    b.bark_tube(
+        top,
+        [0.0, h + h * 0.012, 0.0],
+        r_base * 0.16,
+        0.0,
+        8,
+        def.trunk_color,
+        h,
+    );
     let whorls = 9;
     // A conifer's drawn element is a NEEDLE SPRAY, not a single needle: one
     // 30 mm needle would be far below a pixel and there is no budget for the
@@ -1768,23 +2216,23 @@ fn conifer(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &
             // Rooted ON the leader's axis, which is as buried as a root ring
             // can get, and at 0.42 of the local leader radius it is strictly
             // inside the trunk wall at every height.
-            b.tube([0.0, y, 0.0], tip, lr * 0.42, lr * 0.14, 4, def.trunk_color);
-            leaf_cluster(b, tip, d, fol, def.leaf_color, 10, rng);
+            b.bark_tube([0.0, y, 0.0], tip, lr * 0.42, lr * 0.14, 4, def.trunk_color, 0.0);
+            leaf_cluster(&mut b.foliage, tip, d, fol, def.leaf_color, 10, rng);
             // A second clump midway keeps the branch from reading as a bare stick.
             let mid = add([0.0, y, 0.0], d, blen * 0.55);
-            leaf_cluster(b, mid, d, fol.with_clump(0.8), def.leaf_color, 7, rng);
+            leaf_cluster(&mut b.foliage, mid, d, fol.with_clump(0.8), def.leaf_color, 7, rng);
         }
     }
 }
 
-fn umbrella(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
+fn umbrella(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
     // Acacia: a tall bare bole, then limbs that flatten hard into a wide,
     // level crown. The giveaway is that the crown is WIDER than the tree is
     // tall and its underside is flat.
     let bole = h * rng.range(0.52, 0.62);
     let r_base = h * 0.034;
     let top = [0.0, bole, 0.0];
-    b.tube([0.0, 0.0, 0.0], top, r_base, r_base * 0.66, 8, def.trunk_color);
+    b.bark_tube([0.0, 0.0, 0.0], top, r_base, r_base * 0.66, 8, def.trunk_color, 0.0);
     let n = 5;
     // An acacia leaf is bipinnate: what reads at any real distance is a pinna,
     // a 0.10-0.18 m feather of leaflets, not a metre-wide blade. Acacia was the
@@ -1803,7 +2251,7 @@ fn umbrella(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: 
         // taper so the limb is still wider than the hole where it crosses it,
         // and it reads as a branch collar, which is anatomically right anyway.
         let (root, _) = welded_root(top, d, r_base * 0.66, r_base * 0.70, seg);
-        b.tube(root, mid, r_base * 0.70, r_base * 0.34, 5, def.trunk_color);
+        b.bark_tube(root, mid, r_base * 0.70, r_base * 0.34, 5, def.trunk_color, 0.0);
         // The crown layer: near-horizontal fans of foliage.
         for j in 0..3 {
             let p2 = phase + j as f32 * 1.9;
@@ -1813,13 +2261,13 @@ fn umbrella(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: 
             // Same again one level down: the fan is wider than the primary's
             // open tip ring, so burying it plugs that ring completely.
             let (froot, _) = welded_root(mid, d2, r_base * 0.34, r_base * 0.38, flen);
-            b.tube(froot, tip, r_base * 0.38, r_base * 0.12, 4, def.trunk_color);
-            leaf_cluster(b, tip, [0.0, 1.0, 0.0], fol, def.leaf_color, 16, rng);
+            b.bark_tube(froot, tip, r_base * 0.38, r_base * 0.12, 4, def.trunk_color, 0.0);
+            leaf_cluster(&mut b.foliage, tip, [0.0, 1.0, 0.0], fol, def.leaf_color, 16, rng);
         }
     }
 }
 
-fn palm(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
+fn palm(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng) {
     // No branches at all and no secondary thickening: a palm is a single
     // unbranched stem with a crown of fronds at the top, and an old palm is
     // not a fatter palm. Modelled as a gently curved stack of segments.
@@ -1828,18 +2276,30 @@ fn palm(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &mut
     let curve = rng.range(-0.10, 0.10);
     let mut p = [0.0f32, 0.0, 0.0];
     let mut d = norm([curve, 1.0, rng.range(-0.08, 0.08)]);
+    // Running arc length: a palm stem is one continuous column of leaf scars,
+    // so its bark v must not restart at each of the seven segments (v0.1089).
+    let mut v = 0.0f32;
     for i in 0..segs {
         let f = i as f32 / segs as f32;
         let seg = h / segs as f32;
         let to = add(p, d, seg);
-        b.tube(p, to, r_base * (1.0 - f * 0.35), r_base * (1.0 - (f + 0.15) * 0.35), 7, def.trunk_color);
+        b.bark_tube(
+            p,
+            to,
+            r_base * (1.0 - f * 0.35),
+            r_base * (1.0 - (f + 0.15) * 0.35),
+            7,
+            def.trunk_color,
+            v,
+        );
         p = to;
+        v += seg;
         d = norm([d[0] + curve * 0.06, d[1], d[2]]);
     }
     // Cap the stem's open top ring; the crown hides it from the side but not
     // from above, and a palm is a thing you fly over.
     let cap_r = r_base * 0.65;
-    b.tube(p, add(p, d, cap_r * 0.8), cap_r, 0.0, 7, def.trunk_color);
+    b.bark_tube(p, add(p, d, cap_r * 0.8), cap_r, 0.0, 7, def.trunk_color, v);
     // Crown: long fronds arching out and down. A frond is PINNATE - a rachis
     // carrying two ranks of strap leaflets - not one solid blade. The old code
     // drew each of 15 fronds as a single `b.leaf`, i.e. a 4 m x 1 m sheet, and
@@ -1850,7 +2310,11 @@ fn palm(b: &mut PlantMeshBuilder, def: &TreeDef, h: f32, density: f32, rng: &mut
         let phase = k as f32 * 2.399_963;
         let dd = tilt([0.0, 1.0, 0.0], rng.range(46.0, 92.0), phase);
         let dd = norm([dd[0], dd[1] - 0.28, dd[2]]);
-        pinnate_frond(b, p, dd, frond, density, def.leaf_color, rng);
+        // The frond stays on the FOLIAGE mesh, deliberately: its rachis carries
+        // `leaf_color`, not `trunk_color`, so routing it onto the bark material
+        // would paint 28 green rachises per palm bark-brown and tile a
+        // trunk-scale bark texture onto a 3 cm stalk.
+        pinnate_frond(&mut b.foliage, p, dd, frond, density, def.leaf_color, rng);
     }
 }
 
@@ -2120,9 +2584,12 @@ mod tests {
                 // BOTH meshes count against the tree's budget (v0.1088): a
                 // clustered species draws wood-and-blades plus one card mesh
                 // per layer, and what MAX_TRIS bounds is the TREE.
-                let (b, cards) = build_tree_and_cards(&t, t.height_m, shipped_seed(v));
-                let wood_tris = b.indices.len() / 3;
-                let card_tris: usize = cards.iter().map(|c| c.mesh.indices.len() / 3).sum();
+                let built = build_tree_and_cards(&t, t.height_m, shipped_seed(v));
+                // v0.1089: the wood is its own mesh, so the tree's budget is
+                // foliage + wood + cards.
+                let wood_tris = (built.mesh.indices.len() + built.wood.indices.len()) / 3;
+                let card_tris: usize =
+                    built.cards.iter().map(|c| c.mesh.indices.len() / 3).sum();
                 let tris = wood_tris + card_tris;
                 eprintln!(
                     "[budget] {:>7} v{v}: {tris:>5} tris ({:>3.0}% of {MAX_TRIS}) = {wood_tris} wood+blade \
@@ -2555,6 +3022,372 @@ mod tests {
         tw
     }
 
+    /// Cards only, for the tests that measure the card layer alone.
+    fn build_tree_and_cards_cards(t: &TreeDef, height_m: f32, seed: u32) -> Vec<ClusterCards> {
+        build_tree_and_cards(t, height_m, seed).cards
+    }
+
+    // ── Wind coverage (v0.1089) ──────────────────────────────────────────
+
+    /// A tree is now up to four materials - photoscan (19), foliage (20),
+    /// cluster card (21), bark (22) - and the wind gate must reach all of them
+    /// or the parts detach in a storm. It must ALSO stay opt-in for type 19,
+    /// which is not plant-exclusive: the same type draws furniture and machine
+    /// glTFs (engine/home_meshes.rs) and world decorations
+    /// (engine/world_load.rs), and a type-keyed stamp would sway every bed and
+    /// fridge indoors, permanently, shadows included.
+    #[test]
+    fn the_wind_gate_covers_every_tree_material_and_type_19_stays_opt_in() {
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let at = wgsl.find("var wind_class = 0.0;").expect("the wind class block");
+        let end = wgsl[at..].find("if (wind_class >= 0.5)").expect("the wind gate") + at;
+        let block = &wgsl[at..end];
+        for (lo, hi) in [(19.5, 20.5), (20.5, 21.5), (21.5, 22.5), (18.5, 19.5)] {
+            let want = format!("wind_mt >= {lo} && wind_mt < {hi}");
+            assert!(block.contains(&want), "the wind class block does not gate `{want}`");
+        }
+        // Exactly one arm may read params.w, and it is the type-19 arm.
+        assert_eq!(
+            block.matches("material.params.w").count(),
+            1,
+            "more than one material type opts into wind through params.w"
+        );
+        let pw = block.find("material.params.w").expect("checked above");
+        let arm = block[..pw].rfind("wind_mt >=").expect("an arm precedes it");
+        assert!(
+            block[arm..].starts_with("wind_mt >= 18.5 && wind_mt < 19.5"),
+            "params.w is read by a material type other than 19 - furniture would sway"
+        );
+        // And the displacement must be normalised by the instance scale, or a
+        // photoscan (0.70-1.27 model units for a 16-22 m tree) leans ~11% of
+        // what it should.
+        assert!(
+            wgsl.contains("let iscale = max(length(obj_model()[0].xyz), 1.0e-4);"),
+            "the wind branch lost its per-mesh height normalisation"
+        );
+    }
+
+    /// FURNITURE MUST NOT SWAY.
+    ///
+    /// Material type 19 is "textured mesh", and it is shared: besides the
+    /// near-tree photoscans it draws every machine and furniture glTF
+    /// (`engine/home_meshes.rs`, ~15 models in data/machines/home.ron - bed,
+    /// sofa, bookcase, desk, fridge, table, rug, mirror, coat rack) and world
+    /// decorations (`engine/world_load.rs`). Those sites must keep passing a
+    /// ZERO in the params.w slot, because a non-zero there is now a wind class:
+    /// the fallback breeze never reaches zero, so a stamped bookcase would
+    /// shear and oscillate ~4 cm at ~0.9 Hz, indoors, forever, shadow included.
+    ///
+    /// Neither acceptance vantage can catch this - both are forest cameras -
+    /// so it is caught here instead, by reading the call sites.
+    #[test]
+    fn no_furniture_or_decoration_site_opts_into_wind() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        for rel in ["src/engine/home_meshes.rs", "src/engine/world_load.rs"] {
+            let src = std::fs::read_to_string(root.join(rel)).expect(rel);
+            let lines: Vec<&str> = src.lines().map(|l| l.trim()).collect();
+            let mut found = 0;
+            for (i, l) in lines.iter().enumerate() {
+                if *l != "19.0," {
+                    continue;
+                }
+                found += 1;
+                // The emissive / wind-class argument is the next code line.
+                let next = lines[i + 1..]
+                    .iter()
+                    .find(|l| !l.is_empty() && !l.starts_with("//"))
+                    .copied()
+                    .unwrap_or("");
+                assert_eq!(
+                    next, "0.0,",
+                    "{rel}:{}: a type-19 material passes `{next}` in the params.w slot. That slot \
+                     is the WIND CLASS (assets/shaders/pbr/00-bindings-vertex.wgsl); anything \
+                     non-zero makes this mesh lean and sway in the wind, and this file draws \
+                     furniture, machines and static decorations.",
+                    i + 1
+                );
+            }
+            assert!(found > 0, "{rel}: no type-19 material site found - did the file move?");
+        }
+    }
+
+    // ── Baked bark (v0.1089) ─────────────────────────────────────────────
+
+    /// The tile scales with the species and stays inside its clamp. A tile
+    /// that tracked nothing would either tile bark at millimetre scale on a
+    /// sapling or smear one plate over a metre of oak.
+    #[test]
+    fn bark_tile_scales_with_species() {
+        let r = registry();
+        let mut seen = std::collections::HashSet::new();
+        for t in &r.trees {
+            let tile = bark_tile_m(t);
+            assert!(
+                (0.30..=1.0).contains(&tile),
+                "{}: bark tile {tile} m outside the clamp",
+                t.id
+            );
+            seen.insert((tile * 1000.0) as i32);
+        }
+        assert!(seen.len() > 1, "every species got the same bark tile - the derivation is dead");
+        // Taller species tile coarser, up to the clamp.
+        let tall = r.trees.iter().max_by(|a, b| a.height_m.total_cmp(&b.height_m)).unwrap();
+        let short = r.trees.iter().min_by(|a, b| a.height_m.total_cmp(&b.height_m)).unwrap();
+        assert!(bark_tile_m(tall) > bark_tile_m(short), "tile does not track height");
+    }
+
+    /// WORLD-SPACE texel density, the silent-and-permanent UV failure.
+    ///
+    /// Along the limb, v is arc length over the tile, so every lengthwise edge
+    /// must measure exactly `tile_m` of world per unit of v - no exceptions,
+    /// no rounding. Around the ring, u is `circumference / tile` ROUNDED to a
+    /// whole number of repeats (so the ring closes on a texture period), so the
+    /// density is only approximate, and only where the tube is at least as fat
+    /// as one tile. A twig thinner than a tile is pinned at one repeat, which
+    /// is the deliberate floor: the alternative is a seam down every branch.
+    #[test]
+    fn bark_uvs_carry_world_scale_not_model_scale() {
+        let r = registry();
+        for t in r.trees.iter().map(as_procedural) {
+            let built = build_tree_and_cards(&t, t.height_m, shipped_seed(0));
+            let tile = bark_tile_m(&t);
+            assert!(!built.wood.indices.is_empty(), "{}: no wood emitted", t.id);
+            let mut v_edges = 0u32;
+            let mut u_edges = 0u32;
+            for f in built.wood.indices.chunks(3) {
+                for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+                    let va = &built.wood.vertices[f[a] as usize];
+                    let vb = &built.wood.vertices[f[b] as usize];
+                    let du = vb.uv[0] - va.uv[0];
+                    let dv = vb.uv[1] - va.uv[1];
+                    let world = ((vb.position[0] - va.position[0]).powi(2)
+                        + (vb.position[1] - va.position[1]).powi(2)
+                        + (vb.position[2] - va.position[2]).powi(2))
+                    .sqrt();
+                    if du.abs() < 1e-6 && dv.abs() > 1e-6 {
+                        // v counts AXIAL metres, so a lengthwise edge measures
+                        // the cone's SLANT: axis length times sqrt(1 + taper^2).
+                        // Steeply tapered stubs (the conifer apex cap, the palm
+                        // crown cap) reach ~1.6x; a model-scale UV would be off
+                        // by 10x or more, which is the failure being caught.
+                        let m_per_tile = world / dv.abs();
+                        assert!(
+                            (tile * 0.98..=tile * 1.7).contains(&m_per_tile),
+                            "{}: lengthwise bark density {m_per_tile:.4} m/tile against {tile:.4}",
+                            t.id
+                        );
+                        v_edges += 1;
+                    } else if dv.abs() < 1e-6 && du.abs() > 1e-6 && world > 1e-5 {
+                        // Around the ring the density may COMPRESS freely (one
+                        // repeat is the floor on a twig thinner than a tile,
+                        // and a tapered tube compresses toward its tip), but it
+                        // must never STRETCH past the rounding bound: repeats
+                        // are round(circumference/tile) at the fat end, so the
+                        // worst case is a ring 1.5 tiles round pinned at one
+                        // repeat. A model-scale or fixed-0..1 ring - the silent
+                        // failure this guards - lands 10x to 30x out.
+                        let m_per_tile = world / du.abs();
+                        assert!(
+                            m_per_tile < tile * 1.6,
+                            "{}: ring bark density {m_per_tile:.4} m/tile against {tile:.4} - \
+                             a fixed 0..1 ring would show up exactly like this",
+                            t.id
+                        );
+                        u_edges += 1;
+                    }
+                }
+            }
+            assert!(v_edges > 100 && u_edges > 100, "{}: {v_edges} v / {u_edges} u edges", t.id);
+        }
+    }
+
+    /// The split itself: leaves on the foliage mesh, bark on the wood mesh, and
+    /// the merged form still decodes as packed colour for the atlas bake.
+    #[test]
+    fn wood_splits_off_the_foliage_and_the_merged_form_stays_packed() {
+        let r = registry();
+        for t in r.trees.iter().map(as_procedural) {
+            let built = build_tree_and_cards(&t, t.height_m, shipped_seed(1));
+            assert!(!built.wood.indices.is_empty(), "{}: no wood", t.id);
+            assert!(!built.mesh.indices.is_empty(), "{}: no foliage", t.id);
+            // No wood face may carry the leaf/fruit organ bits: those are read
+            // out of the PACKED channel, and wood's uv.x is a tile coordinate.
+            // (This is also the guard against wood accidentally re-entering the
+            // type-20 branch, where a small uv.x would decode as near-black.)
+            for v in &built.wood.vertices {
+                assert!(v.uv[0] < 1024.0, "{}: a wood uv.x of {} is a packed colour", t.id, v.uv[0]);
+            }
+            // The merged form is exactly foliage + wood, and every one of its
+            // faces still round-trips the packed decode the atlas bake uses.
+            let merged_tris = built.bake.indices.len() / 3;
+            assert_eq!(
+                merged_tris,
+                (built.mesh.indices.len() + built.wood.indices.len()) / 3,
+                "{}: merged mesh lost triangles",
+                t.id
+            );
+            for f in built.bake.indices.chunks(3) {
+                let uv = built.bake.vertices[f[0] as usize].uv;
+                let (c, water) =
+                    crate::terrain::planet_surface::unpack_uv_to_color(uv);
+                assert!(!water, "{}: a merged face decoded as water", t.id);
+                assert!(c.iter().all(|x| (0.0..=1.0).contains(x)), "{}: colour {c:?}", t.id);
+            }
+        }
+    }
+
+    /// The bake must TILE. A texture that does not wrap draws one hard seam
+    /// down every trunk and one across every limb - and the seam is invisible
+    /// in a unit test unless you look for it exactly like this: the step
+    /// across the wrap must be no worse than a typical interior step.
+    #[test]
+    fn baked_bark_tiles_seamlessly_on_both_axes() {
+        let t = registry().trees.iter().map(as_procedural).next().expect("a species");
+        let px = BARK_PX as usize;
+        let img = bake_bark_rgba(&t);
+        let at = |x: usize, y: usize, c: usize| img[(y * px + x) * 4 + c] as f32;
+        for c in 0..4 {
+            let (mut wrap_x, mut inner_x, mut wrap_y, mut inner_y) = (0.0, 0.0, 0.0, 0.0);
+            for i in 0..px {
+                wrap_x += (at(px - 1, i, c) - at(0, i, c)).abs();
+                inner_x += (at(px / 2, i, c) - at(px / 2 + 1, i, c)).abs();
+                wrap_y += (at(i, px - 1, c) - at(i, 0, c)).abs();
+                inner_y += (at(i, px / 2, c) - at(i, px / 2 + 1, c)).abs();
+            }
+            assert!(
+                wrap_x <= inner_x * 3.0 + 64.0,
+                "channel {c}: u wrap step {wrap_x:.0} vs interior {inner_x:.0} - the bake does \
+                 not tile around the trunk"
+            );
+            assert!(
+                wrap_y <= inner_y * 3.0 + 64.0,
+                "channel {c}: v wrap step {wrap_y:.0} vs interior {inner_y:.0} - the bake does \
+                 not tile along the limb"
+            );
+        }
+    }
+
+    /// One bark for every tree is the failure this whole increment exists to
+    /// avoid, so measure it: no two species may share a plate field. The
+    /// height channel (alpha) is the structural one - colour alone would pass
+    /// this on a per-species TINT of one shared pattern, which is exactly the
+    /// thing that must fail.
+    #[test]
+    fn every_species_gets_its_own_bark() {
+        let r = registry();
+        let fields: Vec<(String, Vec<f32>)> = r
+            .trees
+            .iter()
+            .map(|t| {
+                let img = bake_bark_rgba(t);
+                // Sample every 4th texel: 16k samples is plenty for a
+                // correlation and keeps the test quick.
+                let s: Vec<f32> = img
+                    .chunks_exact(4)
+                    .step_by(4)
+                    .map(|p| p[3] as f32 / 255.0)
+                    .collect();
+                (t.id.clone(), s)
+            })
+            .collect();
+        for i in 0..fields.len() {
+            for j in (i + 1)..fields.len() {
+                let (a, b) = (&fields[i].1, &fields[j].1);
+                let n = a.len() as f32;
+                let (ma, mb) = (a.iter().sum::<f32>() / n, b.iter().sum::<f32>() / n);
+                let mut cov = 0.0;
+                let mut va = 0.0;
+                let mut vb = 0.0;
+                for k in 0..a.len() {
+                    let (da, db) = (a[k] - ma, b[k] - mb);
+                    cov += da * db;
+                    va += da * da;
+                    vb += db * db;
+                }
+                let corr = cov / (va.sqrt() * vb.sqrt()).max(1e-6);
+                assert!(
+                    corr < 0.9,
+                    "{} and {} bake the same bark (correlation {corr:.3})",
+                    fields[i].0,
+                    fields[j].0
+                );
+            }
+        }
+    }
+
+    /// DEV AID (permanent): dump every species' baked bark, plus two mip
+    /// levels, to `debug/bark_*.png` so the plate field can be eyeballed
+    /// without booting the world - the same role `dump_species_svg` plays for
+    /// the geometry. Ignored by default; run with
+    /// `cargo test --features native --lib dump_bark_png -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn dump_bark_png() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        std::fs::create_dir_all(&dir).expect("debug dir");
+        for t in registry().trees.iter() {
+            let base = bake_bark_rgba(t);
+            let levels =
+                crate::renderer::billboard_bake::build_opaque_mip_chain(&base, BARK_PX);
+            for li in [0usize, 3, 5] {
+                let w = (BARK_PX >> li).max(1);
+                let path = dir.join(format!("bark_{}_mip{li}.png", t.id));
+                let img = image::RgbaImage::from_raw(w, w, levels[li].clone()).expect("size");
+                img.save(&path).expect("write png");
+            }
+            let luma: Vec<f32> = base
+                .chunks_exact(4)
+                .map(|p| 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32)
+                .collect();
+            let n = luma.len() as f32;
+            let m = luma.iter().sum::<f32>() / n;
+            let sd = (luma.iter().map(|l| (l - m).powi(2)).sum::<f32>() / n).sqrt();
+            let lo = luma.iter().cloned().fold(f32::MAX, f32::min);
+            let hi = luma.iter().cloned().fold(f32::MIN, f32::max);
+            eprintln!(
+                "[bark] {:>7}: tile {:.2} m, luma mean {m:.1} sd {sd:.2} range {lo:.0}..{hi:.0}",
+                t.id,
+                bark_tile_m(t)
+            );
+        }
+    }
+
+    /// The height/AO channel must carry real relief, and the albedo must carry
+    /// real contrast. Both are what the type-22 fragment branch spends: a flat
+    /// alpha means no normal perturbation and no roughness break, i.e. plastic
+    /// tubing with a texture on it.
+    #[test]
+    fn baked_bark_has_relief_and_contrast() {
+        for t in registry().trees.iter() {
+            let img = bake_bark_rgba(t);
+            let n = (img.len() / 4) as f32;
+            let alpha: Vec<f32> = img.chunks_exact(4).map(|p| p[3] as f32 / 255.0).collect();
+            let mean = alpha.iter().sum::<f32>() / n;
+            let sd = (alpha.iter().map(|a| (a - mean).powi(2)).sum::<f32>() / n).sqrt();
+            let lo = alpha.iter().cloned().fold(f32::MAX, f32::min);
+            assert!(sd > 0.06, "{}: bark height sd {sd:.3} - the surface is flat", t.id);
+            assert!(
+                lo < 0.55,
+                "{}: deepest bark fissure only reaches {lo:.2} - no crevices",
+                t.id
+            );
+            // Albedo contrast, measured the way the fidelity report measures it:
+            // the spread of luma across the plate field, in 8-bit levels.
+            let luma: Vec<f32> = img
+                .chunks_exact(4)
+                .map(|p| 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32)
+                .collect();
+            let lm = luma.iter().sum::<f32>() / n;
+            let lsd = (luma.iter().map(|l| (l - lm).powi(2)).sum::<f32>() / n).sqrt();
+            assert!(
+                lsd > 3.0,
+                "{}: bark luma sd {lsd:.2} levels (mean {lm:.1}) - at the 8-bit floor, which is \
+                 the defect this bake exists to fix",
+                t.id
+            );
+        }
+    }
+
     /// AABB centre of one card. A card is 4 triangles of 3 unshared vertices,
     /// so every card owns exactly 12 consecutive vertices and its quad is
     /// planar - the AABB centre IS the card centre.
@@ -2607,13 +3440,15 @@ mod tests {
             let Some(cd) = t.clusters.clone() else { continue };
             for v in 0..t.variants.max(1) {
                 let seed = shipped_seed(v);
-                let (wood, cards) = build_tree_and_cards(&t, t.height_m, seed);
+                let built = build_tree_and_cards(&t, t.height_m, seed);
+                let cards = &built.cards;
                 assert!(!cards.is_empty(), "{} v{v}: a clustered species emitted no cards", t.id);
                 let crown = crown_envelope(&t, t.height_m, seed);
                 let area: f32 = cards.iter().map(|c| c.leaf_area_m2).sum();
                 let lai = area / crown.projected_area_m2();
                 let card_tris: usize = cards.iter().map(|c| c.mesh.indices.len() / 3).sum();
-                let total = wood.indices.len() / 3 + card_tris;
+                let total = (built.mesh.indices.len() + built.wood.indices.len()) / 3
+                    + card_tris;
                 let n_cards: u32 = cards.iter().map(|c| c.cards).sum();
                 // Expected ALPHA-TEST LAYERS per canopy pixel: every card
                 // covers only `coverage` of its own area, so the depth
@@ -2637,7 +3472,7 @@ mod tests {
                     cd.target_lai,
                     lai / mean_cov.max(0.01)
                 );
-                for c in &cards {
+                for c in cards.iter() {
                     eprintln!(
                         "        {:>8}: {} cards at {:.3} m, {:.1} m2",
                         c.layer.key(),
@@ -2683,7 +3518,7 @@ mod tests {
         let seed = shipped_seed(0);
         let twigs = twigs_of(&t, seed);
         assert!(twigs.len() > 20, "only {} twigs recorded", twigs.len());
-        let (_, cards) = build_tree_and_cards(&t, t.height_m, seed);
+        let cards = build_tree_and_cards_cards(&t, t.height_m, seed);
         for c in &cards {
             let centres = card_centres(&c.mesh);
             assert_eq!(centres.len(), c.cards as usize, "card count disagrees with the mesh");
@@ -2731,7 +3566,7 @@ mod tests {
             t.blossom_frac > cd.leaf_off_above_blossom_frac,
             "this test is about the in-bloom branch; sakura must trip it"
         );
-        let (_, cards) = build_tree_and_cards(&t, t.height_m, shipped_seed(0));
+        let cards = build_tree_and_cards_cards(&t, t.height_m, shipped_seed(0));
         let total: f32 = cards.iter().map(|c| c.leaf_area_m2).sum();
         let leaf: f32 = cards
             .iter()
@@ -2773,7 +3608,7 @@ mod tests {
     #[test]
     fn card_normals_are_spherified_not_flat() {
         let t = sakura();
-        let (_, cards) = build_tree_and_cards(&t, t.height_m, shipped_seed(0));
+        let cards = build_tree_and_cards_cards(&t, t.height_m, shipped_seed(0));
         let c = cards.first().expect("at least one card layer");
         let mut worst_spread: f32 = 0.0;
         let mut flat_cards = 0usize;
@@ -2814,7 +3649,7 @@ mod tests {
     #[test]
     fn cluster_ao_darkens_the_crown_interior() {
         let t = sakura();
-        let (_, cards) = build_tree_and_cards(&t, t.height_m, shipped_seed(0));
+        let cards = build_tree_and_cards_cards(&t, t.height_m, shipped_seed(0));
         let mut lo = 1.0f32;
         let mut hi = 0.0f32;
         let mut sum = 0.0f64;
