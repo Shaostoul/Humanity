@@ -637,6 +637,11 @@
    "date": "2026-08-01",
    "decision": "Material-system extraction MERGED to main, release tag HELD pending world-entry probe (build_material_texture_bind_group is the v0.1029-incident lazy bind-group site; the incident bar says world entry gates renderer changes). Ratchet now passes on all ten files. Ship plan: when the operator game session ends -> probe blue-marble-12000km + fuji-grass-underfoot on main, then tag v0.1093.0 (extraction + the grass de-bundle if landed) + build-game archive + stamp.",
    "why": "Grass de-bundle writer still in flight on terrain/grass.rs."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "RESOURCE BUDGETS arc opened (operator idea, in-play): per-system hardware allocation via pie charts - GPU/CPU/VRAM/RAM pies over a data-driven system registry; locked bases, extra-headroom redistribution, stacked-on-mobile. Design doc docs/design/resource-budgets.md. Increment 1 (MEASURE: wgpu timestamp queries per pass + CPU stage timing + VRAM inventory + read-only live pie widget on the Performance page) dispatched; increment 2 ALLOCATE (draggable ceilings, AppConfig persistence); increment 3 GOVERN (feedback controller stepping quality knobs so allocations are enforced, with hysteresis and visible steps).",
+   "why": "Reframes settings from opaque sliders to visible trade-offs; foundations already exist (honest counters, per-system knobs, arena inventory). Registry per infinite-of-X; widget per universal-widgets norm; dev-tooling value is permanent per forever-dev."
   }
  ],
  "active_scopes_to_avoid": [
