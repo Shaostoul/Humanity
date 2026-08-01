@@ -195,6 +195,10 @@
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
 > - NEXT VEGETATION RUNG (fenced 2026-08-01, wf_82974167 + operator field
 >   report; critic-corrected plan in orchestrator_state recent_decisions):
+>   [0/1/3/5 SHIPPED v0.1086-v0.1087: conifer fallback, pre-wind texture
+>   anchoring, real-scale leaves at 96 percent budget, welded junctions.
+>   NEXT = rung 2 (wind coverage w/ height normalization), then 4 (bark
+>   PBR/POM via the UV+bake endgame), then 6 (grass strands + clutter).]
 >   (0) SHIPPED-BUILD CONIFER HOLE - procedural fallback for model-backed
 >   species, branch BEFORE scl at lib.rs:9633 or fir draws 381 m tall;
 >   (1) leaf texture must ride the leaf (sample pre-wind position);
