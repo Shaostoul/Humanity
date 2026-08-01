@@ -9360,6 +9360,22 @@ mod native_app {
                                     // meshes, not one per tree. These are the
                                     // only trees a RELEASE build has, because
                                     // the bundle does not ship assets/models/.
+                                    // v0.1083: every CPU mesh built or parsed
+                                    // in this block is ALSO handed to the card
+                                    // bake below, so nothing is generated or
+                                    // parsed twice. Before this, the bake
+                                    // re-parsed the same 12 glTF files (each
+                                    // pine bark paying a 2048->1024 texture
+                                    // downscale, 220-275 ms apiece in the log)
+                                    // - that redundant second parse, not the
+                                    // GPU bake, was the dominant cost of the
+                                    // world-entry freeze the bake was blamed
+                                    // for.
+                                    let mut bake_models: std::collections::HashMap<
+                                        String,
+                                        crate::renderer::billboard_bake::BakeCpuModel,
+                                    > = std::collections::HashMap::new();
+                                    let mut tree_parse_ms = 0.0f32;
                                     {
                                         use crate::renderer::tree_mesh;
                                         let reg = tree_mesh::registry();
@@ -9399,6 +9415,19 @@ mod native_app {
                                                 state
                                                     .decoration_mesh_cache
                                                     .insert(key, (mi, ma));
+                                                // The card baker wants the same
+                                                // geometry; hand it over rather
+                                                // than regenerating it there.
+                                                bake_models.insert(
+                                                    crate::renderer::billboard_bake::proc_key(
+                                                        &t.id, v,
+                                                    ),
+                                                    crate::renderer::billboard_bake::BakeCpuModel {
+                                                        vertices: b.vertices,
+                                                        indices: b.indices,
+                                                        texture: None,
+                                                    },
+                                                );
                                             }
                                         }
                                     }
@@ -9414,11 +9443,20 @@ mod native_app {
                                             "assets/models/plants/{}/{}.gltf",
                                             base, name
                                         );
-                                        match state.asset_manager.parse_gltf_mesh_textured(
-                                            &state.renderer.device,
-                                            &rel,
-                                        ) {
-                                            Ok((mesh, tex)) => {
+                                        let t_parse = std::time::Instant::now();
+                                        let parsed = state
+                                            .asset_manager
+                                            .parse_gltf_mesh_with_texture(&rel);
+                                        tree_parse_ms +=
+                                            t_parse.elapsed().as_secs_f32() * 1000.0;
+                                        match parsed {
+                                            Ok((cpu, tex)) => {
+                                                let mesh =
+                                                    crate::renderer::mesh::Mesh::from_vertices(
+                                                        &state.renderer.device,
+                                                        &cpu.vertices,
+                                                        &cpu.indices,
+                                                    );
                                                 let mi = state.renderer.add_mesh(mesh);
                                                 if let Some((rgba, w, h)) = &tex {
                                                     let clear = rgba
@@ -9430,7 +9468,7 @@ mod native_app {
                                                         clear * 100 / (rgba.len() / 4).max(1)
                                                     );
                                                 }
-                                                let ma = match tex {
+                                                let ma = match &tex {
                                                     Some((rgba, w, h)) => {
                                                         state.renderer.add_textured_material(
                                                             [1.0, 1.0, 1.0, 1.0],
@@ -9438,9 +9476,9 @@ mod native_app {
                                                             0.9,
                                                             19.0,
                                                             0.0,
-                                                            &rgba,
-                                                            w,
-                                                            h,
+                                                            rgba,
+                                                            *w,
+                                                            *h,
                                                         )
                                                     }
                                                     None => state.renderer.add_material_full(
@@ -9454,6 +9492,14 @@ mod native_app {
                                                 state
                                                     .decoration_mesh_cache
                                                     .insert(name.to_string(), (mi, ma));
+                                                bake_models.insert(
+                                                    rel,
+                                                    crate::renderer::billboard_bake::BakeCpuModel {
+                                                        vertices: cpu.vertices,
+                                                        indices: cpu.indices,
+                                                        texture: tex,
+                                                    },
+                                                );
                                             }
                                             Err(e) => {
                                                 // Insert a sentinel so a missing
@@ -9468,64 +9514,26 @@ mod native_app {
                                             }
                                         }
                                     }
-                                    // Sprite atlas bake (v0.961, billboard
-                                    // increment 2): once per session, render
-                                    // all six conifers side-on into the
-                                    // tree-card atlas so the terrain card
+                                    // Sprite atlas bake (v0.961 increment 2;
+                                    // registry-driven since v0.1083): once per
+                                    // session, render EVERY (species, variant)
+                                    // in data/vegetation/trees.ron side-on
+                                    // into its atlas tile, so the terrain card
                                     // stage textures its quads with the SAME
-                                    // trees the near field draws in 3D. One
-                                    // ~1-2 s parse+bake, same lifecycle as
-                                    // the model lazy-load above.
+                                    // trees the near field draws in 3D.
+                                    // Procedural species build their mesh
+                                    // inside the baker (no files); model
+                                    // species come from the parse cache above,
+                                    // and a missing model just leaves its tile
+                                    // transparent instead of aborting the
+                                    // whole atlas the way it used to.
                                     if !state.renderer.tree_atlas_ready && !state.tree_atlas_attempted {
                                         state.tree_atlas_attempted = true;
-                                        let t0 = std::time::Instant::now();
-                                        let mut stems: Vec<Vec<(crate::assets::GltfCpuMesh, Option<(Vec<u8>, u32, u32)>)>> = Vec::new();
-                                        for base in ["fir_sapling", "pine_sapling_small"] {
-                                            for v in 1..=3 {
-                                                let mut parts = Vec::new();
-                                                for suffix in ["", "_bark"] {
-                                                    let rel = format!(
-                                                        "assets/models/plants/{base}/{base}_v{v}{suffix}.gltf"
-                                                    );
-                                                    if let Ok(pair) = state
-                                                        .asset_manager
-                                                        .parse_gltf_mesh_with_texture(&rel)
-                                                    {
-                                                        parts.push(pair);
-                                                    }
-                                                }
-                                                stems.push(parts);
-                                            }
-                                        }
-                                        let tree_parts: Vec<Vec<crate::renderer::billboard_bake::BakePart>> = stems
-                                            .iter()
-                                            .map(|parts| {
-                                                parts
-                                                    .iter()
-                                                    .map(|(cpu, tex)| crate::renderer::billboard_bake::BakePart {
-                                                        vertices: &cpu.vertices,
-                                                        indices: &cpu.indices,
-                                                        texture: tex.as_ref().map(|(b, w, h)| {
-                                                            (b.as_slice(), *w, *h)
-                                                        }),
-                                                    })
-                                                    .collect()
-                                            })
-                                            .collect();
-                                        match state.renderer.bake_tree_atlas(&tree_parts) {
-                                            Ok(()) => log::info!(
-                                                "[Bake] tree-card atlas ready ({} stems, {:.1}s)",
-                                                tree_parts.len(),
-                                                t0.elapsed().as_secs_f32()
-                                            ),
-                                            Err(e) => {
-                                                // attempted-flag guards the
-                                                // retry, ready stays false ->
-                                                // cards keep the flat-green
-                                                // fallback for the session.
-                                                log::error!("[Bake] tree atlas FAILED: {e}");
-                                            }
-                                        }
+                                        state.renderer.bake_tree_atlas_from_registry(
+                                            &bake_models,
+                                            tree_parse_ms,
+                                            None,
+                                        );
                                     }
                                     // Per-variant model heights from the split
                                     // report (metres): scale = target / model.

@@ -416,6 +416,31 @@ pub fn pick_tree_species(def: &PlanetDef, dir: DVec3, elev_m: f32, r5: u64) -> u
         .unwrap_or(0)
 }
 
+/// Framing of one sprite tree card (v0.1083, brief item 3b), factored out of
+/// `emit_sprite_card` so the contract is unit-testable.
+///
+/// `fp` is the atlas tile's baked footprint and `h` the height THIS instance
+/// should stand. Returns `(side_m, drop_m)`: the square card's side, and how
+/// far BELOW the tree's base the card's bottom edge hangs.
+///
+/// The contract, pinned by `sprite_card_frame_puts_the_tree_on_the_ground`:
+/// `v01 == fp.base_offset` lands exactly on the ground, and
+/// `v01 == fp.base_offset + h_nominal/frame` lands exactly at `h`. The card is
+/// therefore usually a little TALLER than the tree (the baked frame is square
+/// on max(width, height) with a 5% margin), which is precisely what the old
+/// `let w = h;` got wrong for any crown wider than the tree is tall.
+///
+/// Written as a RATIO rather than reusing the caller's per-instance jitter: a
+/// model-backed species' baked AABB height is the glTF's, not the registry's,
+/// and only the ratio form is right for both kinds.
+pub(crate) fn sprite_card_frame(
+    fp: crate::renderer::tree_mesh::CardFootprint,
+    h: f32,
+) -> (f32, f32) {
+    let s = fp.frame_m * (h / fp.h_nominal_m.max(0.01));
+    (s, fp.base_offset * s)
+}
+
 pub fn tile_or_base(
     hm: &PlanetHeightmap,
     tiles: Option<&super::terrain_tiles::TerrainTiles>,
@@ -1684,18 +1709,34 @@ pub fn build_patch_mesh(
             // every tree rendered as a black slab at noon (probe capture).
             // The radial up matches the terrain shading exactly.
             let nrm = up;
-            for tri in [[p00, p01, p11], [p00, p11, p10], [p00, p11, p01], [p00, p10, p11]] {
-                for p in tri {
-                    indices.push(vertices.len() as u32);
-                    vertices.push(SurfaceVertexData {
-                        position: p.to_array(),
-                        normal: nrm.to_array(),
-                        color,
-                        water: false,
-                        tree_card: marking_trees.get(),
-                        grass_card: marking_grass.get(),
-                    });
-                }
+            // INDEXED (v0.1083): four triangles - two quads, the second pair
+            // wound backwards so the card survives back-face culling - built
+            // from only FOUR distinct corners. This used to push a fresh
+            // vertex per corner per triangle, storing 12 where 4 do: 384 bytes
+            // of vertices against 128. Cards were 86% of the 1.2 GB vertex
+            // arena at a forest vantage (33.56M of 39.32M elements, 98.8%
+            // used) and every config that overflowed the arena ran 93-98 ms
+            // against 29-64 ms for one that did not.
+            //
+            // BIT-IDENTICAL by construction: same four corners, same triangle
+            // order, same corner order within each triangle, same attributes.
+            // Sharing corners is safe for the FLAT-interpolated packed colour
+            // (00-bindings-vertex.wgsl:242) because all four corners of a
+            // coloured card carry the same value.
+            let base_i = vertices.len() as u32;
+            for p in [p00, p01, p11, p10] {
+                vertices.push(SurfaceVertexData {
+                    position: p.to_array(),
+                    normal: nrm.to_array(),
+                    color,
+                    water: false,
+                    tree_card: marking_trees.get(),
+                    grass_card: marking_grass.get(),
+                });
+            }
+            // p00=0, p01=1, p11=2, p10=3
+            for i in [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2] {
+                indices.push(base_i + i);
             }
         };
         // Sprite tree card (v0.961): one two-sided SQUARE quad (the baked
@@ -1707,41 +1748,65 @@ pub fn build_patch_mesh(
         // The tiny |uv.x| base keeps f32 interpolation of u01 sub-texel.
         // Normal stays the radial up - sprite cards light like the ground,
         // exactly as the colored cards did.
+        //
+        // FOOTPRINT (v0.1083, brief item 3b). The card is NOT `h` by `h`. The
+        // baker frames a SQUARE on max(width, height) of the model's joint
+        // AABB, so a tile holds the whole tree plus whatever margin the wider
+        // dimension forced. Drawing that tile as an h-by-h quad was harmless
+        // while only fir and pine took this path (both height-dominant, 5%
+        // margin), and wrong the moment wide crowns arrived: acacia's crown is
+        // wider than the tree is tall (tree_mesh.rs `umbrella`), which frames
+        // at 1.365h and would render 27% too short with its trunk base 13% of
+        // the card height OFF THE GROUND. That is a motion cue - every
+        // wide-crowned tree would hop as you crossed the 120 m model handoff.
+        //
+        // So the card takes the tile's real framing: side = frame_m scaled by
+        // this tree's height against the baked one, dropped so the tree's base
+        // lands on the ground. `v01` now spans the FRAME rather than the tree,
+        // which is what the baked pixels actually occupy.
+        let fp_table = crate::renderer::tree_mesh::card_footprint_table();
         let mut emit_sprite_card = |base: glam::Vec3,
                                     up: glam::Vec3,
                                     side: glam::Vec3,
                                     h: f32,
-                                    tile: u8,
+                                    tile: u32,
                                     vertices: &mut Vec<SurfaceVertexData>,
                                     indices: &mut Vec<u32>| {
-            let w = h; // square sprite frame
+            let fp = fp_table[(tile as usize).min(fp_table.len() - 1)];
+            let (s, drop_m) = sprite_card_frame(fp, h);
+            let foot = base - up * drop_m;
             let corner = |u01: f32, v01: f32| -> (glam::Vec3, [f32; 3]) {
-                let p = base + up * (h * v01) + side * (w * (u01 - 0.5));
+                let p = foot + up * (s * v01) + side * (s * (u01 - 0.5));
                 let enc_x = -((1 + tile) as f32 + u01 * 0.5);
                 (p, [-1.0, enc_x, v01])
             };
-            let c00 = corner(0.0, 0.0);
-            let c10 = corner(1.0, 0.0);
-            let c01 = corner(0.0, 1.0);
-            let c11 = corner(1.0, 1.0);
+            // INDEXED, same four-corner sharing as emit_card above. Sprite
+            // corners each carry a DIFFERENT u01 on the SMOOTH uv channel
+            // (that is how the tile encoding rides), so the shared corner
+            // keeps exactly the attributes it had per triangle - do not
+            // "fix" them into agreeing.
+            let corners = [
+                corner(0.0, 0.0), // c00
+                corner(1.0, 0.0), // c10
+                corner(1.0, 1.0), // c11
+                corner(0.0, 1.0), // c01
+            ];
             let nrm = up.to_array();
-            for tri in [
-                [c00, c10, c11],
-                [c00, c11, c01],
-                [c00, c11, c10],
-                [c00, c01, c11],
-            ] {
-                for (p, col) in tri {
-                    indices.push(vertices.len() as u32);
-                    vertices.push(SurfaceVertexData {
-                        position: p.to_array(),
-                        normal: nrm,
-                        color: col,
-                        water: false,
-                        tree_card: true,
-                        grass_card: false,
-                    });
-                }
+            let base_i = vertices.len() as u32;
+            for (p, col) in corners {
+                vertices.push(SurfaceVertexData {
+                    position: p.to_array(),
+                    normal: nrm,
+                    color: col,
+                    water: false,
+                    tree_card: true,
+                    grass_card: false,
+                });
+            }
+            // c00=0, c10=1, c11=2, c01=3: the original
+            // [c00,c10,c11] [c00,c11,c01] [c00,c11,c10] [c00,c01,c11].
+            for i in [0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2] {
+                indices.push(base_i + i);
             }
         };
         let want_trees = id.depth >= TREE_MIN_DEPTH;
@@ -1909,36 +1974,37 @@ pub fn build_patch_mesh(
                             let sp_i = pick_tree_species(def, dir, elev_m, r5);
                             let reg = crate::renderer::tree_mesh::registry();
                             let sp = reg.get(sp_i);
-                            let (sp_h, sp_jit, sp_tile, sp_proc) = match sp {
-                                Some(t) => (t.height_m, t.height_jitter, t.sprite_tile, t.is_procedural()),
-                                None => (22.0, 0.12, 0u8, false),
+                            let (sp_h, sp_jit) = match sp {
+                                Some(t) => (t.height_m, t.height_jitter),
+                                None => (22.0, 0.12),
                             };
                             let jitter =
                                 1.0 - sp_jit + (r3 % 100) as f32 / 100.0 * (sp_jit * 2.0);
                             let h = sp_h * jitter;
-                            // Procedural species have no baked atlas tile, so
-                            // they take the coloured-card path even on imagery
-                            // planets. Otherwise a pink sakura grove would turn
-                            // into fir silhouettes at card range. Real impostors
-                            // for procedural trees are a later increment (see
-                            // docs/design/procedural-plants.md, Layer 4).
-                            if albedo.is_some() && !sp_proc {
-                                // Sprite cards (v0.961, billboard bake
-                                // increment 2): on imagery planets the card
-                                // is ONE crossed pair of quads textured from
-                                // the baked conifer atlas - the same tile
-                                // the near 3D model was baked from, so the
-                                // LOD handoff keeps the exact silhouette.
-                                // Variant picks match near_tree_instances
-                                // exactly ((r5 >> 11) % 3).
-                                let tile = sp_tile + ((r5 >> 11) % 3) as u8;
+                            // Sprite cards (v0.961, billboard bake increment
+                            // 2; EVERY species since v0.1083): on imagery
+                            // planets the card is ONE crossed pair of quads
+                            // textured from the baked atlas - the same tile
+                            // the near 3D model was baked from, so the LOD
+                            // handoff keeps the exact silhouette. Procedural
+                            // species used to be excluded here (they had no
+                            // baked tile, so a pink sakura grove would have
+                            // turned into fir silhouettes) and fell through to
+                            // coloured rectangles; the baker now bakes them
+                            // too, from the identical mesh generator.
+                            // Variant picks match near_tree_instances exactly
+                            // ((r5 >> 11) % 3).
+                            let variant = ((r5 >> 11) % 3) as u32;
+                            let tile = crate::renderer::tree_mesh::tile_of(sp_i, variant);
+                            if let (true, Some(tile)) = (albedo.is_some(), tile) {
                                 emit_sprite_card(base, up, side_a, h, tile, &mut vertices, &mut indices);
                                 emit_sprite_card(base, up, side_b, h, tile, &mut vertices, &mut indices);
                             } else {
-                                // No atlas tile for this species (noise planet,
-                                // or a procedural species): coloured trunk +
-                                // canopy cards, tinted from the species row so
-                                // a distant sakura grove still reads pink.
+                                // No atlas at all (a NOISE planet has no
+                                // imagery and no bake) or a species past the
+                                // atlas ceiling: coloured trunk + canopy
+                                // cards, tinted from the species row so a
+                                // distant sakura grove still reads pink.
                                 let (trunk, canopy) = match sp {
                                     Some(t) => {
                                         let leafy = if t.blossom_frac > 0.5 {
@@ -3526,6 +3592,117 @@ mod tests {
         let shallow = PatchId::root(id.face).child(3).child(3);
         let s1 = build_patch_mesh(&def, &src, None, &shallow);
         assert!(s1.mesh.vertices.len() <= baseline, "vegetation sprouted at depth 2");
+    }
+
+    /// ITEM 5: cards are INDEXED. Four distinct corners carry four triangles
+    /// (two quads, the second pair reverse-wound for two-sidedness), so a card
+    /// costs 4 vertices + 12 indices where it used to cost 12 + 12. Cards were
+    /// 86% of the 1.2 GB vertex arena at a forest vantage, and an overflowing
+    /// arena is what pushes tree-bearing patches onto the classic per-draw
+    /// path (measured: 93-98 ms churning against a full arena, 29-64 ms not).
+    ///
+    /// The card index BLOCK is contiguous between the grid and the skirt
+    /// (build order is grid, vegetation, skirt), and its first twelve indices
+    /// must be exactly the old triangle list re-expressed against four shared
+    /// corners - same triangles, same winding, same order, or the image
+    /// changed and this was not the free half of the increment.
+    #[test]
+    fn vegetation_cards_are_indexed_four_corners_not_twelve_vertices() {
+        let def = earth_like();
+        let hm = bumpy_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let src = ElevationSource::Heightmap { hm: &hm, detail: &detail, tiles: None, ocean: None };
+        let mut found = None;
+        'outer: for f in 0..20u8 {
+            let mut id = PatchId::root(f);
+            for _ in 0..TREE_MIN_DEPTH {
+                id = id.child(3);
+            }
+            let c = patch_corners(&id);
+            let dir = ((c[0] + c[1] + c[2]) / 3.0).normalize();
+            let e = hm.normalized_at(dir.as_vec3());
+            let elev = (e - def.sea_level) * (hm.max_meters() - hm.min_meters());
+            if elev > 50.0 && elev < 1500.0 {
+                found = Some(id);
+                break 'outer;
+            }
+        }
+        let id = found.expect("some root chain lands on tree-band terrain");
+        let pm = build_patch_mesh(&def, &src, None, &id);
+        let n = PATCH_TESS as usize;
+        let grid_idx = n * n * 3;
+        let skirt_idx = 3 * n * 2 * 3;
+        let card_idx = pm.mesh.indices.len() - grid_idx - skirt_idx;
+        assert!(card_idx > 0, "no vegetation baked into this patch");
+        assert_eq!(card_idx % 12, 0, "card index count {card_idx} is not 12 per card");
+        // 4 vertices per 12 indices, counted off the card flags themselves.
+        let card_verts = pm
+            .mesh
+            .vertices
+            .iter()
+            .filter(|v| v.tree_card || v.grass_card)
+            .count();
+        assert_eq!(
+            card_verts * 3,
+            card_idx,
+            "cards emit {card_verts} vertices for {card_idx} indices - the 4-corner sharing \
+             regressed (the old unshared form was 1:1)"
+        );
+        // First card's triangle list, relative to its own base vertex.
+        let base = pm.mesh.indices[grid_idx];
+        let first: Vec<u32> = pm.mesh.indices[grid_idx..grid_idx + 12]
+            .iter()
+            .map(|i| i - base)
+            .collect();
+        assert_eq!(
+            first,
+            vec![0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2],
+            "card triangle order/winding changed - the image must be bit-identical from item 5"
+        );
+    }
+
+    /// ITEM 3b: a card frames on the tile's BAKED footprint, so the tree it
+    /// draws stands at its own height with its base on the ground - including
+    /// the wide-crown case (acacia frames at 1.365h, which the old `let w = h;`
+    /// rendered 27% too short with its base 13.4% of the card off the ground).
+    #[test]
+    fn sprite_card_frame_puts_the_tree_on_the_ground() {
+        use crate::renderer::tree_mesh::CardFootprint;
+        // (footprint, drawn height). Cases: a 22 m conifer (height-dominant,
+        // only the 5% margin), a 9 m acacia with a 1.3:1 crown worked through
+        // the baker's own arithmetic, and the pre-bake square default.
+        let cases = [
+            (CardFootprint { frame_m: 23.1, h_nominal_m: 22.0, base_offset: 0.0238 }, 19.5),
+            (CardFootprint { frame_m: 12.285, h_nominal_m: 9.0, base_offset: 0.13370 }, 10.4),
+            (CardFootprint::square(8.0), 8.0),
+        ];
+        for (fp, h) in cases {
+            let (s, drop_m) = sprite_card_frame(fp, h);
+            // v01 = base_offset is the tree's base: it must sit on the ground.
+            let base_world = -drop_m + s * fp.base_offset;
+            assert!(
+                base_world.abs() < 1e-3,
+                "base floats {base_world} m off the ground (frame {}, h {h})",
+                fp.frame_m
+            );
+            // v01 = base_offset + h_nom/frame is the tree's top: exactly h.
+            let top_world = -drop_m + s * (fp.base_offset + fp.h_nominal_m / fp.frame_m);
+            assert!(
+                (top_world - h).abs() < 1e-3,
+                "tree top drawn at {top_world} m, wanted {h} m (frame {})",
+                fp.frame_m
+            );
+            // And the card is never SMALLER than the tree it holds.
+            assert!(s >= h - 1e-3, "card side {s} m cannot hold a {h} m tree");
+        }
+        // The regression this fixes, stated numerically: forcing side = h on a
+        // wide crown draws it 27% short.
+        let acacia = CardFootprint { frame_m: 12.285, h_nominal_m: 9.0, base_offset: 0.13370 };
+        let drawn_if_square = acacia.h_nominal_m / acacia.frame_m;
+        assert!(
+            (drawn_if_square - 0.7326).abs() < 1e-3,
+            "worked example drifted: {drawn_if_square}"
+        );
     }
 
     #[test]

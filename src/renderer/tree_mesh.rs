@@ -36,8 +36,6 @@ pub struct TreeDef {
     /// glTF base name under `assets/models/plants/`. EMPTY = procedural.
     pub model: String,
     pub variants: u32,
-    /// Tile index into the baked billboard atlas (model species only).
-    pub sprite_tile: u8,
     pub height_m: f32,
     pub height_jitter: f32,
     pub weight: f32,
@@ -202,6 +200,145 @@ pub fn registry() -> &'static TreeRegistry {
             _ => TreeRegistry::from_ron(EMBEDDED_TREES).unwrap_or_default(),
         }
     })
+}
+
+// ── Billboard-atlas tile allocation (v0.1083) ────────────────────────────
+//
+// Every (species, variant) owns one tile of the baked card atlas, and the tile
+// index is a PURE FUNCTION OF THE REGISTRY:
+//
+//     base_tile(species_i) = sum of trees[0..species_i].variants.max(1)
+//     tile(species_i, v)   = base_tile(species_i) + v
+//
+// It used to be a hand-written `sprite_tile` field in trees.ron (0 for fir, 3
+// for pine, and a meaningless 0 on all six procedural rows). That field is
+// GONE: a hand-written index that disagrees with the baker's is a silent
+// wrong-species card, and there is nothing to deprecate before launch.
+//
+// Why a pure function and not an allocator that hands indices out at bake
+// time: the card emitter runs on background patch-build threads that may
+// already be in flight when the bake happens, so any bake-produced assignment
+// would be a cross-thread ordering hazard. This form has no ordering at all,
+// and it guarantees the CPU emitter and the GPU bake agree by construction.
+
+/// Tiles the atlas can hold. Keep in lockstep with the shader decode - the
+/// test `atlas_tile_constants_match_the_shader` scans the WGSL for them.
+pub const ATLAS_TILES: u32 = super::billboard_bake::ATLAS_COLS * super::billboard_bake::ATLAS_ROWS;
+
+/// First tile of each species, indexed by registry position.
+fn tile_bases() -> &'static Vec<u32> {
+    static BASES: std::sync::OnceLock<Vec<u32>> = std::sync::OnceLock::new();
+    BASES.get_or_init(|| {
+        let reg = registry();
+        let mut out = Vec::with_capacity(reg.trees.len());
+        let mut acc = 0u32;
+        for t in &reg.trees {
+            out.push(acc);
+            acc += t.variants.max(1);
+        }
+        if acc > ATLAS_TILES {
+            // A data file must never be able to corrupt the renderer: the
+            // overflowing species simply get no tile (tile_of returns None and
+            // the emitter falls back to coloured cards).
+            log::error!(
+                "[TreeAtlas] data/vegetation/trees.ron wants {acc} card tiles but the atlas holds \
+                 {ATLAS_TILES} ({}x{}). Species past the ceiling render as coloured cards. Grow \
+                 ATLAS_COLS/ATLAS_ROWS in billboard_bake.rs (and the matching shader decode).",
+                super::billboard_bake::ATLAS_COLS,
+                super::billboard_bake::ATLAS_ROWS,
+            );
+        }
+        out
+    })
+}
+
+/// How many tiles the shipped registry actually uses.
+pub fn tiles_in_use() -> u32 {
+    registry()
+        .trees
+        .iter()
+        .map(|t| t.variants.max(1))
+        .sum::<u32>()
+}
+
+/// Atlas tile for one (species index, variant), or None when the species is
+/// unknown or its tile would fall outside the atlas. `variant` is clamped into
+/// the species' own variant count, so a row with fewer variants than a caller
+/// assumes can never bleed into the NEXT species' tiles.
+pub fn tile_of(species_i: usize, variant: u32) -> Option<u32> {
+    let reg = registry();
+    let t = reg.get(species_i)?;
+    let base = *tile_bases().get(species_i)?;
+    let tile = base + variant.min(t.variants.max(1) - 1);
+    (tile < ATLAS_TILES).then_some(tile)
+}
+
+// ── Card footprints, filled in by the bake (v0.1083, brief item 3b) ──────
+//
+// The baker frames a SQUARE on max(width, height) of the model's joint AABB,
+// so a crown wider than the tree is tall does not fill its tile: drawing that
+// tile as an `h` by `h` card (what `emit_sprite_card` did through v0.1082)
+// renders an acacia about 27% too short with its trunk base 13% of the card
+// height off the ground. The baker already computes everything needed to fix
+// that; it just used to throw it away. Now it lands here, per tile.
+
+/// World-space framing of one baked tile.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CardFootprint {
+    /// Side of the square frame the tile was baked with, in metres.
+    pub frame_m: f32,
+    /// Height of the tree that was baked, in metres (the scale reference).
+    pub h_nominal_m: f32,
+    /// Fraction of the frame between its bottom edge and the tree's base.
+    pub base_offset: f32,
+}
+
+impl CardFootprint {
+    /// Pre-bake default: frame == tree height, base on the frame's bottom edge.
+    /// Reproduces the old `let w = h;` square card exactly, so a patch built
+    /// before the bake lands looks like it always did (and its cards paint the
+    /// flat fallback colour anyway until `tree_atlas_ready` flips).
+    pub fn square(h_m: f32) -> Self {
+        CardFootprint { frame_m: h_m.max(0.01), h_nominal_m: h_m.max(0.01), base_offset: 0.0 }
+    }
+}
+
+type FootprintTable = [CardFootprint; ATLAS_TILES as usize];
+
+fn footprints() -> &'static std::sync::RwLock<FootprintTable> {
+    static FP: std::sync::OnceLock<std::sync::RwLock<FootprintTable>> = std::sync::OnceLock::new();
+    FP.get_or_init(|| {
+        let mut table = [CardFootprint::square(1.0); ATLAS_TILES as usize];
+        for (i, t) in registry().trees.iter().enumerate() {
+            for v in 0..t.variants.max(1) {
+                if let Some(tile) = tile_of(i, v) {
+                    table[tile as usize] = CardFootprint::square(t.height_m);
+                }
+            }
+        }
+        std::sync::RwLock::new(table)
+    })
+}
+
+/// Snapshot of the whole table (576 bytes, no allocation). Patch builds take
+/// ONE copy and then read it lock-free per card.
+pub fn card_footprint_table() -> FootprintTable {
+    match footprints().read() {
+        Ok(g) => *g,
+        Err(p) => *p.into_inner(),
+    }
+}
+
+/// Record the real framing of a tile. Called by the baker, once per tile.
+pub fn set_card_footprint(tile: u32, fp: CardFootprint) {
+    if tile >= ATLAS_TILES {
+        return;
+    }
+    let mut g = match footprints().write() {
+        Ok(g) => g,
+        Err(p) => p.into_inner(),
+    };
+    g[tile as usize] = fp;
 }
 
 // ── Deterministic RNG (xorshift64*, same shape as plant_mesh) ────────────
@@ -844,6 +981,108 @@ mod tests {
         };
         assert_eq!(gen(7), gen(7), "same seed must rebuild identically");
         assert_ne!(gen(7), gen(8), "different seeds must differ");
+    }
+
+    // ── Atlas tile allocation (v0.1083) ──────────────────────────────────
+
+    /// The registry must fit the atlas. If someone adds a species row and this
+    /// fails, grow ATLAS_COLS/ATLAS_ROWS in billboard_bake.rs AND the three
+    /// literals in the shader decode (the lockstep test below catches half of
+    /// that mistake; this one catches the other half).
+    #[test]
+    fn every_species_variant_gets_a_tile_inside_the_atlas() {
+        let r = registry();
+        let want: u32 = r.trees.iter().map(|t| t.variants.max(1)).sum();
+        assert!(
+            want <= ATLAS_TILES,
+            "trees.ron needs {want} tiles, atlas holds {ATLAS_TILES}"
+        );
+        assert_eq!(want, tiles_in_use(), "tiles_in_use disagrees with the registry");
+        // Contiguous from 0, unique, in registry order.
+        let mut expect = 0u32;
+        let mut seen = std::collections::HashSet::new();
+        for (i, t) in r.trees.iter().enumerate() {
+            for v in 0..t.variants.max(1) {
+                let tile = tile_of(i, v).unwrap_or_else(|| panic!("{} v{v} has no tile", t.id));
+                assert_eq!(tile, expect, "{} v{v}: tile {tile}, expected {expect}", t.id);
+                assert!(seen.insert(tile), "tile {tile} handed out twice");
+                expect += 1;
+            }
+        }
+        // Out-of-range species/variants must not bleed into a neighbour.
+        assert_eq!(tile_of(r.len(), 0), None, "a nonexistent species got a tile");
+        let last = r.len() - 1;
+        let nv = r.trees[last].variants.max(1);
+        assert_eq!(
+            tile_of(last, nv + 5),
+            tile_of(last, nv - 1),
+            "an over-range variant escaped its species' tile block"
+        );
+    }
+
+    /// The two photoscans keep tiles 0-2 and 3-5, which is what the old
+    /// hand-written `sprite_tile` field said. Documents the mapping so a
+    /// reorder of trees.ron is a visible test change, not a silent card swap.
+    #[test]
+    fn conifer_tiles_match_the_historic_hand_written_indices() {
+        let r = registry();
+        let fir = r.index_of("fir").expect("fir row");
+        let pine = r.index_of("pine").expect("pine row");
+        assert_eq!(tile_of(fir, 0), Some(0));
+        assert_eq!(tile_of(fir, 2), Some(2));
+        assert_eq!(tile_of(pine, 0), Some(3));
+        assert_eq!(tile_of(pine, 2), Some(5));
+    }
+
+    /// LOCKSTEP: the atlas grid is compile-time in TWO places - the Rust
+    /// constants and the type-12 sprite decode in
+    /// `assets/shaders/pbr/90-fragment-main.wgsl`. Neither is a uniform (a
+    /// grid shape that can change per frame buys nothing and costs a slot),
+    /// so this scans the shipped shader source for the exact literals the
+    /// Rust side implies. Same idiom as renderer::clouds / water / atmosphere.
+    #[test]
+    fn atlas_tile_constants_match_the_shader() {
+        use super::super::billboard_bake::{ATLAS_COLS, ATLAS_ROWS};
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        let expect = [
+            // tile index range
+            format!("clamp(u32(floor(a_enc)) - 1u, 0u, {}u)", ATLAS_TILES - 1),
+            // column / row split
+            format!("f32(tile % {ATLAS_COLS}u)"),
+            format!("f32(tile / {ATLAS_COLS}u)"),
+            // normalisation into 0..1 atlas UV
+            format!(") / {ATLAS_COLS}.0"),
+            format!(") / {ATLAS_ROWS}.0"),
+        ];
+        for e in expect {
+            assert!(
+                wgsl.contains(&e),
+                "the tree-atlas sprite decode in 90-fragment-main.wgsl does not contain `{e}`.\n\
+                 ATLAS_COLS={ATLAS_COLS}, ATLAS_ROWS={ATLAS_ROWS}, ATLAS_TILES={ATLAS_TILES} in \
+                 billboard_bake.rs - the shader's three literals must match or every card samples \
+                 the wrong tile."
+            );
+        }
+    }
+
+    /// Before the bake runs, every tile must frame exactly like the old
+    /// `let w = h;` square card, so nothing changes shape until real
+    /// footprints land - and after the bake writes one, the table returns it.
+    #[test]
+    fn card_footprints_default_to_the_square_frame_and_accept_bake_values() {
+        let r = registry();
+        let oak = r.index_of("oak").expect("oak row");
+        let tile = tile_of(oak, 1).expect("oak v1 tile");
+        let h = r.get(oak).unwrap().height_m;
+        let before = card_footprint_table()[tile as usize];
+        assert_eq!(before, CardFootprint::square(h), "default footprint is not the square frame");
+        // side = frame_m * (h / h_nominal_m) must reduce to h at nominal size.
+        assert!((before.frame_m * (h / before.h_nominal_m) - h).abs() < 1e-3);
+        let baked = CardFootprint { frame_m: 12.5, h_nominal_m: 9.0, base_offset: 0.134 };
+        set_card_footprint(tile, baked);
+        assert_eq!(card_footprint_table()[tile as usize], baked);
+        // Restore so test order cannot matter.
+        set_card_footprint(tile, before);
     }
 
     /// Blossom species must actually emit petal-coloured faces, or "cherry

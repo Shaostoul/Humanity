@@ -791,13 +791,18 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // applies live. It never doubles as emissive here:
         emissive_strength = 0.0;
         // ── Sprite tree cards (v0.961, billboard bake increment 2) ──
-        // uv.x < -0.5 marks a card textured from the baked conifer atlas
+        // uv.x < -0.5 marks a card textured from the baked tree atlas
         // (group 3 binding 14): |uv.x| = (1 + tile) + u01 * 0.5 (the small
-        // base keeps u01 interpolation sub-texel), uv.y = v01 (0 ground,
-        // 1 top). Lighting normal is the interpolated radial up, same as
-        // the legacy colored cards. params.w bit 2 = atlas resident; until
-        // the bake lands the card shades flat conifer green (never
-        // invisible).
+        // base keeps u01 interpolation sub-texel), uv.y = v01. v0.1083: v01
+        // spans the baked FRAME (0 = its bottom edge, 1 = its top), which is
+        // square on max(width, height) of the tree and so is NOT the tree's
+        // own height for a wide crown - the CPU emitter sizes and drops the
+        // quad from the tile's footprint. Lighting normal is the interpolated
+        // radial up, same as the legacy colored cards. params.w bit 2 = atlas
+        // resident; until the bake lands the card shades flat conifer green
+        // (never invisible). The 6x8 grid below is compile-time in BOTH
+        // places: renderer::tree_mesh::tests::atlas_tile_constants_match_the_shader
+        // fails if these literals drift from billboard_bake::ATLAS_COLS/ROWS.
         if (in.uv.x < -0.5) {
             let card_dist = length(camera.view_pos.xyz - in.world_position);
             // Same LOD window as legacy cards: models own the near field,
@@ -808,12 +813,12 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
             let pw_bits_card = u32(round(max(material.params.w, 0.0)));
             if ((pw_bits_card & 4u) != 0u) {
                 let a_enc = -in.uv.x;
-                let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 5u);
+                let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 47u);
                 let u01 = clamp(fract(a_enc) * 2.0, 0.0, 1.0);
                 let v01 = clamp(in.uv.y, 0.0, 1.0);
                 let tuv = vec2<f32>(
-                    (f32(tile % 3u) + u01) / 3.0,
-                    (f32(tile / 3u) + (1.0 - v01)) / 2.0,
+                    (f32(tile % 6u) + u01) / 6.0,
+                    (f32(tile / 6u) + (1.0 - v01)) / 8.0,
                 );
                 let spr = textureSampleLevel(tree_atlas_tex, albedo_sampler, tuv, 0.0);
                 if (spr.a < 0.5) {
