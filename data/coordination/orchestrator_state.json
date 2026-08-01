@@ -607,6 +607,11 @@
    "date": "2026-08-01",
    "decision": "Operator morning field report (screenshot, sakura close-up at v0.1088.4): bushier CONFIRMED, three remaining defects fence the CROWN-STRUCTURE increment: (1) BRANCH-THROUGH-CROWN - bare tubes spear through the blossom masses and exit the far side; real branches TAPER and TERMINATE INSIDE foliage - terminal twigs must end within their sleeve+cap card coverage (shorten/taper tips, or extend sleeve run to the true tip; the cap card exists but tubes overshoot it); also visible tube-through-tube clipping - operator wants trees reading as ONE object. (2) STRAY TRIANGLES - the near-field geometric blade layer + possible card corners still read as raw triangles poking from the masses; thin the near layer harder now that cards carry the mass, and check card corner alpha. (3) TEXEL DENSITY - CLUSTER_SPRITE_PX 256 over 0.62 m cards is ~400 px/m; bump to 512 and re-measure bake cost (was 90 ms per bake, once per session post-BUG-059).",
    "why": "BLOCKED until the bark/wind writer (running) releases tree_mesh.rs + billboard_bake.rs - one writer per file set. Queue order: integrate bark/wind -> crown-structure increment -> extend ClusterDef to other species. Grass strands dispatched in parallel (disjoint files)."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1089.0/1 SHIPPED: bark full PBR (baked tileable per-species textures, cylindrical UVs, type 22, no-fade relief at range) + wind class coverage (whole stand leans; furniture guarded static by test). 24-26 fps both vantages. Crown-structure increment now UNBLOCKED (tree_mesh/billboard_bake free) - dispatching writer: (1) terminal twigs end INSIDE sleeve+cap coverage, no bare tubes exiting blossom masses; (2) thin the near blade layer; (3) CLUSTER_SPRITE_PX 256->512. Grass workflow still running on planet_chunks. Ratchet debt noted: planet_chunks 4672>4650 budget (pre-existing) + renderer/mod.rs at 30 lines headroom - extraction due after grass lands.",
+   "why": "Operator morning report drives crown-structure; bark writer flagged trees.ron bark_style/bark_scale_m as the honest data home for morphology (currently id-hash derived) - ride it with the next data pass."
   }
  ],
  "active_scopes_to_avoid": [
