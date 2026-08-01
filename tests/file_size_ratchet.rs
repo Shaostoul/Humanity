@@ -35,6 +35,17 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1093: `renderer/mod.rs` 4_000 -> 3_883. It was the one file OVER
+///   budget (4_090, +90). The material system moved verbatim to
+///   `src/renderer/materials.rs`: registration, the textured variants, the
+///   in-place updates, and the two bind-group builders they all funnel
+///   through - 322 lines, no behaviour change (the whole delta is one `use`
+///   path and one `pub(super)`). The new file joins the watch list at 500
+///   rather than measured+3%: 3% of a 365-line file is 11 lines, which would
+///   fire on the first legitimate new material method and send its author
+///   hunting for an extraction inside a 365-line module. 500 still trips long
+///   before `materials.rs` could become a second monolith, and stays inside
+///   the 600-line slack window so it does not immediately demand a click.
 /// - v0.1092: `planet_chunks` 5_950 -> 4_820. The v0.1091 grass-strand
 ///   increment raised the budget to 5_950 with the extraction of the layer
 ///   recorded IN THAT COMMIT as the immediate next increment; that extraction
@@ -52,7 +63,8 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/terrain/grass.rs", 2_470),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 4_200),
-    ("src/renderer/mod.rs", 4_000),
+    ("src/renderer/mod.rs", 3_883),
+    ("src/renderer/materials.rs", 500),
 ];
 
 #[test]
