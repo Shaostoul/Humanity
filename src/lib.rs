@@ -9418,12 +9418,12 @@ mod native_app {
                                                 // Clustered species also return
                                                 // their card layers (v0.1088) -
                                                 // the crown mass lives on those.
-                                                let (b, tcards) = tree_mesh::build_tree_and_cards(
+                                                let tb = tree_mesh::build_tree_and_cards(
                                                     t,
                                                     t.height_m,
                                                     v.wrapping_mul(2_654_435_761),
                                                 );
-                                                for (ci, card) in tcards.iter().enumerate() {
+                                                for (ci, card) in tb.cards.iter().enumerate() {
                                                     let Some(spr) = cluster_sprites.iter().find(
                                                         |s| s.species == t.id && s.layer == card.layer,
                                                     ) else {
@@ -9453,10 +9453,34 @@ mod native_app {
                                                         (cmi, cma),
                                                     );
                                                 }
+                                                // WOOD (v0.1089): the bark is
+                                                // its own mesh with real
+                                                // cylindrical UVs on material
+                                                // type 22, sampling the
+                                                // species' baked bark texture
+                                                // through the per-material
+                                                // albedo slot - the same slot
+                                                // the cards above use, so no
+                                                // bind-group layout changes.
+                                                // The material is memoized per
+                                                // SPECIES inside the renderer.
+                                                if !tb.wood.indices.is_empty() {
+                                                    let wmesh = crate::renderer::mesh::Mesh::from_vertices(
+                                                        &state.renderer.device,
+                                                        &tb.wood.vertices,
+                                                        &tb.wood.indices,
+                                                    );
+                                                    let wmi = state.renderer.add_mesh(wmesh);
+                                                    let wma = state.renderer.bark_material(t);
+                                                    state.decoration_mesh_cache.insert(
+                                                        format!("proc:{}_v{v}:wood", t.id),
+                                                        (wmi, wma),
+                                                    );
+                                                }
                                                 let mesh = crate::renderer::mesh::Mesh::from_vertices(
                                                     &state.renderer.device,
-                                                    &b.vertices,
-                                                    &b.indices,
+                                                    &tb.mesh.vertices,
+                                                    &tb.mesh.indices,
                                                 );
                                                 let mi = state.renderer.add_mesh(mesh);
                                                 // Type 20 = packed per-face
@@ -9480,8 +9504,16 @@ mod native_app {
                                                         &t.id, v,
                                                     ),
                                                     crate::renderer::billboard_bake::BakeCpuModel {
-                                                        vertices: b.vertices,
-                                                        indices: b.indices,
+                                                        // The SINGLE-MESH form
+                                                        // (foliage + the wood's
+                                                        // packed-colour twin):
+                                                        // the atlas bake shader
+                                                        // knows only the packed
+                                                        // decode, so it must not
+                                                        // be handed the
+                                                        // UV-carrying wood.
+                                                        vertices: tb.bake.vertices,
+                                                        indices: tb.bake.indices,
                                                         texture: None,
                                                     },
                                                 );
@@ -9532,7 +9564,26 @@ mod native_app {
                                                             0.0,
                                                             0.9,
                                                             19.0,
-                                                            0.0,
+                                                            // WIND CLASS, not
+                                                            // emissive (v0.1089):
+                                                            // params.w is free on
+                                                            // type 19 (the shader
+                                                            // zeroes emissive for
+                                                            // this type) and the
+                                                            // vertex stage reads
+                                                            // it as the wind
+                                                            // class. 1.0 = woody.
+                                                            // It is set HERE and
+                                                            // nowhere else on
+                                                            // purpose: type 19
+                                                            // also draws furniture
+                                                            // and machine glTFs
+                                                            // (home_meshes.rs) and
+                                                            // world decorations
+                                                            // (world_load.rs),
+                                                            // which must stay
+                                                            // rigid.
+                                                            1.0,
                                                             rgba,
                                                             *w,
                                                             *h,
@@ -9780,8 +9831,16 @@ mod native_app {
                                         let mut any = false;
                                         // A procedural tree is ONE mesh; the
                                         // photoscans are a trunk + foliage pair.
+                                        // v0.1089: a procedural tree is TWO
+                                        // meshes now - foliage (type 20) and
+                                        // the baked-bark wood (type 22) - the
+                                        // same shape the photoscans have always
+                                        // had. A missing ":wood" key just
+                                        // `continue`s, so a species built
+                                        // before this (or with no wood at all)
+                                        // still draws.
                                         let suffixes: &[&str] =
-                                            if use_proc { &[""] } else { &["", "_bark"] };
+                                            if use_proc { &["", ":wood"] } else { &["", "_bark"] };
                                         for suffix in suffixes {
                                             let key = format!("{stem}{suffix}");
                                             let Some(&(mi, ma)) =
