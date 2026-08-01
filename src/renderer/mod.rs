@@ -208,6 +208,24 @@ pub struct Renderer {
     /// (latitude holds at the pole rows) -- mirrors the CPU grid samplers'
     /// edge policy in terrain::planet_heightmap/planet_albedo.
     albedo_sampler: wgpu::Sampler,
+    /// Sampler for TILING material textures - the baked bark (v0.1089).
+    ///
+    /// The shared `albedo_sampler` above cannot serve them: it CLAMPS V (right
+    /// for equirect latitude, fatal for a texture that tiles up a trunk, which
+    /// would smear one row of texels over the whole bole) and its mipmap
+    /// filter is Nearest because planet imagery ships a single level. This one
+    /// repeats on both axes and filters trilinearly with 8x anisotropy, which
+    /// is what lets the type-22 bark branch drop the distance fade entirely.
+    /// Binding 1 of the texture layout is a plain Sampler(Filtering) slot, so
+    /// swapping which sampler a bind group carries is NOT a layout change and
+    /// touches none of the three create_bind_group sites' entry counts.
+    bark_sampler: wgpu::Sampler,
+    /// Species id -> material index for baked bark (v0.1089). The bake is a
+    /// pure function of the registry row, so it runs ONCE per species per
+    /// session and every variant of that species shares the material. (BUG-059
+    /// is the standing lesson: anything expensive reached from the per-frame
+    /// near-tree block must be memoized at its own call site, not upstream.)
+    bark_materials: std::collections::HashMap<String, usize>,
     /// 1x1 white fallback bound at group 3 for every material without real
     /// imagery, so the shared pipeline layout is always satisfied and
     /// non-planet draws are unaffected (the shader only samples group 3 on
@@ -765,6 +783,23 @@ impl Renderer {
             mipmap_filter: wgpu::FilterMode::Nearest, // single mip; sampled at level 0
             ..Default::default()
         });
+        // Tiling-material sampler (v0.1089, baked bark): repeat BOTH axes,
+        // trilinear, 8x anisotropy. wgpu requires all three filters Linear
+        // when anisotropy_clamp > 1, and a real mip chain to filter between -
+        // both of which the bark bake provides, and neither of which planet
+        // imagery does, hence the second sampler rather than a change to the
+        // shared one.
+        let bark_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Tiling Material Sampler (bark)"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            anisotropy_clamp: 8,
+            ..Default::default()
+        });
         let white_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Albedo Fallback Texture (1x1 white)"),
             size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
@@ -1290,6 +1325,8 @@ impl Renderer {
             cur_fill: ([-0.5, 0.3, -0.3], [0.4, 0.5, 0.7], 0.6),
             supports_frame_capture,
             albedo_sampler,
+            bark_sampler,
+            bark_materials: std::collections::HashMap::new(),
             default_texture_bind_group,
             cloud_shape_view,
             cloud_detail_view,
@@ -1541,36 +1578,61 @@ impl Renderer {
     /// encode happens once, on store to the sRGB render target. The bind
     /// group keeps the texture + view alive internally.
     fn build_albedo_bind_group(&self, rgba: &[u8], width: u32, height: u32) -> wgpu::BindGroup {
+        self.build_material_texture_bind_group(&[rgba], width, height, &self.albedo_sampler)
+    }
+
+    /// The general form (v0.1089): any number of MIP LEVELS, biggest first,
+    /// and an explicit sampler. `build_albedo_bind_group` above is this with
+    /// one level and the shared clamp-V sampler; baked bark passes a full
+    /// chain and the tiling sampler.
+    ///
+    /// Nothing here changes the bind group LAYOUT - the entry list below is
+    /// still every binding 0..15, which is the invariant the v0.1029-v0.1038
+    /// incident was about. Level count and sampler are texture/bind-group
+    /// state, not layout state.
+    fn build_material_texture_bind_group(
+        &self,
+        levels: &[&[u8]],
+        width: u32,
+        height: u32,
+        sampler: &wgpu::Sampler,
+    ) -> wgpu::BindGroup {
+        assert!(!levels.is_empty(), "a material texture needs at least one level");
         assert_eq!(
-            rgba.len(),
+            levels[0].len(),
             width as usize * height as usize * 4,
             "albedo texture byte count must be width*height*4"
         );
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Material Albedo Texture"),
             size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
+            mip_level_count: levels.len() as u32,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        self.queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            rgba,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * width),
-                rows_per_image: Some(height),
-            },
-            wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-        );
+        for (level, bytes) in levels.iter().enumerate() {
+            let lw = (width >> level).max(1);
+            let lh = (height >> level).max(1);
+            debug_assert_eq!(bytes.len(), lw as usize * lh as usize * 4, "mip {level} size");
+            self.queue.write_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &texture,
+                    mip_level: level as u32,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                bytes,
+                wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(4 * lw),
+                    rows_per_image: Some(lh),
+                },
+                wgpu::Extent3d { width: lw, height: lh, depth_or_array_layers: 1 },
+            );
+        }
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Material Albedo Bind Group"),
@@ -1582,7 +1644,7 @@ impl Renderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&self.albedo_sampler),
+                    resource: wgpu::BindingResource::Sampler(sampler),
                 },
                 // Shared cloud-noise volumes (clouds increment 3): every
                 // group-3 bind group carries the same engine-global views.
@@ -1776,6 +1838,45 @@ impl Renderer {
         let albedo_bind_group = self.build_albedo_bind_group(rgba, width, height);
         let idx = self.add_material_full(base_color, metallic, roughness, material_type, emissive);
         self.materials[idx].albedo_bind_group = Some(albedo_bind_group);
+        idx
+    }
+
+    /// The BAKED BARK material for one tree species (v0.1089), material type
+    /// 22, created on first use and shared by every variant of that species.
+    ///
+    /// This is the whole wiring surface of the bark work: a caller that has a
+    /// wood mesh asks for the species' material and draws it. The bake, the
+    /// mip chain, the tiling sampler and the once-per-session memo all live
+    /// here, where they can be reasoned about, rather than at a call site
+    /// inside a per-frame block (the BUG-059 shape).
+    ///
+    /// `base_color` is white: the per-species colour is IN the texture, so the
+    /// shader's `albedo * texture` is one multiply and not a squared
+    /// trunk_color. Emissive is 0 - type 22 does not repurpose params.w (its
+    /// wind class is implied by the type in the vertex shader), so the normal
+    /// emissive meaning of that slot is left alone.
+    pub fn bark_material(&mut self, def: &tree_mesh::TreeDef) -> usize {
+        if let Some(&idx) = self.bark_materials.get(&def.id) {
+            return idx;
+        }
+        let t0 = std::time::Instant::now();
+        let px = tree_mesh::BARK_PX;
+        let base = tree_mesh::bake_bark_rgba(def);
+        let levels = billboard_bake::build_opaque_mip_chain(&base, px);
+        let refs: Vec<&[u8]> = levels.iter().map(|l| l.as_slice()).collect();
+        let bg = self.build_material_texture_bind_group(&refs, px, px, &self.bark_sampler);
+        // Roughness 0.85 is the BASE; the type-22 branch varies it per texel
+        // from the baked height (crevices rougher, ridges smoother).
+        let idx = self.add_material_full([1.0, 1.0, 1.0, 1.0], 0.0, 0.85, 22.0, 0.0);
+        self.materials[idx].albedo_bind_group = Some(bg);
+        self.bark_materials.insert(def.id.clone(), idx);
+        log::info!(
+            "[Bark] {} baked {px}x{px} + {} mips, tile {:.2} m, in {:.0} ms",
+            def.id,
+            levels.len() - 1,
+            tree_mesh::bark_tile_m(def),
+            t0.elapsed().as_secs_f32() * 1000.0
+        );
         idx
     }
 

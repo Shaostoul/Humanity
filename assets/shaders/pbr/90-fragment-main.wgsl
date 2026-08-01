@@ -533,6 +533,14 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // these into the pinned domain for textureSampleGrad anisotropy).
     let wp_dx = dpdx(in.world_position);
     let wp_dy = dpdy(in.world_position);
+    // Screen-space derivatives of the TEXTURE coordinate, taken here for the
+    // same reason and under the same rule (v0.1089, baked bark): they are what
+    // `textureSampleGrad` needs to pick a mip level, and textureSampleGrad is
+    // the LOD-selecting sample that is legal inside non-uniform control flow -
+    // which every material-type branch below is. Meaningless for the material
+    // types whose uv carries a packed integer; those never read it.
+    let uv_dx = dpdx(in.uv);
+    let uv_dy = dpdy(in.uv);
     // LOD crossfade (v0.920): model[0].w carries the per-object fade (see
     // RenderObject::fade). 0 = normal. Positive f = fading IN: keep pixels
     // whose 4x4 Bayer threshold is below f. Negative -f = fading OUT: keep
@@ -627,6 +635,98 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         proc_emissive = proc_emissive
             + albedo * camera.sun_color.rgb
                 * (cc_backlit * 0.30) * cc_day * (0.3 + 0.7 * cc_ao);
+    }
+    if (material_type >= 21.5 && material_type < 22.5) {
+        // ── Type 22: BAKED BARK (v0.1089) ───────────────────────────────
+        // The wood of a procedural tree, on its own mesh with real cylindrical
+        // UVs (renderer::tree_mesh::TreeParts::bark_tube) sampling a
+        // per-species baked texture through the SAME per-material albedo slot
+        // cluster cards use. No new binding: bindings 11/12 look free in this
+        // file but are the atmosphere LUTs in the Rust layout, and a new
+        // texture_2d<f32> there would type-match and silently sample a 256x64
+        // LUT as bark.
+        //
+        // WHAT THIS REPLACES. The type-20 bark branch below invents fissures
+        // from object-space voronoi noise and then FADES THEM OUT over 2.5-12 m
+        // (`detail`) and 0.8-3 m (`micro`), because procedural noise has no mip
+        // chain and aliases the instant a trunk minifies. Beyond arm's reach a
+        // trunk was therefore one flat colour per face - measured at 0.27 luma
+        // levels of cross-trunk detail against a 0.258-level quantization
+        // floor. A baked texture HAS mips, so this branch carries NO distance
+        // gate on albedo, normal or roughness: trilinear + 8x anisotropic
+        // minification is the correct band-limiter, and detail survives to
+        // wherever the trunk is still resolvable.
+        //
+        // CHANNELS (bake_bark_rgba): rgb = species colour x plate field;
+        // ALPHA = the same field as a LINEAR height/AO scalar. Alpha is not
+        // gamma-encoded in an Rgba8UnormSrgb texture, so it is the one clean
+        // linear channel available without a second texture - it carries both
+        // the relief this branch differentiates and the roughness break.
+        let bk_dim = vec2<f32>(textureDimensions(albedo_texture, 0));
+        let bk = textureSampleGrad(albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
+        albedo = albedo * bk.rgb;
+        metallic = 0.0;
+        // params.w is the emissive slot everywhere; type 22 does not repurpose
+        // it (its wind class is implied by the type in the vertex stage), but
+        // zero it explicitly so a stray non-zero can never make a trunk glow.
+        emissive_strength = 0.0;
+
+        // RELIEF. Central differences of the baked height, sampled with the
+        // SAME gradients as the base fetch so each tap lands on the same mip
+        // level: the height field the taps see is the FILTERED one, so relief
+        // softens with distance on its own, physically, instead of by a
+        // hand-tuned distance gate.
+        //
+        // The tap offset is the larger of two texels and ONE SCREEN PIXEL's
+        // footprint. Two texels alone is right up close and useless at range:
+        // by 8 m a pixel already covers ~40 texels, so three taps 2 texels
+        // apart all land inside one filtered texel, the difference is zero and
+        // the trunk goes flat. That was measured in a probe capture, not
+        // reasoned about.
+        let bk_o = max(
+            vec2<f32>(2.0, 2.0) / max(bk_dim, vec2<f32>(1.0)),
+            abs(uv_dx) + abs(uv_dy),
+        );
+        let h_l = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv - vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
+        let h_r = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv + vec2<f32>(bk_o.x, 0.0), uv_dx, uv_dy).a;
+        let h_d = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv - vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
+        let h_u = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            in.uv + vec2<f32>(0.0, bk_o.y), uv_dx, uv_dy).a;
+        // COTANGENT-FRAME TBN (Mikkelsen). The vertex format has no tangent,
+        // and adding one would widen every vertex in the engine for bark
+        // alone; the screen-space derivatives already taken at the top of this
+        // function reconstruct the frame exactly, per pixel, for a few ALU.
+        let bk_dp2perp = cross(wp_dy, normal);
+        let bk_dp1perp = cross(normal, wp_dx);
+        let bk_t = bk_dp2perp * uv_dx.x + bk_dp1perp * uv_dy.x;
+        let bk_b = bk_dp2perp * uv_dx.y + bk_dp1perp * uv_dy.y;
+        let bk_scale = inverseSqrt(max(max(dot(bk_t, bk_t), dot(bk_b, bk_b)), 1e-20));
+        // 0.75 is a deep push: bark IS genuinely rough, and the cracks have to
+        // read as grooves that catch a raking sun, not as painted lines.
+        let bk_rel = 0.75;
+        normal = normalize(
+            normal - ((bk_t * (h_r - h_l) + bk_b * (h_u - h_d)) * bk_scale) * bk_rel,
+        );
+
+        // ROUGHNESS from the same height: crevices hold dust and torn fibre
+        // and scatter widely; ridge crests are worn smooth by weather. This is
+        // what makes the specular response VARY across a trunk instead of
+        // banding uniformly, which is the other half of reading as bark.
+        roughness = clamp(0.98 - 0.30 * bk.a, 0.55, 0.99);
+        // Contact-scale ambient occlusion, straight off the height channel.
+        // Multiplying albedo (rather than an ambient-only term) is deliberate
+        // and stated: it darkens sun and sky identically, so the pattern is
+        // visible in both the lit and the shaded thirds of a trunk and cannot
+        // deepen on the sunlit side. The trade is that a separately-controlled
+        // ambient-only AO would need a second channel, i.e. a second texture.
+        albedo = albedo * (0.72 + 0.28 * bk.a);
     }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
