@@ -627,6 +627,11 @@
    "date": "2026-08-01",
    "decision": "Grass-strands round 1 HELD AT THE MERGE BAR (first hold of the night): the strand system is critic-CONFIRMED sound (LAI 3.0, 1266 tests) but the diff deletes card grass while the draw path is 6 unwired requests, and the critic exposed two design forks - tiller bases float up to 1 m off the drawn surface at Fuji (fix: barycentric patch-triangle sampling) and the W1 hysteresis re-anchors the density ramp (population ring pops). Continuation writer dispatched INTO the same worktree (wf_00919356-942-5) with sole-writer grant to fix both forks and implement W1-W6 wiring itself.",
    "why": "Merging as-was would ship LESS grass than exists. The verdict-read-before-merge discipline caught it; the critic earns its keep again."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1091.0/1 grass strands SHIPPED + v0.1092.0 grass extraction (ratchet click: planet_chunks 7028->4683, grass.rs 2401, budgets DOWN). Renderer/mod.rs extraction dispatched to clear the last ratchet failure (4090>4000). DEFERRED until operator game session ends: build-game archive+stamp for v0.1092 (stable exe file-locked by their running game), the fuji-grass-underfoot probe on the extraction, and the 13ms harvest time-slicing increment. Operator is PLAYING v0.1091.1 right now - extraction writer honoured one-GPU for 56 min rather than booting beside them.",
+   "why": "Follow-ups live: grass shadow casting (unmeasured cost), grass.ron data fields, sakura leaf lozenge, bole radius taste call, WR-2 sprite dedupe, T1/T2 terrain tickets in vantages.json."
   }
  ],
  "active_scopes_to_avoid": [
