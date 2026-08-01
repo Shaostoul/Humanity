@@ -612,6 +612,16 @@
    "date": "2026-08-01",
    "decision": "v0.1089.0/1 SHIPPED: bark full PBR (baked tileable per-species textures, cylindrical UVs, type 22, no-fade relief at range) + wind class coverage (whole stand leans; furniture guarded static by test). 24-26 fps both vantages. Crown-structure increment now UNBLOCKED (tree_mesh/billboard_bake free) - dispatching writer: (1) terminal twigs end INSIDE sleeve+cap coverage, no bare tubes exiting blossom masses; (2) thin the near blade layer; (3) CLUSTER_SPRITE_PX 256->512. Grass workflow still running on planet_chunks. Ratchet debt noted: planet_chunks 4672>4650 budget (pre-existing) + renderer/mod.rs at 30 lines headroom - extraction due after grass lands.",
    "why": "Operator morning report drives crown-structure; bark writer flagged trees.ron bark_style/bark_scale_m as the honest data home for morphology (currently id-hash derived) - ride it with the next data pass."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "v0.1090.0/1 SHIPPED: crown structure (4 mm twig tips, 0/135 exposed tips CI-gated, blades budgeted in-shell, 512px mipped sprites via WR-1, weather pinned on fuji-forest-ground). Follow-ups banked: WR-2 sprite-bake dedupe (~110 ms, needs BakeReport signature + lib.rs use-site together); sakura LEAF sprite reads as smooth green lozenge (cluster_sprite_geometry(Leaf) overlap - next eye-catcher per the writer); broadleaf bole fat (r_base h*0.030 = 48 cm on 8 m cherry vs real 20-35 - every-silhouette taste call for operator); blossom coverage data drift (bake delivers 0.345 vs data 0.45); clear-weather frame time 78 ms vs fogged 40 (clear draws the full distance - re-baseline perf floors under pinned weather).",
+   "why": "Grass workflow still running on planet_chunks. After it: planet_chunks ratchet (4672>4650) + renderer/mod.rs 30-line headroom = extraction pass due."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Grass-strands round 1 HELD AT THE MERGE BAR (first hold of the night): the strand system is critic-CONFIRMED sound (LAI 3.0, 1266 tests) but the diff deletes card grass while the draw path is 6 unwired requests, and the critic exposed two design forks - tiller bases float up to 1 m off the drawn surface at Fuji (fix: barycentric patch-triangle sampling) and the W1 hysteresis re-anchors the density ramp (population ring pops). Continuation writer dispatched INTO the same worktree (wf_00919356-942-5) with sole-writer grant to fix both forks and implement W1-W6 wiring itself.",
+   "why": "Merging as-was would ship LESS grass than exists. The verdict-read-before-merge discipline caught it; the critic earns its keep again."
   }
  ],
  "active_scopes_to_avoid": [
