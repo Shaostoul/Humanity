@@ -44,6 +44,27 @@
 //   * lavender has no standard USDA food row -> estimated from comparable edible flowers.
 //   * corn uses SWEET-corn (fresh) values; field/dent maize as a dry grain would be ~365 kcal.
 //   * bean/lentil/chickpea/soybean use DRY mature-seed values (protein-crop role).
+//   * NO USDA FOOD ROW EXISTS for these -- values come from the published composition
+//     literature named per line and are the least certain numbers in this file:
+//     tepary_bean, haskap, sea_buckthorn, oca, sugar_beet, finger_millet, rapeseed,
+//     camelina, bambara_groundnut.
+//   * horseradish uses USDA "Horseradish, prepared". It is a condiment eaten in gram
+//     quantities, so its per-unit kcal overstates real dietary contribution the same way
+//     the dried-herb rows do.
+//   * runner_bean uses GREEN SNAP-POD values (that is how it is eaten and how its
+//     plants.csv row is written), unlike the six dry bean rows beside it.
+//   * hazelnut and walnut use KERNEL nutrition, so their grams_per_yield_unit is the
+//     kernel fraction (~50%) of an in-shell picking, not the in-shell mass.
+//   * plantain uses USDA "Plantains, GREEN, raw" (152 kcal) not the ripe/general row
+//     (122 kcal), because the crop is harvested green and cooked as a starch. This is the
+//     banana calibration anchor: 152 vs banana 89 is the real starch difference.
+//   * triticale (USDA 336/13.1/1.8/72.1) lands between wheat (340/13.7) and rye (338/10.3)
+//     exactly as a wheat-rye hybrid should -- that agreement is the grain anchor check.
+//
+// COVERAGE: every non-alien / non-decorative / non-fiber / non-tree / non-medicinal row in
+// data/plants.csv now has an entry here (142 of 189 plant rows). The excluded types are not
+// dietary food. Adding a food crop to plants.csv without adding it here silently scores it
+// at 0 kcal, which is why the coverage check matters more than any single number below.
 (
     crops: [
         // ── Vegetables ──
@@ -73,6 +94,28 @@
         (plant_id: "oyster_mushroom", calories_per_100g: 33.0,  protein_g: 3.3,  fat_g: 0.4,  carbs_g: 6.1,  grams_per_yield_unit: 100.0),
         (plant_id: "shiitake",        calories_per_100g: 34.0,  protein_g: 2.2,  fat_g: 0.5,  carbs_g: 6.8,  grams_per_yield_unit: 20.0),
         (plant_id: "button_mushroom", calories_per_100g: 22.0,  protein_g: 3.1,  fat_g: 0.3,  carbs_g: 3.3,  grams_per_yield_unit: 18.0),
+        // Roots + tubers (unit = one harvested root/corm/tuber).
+        (plant_id: "cassava",         calories_per_100g: 160.0, protein_g: 1.4,  fat_g: 0.3,  carbs_g: 38.1, grams_per_yield_unit: 500.0),
+        (plant_id: "taro",            calories_per_100g: 112.0, protein_g: 1.5,  fat_g: 0.2,  carbs_g: 26.5, grams_per_yield_unit: 350.0),
+        (plant_id: "yam",             calories_per_100g: 118.0, protein_g: 1.5,  fat_g: 0.2,  carbs_g: 27.9, grams_per_yield_unit: 1500.0),
+        (plant_id: "jerusalem_artichoke", calories_per_100g: 73.0, protein_g: 2.0, fat_g: 0.0, carbs_g: 17.4, grams_per_yield_unit: 60.0),
+        (plant_id: "rutabaga",        calories_per_100g: 37.0,  protein_g: 1.1,  fat_g: 0.2,  carbs_g: 8.6,  grams_per_yield_unit: 250.0),
+        // oca + sugar_beet: no USDA food row (FLAGGED, see header).
+        (plant_id: "oca",             calories_per_100g: 62.0,  protein_g: 1.0,  fat_g: 0.6,  carbs_g: 13.3, grams_per_yield_unit: 80.0),
+        (plant_id: "sugar_beet",      calories_per_100g: 70.0,  protein_g: 1.2,  fat_g: 0.1,  carbs_g: 16.0, grams_per_yield_unit: 250.0),
+        (plant_id: "horseradish",     calories_per_100g: 48.0,  protein_g: 1.2,  fat_g: 0.7,  carbs_g: 11.3, grams_per_yield_unit: 400.0),
+        // Leafy + stem vegetables (unit = one head or one cutting bunch).
+        (plant_id: "moringa",         calories_per_100g: 64.0,  protein_g: 9.4,  fat_g: 1.4,  carbs_g: 8.3,  grams_per_yield_unit: 200.0),
+        (plant_id: "fennel",          calories_per_100g: 31.0,  protein_g: 1.2,  fat_g: 0.2,  carbs_g: 7.3,  grams_per_yield_unit: 300.0),
+        (plant_id: "collard",         calories_per_100g: 32.0,  protein_g: 3.0,  fat_g: 0.6,  carbs_g: 5.4,  grams_per_yield_unit: 300.0),
+        (plant_id: "chard",           calories_per_100g: 19.0,  protein_g: 1.8,  fat_g: 0.2,  carbs_g: 3.7,  grams_per_yield_unit: 300.0),
+        (plant_id: "mustard_greens",  calories_per_100g: 27.0,  protein_g: 2.9,  fat_g: 0.4,  carbs_g: 4.7,  grams_per_yield_unit: 300.0),
+        (plant_id: "brussels_sprout", calories_per_100g: 43.0,  protein_g: 3.4,  fat_g: 0.3,  carbs_g: 9.0,  grams_per_yield_unit: 500.0),
+        (plant_id: "bok_choy",        calories_per_100g: 13.0,  protein_g: 1.5,  fat_g: 0.2,  carbs_g: 2.2,  grams_per_yield_unit: 400.0),
+        (plant_id: "arugula",         calories_per_100g: 25.0,  protein_g: 2.6,  fat_g: 0.7,  carbs_g: 3.7,  grams_per_yield_unit: 200.0),
+        (plant_id: "mache",           calories_per_100g: 21.0,  protein_g: 2.0,  fat_g: 0.4,  carbs_g: 3.6,  grams_per_yield_unit: 40.0),
+        (plant_id: "chicory",         calories_per_100g: 23.0,  protein_g: 1.4,  fat_g: 0.3,  carbs_g: 4.5,  grams_per_yield_unit: 300.0),
+        (plant_id: "rhubarb",         calories_per_100g: 21.0,  protein_g: 0.9,  fat_g: 0.2,  carbs_g: 4.5,  grams_per_yield_unit: 600.0),
 
         // ── Fruits (botanical fruits in plants.csv, incl. pepper/pumpkin/eggplant/sunflower) ──
         (plant_id: "tomato",          calories_per_100g: 18.0,  protein_g: 0.9,  fat_g: 0.2,  carbs_g: 3.9,  grams_per_yield_unit: 120.0),
@@ -103,6 +146,26 @@
         // product; dietary calories per serving are negligible (brewed) / small (cocoa).
         (plant_id: "coffee",          calories_per_100g: 2.0,   protein_g: 0.1,  fat_g: 0.0,  carbs_g: 0.0,  grams_per_yield_unit: 8.0),
         (plant_id: "cacao",           calories_per_100g: 228.0, protein_g: 19.6, fat_g: 13.7, carbs_g: 57.9, grams_per_yield_unit: 20.0),
+        // Tree fruit + nuts. olive/date/chestnut/hazelnut/walnut units are one PICKING
+        // (~300 g) not one fruit, because their plants.csv yields are per-tree totals;
+        // hazelnut + walnut are further reduced to the kernel fraction (FLAGGED).
+        (plant_id: "olive",           calories_per_100g: 115.0, protein_g: 0.8,  fat_g: 10.7, carbs_g: 6.3,  grams_per_yield_unit: 300.0),
+        (plant_id: "date_palm",       calories_per_100g: 277.0, protein_g: 1.8,  fat_g: 0.2,  carbs_g: 75.0, grams_per_yield_unit: 300.0),
+        (plant_id: "chestnut",        calories_per_100g: 213.0, protein_g: 2.4,  fat_g: 2.3,  carbs_g: 45.5, grams_per_yield_unit: 250.0),
+        (plant_id: "hazelnut",        calories_per_100g: 628.0, protein_g: 15.0, fat_g: 60.8, carbs_g: 16.7, grams_per_yield_unit: 150.0),
+        (plant_id: "walnut",          calories_per_100g: 654.0, protein_g: 15.2, fat_g: 65.2, carbs_g: 13.7, grams_per_yield_unit: 150.0),
+        (plant_id: "breadfruit",      calories_per_100g: 103.0, protein_g: 1.1,  fat_g: 0.2,  carbs_g: 27.1, grams_per_yield_unit: 1500.0),
+        (plant_id: "prickly_pear",    calories_per_100g: 41.0,  protein_g: 0.7,  fat_g: 0.5,  carbs_g: 9.6,  grams_per_yield_unit: 120.0),
+        // plantain: GREEN cooking values, the banana anchor (see header).
+        (plant_id: "plantain",        calories_per_100g: 152.0, protein_g: 1.5,  fat_g: 0.4,  carbs_g: 39.2, grams_per_yield_unit: 250.0),
+        // Berry shrubs -- one unit is a ~100 g cup/handful, matching blueberry + cranberry.
+        (plant_id: "raspberry",       calories_per_100g: 52.0,  protein_g: 1.2,  fat_g: 0.7,  carbs_g: 11.9, grams_per_yield_unit: 100.0),
+        (plant_id: "blackcurrant",    calories_per_100g: 63.0,  protein_g: 1.4,  fat_g: 0.4,  carbs_g: 15.4, grams_per_yield_unit: 100.0),
+        (plant_id: "gooseberry",      calories_per_100g: 44.0,  protein_g: 0.9,  fat_g: 0.6,  carbs_g: 10.2, grams_per_yield_unit: 100.0),
+        (plant_id: "elderberry",      calories_per_100g: 73.0,  protein_g: 0.7,  fat_g: 0.5,  carbs_g: 18.4, grams_per_yield_unit: 100.0),
+        // haskap + sea_buckthorn: no USDA food row (FLAGGED, see header).
+        (plant_id: "haskap",          calories_per_100g: 46.0,  protein_g: 0.9,  fat_g: 0.5,  carbs_g: 11.0, grams_per_yield_unit: 100.0),
+        (plant_id: "sea_buckthorn",   calories_per_100g: 82.0,  protein_g: 1.4,  fat_g: 3.0,  carbs_g: 10.0, grams_per_yield_unit: 100.0),
 
         // ── Grains (dry cereal magnitude; corn is SWEET corn, see flag) ──
         (plant_id: "wheat",           calories_per_100g: 340.0, protein_g: 13.7, fat_g: 2.5,  carbs_g: 72.6, grams_per_yield_unit: 50.0),
@@ -113,6 +176,20 @@
         (plant_id: "oat",             calories_per_100g: 389.0, protein_g: 16.9, fat_g: 6.9,  carbs_g: 66.3, grams_per_yield_unit: 50.0),
         (plant_id: "rye",             calories_per_100g: 338.0, protein_g: 10.3, fat_g: 1.6,  carbs_g: 75.9, grams_per_yield_unit: 50.0),
         (plant_id: "millet",          calories_per_100g: 378.0, protein_g: 11.0, fat_g: 4.2,  carbs_g: 72.8, grams_per_yield_unit: 50.0),
+        (plant_id: "triticale",       calories_per_100g: 336.0, protein_g: 13.1, fat_g: 1.8,  carbs_g: 72.1, grams_per_yield_unit: 50.0),
+        (plant_id: "spelt",           calories_per_100g: 338.0, protein_g: 14.6, fat_g: 2.4,  carbs_g: 70.2, grams_per_yield_unit: 50.0),
+        (plant_id: "amaranth",        calories_per_100g: 371.0, protein_g: 13.6, fat_g: 7.0,  carbs_g: 65.3, grams_per_yield_unit: 50.0),
+        (plant_id: "quinoa",          calories_per_100g: 368.0, protein_g: 14.1, fat_g: 6.1,  carbs_g: 64.2, grams_per_yield_unit: 50.0),
+        (plant_id: "buckwheat",       calories_per_100g: 343.0, protein_g: 13.3, fat_g: 3.4,  carbs_g: 71.5, grams_per_yield_unit: 50.0),
+        (plant_id: "teff",            calories_per_100g: 367.0, protein_g: 13.3, fat_g: 2.4,  carbs_g: 73.1, grams_per_yield_unit: 50.0),
+        // finger_millet: Indian food-composition tables, no USDA row (FLAGGED).
+        (plant_id: "finger_millet",   calories_per_100g: 336.0, protein_g: 7.3,  fat_g: 1.3,  carbs_g: 72.0, grams_per_yield_unit: 50.0),
+        // Oilseeds filed as grain in plants.csv -- energy-dense whole-seed values.
+        (plant_id: "sesame",          calories_per_100g: 573.0, protein_g: 17.7, fat_g: 49.7, carbs_g: 23.4, grams_per_yield_unit: 50.0),
+        (plant_id: "safflower",       calories_per_100g: 517.0, protein_g: 16.2, fat_g: 38.5, carbs_g: 34.3, grams_per_yield_unit: 50.0),
+        // rapeseed + camelina: no USDA whole-seed row (FLAGGED).
+        (plant_id: "rapeseed",        calories_per_100g: 524.0, protein_g: 20.0, fat_g: 44.0, carbs_g: 12.0, grams_per_yield_unit: 50.0),
+        (plant_id: "camelina",        calories_per_100g: 502.0, protein_g: 25.8, fat_g: 39.0, carbs_g: 12.0, grams_per_yield_unit: 50.0),
 
         // ── Legumes (dry mature-seed magnitude; pea is GREEN pea) ──
         (plant_id: "bean",            calories_per_100g: 333.0, protein_g: 21.6, fat_g: 1.2,  carbs_g: 60.0, grams_per_yield_unit: 50.0),
@@ -121,6 +198,20 @@
         (plant_id: "lentil",          calories_per_100g: 353.0, protein_g: 25.8, fat_g: 1.1,  carbs_g: 60.1, grams_per_yield_unit: 50.0),
         (plant_id: "chickpea",        calories_per_100g: 364.0, protein_g: 19.3, fat_g: 6.0,  carbs_g: 60.7, grams_per_yield_unit: 50.0),
         (plant_id: "peanut",          calories_per_100g: 567.0, protein_g: 25.8, fat_g: 49.2, carbs_g: 16.1, grams_per_yield_unit: 45.0),
+        (plant_id: "cowpea",          calories_per_100g: 336.0, protein_g: 23.5, fat_g: 1.3,  carbs_g: 60.0, grams_per_yield_unit: 50.0),
+        (plant_id: "fava_bean",       calories_per_100g: 341.0, protein_g: 26.1, fat_g: 1.5,  carbs_g: 58.3, grams_per_yield_unit: 50.0),
+        (plant_id: "pigeon_pea",      calories_per_100g: 343.0, protein_g: 21.7, fat_g: 1.5,  carbs_g: 62.8, grams_per_yield_unit: 50.0),
+        (plant_id: "lupin",           calories_per_100g: 371.0, protein_g: 36.2, fat_g: 9.7,  carbs_g: 40.4, grams_per_yield_unit: 50.0),
+        (plant_id: "mung_bean",       calories_per_100g: 347.0, protein_g: 23.9, fat_g: 1.2,  carbs_g: 62.6, grams_per_yield_unit: 50.0),
+        (plant_id: "kidney_bean",     calories_per_100g: 337.0, protein_g: 22.5, fat_g: 1.1,  carbs_g: 61.3, grams_per_yield_unit: 50.0),
+        (plant_id: "pinto_bean",      calories_per_100g: 347.0, protein_g: 21.4, fat_g: 1.2,  carbs_g: 62.6, grams_per_yield_unit: 50.0),
+        (plant_id: "navy_bean",       calories_per_100g: 337.0, protein_g: 22.3, fat_g: 1.5,  carbs_g: 60.8, grams_per_yield_unit: 50.0),
+        (plant_id: "lima_bean",       calories_per_100g: 338.0, protein_g: 21.5, fat_g: 0.7,  carbs_g: 63.4, grams_per_yield_unit: 50.0),
+        // runner_bean: GREEN snap-pod values, not dry seed (FLAGGED, see header).
+        (plant_id: "runner_bean",     calories_per_100g: 31.0,  protein_g: 1.8,  fat_g: 0.2,  carbs_g: 7.0,  grams_per_yield_unit: 80.0),
+        // tepary_bean + bambara_groundnut: no USDA row (FLAGGED, see header).
+        (plant_id: "tepary_bean",     calories_per_100g: 340.0, protein_g: 23.0, fat_g: 1.2,  carbs_g: 60.0, grams_per_yield_unit: 50.0),
+        (plant_id: "bambara_groundnut", calories_per_100g: 381.0, protein_g: 20.0, fat_g: 6.5, carbs_g: 58.8, grams_per_yield_unit: 50.0),
 
         // ── Edible herbs & spices (mostly used in tiny amounts; several FLAGGED, see header) ──
         (plant_id: "basil",           calories_per_100g: 23.0,  protein_g: 3.2,  fat_g: 0.6,  carbs_g: 2.7,  grams_per_yield_unit: 10.0),
@@ -143,5 +234,8 @@
         (plant_id: "vanilla",         calories_per_100g: 288.0, protein_g: 0.1,  fat_g: 0.1,  carbs_g: 12.7, grams_per_yield_unit: 3.0),
         (plant_id: "hop",             calories_per_100g: 0.0,   protein_g: 0.0,  fat_g: 0.0,  carbs_g: 0.0,  grams_per_yield_unit: 5.0),
         (plant_id: "tea",             calories_per_100g: 1.0,   protein_g: 0.0,  fat_g: 0.0,  carbs_g: 0.2,  grams_per_yield_unit: 3.0),
+        // dandelion is eaten as a leafy green not a garnish -- unit is a 50 g rosette
+        // cutting (matching herb_dandelion_0) not the 3-10 g spice unit above.
+        (plant_id: "dandelion",       calories_per_100g: 45.0,  protein_g: 2.7,  fat_g: 0.7,  carbs_g: 9.2,  grams_per_yield_unit: 50.0),
     ],
 )

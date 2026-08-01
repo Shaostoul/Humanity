@@ -853,3 +853,16 @@ fruit_hazelnut_0,Hazelnut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested hazeln
 fruit_walnut_0,Walnut,food,fruit,plant_fiber,0.3,20,0,Fresh harvested walnuts in shell,solid,0.45
 fruit_breadfruit_0,Breadfruit,food,fruit,plant_fiber,0.3,20,0,Fresh harvested breadfruit,solid,0.45
 fruit_prickly_pear_0,Prickly Pear,food,fruit,plant_fiber,0.3,20,0,Fresh harvested prickly pear fruit,solid,0.45
+vegetable_collard_0,Collard Greens,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested collard leaves,solid,0.45
+vegetable_chard_0,Swiss Chard,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested chard leaves,solid,0.45
+vegetable_mustard_greens_0,Mustard Greens,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested mustard greens,solid,0.45
+vegetable_brussels_sprout_0,Brussels Sprouts,food,vegetable,plant_fiber,0.5,20,0,Fresh picked brussels sprouts,solid,0.75
+vegetable_bok_choy_0,Bok Choy,food,vegetable,plant_fiber,0.4,20,0,Fresh harvested bok choy heads,solid,0.6
+vegetable_arugula_0,Arugula,food,vegetable,plant_fiber,0.2,20,0,Fresh harvested arugula leaves,solid,0.3
+vegetable_mache_0,Mache,food,vegetable,plant_fiber,0.2,20,0,Fresh harvested corn salad rosettes,solid,0.3
+vegetable_rhubarb_0,Rhubarb,food,vegetable,plant_fiber,0.6,20,0,Fresh cut rhubarb stalks,solid,0.85
+vegetable_horseradish_0,Horseradish,food,vegetable,plant_fiber,0.4,20,0,Fresh dug horseradish root,solid,0.55
+vegetable_chicory_0,Chicory,food,vegetable,plant_fiber,0.3,20,0,Fresh harvested chicory heads,solid,0.45
+vegetable_fennel_0,Fennel,food,vegetable,plant_fiber,0.4,20,0,Fresh harvested fennel bulb with fronds,solid,0.6
+grain_triticale_0,Triticale Grain,food,grain,plant_fiber,0.5,20,0,Threshed triticale kernels 500g,dry_goods,0.93
+fruit_plantain_0,Plantain,food,fruit,plant_fiber,0.25,20,0,Fresh green cooking plantain,solid,0.42
