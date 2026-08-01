@@ -79,6 +79,74 @@
             leaf_color: (0.22, 0.40, 0.18),
             blossom_color: (0.97, 0.72, 0.80),
             blossom_frac: 0.82,
+            // ── Cluster cards (v0.1088) ──────────────────────────────
+            // The measured problem: the geometric blade layer reaches leaf
+            // area index 0.31-0.50 on this species, so the crown transmits
+            // 78-86% of the sky where a real cherry at LAI 3 transmits 22%
+            // (Beer-Lambert, K = 0.5). Reaching LAI 3 with blades would cost
+            // ~60,000 triangles; with cluster cards it costs ~2,400 and the
+            // tree comes out CHEAPER than it was.
+            //
+            // Sakura is the ONLY species carrying this block today - the arc
+            // ships one species at a time so each set of numbers is measured
+            // rather than guessed. Omitting the block leaves a species on the
+            // pure blade layer, exactly as before.
+            clusters: Some((
+                // 2.6 rather than a textbook 3-5: this is a FLOWERING cherry,
+                // and a blossom sleeve is optically thinner than a leaf tuft.
+                target_lai: 2.6,
+                leaf: (
+                    size_m: 0.50,
+                    // MEASURED at the bake (2026-08-01, [Cluster] log), not
+                    // assumed: 84 sprigs of real 9 cm blades cover 0.36 of
+                    // their card. Coverage saturates hard with density (24
+                    // sprigs measured 0.20, 3.5x as many only reached 0.36),
+                    // so chasing a rounder number would mean an unphysically
+                    // dense tuft. The planner spends the truth instead.
+                    coverage: 0.36,
+                    cards_per_sleeve: 4,
+                    sleeve_spacing_m: 0.22,
+                    // MEASURED, not guessed: at 24 sprigs the bake reported
+                    // 0.20 coverage against the 0.55 this planner spends, and
+                    // [Cluster] logs that mismatch every world entry. Coverage
+                    // saturates like 1 - exp(-density), so 0.20 -> 0.55 is
+                    // ~3.5x the sprigs. Denser is also CHEAPER: for a fixed
+                    // leaf area index, overdraw is LAI / coverage.
+                    sprite_elements: 84,
+                    sprite_runs: 1,
+                ),
+                blossom: (
+                    // Bigger than one umbel on purpose: the sprite carries
+                    // SEVERAL umbels at their real along-twig spacing, which
+                    // is what reproduces the reference photo (a branch
+                    // wrapped in white-pink) at a third of the card count.
+                    size_m: 0.45,
+                    coverage: 0.45,
+                    cards_per_sleeve: 4,
+                    sleeve_spacing_m: 0.20,
+                    // Umbels ALONG one twiglet. Not raised to chase coverage:
+                    // this count times `umbel_spacing_m` has to keep spanning
+                    // the card, or the sprite is taller than the card that
+                    // samples it and the flowers bake at the wrong scale.
+                    sprite_elements: 9,
+                    // Twiglets side by side - THIS is the coverage knob. A
+                    // half-metre patch of blooming crown really does hold
+                    // several last-generation twigs, and 4 of them measured
+                    // 0.26 coverage against the 0.45 this planner spends.
+                    sprite_runs: 9,
+                ),
+                // Prunus x yedoensis: 3.5 cm flowers, 3-6 per umbel, umbels a
+                // few centimetres apart on two-year-and-older wood.
+                flower_size_m: 0.035,
+                flowers_per_umbel: 5,
+                umbel_spacing_m: 0.045,
+                // A cherry flowers BEFORE it leafs out, so at 0.82 blossom
+                // this species counts as in bloom and the leaf layer drops to
+                // a sparse scatter of young leaves.
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                near_blade_tri_frac: 0.45,
+            )),
         ),
         // Japanese maple, the same region, as the non-pink half of the grove
         // so Fuji does not read as a single-species pink monoculture.
