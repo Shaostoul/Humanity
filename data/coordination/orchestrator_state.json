@@ -567,6 +567,11 @@
    "date": "2026-08-01",
    "decision": "VEGETATION ARC REDIRECT (operator, with reference photos of real cherry blossoms vs our v0.1087 confetti): STOP refining geometric leaves - individual-leaf geometry mathematically cannot fill a crown (real cherry ~100k blossoms vs 8600-tri budget; real-scale elements = sparse floating triangles, which is what shipped). THE 2026 TECHNIQUE: foliage CLUSTER CARDS - bake textures each containing DOZENS of shaped blossoms/leaves (real petal/serration silhouettes, alpha cutout), then a crown is ~150-300 textured quads hugging the branches. Detail lives in TEXTURE, not triangles. Also: clusters must attach ALONG TWIGS (photos show blossoms sleeving the branches), not scatter in clump volume.",
    "why": "Implementation shape: (1) procedural CPU rasterizer draws blossom/leaf cluster sprites into an RGBA atlas at load (5-petal blossoms with stamen dots, serrated ovate leaves, per-species colours from trees.ron - no art assets needed); (2) tree_mesh emits cluster-card quads along branch tips (textured material type like 19 with alpha cutout, NOT packed-colour 20); (3) keep a THIN layer of the v0.1087 real-scale geometry for the nearest 5-10 m where cards would look flat. The v0.1087 sprig/blade work is NOT wasted - it becomes the bake-input geometry for the cluster sprites and the near-field layer. Operator quote to honour: the fancy cutouts (shaped silhouettes) are the point."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Overnight autonomy granted; plan written to overnight_plan_2026_08_01 key. Focus: permanent architectures - cluster cards, bark full PBR (albedo+normal+roughness bake), wind coverage, grass strands.",
+   "why": "Operator: money tight, photorealistic screenshots = donation/grant material. Permanent over temporary, explicitly."
   }
  ],
  "active_scopes_to_avoid": [
@@ -698,5 +703,24 @@
   "8. THEN start work. End the session by updating PRIORITIES.md (what's next) and appending a decision to this file's `recent_decisions` (why we got here)."
  ],
  "last_updated": "2026-07-31 afternoon",
- "focus": "v0.1020.1 shipped (the 2026-07-27 evening marathon: v0.1015-v0.1020, six releases). Terrain vertex sharing DONE (258 vs 768 verts/patch). Water arc increments 1-3 + perf pass 1 DONE: per-train fades, anchored-domain chop (f32-at-scale GPU edition), foam lace + beat fix, underwater blend order + backstop shell (seam class CLOSED), coastal de-blue clamp, tree shore floor, surf direction. FPS caps setting + gear swimming + no-focus click-to-wake shipped. NEXT per PRIORITIES: clouds drift-desync rung (structure pinned by live weather vs zonally-drifting texture), then water arena batching + overdraw measurement, then breaking shore waves / Subnautica rungs (underwater god rays, caustics). Operator asleep; overnight = backlog per the standing get-through-the-backlog directive."
+ "focus": "v0.1020.1 shipped (the 2026-07-27 evening marathon: v0.1015-v0.1020, six releases). Terrain vertex sharing DONE (258 vs 768 verts/patch). Water arc increments 1-3 + perf pass 1 DONE: per-train fades, anchored-domain chop (f32-at-scale GPU edition), foam lace + beat fix, underwater blend order + backstop shell (seam class CLOSED), coastal de-blue clamp, tree shore floor, surf direction. FPS caps setting + gear swimming + no-focus click-to-wake shipped. NEXT per PRIORITIES: clouds drift-desync rung (structure pinned by live weather vs zonally-drifting texture), then water arena batching + overdraw measurement, then breaking shore waves / Subnautica rungs (underwater god rays, caustics). Operator asleep; overnight = backlog per the standing get-through-the-backlog directive.",
+ "overnight_plan_2026_08_01": {
+  "directive": "Operator (heading to bed, full trust granted): PERMANENT versions only, no half fixes. Full PBR textures (not just diffuse). Real full canopies of leaves and flowers. Photorealism is the goal - screenshots good enough to land donations/grants; money is tight. 8-10 hours unattended.",
+  "rules": [
+   "ONE booted HumanityOS instance machine-wide, always check tasklist first",
+   "commit early, ship each verified increment, tree stays shippable at all times",
+   "verdict-read every workflow before merging; critic traps are load-bearing",
+   "propagate real exit codes - no pipe-masked build results",
+   "journal every decision the moment it is made"
+  ],
+  "sequence": [
+   "1. INTEGRATE cluster-cards workflow wf_380e6842 when it lands (the crown-mass fix, acceptance = crowns read as continuous blossom masses vs operator reference photos). Merge, verify at fuji vantages, ship.",
+   "2. BARK FULL PBR (permanent architecture, operator explicit): CPU-rasterize per-species bark ALBEDO + NORMAL + ROUGHNESS textures at load from the voronoi plate field (same pattern as the cluster-sprite rasterizer); trunk tubes get cylindrical UVs (natural for tubes); textured material with normal mapping wired through the type-19-like path. This replaces per-pixel voronoi math with the bake-once-sample-forever endgame journaled 2026-08-01.",
+   "3. RUNG 2 wind coverage: widen vertex gate to type 19 WITH per-type height normalization (critic: raw-height weighting gives 11 percent lean on photoscans, object space ~1/17 metres); card corner shear from the encoded lean value (bits 21-23 free).",
+   "4. GRASS STRANDS near-field: real blade geometry within ~15 m (cards keep the mid-field) - the operator called the billboard grass out explicitly.",
+   "5. GROUND CLUTTER if time: rocks/logs/ferns scatter via the vegetation spawn machinery.",
+   "6. MORNING: session journal docs/history/2026-08-01.md, PRIORITIES sync, everything pushed + forge, morning report with before/after captures."
+  ],
+  "context_note": "Compaction may occur - this plan IS the handoff. Cluster-cards workflow running (wf_380e6842, task wbhlb5vg3). All vegetation history in recent_decisions 2026-07-31/08-01 entries. Stable exe v0.1087.1."
+ }
 }
