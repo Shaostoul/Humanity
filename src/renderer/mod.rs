@@ -347,10 +347,20 @@ pub struct Renderer {
     /// Whether MULTI_DRAW_INDIRECT + INDIRECT_FIRST_INSTANCE were granted
     /// (increment 2): true = the celestial batch is one indirect submit.
     pub patch_indirect: bool,
-    /// 16-byte zero buffer bound at vertex slot 1 for every CLASSIC draw
-    /// (the pipelines declare the per-instance attribute; non-batched
+    /// One INSTANCE_STRIDE of zeros bound at vertex slot 1 for every CLASSIC
+    /// draw (the pipelines declare the per-instance attributes; non-batched
     /// draws read element 0 = zeros, which the classic accessors ignore).
     dummy_instance_buf: wgpu::Buffer,
+    /// ── Near-field grass strands (v0.1091) ──
+    /// ONE shared unit-height tiller mesh, drawn once per visible tiller
+    /// through a single instanced draw. `grass_n` is how many instances the
+    /// buffer currently holds; zero means the layer draws nothing at all,
+    /// which is the state everywhere except standing on vegetated ground.
+    grass_mesh: Option<Mesh>,
+    grass_material: usize,
+    grass_instance_buf: Option<wgpu::Buffer>,
+    grass_instance_cap: usize,
+    grass_n: u32,
     /// This frame's batched patch draws, set by the engine before the
     /// celestial render and consumed by it. Instance i in the storage
     /// buffer is draws[i]; the shadow pass reuses the SAME indices, so a
@@ -749,10 +759,11 @@ impl Renderer {
         });
 
         // Zero per-instance data for classic draws (vertex slot 1; see the
-        // dummy_instance_buf field doc).
+        // dummy_instance_buf field doc). Must be a whole INSTANCE_STRIDE or
+        // the layout's location-6 attribute reads past the buffer.
         let dummy_instance_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Dummy Instance Data"),
-            contents: &[0u8; 16],
+            contents: &[0u8; mesh::INSTANCE_STRIDE as usize],
             usage: wgpu::BufferUsages::VERTEX,
         });
 
@@ -1307,6 +1318,11 @@ impl Renderer {
             patch_arena: None,
             patch_indirect,
             dummy_instance_buf,
+            grass_mesh: None,
+            grass_material: usize::MAX,
+            grass_instance_buf: None,
+            grass_instance_cap: 0,
+            grass_n: 0,
             patch_draws: Vec::new(),
             patch_batch_rot: Mat4::IDENTITY,
             patch_batch_material: 0,
@@ -1570,6 +1586,69 @@ impl Renderer {
             albedo_bind_group: None,
         });
         idx
+    }
+
+    // ── Near-field grass strands (v0.1091) ───────────────────────────────
+    //
+    // ONE mesh, ONE material, ONE draw, N instances. The engine hands over a
+    // fresh instance list each frame (positions are render-space and the
+    // floating origin moves every frame, so there is nothing to keep); this
+    // grows the GPU buffer when needed and remembers the count.
+
+    /// Upload the shared tiller mesh. Idempotent - the first call wins, and
+    /// callers are expected to just call it whenever grass is wanted rather
+    /// than track readiness themselves.
+    pub fn ensure_grass_mesh(&mut self) {
+        if self.grass_mesh.is_some() {
+            return;
+        }
+        let (builder, stats) = crate::terrain::planet_chunks::grass_tiller_mesh();
+        self.grass_mesh = Some(Mesh::from_vertices(
+            &self.device,
+            &builder.vertices,
+            &builder.indices,
+        ));
+        // Type 23: the grass arm of the plant wind family. base_color is
+        // unused (the per-instance packed colour rules); params.w must stay
+        // 0 so the type-19 wind opt-in cannot be misread.
+        self.grass_material = self.add_material_typed([1.0, 1.0, 1.0, 1.0], 0.0, 0.92, 23.0);
+        log::info!(
+            "[Grass] shared tiller mesh: {} blades, {} triangles, {} verts",
+            stats.blades,
+            stats.triangles,
+            builder.vertices.len()
+        );
+    }
+
+    /// Replace this frame's grass instance set. Empty = the layer draws
+    /// nothing (the normal state away from vegetated ground).
+    pub fn set_grass_instances(&mut self, inst: &[mesh::GrassInstance]) {
+        self.grass_n = inst.len() as u32;
+        if inst.is_empty() {
+            return;
+        }
+        self.ensure_grass_mesh();
+        if self.grass_instance_cap < inst.len() {
+            // Grow in generous steps: a walking player's tiller count breathes
+            // by a few percent per frame, and reallocating a VERTEX buffer
+            // mid-frame is the one thing worth avoiding here.
+            let cap = (inst.len() * 3 / 2).max(8192);
+            self.grass_instance_buf = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Grass Instance Data"),
+                size: (cap as u64) * mesh::INSTANCE_STRIDE,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+            self.grass_instance_cap = cap;
+        }
+        if let Some(buf) = self.grass_instance_buf.as_ref() {
+            self.queue.write_buffer(buf, 0, bytemuck::cast_slice(inst));
+        }
+    }
+
+    /// How many grass instances were submitted for the last frame (diag).
+    pub fn grass_instance_count(&self) -> u32 {
+        self.grass_n
     }
 
     /// Build a group-3 bind group for an sRGB RGBA8 image (v0.811, per-pixel
@@ -3072,8 +3151,13 @@ impl Renderer {
             if n > 0 {
                 let inst: Vec<patch_arena::PatchInstance> = self.patch_draws[..n]
                     .iter()
-                    .map(|d| patch_arena::PatchInstance {
-                        pos_fade: [d.position.x, d.position.y, d.position.z, d.fade],
+                    .map(|d| {
+                        patch_arena::PatchInstance::new([
+                            d.position.x,
+                            d.position.y,
+                            d.position.z,
+                            d.fade,
+                        ])
                     })
                     .collect();
                 self.queue
@@ -3393,6 +3477,42 @@ impl Renderer {
                             d.slot.vstart as i32,
                             (i as u32)..(i as u32 + 1),
                         );
+                    }
+                }
+            }
+
+            // ── Near-field grass strands (v0.1091) ──
+            // ONE draw for the whole sward: the shared unit-height tiller
+            // mesh, instanced once per visible tiller. The instance record
+            // (mesh::GrassInstance) carries the entire transform, so this
+            // needs no per-tiller object uniform and no per-tiller bind.
+            //
+            // AFTER the terrain batch and on the OPAQUE pipeline, both
+            // deliberate: opaque + depth-write means blades resolve against
+            // each other and against the ground by depth, in any order, and
+            // drawing after the ground means most buried fragments are
+            // already z-rejected.
+            if self.grass_n > 0 {
+                if let (Some(gm), Some(gbuf)) =
+                    (self.grass_mesh.as_ref(), self.grass_instance_buf.as_ref())
+                {
+                    if let Some(material) = self.materials.get(self.grass_material) {
+                        render_pass.set_pipeline(&self.pipeline.render_pipeline);
+                        // Object uniform slot 0 is the identity model matrix
+                        // staged by upload_object_uniforms for every frame
+                        // that draws anything; grass ignores it (the vertex
+                        // stage builds its own matrix from the instance) but
+                        // the shared pipeline layout requires group 1 bound.
+                        render_pass.set_bind_group(1, &self.object_bind_group, &[0]);
+                        render_pass.set_bind_group(2, &material.bind_group, &[]);
+                        render_pass.set_bind_group(3, &self.default_texture_bind_group, &[]);
+                        render_pass.set_vertex_buffer(0, gm.vertex_buffer.slice(..));
+                        render_pass.set_vertex_buffer(1, gbuf.slice(..));
+                        render_pass.set_index_buffer(
+                            gm.index_buffer.slice(..),
+                            wgpu::IndexFormat::Uint32,
+                        );
+                        render_pass.draw_indexed(0..gm.index_count, 0, 0..self.grass_n);
                     }
                 }
             }

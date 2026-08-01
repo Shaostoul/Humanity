@@ -140,7 +140,6 @@ pub fn build_far_tree_sheet(
                     color: col,
                     water: false,
                     tree_card: sprite_tile.is_some(),
-                    grass_card: false,
                 });
             }
         }

@@ -41,24 +41,102 @@ impl Vertex {
         }
     }
 
-    /// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2).
-    /// One vec4 per instance -- xyz = batched-patch translation, w = LOD
-    /// fade (shader location 4, `inst_pos_fade`). Every PBR pipeline
-    /// declares this slot; classic draws bind a 16-byte zero dummy, the
-    /// terrain-batch draws bind the arena's instance buffer. Attribute
-    /// fetch (unlike the instance_index builtin) respects first_instance
-    /// in BOTH direct and indirect draws on every backend, which is what
-    /// makes one multi_draw_indexed_indirect over 12k patches portable.
+    /// Vertex buffer slot 1: per-INSTANCE data (draw-batching increment 2,
+    /// widened for grass strands in v0.1091). THREE vec4s per instance:
+    ///
+    ///   location 4 `inst_pos_fade`  xyz = translation, w = LOD fade
+    ///   location 5 `inst_up_scale`  grass: local radial up, w = height in m
+    ///   location 6 `inst_grass`     grass: yaw, wind phase, packed colour, -
+    ///
+    /// Every PBR pipeline declares this slot; classic draws bind a 48-byte
+    /// zero dummy, terrain-batch draws bind the arena's instance buffer
+    /// (locations 5-6 zero), and the grass draw binds its own. Attribute
+    /// fetch (unlike the instance_index builtin) respects first_instance in
+    /// BOTH direct and indirect draws on every backend, which is what makes
+    /// one multi_draw_indexed_indirect over 12k patches portable.
+    ///
+    /// WHY WIDEN A SHARED LAYOUT rather than give grass its own pipeline:
+    /// a fourth PBR PSO costs ~10 s of COLD BOOT on this GPU (the megashader
+    /// bakes whole into each PSO -- see the parallel-compile note in
+    /// pipeline.rs), permanently, for every user, to save 32 bytes per
+    /// terrain patch instance. The widened layout costs ~110 KB of extra
+    /// per-frame upload at a 3.4k-patch working set and nothing else; a
+    /// vertex layout may declare attributes a given entry point ignores.
     pub fn instance_layout() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
-            array_stride: 16,
+            array_stride: INSTANCE_STRIDE,
             step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &[wgpu::VertexAttribute {
-                offset: 0,
-                shader_location: 4,
-                format: wgpu::VertexFormat::Float32x4,
-            }],
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 4,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 16,
+                    shader_location: 5,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+                wgpu::VertexAttribute {
+                    offset: 32,
+                    shader_location: 6,
+                    format: wgpu::VertexFormat::Float32x4,
+                },
+            ],
         }
+    }
+}
+
+/// Bytes per per-instance record on vertex slot 1. Everything that binds
+/// that slot must use this stride: the classic dummy, the patch arena's
+/// instance buffer and the grass instance buffer.
+pub const INSTANCE_STRIDE: wgpu::BufferAddress = 48;
+
+/// One grass tiller for the instanced strand draw (v0.1091). Matches
+/// `Vertex::instance_layout` exactly -- 3 vec4s, 48 bytes.
+///
+/// The mesh (`terrain::planet_chunks::grass_tiller_mesh`) is ONE shared
+/// unit-height Y-up tiller, so everything that makes a tiller individual
+/// lives here: where it stands, which way its local up points, how tall it
+/// is right now (height x emergence -- the vertex stage just scales), which
+/// way it faces, when it sways and what colour it is.
+///
+/// The colour is packed into ONE float as 8:8:8. That is not a size
+/// optimisation, it is what keeps the record at three vec4s and therefore
+/// inside the shared layout; 8 bits per channel is exactly what an albedo
+/// texture would carry anyway.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Pod, Zeroable)]
+pub struct GrassInstance {
+    /// xyz = render-space base position, w = 0 (the fade slot; grass is
+    /// opaque and never LOD-crossfades).
+    pub pos_fade: [f32; 4],
+    /// xyz = render-space local radial UP (unit), w = drawn height in metres.
+    pub up_scale: [f32; 4],
+    /// x = yaw about up (radians), y = wind phase, z = packed rgb, w = 0.
+    pub grass: [f32; 4],
+}
+
+impl GrassInstance {
+    /// Pack a linear 0..1 rgb into one f32 as an exact integer
+    /// `r*65536 + g*256 + b` (max 16,777,215 -- f32 holds every integer up
+    /// to 2^24, so this is lossless in transport). The shader unpacks with
+    /// the same arithmetic; `grass_instance_colour_survives_packing` pins
+    /// the round trip.
+    pub fn pack_color(c: [f32; 3]) -> f32 {
+        let q = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round();
+        q(c[0]) * 65536.0 + q(c[1]) * 256.0 + q(c[2])
+    }
+
+    /// The inverse, for tests and for anything CPU-side that needs to see
+    /// what the shader will see.
+    pub fn unpack_color(p: f32) -> [f32; 3] {
+        let v = p.round().max(0.0) as u32;
+        [
+            ((v >> 16) & 255) as f32 / 255.0,
+            ((v >> 8) & 255) as f32 / 255.0,
+            (v & 255) as f32 / 255.0,
+        ]
     }
 }
 
@@ -206,11 +284,10 @@ impl Mesh {
                 uv: if v.color[0] < 0.0 {
                     [v.color[1], v.color[2]]
                 } else {
-                    crate::terrain::planet_surface::pack_color_to_uv_flags2(
+                    crate::terrain::planet_surface::pack_color_to_uv_flags(
                         v.color,
                         v.water,
                         v.tree_card,
-                        v.grass_card,
                     )
                 },
             })
@@ -637,5 +714,128 @@ impl Mesh {
             idx.extend_from_slice(&[a0, b0, a1, a1, b0, b1]);
         }
         Self::from_vertices(device, &v, &idx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The per-instance record and the vertex layout that reads it must agree
+    /// on stride and on every offset. They are declared in two places (a
+    /// #[repr(C)] struct and a wgpu attribute list) and a mismatch is silent:
+    /// wgpu validates the layout against the SHADER, never against the Rust
+    /// type, so every instance after the first would simply fetch the wrong
+    /// bytes and the sward would scatter across the world.
+    #[test]
+    fn grass_instance_matches_the_shared_vertex_layout() {
+        assert_eq!(
+            std::mem::size_of::<GrassInstance>(),
+            INSTANCE_STRIDE as usize,
+            "GrassInstance is not one INSTANCE_STRIDE"
+        );
+        let l = Vertex::instance_layout();
+        assert_eq!(l.array_stride, INSTANCE_STRIDE);
+        let offs: Vec<u64> = l.attributes.iter().map(|a| a.offset).collect();
+        let locs: Vec<u32> = l.attributes.iter().map(|a| a.shader_location).collect();
+        assert_eq!(offs, vec![0, 16, 32], "instance attribute offsets moved");
+        assert_eq!(locs, vec![4, 5, 6], "instance shader locations moved");
+        // The patch arena writes the same slot; if its record ever stops
+        // matching the stride, every batched patch after the first draws its
+        // terrain at another patch's anchor.
+        assert_eq!(
+            std::mem::size_of::<crate::renderer::patch_arena::PatchInstance>(),
+            INSTANCE_STRIDE as usize,
+            "PatchInstance no longer matches the shared instance stride"
+        );
+    }
+
+    /// The colour packing has to round-trip through an f32 exactly, because
+    /// the shader unpacks it with integer arithmetic on `round()`. 8 bits per
+    /// channel means the worst error is half a quantization step.
+    #[test]
+    fn grass_instance_colour_survives_packing() {
+        let mut worst = 0.0f32;
+        for i in 0..=255u32 {
+            for (j, k) in [(0u32, 255u32), (128, 7), (255, 0), (i, i)] {
+                let c = [i as f32 / 255.0, j as f32 / 255.0, k as f32 / 255.0];
+                let back = GrassInstance::unpack_color(GrassInstance::pack_color(c));
+                for ch in 0..3 {
+                    worst = worst.max((c[ch] - back[ch]).abs());
+                }
+            }
+        }
+        assert!(worst < 1.0e-6, "packed colour drifts by {worst} - not lossless on the grid");
+        // And clamps, rather than wrapping into another channel.
+        let over = GrassInstance::unpack_color(GrassInstance::pack_color([2.0, -1.0, 0.5]));
+        assert_eq!(over[0], 1.0);
+        assert_eq!(over[1], 0.0);
+        assert!((over[2] - 128.0 / 255.0).abs() < 1.0e-6);
+        // Every packed value stays inside f32's exact-integer range, which is
+        // what makes `round()` in the shader safe.
+        assert!(GrassInstance::pack_color([1.0, 1.0, 1.0]) <= 16_777_215.0);
+    }
+
+    /// The Rust side and the shipped WGSL have to agree about grass in four
+    /// places, none of which any compiler checks: the two extra instance
+    /// attributes, the vertex transform gate, the wind arm and the fragment
+    /// branch. Same idiom as the atlas / wind-gate lockstep tests in
+    /// tree_mesh.rs - scan the shipped source for the exact literals.
+    #[test]
+    fn grass_material_type_23_is_wired_through_the_shipped_shader() {
+        let wgsl = crate::renderer::shader_loader::assembled_pbr_source();
+        for want in [
+            // the two instance attributes this layout added
+            "@location(5) inst_up_scale: vec4<f32>",
+            "@location(6) inst_grass: vec4<f32>",
+            // vertex: the per-instance transform gate
+            "let is_grass = material.params.z >= 22.5 && material.params.z < 23.5;",
+            // vertex: the wind arm
+            "wind_mt >= 22.5 && wind_mt < 23.5",
+            // vertex: grass wind constants (W3 - the tree cap renders a gale
+            // on a 35 cm blade as a breeze)
+            "min(6.0e-3 * v2, 0.85)",
+            // fragment: the type-23 branch
+            "material_type >= 22.5 && material_type < 23.5",
+        ] {
+            assert!(
+                wgsl.contains(want),
+                "the shipped PBR shader does not contain `{want}` - material type 23 (grass) \
+                 is not wired end to end"
+            );
+        }
+        // The dead bit-18 grass-card dissolve is GONE, and nothing may quietly
+        // reintroduce it: the baked cards it dissolved no longer exist, so the
+        // branch could only ever discard real geometry by accident.
+        assert!(
+            !wgsl.contains("262144u"),
+            "the bit-18 grass-card dissolve is back in the shader; nothing sets that bit"
+        );
+        // Every use of the model matrix in the VERTEX stage has to go through
+        // the accessor, or grass silently transforms by whatever object
+        // uniform happened to be bound at slot 0. Comment lines are stripped
+        // first - the block comments in that function discuss obj_model() by
+        // name at length, and counting prose is how this test first went red
+        // against correct code.
+        let vs_code: String = {
+            let at = wgsl.find("fn vs_main(").expect("vs_main");
+            let end = wgsl[at..].find("\nfn ").map(|e| at + e).unwrap_or(wgsl.len());
+            wgsl[at..end]
+                .lines()
+                .filter(|l| !l.trim_start().starts_with("//"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        assert_eq!(
+            vs_code.matches("obj_model()").count(),
+            0,
+            "vs_main still calls obj_model() directly - grass needs vs_model()"
+        );
+        assert_eq!(
+            vs_code.matches("obj_normal_matrix()").count(),
+            1,
+            "vs_main calls obj_normal_matrix() somewhere other than the water branch \
+             (which has no instanced form) - grass needs vs_rot()"
+        );
     }
 }

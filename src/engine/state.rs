@@ -385,6 +385,24 @@ pub(crate) struct EngineState {
     /// Planet-local camera position at the last near-tree recompute
     /// (recompute when the camera moves far enough).
     pub(crate) near_trees_center: glam::DVec3,
+    /// Near-field GRASS strands (v0.1091): the planet-fixed strand stream
+    /// harvested around the camera on a worker. This is a SUPERSET - which
+    /// of these actually draw, and how tall, is re-derived from the live
+    /// camera distance every frame by `chunks::grass_live_emerge`, which is
+    /// what keeps the density ramp anchored on the player instead of on the
+    /// last harvest (and therefore ringless).
+    pub(crate) near_grass: Vec<crate::terrain::planet_chunks::NearGrass>,
+    /// Planet-local camera position at the last grass harvest.
+    pub(crate) near_grass_center: glam::DVec3,
+    /// Patch depth the last grass harvest placed its bases against - the
+    /// drawn ground's own LOD. Re-harvest when the LOD under the camera
+    /// changes, or the bases sit on the wrong mesh.
+    pub(crate) near_grass_depth: u8,
+    /// Session-seconds of the last grass harvest (the re-harvest rate limit).
+    pub(crate) near_grass_at_s: f32,
+    /// Scratch instance buffer for the per-frame grass upload, kept between
+    /// frames so a 20k-element Vec is not reallocated 60 times a second.
+    pub(crate) grass_instances: Vec<crate::renderer::mesh::GrassInstance>,
     /// Pick volumes for viewport machine SELECTION (v0.553): (id, world center, bounding radius)
     /// per placed machine. Rebuilt alongside machine_objects; the build-mode click ray-tests this
     /// to select a machine (its detail then shows on the right panel).

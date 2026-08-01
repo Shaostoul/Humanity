@@ -118,10 +118,23 @@ impl RangeAlloc {
 
 /// One per-patch instance record as the shader sees it (the inst_pos_fade
 /// vertex attribute, slot 1): xyz = anchor translation, w = LOD fade.
+///
+/// `_unused` covers shader locations 5 and 6, which slot 1 has carried since
+/// v0.1091 (grass strands need a full per-instance transform). Terrain reads
+/// neither, but the STRIDE is part of the shared vertex layout, so this
+/// struct has to match `renderer::mesh::INSTANCE_STRIDE` exactly or every
+/// patch after the first fetches its translation from the wrong offset.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct PatchInstance {
     pub pos_fade: [f32; 4],
+    pub _unused: [f32; 8],
+}
+
+impl PatchInstance {
+    pub fn new(pos_fade: [f32; 4]) -> Self {
+        Self { pos_fade, _unused: [0.0; 8] }
+    }
 }
 
 /// One multi_draw_indexed_indirect entry (wgpu arg order: index_count,
