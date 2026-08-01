@@ -12,9 +12,10 @@
  * independent document pipelines that could drift, and made this page fail
  * whenever the relay was down even though the documents are static files.
  *
- * /accord stays a public permalink for the constitution (a focused 17-document
- * view), while /library is the full 53-document tree. One data source, two
- * presentations.
+ * /accord stays a public permalink for the constitution (the focused
+ * accord-flagged view, 20 documents as of v0.1090.2), while /library is the
+ * full document tree (62 docs after the mission-layer expansion). One data
+ * source, two presentations.
  *
  * Slugs are derived from the manifest filename (humanity_accord.md ->
  * humanity-accord), matching the slugs the old relay endpoint served, so

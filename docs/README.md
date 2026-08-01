@@ -47,6 +47,10 @@ pipeline guides live in **[dev/](dev/)**.
   when other docs disagree about how the system works.
 - **[The Humanity Accord](accord/humanity_accord.md)** the CC0 constitution the platform
   is bound by. Start at **[accord/README.md](accord/README.md)**.
+- **[The Mission](mission/README.md)** why this project exists: the five adversaries
+  (pollution, poverty, corruption, fraud, tyranny), what good humans and good AI
+  practice, why homesteading works anywhere in the universe, and how an
+  interstellar civilization stays free.
 
 ---
 
@@ -63,6 +67,7 @@ pipeline guides live in **[dev/](dev/)**.
 | **[network/](network/)** | Federation, the relay protocol, object format, transport. |
 | **[game/](game/)** | The educational simulation: gameplay, modules, world. |
 | **[accord/](accord/)** | The Humanity Accord (principles, governance, rights). |
+| **[mission/](mission/)** | Why HumanityOS exists: the five adversaries, good humans and good AI, homesteading, the interstellar horizon. |
 | **[reference/](reference/)** | Schemas, runbooks, templates, data definitions. |
 | **[operations/](operations/)** | Live-ops notes (backup replication, etc.). |
 | **[history/](history/)** | Dated session notes, superseded plans, vision essays. |

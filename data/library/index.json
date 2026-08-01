@@ -11,6 +11,35 @@
       ]
     },
     {
+      "name": "The Mission",
+      "docs": [
+        {
+          "title": "The Mission",
+          "file": "README.md"
+        },
+        {
+          "title": "The Five Adversaries",
+          "file": "the_five_adversaries.md"
+        },
+        {
+          "title": "What Is a Good Human",
+          "file": "what_is_a_good_human.md"
+        },
+        {
+          "title": "What Is a Good AI",
+          "file": "what_is_a_good_ai.md"
+        },
+        {
+          "title": "Why Homesteading Works",
+          "file": "why_homesteading_works.md"
+        },
+        {
+          "title": "Interstellar Civilization Governance",
+          "file": "interstellar_civilization_governance.md"
+        }
+      ]
+    },
+    {
       "name": "The Accord",
       "docs": [
         {
@@ -50,12 +79,20 @@
           "file": "ethical_principles.md"
         },
         {
+          "title": "Governance Models",
+          "file": "governance_models.md"
+        },
+        {
           "title": "Conflict Resolution",
           "file": "conflict_resolution.md"
         },
         {
           "title": "Transparency Guarantees",
           "file": "transparency_guarantees.md"
+        },
+        {
+          "title": "Minimum Transparency Checklist",
+          "file": "minimum_transparency_checklist.md"
         },
         {
           "title": "When Legitimacy Fails",
@@ -104,6 +141,10 @@
         {
           "title": "Knowledge Sources",
           "file": "knowledge_sources.md"
+        },
+        {
+          "title": "Curriculum: How Humans Learn",
+          "file": "curriculum.md"
         }
       ],
       "accord": true
@@ -113,7 +154,7 @@
       "docs": [
         {
           "title": "Welcome",
-          "file": "README.md"
+          "file": "user-README.md"
         },
         {
           "title": "Getting Started",

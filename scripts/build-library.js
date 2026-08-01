@@ -20,6 +20,17 @@ const CATEGORIES = [
   { name: 'Credits', docs: [
     { title: 'Credits and Thanks', src: 'CREDITS.md' },
   ]},
+  // v0.1090.x mission layer (operator: supporting docs for the overall mission
+  // of ending pollution, poverty, corruption, fraud, and tyranny in pursuit of
+  // uniting humanity in peaceful harmony). Source: docs/mission/.
+  { name: 'The Mission', docs: [
+    { title: 'The Mission', src: 'docs/mission/README.md' },
+    { title: 'The Five Adversaries', src: 'docs/mission/the_five_adversaries.md' },
+    { title: 'What Is a Good Human', src: 'docs/mission/what_is_a_good_human.md' },
+    { title: 'What Is a Good AI', src: 'docs/mission/what_is_a_good_ai.md' },
+    { title: 'Why Homesteading Works', src: 'docs/mission/why_homesteading_works.md' },
+    { title: 'Interstellar Civilization Governance', src: 'docs/mission/interstellar_civilization_governance.md' },
+  ]},
   { name: 'The Accord', accord: true, docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
     { title: 'Absolute Prohibitions', src: 'docs/accord/absolute_prohibitions.md' },
@@ -31,8 +42,10 @@ const CATEGORIES = [
   ]},
   { name: 'How We Decide', accord: true, docs: [
     { title: 'Ethical Principles', src: 'docs/accord/ethical_principles.md' },
+    { title: 'Governance Models', src: 'docs/accord/governance_models.md' },
     { title: 'Conflict Resolution', src: 'docs/accord/conflict_resolution.md' },
     { title: 'Transparency Guarantees', src: 'docs/accord/transparency_guarantees.md' },
+    { title: 'Minimum Transparency Checklist', src: 'docs/accord/minimum_transparency_checklist.md' },
     { title: 'When Legitimacy Fails', src: 'docs/accord/failure_of_legitimacy.md' },
   ]},
   { name: 'Safety and Care', accord: true, docs: [
@@ -46,6 +59,7 @@ const CATEGORIES = [
     { title: 'Glossary', src: 'docs/accord/glossary.md' },
     { title: 'Scope and Boundaries', src: 'docs/accord/scope_boundaries.md' },
     { title: 'Knowledge Sources', src: 'docs/accord/knowledge_sources.md' },
+    { title: 'Curriculum: How Humans Learn', src: 'docs/accord/curriculum.md' },
   ]},
   // v0.965.x expansion (operator: "can we get the library page filled with
   // all the docs, not just the accord? We essentially want to make it so
