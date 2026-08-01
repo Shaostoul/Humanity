@@ -112,9 +112,10 @@ pub struct ClusterDef {
     /// Share of the crown's card area the leaf layer keeps while in bloom.
     pub bloom_leaf_area_share: f32,
     /// Triangles the near-field geometric blade layer keeps, as a fraction of
-    /// the card layer's. The blades out-resolve a 256 px sprite only inside
-    /// ~2 m (90 deg FOV, 2560 wide), so they are a close-range detail layer
-    /// now, not the canopy.
+    /// the card layer's. The blades out-resolve a `CLUSTER_SPRITE_PX` sprite
+    /// only inside ~1 m (90 deg FOV, 2560 wide, 512 px sprites since v0.1090),
+    /// so they are a close-range detail layer now, not the canopy - and they
+    /// are kept INSIDE the card mass so they never form the silhouette.
     pub near_blade_tri_frac: f32,
 }
 
@@ -960,57 +961,17 @@ pub fn build_tree(b: &mut PlantMeshBuilder, def: &TreeDef, height_m: f32, seed: 
 /// A species with no `clusters` block returns an empty card list and a mesh
 /// bit-identical to what `build_tree` produced through v0.1087.
 pub fn build_tree_and_cards(def: &TreeDef, height_m: f32, seed: u32) -> TreeBuild {
-    let h = height_m.max(0.5);
-    let mut twigs: Vec<Twig> = Vec::new();
-    let first = build_at_density(def, h, seed, 1.0, &mut twigs);
-    let total = first.tri_count();
-    let leaves = leaf_tri_count(&first.foliage);
-    let wood_tris = total.saturating_sub(leaves);
-
+    let (best, twigs) = build_accepted(def, height_m.max(0.5), seed);
+    // Cards are planned from the ACCEPTED pass's twigs (v0.1090). They used to
+    // be planned from the FIRST pass's, and the two are not the same set: the
+    // recursion's `tri_count() > MAX_TRIS` guard fires at a different point once
+    // the density changes, so a second pass that draws fewer leaves grows MORE
+    // wood - and every twig it grew beyond the first pass's set had no card
+    // sleeve at all. Bare branch ends standing out of the blossom is exactly
+    // what the operator's v0.1088.4 capture shows.
     let cards = match &def.clusters {
         Some(cd) => emit_cluster_cards(def, cd, &twigs, seed),
         None => Vec::new(),
-    };
-    let card_tris: usize = cards.iter().map(|c| c.mesh.indices.len() / 3).sum();
-
-    // How many triangles the GEOMETRIC blade layer should get.
-    //
-    // Without cards it is "everything the budget has left", which is what
-    // v0.1086 established. WITH cards the blades stop being the canopy and
-    // become a close-range detail layer - a 256 px sprite out-resolves the
-    // screen past ~1.7 m at 2560 wide - so they take a fraction of the card
-    // layer instead, and the tree comes out CHEAPER than it was.
-    let want_leaf = match &def.clusters {
-        Some(cd) => card_tris as f32 * cd.near_blade_tri_frac.max(0.0),
-        None => MAX_TRIS as f32 * BUDGET_TARGET - wood_tris as f32,
-    };
-    let best = if leaves > 0 && want_leaf > 0.0 {
-        let lo = if def.clusters.is_some() { 0.05 } else { 0.2 };
-        let scale = (want_leaf / leaves as f32).clamp(lo, 8.0);
-        // Only pay for a second build when it actually buys something.
-        if !(0.97..=1.03).contains(&scale) {
-            let mut sink = Vec::new();
-            let second = build_at_density(def, h, seed, scale, &mut sink);
-            let st = second.tri_count();
-            if def.clusters.is_some() {
-                // Clustered species are aiming DOWN, so the v0.1086 rule
-                // ("only accept a rebuild that grew") would reject every
-                // useful result. Accept anything that fits with its cards.
-                if st + card_tris <= MAX_TRIS {
-                    second
-                } else {
-                    first
-                }
-            } else if st <= MAX_TRIS && (st > total || total > MAX_TRIS) {
-                second
-            } else {
-                first
-            }
-        } else {
-            first
-        }
-    } else {
-        first
     };
     // The single-mesh form: foliage first, then the wood's packed-colour twin.
     // Draw order is irrelevant (opaque, depth-tested) and the atlas bake reads
@@ -1025,12 +986,75 @@ pub fn build_tree_and_cards(def: &TreeDef, height_m: f32, seed: u32) -> TreeBuil
     TreeBuild { mesh: best.foliage, wood: best.wood, bake, cards }
 }
 
+/// The two-pass density fit, returning the ACCEPTED pass together with the
+/// twig set THAT pass actually grew.
+///
+/// Split out of `build_tree_and_cards` (v0.1090) so the card planner and
+/// `crown_envelope` both see the same wood the drawn mesh has. Anything that
+/// derives geometry from twigs has to derive it from the accepted pass's
+/// twigs, or it is describing a tree that was thrown away.
+fn build_accepted(def: &TreeDef, h: f32, seed: u32) -> (TreeParts, Vec<Twig>) {
+    let mut twigs: Vec<Twig> = Vec::new();
+    let first = build_at_density(def, h, seed, 1.0, &mut twigs);
+    let total = first.tri_count();
+    let leaves = leaf_tri_count(&first.foliage);
+    let wood_tris = total.saturating_sub(leaves);
+
+    // A PREDICTION of the card cost, used only to size the blade layer's share
+    // of the budget. The cards that actually ship are re-planned from whichever
+    // pass wins.
+    let card_tris: usize = match &def.clusters {
+        Some(cd) => emit_cluster_cards(def, cd, &twigs, seed)
+            .iter()
+            .map(|c| c.mesh.indices.len() / 3)
+            .sum(),
+        None => 0,
+    };
+
+    // How many triangles the GEOMETRIC blade layer should get.
+    //
+    // Without cards it is "everything the budget has left", which is what
+    // v0.1086 established. WITH cards the blades stop being the canopy and
+    // become a close-range detail layer - a 512 px sprite (v0.1090) out
+    // resolves the screen past ~0.9 m at 2560 wide - so they take a fraction of
+    // the card layer instead, and the tree comes out CHEAPER than it was.
+    let want_leaf = match &def.clusters {
+        Some(cd) => card_tris as f32 * cd.near_blade_tri_frac.max(0.0),
+        None => MAX_TRIS as f32 * BUDGET_TARGET - wood_tris as f32,
+    };
+    if leaves > 0 && want_leaf > 0.0 {
+        let lo = if def.clusters.is_some() { 0.05 } else { 0.2 };
+        let scale = (want_leaf / leaves as f32).clamp(lo, 8.0);
+        // Only pay for a second build when it actually buys something.
+        if !(0.97..=1.03).contains(&scale) {
+            let mut grown = Vec::new();
+            let second = build_at_density(def, h, seed, scale, &mut grown);
+            let st = second.tri_count();
+            let take_second = if def.clusters.is_some() {
+                // Clustered species are aiming DOWN, so the v0.1086 rule
+                // ("only accept a rebuild that grew") would reject every
+                // useful result. Accept anything that fits with its cards.
+                st + card_tris <= MAX_TRIS
+            } else {
+                st <= MAX_TRIS && (st > total || total > MAX_TRIS)
+            };
+            if take_second {
+                return (second, grown);
+            }
+        }
+    }
+    (first, twigs)
+}
+
 /// Crown envelope of a species as the card planner sees it. Public so the
 /// LAI gate and any caller sizing a card material can ask the generator
 /// rather than re-deriving it.
+///
+/// Built from the ACCEPTED pass, exactly like the cards (v0.1090): this is the
+/// denominator of the leaf-area-index fit, so measuring it against a tree that
+/// was discarded would make the fit spend the wrong crown.
 pub fn crown_envelope(def: &TreeDef, height_m: f32, seed: u32) -> CrownEnvelope {
-    let mut twigs = Vec::new();
-    let _ = build_at_density(def, height_m.max(0.5), seed, 1.0, &mut twigs);
+    let (_, twigs) = build_accepted(def, height_m.max(0.5), seed);
     crown_of(&twigs)
 }
 
@@ -1173,6 +1197,35 @@ impl Foliage {
     fn leaves_per_sprig_mean(self) -> f32 {
         (self.per_sprig as f32 * self.density).clamp(1.0, 64.0)
     }
+}
+
+/// How far to shrink a clustered species' blade clump so the near-field blade
+/// layer stays INSIDE the card mass it is meant to add parallax to (v0.1090).
+///
+/// A sleeve card sits `CLUSTER_SLEEVE_OFFSET * side` off the twig axis and
+/// reaches `side / 2` sideways, so the card mass around a twig ends at
+/// `(CLUSTER_SLEEVE_OFFSET + 0.5) * side`. Blades scatter out to roughly one
+/// clump radius from the twig, so the clump must sit inside that with margin.
+///
+/// The NOMINAL card side out of the species data is deliberately used rather
+/// than the fitted one: the fit only ever grows the card (it is solved for
+/// target leaf area and clamped at the crown's own scale), so sizing against
+/// the nominal is the conservative direction, and it also breaks what would
+/// otherwise be a circular dependency - the blade layer is emitted while the
+/// wood is being built, and the LAI fit that decides the real card side cannot
+/// run until every twig exists.
+fn near_blade_clump_k(cd: &ClusterDef, fol: Foliage) -> f32 {
+    let nominal = cd.leaf.size_m.max(cd.blossom.size_m).max(1e-3);
+    let mass = (CLUSTER_SLEEVE_OFFSET + 0.5) * nominal;
+    // What a sprig adds BEYOND its root, which is where the clump radius stops
+    // measuring: the shoot's own run (jittered up to 1.2x) plus one leaf
+    // standing off its far end (up to 1.25x). Budgeting for this explicitly is
+    // the difference between a cap that holds at every density and a magic
+    // fraction that quietly stops holding the moment the density fit moves -
+    // and the fit DOES move, by design.
+    let reach = fol.sprig_span() * 1.2 + fol.leaf * 1.25;
+    let cap = (mass * 0.80 - reach).max(nominal * 0.10);
+    (cap / fol.clump.max(1e-4)).min(1.0)
 }
 
 /// A leaf cluster: several SPRIGS fanned around a twig tip.
@@ -1354,6 +1407,25 @@ const CARD_TRI_BUDGET: usize = 3400;
 /// Radial offset of a card from its twig, as a fraction of the card side.
 const CLUSTER_SLEEVE_OFFSET: f32 = 0.30;
 
+/// Where the `n` sleeve stations of one twig sit, as fractions of its chord.
+///
+/// SPANNING, not inset (v0.1090). Through v0.1089 station `s` sat at
+/// `(s + 0.5) / n`, so the sleeve stopped half a step short of BOTH ends: the
+/// last card's centre was `len / 2n` inside the tip and the first was the same
+/// distance out from the junction. On a 0.42 m terminal shoot at two stations
+/// that is 10 cm of bare wood at each end of every twig in the crown - the
+/// operator's "tubes spear through the blossom masses and exit the far side".
+/// Spanning `0..=1` instead puts a card centred ON the tip and one ON the
+/// junction, so the card mass reaches half a card BEYOND the wood at both ends,
+/// and it costs exactly zero extra cards.
+fn sleeve_station_frac(s: u32, n: u32) -> f32 {
+    if n <= 1 {
+        0.5
+    } else {
+        s.min(n - 1) as f32 / (n - 1) as f32
+    }
+}
+
 /// Which baked sprite a card layer samples.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ClusterLayer {
@@ -1442,6 +1514,15 @@ struct Twig {
     end: [f32; 3],
     len: f32,
     tip: bool,
+    /// Far end of the LAST bark tube this limb emitted, INCLUDING the joint
+    /// overshoot (`rb * 0.7`, see `limb`). This - not `end` - is the point a
+    /// card mass has to envelop, and the two differ by up to a tip radius.
+    /// Recorded rather than re-derived because the spine bows: reconstructing
+    /// it in the coverage test would mean copying `limb`'s droop integration,
+    /// and a copy that drifts is a test that certifies the wrong geometry.
+    tube_end: [f32; 3],
+    /// Radius of that last ring, metres.
+    tip_r: f32,
 }
 
 fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
@@ -1678,9 +1759,11 @@ fn emit_cluster_cards(
                 (seed as u64 ^ 0x0C1A_57E5) ^ (i as u64 + 7).wrapping_mul(0x9E37_79B9_7F4A_7C15),
             );
             for s in 0..n {
-                // Stations run from just clear of the junction to the tip, so
-                // the sleeve hugs the whole visible twig.
-                let f = (s as f32 + 0.5) / n as f32;
+                // Stations SPAN the twig, junction to tip (see
+                // `sleeve_station_frac`), so the sleeve envelops the whole
+                // visible run of wood instead of stopping half a step short of
+                // each end.
+                let f = sleeve_station_frac(s, n);
                 let station = mix3(t.from, t.end, f);
                 let depth = (crown.radius_m - dist(station, crown.centre)).max(0.0);
                 let ao = (-k_ao * depth).exp().clamp(CLUSTER_CORE_AO * 0.5, 1.0);
@@ -1702,10 +1785,17 @@ fn emit_cluster_cards(
                 // can look down against the sky. The card sits just BEYOND the
                 // tip, facing along the twig, so it covers the hole from every
                 // angle the hole is visible from.
+                //
+                // Measured against `tube_end`, not `end` (v0.1090): the last
+                // bark ring overshoots the spine end by 0.7 of a tip radius,
+                // and the cap has to clear the metal it is capping. The offset
+                // therefore takes whichever is larger, the card-relative stand
+                // off or two tip radii past the true ring.
                 let up = if t.dir[1].abs() > 0.9 { [1.0, 0.0, 0.0] } else { [0.0, 1.0, 0.0] };
                 let w = norm(cross(t.dir, up));
                 let h = norm(cross(t.dir, w));
-                let c = add(t.end, t.dir, side * CLUSTER_SLEEVE_OFFSET);
+                let stand = (side * CLUSTER_SLEEVE_OFFSET).max(t.tip_r * 2.0);
+                let c = add(t.tube_end, t.dir, stand);
                 let depth = (crown.radius_m - dist(t.end, crown.centre)).max(0.0);
                 let ao = (-k_ao * depth).exp().clamp(CLUSTER_CORE_AO * 0.5, 1.0);
                 emit_card(&mut mesh, c, t.dir, w, h, side * 0.5, ao, t.end, crown.centre);
@@ -1831,7 +1921,24 @@ fn flower(b: &mut PlantMeshBuilder, at: [f32; 3], dir: [f32; 3], size: f32, colo
 /// the nominal size and then drawing the sprite bigger would scale a 3.5 cm
 /// cherry blossom up to 6.7 cm - the exact defect (a 2.6x oversized flower)
 /// this layer was built to remove.
+/// MEMOIZED (v0.1090). This builds every variant of the species - three whole
+/// trees, each of which is now a two-pass density fit with a card plan on each
+/// pass - and it is called from `cluster_sprite_geometry`, which the baker
+/// calls once per layer. Uncached that is 6 full tree builds per species per
+/// bake, and the bake itself runs more than once per session (the atlas bake
+/// and the near-mesh block each ask for the sprites). The result is a pure
+/// function of the registry row, so cache it on (species id, layer): the
+/// BUG-059 lesson is that anything expensive reached from a per-frame block is
+/// memoized at its OWN call site rather than assumed cheap upstream.
 pub fn mean_card_side(def: &TreeDef, layer: ClusterLayer) -> f32 {
+    static CACHE: std::sync::OnceLock<
+        std::sync::RwLock<std::collections::HashMap<(String, &'static str), f32>>,
+    > = std::sync::OnceLock::new();
+    let cache = CACHE.get_or_init(|| std::sync::RwLock::new(std::collections::HashMap::new()));
+    let key = (def.id.clone(), layer.key());
+    if let Some(&v) = cache.read().ok().and_then(|c| c.get(&key).copied()).as_ref() {
+        return v;
+    }
     let Some(cd) = def.clusters.as_ref() else { return 0.0 };
     let nominal = cd.layer(layer).size_m;
     let mut sum = 0.0f32;
@@ -1843,11 +1950,11 @@ pub fn mean_card_side(def: &TreeDef, layer: ClusterLayer) -> f32 {
             n += 1;
         }
     }
-    if n == 0 {
-        nominal
-    } else {
-        sum / n as f32
+    let out = if n == 0 { nominal } else { sum / n as f32 };
+    if let Ok(mut c) = cache.write() {
+        c.insert(key, out);
     }
+    out
 }
 
 /// CPU geometry for ONE cluster sprite, centred on the origin with the TWIG
@@ -1991,6 +2098,43 @@ pub fn cluster_sprite_geometry(
 /// the junction watertight; the margin covers the parent's taper.
 const WELD_EMBED: f32 = 1.4;
 
+/// Radius the OUTERMOST generation of shoots ends at, metres (v0.1090).
+///
+/// A cherry, maple, oak or birch last-year shoot is 5-10 mm ACROSS. Through
+/// v0.1089 every limb tapered by a flat 0.68 per generation from a
+/// trunk-derived base, and nothing anywhere said what a twig is: an 8 m sakura
+/// ended its terminal shoots at 38 mm of RADIUS - 76 mm across, ten times life
+/// size, branch-sized plumbing. That is the single loudest reason the
+/// operator's v0.1088.4 close-up reads as bare tubes speared through the
+/// blossom instead of as one object: no amount of card cover hides a pipe that
+/// thick, and three of them fanning out of one junction visibly interpenetrate
+/// for their first 15 cm.
+///
+/// 0.004 m of radius = 8 mm across, the middle of the real range.
+const TWIG_TIP_R_M: f32 = 0.004;
+
+/// Tip radius of a limb at `depth` whose base radius is `r0`.
+///
+/// GEOMETRIC toward `TWIG_TIP_R_M` across the generations that are left, so the
+/// species' own trunk scale still decides how thick a PRIMARY limb is while
+/// every tree, at every size, ends in a real twig. `max_depth` is the last
+/// generation built, so `max_depth - depth` generations follow this one.
+///
+/// On an 8 m sakura this runs 35 -> 14 -> 5.4 -> 2.0 -> 0.8 cm ACROSS, which is
+/// a cherry; on an 18 m oak, 80 -> 25 -> 8 -> 2.5 -> 0.8 cm, which is an oak.
+/// The flat 0.68 it replaces produced 26 -> 18 -> 12 -> 8 cm on the cherry:
+/// every generation nearly as fat as the one before it, which is a pipe organ.
+fn limb_tip_radius(r0: f32, depth: u32, max_depth: u32) -> f32 {
+    let left = max_depth.saturating_sub(depth);
+    if left == 0 {
+        // The terminal shoot itself: land ON the physical twig radius, and
+        // never taper UP if a species is small enough to start below it.
+        return TWIG_TIP_R_M.min(r0 * 0.55);
+    }
+    let ratio = (TWIG_TIP_R_M / r0.max(1e-4)).clamp(1e-4, 1.0);
+    (r0 * ratio.powf(1.0 / (left + 1) as f32)).max(TWIG_TIP_R_M)
+}
+
 /// Root point for a limb leaving a parent of local radius `parent_r`, plus how
 /// far it was buried. Pure geometry so it can be unit-tested directly.
 fn welded_root(from: [f32; 3], dir: [f32; 3], parent_r: f32, r0: f32, len: f32) -> ([f32; 3], f32) {
@@ -2023,7 +2167,8 @@ fn limb(
     if b.tri_count() > MAX_TRIS || len < 0.05 {
         return;
     }
-    let r1 = r0 * 0.68;
+    // Taper toward a REAL twig, not by a flat ratio - see `limb_tip_radius`.
+    let r1 = limb_tip_radius(r0, depth, max_depth);
     // A limb is a CURVED SPINE, not one straight frustum (v0.1067). Real
     // branches bow: they leave the parent at an angle, then gravity pulls the
     // far end down while the tip reaches back toward the light. Drawing that as
@@ -2040,6 +2185,8 @@ fn limb(
     // Taper measured from `from`, so the buried root keeps the full r0 and the
     // VISIBLE limb tapers exactly as it did before the weld.
     let taper = |x: f32| ((x - embed) / len.max(1e-4)).clamp(0.0, 1.0);
+    let mut tube_far = start;
+    let mut tube_r = r0;
     for s in 0..segs {
         let seg_len = len / segs as f32 + if s == 0 { embed } else { 0.0 };
         let to = add(p, d, seg_len);
@@ -2050,9 +2197,11 @@ fn limb(
         // spine itself still advances by exactly `seg_len`.
         // v runs from the BURIED root, so a bowing limb's bark is one
         // continuous run across its spine joints (v0.1089).
+        tube_far = add(p, d, seg_len + rb * 0.7);
+        tube_r = rb;
         b.bark_tube(
             p,
-            add(p, d, seg_len + rb * 0.7),
+            tube_far,
             ra,
             rb,
             sides_for(depth),
@@ -2079,19 +2228,16 @@ fn limb(
         // The twig sleeve cluster cards ride on (v0.1088). Recorded here, not
         // re-derived later, because "the outer two generations" is exactly the
         // set that carries foliage and the two must never disagree.
-        twigs.push(Twig { from, dir, end: to, len, tip });
+        twigs.push(Twig { from, dir, end: to, len, tip, tube_end: tube_far, tip_r: tube_r });
         // A clustered species keeps a much thinner blade layer: the cards are
         // the canopy now, and blades only earn their triangles inside ~2 m.
-        let sprigs = if def.clusters.is_some() {
-            if tip {
-                5
-            } else {
-                3
-            }
-        } else if tip {
-            16
-        } else {
-            8
+        // v0.1090 cuts it again, and pulls it IN: 6% of sakura's blade faces
+        // were standing proud of the card mass on their own twig, which at
+        // range is a fringe of raw triangles round the silhouette of every
+        // blossom cluster.
+        let (sprigs, f) = match def.clusters.as_ref() {
+            Some(cd) => (if tip { 3 } else { 2 }, f.with_clump(near_blade_clump_k(cd, f))),
+            None => (if tip { 16 } else { 8 }, f),
         };
         leaf_cluster(&mut b.foliage, at, dir, f, color, sprigs, rng);
         if tip {
@@ -3553,6 +3699,184 @@ mod tests {
                 c.layer.key()
             );
             assert!(mean < 0.25, "{}: mean card-to-twig distance {mean:.3} m", c.layer.key());
+        }
+    }
+
+    fn dot3(a: [f32; 3], b: [f32; 3]) -> f32 {
+        a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+    }
+
+    /// THE BRANCH-THROUGH-CROWN GATE (v0.1090).
+    ///
+    /// The operator's v0.1088.4 close-up: "bare branch tubes spear through the
+    /// blossom card masses and exit the far side". A terminal twig is an open,
+    /// uncapped pipe whose LAST tube ring sits at `Twig::tube_end`; if the card
+    /// sleeve stops short of that ring, the bare wood pokes out of the crown
+    /// and the tree reads as scaffolding wearing decals rather than as one
+    /// object.
+    ///
+    /// Measured exactly as the eye sees it: project everything onto the twig's
+    /// own chord, take the outermost CARD material within one card side of that
+    /// chord, and compare it with where the tube actually ends. A positive gap
+    /// is exposed pipe, in metres.
+    #[test]
+    fn cluster_cards_envelop_every_twig_tip() {
+        let r = registry();
+        for t in r.trees.iter().map(as_procedural) {
+            if t.clusters.is_none() {
+                continue;
+            }
+            for v in 0..t.variants.max(1) {
+                let seed = shipped_seed(v);
+                let twigs = twigs_of(&t, seed);
+                let built = build_tree_and_cards(&t, t.height_m, seed);
+                let verts: Vec<[f32; 3]> = built
+                    .cards
+                    .iter()
+                    .flat_map(|c| c.mesh.vertices.iter().map(|x| x.position))
+                    .collect();
+                assert!(!verts.is_empty(), "{} v{v}: no cards to envelop with", t.id);
+                let side = built
+                    .cards
+                    .iter()
+                    .map(|c| c.card_side_m)
+                    .fold(0.0f32, f32::max);
+                let mut worst = f32::MIN;
+                let mut exposed = 0usize;
+                let mut tips = 0usize;
+                let mut fattest = 0.0f32;
+                for w in twigs.iter().filter(|w| w.tip) {
+                    tips += 1;
+                    fattest = fattest.max(w.tip_r);
+                    let a = norm(sub(w.end, w.from));
+                    let te = dot3(sub(w.tube_end, w.from), a);
+                    // Outermost card material lying on THIS twig's own sleeve.
+                    // A sleeve card sits `CLUSTER_SLEEVE_OFFSET * side` off the
+                    // axis and reaches `side / 2` sideways, so its corners live
+                    // at ~0.58 side of perpendicular distance; anything beyond
+                    // that belongs to a NEIGHBOURING twig and must not be
+                    // allowed to certify this twig's tip as covered.
+                    let mut cr = f32::MIN;
+                    for p in &verts {
+                        let rel = sub(*p, w.from);
+                        let ax = dot3(rel, a);
+                        let perp = (dot3(rel, rel) - ax * ax).max(0.0).sqrt();
+                        if perp <= side * 0.6 {
+                            cr = cr.max(ax);
+                        }
+                    }
+                    let gap = te - cr;
+                    if gap > 0.0 {
+                        exposed += 1;
+                    }
+                    worst = worst.max(gap);
+                }
+                eprintln!(
+                    "[tipcover] {:>7} v{v}: {exposed}/{tips} tips poke past their cards, worst \
+                     {worst:+.3} m (card side {side:.3} m, fattest tip radius {fattest:.4} m)",
+                    t.id
+                );
+                assert!(tips > 10, "{} v{v}: only {tips} terminal twigs", t.id);
+                assert!(
+                    worst <= 0.0,
+                    "{} v{v}: {exposed} of {tips} terminal twigs end {worst:.3} m OUTSIDE their \
+                     card cover - that is the bare pipe spearing through the blossom mass",
+                    t.id
+                );
+                // A terminal shoot is a twig, not a pipe: a cherry's last-year
+                // wood is 5-10 mm ACROSS. Anything fatter reads as plumbing no
+                // matter how well the cards cover it.
+                assert!(
+                    fattest <= 0.010,
+                    "{} v{v}: terminal twigs end at {:.1} mm radius ({:.0} mm across) - a real \
+                     last-year shoot is ~5 mm across",
+                    t.id,
+                    fattest * 1000.0,
+                    fattest * 2000.0
+                );
+            }
+        }
+    }
+
+    /// THE NEAR-BLADE SILHOUETTE GATE (v0.1090).
+    ///
+    /// With cards carrying the canopy, the geometric blade layer is a
+    /// close-range parallax detail, and detail that pokes OUT of the card mass
+    /// it is meant to sit inside is just raw triangles against the sky - the
+    /// operator's second v0.1088.4 finding.
+    ///
+    /// The measure is LOCAL, not against the whole crown: a blade can be well
+    /// inside the crown envelope and still stand a clear half-metre proud of
+    /// the blossom mass on its own twig, which is exactly what the capture
+    /// shows. A sleeve card sits `CLUSTER_SLEEVE_OFFSET * side` off the twig
+    /// axis and reaches `side / 2` sideways, so the card mass around a twig
+    /// ends at `(CLUSTER_SLEEVE_OFFSET + 0.5) * side`. Blades must live inside
+    /// that.
+    #[test]
+    fn near_blades_stay_inside_the_card_shell() {
+        const ORGAN_BIT_LEAF: u32 = 524_288;
+        let r = registry();
+        for t in r.trees.iter().map(as_procedural) {
+            if t.clusters.is_none() {
+                continue;
+            }
+            for v in 0..t.variants.max(1) {
+                let seed = shipped_seed(v);
+                let twigs = twigs_of(&t, seed);
+                let built = build_tree_and_cards(&t, t.height_m, seed);
+                let side = built
+                    .cards
+                    .iter()
+                    .map(|c| c.card_side_m)
+                    .fold(0.0f32, f32::max);
+                let shell = side * (CLUSTER_SLEEVE_OFFSET + 0.5);
+                let mut blade_max = 0.0f32;
+                let mut blades = 0usize;
+                let mut outside = 0usize;
+                let m = &built.mesh;
+                for f in m.indices.chunks(3) {
+                    let uv = m.vertices[f[0] as usize].uv;
+                    if (uv[0].max(0.0).round() as u32) & ORGAN_BIT_LEAF == 0 {
+                        continue;
+                    }
+                    blades += 1;
+                    let mut far = 0.0f32;
+                    for i in f {
+                        let p = m.vertices[*i as usize].position;
+                        let d = twigs
+                            .iter()
+                            .map(|w| point_segment_dist(p, w.from, w.end))
+                            .fold(f32::MAX, f32::min);
+                        far = far.max(d);
+                    }
+                    blade_max = blade_max.max(far);
+                    if far > shell {
+                        outside += 1;
+                    }
+                }
+                let frac = outside as f32 / blades.max(1) as f32;
+                eprintln!(
+                    "[blades] {:>7} v{v}: {blades} blade faces, {outside} ({:.1}%) outside the \
+                     {shell:.2} m card mass, worst reach {blade_max:.2} m",
+                    t.id,
+                    frac * 100.0
+                );
+                assert!(blades > 20, "{} v{v}: only {blades} blade faces", t.id);
+                assert!(
+                    frac < 0.02,
+                    "{} v{v}: {:.0}% of blade faces stand proud of the {shell:.2} m card mass \
+                     (worst {blade_max:.2} m) - those are the raw triangles poking out of the \
+                     crown",
+                    t.id,
+                    frac * 100.0
+                );
+                assert!(
+                    blade_max <= shell * 1.25,
+                    "{} v{v}: a blade reaches {blade_max:.2} m from its twig against a \
+                     {shell:.2} m card mass",
+                    t.id
+                );
+            }
         }
     }
 
