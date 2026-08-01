@@ -632,6 +632,11 @@
    "date": "2026-08-01",
    "decision": "v0.1091.0/1 grass strands SHIPPED + v0.1092.0 grass extraction (ratchet click: planet_chunks 7028->4683, grass.rs 2401, budgets DOWN). Renderer/mod.rs extraction dispatched to clear the last ratchet failure (4090>4000). DEFERRED until operator game session ends: build-game archive+stamp for v0.1092 (stable exe file-locked by their running game), the fuji-grass-underfoot probe on the extraction, and the 13ms harvest time-slicing increment. Operator is PLAYING v0.1091.1 right now - extraction writer honoured one-GPU for 56 min rather than booting beside them.",
    "why": "Follow-ups live: grass shadow casting (unmeasured cost), grass.ron data fields, sakura leaf lozenge, bole radius taste call, WR-2 sprite dedupe, T1/T2 terrain tickets in vantages.json."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Material-system extraction MERGED to main, release tag HELD pending world-entry probe (build_material_texture_bind_group is the v0.1029-incident lazy bind-group site; the incident bar says world entry gates renderer changes). Ratchet now passes on all ten files. Ship plan: when the operator game session ends -> probe blue-marble-12000km + fuji-grass-underfoot on main, then tag v0.1093.0 (extraction + the grass de-bundle if landed) + build-game archive + stamp.",
+   "why": "Grass de-bundle writer still in flight on terrain/grass.rs."
   }
  ],
  "active_scopes_to_avoid": [
