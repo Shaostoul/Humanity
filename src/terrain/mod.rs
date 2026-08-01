@@ -10,6 +10,9 @@ pub mod icosphere;
 pub mod planet;
 pub mod planet_albedo;
 pub mod planet_chunks;
+/// Near-field grass strands (extracted from `planet_chunks`, v0.1092).
+/// `planet_chunks` glob re-exports it, so both paths resolve.
+pub mod grass;
 pub mod far_trees;
 pub mod ocean_fft;
 pub mod ocean_mask;

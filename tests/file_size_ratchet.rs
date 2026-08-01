@@ -33,13 +33,23 @@ fn repo() -> &'static Path {
 /// (path, line budget). Measured 2026-07-31 + ~3% slack. LOWER these as files
 /// shrink; never raise one without an operator decision recorded in the
 /// commit message.
+///
+/// RATCHET CLICKS (newest first):
+/// - v0.1092: `planet_chunks` 5_950 -> 4_820. The v0.1091 grass-strand
+///   increment raised the budget to 5_950 with the extraction of the layer
+///   recorded IN THAT COMMIT as the immediate next increment; that extraction
+///   is this one. The layer moved verbatim to `src/terrain/grass.rs`, which
+///   joins the watch list at its own measured size, so the file it left
+///   cannot quietly reabsorb it and the new file cannot quietly grow into a
+///   second monolith.
 const BUDGETS: &[(&str, usize)] = &[
     ("src/lib.rs", 18_200),
     ("src/gui/pages/chat.rs", 8_000),
     ("src/gui/mod.rs", 7_050),
     ("src/relay/relay.rs", 6_500),
     ("src/relay/handlers/msg_handlers.rs", 4_800),
-    ("src/terrain/planet_chunks.rs", 5_950),
+    ("src/terrain/planet_chunks.rs", 4_820),
+    ("src/terrain/grass.rs", 2_470),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 4_200),
     ("src/renderer/mod.rs", 4_000),
