@@ -193,6 +193,17 @@
 >   session): species variety needs matching far-field cards + atlas
 >   entries or the card handoff pops; models are already on disk
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
+> - NEXT VEGETATION RUNG (fenced 2026-08-01, wf_82974167 + operator field
+>   report; critic-corrected plan in orchestrator_state recent_decisions):
+>   (0) SHIPPED-BUILD CONIFER HOLE - procedural fallback for model-backed
+>   species, branch BEFORE scl at lib.rs:9633 or fir draws 381 m tall;
+>   (1) leaf texture must ride the leaf (sample pre-wind position);
+>   (2) wind coverage - type-19 gate + per-type height normalization,
+>   card corner shear from the encoded lean value; (3) leaf-scale
+>   elements - blades are 10x real size with 45-96% of MAX_TRIS unspent;
+>   (4) bark procedural normal/roughness, then POM; (5) seam welding;
+>   (6) grass strands + ground clutter. Storm lean gate is annotated
+>   CURRENTLY FAILING in vantages.json until (2) lands.
 > - ORGAN-TAG FIX shipped first (v0.1081, wf_11009ff9 domain pass): the
 >   challenger STOPPED the atlas increment because the black-canopy crux
 >   was a tag bug, not missing cards - blade() never set Organ::Leaf, so
