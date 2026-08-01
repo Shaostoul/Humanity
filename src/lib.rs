@@ -9376,6 +9376,14 @@ mod native_app {
                                         crate::renderer::billboard_bake::BakeCpuModel,
                                     > = std::collections::HashMap::new();
                                     let mut tree_parse_ms = 0.0f32;
+                                    // Cluster sprites baked up front (v0.1088): the
+                                    // card MATERIALS need the sprite textures at
+                                    // mesh-build time. CPU-only, ~100 ms for the
+                                    // clustered species. The registry atlas bake
+                                    // below re-derives its own copy for the far
+                                    // tiles; deduplicating that is a follow-up.
+                                    let cluster_sprites =
+                                        state.renderer.bake_cluster_sprites(None);
                                     {
                                         use crate::renderer::tree_mesh;
                                         let reg = tree_mesh::registry();
@@ -9385,17 +9393,47 @@ mod native_app {
                                                 if state.decoration_mesh_cache.contains_key(&key) {
                                                     continue;
                                                 }
-                                                let mut b =
-                                                    crate::renderer::plant_mesh::PlantMeshBuilder::new();
                                                 // Built at the species' nominal
                                                 // height; per-tree height rides
                                                 // on the instance scale below.
-                                                tree_mesh::build_tree(
-                                                    &mut b,
+                                                // Clustered species also return
+                                                // their card layers (v0.1088) -
+                                                // the crown mass lives on those.
+                                                let (b, tcards) = tree_mesh::build_tree_and_cards(
                                                     t,
                                                     t.height_m,
                                                     v.wrapping_mul(2_654_435_761),
                                                 );
+                                                for (ci, card) in tcards.iter().enumerate() {
+                                                    let Some(spr) = cluster_sprites.iter().find(
+                                                        |s| s.species == t.id && s.layer == card.layer,
+                                                    ) else {
+                                                        continue;
+                                                    };
+                                                    let cmesh = crate::renderer::mesh::Mesh::from_vertices(
+                                                        &state.renderer.device,
+                                                        &card.mesh.vertices,
+                                                        &card.mesh.indices,
+                                                    );
+                                                    let cmi = state.renderer.add_mesh(cmesh);
+                                                    // Type 21 = cluster card (sprite
+                                                    // texture, AO-coded UVs, foliage
+                                                    // transmission in the shader).
+                                                    let cma = state.renderer.add_textured_material(
+                                                        [1.0, 1.0, 1.0, 1.0],
+                                                        0.0,
+                                                        0.9,
+                                                        21.0,
+                                                        0.0,
+                                                        &spr.levels[0],
+                                                        spr.size,
+                                                        spr.size,
+                                                    );
+                                                    state.decoration_mesh_cache.insert(
+                                                        format!("proc:{}_v{v}:card{ci}", t.id),
+                                                        (cmi, cma),
+                                                    );
+                                                }
                                                 let mesh = crate::renderer::mesh::Mesh::from_vertices(
                                                     &state.renderer.device,
                                                     &b.vertices,
@@ -9747,6 +9785,37 @@ mod native_app {
                                                 mesh: mi,
                                                 material: ma,
                                             });
+                                        }
+                                        // Cluster-card layers ride with the wood
+                                        // (v0.1088): the crown mass of a clustered
+                                        // species lives on textured cards, so a
+                                        // sakura without them is a bare skeleton.
+                                        if use_proc {
+                                            if let Some(t) = tdef {
+                                                for ci in 0..4usize {
+                                                    let ckey = format!(
+                                                        "proc:{}_v{}:card{ci}",
+                                                        t.id, va
+                                                    );
+                                                    let Some(&(cmi, cma)) =
+                                                        state.decoration_mesh_cache.get(&ckey)
+                                                    else {
+                                                        break;
+                                                    };
+                                                    celestial_objects.push(RenderObject {
+                                                        fade: obj_fade,
+                                                        position: Vec3::new(
+                                                            pos_render.x as f32,
+                                                            pos_render.y as f32,
+                                                            pos_render.z as f32,
+                                                        ),
+                                                        rotation: obj_rot,
+                                                        scale: Vec3::splat(scl),
+                                                        mesh: cmi,
+                                                        material: cma,
+                                                    });
+                                                }
+                                            }
                                         }
                                         if any {
                                             drawn += 1;

@@ -599,6 +599,35 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         albedo = albedo * mesh_tex.rgb;
         emissive_strength = 0.0;
     }
+    if (material_type >= 20.5 && material_type < 21.5) {
+        // ── Type 21: FOLIAGE CLUSTER CARD (v0.1088) ─────────────────────
+        // A quad textured with a baked cluster sprite (dozens of shaped
+        // blossoms/leaves per card - the operator's reference-photo
+        // redirect: canopy detail lives in TEXTURE, not triangles).
+        // UV contract (tree_mesh::encode_card_uv, all three sites must
+        // agree exactly): uv.x = 2*ao_code + u01, ao_code 0..63.
+        let cc_code = floor(in.uv.x * 0.5);
+        let cc_u = in.uv.x - 2.0 * cc_code;
+        let cc_ao = cc_code / 63.0;
+        let cc_tex = textureSampleLevel(
+            albedo_texture, albedo_sampler, vec2<f32>(cc_u, in.uv.y), 0.0);
+        if (cc_tex.a < 0.5) {
+            discard;
+        }
+        // Crown-core AO is baked per-station into the code; keep a floor so
+        // the deepest cards read as shaded foliage, not holes.
+        albedo = albedo * cc_tex.rgb * (0.35 + 0.65 * cc_ao);
+        emissive_strength = 0.0;
+        // Foliage transmission (the BUG-056 lesson: cards are LEAVES, never
+        // plain mesh) - same day-gated backlit term as the type-20 leaf
+        // branch, scaled by AO so the crown core does not glow.
+        let cc_sun = normalize(camera.sun_direction.xyz);
+        let cc_backlit = max(-dot(normal, cc_sun), 0.0);
+        let cc_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+        proc_emissive = proc_emissive
+            + albedo * camera.sun_color.rgb
+                * (cc_backlit * 0.30) * cc_day * (0.3 + 0.7 * cc_ao);
+    }
     if (material_type >= 17.5 && material_type < 18.5) {
         // Type 18: GAS GIANT bands (v0.905). Latitude-ramp palettes warped
         // by noise, hardcoded per giant (params.w = 0 jupiter, 1 saturn,
