@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 // Tiny static preview server that mirrors the production nginx routing so web pages
 // can be previewed locally exactly as they are served live:
-//   /            -> web/index.html
+//   /            -> web/pages/index.html  (prod flattens web/pages/* into the web
+//                                          root, so its /index.html IS this file)
+//   /library     -> web/pages/library.html  (mirrors nginx `try_files $uri.html`,
+//                                            the catch-all every extensionless
+//                                            page link on the site relies on)
 //   /pages/*     -> web/pages/*      (and /shared, /chat, /activities likewise)
 //   /data/*      -> data/*           (the same dir the deploy rsyncs to /var/www/.../data)
 //   /docs/*      -> docs/*
@@ -38,7 +42,8 @@ const TYPES = {
 // Map a URL path to a file on disk, mirroring nginx aliases.
 function resolve(urlPath) {
   let p = decodeURIComponent(urlPath.split('?')[0]);
-  if (p === '/' || p === '') return path.join(ROOT, 'web', 'index.html');
+  // Prod's web root holds web/pages/* flattened, so its index.html is this one.
+  if (p === '/' || p === '') return path.join(ROOT, 'web', 'pages', 'index.html');
   // Aliased top-level dirs served from the repo root (not from web/).
   for (const alias of ['/data/', '/docs/', '/assets/']) {
     if (p.startsWith(alias)) return path.join(ROOT, p.slice(1));
@@ -47,10 +52,23 @@ function resolve(urlPath) {
   return path.join(ROOT, 'web', p.slice(1));
 }
 
+// Extensionless fallback mirroring nginx `try_files $uri $uri.html`: on prod the
+// flattened pages make /library resolve to library.html, so locally an
+// extensionless miss retries web/pages/<name>.html before 404ing.
+function fallback(urlPath) {
+  const p = decodeURIComponent(urlPath.split('?')[0]);
+  if (path.extname(p) || p.includes('..')) return null;
+  return path.join(ROOT, 'web', 'pages', p.slice(1) + '.html');
+}
+
 http.createServer((req, res) => {
   let file = resolve(req.url);
   fs.stat(file, (err, st) => {
     if (!err && st.isDirectory()) file = path.join(file, 'index.html');
+    else if (err) {
+      const retry = fallback(req.url);
+      if (retry && fs.existsSync(retry)) file = retry;
+    }
     fs.readFile(file, (e, buf) => {
       if (e) {
         res.writeHead(404, { 'Content-Type': 'text/plain' });
