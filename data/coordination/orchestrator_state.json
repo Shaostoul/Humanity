@@ -652,6 +652,11 @@
    "date": "2026-08-01",
    "decision": "Grass de-bundle MERGED (spread crowns, filler stubble on the complement field, decorrelated splay; 1277 tests) + harvest cap 70k. Main now holds THREE unshipped verified merges awaiting the world-entry probe: material extraction (v0.1029-class bind-group site), de-bundle, cap bump. Operator game still running (PID 15264) - tag v0.1093.0 + archive + stamp + probes (blue-marble-12000km + fuji-grass-underfoot) fire the moment the GPU frees. Resource-budgets increment-1 writer still in flight.",
    "why": "One-GPU rule held by every writer today; visual proof of the de-bundle belongs to the operator next boot anyway."
+  },
+  {
+   "date": "2026-08-01",
+   "decision": "Resource-budgets increment 1 MERGED + all six wiring edits applied (pass timers + CPU stages). Main now holds FOUR verified merges gated on the GPU-free probe window: material extraction, grass de-bundle, harvest cap, budget pies. Probe plan when PID 15264 exits: blue-marble-12000km (bind-group history) + fuji-grass-underfoot (de-bundle look) + fuji-forest-ground with HUMANITY_FRAME_COSTS=1 (first real pie breakdown from debug/frame_costs.json) -> tag v0.1093.0 -> build-game + stamp. Increment-1 debts stated in tests: ECS per-system timing (src/ecs lane), bloom/godrays/ssao pass timers (their file owners), PAGES.md note.",
+   "why": "Every writer today held the one-GPU rule without exception; the operator has been in-game for hours - which is itself the best possible sign."
   }
  ],
  "active_scopes_to_avoid": [
