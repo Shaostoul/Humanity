@@ -677,6 +677,11 @@
    "date": "2026-08-02",
    "decision": "v0.1094.0 SHIPPED: measurement layer complete (godrays/ssao/bloom timers, 25 ECS systems individually clocked, sum-vs-aggregate ratio 1.000, same-id summing + decay-to-zero bugs fixed). LAYER FINDINGS: farming = 83 percent of ECS tick; celestial pass = 14.3 of 33.4 ms frame (the measured next perf target); BLOOM IS DORMANT (BloomPass::apply has zero call sites - silently disconnected; reviving is a rendering decision for its owner). build-game archive + stamp DEFERRED - operator relaunched the game (stable exe locked). cpu.patch_select is the one unproduced registry id (terrain selector owner).",
    "why": "Next fenced: budget pies increment 2 ALLOCATE; celestial-pass perf investigation now has a measured mandate; bloom revival decision."
+  },
+  {
+   "date": "2026-08-02",
+   "decision": "Operator night field report (6 screenshots) + REALISTIC-FIRST norm established (in CLAUDE.md): build the 2030 technique, never placeholders; SpeedTree-class trees + EmberGen-class volumetrics named as north stars (public algorithms only). DISPATCHED: (1) trees-speedtree-class domain-pass wf_7f29dcbe - spline-lofted limbs w/ parallel-transport frames, WELDED junction collars (child ring ON parent surface), smooth normals; kills tubes-through-trunk + hard facets. (2) lighting diagnosis agent - grass glowing at dawn while land dark (suspect: type-23 lacks terrain terminator sun_gate, camera-local day factor mismatch) + light spots TRACKING THE PLAYER through jumps at night (operator hypothesis: player-space vs world-space anchoring; suspects: homestead 201 lights, spawn beacon, player glow) + game-state enumeration (pause state?) + anchor-hierarchy audit vs the self/vehicle/planet/system/galaxy ladder.",
+   "why": "QUEUED behind the tree rebuild (same files): ClusterDef rows + per-species leaf sprite shapes for momiji/oak/birch/acacia (the remaining dorito species - maple lobed, oak lobed, birch ovate); grass shading polish after the gate diagnosis. Archive v0.1094.1 still gated on operator session."
   }
  ],
  "active_scopes_to_avoid": [
