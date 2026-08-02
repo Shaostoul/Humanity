@@ -1712,6 +1712,7 @@ mod native_app {
                 near_grass: Vec::new(),
                 near_grass_center: glam::DVec3::splat(f64::MAX),
                 near_grass_depth: 0,
+                near_tree_depth: 0,
                 near_grass_at_s: -1.0,
                 grass_instances: Vec::new(),
                 grow_positions: Vec::new(),
@@ -9302,7 +9303,18 @@ mod native_app {
                                     // batch popping on the threshold. 12 m keeps
                                     // the set centered on you; the stream walk
                                     // is sub-millisecond, so eager is cheap.
-                                    if moved > 12.0 {
+                                    // Re-harvest on movement OR when the drawn
+                                    // terrain LOD changed under our feet (the
+                                    // world-entry walk-up): bases anchor to the
+                                    // drawn mesh, so a depth change with stale
+                                    // trees leaves them on the previous mesh.
+                                    let tree_draw_depth = cs
+                                        .last_drawn
+                                        .iter()
+                                        .map(|p| p.depth)
+                                        .max()
+                                        .unwrap_or(0);
+                                    if moved > 12.0 || tree_draw_depth != state.near_tree_depth {
                                         let src = chunks::ElevationSource::Heightmap {
                                             hm,
                                             detail: &cs.detail,
@@ -9327,12 +9339,19 @@ mod native_app {
                                             .collect();
                                         let _cost_tree_harvest =
                                             crate::renderer::frame_costs::stage("cpu.near_tree_harvest");
-                                        state.near_trees = chunks::near_tree_instances(
+                                        // v0.1097, the 13 m floating-trees fix:
+                                        // bases interpolate the DRAWN mesh at
+                                        // this depth (computed above the gate
+                                        // so a standing-still LOD change also
+                                        // re-harvests).
+                                        state.near_tree_depth = tree_draw_depth;
+                                        state.near_trees = chunks::near_tree_instances_on_drawn(
                                             d,
                                             &src,
                                             state.planet_albedos.get(&b.id).map(|a| a.as_ref()),
                                             cam_local.normalize(),
                                             tree_dist + 60.0,
+                                            tree_draw_depth,
                                             600,
                                         );
                                         state.near_tree_new = state

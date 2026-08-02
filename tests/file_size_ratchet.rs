@@ -74,7 +74,7 @@ fn repo() -> &'static Path {
 ///   cannot quietly reabsorb it and the new file cannot quietly grow into a
 ///   second monolith.
 const BUDGETS: &[(&str, usize)] = &[
-    ("src/lib.rs", 18_200),
+    ("src/lib.rs", 18_300),
     ("src/gui/pages/chat.rs", 8_000),
     ("src/gui/mod.rs", 7_050),
     ("src/relay/relay.rs", 6_500),

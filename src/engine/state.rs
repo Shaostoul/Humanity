@@ -398,6 +398,10 @@ pub(crate) struct EngineState {
     /// drawn ground's own LOD. Re-harvest when the LOD under the camera
     /// changes, or the bases sit on the wrong mesh.
     pub(crate) near_grass_depth: u8,
+    /// The drawn-terrain LOD the near-TREE harvest last anchored to (v0.1097,
+    /// the floating-trees fix): a depth change while standing still must
+    /// re-harvest or bases stay on the previous mesh until the player walks.
+    pub(crate) near_tree_depth: u8,
     /// Session-seconds of the last grass harvest (the re-harvest rate limit).
     pub(crate) near_grass_at_s: f32,
     /// Scratch instance buffer for the per-frame grass upload, kept between
