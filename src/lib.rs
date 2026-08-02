@@ -16826,8 +16826,27 @@ mod native_app {
                                     let tiled = state.gui_state.settings.lights_tiled;
                                     lights.truncate(if tiled { 2048 } else { 256 });
                                     // Home lights ride the station (v0.881).
+                                    // BUG-061 (v0.1095): LINE lights pack their
+                                    // SECOND ENDPOINT in the `dir` field (the
+                                    // cos_outer <= -1.5 sentinel). Offsetting
+                                    // only pos left endpoint B at the render
+                                    // origin - the player - so every strip
+                                    // light became a segment from orbit down
+                                    // to the player's feet, and the shader's
+                                    // closest-point math pooled faint light
+                                    // spots on the ground that TRACKED the
+                                    // player through jumps (operator report;
+                                    // their player-space-vs-world-space
+                                    // hypothesis was exactly right). It also
+                                    // fed planet-sized bounding spheres into
+                                    // the light tiler, flooding all 144 tiles
+                                    // and silently evicting real lights at
+                                    // TILE_CAP.
                                     for l in lights.iter_mut() {
                                         l.pos += state.station_off;
+                                        if l.cos_outer <= -1.5 {
+                                            l.dir += state.station_off;
+                                        }
                                     }
                                     // Dev test lights (showcase lights:N): regenerated
                                     // around the CURRENT camera position every frame,
@@ -17060,6 +17079,13 @@ mod native_app {
                                         v.position[0] += so.x;
                                         v.position[1] += so.y;
                                         v.position[2] += so.z;
+                                    }
+                                    // BUG-061 companion: overlay gizmos were
+                                    // the one list this loop missed - editor
+                                    // handles drew at the render origin (the
+                                    // player) instead of at the station.
+                                    for o in overlay_objects.iter_mut() {
+                                        o.position += so;
                                     }
                                 }
                                 state.renderer.render_scene_onto(&state.camera, &all_objects, &view);

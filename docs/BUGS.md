@@ -597,3 +597,44 @@ assumption about the enclosing block - the near-tree block LOOKS like a
 once-per-arrival block and is not. And a frame-time regression right after
 a wiring change is the wiring until proven otherwise - I attributed the
 drop to card draw cost without measuring.
+
+## BUG-060: Leaf/grass transmission was sign-inverted, unphysical, and unshadowed (fixed v0.1095.0)
+
+The foliage transmission lobe computed dot(V, L - N*d) - which peaks when the
+sun is IN FRONT of the leaf, the exact opposite of the standard backlit form -
+at coefficient 1.05, which exceeds a leaf's own maximum diffuse response by
+1.32x, and it bypassed the shadow map entirely. Measured: the term supplied
+73% of all grass luminance; removing it made grass:terrain mean luminance
+exactly 1.00. This was the operator's "grass glows while the land is dark"
+dawn report, and the same block exists byte-identical in the tree canopy path.
+Diagnosed by A/B shader hot-patching with per-pixel frame differencing.
+
+Fix (both type-20 and type-23 blocks): correct lobe sign, coefficient 1.05 ->
+0.15 (+0.35 -> 0.06 on the backlit floor), multiplied by sun_shadow.
+
+LESSON: "reads as ambient bounce" comments hide magnitude bugs - any additive
+light term needs its coefficient justified against the surface's own diffuse
+peak, and NO sun-derived term may skip the shadow map.
+
+## BUG-061: Strip-light endpoints tracked the player (fixed v0.1095.0)
+
+LINE lights pack endpoint B in the `dir` field (cos_outer <= -1.5 sentinel).
+The orbital-station translation offset `pos` and never `dir`, so all 10 home
+strip lights became segments stretching from the station down to the RENDER
+ORIGIN - which in surface mode is rigidly welded to the player (frozen
+camera.position; walking moves the frame anchor instead). The shader's
+closest-point-on-segment math then pooled faint cool-white light at the
+player's feet, tracking them through jumps - the operator's report and their
+player-space-vs-world-space hypothesis, exactly. Bonus damage: the light
+tiler binned those segments as planet-sized spheres, flooding all 144 tiles
+and silently evicting real lights at TILE_CAP=64. Invisible to every probe
+rig because dev teleports reset camera.position ~52 m up, parking the stray
+endpoints underground - only a player who walks out of the home could see it.
+
+Fix: line-sentinel lights offset dir too; overlay_objects (the one list the
+station translation missed) now offsets as well.
+
+LESSON: a position living in a field named `dir` is invisible to every
+translation site. Fields that change meaning per-variant need a translate()
+method that knows, not a convention. And probe rigs share the dev-teleport
+blind spot - operator-path reproductions matter.

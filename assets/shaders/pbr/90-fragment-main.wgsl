@@ -1452,28 +1452,25 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // mottle, pucker, wax and `micro` stay gated - those ARE detail.
         if (is_leaf) {
             let sun_l = normalize(camera.sun_direction.xyz);
-            let lt = normalize(-sun_l + normal * 0.4);
-            // Exponent 1.6, not 3: a tight lobe only glows when you line the
-            // sun up exactly behind a leaf, which left a backlit canopy reading
-            // as black silhouettes (first Fuji capture). Real foliage is thin
-            // enough that it stays luminous across a wide arc.
+            // BUG-060 (v0.1095): this lobe was SIGN-INVERTED - it computed
+            // dot(V, L - N*d), which peaks FRONT-lit, the opposite of the
+            // standard Barre-Brisebois transmission dot(V, -(L + N*d)) that
+            // peaks when the sun is BEHIND the leaf. And the coefficient
+            // (1.05) exceeded the leaf's own maximum diffuse response by
+            // 1.32x - a leaf cannot out-emit its own lit face. Measured: the
+            // term supplied 73% of grass luminance and made swards glow over
+            // dark dawn terrain. Now: correct lobe, physical coefficient
+            // (~0.19x peak diffuse), and MULTIPLIED BY THE SHADOW MAP - a
+            // blade in shadow receives no sun to transmit.
+            let lt = normalize(sun_l + normal * 0.4);
             let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
-            // Plus a floor that depends only on how backlit the leaf is, so a
-            // blade whose lambert term is ~0 still carries colour instead of
-            // going to black. This is the cheap stand-in for wrap diffuse,
-            // which would mean touching the shared BRDF.
-            // KNOWN SIMPLIFICATION: not shadowed, so a leaf in deep shade still
-            // transmits a little; the term is small enough that it reads as
-            // ambient bounce rather than a bug.
             let backlit = max(-dot(normal, sun_l), 0.0);
-            // Scaled by daylight (BUG-057 #2): unscaled, an up-facing leaf at
-            // midnight scored backlit ~1.0 against the below-horizon sun and
-            // the canopy glowed brighter than its own daytime diffuse.
-            // Transmission is transmitted SUNLIGHT; it dies with the sun.
             let leaf_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+            let leaf_sun_ndl = dot(normal, sun_l);
+            let leaf_shadow = sun_shadow(in.world_position, leaf_sun_ndl);
             proc_emissive = proc_emissive
                 + albedo * camera.sun_color.rgb
-                    * (trans * 1.05 + backlit * 0.35) * leaf_sun_day;
+                    * (trans * 0.15 + backlit * 0.06) * leaf_sun_day * leaf_shadow;
         }
     } else if (material_type >= 22.5 && material_type < 23.5) {
         // ── Type 23: GRASS STRAND (v0.1091) ──────────────────────────────
@@ -1501,14 +1498,21 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // with the sun behind it more often than a tree crown is, because it
         // is under your feet and the sun is always somewhere above it.
         if ((packed & 524288u) != 0u) {
+            // BUG-060 (v0.1095): same three fixes as the type-20 leaf block -
+            // correct backlit lobe (was sign-inverted, peaked FRONT-lit),
+            // physical coefficient (1.05 supplied 73% of all grass luminance
+            // and made dawn swards glow over dark ground - measured), and the
+            // shadow map multiplied in so shaded blades do not transmit.
             let sun_l = normalize(camera.sun_direction.xyz);
-            let lt = normalize(-sun_l + normal * 0.4);
+            let lt = normalize(sun_l + normal * 0.4);
             let trans = pow(max(dot(view_dir, -lt), 0.0), 1.6);
             let backlit = max(-dot(normal, sun_l), 0.0);
             let leaf_sun_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+            let g_sun_ndl = dot(normal, sun_l);
+            let g_shadow = sun_shadow(in.world_position, g_sun_ndl);
             proc_emissive = proc_emissive
                 + albedo * camera.sun_color.rgb
-                    * (trans * 1.05 + backlit * 0.35) * leaf_sun_day;
+                    * (trans * 0.15 + backlit * 0.06) * leaf_sun_day * g_shadow;
         }
     } else if material_type < 13.5 {
         // Type 13: Atmosphere shell (v0.763) -- fresnel limb tint on a slightly
