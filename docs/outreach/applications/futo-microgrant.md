@@ -1,6 +1,7 @@
 # FUTO Microgrant Application
 
-Status: DRAFT, awaiting operator review and send. Prepared 2026-08-01.
+Status: SENT by the operator on 2026-08-02 at 10:35 (to grantapps@futo.org).
+Prepared 2026-08-01.
 
 How to send: copy the body below into a plain email from your own address
 to **grantapps@futo.org**. No form, no attachments needed. FUTO's stated
@@ -92,4 +93,4 @@ shaostoul@gmail.com
 
 ## Outcome log
 
-- (nothing yet)
+- 2026-08-02 10:35: sent by Michael to grantapps@futo.org. Awaiting reply.
