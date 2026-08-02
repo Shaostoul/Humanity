@@ -20,6 +20,9 @@ pub mod body_pill;
 pub mod markdown;
 pub mod msg_format;
 pub mod file_browser;
+/// Pie chart (resource budgets increment 1): the widget the Performance page
+/// draws its GPU / CPU / VRAM / RAM budgets with.
+pub mod pie;
 
 use egui::{Color32, Rect, RichText, Rounding, Sense, Stroke, Ui, Vec2};
 use super::theme::Theme;

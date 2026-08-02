@@ -1,0 +1,279 @@
+// HumanityOS RESOURCE BUDGET REGISTRY (resource budgets increment 1, MEASURE).
+// See docs/design/resource-budgets.md.
+//
+// One row per SYSTEM that shows up as a slice of one of the four pies on the
+// Performance page (Platform > Performance). Adding a system to the pie is
+// adding a row here - no code change (infinite-of-X).
+//
+//   id          stable key (also the increment-2 allocation key)
+//   display     what the slice is labelled in the UI
+//   category    which pie it belongs to: "gpu" | "cpu" | "vram" | "ram"
+//   sources     measurement ids summed into this slice. GPU passes are
+//               "gpu.*" (wgpu timestamp queries); a "gpu.x" id automatically
+//               reads "cpu.x" instead on adapters without timestamp queries.
+//               CPU stages are "cpu.*", allocations "vram.*" / "ram.*".
+//               An id nothing reports yet contributes 0 - that is how a row
+//               can be added before its measurement is wired.
+//   locked      true = a floor system the operator may not starve in
+//               increment 2 (the UI, the world core). Read-only today; the
+//               pie draws locked slices with a marked label.
+//   base_frac   the share of its pie this system is expected to want on a
+//               balanced machine, 0..1. Increment 1 only DISPLAYS it next to
+//               the measured share, so "expected vs actual" is visible.
+//   note        one line of plain English shown on hover.
+//
+// HONEST LIMITS (do not silently "fix" these by renaming rows):
+//  * GPU timestamps measure PASSES, and this engine draws terrain, sky, water
+//    and clouds inside ONE pass (they share a megashader and branch per
+//    material), so they share one row until the pass is split.
+//  * The star field, the egui interface and the post-process passes are
+//    submitted from lib.rs, outside the renderer module that carries the
+//    timers, so today they land in "Elsewhere". Their rows exist and light up
+//    the moment those two call sites are wired.
+[
+    // ── GPU pie: where the frame's milliseconds go on the graphics card ──
+    (
+        id: "world_surface",
+        display: "World surface",
+        category: "gpu",
+        sources: ["gpu.celestial"],
+        locked: true,
+        base_frac: 0.45,
+        color: "nav_sim",
+        note: "Terrain patches, planets, ocean shells, clouds and sky - one pass, one megashader.",
+    ),
+    (
+        id: "sun_shadows",
+        display: "Sun shadows",
+        category: "gpu",
+        sources: ["gpu.shadow"],
+        locked: false,
+        base_frac: 0.12,
+        color: "warning",
+        note: "The near-field depth pass the sun casts shadows from.",
+    ),
+    (
+        id: "interior_scene",
+        display: "Homestead + props",
+        category: "gpu",
+        sources: ["gpu.scene", "gpu.transparent", "gpu.overlay", "gpu.instanced"],
+        locked: true,
+        base_frac: 0.15,
+        color: "nav_reality",
+        note: "Ship and homestead geometry: opaque, glass, and overlay draws.",
+    ),
+    (
+        id: "particles",
+        display: "Particles",
+        category: "gpu",
+        sources: ["gpu.particles", "gpu.gpu_particles"],
+        locked: false,
+        base_frac: 0.05,
+        color: "info",
+        note: "Rain, snow, dust and sparks - the billboard and GPU-simulated pools.",
+    ),
+    (
+        id: "world_lines",
+        display: "Orbit + guide lines",
+        category: "gpu",
+        sources: ["gpu.lines", "gpu.celestial_lines"],
+        locked: false,
+        base_frac: 0.02,
+        color: "orbit_line",
+        note: "Orbit paths, rings and placement guides.",
+    ),
+    (
+        id: "interface",
+        display: "Interface (egui)",
+        category: "gpu",
+        sources: ["gpu.ui", "gpu.clear"],
+        locked: true,
+        base_frac: 0.06,
+        color: "accent",
+        note: "The app's own panels and HUD. Timed once the egui pass in lib.rs is wired.",
+    ),
+    (
+        id: "stars",
+        display: "Star field",
+        category: "gpu",
+        sources: ["gpu.stars"],
+        locked: false,
+        base_frac: 0.05,
+        color: "constellation_line",
+        note: "The 16.8 M-point sky. Timed once the star pass in lib.rs is wired.",
+    ),
+    (
+        id: "post_process",
+        display: "God rays + SSAO + bloom",
+        category: "gpu",
+        sources: ["gpu.godrays", "gpu.ssao", "gpu.bloom"],
+        locked: false,
+        base_frac: 0.10,
+        color: "success",
+        note: "Screen-space effects. CPU submit time is measured; the GPU passes live in their own modules.",
+    ),
+
+    // ── CPU pie: where the frame's milliseconds go on the processor ──
+    (
+        id: "cpu_render_submit",
+        display: "Render submission",
+        category: "cpu",
+        sources: [
+            "cpu.celestial", "cpu.scene", "cpu.transparent", "cpu.overlay",
+            "cpu.lines", "cpu.celestial_lines", "cpu.particles",
+            "cpu.gpu_particles", "cpu.gpu_particle_sim",
+        ],
+        locked: true,
+        base_frac: 0.30,
+        color: "nav_sim",
+        note: "Building and submitting this frame's draw calls.",
+    ),
+    (
+        id: "cpu_post",
+        display: "Post-process submit",
+        category: "cpu",
+        sources: ["cpu.godrays", "cpu.ssao"],
+        locked: false,
+        base_frac: 0.05,
+        color: "success",
+        note: "God rays and ambient occlusion, CPU side.",
+    ),
+    (
+        id: "cpu_uploads",
+        display: "GPU uploads",
+        category: "cpu",
+        sources: [
+            "cpu.patch_upload", "cpu.grass_upload", "cpu.water_upload",
+            "cpu.weather_upload", "cpu.atmo_luts", "cpu.lights",
+            "cpu.light_tiles", "cpu.mesh_upload",
+        ],
+        locked: false,
+        base_frac: 0.15,
+        color: "info",
+        note: "Pushing terrain patches, grass, ocean and weather data to the card.",
+    ),
+    (
+        id: "cpu_terrain_build",
+        display: "Terrain build",
+        category: "cpu",
+        sources: ["cpu.patch_build", "cpu.patch_select"],
+        locked: false,
+        base_frac: 0.20,
+        color: "nav_reality",
+        note: "Meshing the ground you are walking toward. Wired from the frame loop.",
+    ),
+    (
+        id: "cpu_vegetation",
+        display: "Trees + grass harvest",
+        category: "cpu",
+        sources: ["cpu.near_tree_harvest", "cpu.grass_harvest"],
+        locked: false,
+        base_frac: 0.10,
+        color: "warning",
+        note: "Choosing which trees and grass tillers stand near you this frame.",
+    ),
+    (
+        id: "cpu_systems",
+        display: "Game systems",
+        category: "cpu",
+        sources: ["cpu.systems"],
+        locked: true,
+        base_frac: 0.10,
+        color: "accent",
+        note: "Farming, weather, creatures, vitals - the ECS system tick.",
+    ),
+
+    // ── VRAM pie: tracked graphics-memory allocations ──
+    (
+        id: "vram_terrain",
+        display: "Terrain patches",
+        category: "vram",
+        sources: ["vram.patch_arena"],
+        locked: true,
+        base_frac: 0.45,
+        color: "nav_sim",
+        note: "Live geometry in the patch mega-buffers (the reserved arena is larger).",
+    ),
+    (
+        id: "vram_meshes",
+        display: "Meshes",
+        category: "vram",
+        sources: ["vram.meshes"],
+        locked: true,
+        base_frac: 0.15,
+        color: "nav_reality",
+        note: "Homestead, props, trees and unbatched geometry.",
+    ),
+    (
+        id: "vram_textures",
+        display: "Textures",
+        category: "vram",
+        sources: ["vram.textures"],
+        locked: false,
+        base_frac: 0.15,
+        color: "info",
+        note: "Planet imagery and baked bark uploaded as material textures.",
+    ),
+    (
+        id: "vram_targets",
+        display: "Render targets",
+        category: "vram",
+        sources: ["vram.render_targets"],
+        locked: true,
+        base_frac: 0.08,
+        color: "success",
+        note: "Scene colour, depth, shadow map, sky and ocean lookup textures.",
+    ),
+    (
+        id: "vram_particles",
+        display: "Particles",
+        category: "vram",
+        sources: ["vram.particles"],
+        locked: false,
+        base_frac: 0.03,
+        color: "orbit_line",
+        note: "Billboard and GPU-simulation particle pools.",
+    ),
+    (
+        id: "vram_grass",
+        display: "Grass",
+        category: "vram",
+        sources: ["vram.grass"],
+        locked: false,
+        base_frac: 0.03,
+        color: "warning",
+        note: "Near-field grass tiller mesh and its instance buffer.",
+    ),
+    (
+        id: "vram_uniforms",
+        display: "Uniforms + lights",
+        category: "vram",
+        sources: ["vram.uniforms"],
+        locked: true,
+        base_frac: 0.01,
+        color: "accent",
+        note: "Camera, object, light and tile buffers rewritten every frame.",
+    ),
+
+    // ── RAM pie: the process's own memory ──
+    (
+        id: "ram_resident",
+        display: "In RAM now",
+        category: "ram",
+        sources: ["ram.resident"],
+        locked: true,
+        base_frac: 0.80,
+        color: "nav_sim",
+        note: "Working set: the part of the app actually held in physical memory.",
+    ),
+    (
+        id: "ram_committed",
+        display: "Committed, paged out",
+        category: "ram",
+        sources: ["ram.committed_extra"],
+        locked: false,
+        base_frac: 0.20,
+        color: "info",
+        note: "Memory the app has claimed that is not resident right now.",
+    ),
+]

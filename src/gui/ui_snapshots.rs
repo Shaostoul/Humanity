@@ -1108,6 +1108,102 @@ page_snapshot!(snapshot_quests, "quests", quests, 1280, 900);
 page_snapshot!(snapshot_calendar, "calendar", calendar, 1280, 900);
 page_snapshot!(snapshot_notes, "notes", notes, 1280, 900);
 
+/// Performance page (resource budgets increment 1): the four live pies.
+///
+/// Headless, so there is no renderer writing real costs into the store. This
+/// seeds REPRESENTATIVE numbers first - the same convention `demo_state` uses
+/// for every other page - so the snapshot shows the laid-out pies instead of
+/// four "no measurements yet" rings. The numbers are a plausible surface-level
+/// frame, not a measurement; the real ones come from the probe rig's
+/// `debug/frame_costs.json`.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_performance() {
+    use crate::renderer::frame_costs as fc;
+    render_page_png("performance", 1280, 1200, |ctx, theme, state| {
+        fc::set_gpu_timing(true);
+        fc::begin_frame();
+        for (id, ms) in [
+            ("gpu.celestial", 6.9_f32), ("gpu.shadow", 1.7), ("gpu.scene", 1.1),
+            ("gpu.transparent", 0.4), ("gpu.overlay", 0.2), ("gpu.particles", 0.6),
+            ("gpu.gpu_particles", 0.3), ("gpu.lines", 0.1), ("gpu.celestial_lines", 0.05),
+        ] {
+            // 40 folds so the smoothing settles on the seeded value.
+            for _ in 0..40 {
+                fc::record_gpu(id, ms);
+            }
+        }
+        // Every stage must report in the SAME frame, then the frame closes:
+        // a stage that misses a frame decays, which is the whole point of the
+        // idle-decay rule.
+        for _ in 0..40 {
+            for (id, us) in [
+                ("cpu.celestial", 2600_u64), ("cpu.scene", 700), ("cpu.transparent", 200),
+                ("cpu.patch_upload", 900), ("cpu.grass_upload", 400), ("cpu.water_upload", 300),
+                ("cpu.lights", 120), ("cpu.godrays", 90), ("cpu.ssao", 80),
+            ] {
+                fc::record_cpu(id, std::time::Duration::from_micros(us));
+            }
+            fc::begin_frame();
+        }
+        for (id, bytes) in [
+            ("vram.patch_arena", 742_000_000_u64), ("vram.meshes", 180_000_000),
+            ("vram.textures", 96_000_000), ("vram.render_targets", 44_000_000),
+            ("vram.particles", 12_000_000), ("vram.grass", 8_000_000),
+            ("vram.uniforms", 5_000_000), ("vram.driver_reserved", 1_450_000_000),
+            ("vram.patch_arena_reserved", 1_541_000_000),
+        ] {
+            fc::set_vram(id, bytes);
+        }
+        fc::set_ram("ram.resident", 2_900_000_000);
+        fc::set_ram("ram.committed_extra", 640_000_000);
+        // Set LAST: the begin_frame calls above smooth the frame clock toward
+        // the microseconds this test takes, which would leave no remainder.
+        fc::set_frame_ms(13.9);
+        crate::gui::pages::performance::draw(ctx, theme, state);
+    });
+}
+
+/// The NARROW layout (operator: "single stacking the pie charts on mobile;
+/// on PC it keeps the widget small"): under 620 px the four pies stack in one
+/// column instead of the 2x2 grid above. Same seeded numbers.
+#[test]
+#[ignore = "GPU snapshot; run via `just snapshots` (single-threaded)"]
+fn snapshot_performance_narrow() {
+    use crate::renderer::frame_costs as fc;
+    render_page_png("performance_narrow", 560, 2000, |ctx, theme, state| {
+        fc::set_gpu_timing(true);
+        for _ in 0..40 {
+            for (id, ms) in [
+                ("gpu.celestial", 6.9_f32), ("gpu.shadow", 1.7), ("gpu.scene", 1.1),
+                ("gpu.transparent", 0.4), ("gpu.overlay", 0.2), ("gpu.particles", 0.6),
+                ("gpu.gpu_particles", 0.3), ("gpu.lines", 0.1), ("gpu.celestial_lines", 0.05),
+            ] {
+                fc::record_gpu(id, ms);
+            }
+            for (id, us) in [
+                ("cpu.celestial", 2600_u64), ("cpu.scene", 700), ("cpu.patch_upload", 900),
+                ("cpu.grass_upload", 400), ("cpu.godrays", 90),
+            ] {
+                fc::record_cpu(id, std::time::Duration::from_micros(us));
+            }
+            fc::begin_frame();
+        }
+        for (id, bytes) in [
+            ("vram.patch_arena", 742_000_000_u64), ("vram.meshes", 180_000_000),
+            ("vram.textures", 96_000_000), ("vram.render_targets", 44_000_000),
+            ("vram.particles", 12_000_000), ("vram.grass", 8_000_000),
+            ("vram.uniforms", 5_000_000), ("vram.driver_reserved", 1_450_000_000),
+        ] {
+            fc::set_vram(id, bytes);
+        }
+        fc::set_ram("ram.resident", 2_900_000_000);
+        fc::set_ram("ram.committed_extra", 640_000_000);
+        fc::set_frame_ms(13.9);
+        crate::gui::pages::performance::draw(ctx, theme, state);
+    });
+}
+
 // Studio needs the scene/source presets loaded (demo_state leaves them empty) and a
 // staged-vs-live divergence so the Program/Preview split is actually visible: program
 // holds the cut "Main" layout while "Screen Share" sits staged in preview.

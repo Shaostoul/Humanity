@@ -25,6 +25,9 @@ pub mod camera;
 pub mod stream_capture;
 pub mod cloud_noise;
 pub mod clouds;
+/// Live per-pass / per-stage / per-allocation cost measurement (resource
+/// budgets increment 1). Ungated: `renderer` compiles in the relay build too.
+pub mod frame_costs;
 pub mod ground_textures;
 pub mod floating_origin;
 pub mod hologram;
@@ -404,6 +407,13 @@ pub struct Renderer {
     pub aerial_sky: [f32; 3],
     /// Camera's radial up (world), for the slant path bound.
     pub aerial_up: [f32; 3],
+    /// GPU pass timing (resource budgets increment 1). `None` when the adapter
+    /// has no TIMESTAMP_QUERY feature, in which case the Performance page shows
+    /// CPU-side pass times and says so.
+    gpu_timers: Option<frame_costs::GpuTimers>,
+    /// Throttle for the VRAM/RAM inventory walk (at most once a second, and
+    /// only while the Performance page is open).
+    inventory_sampled: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 impl Renderer {
@@ -565,7 +575,12 @@ impl Renderer {
         // per-draw loop runs on the exact same buffers and shaders.
         let indirect_features = wgpu::Features::MULTI_DRAW_INDIRECT
             | wgpu::Features::INDIRECT_FIRST_INSTANCE;
-        let granted_indirect = adapter.features() & indirect_features;
+        // Same intersection trick for TIMESTAMP_QUERY (resource budgets
+        // increment 1): asking for exactly what the adapter reports can never
+        // fail device creation, which is the v0.782 boot-killer class. Without
+        // it the Performance page falls back to CPU-side pass timing.
+        let granted_indirect = adapter.features()
+            & (indirect_features | wgpu::Features::TIMESTAMP_QUERY);
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -578,10 +593,17 @@ impl Renderer {
             )
             .await
             .expect("Failed to create device");
-        let patch_indirect = granted_indirect == indirect_features;
+        let patch_indirect = granted_indirect.contains(indirect_features);
         log::info!(
             "[PatchBatch] indirect multi-draw: {}",
             if patch_indirect { "SUPPORTED (one submit per batch)" } else { "unsupported (per-draw loop)" }
+        );
+        // GPU pass timers. `None` = no timestamp queries on this adapter.
+        let gpu_timers = frame_costs::GpuTimers::new(&device, &queue);
+        frame_costs::set_gpu_timing(gpu_timers.is_some());
+        log::info!(
+            "[FrameCosts] GPU pass timing: {}",
+            if gpu_timers.is_some() { "timestamp queries" } else { "CPU fallback (adapter has no TIMESTAMP_QUERY)" }
         );
 
         // Surface configuration
@@ -1333,6 +1355,8 @@ impl Renderer {
             aerial_slant_cap: 25_000.0,
             aerial_sky: [0.0, 0.0, 0.0],
             aerial_up: [0.0, 1.0, 0.0],
+            gpu_timers,
+            inventory_sampled: std::sync::Mutex::new(None),
             bloom_intensity: 0.0, // Off by default; set > 0 to enable
             bloom_threshold: 0.8,
             // Defaults match camera.uniforms()'s former hardcoded sun/fill, so behaviour is unchanged
@@ -1505,6 +1529,7 @@ impl Renderer {
         vertices: &[mesh::Vertex],
         indices: &[u32],
     ) -> Option<patch_arena::PatchSlot> {
+        let _cost = frame_costs::stage("cpu.patch_upload");
         if self.patch_arena.is_none() {
             self.patch_arena = Some(patch_arena::PatchArena::new(
                 &self.device,
@@ -1559,6 +1584,7 @@ impl Renderer {
     /// Replace this frame's grass instance set. Empty = the layer draws
     /// nothing (the normal state away from vegetated ground).
     pub fn set_grass_instances(&mut self, inst: &[mesh::GrassInstance]) {
+        let _cost = frame_costs::stage("cpu.grass_upload");
         self.grass_n = inst.len() as u32;
         if inst.is_empty() {
             return;
@@ -1592,6 +1618,7 @@ impl Renderer {
     /// persistent 128x256 tile: A at row 0, B at row FFT_N. Called once
     /// per frame while FFT-ocean mode is on; ~512 KB, no rebuild.
     pub fn upload_water_fft(&self, a: &[[f32; 4]], b: &[[f32; 4]]) {
+        let _cost = frame_costs::stage("cpu.water_upload");
         let n = crate::terrain::ocean_fft::FFT_N as u32;
         debug_assert_eq!(a.len(), (n * n) as usize);
         debug_assert_eq!(b.len(), (n * n) as usize);
@@ -1623,6 +1650,7 @@ impl Renderer {
     /// is ~milliseconds; the textures are rewritten in place so bind groups
     /// never rebuild.
     pub fn update_atmo_luts(&mut self, params: atmo_luts::TransLutParams) {
+        let _cost = frame_costs::stage("cpu.atmo_luts");
         let queue = &self.queue;
         if self.atmo_lut_params == Some(params) {
             return;
@@ -1661,6 +1689,7 @@ impl Renderer {
     }
 
     pub fn update_weather_map(&self, queue: &wgpu::Queue, rg: &[u8]) {
+        let _cost = frame_costs::stage("cpu.weather_upload");
         let (w, h) = (
             WEATHER_MAP_W,
             WEATHER_MAP_H,
@@ -1718,6 +1747,7 @@ impl Renderer {
         screen: (u32, u32),
         enabled: bool,
     ) {
+        let _cost = frame_costs::stage("cpu.light_tiles");
         if !enabled || lights.is_empty() {
             self.tile_px = (0.0, 0.0);
             return;
@@ -1751,6 +1781,7 @@ impl Renderer {
     }
 
     pub fn set_point_lights(&mut self, lights: &[light::RoomLight]) {
+        let _cost = frame_costs::stage("cpu.lights");
         // Grow the storage buffer by doubling if needed (bind groups are
         // immutable, so a grow recreates the camera bind group too).
         if lights.len() > self.lights_capacity {
@@ -2097,6 +2128,9 @@ impl Renderer {
         &self,
         clear_color: wgpu::Color,
     ) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
+        // UI-only frame: no world pass runs, so the budget numbers stay frozen
+        // at the last rendered world frame (resource budgets increment 1).
+        self.frame_costs_begin(false);
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -2111,6 +2145,7 @@ impl Renderer {
         {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Clear Pass"),
+                timestamp_writes: self.pass_timer("gpu.clear"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -2158,6 +2193,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Main Render Pass"),
+                timestamp_writes: self.pass_timer("gpu.scene"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -2242,6 +2278,7 @@ impl Renderer {
         objects: &[RenderObject],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.scene");
         self.queue.write_buffer(
             &self.camera_buffer,
             0,
@@ -2257,6 +2294,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Scene Overlay Pass"),
+                timestamp_writes: self.pass_timer("gpu.scene"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -2337,6 +2375,7 @@ impl Renderer {
         objects: &[RenderObject],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.transparent");
         if objects.is_empty() {
             return;
         }
@@ -2355,6 +2394,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Transparent Pass"),
+                timestamp_writes: self.pass_timer("gpu.transparent"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -2424,6 +2464,7 @@ impl Renderer {
     /// + floors. Call AFTER `render_transparent_onto`. Reuses the shared object buffer (the prior pass
     /// already drew), so the writes are safe.
     pub fn render_overlay_onto(&self, camera: &Camera, objects: &[RenderObject], view: &wgpu::TextureView) {
+        let _cost = frame_costs::stage("cpu.overlay");
         if objects.is_empty() {
             return;
         }
@@ -2434,6 +2475,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Overlay Pass"),
+                timestamp_writes: self.pass_timer("gpu.overlay"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -2507,6 +2549,7 @@ impl Renderer {
         view: &wgpu::TextureView,
         weather_scale: f32,
     ) {
+        let _cost = frame_costs::stage("cpu.godrays");
         // Settings slider at 0 = pass off entirely (v0.907).
         if self.godray_intensity <= 0.001 {
             return;
@@ -2538,6 +2581,7 @@ impl Renderer {
     /// render_godrays_onto, same celestial slot (depth still holds terrain +
     /// vegetation). Multiplies contact shade into the color target.
     pub fn render_ssao_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
+        let _cost = frame_costs::stage("cpu.ssao");
         // Settings slider at 0 = pass off entirely (v0.907).
         if self.ssao_strength <= 0.001 {
             return;
@@ -2589,6 +2633,7 @@ impl Renderer {
         ocean_anchor256: [f32; 4],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.celestial");
         if objects.is_empty() && transparent.is_empty() {
             return;
         }
@@ -2881,6 +2926,7 @@ impl Renderer {
             {
                 let mut pass = senc.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("Sun Shadow Pass"),
+                    timestamp_writes: self.pass_timer("gpu.shadow"),
                     color_attachments: &[],
                     depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                         view: &self.shadow_map_view,
@@ -3039,6 +3085,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Celestial Pass"),
+                timestamp_writes: self.pass_timer("gpu.celestial"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3293,6 +3340,7 @@ impl Renderer {
         verts: &[line::LineVertex],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.lines");
         if verts.len() < 2 {
             return;
         }
@@ -3314,6 +3362,7 @@ impl Renderer {
         {
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("World Line Pass"),
+                timestamp_writes: self.pass_timer("gpu.lines"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3351,6 +3400,7 @@ impl Renderer {
         additive: &[particles::ParticleVertexData],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.particles");
         if alpha.is_empty() && additive.is_empty() {
             return;
         }
@@ -3406,6 +3456,7 @@ impl Renderer {
         {
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Particle Pass"),
+                timestamp_writes: self.pass_timer("gpu.particles"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3464,6 +3515,7 @@ impl Renderer {
         live: u32,
         capacity_hint: u32,
     ) {
+        let _cost = frame_costs::stage("cpu.gpu_particle_sim");
         if self.gpu_particles.is_none()
             || self
                 .gpu_particles
@@ -3484,6 +3536,7 @@ impl Renderer {
     /// instanced quad the CPU path uses - the compute shader wrote the identical
     /// vertex layout, so nothing here knows or cares where the data came from.
     pub fn draw_gpu_particles_onto(&self, camera: &Camera, view: &wgpu::TextureView) {
+        let _cost = frame_costs::stage("cpu.gpu_particles");
         let Some(g) = self.gpu_particles.as_ref() else {
             return;
         };
@@ -3509,6 +3562,7 @@ impl Renderer {
         {
             let mut rp = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("GPU Particle Pass"),
+                timestamp_writes: self.pass_timer("gpu.gpu_particles"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3548,6 +3602,7 @@ impl Renderer {
         verts: &[line::LineVertex],
         view: &wgpu::TextureView,
     ) {
+        let _cost = frame_costs::stage("cpu.celestial_lines");
         if verts.len() < 2 {
             return;
         }
@@ -3569,6 +3624,7 @@ impl Renderer {
         {
             let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Celestial Line Pass"),
+                timestamp_writes: self.pass_timer("gpu.celestial_lines"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
@@ -3597,6 +3653,7 @@ impl Renderer {
 
     /// Acquire surface and clear to black, returning the texture for star + scene rendering.
     pub fn acquire_surface(&self) -> Result<(wgpu::SurfaceTexture, wgpu::TextureView), wgpu::SurfaceError> {
+        self.frame_costs_begin(true);
         let output = self.surface.get_current_texture()?;
         let view = output
             .texture
@@ -3632,6 +3689,7 @@ impl Renderer {
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Instanced Render Pass"),
+                timestamp_writes: self.pass_timer("gpu.instanced"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,

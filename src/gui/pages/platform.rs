@@ -15,7 +15,7 @@ use egui::{Frame, Stroke};
 use crate::gui::GuiState;
 use crate::gui::theme::Theme;
 use crate::gui::widgets::{self, SectionNavItem};
-use super::{recovery, bugs, testing, browser, calculator, files, dev, notes, calendar};
+use super::{recovery, bugs, testing, browser, calculator, files, dev, notes, calendar, performance};
 
 pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
     egui::SidePanel::left("platform_section_nav")
@@ -38,6 +38,7 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
                 SectionNavItem::new("files", "Files", c),
                 SectionNavItem::new("bugs", "Bugs", c),
                 SectionNavItem::new("testing", "Testing", c),
+                SectionNavItem::new("performance", "Performance", c),
                 SectionNavItem::new("dev", "Dev", c),
                 SectionNavItem::new("browser", "Browser", c),
             ];
@@ -60,6 +61,8 @@ pub fn draw(ctx: &egui::Context, theme: &Theme, state: &mut GuiState) {
         "files" => files::draw(ctx, theme, state),
         "bugs" => bugs::draw(ctx, theme, state),
         "testing" => testing::draw(ctx, theme, state),
+        // Resource budgets increment 1: live GPU/CPU/VRAM/RAM pies.
+        "performance" => performance::draw(ctx, theme, state),
         "dev" => dev::draw(ctx, theme, state),
         "browser" => browser::draw(ctx, theme, state),
         _ => recovery::draw(ctx, theme, state),

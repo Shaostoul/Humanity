@@ -57,5 +57,8 @@ pub mod cosmos;
 pub mod testing;
 pub mod browser;
 pub mod dev;
+// Resource budgets increment 1: the live GPU/CPU/VRAM/RAM pies, shown as a
+// section of the Platform tab (the page-sized sibling of the F2 overlay).
+pub mod performance;
 // v0.699.0: category_overview + settings_pages modules removed with the dead
 // two-tier-nav category-browse subsystem (5 Overview* + 12 Settings* pages).
