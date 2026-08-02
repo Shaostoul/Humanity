@@ -5976,11 +5976,15 @@ mod native_app {
                     };
 
                     // Tick all ECS systems
-                    state.system_runner.tick(
-                        &mut state.game_world.world,
-                        dt,
-                        &state.data_store,
-                    );
+                    {
+                        let _cost_systems =
+                            crate::renderer::frame_costs::stage("cpu.systems");
+                        state.system_runner.tick(
+                            &mut state.game_world.world,
+                            dt,
+                            &state.data_store,
+                        );
+                    }
 
                     // Apply what auto machines consumed FROM home storage this
                     // tick (v0.737): any shortfall vs the pre-tick snapshot comes
@@ -8959,6 +8963,8 @@ mod native_app {
                                 // alias the tile streamer's &mut poll (which
                                 // runs sequentially elsewhere this frame).
                                 let build_t0 = Instant::now();
+                                let _cost_patch_build =
+                                    crate::renderer::frame_costs::stage("cpu.patch_build");
                                 let budget = state
                                     .gui_state
                                     .settings
@@ -9319,6 +9325,8 @@ mod native_app {
                                                     ^ ((p.z * 2.0).round() as i64 as u64)
                                             })
                                             .collect();
+                                        let _cost_tree_harvest =
+                                            crate::renderer::frame_costs::stage("cpu.near_tree_harvest");
                                         state.near_trees = chunks::near_tree_instances(
                                             d,
                                             &src,
@@ -10077,6 +10085,8 @@ mod native_app {
                                             ocean: ocean_ref,
                                         };
                                         let t0 = std::time::Instant::now();
+                                        let _cost_grass_harvest =
+                                            crate::renderer::frame_costs::stage("cpu.grass_harvest");
                                         state.near_grass = chunks::near_grass_instances(
                                             d,
                                             &src,
@@ -16722,6 +16732,7 @@ mod native_app {
                                     {
                                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                                             label: Some("Star Pass"),
+                                            timestamp_writes: state.renderer.pass_timer("gpu.stars"),
                                             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                                                 view: &view,
                                                 resolve_target: None,
@@ -17652,6 +17663,7 @@ mod native_app {
                                     >(encoder.begin_render_pass(
                                         &wgpu::RenderPassDescriptor {
                                             label: Some("egui Render Pass"),
+                                            timestamp_writes: state.renderer.pass_timer("gpu.ui"),
                                             color_attachments: &[Some(
                                                 wgpu::RenderPassColorAttachment {
                                                     view: &view,
