@@ -24,7 +24,7 @@
 //! children with less vigour, and leaves live on the OUTERMOST twigs only, so
 //! the canopy is a shell rather than a solid block of foliage.
 
-use super::plant_mesh::{Organ, PlantMeshBuilder};
+use super::plant_mesh::{ring_basis, ring_point, Organ, PlantMeshBuilder};
 use serde::Deserialize;
 
 // ── Species data (deserialized from data/vegetation/trees.ron) ───────────
@@ -445,6 +445,15 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
 fn add(a: [f32; 3], b: [f32; 3], s: f32) -> [f32; 3] {
     [a[0] + b[0] * s, a[1] + b[1] * s, a[2] + b[2] * s]
 }
+fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+fn length(v: [f32; 3]) -> f32 {
+    dot(v, v).sqrt()
+}
+fn mul(v: [f32; 3], s: f32) -> [f32; 3] {
+    [v[0] * s, v[1] * s, v[2] * s]
+}
 
 /// Rotate `v` away from `axis` by `deg`, around a stable perpendicular chosen
 /// from `phase` so successive children fan out instead of stacking.
@@ -566,6 +575,14 @@ pub(crate) struct TreeParts {
     pub wood_packed: PlantMeshBuilder,
     /// Metres per bark texture tile for this species.
     tile_m: f32,
+    /// Every branch junction this build made, in emission order (v0.1098).
+    ///
+    /// Permanent instrumentation, not debug scaffolding: the back-poke gate
+    /// (`no_branch_pokes_out_the_back_of_its_parent`) reads the REAL numbers
+    /// the generator used rather than re-deriving them from a copy of the
+    /// placement maths, which is the only way a gate can actually prove the
+    /// shipped geometry is clean. ~150 records of 60 bytes per tree.
+    pub forks: Vec<Fork>,
 }
 
 impl TreeParts {
@@ -575,6 +592,7 @@ impl TreeParts {
             wood: PlantMeshBuilder::new(),
             wood_packed: PlantMeshBuilder::new(),
             tile_m: bark_tile_m(def),
+            forks: Vec::new(),
         }
     }
 
@@ -666,6 +684,111 @@ impl TreeParts {
                 .card_tri([b0, t0, t1], [n0, n0, n1], [[u0, v_a], [u0, v_b], [u1, v_b]]);
             self.wood
                 .card_tri([b0, t1, b1], [n0, n1, n1], [[u0, v_a], [u1, v_b], [u1, v_a]]);
+        }
+    }
+
+    /// Flat disc closing a limb's terminal ring, emitted ONCE per fork.
+    ///
+    /// `tube` writes no end caps, so the parent's last ring is an open pipe.
+    /// Through v0.1097 that hole was plugged by burying the children inside the
+    /// parent, which is exactly the defect this release removes; the honest
+    /// replacement is to actually close the hole. `sides` triangles, and it is
+    /// only spent where children are spawned - a terminal shoot's hole is
+    /// already covered by its cluster cap card.
+    fn bark_cap(&mut self, at: [f32; 3], ax: [f32; 3], r: f32, sides: u32, color: [f32; 3]) {
+        if r <= 1e-5 {
+            return;
+        }
+        let (side, up) = ring_basis(ax);
+        let n = sides.max(3);
+        for i in 0..n {
+            let a0 = (i as f32) / (n as f32) * std::f32::consts::TAU;
+            let a1 = ((i + 1) as f32) / (n as f32) * std::f32::consts::TAU;
+            let p0 = ring_point(at, side, up, a0, r);
+            let p1 = ring_point(at, side, up, a1, r);
+            // Wound so the face looks the way the limb points, matching the
+            // outward winding `tube` uses for the wall it closes.
+            self.wood_packed.tri_smooth([at, p1, p0], [ax, ax, ax], color);
+            self.wood.card_tri([at, p1, p0], [ax, ax, ax], [[0.5, 0.5], [0.0, 0.0], [1.0, 0.0]]);
+        }
+    }
+
+    /// Weld a child limb onto its parent and return the point its spine starts
+    /// at - which is ON the parent's surface, never inside it (v0.1098).
+    ///
+    /// Emits the BRANCH COLLAR: a skirt whose outer edge is the child's first
+    /// ring, vertex for vertex, and whose inner edge is that same ring
+    /// projected onto the parent's surface. That is what carries the visual
+    /// join now that no child geometry is buried, and it is the anatomically
+    /// real thing too - a branch collar is a swelling of parent tissue around
+    /// the branch base, not a stick pushed into a hole.
+    fn weld_child(
+        &mut self,
+        j: Junction,
+        dir: [f32; 3],
+        r0: f32,
+        sides: u32,
+        color: [f32; 3],
+    ) -> [f32; 3] {
+        let start = surface_root(j, dir, r0);
+        self.forks.push(Fork { parent: j, start, dir, r0, sides: sides.max(3), rings: Vec::new() });
+        let (side, up) = ring_basis(dir);
+        let n = sides.max(3);
+        let tile = self.tile_m.max(1e-3);
+        let reps = ((std::f32::consts::TAU * r0) / tile).round().max(1.0);
+        for i in 0..n {
+            let a0 = (i as f32) / (n as f32) * std::f32::consts::TAU;
+            let a1 = ((i + 1) as f32) / (n as f32) * std::f32::consts::TAU;
+            let v0 = ring_point(start, side, up, a0, r0);
+            let v1 = ring_point(start, side, up, a1, r0);
+            let f0 = j.project(v0);
+            let f1 = j.project(v1);
+            // Shading continuity at both edges: the collar's outer edge takes
+            // the child's radial normal (so it lights as one surface with the
+            // limb) and its inner edge takes the parent's, so the skirt melts
+            // into the trunk instead of ringing it with a hard rim.
+            let n0 = norm([
+                side[0] * a0.cos() + up[0] * a0.sin(),
+                side[1] * a0.cos() + up[1] * a0.sin(),
+                side[2] * a0.cos() + up[2] * a0.sin(),
+            ]);
+            let n1 = norm([
+                side[0] * a1.cos() + up[0] * a1.sin(),
+                side[1] * a1.cos() + up[1] * a1.sin(),
+                side[2] * a1.cos() + up[2] * a1.sin(),
+            ]);
+            let m0 = j.surface_normal(f0);
+            let m1 = j.surface_normal(f1);
+            let (u0, u1) = ((i as f32) / (n as f32) * reps, ((i + 1) as f32) / (n as f32) * reps);
+            // v runs BACKWARDS from the limb's own v=0 by the collar's real
+            // height, so the bark pattern flows out of the trunk and into the
+            // branch instead of restarting at the joint.
+            let (h0, h1) = (dist(f0, v0) / tile, dist(f1, v1) / tile);
+            // Same winding as `tube` with the foot ring as `from`.
+            self.wood_packed.tri_smooth([f0, v0, v1], [m0, n0, n1], color);
+            self.wood_packed.tri_smooth([f0, v1, f1], [m0, n1, m1], color);
+            self.wood.card_tri(
+                [f0, v0, v1],
+                [m0, n0, n1],
+                [[u0, -h0], [u0, 0.0], [u1, 0.0]],
+            );
+            self.wood.card_tri(
+                [f0, v1, f1],
+                [m0, n1, m1],
+                [[u0, -h0], [u1, 0.0], [u1, -h1]],
+            );
+        }
+        start
+    }
+
+    /// Record one ring of the limb that most recently welded itself on, for the
+    /// back-poke gate. Only the first `FORK_GATE_RINGS` are kept - past those
+    /// the limb is unambiguously clear of its parent.
+    fn note_fork_ring(&mut self, centre: [f32; 3], ax: [f32; 3], r: f32, sides: u32) {
+        if let Some(f) = self.forks.last_mut() {
+            if f.rings.len() < FORK_GATE_RINGS {
+                f.rings.push(ForkRing { centre, ax, r, sides: sides.max(3) });
+            }
         }
     }
 }
@@ -1183,7 +1306,7 @@ fn trunk(
     r_top_frac: f32,
     flare_run_m: f32,
     segs: u32,
-) -> Vec<StemSample> {
+) -> (Vec<StemSample>, [f32; 3]) {
     let segs = segs.max(2);
     let mut p = base;
     let mut d = dir;
@@ -1200,6 +1323,10 @@ fn trunk(
     };
     let mut out: Vec<StemSample> = Vec::with_capacity(segs as usize + 1);
     out.push(StemSample { p, dir: d, r: radius(0.0), f: 0.0 });
+    // Where the DRAWN tube ends, which is past the last spine point by the
+    // joint overshoot. The terminal limb welds onto that plane, so the caller
+    // needs the drawn end and not the spine end (v0.1098).
+    let mut drawn_end = p;
     for s in 0..segs {
         let f0 = s as f32 / segs as f32;
         let f1 = (s + 1) as f32 / segs as f32;
@@ -1209,7 +1336,8 @@ fn trunk(
         let to = add(p, d, seg);
         // Same joint overshoot as `limb`: the stem sways slightly between
         // segments, and without the overlap each sway opens a hairline slit.
-        b.bark_tube(p, add(p, d, seg + rb * 0.5), ra, rb, 8, def.trunk_color, v);
+        drawn_end = add(p, d, seg + rb * 0.5);
+        b.bark_tube(p, drawn_end, ra, rb, 8, def.trunk_color, v);
         p = to;
         // The SPINE advances by `seg`; the extra `rb * 0.5` is joint overshoot
         // that overlaps the next segment, so v must not count it twice.
@@ -1218,7 +1346,7 @@ fn trunk(
         d = norm([d[0] + 0.012, d[1], d[2] - 0.008]);
         out.push(StemSample { p, dir: d, r: rb, f: f1 });
     }
-    out
+    (out, drawn_end)
 }
 
 /// Interpolate the stem at a fraction `f` of its length.
@@ -1946,9 +2074,11 @@ fn emit_cluster_cards(
             }
             if t.tip {
                 // CAP CARD over the terminal ring. `tube` emits no end cap and
-                // the v0.1086 weld only plugs junctions where a CHILD buries
-                // itself in a parent, so a terminal tip is an open pipe you
-                // can look down against the sky. The card sits just BEYOND the
+                // `bark_cap` is only spent where a limb FORKS (v0.1098), so a
+                // terminal tip is an open pipe you can look down against the
+                // sky - and covering it with foliage the twig was going to
+                // carry anyway is cheaper than a disc. The card sits just
+                // BEYOND the
                 // tip, facing along the twig, so it covers the hole from every
                 // angle the hole is visible from.
                 //
@@ -2238,31 +2368,179 @@ pub fn cluster_sprite_geometry(
     Some(b)
 }
 
-// ── Seam welding (v0.1086, RUNG B) ───────────────────────────────────────
+// ── Welded junctions: collar, not burial (v0.1098) ───────────────────────
 //
 // `PlantMeshBuilder::tube` emits a side wall and NO end caps, so every limb is
-// an open pipe. Where a child left its parent exactly at the parent's tip, the
-// two open rings had the same radius but different planes: they cross at two
-// points and gape everywhere else, so you could see straight down the inside
-// of both tubes. That is the "visible open seam" the operator has reported
-// three times.
+// an open pipe. v0.1086 plugged that by starting the child's root ring INSIDE
+// the parent's solid - push it back along the child's own axis by 1.4 parent
+// radii and the parent's wall hides the child's open end.
 //
-// The robust fix is not exact ring sharing (which needs a shared vertex ring
-// and breaks the moment a limb curves): it is to start the child's root ring
-// INSIDE the parent's solid. Push the ring back along the child's own axis by
-// at least the parent's local radius and two things become true at once:
-//   1. the child's ring is enclosed by the parent's wall, so its open end is
-//      never visible; and
-//   2. the child's tube crosses the parent's end plane, where its cross
-//      section is an ellipse with semi-axes r and r/cos(angle) - which always
-//      contains the parent's end disc of radius r, so the parent's open tip is
-//      plugged too.
-// It costs ZERO extra triangles: the limb's first spine segment simply starts
-// further back and is that much longer.
+// THAT IS THE BUG THE OPERATOR KEPT SEEING. Pushing back along the CHILD'S
+// axis only stays inside the parent while the two are near-parallel. At a real
+// fork angle the push has a large component ACROSS the parent, so the buried
+// ring lands off-axis on the FAR side: for a child leaving its parent's tip at
+// 42 deg with the radius continuity the generator uses (child r0 = parent tip
+// radius R), the ring centre lands 1.4*R*sin(42) = 0.94 R off-axis and its far
+// vertices another R*cos(42) = 0.74 R beyond that - 1.68 R from the axis
+// through a wall that is only R thick. The branch pokes out the back of the
+// trunk by two thirds of a radius, on EVERY fork in the tree. v0.1096 noticed
+// this for the six laterals shed off the leader and pre-compensated their start
+// point so the burial landed back on the stem AXIS; every other junction in
+// every species (all recursive `limb` children, the acacia's primaries and
+// fans) kept the raw backward push, and even the compensated ones still ran the
+// child's first ring through the middle of the parent's wood.
+//
+// THE FIX IS THE REAL TECHNIQUE, not a bigger fudge. A branch does not start
+// inside its parent; it starts ON its parent, and the junction is closed by a
+// COLLAR - a swelling of parent tissue skinned from the parent's surface up to
+// the branch's base. So:
+//   1. the child's spine starts at the point where it leaves the parent's
+//      surface (`surface_root`), with NO interior run at all;
+//   2. `TreeParts::weld_child` skins a collar from the child's first ring to
+//      that ring projected back onto the parent's surface, which is what makes
+//      the join read as welded from the front; and
+//   3. a fork's parent gets a real end cap (`bark_cap`), because the hole the
+//      burial used to plug is a hole that should simply be closed.
+// Cost is 2*sides triangles per junction plus sides per fork; correctness is
+// now geometric rather than statistical, and `no_branch_pokes_out_the_back_of_
+// its_parent` proves it over every species and variant.
 
-/// How many parent radii to bury a branch root. 1.0 is the minimum that makes
-/// the junction watertight; the margin covers the parent's taper.
-const WELD_EMBED: f32 = 1.4;
+/// How many of a child's leading rings the back-poke gate checks.
+const FORK_GATE_RINGS: usize = 3;
+
+/// The parent surface a child limb leaves from.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Junction {
+    /// Point on the PARENT'S SPINE the child leaves from.
+    pub axis: [f32; 3],
+    /// The parent's spine direction there, unit.
+    pub up: [f32; 3],
+    /// The parent's radius there.
+    pub r: f32,
+    /// `true` when the parent's drawn tube ENDS at `axis` (a fork), `false`
+    /// when the parent continues past (a lateral off the flank of a stem).
+    /// A tip junction has no far wall to poke through, so its child roots on
+    /// the end plane; a side junction must clear the flank.
+    pub tip: bool,
+}
+
+impl Junction {
+    /// The direction a child leaving along `dir` heads AWAY from the parent's
+    /// axis in. Unit, perpendicular to `up`. Falls back to a stable
+    /// perpendicular when the child is parallel to its parent.
+    fn outward(&self, dir: [f32; 3]) -> [f32; 3] {
+        let perp = sub(dir, mul(self.up, dot(dir, self.up)));
+        if length(perp) > 1e-4 {
+            norm(perp)
+        } else {
+            ring_basis(self.up).0
+        }
+    }
+
+    /// `v` pushed onto the parent's surface: the cylinder wall at `v`'s own
+    /// height for a side junction, and for a fork the terminal RIM, because a
+    /// fork's parent has no wall past its end plane.
+    fn project(&self, v: [f32; 3]) -> [f32; 3] {
+        let rel = sub(v, self.axis);
+        let along = dot(rel, self.up);
+        // The radial direction comes from the TRUE perpendicular component,
+        // never from the clamped one: clamping first leaves the axial part in
+        // the vector being normalised, and the foot then lands short of the
+        // surface by a factor of sin - which is exactly how far off the collar
+        // feet sat on the first cut of this (2.4 mm on a 48 mm sakura limb).
+        let radial = sub(rel, mul(self.up, along));
+        let m = if length(radial) > 1e-5 { norm(radial) } else { ring_basis(self.up).0 };
+        // A fork's parent has no wall past its end plane, so its feet land on
+        // the terminal RIM; a side junction's parent runs on in both directions.
+        let h = if self.tip { along.min(0.0) } else { along };
+        add(add(self.axis, self.up, h), m, self.r)
+    }
+
+    /// Outward normal of the parent's surface at a projected foot.
+    fn surface_normal(&self, foot: [f32; 3]) -> [f32; 3] {
+        let rel = sub(foot, self.axis);
+        let radial = sub(rel, mul(self.up, dot(rel, self.up)));
+        if length(radial) > 1e-5 {
+            norm(radial)
+        } else {
+            self.up
+        }
+    }
+}
+
+/// One recorded junction: what the child was welded to, and where its leading
+/// rings ended up. Read by the back-poke gate.
+pub(crate) struct Fork {
+    pub parent: Junction,
+    pub start: [f32; 3],
+    pub dir: [f32; 3],
+    pub r0: f32,
+    pub sides: u32,
+    pub rings: Vec<ForkRing>,
+}
+
+/// One ring of drawn limb: enough to reconstruct its vertices exactly, because
+/// `ring_basis`/`ring_point` are shared with the tube that drew it.
+#[derive(Clone, Copy)]
+pub(crate) struct ForkRing {
+    pub centre: [f32; 3],
+    pub ax: [f32; 3],
+    pub r: f32,
+    pub sides: u32,
+}
+
+impl ForkRing {
+    /// The vertices `bark_tube` put on this ring, in order.
+    pub fn vertices(&self) -> Vec<[f32; 3]> {
+        let (side, up) = ring_basis(self.ax);
+        let n = self.sides.max(3);
+        (0..n)
+            .map(|i| {
+                let a = (i as f32) / (n as f32) * std::f32::consts::TAU;
+                ring_point(self.centre, side, up, a, self.r)
+            })
+            .collect()
+    }
+}
+
+/// Where a child limb's spine starts: ON the parent's surface.
+///
+/// SIDE junction - step out from the parent's axis along the branch's own
+/// outward direction by `r + r0 * cos(angle)`. The `r0 * cos` term is what
+/// makes the guarantee total rather than typical: it puts the ring's most
+/// rearward vertex EXACTLY on the parent's surface, so every vertex of the
+/// first ring sits at radius >= r with a strictly positive outward component,
+/// for any fork angle and any radius ratio. Nothing is inside the wood and
+/// nothing is behind the trunk.
+///
+/// TIP junction (a fork) - the parent stops here, so there is no far wall to
+/// clear, only the end plane. A ring of radius `r0` whose normal sits `angle`
+/// off the parent's axis reaches `r0 * sin` back along that axis, so `r0 * tan`
+/// of travel puts the whole ring in front of the plane. The collar then spans
+/// from the parent's terminal rim out to it.
+///
+/// A tip child can also leave SIDEWAYS or BACKWARDS across its parent (the
+/// acacia's fans open to 94 deg from vertical off a primary that rose at 58-74
+/// deg, so the relative angle reaches ~170 deg and the fan runs back across the
+/// limb it grew from). Those have to clear the FLANK like a side branch or the
+/// half of the ring behind the end plane is buried again, so the two clearances
+/// are taken together whenever the child is not leaving forward.
+fn surface_root(j: Junction, dir: [f32; 3], r0: f32) -> [f32; 3] {
+    let d = norm(dir);
+    let cos = dot(d, j.up).clamp(-1.0, 1.0);
+    let sin = (1.0 - cos * cos).max(0.0).sqrt();
+    if j.tip {
+        // The 0.6 floor caps the step at 1.67 root radii: past ~53 deg the ring
+        // is BESIDE the end plane rather than behind it, so chasing the exact
+        // tangent would buy nothing and would fling the branch base off its
+        // parent.
+        let front = r0 * sin / cos.max(0.6);
+        let flank = (j.r + r0 * cos.abs()) / sin.max(0.2);
+        add(j.axis, d, if cos > 0.35 { front } else { front.max(flank) })
+    } else {
+        add(j.axis, j.outward(d), j.r + r0 * cos.abs())
+    }
+}
 
 /// Radius the OUTERMOST generation of shoots ends at, metres (v0.1090).
 ///
@@ -2345,29 +2623,20 @@ fn limb_tip_radius(r0: f32, depth: u32, max_depth: u32) -> f32 {
     (r0 * ratio.powf(1.0 / (left + 1) as f32)).max(TWIG_TIP_R_M)
 }
 
-/// Root point for a limb leaving a parent of local radius `parent_r`, plus how
-/// far it was buried. Pure geometry so it can be unit-tested directly.
-fn welded_root(from: [f32; 3], dir: [f32; 3], parent_r: f32, r0: f32, len: f32) -> ([f32; 3], f32) {
-    // Never bury more than half the limb: a twig shorter than its parent is
-    // thick would otherwise vanish inside it.
-    let embed = (parent_r.max(r0) * WELD_EMBED).min(len * 0.5);
-    (add(from, dir, -embed), embed)
-}
-
 /// Recursive limb. Emits a tapered segment, then either children or foliage.
 ///
-/// `parent_r` is the radius of the limb this one leaves, at the junction; it
-/// drives the seam weld (see `welded_root`). A root limb passes the radius of
-/// whatever it grows out of - the bole top.
+/// `parent` describes the surface this limb grows out of; the limb's spine
+/// starts ON that surface (`surface_root`) and `TreeParts::weld_child` skins
+/// the collar that closes the join. Nothing is buried - see the block comment
+/// above `FORK_GATE_RINGS` for why the burial had to go.
 #[allow(clippy::too_many_arguments)]
 fn limb(
     b: &mut TreeParts,
     def: &TreeDef,
-    from: [f32; 3],
+    parent: Junction,
     dir: [f32; 3],
     len: f32,
     r0: f32,
-    parent_r: f32,
     depth: u32,
     max_depth: u32,
     fol: Foliage,
@@ -2385,39 +2654,38 @@ fn limb(
     // a single cone gave every junction a hard kink and every branch a dead
     // straight silhouette, which is most of what read as "early 2000s".
     let segs = segments_for(depth);
-    // Seam weld: the spine starts BURIED in the parent and the first segment
-    // absorbs the extra length, so the tip lands exactly where it always did
-    // and no triangle is added.
-    let (start, embed) = welded_root(from, dir, parent_r, r0, len);
+    let sides = sides_for(depth);
+    // The join: spine start ON the parent's surface, collar skinned across.
+    let start = b.weld_child(parent, dir, r0, sides, def.trunk_color);
     let mut p = start;
     let mut d = dir;
-    let mut x = 0.0f32; // distance travelled from the buried root
-    // Taper measured from `from`, so the buried root keeps the full r0 and the
-    // VISIBLE limb tapers exactly as it did before the weld.
-    let taper = |x: f32| ((x - embed) / len.max(1e-4)).clamp(0.0, 1.0);
+    let mut x = 0.0f32; // distance travelled from the root ring
+    // Taper measured from the root ring, which is now the first VISIBLE ring:
+    // with nothing buried the two are the same thing.
+    let taper = |x: f32| (x / len.max(1e-4)).clamp(0.0, 1.0);
     let mut tube_far = start;
+    let mut tube_dir = d;
     let mut tube_r = r0;
     for s in 0..segs {
-        let seg_len = len / segs as f32 + if s == 0 { embed } else { 0.0 };
+        let seg_len = len / segs as f32;
         let to = add(p, d, seg_len);
         let ra = r0 + (r1 - r0) * taper(x);
         let rb = r0 + (r1 - r0) * taper(x + seg_len);
         // Overshoot the joint by a fraction of the radius so the kink between
         // two spine segments cannot open a slit on the outside of the bow. The
         // spine itself still advances by exactly `seg_len`.
-        // v runs from the BURIED root, so a bowing limb's bark is one
-        // continuous run across its spine joints (v0.1089).
+        // v runs from the root ring, so a bowing limb's bark is one continuous
+        // run across its spine joints (v0.1089).
         tube_far = add(p, d, seg_len + rb * 0.7);
+        tube_dir = d;
         tube_r = rb;
-        b.bark_tube(
-            p,
-            tube_far,
-            ra,
-            rb,
-            sides_for(depth),
-            def.trunk_color,
-            x,
-        );
+        b.bark_tube(p, tube_far, ra, rb, sides, def.trunk_color, x);
+        // The gate reads the leading rings of every limb straight off the
+        // geometry that was drawn, so record them here and nowhere else.
+        if s == 0 {
+            b.note_fork_ring(p, d, ra, sides);
+        }
+        b.note_fork_ring(tube_far, d, rb, sides);
         p = to;
         x += seg_len;
         // Bow: droop grows toward the tip, and the trunk stays straighter than
@@ -2436,12 +2704,14 @@ fn limb(
         let blossom = def.blossom_frac > 0.0 && rng.range(0.0, 1.0) < def.blossom_frac;
         let color = if blossom { def.blossom_color } else { def.leaf_color };
         let tip = depth >= max_depth;
-        let at = if tip { to } else { add(from, dir, len * 0.72) };
+        let at = if tip { to } else { add(start, dir, len * 0.72) };
         let f = if tip { fol } else { fol.with_clump(0.78) };
         // The twig sleeve cluster cards ride on (v0.1088). Recorded here, not
         // re-derived later, because "the outer two generations" is exactly the
-        // set that carries foliage and the two must never disagree.
-        twigs.push(Twig { from, dir, end: to, len, tip, tube_end: tube_far, tip_r: tube_r });
+        // set that carries foliage and the two must never disagree. `from` is
+        // the limb's ROOT RING (v0.1098) - the sleeve covers drawn wood, and
+        // drawn wood now begins on the parent's surface rather than inside it.
+        twigs.push(Twig { from: start, dir, end: to, len, tip, tube_end: tube_far, tip_r: tube_r });
         // A clustered species keeps a much thinner blade layer: the cards are
         // the canopy now, and blades only earn their triangles inside ~2 m.
         // v0.1090 cuts it again, and pulls it IN: 6% of sakura's blade faces
@@ -2472,6 +2742,14 @@ fn limb(
     // first fork of a big limb is the one you see from the ground.
     let coin = rng.range(0.0, 1.0);
     let n = if depth == 0 && coin < 0.45 { 3 } else { 2 };
+    // This limb is about to become a fork, so close its open end ONCE - not
+    // once per child, which would stack coplanar discs and z-fight. The hole
+    // this closes is the same hole the v0.1086 burial used to plug from the
+    // inside.
+    b.bark_cap(tube_far, tube_dir, tube_r, sides, def.trunk_color);
+    // The surface every child of this limb welds onto: the far end of the last
+    // drawn ring, facing the way that ring faced.
+    let fork = Junction { axis: tube_far, up: tube_dir, r: tube_r, tip: true };
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.5, 0.5) + depth as f32;
         let spread = rng.range(22.0, 42.0) - if depth == 0 { 6.0 } else { 0.0 };
@@ -2482,9 +2760,9 @@ fn limb(
         // Twigs shorten faster than limbs, so foliage clumps sit close together
         // instead of leaving long bare runs between them.
         let child_len = len * if depth + 2 >= max_depth { rng.range(0.42, 0.56) } else { rng.range(0.62, 0.78) };
-        // The child's radius equals the parent's tip radius, so `r1` is both
-        // its own r0 and the parent radius it must bury itself in.
-        limb(b, def, to, d, child_len, r1, r1, depth + 1, max_depth, fol.with_clump(0.86), rng, twigs);
+        // The child's radius equals the parent's tip radius: wood is continuous
+        // across a fork.
+        limb(b, def, fork, d, child_len, r1, depth + 1, max_depth, fol.with_clump(0.86), rng, twigs);
     }
 }
 
@@ -2548,7 +2826,7 @@ fn broadleaf(
     // at the OLD bole top (~0.36 of this stem's length), i.e. the part of the
     // trunk you stand next to is unchanged and only the new upper run is new.
     // 10 segments rather than 6 because the stem is about three times longer.
-    let stem = trunk(b, def, [0.0, 0.0, 0.0], lean, stem_len, r_base, 0.26, h * 0.09, 10);
+    let (stem, stem_end) = trunk(b, def, [0.0, 0.0, 0.0], lean, stem_len, r_base, 0.26, h * 0.09, 10);
     // Clumps stay at ~10% of tree height (the clump SHAPE is unchanged), but a
     // clump is filled with real leaves instead of being one. Leaf length rides
     // on the species height so an oak leaf is bigger than a maple leaf without
@@ -2608,24 +2886,22 @@ fn broadleaf(
         // inherits the leader's tip radius outright.
         let r0 = if terminal { s.r * 0.92 } else { s.r * rng.range(0.52, 0.68) };
         let llen = len.max(0.3);
-        // WHERE THE ROOT RING GOES. `limb` welds by pushing the root BACKWARDS
-        // along -dir by ~1.4 parent radii, which is right for a limb leaving
-        // the END of its parent (a primary off a bole top buries straight down
-        // into solid wood) and WRONG for one leaving the SIDE of a stem: from
-        // an axis point at 60 deg off vertical that push lands the ring 1.4
-        // radii out through the FAR wall, leaving a stub poking out the back of
-        // the trunk. So a side lateral is handed a start point already pushed
-        // OUT by exactly the burial `limb` will apply, which lands the ring on
-        // the stem AXIS - the same trick `conifer` uses for its whorls, and the
-        // most enclosed a root ring can be. The terminal limb keeps the old
-        // behaviour on purpose: burying it down into the leader is what plugs
-        // the leader's open apex ring.
-        let from = if terminal {
-            s.p
+        // WHERE THE ROOT RING GOES (v0.1098). A shed lateral leaves the FLANK
+        // of a stem that keeps going, so its junction is a side junction and
+        // its spine starts on the bark at that height. The terminal limb takes
+        // over from the leader, so its junction is the leader's END PLANE - and
+        // that plane gets a real cap rather than being plugged by burying the
+        // limb through it. `stem_end` is the DRAWN end, past the last spine
+        // point by the joint overshoot.
+        let j = if terminal {
+            Junction { axis: stem_end, up: s.dir, r: s.r, tip: true }
         } else {
-            add(s.p, d, (s.r.max(r0) * WELD_EMBED).min(llen * 0.5))
+            Junction { axis: s.p, up: s.dir, r: s.r, tip: false }
         };
-        limb(b, def, from, d, llen, r0, s.r, 0, generations_for(llen), fol, rng, twigs);
+        if terminal {
+            b.bark_cap(stem_end, s.dir, s.r, 8, def.trunk_color);
+        }
+        limb(b, def, j, d, llen, r0, 0, generations_for(llen), fol, rng, twigs);
     }
 }
 
@@ -2669,14 +2945,20 @@ fn conifer(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rng
             let phase = (w * per + k) as f32 * 2.399_963;
             let d = tilt([0.0, 1.0, 0.0], rng.range(74.0, 96.0), phase);
             let d = norm([d[0], d[1] - 0.30, d[2]]);
-            let tip = add([0.0, y, 0.0], d, blen);
-            // Rooted ON the leader's axis, which is as buried as a root ring
-            // can get, and at 0.42 of the local leader radius it is strictly
-            // inside the trunk wall at every height.
-            b.bark_tube([0.0, y, 0.0], tip, lr * 0.42, lr * 0.14, 4, def.trunk_color, 0.0);
+            // Rooted ON THE BARK of the leader, not on its axis (v0.1098). The
+            // old axis rooting never poked out the back - a whorl branch is
+            // thin and nearly perpendicular - but it ran a quarter-metre of
+            // wood through the inside of the trunk on every one of the 45
+            // branches, and the collar closes the join without it.
+            let j = Junction { axis: [0.0, y, 0.0], up: [0.0, 1.0, 0.0], r: lr, tip: false };
+            let root = b.weld_child(j, d, lr * 0.42, 4, def.trunk_color);
+            let tip = add(root, d, blen);
+            b.bark_tube(root, tip, lr * 0.42, lr * 0.14, 4, def.trunk_color, 0.0);
+            b.note_fork_ring(root, d, lr * 0.42, 4);
+            b.note_fork_ring(tip, d, lr * 0.14, 4);
             leaf_cluster(&mut b.foliage, tip, d, fol, def.leaf_color, 10, rng);
             // A second clump midway keeps the branch from reading as a bare stick.
-            let mid = add([0.0, y, 0.0], d, blen * 0.55);
+            let mid = add(root, d, blen * 0.55);
             leaf_cluster(&mut b.foliage, mid, d, fol.with_clump(0.8), def.leaf_color, 7, rng);
         }
     }
@@ -2696,29 +2978,45 @@ fn umbrella(b: &mut TreeParts, def: &TreeDef, h: f32, density: f32, rng: &mut Rn
     // most under-spent form in the tree budget (13% of MAX_TRIS), so it can
     // afford by far the densest sprigs, which is also what its flat crown wants.
     let fol = foliage_of(def, h, density);
+    // The bole ends at `top` and every primary forks off that plane, so close
+    // it once (v0.1098). Through v0.1097 the hole was plugged by burying the
+    // primaries 1.4 radii back down the bole - which, at the 58-74 deg
+    // insertion an acacia uses, put the buried ring a full radius sideways and
+    // straight out through the far side of the trunk.
+    b.bark_cap(top, [0.0, 1.0, 0.0], r_base * 0.66, 8, def.trunk_color);
+    let bole = Junction { axis: top, up: [0.0, 1.0, 0.0], r: r_base * 0.66, tip: true };
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.3, 0.3);
         // Steeply out, barely up.
         let d = tilt([0.0, 1.0, 0.0], rng.range(58.0, 74.0), phase);
         let seg = h * rng.range(0.30, 0.40);
-        let mid = add(top, d, seg);
-        // Bury the primary in the bole (this also plugs the bole's open top).
-        // The root radius is a touch FATTER than the bole top (0.70 vs 0.66)
-        // because these tubes taper across the buried run: the extra covers the
-        // taper so the limb is still wider than the hole where it crosses it,
-        // and it reads as a branch collar, which is anatomically right anyway.
-        let (root, _) = welded_root(top, d, r_base * 0.66, r_base * 0.70, seg);
-        b.bark_tube(root, mid, r_base * 0.70, r_base * 0.34, 5, def.trunk_color, 0.0);
-        // The crown layer: near-horizontal fans of foliage.
+        // WOOD IS CONTINUOUS ACROSS A FORK: the primary starts at exactly the
+        // radius the bole ended at. Through v0.1097 it started FATTER (0.70 vs
+        // 0.66) so that it would still be wider than the hole where it crossed
+        // the bole's end plane on its way out of the burial - a fudge that only
+        // existed to serve the burial, and one that left the primary's rearmost
+        // root vertex overhanging the bole's rim. `limb` has always sized a
+        // child at its parent's tip radius; this now matches.
+        let root = b.weld_child(bole, d, r_base * 0.66, 5, def.trunk_color);
+        let mid = add(root, d, seg);
+        b.bark_tube(root, mid, r_base * 0.66, r_base * 0.34, 5, def.trunk_color, 0.0);
+        b.note_fork_ring(root, d, r_base * 0.66, 5);
+        b.note_fork_ring(mid, d, r_base * 0.34, 5);
+        // The crown layer: near-horizontal fans of foliage, forking off the
+        // primary's own end plane.
+        b.bark_cap(mid, d, r_base * 0.34, 5, def.trunk_color);
+        let elbow = Junction { axis: mid, up: d, r: r_base * 0.34, tip: true };
         for j in 0..3 {
             let p2 = phase + j as f32 * 1.9;
             let d2 = tilt([0.0, 1.0, 0.0], rng.range(80.0, 94.0), p2);
             let flen = h * rng.range(0.16, 0.26);
-            let tip = add(mid, d2, flen);
-            // Same again one level down: the fan is wider than the primary's
-            // open tip ring, so burying it plugs that ring completely.
-            let (froot, _) = welded_root(mid, d2, r_base * 0.34, r_base * 0.38, flen);
-            b.bark_tube(froot, tip, r_base * 0.38, r_base * 0.12, 4, def.trunk_color, 0.0);
+            // Same continuity as the primary above: the fan leaves at the
+            // radius the primary ended at, not the old 0.38 burial fudge.
+            let froot = b.weld_child(elbow, d2, r_base * 0.34, 4, def.trunk_color);
+            let tip = add(froot, d2, flen);
+            b.bark_tube(froot, tip, r_base * 0.34, r_base * 0.12, 4, def.trunk_color, 0.0);
+            b.note_fork_ring(froot, d2, r_base * 0.34, 4);
+            b.note_fork_ring(tip, d2, r_base * 0.12, 4);
             leaf_cluster(&mut b.foliage, tip, [0.0, 1.0, 0.0], fol, def.leaf_color, 16, rng);
         }
     }
@@ -3206,45 +3504,208 @@ mod tests {
         }
     }
 
-    /// SEAM WELD (rung B). A branch root ring must be displaced backwards along
-    /// its own axis, INTO the parent, by at least the parent's local radius -
-    /// that is what makes the junction watertight from every angle given that
-    /// `tube` emits no end caps.
+    /// SURFACE WELD (v0.1098). Replaces `branch_roots_are_buried_inside_their_
+    /// parent`, whose whole assertion - "the root ring must be displaced
+    /// BACKWARDS along its own axis, INTO the parent" - is the defect. Pushing
+    /// back along the CHILD'S axis only stays inside the parent while the two
+    /// are near-parallel; at a real fork angle it lands the ring out through
+    /// the far wall. The property that replaces it is the one that was actually
+    /// wanted all along: the root ring sits ON the parent's surface, with every
+    /// vertex outside the wood and on the branch's side of the axis.
     #[test]
-    fn branch_roots_are_buried_inside_their_parent() {
-        // A limb long enough that the clamp does not bite: burial must be at
-        // least one parent radius, in the direction OPPOSITE the limb.
+    fn branch_roots_sit_on_the_parent_surface() {
+        // SIDE junctions, across the whole plausible span of fork angles and
+        // radius ratios - including a child FATTER than its parent, which the
+        // acacia genuinely builds.
         for &parent_r in &[0.02f32, 0.1, 0.4] {
-            for &r0 in &[0.01f32, 0.4] {
-                let len = 8.0;
-                let from = [1.0, 5.0, -2.0];
-                let dir = norm([0.6, 0.7, -0.2]);
-                let (root, embed) = welded_root(from, dir, parent_r, r0, len);
-                assert!(
-                    embed >= parent_r,
-                    "embed {embed} is shallower than the parent radius {parent_r}: the root ring \
-                     is not enclosed and the seam stays open"
-                );
-                let back = [root[0] - from[0], root[1] - from[1], root[2] - from[2]];
-                let along = back[0] * dir[0] + back[1] * dir[1] + back[2] * dir[2];
-                assert!(
-                    (along + embed).abs() < 1e-4,
-                    "the root moved {along}, expected {} along the limb axis",
-                    -embed
-                );
-                assert!(along <= -parent_r, "displacement {along} does not clear {parent_r}");
+            for &ratio in &[0.05f32, 0.5, 0.95, 1.2] {
+                for &deg in &[8.0f32, 25.0, 45.0, 60.0, 80.0, 95.0] {
+                    let r0 = parent_r * ratio;
+                    let up = norm([0.1, 1.0, -0.05]);
+                    let j = Junction { axis: [1.0, 5.0, -2.0], up, r: parent_r, tip: false };
+                    let d = tilt(up, deg, 0.7);
+                    let start = surface_root(j, d, r0);
+                    let out = j.outward(d);
+                    let (side, upr) = ring_basis(d);
+                    for i in 0..12 {
+                        let a = i as f32 / 12.0 * std::f32::consts::TAU;
+                        let v = ring_point(start, side, upr, a, r0);
+                        let c = dot(sub(v, j.axis), out);
+                        assert!(
+                            c >= parent_r - 1e-4,
+                            "r={parent_r} ratio={ratio} deg={deg}: a root-ring vertex sits \
+                             {c} m along the branch direction, inside the parent's {parent_r} m \
+                             of wood"
+                        );
+                    }
+                }
             }
         }
-        // ...and a stubby twig off a fat parent must not disappear inside it.
-        let (_, embed) = welded_root([0.0; 3], [0.0, 1.0, 0.0], 5.0, 0.01, 0.4);
-        assert!((embed - 0.2).abs() < 1e-6, "burial should clamp to half the limb, got {embed}");
+        // TIP junctions: the child clears the parent's END PLANE, so no part of
+        // it is inside the parent's solid either.
+        for &deg in &[5.0f32, 20.0, 40.0] {
+            let up = [0.0, 1.0, 0.0];
+            let j = Junction { axis: [0.0, 3.0, 0.0], up, r: 0.2, tip: true };
+            let d = tilt(up, deg, 0.3);
+            let start = surface_root(j, d, 0.2);
+            let (side, upr) = ring_basis(d);
+            for i in 0..12 {
+                let a = i as f32 / 12.0 * std::f32::consts::TAU;
+                let v = ring_point(start, side, upr, a, 0.2);
+                let h = dot(sub(v, j.axis), up);
+                assert!(h >= -1e-4, "deg={deg}: a root-ring vertex sits {h} m behind the fork");
+            }
+        }
     }
 
-    /// The weld must not move the tree: the tip of every limb lands exactly
-    /// where it did before, because the first spine segment absorbs the burial.
-    /// Cheap proxy - the crown's extent is unchanged in kind (this rides along
-    /// with `every_procedural_form_builds_finite_geometry`, which bounds the
-    /// top, by additionally bounding the horizontal spread).
+    /// THE BACK-POKE GATE (v0.1098). The operator's field report, as geometry:
+    /// a branch must never emerge through the FAR side of the limb it grew
+    /// from.
+    ///
+    /// Stated so it cannot be satisfied by luck: project every vertex of every
+    /// limb's first `FORK_GATE_RINGS` rings onto its parent's local
+    /// cross-section plane. A vertex whose radial distance from the parent's
+    /// axis exceeds the parent's local radius is OUTSIDE the parent's wood, and
+    /// a vertex outside the wood is only allowed on the branch's own side -
+    /// `dot(v - axis, outward) > 0`. Anything else is wood coming out of the
+    /// back of the trunk.
+    ///
+    /// Every species, every seed variant, every junction the generator makes.
+    #[test]
+    fn no_branch_pokes_out_the_back_of_its_parent() {
+        let r = registry();
+        let mut checked = 0usize;
+        let mut violations = 0usize;
+        let mut worst = 0.0f32;
+        let mut worst_at = String::new();
+        for t in r.trees.iter().map(as_procedural) {
+            for seed in 0..6u32 {
+                let (parts, _) = build_accepted(&t, t.height_m, shipped_seed(seed));
+                let mut per_tree = 0usize;
+                for f in &parts.forks {
+                    let j = f.parent;
+                    let out = j.outward(f.dir);
+                    for ring in &f.rings {
+                        for v in ring.vertices() {
+                            let rel = sub(v, j.axis);
+                            let radial = sub(rel, mul(j.up, dot(rel, j.up)));
+                            let side = dot(rel, out);
+                            checked += 1;
+                            // Inside the parent's wood: hidden, and allowed.
+                            // The 1e-4 slack is float noise on metre-scale
+                            // coordinates, not a tolerance for real overhang.
+                            if length(radial) <= j.r + 1e-4 || side > 0.0 {
+                                continue;
+                            }
+                            per_tree += 1;
+                            violations += 1;
+                            let over = length(radial) - j.r;
+                            if over > worst {
+                                worst = over;
+                                worst_at = format!("{} seed {seed}", t.id);
+                            }
+                        }
+                    }
+                }
+                assert_eq!(
+                    per_tree, 0,
+                    "{} seed {seed}: {per_tree} branch vertices emerge through the FAR side of \
+                     their parent (worst overhang {worst} m at {worst_at})",
+                    t.id
+                );
+            }
+        }
+        assert!(checked > 20_000, "only {checked} ring vertices reached the gate");
+        eprintln!(
+            "[back-poke] {checked} leading-ring vertices across {} species x 6 variants: \
+             {violations} on the far side of their parent",
+            r.trees.len()
+        );
+    }
+
+    /// THE JOIN STILL READS AS WELDED - the front-of-the-fork half of the
+    /// v0.1098 change, and the reason removing the burial is safe.
+    ///
+    /// The burial made a junction opaque by hiding the child's open root ring
+    /// inside the parent. With nothing hidden, the collar has to close the join
+    /// instead, and two properties make that airtight rather than hopeful:
+    ///
+    ///   1. its INNER edge lies exactly on the parent's surface, so there is no
+    ///      slit between skirt and trunk; and
+    ///   2. its OUTER edge is the limb's own first ring, vertex for vertex and
+    ///      to the bit - both come from `ring_basis`/`ring_point`, so the two
+    ///      surfaces cannot drift apart into a crack.
+    ///
+    /// Both edges are then confirmed to be present in the WOOD MESH THAT
+    /// SHIPPED, not merely computable, so a collar that were silently skipped
+    /// would fail here.
+    #[test]
+    fn every_junction_is_skinned_by_a_collar() {
+        let r = registry();
+        let mut collars = 0usize;
+        for t in r.trees.iter().map(as_procedural) {
+            let (parts, _) = build_accepted(&t, t.height_m, shipped_seed(2));
+            // Rounded to 0.1 mm: the collar and the tube emit the same f32
+            // expression, so this is an identity check with float-noise slack,
+            // not a proximity check.
+            let key = |p: [f32; 3]| {
+                (
+                    (p[0] * 10_000.0).round() as i64,
+                    (p[1] * 10_000.0).round() as i64,
+                    (p[2] * 10_000.0).round() as i64,
+                )
+            };
+            let drawn: std::collections::HashSet<(i64, i64, i64)> =
+                parts.wood.vertices.iter().map(|v| key(v.position)).collect();
+            for f in &parts.forks {
+                let j = f.parent;
+                let (side, up) = ring_basis(f.dir);
+                for i in 0..f.sides {
+                    let a = i as f32 / f.sides as f32 * std::f32::consts::TAU;
+                    let v = ring_point(f.start, side, up, a, f.r0);
+                    let foot = j.project(v);
+                    let rel = sub(foot, j.axis);
+                    let radial = length(sub(rel, mul(j.up, dot(rel, j.up))));
+                    assert!(
+                        (radial - j.r).abs() < 1e-3,
+                        "{}: a collar foot sits {radial} m from the parent axis, not on its \
+                         {} m surface - the skirt does not meet the trunk and the join opens",
+                        t.id,
+                        j.r
+                    );
+                    assert!(
+                        drawn.contains(&key(foot)),
+                        "{}: a collar foot at {foot:?} is not in the drawn wood - the junction \
+                         was never skinned",
+                        t.id
+                    );
+                    assert!(
+                        drawn.contains(&key(v)),
+                        "{}: the collar's outer edge at {v:?} is not on the limb's own first \
+                         ring - collar and limb have drifted apart and the join is a crack",
+                        t.id
+                    );
+                }
+                collars += 1;
+            }
+            assert!(!parts.forks.is_empty() || t.form == "palm", "{}: no junctions at all", t.id);
+        }
+        eprintln!("[collar] {collars} junctions skinned across {} species", r.trees.len());
+    }
+
+    /// The weld must not move the tree. Cheap proxy - the crown's extent stays
+    /// in kind (this rides along with `every_procedural_form_builds_finite_
+    /// geometry`, which bounds the top, by additionally bounding the horizontal
+    /// spread).
+    ///
+    /// v0.1098 is the change this guards hardest. Rooting every limb on its
+    /// parent's SURFACE instead of inside it moves each root out by roughly one
+    /// parent radius, and that offset compounds down a four-generation chain -
+    /// so the bound below is the statement that a collar-welded crown is the
+    /// same size as a buried-root crown, not a visibly fatter one. It is also
+    /// why the floor still matters in the other direction: with nothing buried,
+    /// no limb travels DOWN into the bole any more, so the measured `lo` is now
+    /// the trunk base rather than a root ring below it.
     #[test]
     fn welding_does_not_inflate_the_crown() {
         let r = registry();
@@ -3257,9 +3718,7 @@ mod tests {
                 lo = lo.min(v.position[1]);
                 wide = wide.max(v.position[0].hypot(v.position[2]));
             }
-            // Nothing may sink far below the ground plane the tree is placed on
-            // (a buried root ring on a PRIMARY limb travels down into the bole,
-            // never below the trunk base).
+            // Nothing may sink below the ground plane the tree is placed on.
             assert!(lo > -t.height_m * 0.06, "{}: geometry reaches {lo} m below its base", t.id);
             assert!(wide < t.height_m * 1.6, "{}: crown spreads {wide} m", t.id);
         }
@@ -3856,6 +4315,136 @@ mod tests {
                     fields[j].0
                 );
             }
+        }
+    }
+
+    /// DEV AID (permanent): render the BARE WOOD of a species around its
+    /// biggest junction, from four sides, to `debug/fork_<id>_<view>.png`.
+    ///
+    /// Built for the back-poke class of defect (v0.1098) and kept for it: the
+    /// tell is only visible from BEHIND the trunk, with the foliage off, at a
+    /// junction close enough to fill the frame - which is a view the probe rig
+    /// cannot reach cheaply and a full boot shows buried under leaves. This
+    /// software rasteriser needs no GPU, so it runs anywhere, in ~50 ms, and it
+    /// picks the camera pose off the recorded junction rather than asking
+    /// anyone to guess where to stand.
+    ///
+    /// `cargo test --features native --lib dump_fork_png -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn dump_fork_png() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug");
+        std::fs::create_dir_all(&dir).expect("debug dir");
+        let r = registry();
+        for t in r.trees.iter().map(as_procedural) {
+            let (parts, _) = build_accepted(&t, t.height_m, shipped_seed(0));
+            // The junction the operator would walk up to: the thickest one.
+            let Some(f) = parts
+                .forks
+                .iter()
+                .max_by(|a, b| a.parent.r.partial_cmp(&b.parent.r).unwrap())
+            else {
+                continue;
+            };
+            let out = f.parent.outward(f.dir);
+            let across = norm(cross(out, f.parent.up));
+            // Six parent radii of frame, centred on the JOIN rather than on the
+            // parent's axis: a few millimetres of overhang is then several
+            // pixels, and the collar fills a useful part of the shot.
+            let span = (f.parent.r * 6.0).max(0.4);
+            let centre = mix3(f.parent.axis, f.start, 0.5);
+            // A dead-astern view foreshortens the branch to a dot (it points
+            // straight away from the camera), so the pose that actually shows a
+            // back-poke is three-quarter rear: the trunk's silhouette edge is
+            // in frame and anything protruding through it is unmissable.
+            let rear3q = norm(add(mul(out, -1.0), across, 0.9));
+            for (name, eye) in [
+                ("behind", mul(out, -1.0)),
+                ("rear3q", rear3q),
+                ("side", across),
+                ("under", norm([out[0] * 0.5, -1.0, out[2] * 0.5])),
+            ] {
+                let px = 420usize;
+                let fwd = norm(eye);
+                let helper = if fwd[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+                let right = norm(cross(helper, fwd));
+                let cam_up = cross(fwd, right);
+                let mut buf = vec![18u8, 22, 15, 255].repeat(px * px);
+                let mut depth = vec![f32::MAX; px * px];
+                let project = |p: [f32; 3]| {
+                    let rel = sub(p, centre);
+                    let x = dot(rel, right) / span * 0.5 + 0.5;
+                    let y = 0.5 - dot(rel, cam_up) / span * 0.5;
+                    (x * px as f32, y * px as f32, -dot(rel, fwd))
+                };
+                for tri in parts.wood.indices.chunks(3) {
+                    let v: Vec<_> =
+                        tri.iter().map(|&i| parts.wood.vertices[i as usize]).collect();
+                    let s: Vec<_> = v.iter().map(|q| project(q.position)).collect();
+                    let n = v[0].normal;
+                    // Flat lambert against the view direction plus a key, so
+                    // a surface facing away from the camera still reads.
+                    let l = (-dot(n, fwd) * 0.45 + n[1] * 0.30 + 0.48).clamp(0.18, 1.0);
+                    let (lo_x, hi_x) = (
+                        s.iter().fold(f32::MAX, |a, q| a.min(q.0)).floor().max(0.0) as usize,
+                        s.iter().fold(f32::MIN, |a, q| a.max(q.0)).ceil().min(px as f32 - 1.0)
+                            as usize,
+                    );
+                    let (lo_y, hi_y) = (
+                        s.iter().fold(f32::MAX, |a, q| a.min(q.1)).floor().max(0.0) as usize,
+                        s.iter().fold(f32::MIN, |a, q| a.max(q.1)).ceil().min(px as f32 - 1.0)
+                            as usize,
+                    );
+                    let area = (s[1].0 - s[0].0) * (s[2].1 - s[0].1)
+                        - (s[2].0 - s[0].0) * (s[1].1 - s[0].1);
+                    if area.abs() < 1e-6 {
+                        continue;
+                    }
+                    for yy in lo_y..=hi_y {
+                        for xx in lo_x..=hi_x {
+                            let (fx, fy) = (xx as f32 + 0.5, yy as f32 + 0.5);
+                            let w0 = ((s[1].0 - fx) * (s[2].1 - fy)
+                                - (s[2].0 - fx) * (s[1].1 - fy))
+                                / area;
+                            let w1 = ((s[2].0 - fx) * (s[0].1 - fy)
+                                - (s[0].0 - fx) * (s[2].1 - fy))
+                                / area;
+                            let w2 = 1.0 - w0 - w1;
+                            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                                continue;
+                            }
+                            let z = w0 * s[0].2 + w1 * s[1].2 + w2 * s[2].2;
+                            let i = yy * px + xx;
+                            if z >= depth[i] {
+                                continue;
+                            }
+                            depth[i] = z;
+                            let c = l * 255.0;
+                            buf[i * 4] = c as u8;
+                            buf[i * 4 + 1] = (c * 0.86) as u8;
+                            buf[i * 4 + 2] = (c * 0.66) as u8;
+                        }
+                    }
+                }
+                let path = dir.join(format!("fork_{}_{name}.png", t.id));
+                image::RgbaImage::from_raw(px as u32, px as u32, buf)
+                    .expect("size")
+                    .save(&path)
+                    .expect("write png");
+            }
+            eprintln!(
+                "[fork] {}: parent r {:.3} at {:?} tip={} | child r {:.3} starts {:?} \
+                 ({:.3} m out, {:.3} m up) -> debug/fork_{}_*.png",
+                t.id,
+                f.parent.r,
+                f.parent.axis,
+                f.parent.tip,
+                f.r0,
+                f.start,
+                dot(sub(f.start, f.parent.axis), out),
+                dot(sub(f.start, f.parent.axis), f.parent.up),
+                t.id
+            );
         }
     }
 

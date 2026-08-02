@@ -279,10 +279,7 @@ impl PlantMeshBuilder {
         let axis = [to[0] - from[0], to[1] - from[1], to[2] - from[2]];
         let alen = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(1e-6);
         let ax = [axis[0] / alen, axis[1] / alen, axis[2] / alen];
-        // Any perpendicular frame:
-        let helper = if ax[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
-        let side = norm(cross(ax, helper));
-        let up = cross(side, ax);
+        let (side, up) = ring_basis(ax);
         let n = sides.max(3);
         for i in 0..n {
             let a0 = (i as f32) / (n as f32) * std::f32::consts::TAU;
@@ -399,6 +396,30 @@ impl PlantMeshBuilder {
         }
         self.organ = Organ::Stem;
     }
+}
+
+/// THE perpendicular frame every ring in the plant/tree generator is built in.
+///
+/// Extracted from `tube` in v0.1098 so that exactly one definition exists.
+/// `tree_mesh`'s bark tubes, the branch-collar skin and the back-poke CI gate
+/// all have to agree on WHERE a ring's vertices are, down to the vertex: the
+/// collar shares its outer edge with the limb's first ring, and a gate that
+/// re-derived the frame slightly differently would either miss a real poke or
+/// invent a fake one. One function, four callers, no chance of drift.
+pub(crate) fn ring_basis(ax: [f32; 3]) -> ([f32; 3], [f32; 3]) {
+    let helper = if ax[1].abs() < 0.9 { [0.0, 1.0, 0.0] } else { [1.0, 0.0, 0.0] };
+    let side = norm(cross(ax, helper));
+    (side, cross(side, ax))
+}
+
+/// The vertex at angle `ang` on a ring of radius `r` centred at `at`, in the
+/// frame `ring_basis` returns. Same expression `tube` inlines.
+pub(crate) fn ring_point(at: [f32; 3], side: [f32; 3], up: [f32; 3], ang: f32, r: f32) -> [f32; 3] {
+    [
+        at[0] + (side[0] * ang.cos() + up[0] * ang.sin()) * r,
+        at[1] + (side[1] * ang.cos() + up[1] * ang.sin()) * r,
+        at[2] + (side[2] * ang.cos() + up[2] * ang.sin()) * r,
+    ]
 }
 
 fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
