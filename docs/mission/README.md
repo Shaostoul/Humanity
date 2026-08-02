@@ -17,6 +17,16 @@ here carries part of the load.
 
 ## The Documents
 
+### Humanity's Mission
+
+- **`humanitys_mission.md`**
+  The full mission statement: why this exists, the standard we hold
+  ourselves to, why it is built this way, what it protects, and how we
+  get there. This is the canonical mission surface; the website's
+  /mission address forwards to it in the Library.
+
+---
+
 ### The Five Adversaries
 
 - **`the_five_adversaries.md`**

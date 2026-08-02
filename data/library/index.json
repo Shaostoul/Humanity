@@ -14,8 +14,8 @@
       "name": "The Mission",
       "docs": [
         {
-          "title": "The Mission",
-          "file": "README.md"
+          "title": "Humanity's Mission",
+          "file": "humanitys_mission.md"
         },
         {
           "title": "The Five Adversaries",
@@ -187,7 +187,7 @@
       "docs": [
         {
           "title": "Welcome",
-          "file": "user-README.md"
+          "file": "README.md"
         },
         {
           "title": "Getting Started",

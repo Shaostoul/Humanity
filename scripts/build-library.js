@@ -24,7 +24,10 @@ const CATEGORIES = [
   // of ending pollution, poverty, corruption, fraud, and tyranny in pursuit of
   // uniting humanity in peaceful harmony). Source: docs/mission/.
   { name: 'The Mission', docs: [
-    { title: 'The Mission', src: 'docs/mission/README.md' },
+    // Canonical mission statement; the web /mission page forwards to this
+    // doc's deep link (/library#humanitys-mission) so there is ONE mission
+    // surface, rendered by both clients (merge decision 2026-08-01).
+    { title: "Humanity's Mission", src: 'docs/mission/humanitys_mission.md' },
     { title: 'The Five Adversaries', src: 'docs/mission/the_five_adversaries.md' },
     { title: 'What Is a Good Human', src: 'docs/mission/what_is_a_good_human.md' },
     { title: 'What Is a Good AI', src: 'docs/mission/what_is_a_good_ai.md' },
