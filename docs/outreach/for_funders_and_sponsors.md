@@ -56,10 +56,8 @@ Three things, concretely:
 - The maintainer's full-time work. One person builds this full time,
   alongside AI tooling, and funding is what makes that possible. This is
   by far the largest of the three.
-- Infrastructure. Today the entire platform runs on a single rented
-  server plus the AI development subscription; the infrastructure bill is
-  modest and the maintainer will happily itemize it for any serious
-  funder who asks.
+- Infrastructure and tooling. The AI development subscription and the
+  domains, DNS, email, and hosting bill. The books below itemize both.
 - Pace. More support means faster development. Less means slower. The
   project continues either way.
 
@@ -69,6 +67,44 @@ in the open so far, each one visible and verifiable at
 https://github.com/Shaostoul/Humanity. You do not have to trust a report
 we wrote about our progress. You can watch the work itself, any day, and
 so can anyone you ask to check it for you.
+
+## The books, itemized
+
+Most projects say they are transparent. Here are the actual numbers,
+as of August 2026, from the platform statements and receipts. When they
+change, this section changes.
+
+Income, per month:
+
+- Sponsor-A-Can stipend: $600, steady since January 2024.
+- Patreon: about $21 net over the last twelve months. (Twelve years of
+  history there: $15,812 lifetime net since 2014, with a peak around
+  $220 a month in 2019.)
+
+Total: about $620 a month.
+
+Costs, per month:
+
+- AI development subscription (Anthropic): $200. The single largest
+  cost, and the reason one maintainer can ship at the pace the public
+  release history shows.
+- Domains, DNS, email, and hosting (Namecheap): about $41, averaged
+  over the last twelve months of receipts. That includes the roughly
+  $20 a month server the live platform runs on.
+
+Total: about $241 a month.
+
+What remains is roughly $380 a month. That is what the maintainer lives
+on while building this full time. It is livable because his family
+provides a bedroom, internet, and most meals, and because he lives
+frugally and does essentially nothing except build this. There is no
+salary, no office, no travel budget, and no expense a funder would have
+to wonder about. The underlying statements are available to any serious
+funder who asks.
+
+We publish this for a simple reason. This page is what one person
+ships on almost nothing. What that person could do with real community
+support is the question we are inviting you to ask.
 
 ## The mechanics, stated plainly
 

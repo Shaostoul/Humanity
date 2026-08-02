@@ -13,6 +13,11 @@
  "recent_decisions": [
   {
    "date": "2026-08-01",
+   "decision": "THE BOOKS PUBLISHED (v0.1094.1): operator supplied real statements (Patreon CSV since 2014, Namecheap orders PDF, Sponsor-A-Can + Anthropic figures); funders brief gains 'The books, itemized' with actual monthly numbers (income ~$620: $600 stipend + ~$21 Patreon; costs ~$241: $200 Anthropic + ~$41 Namecheap avg; net ~$380/mo the maintainer lives on). Donate FAQ links it. Summary figures only, raw statements private. Memory project_financial_context.md updated with exact figures. NOTE: Namecheap is the only infrastructure bill the operator named; if the relay VPS bills elsewhere, add it to the books when the operator supplies it.",
+   "why": "Turns the funders doc's transparency claim into a demonstration; the ~$380/mo net is the single most credible funding signal the project has."
+  },
+  {
+   "date": "2026-08-01",
    "decision": "MISSION PAGES MERGED (v0.1093.2): operator flagged two mission surfaces (/mission page + Library 'The Mission' README at the ugly #readme slug). Merged Library-canonical: new docs/mission/humanitys_mission.md (full markdown port of mission.html incl. the A-to-Z creed) is the Mission category's first doc at /library#humanitys-mission; mission.html reduced to a permanent forwarder (meta refresh + JS replace, comment forbids regrowing content there), so every existing /mission link keeps working. Rationale: web-mirrors-native norm, mission.html was web-only, the Library renders on BOTH clients. Mission folder README returned to repo-only duty; freed README.md library name went back to the user Welcome doc; stale user-README.md copy deleted (build step now cleans stale library files).",
    "why": "One mission surface to maintain instead of two that drift; the operator suggested the merge and picked the #humanitys-mission slug shape."
   },
