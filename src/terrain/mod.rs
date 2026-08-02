@@ -13,6 +13,10 @@ pub mod planet_chunks;
 /// Near-field grass strands (extracted from `planet_chunks`, v0.1092).
 /// `planet_chunks` glob re-exports it, so both paths resolve.
 pub mod grass;
+/// The DRAWN patch surface: where the ground TRIANGLE sits, as opposed to
+/// what the elevation field says (promoted out of `grass`, v0.1097 - grass
+/// tillers and near-field trees both stand on it).
+pub mod drawn_surface;
 pub mod far_trees;
 pub mod ocean_fft;
 pub mod ocean_mask;
