@@ -12,6 +12,11 @@
  ],
  "recent_decisions": [
   {
+   "date": "2026-08-02",
+   "decision": "OUTREACH ENGINE (v0.1095.2): (1) FUTO microgrant email drafted at docs/outreach/applications/futo-microgrant.md, OPERATOR ACTION pending: review + send to grantapps@futo.org from own email; grant landscape verified (NLnet Commons Fund closed final call 6/2026, watch the Open Internet Stack successor; OTF FOSS Sustainability parked until real users exist). (2) /devlog page shipped: renders GitHub Releases feed live (release history IS the devlog, zero drift), RSS via releases.atom, homepage proof-tile links it, PAGES.md 40 + stale Mission row fixed, page_registry_lint green. GOTCHA found: web pages MUST load shared/defaults.js before shared/settings.js or applySettings throws (HOS_DEFAULTS undefined). (3) scripts/devlog-digest.js: weekly digest drafts from git tags + commit subjects into gitignored devlog-drafts/. Strategy frame agreed with operator: async automated reach, no streaming, no ads; save Show HN for playable-game day.",
+   "why": "Operator wants reach + money without becoming a marketer; everything ships as build artifacts (drafts to review, pages that update themselves) matching the hermit-compatible async temperament."
+  },
+  {
    "date": "2026-08-01",
    "decision": "THE BOOKS PUBLISHED (v0.1094.1): operator supplied real statements (Patreon CSV since 2014, Namecheap orders PDF, Sponsor-A-Can + Anthropic figures); funders brief gains 'The books, itemized' with actual monthly numbers (income ~$620: $600 stipend + ~$21 Patreon; costs ~$241: $200 Anthropic + ~$41 Namecheap avg; net ~$380/mo the maintainer lives on). Donate FAQ links it. Summary figures only, raw statements private. Memory project_financial_context.md updated with exact figures. NOTE: Namecheap is the only infrastructure bill the operator named; if the relay VPS bills elsewhere, add it to the books when the operator supplies it.",
    "why": "Turns the funders doc's transparency claim into a demonstration; the ~$380/mo net is the single most credible funding signal the project has."
@@ -692,6 +697,11 @@
    "date": "2026-08-02",
    "decision": "v0.1095.0/1 SHIPPED: BUG-060 (foliage transmission sign-inverted + unphysical + unshadowed - 73 percent of grass luminance) and BUG-061 (strip-light endpoint B never got the station offset - orbit-to-player segments pooling light at the player feet; also flooded the light tiler). Archive + stamp done, forge synced through v0.1095.1. TWO ARCHITECTURE ARCS FENCED from the diagnosis: (1) PAUSE STATE - none exists; pages stop the RENDER but the simulation always ticks; needs a real state gate at the system_runner tick + dt zeroing (GUI-first: a pause page/button). (2) VEHICLE/STATION FRAME - the station is a draw-time translation over finished render lists (the BUG-061 root class; overlay_objects was missed, lights half-missed); the permanent fix is a real transform frame in the anchor ladder (self/vehicle/planet/system) per the operator ladder question + realistic-first. Also latent: station_off as f32 has ~1m ULP at orbital magnitudes; fill light is a hardcoded world vector aimed by luck.",
    "why": "trees-speedtree-class workflow still in flight (wf_7f29dcbe). Queued after it: ClusterDef+leaf sprites for the remaining dorito species; grass shading polish verify at dawn (operator eye); the two architecture arcs."
+  },
+  {
+   "date": "2026-08-02",
+   "decision": "Session disconnect recovered: trees-speedtree-class workflow RESUMED from cache (wf_7f29dcbe, task wnt3x9fd3); the bark truth-round vantage gates (never merged - that round ended as a brief) recovered from its orphan worktree and merged with keep-both conflict resolution (bark detail-energy gates, species morphology, world-space texel density, bindings-11/12 trap, once-per-session bake check, fork-collar fenced follow-up). Dead worktrees cleaned (atlas, grass - both long merged). ANOTHER SESSION is active in the shared checkout building a devlog feature (.gitignore, PAGES.md, devlog files) - their lane, untouched.",
+   "why": "v0.1093.1-era gates now guard the v0.1089 bark bake permanently. Queue unchanged: tree rebuild in flight -> dorito ClusterDefs -> pause-state arc -> vehicle-frame arc."
   }
  ],
  "active_scopes_to_avoid": [
