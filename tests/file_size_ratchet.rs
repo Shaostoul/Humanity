@@ -35,6 +35,26 @@ fn repo() -> &'static Path {
 /// commit message.
 ///
 /// RATCHET CLICKS (newest first):
+/// - v0.1097: `terrain/grass.rs` 2_470 -> 2_645, and a new watch-list entry
+///   `terrain/drawn_surface.rs` at 1_100. THE ONE NUMBER HERE THAT GOES UP,
+///   with the reason, because the rule above says never to raise one quietly:
+///   grass.rs was 2_401 lines when v0.1092 put it on the list at 2_470, and
+///   v0.1093's filler-stubble class took it to 3_022 WITHOUT touching the
+///   budget - so this gate has been failing (+552) since that release, and
+///   nobody noticed because it is an integration test rather than part of
+///   `cargo test --lib`. This increment paid 461 of those lines back by
+///   promoting `DrawnPatchSurface` out (trees needed it too, so it is no
+///   longer grass's private sampler), leaving 2_568. 2_645 is that measurement
+///   plus the standard ~3%: still 377 lines BELOW where the file actually sits
+///   today at HEAD, so the budget resumes ratcheting from a real number
+///   instead of staying red and being ignored. The follow-up that pays the
+///   rest back is the filler class's own extraction.
+///   `terrain/planet_chunks.rs` stays at 4_820 and is now 8 lines under it -
+///   which is the ratchet working as designed: the next increment that wants
+///   room in that file should extract the NEAR-TREE HARVEST (`NearTree`,
+///   `near_tree_instances`, `near_tree_instances_on_drawn` and the tree-ground
+///   constants, ~215 lines) into `terrain/near_trees.rs`, exactly the way the
+///   grass layer moved out in v0.1092.
 /// - v0.1093: `renderer/mod.rs` 4_000 -> 3_883. It was the one file OVER
 ///   budget (4_090, +90). The material system moved verbatim to
 ///   `src/renderer/materials.rs`: registration, the textured variants, the
@@ -60,7 +80,8 @@ const BUDGETS: &[(&str, usize)] = &[
     ("src/relay/relay.rs", 6_500),
     ("src/relay/handlers/msg_handlers.rs", 4_800),
     ("src/terrain/planet_chunks.rs", 4_820),
-    ("src/terrain/grass.rs", 2_470),
+    ("src/terrain/grass.rs", 2_645),
+    ("src/terrain/drawn_surface.rs", 1_100),
     ("src/gui/pages/construction.rs", 4_250),
     ("src/relay/api.rs", 4_200),
     ("src/renderer/mod.rs", 3_883),

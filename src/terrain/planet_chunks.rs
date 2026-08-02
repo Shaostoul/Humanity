@@ -91,6 +91,11 @@ use super::planet_surface::{
 /// resolving unchanged: `near_grass_instances`, `NearGrass`,
 /// `grass_tiller_mesh`, `DrawnPatchSurface` and the `GRASS_*` constants.
 pub use super::grass::*;
+/// The drawn-ground sampler, promoted out of `grass` in v0.1097 when the tree
+/// harvest below became its second client. `grass` re-exports it too, so the
+/// glob above would resolve `DrawnPatchSurface` on its own; this names the
+/// real home so a reader of `near_tree_instances` can find it.
+use super::drawn_surface::DrawnPatchSurface;
 
 /// Tessellation of one patch edge: 16 segments -> a triangular grid of
 /// (16+1)(16+2)/2 = 153 unique sample points and 16^2 = 256 grid triangles.
@@ -1558,6 +1563,11 @@ pub fn build_patch_mesh(
     // (ocean floor, dry basins). Above-sea land is bit-identical either
     // way (the clamp only ever affected below-sea cells).
     let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
+    // Kept in f64 for the vegetation pass below, which plants cards ON this
+    // lattice (v0.1097): recovering a radius from the f32 anchor-relative
+    // offset costs 3 cm at a depth-13 patch's 861 m span, which is the size of
+    // error this whole increment exists to remove.
+    let mut radii: Vec<f64> = Vec::with_capacity(vert_count);
     let offsets: Vec<glam::Vec3> = dirs
         .iter()
         .zip(&elevs)
@@ -1570,6 +1580,7 @@ pub fn build_patch_mesh(
                 };
             min_r = min_r.min(r);
             max_r = max_r.max(r);
+            radii.push(r);
             ((*d * r) - anchor).as_vec3()
         })
         .collect();
@@ -1965,12 +1976,27 @@ pub fn build_patch_mesh(
                         if !veg_biome_ok(sc) {
                             continue;
                         }
-                        let r = radius_m
-                            * if bathymetric {
-                                displaced_radius_f64_true(def, e as f64)
-                            } else {
-                                displaced_radius_f64(def, e as f64)
-                            };
+                        // ON THIS PATCH'S OWN DRAWN FACE (v0.1097). The card is
+                        // geometry INSIDE this mesh, so the ground under it is
+                        // the lattice three lines up - not a fresh sample of
+                        // the elevation field, which is what the direct
+                        // `tile_or_base` fallback below is and which sits up to
+                        // metres away from the triangle it is planted in (the
+                        // detail-noise term the grid vertices carry is missing
+                        // from it entirely). Same defect the near-field tree
+                        // MODELS had; fixing only the models would have made a
+                        // tree jump vertically at the card/model handoff.
+                        let r = super::drawn_surface::patch_lattice_radius(
+                            &corners, &dirs, &radii, dir,
+                        )
+                        .unwrap_or_else(|| {
+                            radius_m
+                                * if bathymetric {
+                                    displaced_radius_f64_true(def, e as f64)
+                                } else {
+                                    displaced_radius_f64(def, e as f64)
+                                }
+                        });
                         let base = ((dir * r) - anchor).as_vec3();
                         let up = dir.as_vec3();
                         let az = (r2 % 6283) as f32 / 1000.0;
@@ -2192,6 +2218,29 @@ pub struct NearTree {
     pub variant: u8,
 }
 
+/// A tree's base is sunk by this fraction of its own ROOT-FLARE RADIUS
+/// (v0.1097). Not a constant metre offset: the harvest spans 4-18 m trees, and
+/// a number that roots a 4 m sapling leaves an 18 m conifer hovering while a
+/// number that roots the conifer buries the sapling to its first whorl.
+///
+/// WHY ANY SINK AT ALL, once the base is exact. A trunk is a cylinder and the
+/// drawn ground under it is a PLANE: on a slope the downhill side of the bole
+/// meets air, and the gap is the trunk radius times the tangent of the slope
+/// (a 0.15 m flare on a 30 degree flank shows ~9 cm of daylight). Sinking the
+/// base closes most of that without ever eating the flare - `tree_mesh`'s
+/// stems are built at `r_base = height * 0.022..0.034` with a flare bump up to
+/// 1.28x, so a quarter of the flare radius is ~1 cm on a sapling and ~4 cm on
+/// a big conifer, exactly half the burial tolerance the CI gate allows.
+pub const TREE_GROUND_SINK_FLARE_FRAC: f64 = 0.25;
+/// Root-flare radius of a tree of this height, metres: the widest the bole
+/// gets where it meets the ground. Mirrors `renderer::tree_mesh`'s stem
+/// builders (`r_base = h * 0.030` for the fir, 0.022-0.034 across the four
+/// species) times the 1.28 flare bump. Approximate ON PURPOSE - it sizes a
+/// centimetre-scale sink and the gate's burial tolerance, not any geometry.
+pub fn tree_flare_radius_m(height_m: f32) -> f64 {
+    height_m as f64 * 0.030 * 1.28
+}
+
 /// Enumerate trees within `radius_m` surface metres of `center_dir` on the
 /// planet-fixed tree grid: the SAME deterministic per-cell stream, gates
 /// (treeline, beach, imagery-green biome), and ground sampling as
@@ -2199,12 +2248,63 @@ pub struct NearTree {
 /// with a baked card (the model hides its card inside it). Capped at
 /// `max_n` (cells walk outward from the center row-major; a generous cap
 /// simply stops early).
+///
+/// THE UNWIRED PATH (v0.1097). This overload passes `drawn_depth = 0`, which
+/// means "the caller does not know what depth the ground under it is DRAWN
+/// at", and the base then falls back to the direct depth-20 elevation sample
+/// this harvest has always used - bit-identical to v0.1096. That fallback is
+/// the bug the operator photographed (trees hovering over their slopes), and
+/// it cannot be fixed from in here: the drawn depth is a property of the LOD
+/// selector's chosen leaf set, which only the frame loop holds. Call
+/// [`near_tree_instances_on_drawn`] with the drawn leaf depth instead - the
+/// grass harvest already takes exactly that argument, from exactly that
+/// source.
 pub fn near_tree_instances(
     def: &PlanetDef,
     source: &ElevationSource,
     albedo: Option<&PlanetAlbedo>,
     center_dir: DVec3,
     radius_m: f64,
+    max_n: usize,
+) -> Vec<NearTree> {
+    near_tree_instances_on_drawn(def, source, albedo, center_dir, radius_m, 0, max_n)
+}
+
+/// The tree harvest, standing on the ground you can actually SEE.
+///
+/// `drawn_depth` is the patch-tree depth of the ground being DRAWN under the
+/// camera (`cs.last_drawn.iter().map(|p| p.depth).max()`, the same value
+/// `near_grass_instances` takes). Zero means "unknown", and only then does a
+/// base come from a direct elevation sample.
+///
+/// WHY THE DIRECT SAMPLE IS WRONG, measured (v0.1091, on grass): the drawn
+/// mesh samples the elevation field at ITS OWN lattice - 3.36 m apart at depth
+/// 17 - and the rasteriser interpolates linearly between those samples, while
+/// a direct sample lands on whatever f32 heightmap tread it happens to hit.
+/// At Fuji the two disagreed by 1.06 m at the 95th percentile. A grass tiller
+/// is 30 cm tall so that buried a quarter of the sward; a tree is 4-18 m tall
+/// so it hovers instead, which is precisely the operator's screenshot. This
+/// harvest was worse off than grass ever was, on two counts: it sampled at a
+/// FIXED depth 20 regardless of what was drawn, and it used `tile_or_base`
+/// alone - no `DetailNoise` term at all - while every drawn vertex carries the
+/// land-masked detail displacement. On detailed ground that is metres.
+///
+/// [`DrawnPatchSurface`] removes the whole class: it reproduces
+/// `build_patch_mesh`'s geometry exactly (same lattice directions, same
+/// depth-gated elevation including detail, same flat triangle between them)
+/// and returns where a ray from the planet centre leaves that triangle.
+///
+/// COST: one `DrawnPatchSurface` per harvest (the vertex memo makes repeats
+/// nearly free) and one `radius_at` per SURVIVING tree - a few hundred, after
+/// the elevation and biome gates have thrown most candidates away.
+#[allow(clippy::too_many_arguments)]
+pub fn near_tree_instances_on_drawn(
+    def: &PlanetDef,
+    source: &ElevationSource,
+    albedo: Option<&PlanetAlbedo>,
+    center_dir: DVec3,
+    radius_m: f64,
+    drawn_depth: u8,
     max_n: usize,
 ) -> Vec<NearTree> {
     let mut out = Vec::new();
@@ -2233,6 +2333,18 @@ pub fn near_tree_instances(
     };
     let bathymetric = matches!(source, ElevationSource::Heightmap { ocean: Some(_), .. });
     let cell = TREE_CELL_RAD;
+    // THE DRAWN GROUND (v0.1097). Built once per harvest and pinned to the
+    // whole disc, exactly as the grass harvest does it: `set_region` walks the
+    // patch-tree levels every query would share - a 460 m disc against a
+    // 7,000 km root face, so 10-14 of them - a single time, leaving each tree
+    // to walk only the last few. `None` when the caller did not say what depth
+    // the ground is drawn at; see the doc above for why that is not
+    // recoverable from in here.
+    let mut ground = (drawn_depth > 0).then(|| {
+        let mut s = DrawnPatchSurface::new(def, source, drawn_depth);
+        s.set_region(center, ang + cell);
+        s
+    });
     let salt: u64 = 0x51F0_A11C;
     let lat_span = ang / cell;
     let lon_span = ang / (cell * lat_c.cos().max(0.05));
@@ -2333,12 +2445,6 @@ pub fn near_tree_instances(
                     }
                     continue;
                 }
-                let r = def.radius
-                    * if bathymetric {
-                        displaced_radius_f64_true(def, e as f64)
-                    } else {
-                        displaced_radius_f64(def, e as f64)
-                    };
                 let yaw = (r2 % 6283) as f32 / 1000.0;
                 // v0.913: wider size spread (operator: "varied size... they all
                             // seem uniform height"). 4-18 m, skewed toward
@@ -2356,6 +2462,29 @@ pub fn near_tree_instances(
                             let jitter =
                                 1.0 - sp_jit + (r3 % 100) as f32 / 100.0 * (sp_jit * 2.0);
                             let h = sp_h * jitter;
+                // WHERE THE TRUNK MEETS THE GROUND. Interpolated off the drawn
+                // patch face when the caller knows what depth the ground is
+                // drawn at, and only otherwise from the direct elevation
+                // sample the gates above already took (v0.1096 behaviour, kept
+                // bit-identical so the unwired path cannot regress).
+                //
+                // The sink needs `h`, which is why the radius is computed down
+                // here rather than beside the gates: a tree's root flare - and
+                // so how far it can be pushed into the ground before the flare
+                // stops reading - scales with its height.
+                let r = match ground.as_mut() {
+                    Some(g) => {
+                        g.radius_at(dir) - tree_flare_radius_m(h) * TREE_GROUND_SINK_FLARE_FRAC
+                    }
+                    None => {
+                        def.radius
+                            * if bathymetric {
+                                displaced_radius_f64_true(def, e as f64)
+                            } else {
+                                displaced_radius_f64(def, e as f64)
+                            }
+                    }
+                };
                 out.push(NearTree {
                     dir,
                     r_m: r,
