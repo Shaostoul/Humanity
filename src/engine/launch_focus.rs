@@ -159,19 +159,38 @@ fn parent_process_name() -> Option<String> {
 }
 
 /// Show a background window WITHOUT activating it, at the bottom of the
-/// Z order. winit's `set_visible(true)` goes through ShowWindow(SW_SHOW),
-/// which activates -- and a window created VISIBLE is also activated by the
-/// system whenever no foreground input lock is held. That second path was
-/// only proven tonight (2026-07-31): the v0.1069 create-visible-inactive
-/// window measured as foreground from sample 0 of a 24-sample trace while
-/// the operator was away from the keyboard, with `background=true` logged
-/// correctly a moment earlier. Every earlier "quiet boot" measurement
-/// happened while someone was actively typing, which is exactly when
-/// Windows REFUSES the foreground transfer -- the mechanism was broken all
-/// along and the input lock was hiding it. Hidden creation + this call is
-/// the only combination that never activates, no matter who is or is not
-/// at the keyboard. Clicking the window still activates it normally, which
-/// is the operator's opt-in to interact with a background instance.
+/// Z order, SIZED THE WAY A MAXIMIZED WINDOW IS SIZED. winit's
+/// `set_visible(true)` goes through ShowWindow(SW_SHOW), which activates --
+/// and a window created VISIBLE is also activated by the system whenever no
+/// foreground input lock is held. That second path was only proven on
+/// 2026-07-31: the v0.1069 create-visible-inactive window measured as
+/// foreground from sample 0 of a 24-sample trace while the operator was
+/// away from the keyboard, with `background=true` logged correctly a moment
+/// earlier. Every earlier "quiet boot" measurement happened while someone
+/// was actively typing, which is exactly when Windows REFUSES the
+/// foreground transfer -- the mechanism was broken all along and the input
+/// lock was hiding it. Hidden creation + this call is the only combination
+/// that never activates, no matter who is or is not at the keyboard.
+/// Clicking the window still activates it normally, which is the operator's
+/// opt-in to interact with a background instance.
+///
+/// THE SIZING HALF (v0.1095). `with_maximized(true)` is set on every launch
+/// (src/lib.rs), but winit can only apply MAXIMIZED through ShowWindow, so a
+/// window created hidden carries the request and never gets it: the
+/// foreground path's `set_visible(true)` applies it, and this background
+/// path did not. The window therefore opened at the `with_inner_size`
+/// fallback of 1280x720 while `just play` opened at 2560x1387 -- so every
+/// probe-rig capture was 1280x720, a THIRD of the operator's pixels, and
+/// every resolution-dependent gate in tests/visual/vantages.json (backlit
+/// canopy, crown gap, canopy overdraw) was being read at a width its own
+/// text says makes it unjudgeable. SW_SHOWMAXIMIZED cannot be used to fix
+/// it: maximize always activates. Instead reproduce the geometry Windows
+/// itself uses when it maximizes -- window rect = the monitor work area
+/// inflated by the resize-border thickness on all four edges, so the
+/// borders hang off-screen and the CLIENT rect covers the work area edge to
+/// edge with the caption bar still on screen. The resulting client size is
+/// bit-identical to a real maximize, and SWP_NOACTIVATE means it never
+/// touches the foreground.
 #[cfg(all(feature = "native", target_os = "windows"))]
 pub fn show_window_behind(window: &winit::window::Window) {
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -180,6 +199,19 @@ pub fn show_window_behind(window: &winit::window::Window) {
     const SWP_NOSIZE: u32 = 0x1;
     const SWP_NOMOVE: u32 = 0x2;
     const SWP_NOACTIVATE: u32 = 0x10;
+    const SPI_GETWORKAREA: u32 = 0x0030;
+    const GWL_STYLE: i32 = -16;
+    const GWL_EXSTYLE: i32 = -20;
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    struct RectI32 {
+        left: i32,
+        top: i32,
+        right: i32,
+        bottom: i32,
+    }
+
     #[link(name = "user32")]
     extern "system" {
         fn ShowWindow(hwnd: isize, cmd: i32) -> i32;
@@ -192,6 +224,14 @@ pub fn show_window_behind(window: &winit::window::Window) {
             h: i32,
             flags: u32,
         ) -> i32;
+        fn SystemParametersInfoW(
+            action: u32,
+            ui_param: u32,
+            pv_param: *mut core::ffi::c_void,
+            win_ini: u32,
+        ) -> i32;
+        fn GetWindowLongW(hwnd: isize, index: i32) -> i32;
+        fn AdjustWindowRectEx(rect: *mut RectI32, style: u32, menu: i32, ex_style: u32) -> i32;
     }
     let Ok(handle) = window.window_handle() else {
         // No handle -> fall back to the activating show rather than leave
@@ -206,9 +246,64 @@ pub fn show_window_behind(window: &winit::window::Window) {
     let hwnd = h.hwnd.get();
     unsafe {
         ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+
+        // Work area = the monitor minus the taskbar: exactly what a maximize
+        // targets. Failure here is not fatal, it just means the window keeps
+        // its created size, so say so loudly rather than silently capturing
+        // at 1280x720 again.
+        let mut wa = RectI32::default();
+        let got = SystemParametersInfoW(
+            SPI_GETWORKAREA,
+            0,
+            &mut wa as *mut RectI32 as *mut core::ffi::c_void,
+            0,
+        );
+        if got == 0 || wa.right <= wa.left || wa.bottom <= wa.top {
+            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+            log::warn!(
+                "focus: SPI_GETWORKAREA failed -- window left at its created size, \
+                 captures will NOT match a foreground launch"
+            );
+            return;
+        }
+
+        // Frame metrics from the window's OWN style, not from hardcoded
+        // system metrics: AdjustWindowRectEx returns the outsets a client
+        // rect needs, so `border` is the resize-border thickness and
+        // `caption` is the title-bar height. A maximized window inflates by
+        // `border` on every edge (borders off-screen, caption on-screen).
+        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+        let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        let mut adj = RectI32::default();
+        let (border, caption) = if AdjustWindowRectEx(&mut adj, style, 0, ex_style) != 0 {
+            let b = adj.right.max(0);
+            (b, (-adj.top - b).max(0))
+        } else {
+            (0, 0)
+        };
+        let wa_w = wa.right - wa.left;
+        let wa_h = wa.bottom - wa.top;
+        SetWindowPos(
+            hwnd,
+            HWND_BOTTOM,
+            wa.left - border,
+            wa.top - border,
+            wa_w + border * 2,
+            wa_h + border * 2,
+            SWP_NOACTIVATE,
+        );
+        log::info!(
+            "focus: shown via SW_SHOWNOACTIVATE at bottom of Z order, \
+             maximized-without-activating to the work area \
+             ({}x{} work area, {} px border, {} px caption -> client {}x{})",
+            wa_w,
+            wa_h,
+            border,
+            caption,
+            wa_w,
+            wa_h - caption
+        );
     }
-    log::info!("focus: shown via SW_SHOWNOACTIVATE at bottom of Z order");
 }
 
 #[cfg(all(feature = "native", not(target_os = "windows")))]

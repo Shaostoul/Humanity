@@ -14,13 +14,30 @@
 // Usage:
 //   node scripts/probe-sweep.js [--rig DIR] [--exe PATH] [--out DIR]
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
+//                               [--width PX] [--shipped-assets]
 // Defaults: rig = .probe-rig, exe = target/release/HumanityOS.exe,
-//           out = .probe-rig/sweeps/<timestamp>/
+//           out = .probe-rig/sweeps/<timestamp>/, width = 2560
 // Writes <out>/manifest.json  [{id, desc, screenshot, fps, frame_ms, expect,
-//   regressions, perf_floor_fps, ok, error}]  and copies each PNG into <out>.
+//   regressions, perf_floor_fps, capture_w, capture_h, ok, error}]  and copies
+//   each PNG into <out>.
 //
-// Exit 0 if every vantage captured; exit 2 if any vantage failed to capture
-// (the visual/perf layers still read the manifest for the ones that worked).
+// --width PX (default 2560): the capture width this sweep is ALLOWED to
+//   produce. Any vantage whose PNG comes back at another width is marked
+//   ok:false with a loud line, because a resolution-dependent gate read at the
+//   wrong width is not a baseline, it is a number that looks like one. Pass
+//   --width 0 to disable the check (e.g. deliberately sweeping a small window).
+//
+// --shipped-assets: run against what a RELEASE BUNDLE actually contains.
+//   .github/workflows/build-desktop.yml copies data/ + assets/icons/ +
+//   assets/shaders/ and nothing else, so assets/models/ (62 photoscans) and
+//   assets/textures/ never reach a player. The normal rig junctions the whole
+//   repo assets/, so no ordinary sweep can see a shipped build's vegetation at
+//   all. See setupRig() for why this rig must live OUTSIDE the repo.
+//
+// Exit 0 if every vantage captured at the expected width; exit 2 if any
+// vantage failed to capture, came back at the wrong width, or (in
+// --shipped-assets mode) the log proves the run was not actually testing a
+// shipped build. The visual/perf layers still read the manifest either way.
 
 const fs = require("fs");
 const path = require("path");
@@ -34,10 +51,31 @@ const opt = (name, def) => {
 };
 const flag = (name) => args.includes(name);
 
-const RIG = path.resolve(opt("--rig", path.join(REPO, ".probe-rig")));
+// --shipped-assets MUST run from a rig OUTSIDE the repo. Measured 2026-08-02:
+// two attempts at .probe-rig-ship* inside C:\Humanity, each with an assets/
+// holding only icons+shaders junctions, STILL loaded all 62 photoscans.
+// find_data_dir (src/lib.rs:194) walks up six parents from the exe, so it finds
+// C:\Humanity\data, and that candidate wins the "repo data dir" first
+// preference (its parent holds Cargo.toml). AssetManager::resolve_model_path
+// (src/assets/mod.rs:149) then falls back to the data dir's PARENT -- the repo
+// root -- and assets/models/ is silently re-attached. Outside the repo the
+// walk-up finds nothing, so the rig's own data/ wins and the models genuinely
+// go missing. %LOCALAPPDATA% is used because it is guaranteed writable, on the
+// same volume as the repo (so the per-entry hard links below work), and has no
+// data/ directory anywhere up its parent chain.
+const SHIPPED_ASSETS = flag("--shipped-assets");
+const DEFAULT_RIG = SHIPPED_ASSETS
+  ? path.join(process.env.LOCALAPPDATA || require("os").tmpdir(), "HumanityOS-probe-rig-shipped")
+  : path.join(REPO, ".probe-rig");
+const RIG = path.resolve(opt("--rig", DEFAULT_RIG));
 const EXE_SRC = path.resolve(opt("--exe", path.join(REPO, "target", "release", "HumanityOS.exe")));
 const ONLY = opt("--only", "").split(",").map((s) => s.trim()).filter(Boolean);
 const KEEP_OPEN = flag("--keep-open");
+// Expected capture width. See the header block: a resolution-dependent gate
+// judged at the wrong width is worse than no reading at all, because it looks
+// like a baseline. 2560 is the operator's own client width (2560x1440 monitor,
+// 2560x1410 work area, 23 px caption -> 2560x1387 client).
+const EXPECT_W = parseInt(opt("--width", "2560"), 10) || 0;
 // --reload-shaders: after world entry, bump the mtime of the rig's OWN copy of
 // the pbr shader parts so the engine's hot-reload picks them up. The initial
 // compile uses the include_str! embedded sources, so a shader edit made BEFORE
@@ -70,6 +108,47 @@ function ensureJunction(link, target) {
   if (fs.existsSync(link)) return;
   execSync(`cmd /c mklink /J "${link}" "${target}"`, { stdio: "ignore" });
 }
+
+// A REAL directory at `link` -- never a junction. If a previous ordinary sweep
+// left a whole-tree junction here, replace it: a junctioned assets/ is exactly
+// the thing --shipped-assets exists to avoid.
+function ensureRealDir(dir) {
+  if (fs.existsSync(dir)) {
+    const st = fs.lstatSync(dir);
+    if (st.isSymbolicLink()) {
+      fs.unlinkSync(dir); // removes the link only, never the target's contents
+    } else {
+      return;
+    }
+  }
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+// Mirror `src` INTO the real directory `dst`, one entry at a time: directories
+// become junctions (live, free) and files become hard links (live, free, same
+// volume). The point of going per-entry instead of junctioning the parent is
+// that `dst` stays a real path whose PARENT is the rig, so resolve_model_path's
+// data-dir-parent fallback lands in the rig and not in the repo.
+function mirrorEntries(src, dst, { only = null } = {}) {
+  ensureRealDir(dst);
+  for (const e of fs.readdirSync(src, { withFileTypes: true })) {
+    if (only && !only.includes(e.name)) continue;
+    const from = path.join(src, e.name);
+    const to = path.join(dst, e.name);
+    if (fs.existsSync(to)) {
+      // Refresh links every run: a repo file replaced by write-new+rename
+      // leaves a stale hard link pointing at the old content.
+      try { fs.unlinkSync(to); } catch { continue; }
+    }
+    try {
+      if (e.isDirectory()) fs.symlinkSync(from, to, "junction");
+      else fs.linkSync(from, to);
+    } catch (err) {
+      log(`  WARN could not link ${e.name}: ${err.message}`);
+    }
+  }
+}
+
 function setupRig() {
   fs.mkdirSync(RIG, { recursive: true });
   fs.mkdirSync(DEBUG, { recursive: true });
@@ -86,8 +165,35 @@ function setupRig() {
     path.join(RIG, "no_focus.txt"),
     "engine marker: boot background, never steal focus. delete only if you want this exe to take focus.\n"
   );
-  ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
-  ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
+  if (SHIPPED_ASSETS) {
+    if (!path.relative(REPO, RIG).startsWith("..")) {
+      console.error(
+        `ERROR: --shipped-assets rig must live OUTSIDE the repo, got ${RIG}.\n` +
+        `  find_data_dir walks up six parents and would resolve ${path.join(REPO, "data")},\n` +
+        `  whose parent re-attaches assets/models/ -- the run would silently test a dev build.`
+      );
+      process.exit(1);
+    }
+    // data/: every entry, so the rig's data/ is a real directory.
+    mirrorEntries(path.join(REPO, "data"), path.join(RIG, "data"));
+    // assets/: ONLY what .github/workflows/build-desktop.yml ships.
+    mirrorEntries(path.join(REPO, "assets"), path.join(RIG, "assets"), {
+      only: ["icons", "shaders"],
+    });
+    // Anything a previous non-shipped run left behind (models/, textures/) has
+    // to go, or the run is testing a dev build wearing a shipped-build label.
+    for (const stray of fs.readdirSync(path.join(RIG, "assets"))) {
+      if (stray === "icons" || stray === "shaders") continue;
+      const p = path.join(RIG, "assets", stray);
+      if (fs.lstatSync(p).isSymbolicLink() || fs.lstatSync(p).isFile()) fs.unlinkSync(p);
+      else fs.rmSync(p, { recursive: true, force: true });
+      log(`  removed non-shipped asset ${stray} from the rig`);
+    }
+    log(`shipped-assets rig at ${RIG} (data/ per-entry, assets/ = icons + shaders only)`);
+  } else {
+    ensureJunction(path.join(RIG, "data"), path.join(REPO, "data"));
+    ensureJunction(path.join(RIG, "assets"), path.join(REPO, "assets"));
+  }
   // Offline autopilot seed the game expects to exist for zero-click entry.
   const ap = path.join(DEBUG, "autopilot_request.json");
   if (fs.existsSync(ap)) fs.unlinkSync(ap);
@@ -268,11 +374,22 @@ async function main() {
         rec.screenshot = destName;
         rec.fps = typeof shot.fps === "number" ? Math.round(shot.fps * 10) / 10 : null;
         rec.frame_ms = typeof shot.frame_ms_avg === "number" ? Math.round(shot.frame_ms_avg * 10) / 10 : null;
-        // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). The window
-        // size is not stable across rig runs (2560x1387 and 1280x720 observed
-        // on the same machine, same config, 2026-07-31) and several vantage
-        // gates are resolution dependent -- a manifest without the width makes
-        // those readings unjudgeable after the fact.
+        // Capture WIDTH x HEIGHT from the PNG IHDR (bytes 16-23). Several
+        // vantage gates are resolution dependent (the backlit-canopy gate
+        // reads 0.448/22.8% at 2560x1387 and 0.211/35.3% at 1280x720 on the
+        // SAME build), so a manifest without the width makes those readings
+        // unjudgeable after the fact.
+        //
+        // ROOT CAUSE OF THE 1280x720 CAPTURES, corrected 2026-08-02: it was
+        // never "a second rig running concurrently". Every launch asks for
+        // with_maximized(true), but winit can only apply MAXIMIZED through
+        // ShowWindow, and since v0.1081 a background launch is created hidden
+        // and shown by launch_focus::show_window_behind (SW_SHOWNOACTIVATE),
+        // which never carried the maximize -- so the window opened at the
+        // with_inner_size fallback of 1280x720 while `just play` opened
+        // maximized at 2560x1387. It was deterministic, not a race: EVERY
+        // background sweep captured 1280x720. Fixed in v0.1095 by sizing the
+        // window to the monitor work area with SWP_NOACTIVATE.
         try {
           const hdr = Buffer.alloc(24);
           const fd = fs.openSync(srcPng, "r");
@@ -281,8 +398,19 @@ async function main() {
           rec.capture_w = hdr.readUInt32BE(16);
           rec.capture_h = hdr.readUInt32BE(20);
         } catch { /* dimensions stay absent rather than wrong */ }
-        rec.ok = true;
-        log(`  captured ${destName}  (${rec.fps} fps / ${rec.frame_ms} ms, ${rec.capture_w}x${rec.capture_h})`);
+        rec.expect_w = EXPECT_W || null;
+        // A blind sweep must not be mistakable for a baseline.
+        if (EXPECT_W && rec.capture_w !== EXPECT_W) {
+          rec.ok = false;
+          rec.error = `WRONG CAPTURE WIDTH: ${rec.capture_w}x${rec.capture_h}, expected ${EXPECT_W} wide`;
+          log(`  !! ${rec.id}: WRONG CAPTURE WIDTH ${rec.capture_w}x${rec.capture_h} (expected ${EXPECT_W} wide).`);
+          log(`  !! Resolution-dependent gates (backlit canopy, crown gap, canopy overdraw) CANNOT be`);
+          log(`  !! baselined from this capture. Check that the window maximized: run.log should carry`);
+          log(`  !! "focus: ... maximized-without-activating to the work area". Pass --width ${rec.capture_w} to accept it.`);
+        } else {
+          rec.ok = true;
+          log(`  captured ${destName}  (${rec.fps} fps / ${rec.frame_ms} ms, ${rec.capture_w}x${rec.capture_h})`);
+        }
       } catch (e) {
         rec.error = String(e.message || e);
         log(`  FAILED: ${rec.error}`);
@@ -293,10 +421,40 @@ async function main() {
     if (!KEEP_OPEN) kill();
   }
 
-  const panics = fs.existsSync(LOG) ? (fs.readFileSync(LOG, "utf8").match(/PANIC/g) || []).length : 0;
+  const logText = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8") : "";
+  const panics = (logText.match(/PANIC/g) || []).length;
+
+  // --shipped-assets is only meaningful if the engine actually resolved the
+  // rig's data dir AND actually fell back to procedural geometry for the
+  // photoscan species. Two prior attempts LOOKED like shipped runs and were
+  // silently loading all 62 photoscans out of the repo, so this is asserted,
+  // not assumed.
+  let shipped_ok = null;
+  if (SHIPPED_ASSETS) {
+    const wantDataDir = path.join(RIG, "data").toLowerCase().replace(/\//g, "\\");
+    const dataLine = (logText.match(/AssetManager: data directory = (.+)/) || [])[1];
+    const dataDirOk =
+      !!dataLine && dataLine.trim().toLowerCase().replace(/\//g, "\\") === wantDataDir;
+    const fallbacks = (logText.match(/procedural fallback built \(shipped-build path\)/g) || []).length;
+    shipped_ok = dataDirOk && fallbacks > 0;
+    if (!dataDirOk) {
+      log(`  !! NOT A SHIPPED BUILD: AssetManager resolved "${dataLine || "(no line in log)"}"`);
+      log(`  !! expected "${path.join(RIG, "data")}" -- the repo's assets/models/ is still attached.`);
+    }
+    if (fallbacks === 0) {
+      log(`  !! NOT A SHIPPED BUILD: zero "[NearTree] ... procedural fallback built (shipped-build path)" lines.`);
+      log(`  !! The photoscan species loaded their glTF, so this run measured a dev build.`);
+    }
+    if (shipped_ok) log(`shipped-assets confirmed: rig data dir + ${fallbacks} procedural fallback lines`);
+  }
+
   const manifest = {
     stamp,
     exe: EXE_SRC,
+    rig: RIG,
+    shipped_assets: SHIPPED_ASSETS,
+    shipped_ok,
+    expect_w: EXPECT_W || null,
     panics,
     captured: results.filter((r) => r.ok).length,
     total: results.length,
@@ -307,7 +465,9 @@ async function main() {
   log(`captured ${manifest.captured}/${manifest.total}, panics=${panics}`);
   // Stable pointer to the newest sweep for the workflow + perf report.
   fs.writeFileSync(path.join(RIG, "latest-sweep.txt"), OUT);
-  process.exit(manifest.captured === manifest.total && panics === 0 ? 0 : 2);
+  const clean =
+    manifest.captured === manifest.total && panics === 0 && (shipped_ok === null || shipped_ok);
+  process.exit(clean ? 0 : 2);
 }
 
 main().catch((e) => {
