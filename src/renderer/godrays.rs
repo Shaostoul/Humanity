@@ -167,6 +167,7 @@ impl GodrayPass {
         sun_dir: Vec3,
         aspect: f32,
         intensity: f32,
+        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if intensity <= 0.001 || sun_dir.length_squared() < 0.5 {
             return;
@@ -243,6 +244,10 @@ impl GodrayPass {
                     },
                 })],
                 depth_stencil_attachment: None,
+                // Frame-cost measurement (gpu.godrays), threaded from the
+                // renderer's timestamp-query ring. `None` on adapters without
+                // TIMESTAMP_QUERY, where the CPU submit stage stands in.
+                timestamp_writes,
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);

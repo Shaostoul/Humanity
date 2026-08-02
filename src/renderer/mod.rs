@@ -2574,6 +2574,7 @@ impl Renderer {
             sun_dir,
             camera.aspect,
             self.godray_intensity * weather_scale.clamp(0.0, 1.0),
+            self.pass_timer("gpu.godrays"),
         );
     }
 
@@ -2607,6 +2608,7 @@ impl Renderer {
             px_per_rad,
             1.6,
             self.ssao_strength,
+            self.pass_timer("gpu.ssao"),
         );
     }
 

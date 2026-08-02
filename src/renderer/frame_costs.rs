@@ -172,12 +172,102 @@ fn set_into(list: &mut Vec<Entry>, id: &'static str, value: f64) {
     }
 }
 
-/// Record a GPU pass duration in milliseconds (called by the timestamp
-/// resolver, one frame after the pass ran).
+/// Record a GPU pass duration in milliseconds. Single-sample entry point, used
+/// by the headless UI snapshot to stage plausible numbers; the live renderer
+/// path goes through `publish_gpu_frame`, which sums same-id passes first.
 pub fn record_gpu(id: &'static str, ms: f32) {
     if let Ok(mut s) = store().lock() {
         ema_into(&mut s.gpu, id, ms as f64);
     }
+}
+
+/// Publish ONE frame's worth of resolved GPU pass durations.
+///
+/// Two properties the naive "record each sample as it is read" loop did not
+/// have, and both are load-bearing for an honest pie:
+///   * durations that share an id are SUMMED. Several passes legitimately
+///     carry one id - the scene pass runs twice per frame, bloom is four
+///     fullscreen passes - and folding each one separately through the EMA
+///     published something between them instead of their total.
+///   * an id that did NOT run this frame decays toward zero, the same rule the
+///     CPU column already followed. Without it, turning god rays or SSAO off
+///     left their last measured cost sitting in the pie forever.
+pub(crate) fn publish_gpu_frame(samples: &[(&'static str, f32)]) {
+    let mut totals: Vec<(&'static str, f32)> = Vec::new();
+    for (id, ms) in samples {
+        match totals.iter_mut().find(|(i, _)| i == id) {
+            Some((_, acc)) => *acc += *ms,
+            None => totals.push((*id, *ms)),
+        }
+    }
+    if let Ok(mut s) = store().lock() {
+        let ids: Vec<&'static str> = s.gpu.iter().map(|e| e.id).collect();
+        for id in ids {
+            let v = totals
+                .iter()
+                .find(|(i, _)| *i == id)
+                .map(|(_, v)| *v)
+                .unwrap_or(0.0);
+            ema_into(&mut s.gpu, id, v as f64);
+        }
+        for (id, v) in totals {
+            if !s.gpu.iter().any(|e| e.id == id) {
+                s.gpu.push(Entry { id, value: v as f64 });
+            }
+        }
+    }
+}
+
+/// Interned ids built from a runtime name (ECS system names, which are `&str`
+/// borrowed from the system, not `&'static str`). Bounded by construction: the
+/// engine registers its systems once at boot, so this map holds one entry per
+/// system for the process lifetime and never grows again.
+static INTERNED: OnceLock<Mutex<std::collections::HashMap<String, &'static str>>> =
+    OnceLock::new();
+
+/// Turn `prefix` + a runtime `name` into a stable measurement id.
+///
+/// The name is slugged (lowercase, non-alphanumeric runs become `_`, a trailing
+/// "system" is dropped) so `FarmingSystem` measures as `cpu.system.farming`.
+/// Two systems that slug the same simply share a row, which is honest: their
+/// costs are summed under one name rather than one silently hiding the other.
+pub fn intern_id(prefix: &str, name: &str) -> &'static str {
+    let mut slug = String::with_capacity(name.len());
+    let mut prev_us = true; // leading underscores are suppressed
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() {
+            slug.push(ch.to_ascii_lowercase());
+            prev_us = false;
+        } else if !prev_us {
+            slug.push('_');
+            prev_us = true;
+        }
+    }
+    while slug.ends_with('_') {
+        slug.pop();
+    }
+    if slug.len() > "system".len() && slug.ends_with("system") {
+        slug.truncate(slug.len() - "system".len());
+        while slug.ends_with('_') {
+            slug.pop();
+        }
+    }
+    if slug.is_empty() {
+        slug.push_str("unnamed");
+    }
+    let key = format!("{prefix}{slug}");
+    let map = INTERNED.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+    let mut m = match map.lock() {
+        Ok(m) => m,
+        // A poisoned interner must not take the engine down over telemetry.
+        Err(e) => e.into_inner(),
+    };
+    if let Some(id) = m.get(&key) {
+        return id;
+    }
+    let leaked: &'static str = Box::leak(key.clone().into_boxed_str());
+    m.insert(key, leaked);
+    leaked
 }
 
 /// Accumulate a CPU stage duration into the frame in progress.
@@ -372,6 +462,17 @@ pub fn reset_for_test() {
     }
 }
 
+/// Serialise every test that touches the process-global store. Cargo runs lib
+/// tests on many threads, and the ECS runner's timing test lives in another
+/// module, so the lock has to be reachable from both.
+#[cfg(test)]
+pub fn test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static L: OnceLock<Mutex<()>> = OnceLock::new();
+    L.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
 /// Scope timer: `let _t = frame_costs::stage("cpu.celestial");` at the top of a
 /// block records its wall time into the CPU column when the guard drops. This
 /// is the `boot_timer` pattern, per frame instead of per boot phase.
@@ -515,6 +616,7 @@ impl GpuTimers {
 
         // 1. Harvest a completed readback into the store.
         if self.ready.swap(false, Ordering::Acquire) {
+            let mut samples: Vec<(&'static str, f32)> = Vec::new();
             {
                 let view = self.read_buf.slice(..).get_mapped_range();
                 // Read each 8-byte tick by hand rather than casting the slice:
@@ -530,7 +632,7 @@ impl GpuTimers {
                     if let (Some(t0), Some(t1)) = (tick(b), tick(e)) {
                         if t1 >= t0 {
                             let ns = (t1 - t0) as f64 * self.period_ns as f64;
-                            record_gpu(id, (ns / 1.0e6) as f32);
+                            samples.push((id, (ns / 1.0e6) as f32));
                         }
                     }
                 }
@@ -538,6 +640,9 @@ impl GpuTimers {
             self.read_buf.unmap();
             st.mapped = false;
             st.in_flight.clear();
+            // Published as ONE frame so same-id passes sum and absent passes
+            // decay (see `publish_gpu_frame`).
+            publish_gpu_frame(&samples);
         }
 
         // 2. Resolve the frame that just ended, if the previous readback is done.
@@ -738,12 +843,10 @@ mod tests {
     use super::*;
 
     /// The store is process-global, so these tests must not run concurrently
-    /// with each other (cargo runs lib tests on many threads by default).
+    /// with each other (cargo runs lib tests on many threads by default), nor
+    /// with the ECS runner's timing test, which writes the same store.
     fn serial() -> std::sync::MutexGuard<'static, ()> {
-        static L: OnceLock<Mutex<()>> = OnceLock::new();
-        L.get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
+        super::test_lock()
     }
 
     /// The CPU column accumulates several calls within one frame and only
@@ -835,6 +938,55 @@ mod tests {
             "UI-only frames must leave the published costs untouched"
         );
         reset_for_test();
+    }
+
+    /// Several passes can share one id in a single frame (the scene pass runs
+    /// twice; bloom is four passes). Their durations must SUM, not average.
+    #[test]
+    fn gpu_passes_sharing_an_id_sum_within_a_frame() {
+        let _g = serial();
+        reset_for_test();
+        publish_gpu_frame(&[("gpu.scene", 2.0), ("gpu.scene", 3.0), ("gpu.ssao", 1.0)]);
+        let snap = snapshot();
+        assert_eq!(snap.value("gpu.scene"), 5.0, "two scene passes must add up");
+        assert_eq!(snap.value("gpu.ssao"), 1.0);
+        reset_for_test();
+    }
+
+    /// A pass that stops running (SSAO turned off, god rays skipped at night)
+    /// must decay to zero instead of leaving its last cost in the pie forever.
+    #[test]
+    fn gpu_passes_that_stop_running_decay_toward_zero() {
+        let _g = serial();
+        reset_for_test();
+        publish_gpu_frame(&[("gpu.godrays", 4.0)]);
+        let first = snapshot().value("gpu.godrays");
+        assert!(first > 0.0);
+        for _ in 0..60 {
+            publish_gpu_frame(&[("gpu.celestial", 4.0)]);
+        }
+        let later = snapshot().value("gpu.godrays");
+        assert!(later < first * 0.2, "a stopped pass did not decay: {first} -> {later}");
+        reset_for_test();
+    }
+
+    /// Runtime names become stable, readable, reusable ids - the join between
+    /// the ECS system list and the budget registry.
+    #[test]
+    fn interned_ids_are_stable_and_slugged() {
+        assert_eq!(intern_id("cpu.system.", "FarmingSystem"), "cpu.system.farming");
+        assert_eq!(intern_id("cpu.system.", "AISystem"), "cpu.system.ai");
+        assert_eq!(intern_id("cpu.system.", "Interaction"), "cpu.system.interaction");
+        assert_eq!(
+            intern_id("cpu.system.", "Container Compatibility"),
+            "cpu.system.container_compatibility"
+        );
+        // "System" alone must not slug away to nothing.
+        assert_eq!(intern_id("cpu.system.", "System"), "cpu.system.system");
+        // Same name in, same pointer out (the interner, not a fresh leak).
+        let a = intern_id("cpu.system.", "WeatherSystem");
+        let b = intern_id("cpu.system.", "weather");
+        assert!(std::ptr::eq(a, b), "interning must reuse one allocation per id");
     }
 
     /// The watch flag gates every expensive sample; it must start cold.

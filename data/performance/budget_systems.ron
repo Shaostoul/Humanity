@@ -26,10 +26,17 @@
 //  * GPU timestamps measure PASSES, and this engine draws terrain, sky, water
 //    and clouds inside ONE pass (they share a megashader and branch per
 //    material), so they share one row until the pass is split.
-//  * The star field, the egui interface and the post-process passes are
-//    submitted from lib.rs, outside the renderer module that carries the
-//    timers, so today they land in "Elsewhere". Their rows exist and light up
-//    the moment those two call sites are wired.
+//  * The bloom post-process is wired for timing but DORMANT: nothing calls
+//    BloomPass::apply today (bloom_intensity defaults to 0), so its share of
+//    the "God rays + SSAO + bloom" row is 0 until bloom is switched back on.
+//  * The ECS tick is ONE slice ("Game systems"), measured by the frame loop's
+//    cpu.systems stage. Every individual system is ALSO measured, as
+//    cpu.system.<slug> (farming, weather, ai, ...), and those numbers are in
+//    the live store and the HUMANITY_FRAME_COSTS JSON drop - they are not rows
+//    here because the pie SUMS its rows, so listing a system next to the total
+//    would count that system's milliseconds twice. Increment 2's editor gets
+//    the drill-down; the invariant is guarded by the
+//    ecs_tick_is_not_counted_twice_on_the_cpu_pie test.
 [
     // ── GPU pie: where the frame's milliseconds go on the graphics card ──
     (
@@ -110,7 +117,7 @@
         locked: false,
         base_frac: 0.10,
         color: "success",
-        note: "Screen-space effects. CPU submit time is measured; the GPU passes live in their own modules.",
+        note: "Screen-space effects, timed on the graphics card. Bloom reads 0 until the bloom pass is switched on.",
     ),
 
     // ── CPU pie: where the frame's milliseconds go on the processor ──
@@ -180,7 +187,7 @@
         locked: true,
         base_frac: 0.10,
         color: "accent",
-        note: "Farming, weather, creatures, vitals - the ECS system tick.",
+        note: "Farming, weather, creatures, vitals - the whole ECS tick. Each system is measured on its own too (cpu.system.farming, cpu.system.weather, cpu.system.ai, ...); the breakdown appears when slices become drillable.",
     ),
 
     // ── VRAM pie: tracked graphics-memory allocations ──

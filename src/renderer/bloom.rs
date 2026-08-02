@@ -169,6 +169,13 @@ impl BloomPass {
     /// Run the bloom post-process on a rendered scene.
     /// `scene_view` is the main scene texture view (rendered scene).
     /// `output_view` is where the final composited result goes.
+    ///
+    /// `timestamp_writes` is one slot pair from the renderer's frame-cost
+    /// timers (`Renderer::pass_timer("gpu.bloom")`). Bloom is FOUR fullscreen
+    /// passes, so the pair is split: the begin index rides the first pass and
+    /// the end index rides the last, which measures the whole chain - including
+    /// the gaps between its passes - as a single "gpu.bloom" cost.
+    #[allow(clippy::too_many_arguments)]
     pub fn apply(
         &self,
         device: &wgpu::Device,
@@ -177,6 +184,7 @@ impl BloomPass {
         output_view: &wgpu::TextureView,
         threshold: f32,
         intensity: f32,
+        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         // Update params
         queue.write_buffer(
@@ -230,17 +238,21 @@ impl BloomPass {
             label: Some("Bloom Encoder"),
         });
 
+        // Split the one slot pair across the chain (see the doc comment): the
+        // first pass writes only the begin timestamp, the last only the end.
+        let (first_writes, last_writes) = split_timestamps(timestamp_writes);
+
         // Pass 1: Threshold (scene → texture A at half res)
-        run_fullscreen_pass(&mut encoder, &self.view_a, &self.threshold_pipeline, &scene_bg, None, "Bloom Threshold");
+        run_fullscreen_pass(&mut encoder, &self.view_a, &self.threshold_pipeline, &scene_bg, None, "Bloom Threshold", first_writes);
 
         // Pass 2: Horizontal blur (texture A → texture B)
-        run_fullscreen_pass(&mut encoder, &self.view_b, &self.blur_h_pipeline, &tex_a_bg, None, "Bloom Blur H");
+        run_fullscreen_pass(&mut encoder, &self.view_b, &self.blur_h_pipeline, &tex_a_bg, None, "Bloom Blur H", None);
 
         // Pass 3: Vertical blur (texture B → texture A)
-        run_fullscreen_pass(&mut encoder, &self.view_a, &self.blur_v_pipeline, &tex_b_bg, None, "Bloom Blur V");
+        run_fullscreen_pass(&mut encoder, &self.view_a, &self.blur_v_pipeline, &tex_b_bg, None, "Bloom Blur V", None);
 
         // Pass 4: Composite (scene + bloom → output)
-        run_fullscreen_pass(&mut encoder, output_view, &self.composite_pipeline, &scene_bg, Some(&bloom_composite_bg), "Bloom Composite");
+        run_fullscreen_pass(&mut encoder, output_view, &self.composite_pipeline, &scene_bg, Some(&bloom_composite_bg), "Bloom Composite", last_writes);
 
         queue.submit(std::iter::once(encoder.finish()));
     }
@@ -323,6 +335,35 @@ fn create_fullscreen_pipeline(
     })
 }
 
+/// Split one timestamp slot pair into a "begin only" and an "end only" half, so
+/// a chain of passes can be measured end to end with a single pair. wgpu
+/// requires at least one index per `RenderPassTimestampWrites`, which both
+/// halves satisfy. `None` in, `(None, None)` out - the adapter has no timestamp
+/// queries and every pass runs untimed.
+fn split_timestamps(
+    writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
+) -> (
+    Option<wgpu::RenderPassTimestampWrites<'_>>,
+    Option<wgpu::RenderPassTimestampWrites<'_>>,
+) {
+    match writes {
+        Some(w) => (
+            Some(wgpu::RenderPassTimestampWrites {
+                query_set: w.query_set,
+                beginning_of_pass_write_index: w.beginning_of_pass_write_index,
+                end_of_pass_write_index: None,
+            }),
+            Some(wgpu::RenderPassTimestampWrites {
+                query_set: w.query_set,
+                beginning_of_pass_write_index: None,
+                end_of_pass_write_index: w.end_of_pass_write_index,
+            }),
+        ),
+        None => (None, None),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_fullscreen_pass(
     encoder: &mut wgpu::CommandEncoder,
     target: &wgpu::TextureView,
@@ -330,6 +371,7 @@ fn run_fullscreen_pass(
     bind_group_0: &wgpu::BindGroup,
     bind_group_1: Option<&wgpu::BindGroup>,
     label: &str,
+    timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
 ) {
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some(label),
@@ -342,6 +384,7 @@ fn run_fullscreen_pass(
             },
         })],
         depth_stencil_attachment: None,
+        timestamp_writes,
         ..Default::default()
     });
     pass.set_pipeline(pipeline);

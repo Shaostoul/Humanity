@@ -421,6 +421,12 @@ mod tests {
             "gpu.celestial", "gpu.shadow", "gpu.scene", "gpu.transparent",
             "gpu.overlay", "gpu.instanced", "gpu.particles", "gpu.gpu_particles",
             "gpu.lines", "gpu.celestial_lines", "gpu.clear",
+            // Post-process passes: the timestamp pair is threaded from
+            // `Renderer::pass_timer` into each module's pass descriptor.
+            // `gpu.bloom` is wired in `renderer/bloom.rs` but reads zero until
+            // the bloom post-process gets a call site again (bloom_intensity
+            // defaults to 0 and nothing calls `BloomPass::apply` today).
+            "gpu.godrays", "gpu.ssao", "gpu.bloom",
             "cpu.celestial", "cpu.scene", "cpu.transparent", "cpu.overlay",
             "cpu.lines", "cpu.celestial_lines", "cpu.particles",
             "cpu.gpu_particles", "cpu.gpu_particle_sim", "cpu.godrays",
@@ -432,17 +438,24 @@ mod tests {
             "vram.grass", "vram.uniforms", "vram.driver_reserved",
             "vram.driver_allocated", "ram.resident", "ram.committed_extra",
         ];
-        // Named by the registry, wired from lib.rs in a follow-up (the page
-        // shows them at zero until then).
-        const PENDING_IDS: &[&str] = &[
-            "gpu.ui", "gpu.stars", "gpu.bloom", "gpu.godrays", "gpu.ssao",
-            "cpu.patch_build", "cpu.patch_select", "cpu.near_tree_harvest",
-            "cpu.grass_harvest", "cpu.systems",
+        // Written from the frame loop in lib.rs (pass timers on the two passes
+        // it submits itself, plus its own stage timers).
+        const FRAME_LOOP_IDS: &[&str] = &[
+            "gpu.ui", "gpu.stars", "cpu.systems", "cpu.patch_build",
+            "cpu.near_tree_harvest", "cpu.grass_harvest",
         ];
+        // Named by the registry, not yet wired anywhere (the page shows them at
+        // zero until their call site exists).
+        const PENDING_IDS: &[&str] = &["cpu.patch_select"];
         for r in systems() {
             for s in &r.sources {
                 let known = RENDERER_IDS.contains(&s.as_str())
-                    || PENDING_IDS.contains(&s.as_str());
+                    || FRAME_LOOP_IDS.contains(&s.as_str())
+                    || PENDING_IDS.contains(&s.as_str())
+                    // One id per registered ECS system, interned at
+                    // registration from the system's own name by
+                    // `ecs::systems::SystemRunner`.
+                    || s.starts_with("cpu.system.");
                 assert!(
                     known,
                     "row {} names measurement {:?}, which nothing produces and which \
@@ -451,6 +464,24 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A row may not name the ECS aggregate AND a per-system id in the same
+    /// pie: the pie sums its rows, so counting a system twice would inflate its
+    /// share and shrink the honest "Elsewhere" remainder.
+    #[test]
+    fn ecs_tick_is_not_counted_twice_on_the_cpu_pie() {
+        let aggregate = systems()
+            .iter()
+            .any(|r| r.sources.iter().any(|s| s == "cpu.systems"));
+        let per_system = systems()
+            .iter()
+            .any(|r| r.sources.iter().any(|s| s.starts_with("cpu.system.")));
+        assert!(
+            !(aggregate && per_system),
+            "the CPU pie names both the ECS total (cpu.systems) and per-system \
+             rows (cpu.system.*); pick one or the tick is counted twice"
+        );
     }
 
     /// A pie built from an empty snapshot must still list every registry row
