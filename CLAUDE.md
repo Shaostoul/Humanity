@@ -641,3 +641,28 @@ The Real/Sim toggle switches the UI context between real-life tools and simulati
 2. Ship-at-origin world, data-driven spawning, hologram renderer (v0.87.0)
 3. PBR rendering, particles, bloom post-processing
 4. Fibonacci ship layout, spiral deck generation
+
+## Realistic-first: build the 2030 version, not the placeholder (operator, 2026-08-02)
+
+Verbatim: "Every time we go for a basic representation instead of going for
+realistic we end up spending a lot of time doing things you always seem to
+already need doing but don't do for some reason... go for the boldest most
+real approach possible to making the in-game world look like the real world.
+We're not adequately thinking like a game that's likely going to be released
+closer to 2030 than today."
+
+The evidence agrees: the far-tree card sheet (rejected twice, deleted), the
+real-scale triangle leaves (one day, replaced by cluster cards), the billboard
+grass (one day, replaced by strands). Each "basic version first" cost a full
+build-measure-reject cycle before the technique we already knew was standard.
+
+RULE: when fencing a visual/simulation increment, pick the technique a 2030
+release would use (the industry-standard approach documented in real-time
+rendering literature: SpeedTree-class spline-lofted welded tree geometry,
+EmberGen-class volumetric effects, virtualized geometry, etc.) and implement
+THAT, scoped to one increment. A cheaper intermediate is only acceptable when
+it is genuinely a rung of the real architecture (the cluster-card bake IS the
+real technique), never when it is a throwaway look-alike. Draw on public
+algorithms and papers freely; never copy assets or code from proprietary
+tools. When unsure which approach is the 2030 one, ask the fidelity-expert
+for the reference technique BEFORE fencing the increment.
