@@ -68,6 +68,7 @@ pipeline guides live in **[dev/](dev/)**.
 | **[game/](game/)** | The educational simulation: gameplay, modules, world. |
 | **[accord/](accord/)** | The Humanity Accord (principles, governance, rights). |
 | **[mission/](mission/)** | Why HumanityOS exists: the five adversaries, good humans and good AI, homesteading, the interstellar horizon. |
+| **[outreach/](outreach/)** | Audience-tailored "how it helps" briefs: individuals, families, public leaders, funders, partners, players. |
 | **[reference/](reference/)** | Schemas, runbooks, templates, data definitions. |
 | **[operations/](operations/)** | Live-ops notes (backup replication, etc.). |
 | **[history/](history/)** | Dated session notes, superseded plans, vision essays. |

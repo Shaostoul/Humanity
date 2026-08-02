@@ -40,6 +40,39 @@
       ]
     },
     {
+      "name": "How It Helps",
+      "docs": [
+        {
+          "title": "How HumanityOS Helps",
+          "file": "how_humanityos_helps.md"
+        },
+        {
+          "title": "For You",
+          "file": "for_individuals.md"
+        },
+        {
+          "title": "For Families",
+          "file": "for_families.md"
+        },
+        {
+          "title": "For Public Leaders",
+          "file": "for_public_leaders.md"
+        },
+        {
+          "title": "For Funders and Sponsors",
+          "file": "for_funders_and_sponsors.md"
+        },
+        {
+          "title": "For Affiliate Partners",
+          "file": "for_affiliate_partners.md"
+        },
+        {
+          "title": "What to Expect: Playing",
+          "file": "what_to_expect_playing.md"
+        }
+      ]
+    },
+    {
       "name": "The Accord",
       "docs": [
         {

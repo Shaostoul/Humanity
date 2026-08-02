@@ -13,6 +13,11 @@
  "recent_decisions": [
   {
    "date": "2026-08-01",
+   "decision": "OUTREACH DOCS LAYER SHIPPED (v0.1092.2): docs/outreach/ hub-and-spokes (core how_humanityos_helps + briefs for individuals/families/public-leaders/funders/affiliate-partners + what_to_expect_playing with the official-release story teaser: fleet arrives, solar system hidden in a cloaked Dyson swarm). New Library category 'How It Helps' (Library 69 docs / 14 categories), all shareable via /library#slug. Structure call: NO per-nation/per-office variants; for_public_leaders scales village-council-to-head-of-state. 7 writers + 7 truth reviewers killed real overclaims pre-ship (maps have no people layer; library has no how-to guides yet; unenforceable child-safety promise rewritten to opt-in/public-square/self-host reality; 'encrypted chat' scoped to E2EE DMs everywhere; funders numbers stated as effectively zero). Funders doc leads with the honest no-equity picture (CC0, no company, gifts not tax-deductible, matches donate.html). Game-dev boundary respected: PRIORITIES/ROADMAP/design docs untouched (operator has another instance on game dev).",
+   "why": "Operator wants to reach more people more easily; audience-tailored briefs each lead with that reader's situation, and the truth-verify pass matters most on outreach docs because feature overclaiming there burns trust with exactly the people being reached."
+  },
+  {
+   "date": "2026-08-01",
    "decision": "MISSION SURFACED ON THE FRONT DOOR (v0.1092.1): homepage dream screen names the five adversaries; /mission goal chips link The Five Adversaries + new 'The mission, written down' card links all 5 library docs; /library#slug deep links added to library-app.js (accord slug convention, replaceState + hashchange; native needs no equivalent, no URLs). DEV-AID FIX: preview-server.js had drifted from prod nginx (/ mapped to nonexistent web/index.html; no try_files $uri.html equivalent, so EVERY extensionless link 404ed locally); now mirrors prod (prod flattens web/pages/ into the web root). Full click path homepage -> /mission -> /library#doc verified locally on the fixed routing.",
    "why": "Operator asked whether to update the homepage; the funnel already existed (homepage -> /mission), so the highest-leverage change was substance behind the goal chips plus shareable doc links, not homepage redesign."
   },

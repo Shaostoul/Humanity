@@ -31,6 +31,17 @@ const CATEGORIES = [
     { title: 'Why Homesteading Works', src: 'docs/mission/why_homesteading_works.md' },
     { title: 'Interstellar Civilization Governance', src: 'docs/mission/interstellar_civilization_governance.md' },
   ]},
+  // v0.1092.x outreach layer (operator: audience-tailored "how it helps"
+  // docs to reach more people; hub-and-spokes, source docs/outreach/).
+  { name: 'How It Helps', docs: [
+    { title: 'How HumanityOS Helps', src: 'docs/outreach/how_humanityos_helps.md' },
+    { title: 'For You', src: 'docs/outreach/for_individuals.md' },
+    { title: 'For Families', src: 'docs/outreach/for_families.md' },
+    { title: 'For Public Leaders', src: 'docs/outreach/for_public_leaders.md' },
+    { title: 'For Funders and Sponsors', src: 'docs/outreach/for_funders_and_sponsors.md' },
+    { title: 'For Affiliate Partners', src: 'docs/outreach/for_affiliate_partners.md' },
+    { title: 'What to Expect: Playing', src: 'docs/outreach/what_to_expect_playing.md' },
+  ]},
   { name: 'The Accord', accord: true, docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
     { title: 'Absolute Prohibitions', src: 'docs/accord/absolute_prohibitions.md' },
