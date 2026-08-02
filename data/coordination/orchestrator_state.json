@@ -13,6 +13,11 @@
  "recent_decisions": [
   {
    "date": "2026-08-02",
+   "decision": "REAL SKILLS WAVE 2 + NLNET ARMED (v0.1096.4): starting_seeds, collecting_rainwater, first_solar_power complete the food-water-power triad (Library 75 docs / 15 cats; Real Skills = the capability ladder). Verify pass caught: one-shot downspout miscut instruction (Rutgers method now), asphalt-roof paragraph contradicting its own cited source, dead DOE load-bearing URL, unsourced vendor pricing, 500Wh-covers-515Wh sizing trap + missing inverter-loss caveat. GAME-BASELINE POINTER (operator): docs/user/skills/ = reference list for what the sim must teach; game instance should read it, this session touched no game files. NLNET: cloud routine trig_01AGm5PAjhue2qfj1ApxgQ4m fires 2026-09-03 16:00 UTC, drafts application as PR (read their Generative AI policy at draft time); deadline Nov 3 12:00 CEST; prep file in docs/outreach/applications/.",
+   "why": "Operator direction: keep focusing on docs/guides as the baseline for the game too; NLnet timing pinned by their propose page (calls reopen Sept 3)."
+  },
+  {
+   "date": "2026-08-02",
    "decision": "REAL SKILLS FIRST RUNG (v0.1096.3): Library gains 'Real Skills' category (72 docs / 15 categories): your_first_tomato, storing_water_safely, your_first_compost in docs/user/skills/, every number sourced (extension/CDC/EPA) and independently re-verified against primary sources. Verifiers caught pre-ship: 30F frost trigger (frost forms at 32F), missing do-not-drink warning beside the 75x-strength container-sanitizing bleach mix, hand-in-150F-pile instruction, 'cannot overdo compost' overclaim, dead CDC URL. for_individuals tomato CTA restored (/library#your-first-tomato); for_public_leaders curriculum admission upgraded. PATTERN NOW PROVEN 3x: write-fleet + independent verify + hand integration = shippable truth; for real-life guides the verify pass is non-negotiable (every guide had a genuine hazard). NEXT skills candidates when wanted: seed starting, sourdough, basic tool repair, rain collection (check local legality note needed).",
    "why": "Fills the gap the outreach docs honestly admitted, gives every social post substantive content to point at, and the guides teach REAL capability, which is the mission."
   },

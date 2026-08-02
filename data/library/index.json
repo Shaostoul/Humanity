@@ -80,12 +80,24 @@
           "file": "your_first_tomato.md"
         },
         {
-          "title": "Storing Water Safely",
-          "file": "storing_water_safely.md"
+          "title": "Starting Seeds",
+          "file": "starting_seeds.md"
         },
         {
           "title": "Your First Compost",
           "file": "your_first_compost.md"
+        },
+        {
+          "title": "Collecting Rainwater",
+          "file": "collecting_rainwater.md"
+        },
+        {
+          "title": "Storing Water Safely",
+          "file": "storing_water_safely.md"
+        },
+        {
+          "title": "Your First Solar Power",
+          "file": "first_solar_power.md"
         }
       ]
     },

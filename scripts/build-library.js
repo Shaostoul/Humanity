@@ -49,9 +49,14 @@ const CATEGORIES = [
   // fill the gap the outreach docs honestly admit; every number sourced from
   // agricultural extension / CDC / EPA guidance; source docs/user/skills/).
   { name: 'Real Skills', docs: [
+    // Ordered as the capability ladder: grow, multiply, close the soil
+    // loop, collect water, store water, make power.
     { title: 'Your First Tomato', src: 'docs/user/skills/your_first_tomato.md' },
-    { title: 'Storing Water Safely', src: 'docs/user/skills/storing_water_safely.md' },
+    { title: 'Starting Seeds', src: 'docs/user/skills/starting_seeds.md' },
     { title: 'Your First Compost', src: 'docs/user/skills/your_first_compost.md' },
+    { title: 'Collecting Rainwater', src: 'docs/user/skills/collecting_rainwater.md' },
+    { title: 'Storing Water Safely', src: 'docs/user/skills/storing_water_safely.md' },
+    { title: 'Your First Solar Power', src: 'docs/user/skills/first_solar_power.md' },
   ]},
   { name: 'The Accord', accord: true, docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
