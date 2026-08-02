@@ -132,14 +132,15 @@ Quests and Library respectively); `GameAdmin` (v0.479, folded into ServerSetting
 functional agent-coordination dashboard (POST override secured v0.698.0)
 linked from README.
 
-## Web pages (`web/pages/*.html`: 39 standalone; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
+## Web pages (`web/pages/*.html`: 40 standalone; devlog added 2026-08-01; library + platform added and resources removed 2026-07-30; mission added 2026-07-16; audit/ai-usage/dashboard/data/projects removed 2026-07-05)
 
 Web is a superset of native, adds marketing/landing/dev pages that don't need a native counterpart.
 
 | Name | File | Purpose | Audience | Web-only? |
 |------|------|---------|----------|-----------|
 | Index | `index.html` | Landing page, rebuilt 2026-07-16 as a 7-screen picture-book scroll ("one breath per screen"): galaxy hero + one giant CTA, game intro, four real-screenshot cards, cost-nothing checklist, blueprint dream, proof bar, warm welcome-home close. Under 150 words of copy; the mission essay moved to mission.html. | everyone | yes |
-| Mission | `mission.html` | The full mission statement (the essay that used to live on the landing page, verbatim: why it exists, what it protects, built for every situation, how we get there) plus the community links. Linked from landing screen 5 "Read the full mission". | everyone | yes |
+| Mission | `mission.html` | Permanent forwarder to `/library#humanitys-mission` since v0.1093.2 (the mission essay was merged into the Library so ONE doc serves both clients; the page holds only SEO meta + an instant redirect + a fallback link; a comment forbids regrowing content there). Linked from landing screen 5 "Read the full mission". | everyone | yes |
+| Devlog | `devlog.html` | Public devlog: renders the GitHub Releases feed live client-side (`devlog-app.js`, sessionStorage-cached, load-older pagination), so it can never drift from the real release history; links the releases.atom RSS feed. Landing target for social posts; linked from the landing proof bar "updates shipped" tile. Native mirror: release notes reach native via the updater today; a native Devlog reader is a candidate follow-up. | everyone | yes |
 | Home | `home.html` | The ideal closed-loop homestead outline (one person, six loops, honestly sized): renders `data/home_outline.json`, the SAME data the native Home page's "ideal closed loop" panel renders -- web mirrors native. Replaced the old localStorage room-decorator (v0.700, operator direction: Home outlines the perfect closed loop AND doubles as the game's Home requirements list). | everyone | both |
 | Onboarding | `onboarding.html` | Web's own onboarding flow (native's standalone Onboarding page was removed v0.415.0 and folded into Quests; web was NOT re-checked for the same fold in this pass). | everyone | web-only in practice |
 | Download | `download.html` | Desktop binary download + module list. | everyone | yes |
