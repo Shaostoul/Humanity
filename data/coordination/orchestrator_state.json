@@ -672,6 +672,11 @@
    "date": "2026-08-02",
    "decision": "v0.1093.0/1 SHIPPED (all four gated merges: grass mat, budget pies wired, material extraction, harvest cap). FIRST REAL FRAME-COSTS BREAKDOWN (orbit vantage, hardware timestamps): GPU celestial 1.35ms / stars 0.80 / scene 0.23 / shadow 0.016; CPU scene 1.62ms / celestial 0.86 / ssao 0.28 / transparent 0.28 / particles 0.26 / systems 0.20; VRAM arena 392MB live of 1542MB reserved, meshes 330MB, textures 168MB, driver-allocated 3.63GB; RAM resident 1.04GB. Probe gates 3/3 panics=0 (blue-marble world entry cleared the v0.1029-class site).",
    "why": "NEXT per PRIORITIES + fenced follow-ups: budget-pies increment 2 (allocate), ECS per-system timing (src/ecs lane), bloom/godrays/ssao pass timers, grass harvest time-slicing, grass shadow decision, sakura leaf lozenge, bole radius taste call, filler singles renderer mesh class. Signing backlog stands (operator)."
+  },
+  {
+   "date": "2026-08-02",
+   "decision": "v0.1094.0 SHIPPED: measurement layer complete (godrays/ssao/bloom timers, 25 ECS systems individually clocked, sum-vs-aggregate ratio 1.000, same-id summing + decay-to-zero bugs fixed). LAYER FINDINGS: farming = 83 percent of ECS tick; celestial pass = 14.3 of 33.4 ms frame (the measured next perf target); BLOOM IS DORMANT (BloomPass::apply has zero call sites - silently disconnected; reviving is a rendering decision for its owner). build-game archive + stamp DEFERRED - operator relaunched the game (stable exe locked). cpu.patch_select is the one unproduced registry id (terrain selector owner).",
+   "why": "Next fenced: budget pies increment 2 ALLOCATE; celestial-pass perf investigation now has a measured mandate; bloom revival decision."
   }
  ],
  "active_scopes_to_avoid": [
