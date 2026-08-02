@@ -33,13 +33,32 @@ if (rd.length <= KEEP) {
   process.exit(0);
 }
 
-const toArchive = rd.slice(0, rd.length - KEEP); // oldest, from the front
-const keep = rd.slice(rd.length - KEEP); // newest, stay in the JSON (newest at bottom)
+// Date-aware split (2026-08-02): positional pruning assumed the array honored
+// the newest-at-bottom protocol, but sessions have both appended AND prepended
+// over time, so "the front" was NOT reliably the oldest -- one rotation
+// archived the newest session's entries and kept older ones. Entries carry
+// their date in `date` (current convention) or `at` (older); we stable-sort
+// by that before splitting, so the oldest genuinely leave and the kept tail
+// is written back in protocol order (oldest first, newest at bottom).
+const entryDate = (e) => {
+  for (const k of ['date', 'at']) {
+    if (typeof e[k] === 'string' && /^\d{4}-\d{2}/.test(e[k])) return e[k];
+  }
+  return '0000-00'; // undated sorts oldest, archives first
+};
+const sorted = rd
+  .map((e, i) => ({ e, i, d: entryDate(e) }))
+  .sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : a.i - b.i))
+  .map((x) => x.e);
 
-// Group by month from `at` (YYYY-MM), preserving within-group order.
+const toArchive = sorted.slice(0, sorted.length - KEEP); // oldest by date
+const keep = sorted.slice(sorted.length - KEEP); // newest by date, protocol order
+
+// Group by month (YYYY-MM), preserving within-group order.
 const byMonth = {};
 for (const e of toArchive) {
-  const m = typeof e.at === 'string' && /^\d{4}-\d{2}/.test(e.at) ? e.at.slice(0, 7) : 'undated';
+  const d = entryDate(e);
+  const m = d === '0000-00' ? 'undated' : d.slice(0, 7);
   (byMonth[m] = byMonth[m] || []).push(e);
 }
 
@@ -54,7 +73,7 @@ for (const [month, entries] of Object.entries(byMonth)) {
       `within each batch; newest overall is in the live journal). Source of truth for "why ` +
       `we did X" once it ages past the live tail. See also git log + the GitHub releases.\n`;
   for (const e of entries) {
-    md += `\n## ${e.at || 'undated'}\n\n`;
+    md += `\n## ${e.date || e.at || 'undated'}\n\n`;
     if (e.decision) md += `**Decision:** ${e.decision}\n\n`;
     if (e.why) md += `**Why:** ${e.why}\n\n`;
     if (Array.isArray(e.files) && e.files.length) md += `**Files:** ${e.files.join(', ')}\n\n`;
