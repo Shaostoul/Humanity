@@ -986,64 +986,117 @@ pub fn build_tree_and_cards(def: &TreeDef, height_m: f32, seed: u32) -> TreeBuil
     TreeBuild { mesh: best.foliage, wood: best.wood, bake, cards }
 }
 
-/// The two-pass density fit, returning the ACCEPTED pass together with the
-/// twig set THAT pass actually grew.
+/// The density fit, returning the ACCEPTED pass together with the twig set
+/// THAT pass actually grew.
 ///
 /// Split out of `build_tree_and_cards` (v0.1090) so the card planner and
 /// `crown_envelope` both see the same wood the drawn mesh has. Anything that
 /// derives geometry from twigs has to derive it from the accepted pass's
 /// twigs, or it is describing a tree that was thrown away.
+///
+/// TWO PASSES BECAME UP TO THREE (v0.1096). The two-pass form assumed the
+/// correction is exact, which it is only while the FIRST pass stays under
+/// `limb`'s own `MAX_TRIS` guard: leaf count is strictly linear in the density
+/// knob and wood is completely unaffected by it, so one measurement predicts
+/// the right density. The moment a build is heavy enough for that guard to
+/// fire, the guard prunes subtrees, `wood_tris` is measured on a TRUNCATED
+/// tree, the correction lands short, and the rebuilt full tree overshoots.
+/// That is exactly how oak v0 came out at 8648 triangles against a 8600
+/// ceiling the moment the crown got deeper. Iterating re-measures on a
+/// complete tree and converges; keeping the LARGEST candidate that fits also
+/// replaces the old "only accept a rebuild that grew" rule with the thing that
+/// rule was approximating.
 fn build_accepted(def: &TreeDef, h: f32, seed: u32) -> (TreeParts, Vec<Twig>) {
-    let mut twigs: Vec<Twig> = Vec::new();
-    let first = build_at_density(def, h, seed, 1.0, &mut twigs);
-    let total = first.tri_count();
-    let leaves = leaf_tri_count(&first.foliage);
-    let wood_tris = total.saturating_sub(leaves);
-
-    // A PREDICTION of the card cost, used only to size the blade layer's share
-    // of the budget. The cards that actually ship are re-planned from whichever
-    // pass wins.
-    let card_tris: usize = match &def.clusters {
-        Some(cd) => emit_cluster_cards(def, cd, &twigs, seed)
-            .iter()
-            .map(|c| c.mesh.indices.len() / 3)
-            .sum(),
-        None => 0,
-    };
-
-    // How many triangles the GEOMETRIC blade layer should get.
-    //
-    // Without cards it is "everything the budget has left", which is what
-    // v0.1086 established. WITH cards the blades stop being the canopy and
-    // become a close-range detail layer - a 512 px sprite (v0.1090) out
-    // resolves the screen past ~0.9 m at 2560 wide - so they take a fraction of
-    // the card layer instead, and the tree comes out CHEAPER than it was.
-    let want_leaf = match &def.clusters {
-        Some(cd) => card_tris as f32 * cd.near_blade_tri_frac.max(0.0),
-        None => MAX_TRIS as f32 * BUDGET_TARGET - wood_tris as f32,
-    };
-    if leaves > 0 && want_leaf > 0.0 {
-        let lo = if def.clusters.is_some() { 0.05 } else { 0.2 };
-        let scale = (want_leaf / leaves as f32).clamp(lo, 8.0);
-        // Only pay for a second build when it actually buys something.
-        if !(0.97..=1.03).contains(&scale) {
-            let mut grown = Vec::new();
-            let second = build_at_density(def, h, seed, scale, &mut grown);
-            let st = second.tri_count();
-            let take_second = if def.clusters.is_some() {
-                // Clustered species are aiming DOWN, so the v0.1086 rule
-                // ("only accept a rebuild that grew") would reject every
-                // useful result. Accept anything that fits with its cards.
-                st + card_tris <= MAX_TRIS
-            } else {
-                st <= MAX_TRIS && (st > total || total > MAX_TRIS)
-            };
-            if take_second {
-                return (second, grown);
-            }
+    // A PREDICTION of the card cost, used to size the blade layer's share of
+    // the budget and to judge whether a candidate fits. The cards that actually
+    // ship are re-planned from whichever pass wins.
+    let cards_of = |tw: &[Twig]| -> usize {
+        match &def.clusters {
+            Some(cd) => emit_cluster_cards(def, cd, tw, seed)
+                .iter()
+                .map(|c| c.mesh.indices.len() / 3)
+                .sum(),
+            None => 0,
         }
+    };
+    let lo = if def.clusters.is_some() { 0.05 } else { 0.2 };
+    let mut density = 1.0f32;
+    let mut best: Option<(TreeParts, Vec<Twig>, usize)> = None;
+    // How much of MAX_TRIS to aim at. It STEPS DOWN after a pass that did not
+    // fit, because a pass that did not fit is a pass where `limb`'s guard
+    // pruned subtrees, and every prune makes the next build grow MORE wood
+    // than the one that was measured - so re-aiming at the same target chases
+    // a ceiling that keeps moving. Backing off converges in one or two steps
+    // (oak v0: 8648 -> 8606 -> under, measured 2026-08-02).
+    let mut aim = BUDGET_TARGET;
+
+    for _ in 0..4 {
+        let mut tw: Vec<Twig> = Vec::new();
+        let parts = build_at_density(def, h, seed, density, &mut tw);
+        let cards = cards_of(&tw);
+        let total = parts.tri_count() + cards;
+        let leaves = leaf_tri_count(&parts.foliage);
+        let wood_tris = parts.tri_count().saturating_sub(leaves);
+
+        // Keep the LARGEST candidate that fits the ceiling; while nothing fits
+        // yet, keep the SMALLEST, so a species that cannot be made to fit still
+        // ships the least truncated tree instead of the first one tried.
+        let keep = match &best {
+            None => true,
+            Some((bp, _, bc)) => {
+                let bt = bp.tri_count() + bc;
+                match (total <= MAX_TRIS, bt <= MAX_TRIS) {
+                    (true, false) => true,
+                    (true, true) => total > bt,
+                    (false, false) => total < bt,
+                    (false, true) => false,
+                }
+            }
+        };
+
+        // How many triangles the GEOMETRIC blade layer should get.
+        //
+        // Without cards it is "everything the budget has left", which is what
+        // v0.1086 established. WITH cards the blades stop being the canopy and
+        // become a close-range detail layer - a 512 px sprite (v0.1090) out
+        // resolves the screen past ~0.9 m at 2560 wide - so they take a
+        // fraction of the card layer instead, and the tree comes out CHEAPER
+        // than it was.
+        let fits = total <= MAX_TRIS;
+        // STEP THE AIM DOWN BEFORE sizing the next blade layer, not after. A
+        // tree that overran was measured with subtrees pruned, so `wood_tris`
+        // is under-read and the correction it implies can be a NO-OP - the
+        // linear model says "you are already spending the target" while the
+        // tree is over the ceiling, the loop sees a zero step and stops. Oak v0
+        // sat at 8622 of 8600 in exactly that state. Backing the target off
+        // first guarantees a real step every time a pass misses.
+        if !fits {
+            aim = (aim - 0.05).max(0.60);
+        }
+        let want_leaf = match &def.clusters {
+            Some(cd) => cards as f32 * cd.near_blade_tri_frac.max(0.0),
+            None => MAX_TRIS as f32 * aim - wood_tris as f32,
+        };
+        if keep {
+            best = Some((parts, tw, cards));
+        }
+        if leaves == 0 || want_leaf <= 0.0 {
+            break;
+        }
+        let step = want_leaf / leaves as f32;
+        // Converged: already fitting and within 3% of the target spend, which
+        // is inside the per-sprig fractional coin's own scatter.
+        if fits && (0.97..=1.03).contains(&step) {
+            break;
+        }
+        let next = (density * step).clamp(lo, 8.0);
+        if (next - density).abs() < 1e-3 {
+            break;
+        }
+        density = next;
     }
-    (first, twigs)
+    let (parts, twigs, _) = best.expect("the loop always runs at least one build");
+    (parts, twigs)
 }
 
 /// Crown envelope of a species as the card planner sees it. Public so the
@@ -1089,13 +1142,37 @@ fn leaf_tri_count(b: &PlantMeshBuilder) -> usize {
         .count()
 }
 
-/// A bole: the clear trunk from the ground to the first branching. Curved and
-/// ROOT-FLARED (v0.1067). The flare is the detail that reads as "a tree grew
-/// here" rather than "a cylinder was placed here": real trunks swell sharply in
-/// the last half-metre where they meet the ground, and a dead-straight
-/// constant-taper post is an instant giveaway.
+/// One sample of the main stem: where the spine is, which way it is going, and
+/// how thick it is there. Laterals are shed from these, so a lateral can size
+/// and weld itself against the stem AT ITS OWN HEIGHT instead of against the
+/// bole top (v0.1096).
+#[derive(Clone, Copy)]
+struct StemSample {
+    p: [f32; 3],
+    dir: [f32; 3],
+    r: f32,
+    /// Fraction of the stem's length this sample sits at, 0 at the base.
+    f: f32,
+}
+
+/// The main STEM: one continuous leader from the ground up through the crown,
+/// curved and ROOT-FLARED (v0.1067). The flare is the detail that reads as "a
+/// tree grew here" rather than "a cylinder was placed here": real trunks swell
+/// sharply in the last half-metre where they meet the ground, and a
+/// dead-straight constant-taper post is an instant giveaway.
 ///
-/// Returns the top of the bole so the caller can branch from it.
+/// v0.1096: this used to be the BOLE ALONE - it stopped at the first branching
+/// and returned one point, and every primary limb left from that single point.
+/// A decurrent broadleaf does not do that: it keeps a leader and sheds laterals
+/// over 1-3 m of stem, older and lower laterals being longer, which is what
+/// gives a crown its DEPTH and its ragged lower boundary. So the stem now runs
+/// to ~0.85 of tree height and returns its spine samples; `broadleaf` picks
+/// stations off them.
+///
+/// `flare_run_m` is how far up the flare reaches, in METRES rather than as a
+/// fraction of the stem: the stem got about three times longer in v0.1096 and a
+/// fractional flare would have smeared a half-metre buttress over two metres.
+#[allow(clippy::too_many_arguments)]
 fn trunk(
     b: &mut TreeParts,
     def: &TreeDef,
@@ -1104,35 +1181,72 @@ fn trunk(
     len: f32,
     r_base: f32,
     r_top_frac: f32,
-) -> [f32; 3] {
-    let segs = 6;
+    flare_run_m: f32,
+    segs: u32,
+) -> Vec<StemSample> {
+    let segs = segs.max(2);
     let mut p = base;
     let mut d = dir;
-    // Running arc length for the bark v coordinate: the bole is ONE texture
-    // run, not six restarts (v0.1089).
+    // Running arc length for the bark v coordinate: the stem is ONE texture
+    // run, not one restart per segment (v0.1089).
     let mut v = 0.0f32;
+    let run = (flare_run_m / len.max(1e-4)).clamp(0.01, 1.0);
+    // Flare: an extra radius bump near the ground. Kept gentle and spread over
+    // a longer run - a short sharp flare reads as a rocket fin, not buttress
+    // roots.
+    let radius = |f: f32| {
+        let flare = 1.0 + 0.28 * (1.0 - (f / run).min(1.0)).powi(2);
+        r_base * (1.0 + (r_top_frac - 1.0) * f) * flare
+    };
+    let mut out: Vec<StemSample> = Vec::with_capacity(segs as usize + 1);
+    out.push(StemSample { p, dir: d, r: radius(0.0), f: 0.0 });
     for s in 0..segs {
         let f0 = s as f32 / segs as f32;
         let f1 = (s + 1) as f32 / segs as f32;
-        // Flare: an extra radius bump near the ground. Kept gentle and spread
-        // over a longer run - a short sharp flare reads as a rocket fin, not
-        // buttress roots.
-        let flare = |f: f32| 1.0 + 0.28 * (1.0 - (f / 0.30).min(1.0)).powi(2);
-        let ra = r_base * (1.0 + (r_top_frac - 1.0) * f0) * flare(f0);
-        let rb = r_base * (1.0 + (r_top_frac - 1.0) * f1) * flare(f1);
+        let ra = radius(f0);
+        let rb = radius(f1);
         let seg = len / segs as f32;
         let to = add(p, d, seg);
-        // Same joint overshoot as `limb`: the bole sways slightly between
+        // Same joint overshoot as `limb`: the stem sways slightly between
         // segments, and without the overlap each sway opens a hairline slit.
         b.bark_tube(p, add(p, d, seg + rb * 0.5), ra, rb, 8, def.trunk_color, v);
         p = to;
         // The SPINE advances by `seg`; the extra `rb * 0.5` is joint overshoot
         // that overlaps the next segment, so v must not count it twice.
         v += seg;
-        // A very slight sway so the bole is not a plumb line.
+        // A very slight sway so the stem is not a plumb line.
         d = norm([d[0] + 0.012, d[1], d[2] - 0.008]);
+        out.push(StemSample { p, dir: d, r: rb, f: f1 });
     }
-    p
+    out
+}
+
+/// Interpolate the stem at a fraction `f` of its length.
+///
+/// Laterals sit wherever the crown wants them, not on segment boundaries, so
+/// this returns the exact spine point, axis and radius there. The radius is
+/// what a lateral welds itself into, and getting it from the stem AT THAT
+/// HEIGHT (rather than from the bole top, as every primary did through
+/// v0.1095) is what keeps a high lateral thinner than a low one.
+fn stem_at(stem: &[StemSample], f: f32) -> StemSample {
+    if stem.is_empty() {
+        return StemSample { p: [0.0; 3], dir: [0.0, 1.0, 0.0], r: 0.05, f: 0.0 };
+    }
+    let f = f.clamp(0.0, 1.0);
+    for w in stem.windows(2) {
+        let (a, c) = (w[0], w[1]);
+        if f <= c.f || c.f >= 1.0 {
+            let span = (c.f - a.f).max(1e-6);
+            let t = ((f - a.f) / span).clamp(0.0, 1.0);
+            return StemSample {
+                p: mix3(a.p, c.p, t),
+                dir: norm(mix3(a.dir, c.dir, t)),
+                r: a.r + (c.r - a.r) * t,
+                f,
+            };
+        }
+    }
+    *stem.last().unwrap()
 }
 
 // ── Foliage at real leaf scale (v0.1086) ─────────────────────────────────
@@ -1469,6 +1583,21 @@ pub struct CrownEnvelope {
     /// this and not the 3D radius - a tall narrow crown would otherwise be
     /// asked for twice the leaf area it actually needs.
     pub spread_m: f32,
+    /// VERTICAL extent of the foliage-bearing wood, metres: highest minus
+    /// lowest point on any twig a card or a blade rides on (v0.1096).
+    ///
+    /// This is the numerator of LIVE CROWN RATIO, the forestry measure of how
+    /// much of a stem carries crown. Recorded because it is the one crown
+    /// number nothing measured, and the thing it measures was badly wrong:
+    /// through v0.1095 every broadleaf hung all of its foliage off a single
+    /// fan rooted at ONE point on the bole, so the crown came out a
+    /// flat-bottomed plate about 0.25 of tree height deep against a 7 m
+    /// spread - a 3.5:1 mushroom cap whose underside was a straight
+    /// horizontal cut, and a stand of them all bottomed out at the same world
+    /// height. Real forest-grown temperate broadleaves run 0.35-0.60, and an
+    /// open-grown Prunus x yedoensis carries foliage from a 1.5-2.5 m crown
+    /// base to the apex, i.e. 0.7-0.8.
+    pub depth_m: f32,
 }
 
 impl CrownEnvelope {
@@ -1541,9 +1670,21 @@ fn mix3(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
 }
 
 /// Crown envelope of a recorded twig set.
+///
+/// `centre`, `radius_m` and `spread_m` are measured on twig ENDS only, exactly
+/// as they were before `depth_m` existed - they are the denominators of the LAI
+/// fit and the AO falloff, and moving them would re-open every measured
+/// coverage number. `depth_m` measures the whole foliage-bearing RUN (junction
+/// to tip), because that is what a card sleeve covers and what the eye reads as
+/// the crown's vertical extent.
 fn crown_of(twigs: &[Twig]) -> CrownEnvelope {
     if twigs.is_empty() {
-        return CrownEnvelope { centre: [0.0, 0.0, 0.0], radius_m: 1.0, spread_m: 1.0 };
+        return CrownEnvelope {
+            centre: [0.0, 0.0, 0.0],
+            radius_m: 1.0,
+            spread_m: 1.0,
+            depth_m: 0.0,
+        };
     }
     let n = twigs.len() as f32;
     let mut c = [0.0f32; 3];
@@ -1553,11 +1694,20 @@ fn crown_of(twigs: &[Twig]) -> CrownEnvelope {
     let centre = [c[0] / n, c[1] / n, c[2] / n];
     let mut r = 0.0f32;
     let mut s = 0.0f32;
+    let mut y_lo = f32::MAX;
+    let mut y_hi = f32::MIN;
     for t in twigs {
         r = r.max(dist(t.end, centre));
         s = s.max((t.end[0] - centre[0]).hypot(t.end[2] - centre[2]));
+        y_lo = y_lo.min(t.from[1]).min(t.end[1]);
+        y_hi = y_hi.max(t.from[1]).max(t.end[1]);
     }
-    CrownEnvelope { centre, radius_m: r.max(0.25), spread_m: s.max(0.25) }
+    CrownEnvelope {
+        centre,
+        radius_m: r.max(0.25),
+        spread_m: s.max(0.25),
+        depth_m: (y_hi - y_lo).max(0.0),
+    }
 }
 
 /// Emit ONE card: two windings of a quad (4 triangles), with each corner's
@@ -1701,19 +1851,35 @@ fn emit_cluster_cards(
     // old MAX_TRIS guard stopped the recursion mid-crown and shipped bald
     // subtrees; a uniform stretch thins the whole crown evenly instead.
     let mut tris = card_count(&stations) * 4;
-    if tris > CARD_TRI_BUDGET {
-        let f = tris as f32 / CARD_TRI_BUDGET as f32;
+    // ITERATED, not one shot (v0.1096). A single division by the overrun ratio
+    // is not a guarantee: `round` can hand back the same station count it was
+    // given (round(3 / 1.2) = round(2.5) = 3), so the budget survived only
+    // because no species had ever overrun it by a small margin. The first
+    // deeper crown did - sakura came out at 3692 card triangles against a 3400
+    // budget, and the CI twin caught it. Floor division plus a loop always
+    // converges, and it stops the moment nothing moved so a species pinned at
+    // the one-station-per-twig floor cannot spin.
+    let mut passes = 0;
+    while tris > CARD_TRI_BUDGET && passes < 12 {
+        passes += 1;
+        let f = (tris as f32 / CARD_TRI_BUDGET as f32).max(1.02);
+        let mut moved = false;
         for s in stations.iter_mut() {
-            *s = ((*s as f32 / f).round() as u32).max(1);
+            let ns = ((*s as f32 / f).floor() as u32).max(1);
+            moved |= ns != *s;
+            *s = ns;
         }
         tris = card_count(&stations) * 4;
-        if tris > CARD_TRI_BUDGET {
-            log::debug!(
-                "[Cluster] {}: {tris} card triangles after the stretch (budget {CARD_TRI_BUDGET}) \
-                 - the one-station-per-twig floor is the binding constraint",
-                def.id
-            );
+        if !moved {
+            break;
         }
+    }
+    if tris > CARD_TRI_BUDGET {
+        log::debug!(
+            "[Cluster] {}: {tris} card triangles after {passes} stretch passes (budget \
+             {CARD_TRI_BUDGET}) - the one-station-per-twig floor is the binding constraint",
+            def.id
+        );
     }
 
     // ── Card side: solved so the crown lands on target_lai ───────────────
@@ -2113,6 +2279,50 @@ const WELD_EMBED: f32 = 1.4;
 /// 0.004 m of radius = 8 mm across, the middle of the real range.
 const TWIG_TIP_R_M: f32 = 0.004;
 
+/// A limb this thin at its tip is a SHOOT, and shoots carry foliage (v0.1096).
+///
+/// Through v0.1095 foliage was keyed on `depth + 1 >= max_depth` - a GENERATION
+/// NUMBER - which only works while every limb in the tree is planned to the
+/// same depth. Once laterals get their own `max_depth` from their own length
+/// (see `generations_for`), a generation number stops meaning anything: a 4 m
+/// lower lateral's third generation is a 1.4 m branch and a 1.2 m upper
+/// lateral's third generation is a 30 cm shoot. Radius is the physical fact
+/// that does mean something, so it is what the rule reads. This is a WIDENING
+/// of the old rule, never a narrowing: the last two generations still carry
+/// foliage exactly as they did, and any limb that thins to a shoot earlier now
+/// carries it too, which is what fills a deep crown's interior instead of
+/// leaving a bald cone inside a shell of tips.
+const FOLIAGE_TIP_R_M: f32 = TWIG_TIP_R_M * 2.0;
+
+/// Length a terminal shoot should come out at, metres. See `generations_for`.
+const TERMINAL_SHOOT_M: f32 = 0.55;
+
+/// Mean length ratio between a limb and its children, measured off `limb`'s own
+/// `child_len` draws (0.62-0.78 early, 0.42-0.56 for the last two generations).
+const CHILD_LEN_MEAN: f32 = 0.60;
+
+/// How many generations a limb of `len_m` needs to end in a real shoot.
+///
+/// Length falls by roughly `CHILD_LEN_MEAN` per generation, so the count that
+/// lands on `TERMINAL_SHOOT_M` is `ln(len / shoot) / ln(1 / ratio)`. A 3 m
+/// lower lateral wants 3, a 1.3 m upper one wants 2 - which is the whole point
+/// of shedding laterals up a leader instead of fanning three equal primaries
+/// off one point: a short high lateral must not be subdivided as if it were a
+/// long low one, or the crown costs four times the wood for the same silhouette.
+///
+/// Clamped to 3 at the top ON PURPOSE, not for realism: each extra generation
+/// multiplies the twig count by ~2.45, and the twig count is what the cluster
+/// card planner spends. At 4 the card layer overruns `CARD_TRI_BUDGET` and the
+/// stretch backstop thins every sleeve to one station, which is exactly the
+/// bare-wood-at-the-junction defect v0.1090 removed. Measured, not guessed -
+/// the `[lai]` line in `cluster_cards_reach_target_lai_and_fit_the_budget`
+/// prints the card triangles every CI run.
+fn generations_for(len_m: f32) -> u32 {
+    let ratio = 1.0 / CHILD_LEN_MEAN;
+    let g = (len_m.max(TERMINAL_SHOOT_M) / TERMINAL_SHOOT_M).ln() / ratio.ln();
+    g.round().clamp(2.0, 3.0) as u32
+}
+
 /// Tip radius of a limb at `depth` whose base radius is `r0`.
 ///
 /// GEOMETRIC toward `TWIG_TIP_R_M` across the generations that are left, so the
@@ -2218,8 +2428,11 @@ fn limb(
     let to = p;
 
     // Foliage on the outer TWO generations, not just the tips: one generation
-    // of leaf clumps leaves a crown you can see straight through.
-    if depth + 1 >= max_depth {
+    // of leaf clumps leaves a crown you can see straight through. And on ANY
+    // limb already tapered to a shoot, whatever generation it happens to be -
+    // see `FOLIAGE_TIP_R_M` for why a generation number stopped being a usable
+    // rule once laterals started carrying their own `max_depth`.
+    if depth + 1 >= max_depth || r1 <= FOLIAGE_TIP_R_M {
         let blossom = def.blossom_frac > 0.0 && rng.range(0.0, 1.0) < def.blossom_frac;
         let color = if blossom { def.blossom_color } else { def.leaf_color };
         let tip = depth >= max_depth;
@@ -2245,9 +2458,20 @@ fn limb(
         }
     }
 
-    // 2-3 children, fanned by the golden angle so they do not stack, with a
-    // dominant leader early on (apical dominance) that eases off with depth.
-    let n = if rng.range(0.0, 1.0) < 0.45 { 3 } else { 2 };
+    // Children, fanned by the golden angle so they do not stack.
+    //
+    // A 3-WAY FORK ONLY AT THE LATERAL'S OWN BASE (v0.1096). Real branch
+    // architecture is overwhelmingly bifurcating; a 45% chance of three
+    // children at EVERY generation, which is what this was, multiplies the
+    // twig count by 2.45 per level instead of 2. That was affordable while a
+    // broadleaf had three limbs planned to a fixed depth of 3; it is not once
+    // the crown has six scaffold limbs shed up a leader, because the twig
+    // count is what the cluster-card planner spends and overrunning
+    // CARD_TRI_BUDGET makes the stretch backstop thin every sleeve to one
+    // station. Keeping the trefoil at the base is where it reads anyway - the
+    // first fork of a big limb is the one you see from the ground.
+    let coin = rng.range(0.0, 1.0);
+    let n = if depth == 0 && coin < 0.45 { 3 } else { 2 };
     for k in 0..n {
         let phase = k as f32 * 2.399_963 + rng.range(-0.5, 0.5) + depth as f32;
         let spread = rng.range(22.0, 42.0) - if depth == 0 { 6.0 } else { 0.0 };
@@ -2264,6 +2488,43 @@ fn limb(
     }
 }
 
+/// A DECURRENT BROADLEAF: a clear bole, then a continuing leader that sheds
+/// laterals at stations up through the crown zone (v0.1096).
+///
+/// WHAT THIS REPLACES AND WHY. Through v0.1095 this function put a short bole
+/// down and then spawned all three primaries from ONE point - the bole top -
+/// with every limb planned to the same `max_depth = 3` and foliage emitted only
+/// on generations 2 and 3. Traced at species means for an 8 m sakura that put
+/// every foliage-bearing twig end between y 6.3 and 6.8 m, so the whole crown
+/// occupied roughly y 5.6-7.6: a live crown ratio of 0.25 against a 7 m spread,
+/// aspect 3.5:1. On screen that is a mushroom cap with a STRAIGHT-CUT
+/// underside, every cap in the stand bottoms out at the same world height, and
+/// below that line the frame is bare trunks you can see the horizon through for
+/// hundreds of metres. It reads as a planted orchard, not a forest.
+///
+/// REAL BEHAVIOUR. Live crown ratio (crown length over total height) is
+/// 0.35-0.60 for forest-grown dominant and codominant temperate broadleaves
+/// (forestry management targets >= 0.40 for oak), and an OPEN-GROWN
+/// Prunus x yedoensis carries foliage from a 1.5-2.5 m crown base to the apex,
+/// i.e. 0.7-0.8. That depth comes from the vertical distribution of branch
+/// ORIGINS along the stem - laterals shed over 1-3 m of it, the older and lower
+/// ones longer and inserted closer to horizontal - not from one whorl. It is
+/// also why a real crown's lower boundary is a ragged lobed sheath rather than
+/// a horizontal cut, and why you cannot see through a cherry orchard at eye
+/// level.
+///
+/// SO: one leader to ~0.85 H, `LATERALS` shed at stations spanning the crown
+/// zone, length falling linearly with station height, insertion angle rising
+/// toward vertical with height, and one terminal limb continuing the leader.
+/// Each lateral gets its OWN generation count from its OWN length
+/// (`generations_for`), which is what stops a 1.2 m upper lateral costing the
+/// same subtree as a 3 m lower one. Foliage is keyed on shoot radius rather
+/// than on a generation number (`FOLIAGE_TIP_R_M`), because with per-lateral
+/// depths a generation number no longer describes anything physical.
+///
+/// The LAI fit needs no change: `emit_cluster_cards` solves the card side
+/// against `crown_of`'s envelope, so a deeper crown simply gets more cards at
+/// the same target.
 fn broadleaf(
     b: &mut TreeParts,
     def: &TreeDef,
@@ -2272,49 +2533,99 @@ fn broadleaf(
     rng: &mut Rng,
     twigs: &mut Vec<Twig>,
 ) {
-    // A clear bole, then the crown. Cherry and maple branch low; oak higher.
-    let bole = h * rng.range(0.26, 0.36);
+    // Crown base: where the lowest lateral leaves the stem. Cherry and maple
+    // branch low; a forest oak higher. Kept at the low end of the v0.1095 band
+    // because live crown ratio is measured from HERE.
+    let bole_frac = rng.range(0.24, 0.32);
+    // Where the leader stops and hands over to its terminal limb. A decurrent
+    // broadleaf loses apical dominance in the crown, so the leader thins hard
+    // and the topmost laterals close over it.
+    let leader_frac = rng.range(0.82, 0.88);
     let r_base = h * 0.030;
     let lean = norm([rng.range(-0.06, 0.06), 1.0, rng.range(-0.06, 0.06)]);
-    let top = trunk(b, def, [0.0, 0.0, 0.0], lean, bole, r_base, 0.74);
-    // 3 primary limbs off the bole top. Three rather than four: each primary
-    // costs a whole subtree, and the budget buys more by spending it on
-    // foliage than on a fourth scaffold.
-    let n = 3;
-    // Clumps stay at ~10% of tree height (the crown SHAPE is unchanged), but a
-    // clump is now filled with real leaves instead of being one. Leaf length
-    // rides on the species height so an oak leaf is bigger than a maple leaf
-    // without inventing a data field: the band 0.09-0.18 m brackets every real
-    // temperate broadleaf (oak 0.10-0.15, cherry ~0.09, birch ~0.06, and the
-    // low clamp keeps the smallest ones from vanishing at draw scale).
-    // Leaf length rides on the species height so an oak leaf is bigger than a
-    // maple leaf without inventing a data field, and it sits at the TOP of the
-    // real range for each: an oak leaf is 0.10-0.22 m and a big-leaf oak more,
-    // so 0.20 m is honest, and every square centimetre of honest leaf is
-    // canopy coverage that costs no extra triangle. The 0.09 m floor is where
-    // cherry and maple land, and they are genuinely that small.
+    let stem_len = h * leader_frac;
+    // r_top_frac 0.26: chosen so the stem still reads 0.74 of its base radius
+    // at the OLD bole top (~0.36 of this stem's length), i.e. the part of the
+    // trunk you stand next to is unchanged and only the new upper run is new.
+    // 10 segments rather than 6 because the stem is about three times longer.
+    let stem = trunk(b, def, [0.0, 0.0, 0.0], lean, stem_len, r_base, 0.26, h * 0.09, 10);
+    // Clumps stay at ~10% of tree height (the clump SHAPE is unchanged), but a
+    // clump is filled with real leaves instead of being one. Leaf length rides
+    // on the species height so an oak leaf is bigger than a maple leaf without
+    // inventing a data field, and it sits at the TOP of the real range for
+    // each: an oak leaf is 0.10-0.22 m and a big-leaf oak more, so 0.20 m is
+    // honest, and every square centimetre of honest leaf is canopy coverage
+    // that costs no extra triangle. The 0.09 m floor is where cherry and maple
+    // land, and they are genuinely that small.
     let fol = foliage_of(def, h, density);
-    for k in 0..n {
-        let phase = k as f32 * 2.399_963 + rng.range(-0.3, 0.3);
-        let d = tilt(lean, rng.range(26.0, 46.0), phase);
-        // The bole top is the parent: burying the primaries in it also plugs
-        // the bole's open top ring, which used to be a hole you could see the
-        // sky through from above.
-        let bole_top_r = r_base * 0.74;
-        limb(
-            b,
-            def,
-            top,
-            d,
-            (h - bole) * rng.range(0.40, 0.52),
-            bole_top_r,
-            bole_top_r,
-            0,
-            3,
-            fol,
-            rng,
-            twigs,
-        );
+
+    // 6 shed laterals plus the leader's own terminal limb = 7 scaffold limbs,
+    // against the 3 of v0.1095. Not more: the cost of a crown is its TWIG
+    // count (that is what the card planner spends), and 7 limbs at the depths
+    // `generations_for` picks lands ~30% above the v0.1095 twig count, which
+    // the card budget absorbs without the stretch backstop biting.
+    const LATERALS: u32 = 6;
+    // Crown zone as a fraction OF THE STEM (not of the tree): the lowest
+    // lateral sits at the crown base, the highest just under the leader top.
+    let zone_lo = (bole_frac / leader_frac).clamp(0.05, 0.9);
+    let crown_len = h - h * bole_frac;
+    for k in 0..=LATERALS {
+        // u = 0 at the crown base, 1 at the leader top.
+        let u = k as f32 / LATERALS as f32;
+        let terminal = k == LATERALS;
+        let sf = zone_lo + (1.0 - zone_lo) * u;
+        let s = stem_at(&stem, sf);
+        // LENGTH falls linearly with station height: the oldest, lowest
+        // lateral is the longest, which is what a decurrent crown looks like
+        // and what makes its lower boundary lobed instead of level. The
+        // coefficient is LOWER than the v0.1095 primaries' 0.40-0.52 on
+        // purpose: the crown zone is three times as tall now, so the crown
+        // fills by being deep rather than by every limb reaching further. At
+        // 0.44-0.56 the measured spread came out 5.24 m of RADIUS on an 8 m
+        // sakura - a 10.5 m crown, back to a 2:1 plate, just a bigger one.
+        let len = crown_len * rng.range(0.34, 0.44) * (1.0 - 0.55 * u);
+        // INSERTION ANGLE rises toward vertical with height: wide at the crown
+        // base, a steep fork at the top.
+        //
+        // NOT as wide as the anatomy alone would suggest, and the reason is
+        // the bare inner run. Foliage rides on the outer generations, so a
+        // lateral's FIRST generation is bare wood by construction - about 1.5-2
+        // m of it. Through v0.1095 that run was hidden because all three
+        // primaries pointed UP at 26-46 deg and sat inside the crown mass; the
+        // first cut of this function put laterals out at 52-62 deg and the
+        // probe capture came back with long bare arms silhouetted against sky
+        // on every tree. 44-56 keeps the crown decurrent while tucking the bare
+        // run back inside the foliage shell of its neighbours.
+        let spread_deg = if terminal { rng.range(8.0, 18.0) } else { rng.range(44.0, 56.0) - 26.0 * u };
+        // Golden angle between successive stations - real phyllotaxis, and it
+        // stops two laterals stacking in one azimuth.
+        let phase = k as f32 * 2.399_963 + rng.range(-0.35, 0.35);
+        let d = tilt(s.dir, spread_deg, phase);
+        // Phototropism, same as inside `limb`: every lateral bends back toward
+        // the light, which rounds the crown instead of leaving a flat fan.
+        let d = norm([d[0], d[1] + 0.10, d[2]]);
+        // A lateral is thinner than the stem it leaves; the terminal limb
+        // inherits the leader's tip radius outright.
+        let r0 = if terminal { s.r * 0.92 } else { s.r * rng.range(0.52, 0.68) };
+        let llen = len.max(0.3);
+        // WHERE THE ROOT RING GOES. `limb` welds by pushing the root BACKWARDS
+        // along -dir by ~1.4 parent radii, which is right for a limb leaving
+        // the END of its parent (a primary off a bole top buries straight down
+        // into solid wood) and WRONG for one leaving the SIDE of a stem: from
+        // an axis point at 60 deg off vertical that push lands the ring 1.4
+        // radii out through the FAR wall, leaving a stub poking out the back of
+        // the trunk. So a side lateral is handed a start point already pushed
+        // OUT by exactly the burial `limb` will apply, which lands the ring on
+        // the stem AXIS - the same trick `conifer` uses for its whorls, and the
+        // most enclosed a root ring can be. The terminal limb keeps the old
+        // behaviour on purpose: burying it down into the leader is what plugs
+        // the leader's open apex ring.
+        let from = if terminal {
+            s.p
+        } else {
+            add(s.p, d, (s.r.max(r0) * WELD_EMBED).min(llen * 0.5))
+        };
+        limb(b, def, from, d, llen, r0, s.r, 0, generations_for(llen), fol, rng, twigs);
     }
 }
 
@@ -2952,6 +3263,89 @@ mod tests {
             assert!(lo > -t.height_m * 0.06, "{}: geometry reaches {lo} m below its base", t.id);
             assert!(wide < t.height_m * 1.6, "{}: crown spreads {wide} m", t.id);
         }
+    }
+
+    /// LIVE CROWN RATIO, the CI twin of the "NO FLAT-BOTTOMED CANOPY PLATE"
+    /// gate on fuji-forest-ground (v0.1096).
+    ///
+    /// Two halves, matching the two halves of the image gate:
+    ///   (1) the foliage-bearing wood must span at least 0.35 of tree height.
+    ///       Real forest-grown temperate broadleaves run 0.35-0.60 and an
+    ///       open-grown yoshino 0.7-0.8; v0.1095 measured ~0.25 because every
+    ///       primary left one point on the bole.
+    ///   (2) the crown's LOWER boundary must be ragged, not a level cut. The
+    ///       screenshot version fits the per-column lowest foliage pixel; the
+    ///       CI version takes the lowest twig in each of 8 azimuth sectors and
+    ///       requires their spread to be a real fraction of the crown depth. A
+    ///       flat plate scores ~0 on both.
+    ///
+    /// Broadleaf only, and that is a statement about the generator rather than
+    /// a gap in the test: `build_at_density` records twigs for the broadleaf
+    /// path alone, so `crown_of` has nothing to measure on a conifer, umbrella
+    /// or palm. Those forms build their crowns without `limb`, and the same
+    /// defect on the conifer path is a separate finding with its own fix.
+    #[test]
+    fn crown_depth_is_a_real_live_crown_ratio() {
+        let r = registry();
+        let mut seen = 0usize;
+        for t in r.trees.iter().filter(|t| t.form == "broadleaf").map(as_procedural) {
+            for v in 0..t.variants.max(1) {
+                seen += 1;
+                let seed = shipped_seed(v);
+                let (_, twigs) = build_accepted(&t, t.height_m, seed);
+                assert!(!twigs.is_empty(), "{} v{v}: no foliage-bearing twigs at all", t.id);
+                let crown = crown_of(&twigs);
+                let lcr = crown.depth_m / t.height_m;
+
+                // Lowest twig per azimuth sector about the crown axis.
+                const SECTORS: usize = 8;
+                let mut lowest = [f32::MAX; SECTORS];
+                for w in &twigs {
+                    for p in [w.from, w.end] {
+                        let a = (p[2] - crown.centre[2]).atan2(p[0] - crown.centre[0]);
+                        let i = (((a / std::f32::consts::TAU) + 1.0) * SECTORS as f32) as usize
+                            % SECTORS;
+                        lowest[i] = lowest[i].min(p[1]);
+                    }
+                }
+                let hit: Vec<f32> = lowest.iter().copied().filter(|y| *y < f32::MAX).collect();
+                let mean = hit.iter().sum::<f32>() / hit.len() as f32;
+                let sd = (hit.iter().map(|y| (y - mean) * (y - mean)).sum::<f32>()
+                    / hit.len() as f32)
+                    .sqrt();
+                let ragged = sd / crown.depth_m.max(1e-3);
+                eprintln!(
+                    "[lcr] {:>7} v{v}: {} twigs, crown depth {:.2} m on a {:.1} m tree = LCR \
+                     {lcr:.2}, spread {:.2} m (aspect {:.2}:1), underside SD {sd:.2} m = \
+                     {ragged:.2} of depth",
+                    t.id,
+                    twigs.len(),
+                    crown.depth_m,
+                    t.height_m,
+                    crown.spread_m,
+                    2.0 * crown.spread_m / crown.depth_m.max(1e-3)
+                );
+                assert!(
+                    lcr >= 0.35,
+                    "{} v{v}: live crown ratio {lcr:.2} - the foliage spans {:.2} m of a {:.1} m \
+                     tree, which is a flat-bottomed plate, not a crown. A forest-grown temperate \
+                     broadleaf runs 0.35-0.60 and an open-grown yoshino 0.7-0.8.",
+                    t.id,
+                    crown.depth_m,
+                    t.height_m
+                );
+                assert!(
+                    ragged >= 0.08,
+                    "{} v{v}: the lowest twig in each of {SECTORS} azimuth sectors varies by only \
+                     {sd:.2} m ({ragged:.2} of the {:.2} m crown depth) - the crown bottoms out at \
+                     one level all the way round, which is the horizontal cut the vantage gate \
+                     rejects",
+                    t.id,
+                    crown.depth_m
+                );
+            }
+        }
+        assert!(seen > 0, "no broadleaf rows in the registry to measure");
     }
 
     /// DEV AID (not run by default). Dumps a side-on SVG of every species so
