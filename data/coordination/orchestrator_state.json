@@ -215,6 +215,11 @@
    "date": "2026-08-02",
    "decision": "v0.1097.0/1 SHIPPED: floating trees fixed - bases interpolate the DRAWN patch mesh via the promoted terrain/drawn_surface.rs (was a fixed-depth analytic sample with no detail term, 13.19 m worst disagreement; now zero floaters, worst offset 5.7 cm root sink, CI-gated at two sites/depths). Card trees had the same bug (12.65 m) - now exact-lattice (0.0001 m). Depth-change re-harvest wired (near_tree_depth beside near_grass_depth). lib.rs ratchet budget 18200->18300 recorded loudly (wiring lines; near-tree harvest extraction is the named next click). Probed at 2560, panics=0, capture shows rooted trees. Taskbar refreshed at v0.1097.1 - also fixed the morning discovery that the sibling session v0.1096.1 archive step lost the race to the file-locked stable exe, so the operator had played v0.1095.1 all morning.",
    "why": "Queue unchanged: operator visual verdict on the crown rebuild (now actually reachable on their taskbar), dorito species ClusterDefs, pies ALLOCATE, celestial 14.3ms, pause state, vehicle frame, signing backlog."
+  },
+  {
+   "date": "2026-08-02",
+   "decision": "v0.1098.0/1 SHIPPED: the branch weld finally EXISTS - surface-rooted spines + real collars on all 460 junctions, zero back-poke across 31,788 gated vertices, fork caps, headless fork rasteriser as permanent dev aid. Probed at 2560, panics=0, taskbar refreshed.",
+   "why": "PROCESS LESSON journaled: the v0.1096 round claimed its weld was already-applied-and-verified in the worktree - a grep this round found ONE COMMENT and zero code. Writers must verify claimed prior work with grep/line evidence, never trust a worktree narrative; the audit-first instruction in this round dispatch is now the template. Trunk base rings still open below ground (bark_cap available); wood tri share rose (collars) - budget gates absorbed it."
   }
  ],
  "active_scopes_to_avoid": [
