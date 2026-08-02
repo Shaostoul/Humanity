@@ -197,6 +197,12 @@
 >   (bamboo/cactus/bushberries stages under assets/models/plants/).
 > - NEXT VEGETATION RUNG (fenced 2026-08-01, wf_82974167 + operator field
 >   report; critic-corrected plan in orchestrator_state recent_decisions):
+>   [ALL RUNGS 0-6 SHIPPED v0.1086-v0.1093: conifer fallback, pre-wind
+>   anchoring, wind class (whole stand leans; furniture guarded), real-
+>   scale leaves -> cluster-card crowns (LAI 2.6-3.3), bark full PBR
+>   bake, welded+tapered branches, grass strand mat with filler stubble.
+>   Resource-budget PIES live (measure increment; allocate+govern fenced
+>   in docs/design/resource-budgets.md). Prior partial-status note:]
 >   [0/1/3/5 SHIPPED v0.1086-v0.1087: conifer fallback, pre-wind texture
 >   anchoring, real-scale leaves at 96 percent budget, welded junctions.
 >   NEXT = rung 2 (wind coverage w/ height normalization), then 4 (bark
