@@ -123,6 +123,7 @@ impl SsaoPass {
         px_per_rad: f32,
         radius_m: f32,
         strength: f32,
+        timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         if strength <= 0.001 {
             return;
@@ -164,6 +165,10 @@ impl SsaoPass {
                     },
                 })],
                 depth_stencil_attachment: None,
+                // Frame-cost measurement (gpu.ssao), threaded from the
+                // renderer's timestamp-query ring. `None` on adapters without
+                // TIMESTAMP_QUERY, where the CPU submit stage stands in.
+                timestamp_writes,
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);
