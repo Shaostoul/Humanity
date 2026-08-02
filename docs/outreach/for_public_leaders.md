@@ -15,10 +15,10 @@ HumanityOS is a free software platform for household self-sufficiency:
 growing food, collecting and cleaning water, generating power, maintaining
 shelter, and passing those skills on. Around that core it provides everyday
 coordination tools: chat with end-to-end encrypted private messages, shared
-task lists, maps, marketplace listings, a library of the project's founding
-and governance documents (the practical skills curriculum is still being
-written), and a digital identity that belongs to the person rather than to
-any company.
+task lists, maps, marketplace listings, a library holding the project's
+founding and governance documents plus the first sourced beginner guides
+of its skills curriculum (growing food, storing water, composting), and a
+digital identity that belongs to the person rather than to any company.
 
 We will be plain about its state. The project is early and built in public.
 The chat, tasks, maps, marketplace listings, library, and identity system

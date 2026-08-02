@@ -45,6 +45,14 @@ const CATEGORIES = [
     { title: 'For Affiliate Partners', src: 'docs/outreach/for_affiliate_partners.md' },
     { title: 'What to Expect: Playing', src: 'docs/outreach/what_to_expect_playing.md' },
   ]},
+  // v0.1096.x real-skills curriculum, first rung (operator-approved arc:
+  // fill the gap the outreach docs honestly admit; every number sourced from
+  // agricultural extension / CDC / EPA guidance; source docs/user/skills/).
+  { name: 'Real Skills', docs: [
+    { title: 'Your First Tomato', src: 'docs/user/skills/your_first_tomato.md' },
+    { title: 'Storing Water Safely', src: 'docs/user/skills/storing_water_safely.md' },
+    { title: 'Your First Compost', src: 'docs/user/skills/your_first_compost.md' },
+  ]},
   { name: 'The Accord', accord: true, docs: [
     { title: 'The Humanity Accord', src: 'docs/accord/humanity_accord.md' },
     { title: 'Absolute Prohibitions', src: 'docs/accord/absolute_prohibitions.md' },

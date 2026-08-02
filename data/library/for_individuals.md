@@ -18,10 +18,11 @@ right now.
 **Learn one real skill, starting small.** You do not need land or money.
 One tomato plant in a container on a windowsill is a real beginning, and
 it teaches honestly: it lives or dies by what you actually do, not by
-what you meant to do. The built-in library today explains why this path
-works, in plain words for people starting from zero; the step-by-step
-skill guides are being written, and the community helps with the how in
-the meantime. The app helps you plan it and ask others when it wilts.
+what you meant to do. The built-in library has step-by-step guides
+written for people starting from zero, with every number sourced from
+real agricultural authorities: your first tomato, storing water safely,
+your first compost. The app helps you plan it and ask others when it
+wilts.
 
 **Talk to people, privately, with no signup.** The chat works the moment
 you open it. No email, no phone number, no account. Private messages are
@@ -100,15 +101,15 @@ You do not have to commit to anything. The smallest honest first step is
 to visit the site, open the chat, and say hello. No signup stands in your
 way, so hello takes about thirty seconds. The website tools (chat, plans,
 maps, the library) work in the browser on your phone; the downloadable
-app is for computers. If you want a step beyond hello, read Why
-Homesteading Works in the library: a short essay on why one tomato plant
-on a windowsill is a real beginning. That is enough. Everything else can
-come later, or never, and either way the tools stay free and stay yours.
+app is for computers. If you want a step beyond hello, read one short
+guide about one tomato plant. That is enough. Everything else can come
+later, or never, and either way the tools stay free and stay yours.
 
 - The site: https://united-humanity.us
 - Say hello in chat: https://united-humanity.us/chat
 - Download the app: https://united-humanity.us/download
-- The library: https://united-humanity.us/library#why-homesteading-works
+- The tomato guide: https://united-humanity.us/library#your-first-tomato
+- Why it works: https://united-humanity.us/library#why-homesteading-works
 - Why we are doing this: https://united-humanity.us/mission
 - The Discord community: https://discord.gg/9XxmmeQnWC
 

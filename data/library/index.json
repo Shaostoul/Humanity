@@ -73,6 +73,23 @@
       ]
     },
     {
+      "name": "Real Skills",
+      "docs": [
+        {
+          "title": "Your First Tomato",
+          "file": "your_first_tomato.md"
+        },
+        {
+          "title": "Storing Water Safely",
+          "file": "storing_water_safely.md"
+        },
+        {
+          "title": "Your First Compost",
+          "file": "your_first_compost.md"
+        }
+      ]
+    },
+    {
       "name": "The Accord",
       "docs": [
         {
