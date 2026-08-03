@@ -170,6 +170,43 @@ pub fn validate_wgsl(source: &str) -> Result<(), String> {
             "entry points missing (an attribute may have orphaned onto a const): {entries:?}"
         ));
     }
+    check_hlsl_expressible(source)?;
+    Ok(())
+}
+
+/// Constructs that parse AND pass full naga validation, and are then REJECTED
+/// by the HLSL backend at device init on Windows/DX12.
+///
+/// v0.1101 shipped a `fn ground_material_weights(...) -> array<f32, 5>`. WGSL
+/// allows it, naga validated it, the megashader gate went green, and the app
+/// died on the operator's adapter with "cannot initialize return object of type
+/// 'float' with an lvalue of type 'float[5]'" - a boot failure that every
+/// static check had passed. This is the same shape as the v0.782 device-limit
+/// incident: the thing that decides is the BACKEND, and naga's validator does
+/// not speak for it.
+///
+/// A textual check rather than running naga's `back::hlsl` writer, because the
+/// backend is not a compiled-in dependency here and the failing construct has a
+/// crisp syntactic signature. If this list ever needs a third entry, take that
+/// as the signal to depend on the real backend instead of growing a lint.
+fn check_hlsl_expressible(source: &str) -> Result<(), String> {
+    for (n, line) in source.lines().enumerate() {
+        let code = line.split("//").next().unwrap_or("");
+        // A function RETURNING an array. Arrays are fine as locals, as
+        // parameters and as module-scope constants - only the return crosses
+        // an ABI the HLSL backend cannot express.
+        if code.contains("->") && code.split("->").nth(1).is_some_and(|r| r.trim_start().starts_with("array<"))
+        {
+            return Err(format!(
+                "line {}: a function returns an array, which naga validates but the \
+                 HLSL backend cannot express - it fails at device init on DX12 only. \
+                 Return a struct instead (see GroundWeights in 20-surface-detail.wgsl). \
+                 Offending line: {}",
+                n + 1,
+                code.trim()
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -353,5 +390,43 @@ mod tests {
         assert!(super::validate_wgsl("fn nope( {").is_err());
         // Valid WGSL but no vs_main/fs_main entry points.
         assert!(super::validate_wgsl("fn helper() -> f32 { return 1.0; }").is_err());
+    }
+}
+
+#[cfg(test)]
+mod hlsl_guard_tests {
+    use super::*;
+
+    /// The guard must FAIL on the exact construct that shipped a boot panic in
+    /// v0.1101, and must not fire on the legal uses of arrays around it.
+    #[test]
+    fn array_returning_function_is_rejected_but_array_locals_are_fine() {
+        let bad = "fn ground_material_weights(img: vec3<f32>) -> array<f32, 5> {\n\
+                   var w: array<f32, 5>;\n return w;\n}\n\
+                   @vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }\n\
+                   @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
+        let err = check_hlsl_expressible(bad).expect_err("must reject an array return");
+        assert!(err.contains("HLSL"), "the error must name the backend: {err}");
+
+        // Legal: array locals, array params, module-scope const arrays, and a
+        // struct return. None of these may trip the guard.
+        let good = "var<private> TILE: array<f32, 5> = array<f32, 5>(1.0, 1.0, 1.0, 1.0, 1.0);\n\
+                    struct GroundWeights { w: vec4<f32>, e: f32 }\n\
+                    fn weights(img: vec3<f32>) -> GroundWeights {\n\
+                      var t: array<f32, 5>;\n var o: GroundWeights;\n return o;\n}\n";
+        check_hlsl_expressible(good).expect("legal array use must pass");
+    }
+
+    /// And it must be wired into the gate the hot-reloader and the build-time
+    /// megashader test both call - a guard nobody calls is not a guard.
+    #[test]
+    fn the_gate_itself_rejects_an_array_return() {
+        let src = "fn f() -> array<f32, 2> { var a: array<f32, 2>; return a; }\n\
+                   @vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(0.0); }\n\
+                   @fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
+        assert!(
+            validate_wgsl(src).is_err(),
+            "validate_wgsl must reject what the HLSL backend cannot compile"
+        );
     }
 }

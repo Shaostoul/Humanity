@@ -434,7 +434,21 @@ fn ground_plane4(
 /// Material weights from the imagery colour and the local slope. See the
 /// GROUND_* classifier constants above for the measurements behind each
 /// threshold. Returns weights summing to 1.
-fn ground_material_weights(img: vec3<f32>, lum: f32, steep: f32) -> array<f32, 5> {
+/// Material weights, as a STRUCT rather than `array<f32, 5>`.
+///
+/// WGSL permits returning an array and naga validates it happily, but the HLSL
+/// backend cannot express it: DXC rejected the generated code with "cannot
+/// initialize return object of type 'float' with an lvalue of type 'float[5]'"
+/// and the app died at device init on the operator's DX12 adapter, having
+/// passed every static check including the naga megashader gate. Keep function
+/// RETURNS to scalars, vectors and structs; arrays are fine as locals and as
+/// module-scope constants.
+struct GroundWeights {
+    w: vec4<f32>,
+    e: f32,
+}
+
+fn ground_material_weights(img: vec3<f32>, lum: f32, steep: f32) -> GroundWeights {
     let w_rock = smoothstep(GROUND_ROCK_STEEP_LO, GROUND_ROCK_STEEP_HI, steep);
     let flat = 1.0 - w_rock;
     // Green dominance: the imagery's own green channel against its strongest
@@ -455,13 +469,15 @@ fn ground_material_weights(img: vec3<f32>, lum: f32, steep: f32) -> array<f32, 5
         * (1.0 - smoothstep(GROUND_DRY_FADE_LO, GROUND_DRY_FADE_HI, lum))
         * (1.0 - green)
         * (1.0 - sand);
-    var w: array<f32, 5>;
-    w[0] = flat * (green * (1.0 - canopy) + GROUND_DRY_GRASS_MIX * dry);
-    w[2] = w_rock;
-    w[3] = flat * sand * (1.0 - green);
-    w[4] = flat * green * canopy;
-    w[1] = max(1.0 - w[0] - w[2] - w[3] - w[4], 0.0);
-    return w;
+    let w0 = flat * (green * (1.0 - canopy) + GROUND_DRY_GRASS_MIX * dry);
+    let w2 = w_rock;
+    let w3 = flat * sand * (1.0 - green);
+    let w4 = flat * green * canopy;
+    let w1 = max(1.0 - w0 - w2 - w3 - w4, 0.0);
+    var out: GroundWeights;
+    out.w = vec4<f32>(w0, w1, w2, w3);
+    out.e = w4;
+    return out;
 }
 
 /// The ground detail layer. `img` is the RAW imagery colour at this fragment
@@ -492,10 +508,17 @@ fn ground_detail(
     }
 
     let steep = 1.0 - clamp(dot(normal_w, up_w), 0.0, 1.0);
-    // Bound to a `var` deliberately: the loops below index this with a runtime
-    // counter, and a function-scope var is the form every backend lowers to a
-    // plain local array.
-    var w = ground_material_weights(img, lum, steep);
+    // Unpacked from the struct into a function-scope `var` array: the loops
+    // below index it with a runtime counter, and a local var array is the form
+    // every backend lowers cleanly. The struct exists only to cross the
+    // function RETURN, which HLSL cannot do with an array.
+    let gw = ground_material_weights(img, lum, steep);
+    var w: array<f32, 5>;
+    w[0] = gw.w.x;
+    w[1] = gw.w.y;
+    w[2] = gw.w.z;
+    w[3] = gw.w.w;
+    w[4] = gw.e;
 
     // Triplanar plane weights from the RADIAL direction, never the surface
     // normal: `dir` is smooth over the whole globe, so the projection cannot
