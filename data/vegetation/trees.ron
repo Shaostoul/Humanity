@@ -113,7 +113,22 @@
         (
             id: "fir",
             display: "Fir",
-            model: "fir_sapling",
+            // EMPTY = procedural, and this is a DELETION of dead code rather
+            // than a change of technique. The `fir_sapling` scans are rejected
+            // at EVERY variant by the v0.1101 scan-stretch guard (measured
+            // 13.7-35.5x: they are scans of ~1 m saplings standing in for a
+            // 22 m tree), so the glTF path has not drawn a single frame since.
+            //
+            // Naming a model we never load was not merely useless, it was
+            // ACTIVELY HARMFUL: `is_procedural()` is `model.is_empty()`, and
+            // the ONE site that registers near-field cluster-card meshes and
+            // calls `bark_material` filters on it (src/lib.rs:9473). So fir and
+            // pine were locked out of baked bark AND of the canopy-card layer
+            // permanently - which is why the tallest species in a Fuji frame
+            // renders as a see-through skeleton with an untextured grey trunk,
+            // measured at 37.9% and 48.4% sky-through against a 30% bar and a
+            // carded broadleaf's 10.3%.
+            model: "",
             variants: 3,
             height_m: 22.0,
             height_jitter: 0.12,
@@ -167,7 +182,11 @@
         (
             id: "pine",
             display: "Pine",
-            model: "pine_sapling_small",
+            // Empty = procedural. Same reasoning as fir above: the
+            // `pine_sapling_small` scans are rejected at every variant, and
+            // naming them locked this species out of baked bark and of the
+            // canopy-card layer.
+            model: "",
             variants: 3,
             height_m: 16.0,
             height_jitter: 0.12,

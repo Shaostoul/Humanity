@@ -3425,13 +3425,51 @@ mod tests {
         [cl * lon.cos(), lat.sin(), -cl * lon.sin()]
     }
 
+    /// The shipped registry is ALL-PROCEDURAL as of v0.1103, and the
+    /// model-backed CODE PATH is still alive and gated separately.
+    ///
+    /// This used to assert that the shipped data contained at least one of
+    /// each kind, which was true while fir and pine named photoscans. It is no
+    /// longer: the v0.1101 scan-stretch guard rejects every one of those scans
+    /// at every variant (they are ~1 m saplings standing in for 22 m and 16 m
+    /// trees), so naming a model bought nothing and COST both species their
+    /// baked bark and their canopy cards - `is_procedural()` is
+    /// `model.is_empty()`, and the site that registers card meshes and bark
+    /// filters on it.
+    ///
+    /// So the assertion moved deliberately rather than being deleted: the data
+    /// claim is now "everything ships procedural", and the capability claim -
+    /// that a model-backed def is still understood - is checked against a
+    /// synthetic def so the path cannot rot silently while unused. If a
+    /// correctly-scaled scan is ever added, the first assertion is the one to
+    /// revisit, and it will fail loudly rather than pass vacuously.
     #[test]
-    fn shipped_registry_parses_and_covers_both_kinds() {
+    fn shipped_registry_is_all_procedural_and_the_model_path_still_works() {
         let r = registry();
         assert!(r.len() >= 6, "expected a real species list, got {}", r.len());
-        assert!(r.trees.iter().any(|t| !t.is_procedural()), "no model-backed species");
-        assert!(r.trees.iter().any(|t| t.is_procedural()), "no procedural species");
         assert!(r.index_of("sakura").is_some(), "sakura missing");
+        assert!(r.trees.iter().any(|t| t.is_procedural()), "no procedural species");
+
+        let model_backed: Vec<&str> = r
+            .trees
+            .iter()
+            .filter(|t| !t.is_procedural())
+            .map(|t| t.id.as_str())
+            .collect();
+        assert!(
+            model_backed.is_empty(),
+            "{model_backed:?} name a model. Every photoscan we have is rejected by the \
+             scan-stretch guard, and naming one locks the species out of baked bark and \
+             cluster cards (is_procedural() gates both). If you added a correctly-scaled \
+             scan, update this test with the measurement that says so."
+        );
+
+        // The capability, independent of what the data happens to use.
+        let mut def = r.trees[0].clone();
+        def.model = "some_scan".to_string();
+        assert!(!def.is_procedural(), "a def naming a model must read as model-backed");
+        def.model = String::new();
+        assert!(def.is_procedural(), "a def naming no model must read as procedural");
     }
 
     /// The whole point of the region gate: cherry blossom near Fuji, nowhere else.
