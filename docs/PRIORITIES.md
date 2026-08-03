@@ -11,7 +11,37 @@
 
 ## Active focus
 
-> **>>> THE TOP ITEM IS THE VEGETATION ARC (since 2026-08-01): foliage CLUSTER CARDS, sakura first. The crown is not a canopy (measured leaf area index 0.31-0.50 against a real 3-5), and cluster cards are the only configuration where honest leaf area fits the shipped triangle budget. The WATER ARC below is still open and still ranked, but it is no longer what is being worked on.**
+> **>>> TOP ITEM (2026-08-03): ATTRIBUTE AND FIX THE CPU REGRESSION blocking the
+> v0.1101 tag.** Measured on fuji-forest-ground at operator-mirrored settings:
+> `cpu.patch_build` 3.84 -> 38.56 ms, `cpu.scene` 1.70 -> 9.95, `cpu.celestial`
+> 5.91 -> 15.43, GPU essentially unchanged (`gpu.celestial` 20.5 -> 19.7,
+> `gpu.ssao` 0.15). 30 fps -> 11 fps. It came in with commit 47dfc478 (cluster
+> canopies for momiji/oak/birch + the scan-stretch guard that moved fir/pine to
+> procedural). Leading suspects, in order: procedural conifer meshes not cached
+> per species+variant the way photoscans were; three more species emitting
+> cluster cards during patch build; the two compounding. NOTHING SHIPS UNTIL
+> THIS IS FIXED - the operator plays these builds.
+>
+> **>>> THEN, still the vegetation arc.** Remaining, ranked:
+> 1. FIR + PINE canopies. They were photoscan-backed so the canopy pass skipped
+>    them, and the scan-stretch guard now renders them procedurally - so the two
+>    most prominent trees in a Fuji frame show bare triangle leaves. Needs
+>    conifer-specific foliage: a needle SPRAY is the unit, flat and two-ranked
+>    for fir, splayed fascicles for pine. NOT a broadleaf with smaller leaves.
+> 2. ACACIA canopy, blocked on a real architecture gap: the `umbrella` form
+>    (`tree_mesh.rs:3290`) lays out its own bole/primaries/fans and calls
+>    `leaf_cluster` directly, so it records ZERO twigs - and cards sleeve twigs.
+>    With a ClusterDef attached it builds 0 cards and the blades-inside-card
+>    gate reports 100% outside. Needs `umbrella()` to push a `Twig` per
+>    foliage-bearing fan (same fields `branch()` fills) plus a card-compatible
+>    sprig span. Its leaf silhouette (bipinnate) is already authored and waiting.
+> 3. Ground detail is IN (v0.1101) but has never been seen in a rendered pixel -
+>    static verification only. First probe run must confirm it, and confirm the
+>    new dynamic array indexing survives the HLSL backend on the operator's DX12
+>    adapter (naga validation does not cover that).
+>
+> The WATER ARC below is still open and still ranked, but it is not what is
+> being worked on.
 
 > **>>> WATER ARC (2026-07-27 evening field report, operator: "We need to do
 > a lot of work on the water to make it look better. Maybe the water is one
