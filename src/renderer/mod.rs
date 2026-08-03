@@ -2995,10 +2995,9 @@ impl Renderer {
                 // Slot 1: zero per-instance data for classic draws (increment 2).
                 pass.set_vertex_buffer(1, self.dummy_instance_buf.slice(..));
                 pass.set_bind_group(0, &self.light_camera_bind_group, &[]);
-                // ONE group-3 for the whole pass: the dummy-depth variant
-                // (the real shadow map is this pass's write target and must
-                // not also be bound for sampling). vs_main samples nothing
-                // from group 3, so the contents are irrelevant.
+                // ONE group-3 for the whole pass: the dummy-depth variant (the
+                // real shadow map is this pass's write target; wgpu rejects
+                // sampling it here). fs_shadow reads binding 14 from it.
                 pass.set_bind_group(3, &self.shadow_pass_texture_bind_group, &[]);
                 let uniform_align = 256_u64;
                 let mut bound_material = usize::MAX;
@@ -3025,6 +3024,10 @@ impl Renderer {
                         Some(m) => m,
                         None => continue,
                     };
+                    // v0.1106 (why + cost: Pipeline::shadow_for): a crossfading LOD
+                    // dithers and a textured caster may alpha-discard, so those two
+                    // take fs_shadow; the rest keep the depth-only fast path.
+                    pass.set_pipeline(self.pipeline.shadow_for(obj.fade != 0.0 || material.albedo_bind_group.is_some()));
                     let dynamic_offset = (uniform_align as u32) * (i as u32);
                     pass.set_bind_group(1, &self.object_bind_group, &[dynamic_offset]);
                     if bound_material != obj.material {

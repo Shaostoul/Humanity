@@ -31,8 +31,17 @@ pub struct MaterialUniforms {
 pub struct Pipeline {
     pub render_pipeline: wgpu::RenderPipeline,
     /// Depth-only sun-shadow variant (v0.899): vs_main with no fragment,
-    /// standard-z ortho depth into the 4096^2 shadow map.
+    /// standard-z ortho depth into the 4096^2 shadow map. OPAQUE casters
+    /// only - see `shadow_pipeline_alpha` and `shadow_for`.
     pub shadow_pipeline: wgpu::RenderPipeline,
+    /// Alpha-cutout sun-shadow variant (v0.1106): identical state to
+    /// `shadow_pipeline` plus the `fs_shadow` fragment stage, which mirrors
+    /// fs_main's four cutout discards so a mostly-transparent caster stops
+    /// casting a solid board. Kept SEPARATE rather than folded into
+    /// `shadow_pipeline` because a fragment stage forfeits the depth-only
+    /// double-rate rasterisation, and terrain meshes, ships, furniture and
+    /// water are opaque and would pay it for nothing.
+    pub shadow_pipeline_alpha: wgpu::RenderPipeline,
     /// Alpha-blended variant for transparent surfaces (glass windows, the portal). Same
     /// shader + layout, but blends over the scene and does NOT write depth, so you see
     /// THROUGH it. (v0.456)
@@ -47,8 +56,11 @@ pub struct Pipeline {
     /// blend/cull/depth as the opaque pipeline -- only where per-draw
     /// data comes from differs.
     pub patch_render_pipeline: wgpu::RenderPipeline,
-    /// Depth-only shadow variant of the terrain-batch path (near-field
-    /// patch casters render into the sun map without per-draw rebinds).
+    /// Shadow variant of the terrain-batch path (near-field patch casters
+    /// render into the sun map without per-draw rebinds). ALWAYS carries the
+    /// `fs_shadow` fragment stage (v0.1106): a patch's ground triangles and
+    /// its tree cards share one index range, so this path cannot be split
+    /// the way the classic one is.
     pub patch_shadow_pipeline: wgpu::RenderPipeline,
     pub camera_bind_group_layout: wgpu::BindGroupLayout,
     pub object_bind_group_layout: wgpu::BindGroupLayout,
@@ -429,14 +441,20 @@ impl Pipeline {
                 push_constant_ranges: &[],
             });
 
-        let (render_pipeline, transparent_pipeline, overlay_pipeline, shadow_pipeline) =
-            Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
+        let (
+            render_pipeline,
+            transparent_pipeline,
+            overlay_pipeline,
+            shadow_pipeline,
+            shadow_pipeline_alpha,
+        ) = Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
         let (patch_render_pipeline, patch_shadow_pipeline) =
             Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
 
         Self {
             render_pipeline,
             shadow_pipeline,
+            shadow_pipeline_alpha,
             transparent_pipeline,
             overlay_pipeline,
             patch_render_pipeline,
@@ -483,7 +501,7 @@ impl Pipeline {
                 ],
                 push_constant_ranges: &[],
             });
-        let (render, transparent, overlay, shadow) =
+        let (render, transparent, overlay, shadow, shadow_alpha) =
             Self::build_pipeline_set(device, surface_format, shader, &pipeline_layout);
         let (patch_render, patch_shadow) =
             Self::build_patch_pipelines(device, surface_format, batch_shader, &patch_pipeline_layout);
@@ -491,8 +509,22 @@ impl Pipeline {
         self.transparent_pipeline = transparent;
         self.overlay_pipeline = overlay;
         self.shadow_pipeline = shadow;
+        self.shadow_pipeline_alpha = shadow_alpha;
         self.patch_render_pipeline = patch_render;
         self.patch_shadow_pipeline = patch_shadow;
+    }
+
+    /// The sun-shadow PSO a CLASSIC caster should draw with (v0.1106).
+    /// `cutout` = this draw can discard fragments in `fs_shadow` (foliage,
+    /// tree cards, anything carrying its own albedo texture); false takes the
+    /// depth-only fast path. One accessor so the choice reads the same at
+    /// every call site instead of two field names to keep straight.
+    pub fn shadow_for(&self, cutout: bool) -> &wgpu::RenderPipeline {
+        if cutout {
+            &self.shadow_pipeline_alpha
+        } else {
+            &self.shadow_pipeline
+        }
     }
 
     /// The two terrain-batch PSOs (opaque + depth-only shadow), compiled
@@ -550,8 +582,18 @@ impl Pipeline {
             multiview: None,
             cache: None,
         });
-        // Depth-only shadow variant: STANDARD z (light ortho maps near->0),
-        // no cull (vegetation cards cast from both sides), no fragment.
+        // Shadow variant: STANDARD z (light ortho maps near->0), no cull
+        // (vegetation cards cast from both sides), and since v0.1106 the
+        // `fs_shadow` ALPHA-CUTOUT fragment stage with NO colour target.
+        //
+        // The patch path has no choice about paying for a fragment stage: a
+        // chunk's ground triangles and its sprite tree cards are one mesh in
+        // one index range, drawn together, so the only place the card's
+        // cutout can be applied is per-fragment. Before this, a 21x21 m card
+        // whose sprite is ~15-25% opaque cast a SOLID 21 m board - the dark
+        // rectangles the operator found lying on open grass. `targets: &[]`
+        // matches the shadow pass's empty `color_attachments`; fs_shadow
+        // returns nothing and only ever discards.
         let shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Patch Batch Shadow Pipeline"),
             layout: Some(layout),
@@ -561,7 +603,12 @@ impl Pipeline {
                 buffers: &[Vertex::layout(), Vertex::instance_layout()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
-            fragment: None,
+            fragment: Some(wgpu::FragmentState {
+                module: batch_shader,
+                entry_point: Some("fs_shadow"),
+                targets: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
             primitive: wgpu::PrimitiveState {
                 cull_mode: None,
                 ..Default::default()
@@ -587,6 +634,7 @@ impl Pipeline {
         shader: &wgpu::ShaderModule,
         pipeline_layout: &wgpu::PipelineLayout,
     ) -> (
+        wgpu::RenderPipeline,
         wgpu::RenderPipeline,
         wgpu::RenderPipeline,
         wgpu::RenderPipeline,
@@ -694,35 +742,169 @@ impl Pipeline {
                 )
             });
 
-        // Depth-only sun-shadow pipeline (v0.899): same vertex path (ocean
-        // vertex displacement casts correctly), no fragment stage. STANDARD
-        // z (the light ortho maps near->0), unlike the reverse-Z main passes.
-        let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Sun Shadow Pipeline"),
-            layout: Some(pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::layout(), Vertex::instance_layout()],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: None,
-            primitive: wgpu::PrimitiveState {
-                cull_mode: None, // vegetation cards are two-sided
-                ..Default::default()
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: Default::default(),
-            multiview: None,
-            cache: None,
-        });
+        // Sun-shadow pipelines (v0.899; SPLIT IN TWO v0.1106): same vertex
+        // path as the colour passes (so ocean vertex displacement casts
+        // correctly), STANDARD z because the light ortho maps near->0, unlike
+        // the reverse-Z main passes.
+        //
+        // Two PSOs, identical but for the fragment stage:
+        //  - "Sun Shadow Pipeline": depth-only, `fragment: None`. Opaque
+        //    casters (ships, furniture, props, water, untextured meshes) keep
+        //    the double-rate depth-only rasterisation every desktop GPU gives
+        //    a pixel-shader-free draw.
+        //  - "Sun Shadow Alpha Pipeline": adds `fs_shadow`, which mirrors
+        //    fs_main's cutout discards. Only cutout casters draw with it, so
+        //    the fast path above is not lost engine-wide. Splitting rather
+        //    than blanket-attaching is the standard arrangement (Eisemann,
+        //    Schwarz, Assarsson & Wimmer, "Real-Time Shadows" 2011, ch. 2;
+        //    Godot's SHADOW_CASTER alpha-scissor path).
+        // `targets: &[]` matches the shadow pass's empty color_attachments.
+        let make_shadow = |label: &'static str, cutout: bool| -> wgpu::RenderPipeline {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: shader,
+                    entry_point: Some("vs_main"),
+                    buffers: &[Vertex::layout(), Vertex::instance_layout()],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                },
+                fragment: if cutout {
+                    Some(wgpu::FragmentState {
+                        module: shader,
+                        entry_point: Some("fs_shadow"),
+                        targets: &[],
+                        compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    })
+                } else {
+                    None
+                },
+                primitive: wgpu::PrimitiveState {
+                    cull_mode: None, // vegetation cards are two-sided
+                    ..Default::default()
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: Default::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+        let shadow_pipeline = make_shadow("Sun Shadow Pipeline", false);
+        let shadow_pipeline_alpha = make_shadow("Sun Shadow Alpha Pipeline", true);
 
-        (render_pipeline, transparent_pipeline, overlay_pipeline, shadow_pipeline)
+        (
+            render_pipeline,
+            transparent_pipeline,
+            overlay_pipeline,
+            shadow_pipeline,
+            shadow_pipeline_alpha,
+        )
+    }
+}
+
+/// The fs_main <-> fs_shadow cutout mirror (v0.1106).
+///
+/// A shader discard cannot be unit-tested from the CPU, so what IS testable
+/// is that the two functions agree. Every check below reads the ONE assembled
+/// megashader source, splits it at `fn fs_shadow`, and requires the same
+/// literal on both sides - so changing a cutout threshold in fs_main and
+/// forgetting the shadow twin fails here instead of silently restoring the
+/// solid-board shadows this pass removed. It also pins the DELIBERATE
+/// omission (the eye-distance card discards must NOT appear in fs_shadow).
+#[cfg(test)]
+mod shadow_cutout_tests {
+    use super::super::shader_loader::assembled_pbr_source;
+
+    /// (fs_main side, fs_shadow side) of the assembled source.
+    fn halves() -> (&'static str, &'static str) {
+        let src = assembled_pbr_source();
+        let at = src
+            .find("fn fs_shadow")
+            .expect("fs_shadow entry point missing from the megashader");
+        (&src[..at], &src[at..])
+    }
+
+    #[test]
+    fn fs_shadow_mirrors_the_fs_main_cutouts() {
+        let (main, shadow) = halves();
+        // The four cutouts, each identified by the exact expression both
+        // functions must contain. Order matches the fs_shadow comment block.
+        let mirrored = [
+            // 1. LOD crossfade dither.
+            "let b = (f32(bayer_i) + 0.5) / 16.0;",
+            "if (b >= lod_fade) { discard; }",
+            "if (b < -lod_fade) { discard; }",
+            // 2. Type 19 photoscanned foliage.
+            "material_type >= 18.5 && material_type < 19.5",
+            "if (mesh_tex.a < 0.35) {",
+            // 3. Type 21 baked cluster card.
+            "material_type >= 20.5 && material_type < 21.5",
+            "if (cc_tex.a < 0.5) {",
+            // 4. Type 12 sprite tree card (6x8 atlas grid + resident bit).
+            "let pw_bits_card = u32(round(max(material.params.w, 0.0)));",
+            "if ((pw_bits_card & 4u) != 0u) {",
+            "(f32(tile % 6u) + u01) / 6.0,",
+            "(f32(tile / 6u) + (1.0 - v01)) / 8.0,",
+            "if (spr.a < 0.5) {",
+        ];
+        for needle in mirrored {
+            assert!(
+                main.contains(needle),
+                "fs_main no longer contains {needle:?} - if the cutout moved or \
+                 changed, update fs_shadow and this list in the SAME edit"
+            );
+            assert!(
+                shadow.contains(needle),
+                "fs_shadow is missing the fs_main cutout {needle:?} - a \
+                 mostly-transparent caster will cast a solid board again"
+            );
+        }
+    }
+
+    #[test]
+    fn fs_shadow_omits_the_eye_distance_card_discards() {
+        let (main, shadow) = halves();
+        let eye_gate = "card_dist < shadow_u.params.w";
+        assert!(main.contains(eye_gate), "fs_main lost its card LOD window");
+        // Only inside a comment, never as code: the shadow of a card the EYE
+        // has swapped for a 3D model belongs to the model, and gating it on
+        // viewer distance makes shadows blink as the player walks.
+        for line in shadow.lines() {
+            let code = line.split("//").next().unwrap_or("");
+            assert!(
+                !code.contains("card_dist"),
+                "fs_shadow must not gate casters on EYE distance: {}",
+                line.trim()
+            );
+        }
+    }
+
+    /// The whole point of the split: `fs_shadow` exists as a real entry point
+    /// and the megashader still validates with it present. (The assembled
+    /// source is what both PSO sets compile, and the hot-reload gate parses
+    /// this same string.)
+    #[test]
+    fn fs_shadow_is_a_declared_fragment_entry_point() {
+        let src = assembled_pbr_source();
+        let at = src
+            .find("fn fs_shadow(in: VertexOutput) {")
+            .expect("fs_shadow must take VertexOutput and return nothing");
+        // Whitespace-tolerant rather than "@fragment\nfn ...": this repo's
+        // WGSL is checked out CRLF on Windows and LF on the Linux CI runner,
+        // so a hardcoded newline would be a test that passes on one machine
+        // and fails on the other.
+        assert!(
+            src[..at].trim_end().ends_with("@fragment"),
+            "fs_shadow needs its @fragment attribute IMMEDIATELY above it - \
+             naga silently accepts an attribute orphaned onto something else, \
+             and the module then validates fine and dies at pipeline creation \
+             with \"Unable to find entry point\" (the v0.876 lesson)"
+        );
     }
 }

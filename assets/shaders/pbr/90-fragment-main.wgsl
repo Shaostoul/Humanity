@@ -1871,3 +1871,150 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
 
     return vec4<f32>(color, out_alpha);
 }
+
+// ── SHADOW-PASS FRAGMENT (v0.1106) ──────────────────────────────────────
+// The alpha-cutout twin of fs_main and nothing else: no lighting, no colour
+// target, no depth arithmetic (the PSO's depth state writes gl_FragDepth's
+// default). Both shadow PSOs bind it - "Sun Shadow Alpha Pipeline" for the
+// classic cutout casters and "Patch Batch Shadow Pipeline" for terrain,
+// whose ground triangles and tree cards share ONE index range and so leave
+// the patch path no choice but to run a fragment stage over the whole
+// ground.
+//
+// WHY IT EXISTS. Until v0.1106 both shadow PSOs were `fragment: None`
+// (pipeline.rs:564 and :709 - the only two such sites in the file), so the
+// sun map saw only OPAQUE geometry. Every alpha cutout in this engine lives
+// in fs_main, so a tree CARD - a 21x21 m quad whose baked sprite is roughly
+// 15-25% opaque inside its frame - cast a SOLID 21 m board about 36 m long
+// downsun at a 30 degree sun. That is the operator's report: "weird chunks
+// that wouldn't spawn trees visually but were still affecting the light",
+// rectangles of shade lying on open grass with no tree anywhere near them.
+//
+// THE CONTRACT: every discard here MIRRORS one in fs_main, and the mirror is
+// enforced by renderer::pipeline::shadow_cutout_tests, which fails if a
+// threshold, a type range or the Bayer table changes on one side only. Four
+// discards, in the order fs_main reaches them:
+//   1. LOD crossfade dither      (fs_main, "let lod_fade = obj_lod_fade()")
+//   2. type 19 photoscan foliage (fs_main, "mesh_tex.a < 0.35")
+//   3. type 21 cluster card      (fs_main, "cc_tex.a < 0.5")
+//   4. type 12 sprite tree card  (fs_main, "spr.a < 0.5")
+//
+// DELIBERATELY NOT MIRRORED: the two `card_dist` distance discards
+// (`card_dist < shadow_u.params.w || card_dist > shadow_u.params2.x`). Those
+// gate the card LOD window against the EYE, which is a colour-pass concept -
+// a card the eye has swapped for a 3D model still stands in the world, and
+// its shade belongs to the model that replaced it. Copying them here would
+// make a caster's shadow appear and vanish with the VIEWER's position, the
+// exact artifact class this fix removes. (Note for anyone re-deriving this:
+// `camera.view_pos` in the shadow pass is NOT the light - the light camera
+// is built from `camera.celestial_uniforms()` with only view_proj replaced,
+// so view_pos really is the eye. The reason to omit these is the one above,
+// not a wrong distance.)
+//
+// COST. A fragment stage forfeits the depth-only double-rate rasterisation,
+// which is why the classic path SPLITS: renderer::mod binds the plain
+// depth-only PSO for opaque casters (ships, furniture, props, water) and
+// this one only for cutout casters. Splitting rather than blanket-attaching
+// is standard practice - Eisemann, Schwarz, Assarsson & Wimmer, "Real-Time
+// Shadows" (2011) ch. 2; Godot's SHADOW_CASTER alpha-scissor path is the
+// open-source worked example.
+@fragment
+fn fs_shadow(in: VertexOutput) {
+    // The same two setup steps as fs_main, for the same two reasons: the
+    // per-instance data feeds obj_lod_fade() in BOTH shader variants, and the
+    // uv derivatives must be taken in UNIFORM control flow - before any
+    // discard or type branch - so the textureSampleGrad calls below are legal
+    // where they sit.
+    g_inst_data = in.inst_data;
+    let uv_dx = dpdx(in.uv);
+    let uv_dy = dpdy(in.uv);
+
+    // ── 1. LOD CROSSFADE DITHER ──────────────────────────────────────────
+    // The only patch-granular, movement-coupled discard in the shader, and
+    // the precise match for "as I'd move around, the chunk that is unloaded
+    // would change": a patch dissolving OUT was fully transparent in colour
+    // and fully opaque in shadow, so its rectangle of shade stayed until the
+    // swap completed. Dithering in LIGHT space rather than screen space is
+    // correct: the Bayer thresholds are uniformly distributed, so a
+    // half-faded caster occludes half its shadow texels either way and the
+    // PCF filter resolves that to a half-strength shadow that fades with it.
+    let lod_fade = obj_lod_fade();
+    if (lod_fade != 0.0) {
+        let px = vec2<u32>(u32(in.clip_position.x), u32(in.clip_position.y));
+        let bx = px.x % 4u;
+        let by = px.y % 4u;
+        let bayer_i = (bx % 2u) * 8u + (by % 2u) * 4u + ((bx / 2u) % 2u) * 2u + (by / 2u) % 2u;
+        let b = (f32(bayer_i) + 0.5) / 16.0;
+        if (lod_fade > 0.0) {
+            if (b >= lod_fade) { discard; }
+        } else {
+            if (b < -lod_fade) { discard; }
+        }
+    }
+
+    let material_type = material.params.z;
+
+    // ── 2. TYPE 19: photoscanned foliage ─────────────────────────────────
+    // ── 3. TYPE 21: baked cluster card ───────────────────────────────────
+    // BOTH READ THE PER-MATERIAL ALBEDO AT group(3) binding 0, AND THE
+    // SHADOW PASS DOES NOT BIND IT YET. `shadow_pass_texture_bind_group`
+    // (renderer/mod.rs) carries the 1x1 WHITE fallback there, because the
+    // per-material group-3 bind group also carries the real shadow map at
+    // binding 6 and wgpu rejects sampling a texture that is the same pass's
+    // depth attachment (RESOURCE + DEPTH_STENCIL_WRITE is an exclusive-usage
+    // conflict). White has alpha 1, so as of v0.1106 these two branches
+    // execute and never discard: near-tree foliage still casts its quad.
+    // They are written now so the fix is one bind away, and the missing
+    // half is a shadow-safe per-material group 3 (same entries, dummy depth
+    // at binding 6) selected per draw in the classic caster loop. DO NOT
+    // read these two branches as evidence that foliage cutout shadows work -
+    // that is the "check that cannot fail" shape. The sprite-card branch
+    // below IS live: binding 14 is the real tree atlas in both passes.
+    if (material_type >= 18.5 && material_type < 19.5) {
+        let mesh_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
+        if (mesh_tex.a < 0.35) {
+            discard;
+        }
+    }
+    // Same uv contract as fs_main (tree_mesh::encode_card_uv): uv.x =
+    // 2*ao_code + u01, so the sprite u is recovered by subtracting the code.
+    // The AO code itself is a shading term and is not needed here.
+    if (material_type >= 20.5 && material_type < 21.5) {
+        let cc_code = floor(in.uv.x * 0.5);
+        let cc_u = in.uv.x - 2.0 * cc_code;
+        let cc_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            vec2<f32>(cc_u, in.uv.y), uv_dx, uv_dy);
+        if (cc_tex.a < 0.5) {
+            discard;
+        }
+    }
+
+    // ── 4. TYPE 12: sprite tree card from the baked atlas ────────────────
+    // The board-shaped shadow the operator photographed. uv.x < -0.5 marks a
+    // card, params.w bit 2 = atlas resident, and the 6x8 tile grid is
+    // compile-time in three places (renderer::tree_mesh::tests::
+    // atlas_tile_constants_match_the_shader fails if these literals drift
+    // from billboard_bake::ATLAS_COLS/ROWS). When the atlas is NOT resident
+    // fs_main paints the card flat conifer green - fully opaque - so the
+    // board shadow is then the CORRECT shadow and this branch rightly does
+    // nothing.
+    if (material_type >= 11.5 && material_type < 12.5 && in.uv.x < -0.5) {
+        let pw_bits_card = u32(round(max(material.params.w, 0.0)));
+        if ((pw_bits_card & 4u) != 0u) {
+            let a_enc = -in.uv.x;
+            let tile = clamp(u32(floor(a_enc)) - 1u, 0u, 47u);
+            let u01 = clamp(fract(a_enc) * 2.0, 0.0, 1.0);
+            let v01 = clamp(in.uv.y, 0.0, 1.0);
+            let tuv = vec2<f32>(
+                (f32(tile % 6u) + u01) / 6.0,
+                (f32(tile / 6u) + (1.0 - v01)) / 8.0,
+            );
+            let spr = textureSampleLevel(tree_atlas_tex, albedo_sampler, tuv, 0.0);
+            if (spr.a < 0.5) {
+                discard;
+            }
+        }
+    }
+}

@@ -10034,18 +10034,18 @@ mod native_app {
                                     // than the budget means the stream ran dry,
                                     // so models really do cover the window.
                                     let set_n = state.near_trees.len();
+                                    // Hide cards only inside what MODELS
+                                    // ACTUALLY COVERED (v0.1107). The old
+                                    // budget-th-tree proxy outran reality:
+                                    // measured, 45.2% of frames had hide >
+                                    // tree_dist, so a 34-52 m treeless ring
+                                    // rode with the player. covered_r2 was
+                                    // already computed and then discarded.
                                     let hide_m: f32 = if drawn == 0 {
-                                        // v0.923: no model drew at all (meshes
-                                        // failed / none in range) - cards keep
-                                        // the forest, never bare the ground.
                                         0.0
-                                    } else if set_n < NEAR_TREE_DRAW_BUDGET as usize {
-                                        tree_dist as f32
                                     } else {
-                                        let last = &state.near_trees[NEAR_TREE_DRAW_BUDGET as usize - 1];
-                                        let reach =
-                                            ((last.dir * last.r_m) - cam_local).length() as f32;
-                                        (reach - 8.0).max(0.0)
+                                        (covered_r2.sqrt() as f32 - 8.0)
+                                            .clamp(0.0, tree_dist as f32)
                                     };
                                     state.renderer.tree_card_hide_m = hide_m;
                                     // Handoff diag (v0.994.1): 1 Hz numbers for

@@ -224,9 +224,18 @@ pub fn near_tree_instances_on_drawn(
                 let r3 = next();
                 let _r4 = next();
                 let r5 = next();
-                if out.len() >= max_n {
-                    return out;
-                }
+                // NOTE deliberately NO early return on `max_n` here. There
+                // was one, and it made the "nearest-first" sort below
+                // unreachable in EVERY saturated frame - measured across
+                // 3587 logged frames, the cap bound in all of them, so the
+                // caller's 256-model draw budget was spent in raw CELL-WALK
+                // ORDER: entry #256 could land 162 m out while a tree 30 m
+                // away got nothing. That one bug was the operator's
+                // "billboards phase out of existence" AND most of "open
+                // field, then suddenly a forest". The harvest now collects
+                // the whole disc and truncates AFTER sorting; the disc is
+                // radius-bounded, so the superset is a few thousand at
+                // worst, and the sort is the cost of being correct.
                 n_total += 1;
                 let lat = (iy as f64 + (r0 % 4096) as f64 / 4096.0) * cell;
                 let lon = (ix as f64 + (r1 % 4096) as f64 / 4096.0) * cell;
@@ -326,12 +335,127 @@ pub fn near_tree_instances_on_drawn(
         );
     }
     // Nearest-first so the caller's draw cap keeps the trees beside the
-    // camera, not whichever cell enumerated first.
+    // camera, not whichever cell enumerated first - and nearest by TRUE 3D
+    // DISTANCE to the camera point, the same quantity the draw clip tests,
+    // not the angular dot(dir, center) proxy it used to be (which ignores
+    // radius and misorders on slopes).
+    //
+    // The camera stands on the ground at `center`. Every tree's base is
+    // `dir * r_m` in the same planet-local frame, so putting the camera at
+    // the MEAN ground radius of the harvest makes the key a true 3D chord
+    // rather than a great-circle arc. Only the ORDER matters, so a constant
+    // camera radius is exact for ranking even where terrain undulates.
+    let cam_r = if out.is_empty() {
+        0.0
+    } else {
+        out.iter().map(|t| t.r_m).sum::<f64>() / out.len() as f64
+    };
+    let cam = center * cam_r;
     out.sort_by(|a, b| {
-        b.dir
-            .dot(center)
-            .partial_cmp(&a.dir.dot(center))
-            .unwrap_or(std::cmp::Ordering::Equal)
+        let da = (a.dir * a.r_m - cam).length_squared();
+        let db = (b.dir * b.r_m - cam).length_squared();
+        da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
     });
+    // Truncate AFTER the sort, which is the whole point.
+    out.truncate(max_n);
     out
+}
+
+#[cfg(test)]
+mod near_tree_order_tests {
+    use super::*;
+    use crate::terrain::planet_albedo::PlanetAlbedo;
+    use crate::terrain::planet_heightmap::PlanetHeightmap;
+
+    fn real_earth() -> (PlanetHeightmap, PlanetAlbedo, PlanetDef) {
+        let base =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("data").join("planets");
+        let hm = PlanetHeightmap::load(&base.join("earth_heightmap.bin"))
+            .expect("earth heightmap loads");
+        let albedo =
+            PlanetAlbedo::load(&base.join("earth_albedo.bin")).expect("earth albedo loads");
+        let mut def = super::tests::earth_like();
+        def.sea_level = hm.sea_level_normalized();
+        (hm, albedo, def)
+    }
+
+    /// THE HARVEST MUST RETURN ITS TREES NEAREST-FIRST, and it must still be
+    /// true when the cap BINDS - which is the only case the caller cares about.
+    ///
+    /// This test did not exist, and its absence let a comment lie for about 18
+    /// releases. `near_tree_instances_on_drawn` ended with a "nearest-first"
+    /// sort and a comment saying the draw cap would therefore keep the trees
+    /// beside the camera - but an early `return out` fired the moment the
+    /// harvest hit `max_n`, several hundred lines ABOVE that sort. Measured
+    /// across 3587 logged frames the cap bound in every single one, so the
+    /// sort never ran in a shipped frame and the caller's 256-model budget was
+    /// spent in raw cell-walk order. Cells enumerate at 220 m quantisation, so
+    /// entry #256 could sit 162 m away while a tree 30 m from the player got
+    /// neither a model nor a card.
+    ///
+    /// That is why the operator saw billboards "phase out of existence" instead
+    /// of promoting to a mesh, and why walking produced "a big open field, then
+    /// suddenly a forest".
+    ///
+    /// Requesting a SMALL max_n is the whole point: a test that only checks the
+    /// unsaturated path passes on the broken code.
+    #[test]
+    fn the_harvest_is_nearest_first_even_when_the_cap_binds() {
+        let (hm, albedo, def) = real_earth();
+        let detail = DetailNoise::new(def.terrain_seed);
+        let source = ElevationSource::Heightmap {
+            hm: &hm,
+            detail: &detail,
+            tiles: None,
+            ocean: None,
+        };
+        let (lat, lon) = (35.29_f64.to_radians(), 138.79_f64.to_radians());
+        let center =
+            DVec3::new(lat.cos() * lon.cos(), lat.sin(), -lat.cos() * lon.sin()).normalize();
+        let harvest = |max_n: usize| {
+            near_tree_instances_on_drawn(&def, &source, Some(&albedo), center, 240.0, 17, max_n)
+        };
+
+        // The full sorted harvest, then the capped ones. The contract is that
+        // a cap keeps a PREFIX of the sorted list - which is exactly what the
+        // caller's draw budget relies on and exactly what the early return
+        // destroyed. Comparing against the full list avoids re-deriving the
+        // distance key in the test, which would only ever test my arithmetic
+        // against itself.
+        let full = harvest(100_000);
+        assert!(
+            full.len() > 300,
+            "fixture must produce a big harvest to be meaningful, got {}",
+            full.len()
+        );
+
+        for max_n in [16usize, 64, 256] {
+            let capped = harvest(max_n);
+            assert_eq!(
+                capped.len(),
+                max_n,
+                "max_n {max_n}: the cap must BIND for this test to mean anything"
+            );
+            for (k, (c, f)) in capped.iter().zip(full.iter()).enumerate() {
+                assert!(
+                    (c.dir - f.dir).length() < 1e-12 && (c.r_m - f.r_m).abs() < 1e-6,
+                    "max_n {max_n}: tree {k} is not the one the full sorted harvest                      puts there. A cap must keep the NEAREST trees; before v0.1107 an                      early return fired hundreds of lines above the sort, so in every                      saturated frame - measured, all 3587 of them - the 256-model draw                      budget was spent in raw cell-walk order and left a treeless ring                      around the player."
+                );
+            }
+        }
+
+        // And the sort is real: the full list must be non-decreasing in the
+        // same key the sort used.
+        let cam_r = full.iter().map(|t| t.r_m).sum::<f64>() / full.len() as f64;
+        let cam = center * cam_r;
+        let d = |t: &NearTree| (t.dir * t.r_m - cam).length();
+        let mut worst = 0.0_f64;
+        for w in full.windows(2) {
+            worst = worst.max(d(&w[0]) - d(&w[1]));
+        }
+        assert!(
+            worst < 1e-6,
+            "the harvest is NOT sorted nearest-first - out of order by {worst:.3} m"
+        );
+    }
 }
