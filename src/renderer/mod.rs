@@ -2596,8 +2596,11 @@ impl Renderer {
             1.0,
         );
         let m = proj.to_cols_array_2d();
-        let px_per_rad =
-            self.config.height as f32 / camera.fov_degrees.to_radians().max(0.01);
+        // True focal length in pixels — the shader reconstructs view-space
+        // positions from it, so the small-angle px-per-radian approximation
+        // is no longer good enough (v0.1100 estimator rebuild, BUG-062).
+        let focal_px = self.config.height as f32 * 0.5
+            / (camera.fov_degrees.to_radians() * 0.5).tan().max(1.0e-4);
         self.ssao.render(
             &self.device,
             &self.queue,
@@ -2605,8 +2608,11 @@ impl Renderer {
             view,
             m[2][2],
             m[3][2],
-            px_per_rad,
-            1.6,
+            focal_px,
+            // Contact-AO neighborhood. 0.4 m, not the old 1.6 m: contact
+            // shading is a decimetre-scale effect; 1.6 m let every trunk
+            // shade ground far behind it (the BUG-062 aura).
+            0.4,
             self.ssao_strength,
             self.pass_timer("gpu.ssao"),
         );

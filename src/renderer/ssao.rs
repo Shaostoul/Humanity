@@ -1,9 +1,13 @@
-//! Screen-space ambient occlusion (v0.901): depth-only contact shading in
-//! the celestial slot — runs right after the god-ray pass while depth still
-//! holds terrain + vegetation, multiplying the color target so creases and
-//! tree bases pick up contact shade. Same zero-infrastructure pattern as
-//! `godrays.rs`: one full-screen triangle, reads the shared depth view,
-//! no offscreen copies. Shader: assets/shaders/ssao.wgsl.
+//! Screen-space ambient occlusion (v0.901; estimator rebuilt v0.1100):
+//! depth-only INPUT, normal-aware contact shading in the celestial slot —
+//! runs right after the god-ray pass while depth still holds terrain +
+//! vegetation, multiplying the color target so creases and tree bases pick
+//! up contact shade. The v0.1100 rebuild (BUG-062 "tree aura") reconstructs
+//! view-space normals from depth and rejects taps outside a 2x-radius range,
+//! so foreground objects no longer shade ground behind them. Same
+//! zero-infrastructure pattern as `godrays.rs`: one full-screen triangle,
+//! reads the shared depth view, no offscreen copies.
+//! Shader: assets/shaders/ssao.wgsl.
 
 use bytemuck::{Pod, Zeroable};
 
@@ -110,7 +114,9 @@ impl SsaoPass {
 
     /// Draw the AO multiply onto `view`. `m22`/`m32` are the celestial
     /// projection's column-major [2][2] and [3][2] elements (for reverse-Z
-    /// depth linearization), `px_per_rad` the viewport's pixels per radian.
+    /// depth linearization), `focal_px` the true focal length in pixels
+    /// ((h/2)/tan(fov/2)) — the shader reconstructs view-space positions
+    /// from it (v0.1100 normal-aware estimator).
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &self,
@@ -120,7 +126,7 @@ impl SsaoPass {
         view: &wgpu::TextureView,
         m22: f32,
         m32: f32,
-        px_per_rad: f32,
+        focal_px: f32,
         radius_m: f32,
         strength: f32,
         timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'_>>,
@@ -132,7 +138,7 @@ impl SsaoPass {
             &self.param_buffer,
             0,
             bytemuck::bytes_of(&SsaoUniforms {
-                proj: [m22, m32, px_per_rad, 1.0],
+                proj: [m22, m32, focal_px, 1.0],
                 params: [radius_m, strength, 0.0, 0.0],
             }),
         );
@@ -176,5 +182,26 @@ impl SsaoPass {
             pass.draw(0..3, 0..1);
         }
         queue.submit(std::iter::once(encoder.finish()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The SSAO shader is compiled at renderer init, so a WGSL error makes
+    /// the whole app unbootable while every static Rust check stays green
+    /// (the v0.782 class of failure). Parse + validate it here, same pattern
+    /// as the star/halo shader tests in stars.rs.
+    #[test]
+    fn ssao_shader_parses_and_validates() {
+        let src = include_str!("../../assets/shaders/ssao.wgsl");
+        let module = wgpu::naga::front::wgsl::parse_str(src)
+            .unwrap_or_else(|e| panic!("ssao.wgsl failed to parse: {e}"));
+        let mut validator = wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        );
+        validator
+            .validate(&module)
+            .unwrap_or_else(|e| panic!("ssao.wgsl failed naga validation: {e:?}"));
     }
 }

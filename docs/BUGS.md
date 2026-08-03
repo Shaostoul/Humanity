@@ -638,3 +638,37 @@ LESSON: a position living in a field named `dir` is invisible to every
 translation site. Fields that change meaning per-variant need a translate()
 method that knows, not a convention. And probe rigs share the dev-teleport
 blind spot - operator-path reproductions matter.
+
+## BUG-062: SSAO estimator painted an aura around every tree (fixed v0.1100.0)
+
+The operator: "trees seem to have a kind of aura around them that's altering
+the color of the grass behind them." Measured at their settings: a symmetric
+6.6-9.5% darkening hugging every trunk silhouette, decaying by ~70-80 px,
+gone with ssao_strength=0. Aerial haze, god rays, and foliage mip-bleed all
+refuted by A/B measurement.
+
+Root cause (assets/shaders/ssao.wgsl, v0.901 estimator): depth-only occlusion
+with a 0.4-1.6 m "full occluder" window and a 48 px screen-disc cap that
+binds for everything nearer than ~29 m. Ground behind a trunk is exactly
+1.6 m-class nearer, so every trunk shaded ground it never touched. No normal
+meant grazing ground planes also self-occluded (broad ground darkening).
+There was no blur pass to blame - the estimator itself was the halo.
+
+Fix (v0.1100 rebuild): reconstruct view-space positions from depth (true
+focal length in pixels replaces the px-per-radian approximation), build a
+surface normal from neighbor depths choosing the smaller-delta side per axis
+(edges don't smear), cosine-weighted occlusion above the tangent plane, hard
+range falloff at 2x a 0.4 m radius (was 1.6 m), screen disc capped 16 px
+(was 48). Foreground objects now fail the range falloff; on-plane taps have
+~zero cosine. Deferred (fenced, not half-done): applying AO to the ambient
+term inside the PBR shader instead of multiplying the tone-mapped frame
+needs a depth prepass - tracked in PRIORITIES.
+
+LESSON x2: (1) a missing blur was the WRONG hypothesis - "add bilateral
+blur" would have blurred a fundamentally wrong signal; diagnose the
+estimator before the filter. (2) The probe rig's default settings produced a
+CLEAN FALSE NEGATIVE on this bug (ssao 0.55 vs operator 0.96, dense-grass
+filter broken by veg_density mismatch); the same measurement at operator
+settings separated 0.905 vs 1.018. A rig verdict is a verdict about the
+rig's settings - probe-sweep now records graphics settings in its manifest
+and offers --operator-config.

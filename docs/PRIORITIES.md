@@ -531,8 +531,12 @@
 > forest) and screen-blended the god rays (no more cloud blowout) with
 > live-overcast dimming. v0.898 also: cloud ground shadows (terrain darkens
 > under the sky-drawn coverage field) + land detail octaves to 8 m.
-> REMAINING environmental-graphics wants, in rough order: SSAO
-> (celestial-slot depth-only AO pass, follow the godrays.rs pattern);
+> REMAINING environmental-graphics wants, in rough order: SSAO-on-ambient
+> (v0.901 shipped SSAO; v0.1100 rebuilt the estimator normal-aware after
+> BUG-062's tree aura — the remaining rung is applying AO to the ambient
+> term INSIDE the PBR shader instead of multiplying the tone-mapped frame,
+> which needs a depth prepass so the main pass can read the AO texture;
+> until then AO attenuates direct sun too);
 > tangent-space ground detail TEXTURE below 8 m (unit-dir noise quantizes
 > below that); geomorph/fade at LOD swaps if any residual pop bothers;
 > cloud-shadowed god rays; Settings toggles for sun shadows +
