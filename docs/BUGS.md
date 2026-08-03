@@ -738,3 +738,58 @@ LESSON: the evidence for "cards now carry their full mip chain" was the UPLOAD
 code. Nothing verified that the shader asked for a mip. When a fix spans a
 CPU-side resource and a GPU-side fetch, the claim is only true if BOTH ends
 were checked - and the checkable end is the rendered result, not the setup.
+
+## BUG-066: A timer named cpu.patch_build charged 2,030 lines (fixed v0.1102.0)
+
+A canopy increment appeared to cost 35 ms per frame (`cpu.patch_build` 3.84 ->
+38.56 ms, 30 fps -> 11 fps). A release was held for it. There was no
+regression: on the vantage the repo designates for frame-time work the new
+build was FASTER (-3.0 ms GPU, -0.7 ms CPU, -81 MB VRAM).
+
+Three independent errors produced the phantom, and all three are worth knowing:
+
+1. THE TIMER. The `cpu.patch_build` RAII guard lived until the whole
+   `if chunked_on` block closed - about 2,030 lines - so it also charged patch
+   draw batching, the near-tree loader, twelve glTF parses, procedural
+   fallbacks, the cluster-sprite bake, grass, the far-tree card sheet and the
+   water shell. A ONE-TIME ~2.4 s world-entry bake landed in a per-frame stage
+   and the frame EMA smeared it across ~20 frames.
+2. THE CONTROL. `.probe-rig/data` is a SYMLINK to the repo's `data/`, and
+   serde ignores unknown fields - so the "before" exe read the NEW trees.ron
+   and already had every cluster card the change added. The A/B had no control
+   at all; the thing under test was in both arms.
+3. THE VANTAGE. `fuji-forest-ground` says in its own `_perf_floor_note` that it
+   must NOT be used for A/B frame-time work (it keeps getting heavier for ~40 s;
+   a prior audit measured 2.15x across byte-identical runs). Use
+   `ground-storm-inslab`.
+
+Fix: the stage ends where patch build ends (2.51 ms measured), the remainder is
+charged to a bucket that names its own contents and the split that finishes the
+job.
+
+LESSON: a measurement is a claim about a stage, a build, and a scene, and it is
+only as true as the weakest of the three. Before trusting a delta, check that
+the stage measures what its NAME says, that the control arm genuinely lacks the
+thing under test, and that the scene is one that repeats. Two of these three
+were documented in the repo already and I did not read them.
+
+## BUG-067: Every card gate silently exempted the species that needed it (found v0.1102)
+
+Three gates - `cluster_sprite_geometry_fits_its_card`,
+`near_blades_stay_inside_the_card_shell`, and
+`cluster_cards_reach_target_lai_and_fit_the_budget` - all begin by skipping any
+species with no `clusters` block. Fir, pine, acacia and palm have none, so four
+of eight species sit outside EVERY blade and card gate. Their own stdout is the
+proof: every reported line names only sakura, momiji, oak and birch.
+
+Those four are exactly the species whose crowns are raw blade triangles with no
+card mass to hide inside, which is what the operator sees as scattered darts on
+a conifer. The gate skipped precisely the case it exists to catch.
+
+Contrast `crown_depth_is_a_real_live_crown_ratio`, which filters to broadleaf
+and then asserts `seen > 0`. That non-vacuity guard is the whole difference.
+
+LESSON: a filter at the top of a gate is a silent exemption list. Any gate that
+skips rows must assert how many rows it actually examined - and when the skipped
+set is non-empty, that set belongs in a DATED allowlist, not in an `if` nobody
+can see the effect of.
