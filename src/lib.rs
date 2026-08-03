@@ -68,6 +68,19 @@ pub mod hot_reload;
 /// run from the repo root).
 pub(crate) static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
 
+/// How far a photoscanned plant may be uniformly scaled to stand in for its
+/// species before the near-tree loader rejects it and grows the species
+/// procedurally instead.
+///
+/// 3.0 because a scan carries REAL-WORLD-SIZED detail - needles, leaf blades,
+/// bark grain - and a uniform stretch multiplies all of it. At 3x a 5 cm needle
+/// spray reads as 15 cm: coarse, but still a plant. At the 17-35x the fir and
+/// pine sapling scans were running (1 m scans standing in for 22 m and 16 m
+/// trees) each spray became a 0.5-1.9 m sheet lying across the grass, which is
+/// what the operator saw and reported. There is no scale factor that turns a
+/// sapling into a mature tree - the architecture differs, not just the size.
+const MAX_MODEL_STRETCH: f32 = 3.0;
+
 /// The resolved data dir (or "data" if not yet set).
 pub(crate) fn data_dir() -> std::path::PathBuf {
     DATA_DIR
@@ -9570,11 +9583,69 @@ mod native_app {
                                             base, name
                                         );
                                         let t_parse = std::time::Instant::now();
-                                        let parsed = state
+                                        let mut parsed = state
                                             .asset_manager
                                             .parse_gltf_mesh_with_texture(&rel);
                                         tree_parse_ms +=
                                             t_parse.elapsed().as_secs_f32() * 1000.0;
+                                        // SCAN-STRETCH GUARD (v0.1101). The draw
+                                        // site scales a photoscan by
+                                        // species_height / model_height, applied
+                                        // uniformly to EVERY triangle. The fir and
+                                        // pine assets are scans of ~1 m SAPLINGS
+                                        // standing in for 22 m and 16 m mature
+                                        // trees, so that factor ran 17-35x and
+                                        // inflated each 3-7 cm needle spray into a
+                                        // 0.5-1.9 m sheet - the operator's "large
+                                        // pale blades lying in the grass".
+                                        //
+                                        // A sapling is not a small mature tree:
+                                        // its branching architecture, taper and
+                                        // needle density are all different, so no
+                                        // scale factor makes one into the other.
+                                        // Past a modest stretch the honest move is
+                                        // to GROW the species instead, which the
+                                        // procedural conifer already does at the
+                                        // right height.
+                                        //
+                                        // Rejection reuses the existing missing-
+                                        // asset path (sentinel + procedural twin,
+                                        // BUG-058) rather than adding a second
+                                        // fallback: one road, already tested, and
+                                        // it is the road the SHIPPED build has
+                                        // always taken - which is why this only
+                                        // ever showed in dev checkouts.
+                                        if let Ok((cpu, _)) = &parsed {
+                                            let mut lo = f32::MAX;
+                                            let mut hi = f32::MIN;
+                                            for v in &cpu.vertices {
+                                                lo = lo.min(v.position[1]);
+                                                hi = hi.max(v.position[1]);
+                                            }
+                                            let model_h = (hi - lo).max(1.0e-3);
+                                            let target_h = crate::renderer::tree_mesh::registry()
+                                                .trees
+                                                .iter()
+                                                .find(|t| t.model == base)
+                                                .map(|t| t.height_m)
+                                                .unwrap_or(model_h);
+                                            let stretch = target_h / model_h;
+                                            let max_stretch = crate::MAX_MODEL_STRETCH;
+                                            if stretch > max_stretch {
+                                                log::warn!(
+                                                    "[NearTree] {name} REJECTED: the scan is \
+                                                     {model_h:.2} m and the species is \
+                                                     {target_h:.1} m, a {stretch:.1}x uniform \
+                                                     stretch (limit {max_stretch:.1}x). \
+                                                     Every leaf would be {stretch:.1}x too big. \
+                                                     Growing this species procedurally instead."
+                                                );
+                                                parsed = Err(format!(
+                                                    "scan stretch {stretch:.1}x exceeds \
+                                                     {max_stretch:.1}x"
+                                                ));
+                                            }
+                                        }
                                         match parsed {
                                             Ok((cpu, tex)) => {
                                                 let mesh =

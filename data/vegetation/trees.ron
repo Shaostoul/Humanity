@@ -20,6 +20,46 @@
 // `weight` is the relative pick chance among all species whose gates pass.
 // Colours are linear RGB 0..1 and feed the packed-per-face colour that
 // material type 20 decodes.
+//
+// ── LEAF SILHOUETTE (v0.1100) ────────────────────────────────────────────
+// The `leaf_*` fields on a species row describe the OUTLINE OF ONE LEAF, in
+// the botanical terms a field guide uses. They are read at BAKE TIME by
+// `renderer::billboard_bake::leaf_shape`, which is what stamps a species'
+// real silhouette into its cluster sprite; the runtime blade layer keeps its
+// cheap deltoid proxy, because a 12-triangle maple leaf is exactly the kind
+// of detail you bake once into a texture and never draw per frame.
+//
+//   leaf_shape        outline family. One of:
+//                       "deltoid"      the plain isoceles blade (the default,
+//                                      and what every species drew before)
+//                       "ovate"        one simple blade, widest below middle
+//                       "serrate-ovate" ditto with a doubly-toothed margin
+//                       "pinnate-lobed" one blade cut into lobe PAIRS either
+//                                      side of the midrib (oak)
+//                       "palmate"      several lobes radiating from the
+//                                      petiole (maple)
+//                       "bipinnate"    a frond: pinna pairs along a rachis,
+//                                      each carrying leaflet pairs (acacia)
+//   leaf_aspect       leaf WIDTH divided by petiole-to-tip LENGTH. This is a
+//                     measurable fact about the plant and it overrides the
+//                     generic 0.70 width the mesh builder hands every
+//                     broadleaf. 0 (the default) keeps the incoming width.
+//   leaf_widest_frac  where along the midrib the blade is widest, 0 at the
+//                     petiole and 1 at the tip. Below 0.5 = ovate, above =
+//                     obovate. This is the single number that separates a
+//                     birch (0.28) from an oak (0.60) at silhouette level.
+//   leaf_tip_frac     how drawn out the tip is. 0 = blunt/rounded, 1 = a long
+//                     acuminate drip tip.
+//   leaf_lobes        palmate: lobe COUNT (odd, the middle lobe is on the
+//                     midrib). pinnate-lobed: lobe PAIRS. bipinnate: pinna
+//                     PAIRS along the rachis.
+//   leaf_sinus_frac   how deep the cuts between lobes go, as a fraction of
+//                     the way to the midrib (or, palmate, to the petiole).
+//   leaf_teeth        marginal teeth per side. 0 = an entire (smooth) margin.
+//   leaf_leaflets     bipinnate only: leaflet PAIRS on one pinna.
+//
+// Anything omitted defaults, and a species with no `leaf_shape` at all bakes
+// exactly the deltoid it always did - this is additive, never a migration.
 (
     trees: [
         // ── Conifers: the two shipped photoscans, now just rows ──────────
@@ -79,6 +119,17 @@
             leaf_color: (0.22, 0.40, 0.18),
             blossom_color: (0.97, 0.72, 0.80),
             blossom_frac: 0.82,
+            // Prunus x yedoensis: ovate-lanceolate, 8-12 cm long by 4-5 cm
+            // wide (aspect ~0.45, NOT the 0.70 the generic broadleaf width
+            // gave it), widest just below the middle, sharply serrate margin,
+            // acuminate tip. A cherry's leaf is a plain simple blade - the
+            // interesting silhouette on this species is its blossom, which
+            // has had real notched petals since v0.1088.
+            leaf_shape: "serrate-ovate",
+            leaf_aspect: 0.45,
+            leaf_widest_frac: 0.42,
+            leaf_tip_frac: 0.45,
+            leaf_teeth: 11,
             // ── Cluster cards (v0.1088) ──────────────────────────────
             // The measured problem: the geometric blade layer reaches leaf
             // area index 0.31-0.50 on this species, so the crown transmits
@@ -103,7 +154,14 @@
                     // sprigs measured 0.20, 3.5x as many only reached 0.36),
                     // so chasing a rounder number would mean an unphysically
                     // dense tuft. The planner spends the truth instead.
-                    coverage: 0.36,
+                    // 0.36 -> 0.38 (v0.1100): the same 84 sprigs now carry
+                    // ovate serrate blades instead of triangles, and the CPU
+                    // bake twin measures 0.378. Barely moved, which is the
+                    // expected result - a cherry leaf is a simple blade, so
+                    // giving it its real outline changes its MARGIN, not its
+                    // mass. The species this arc was really for are the maple,
+                    // the oak and the birch.
+                    coverage: 0.38,
                     cards_per_sleeve: 4,
                     sleeve_spacing_m: 0.22,
                     // MEASURED, not guessed: at 24 sprigs the bake reported
@@ -171,6 +229,75 @@
             leaf_color: (0.30, 0.34, 0.12),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Acer palmatum. THE most recognisable leaf outline of any tree in
+            // this registry, and the reason "palmate" exists as a shape: 5-7
+            // lobes radiating from the petiole, each lanceolate and drawn to a
+            // long point, the cuts between them running half to two thirds of
+            // the way back to the petiole. The blade is roughly as wide as it
+            // is long (a little wider on a mature leaf, hence 1.12) and every
+            // lobe margin is finely toothed.
+            leaf_shape: "palmate",
+            leaf_aspect: 1.12,
+            leaf_lobes: 7,
+            leaf_sinus_frac: 0.62,
+            leaf_widest_frac: 0.34,
+            leaf_tip_frac: 0.62,
+            leaf_teeth: 7,
+            // ── Cluster cards ────────────────────────────────────────
+            // Momiji is the SECOND species to carry cards (sakura was first,
+            // v0.1088). Nothing here is copied from the cherry: a maple is a
+            // denser, finer-textured, smaller tree, and every number moves.
+            clusters: Some((
+                // 3.6, against sakura's 2.6. The cherry number is low BECAUSE
+                // it is a flowering sleeve; a leafed-out maple is the ordinary
+                // broadleaf case, and Acer stands measure LAI 3.5-5. 3.6 sits
+                // at the low end of that because our crown envelope is a
+                // single dome rather than the layered tiers a real momiji
+                // grows, and a dome over-counts its own projected area.
+                target_lai: 3.6,
+                leaf: (
+                    // 0.40 m, against sakura's 0.50. A momiji is 7 m to the
+                    // cherry's 8, and its foliage is carried in FLAT LAYERED
+                    // SPRAYS rather than round tufts, so the patch of crown one
+                    // card stands in for is smaller in every direction.
+                    size_m: 0.40,
+                    // MEASURED by the CPU twin of the cluster bake
+                    // (`billboard_bake::dump_cluster_sprites_cpu`, 2048 px
+                    // supersample down to 512), not guessed: 0.49. Higher than
+                    // the cherry's 0.38 at FEWER sprite elements (60 against
+                    // 84), because a palmate maple leaf is nearly as wide as
+                    // it is long and so sweeps far more card per leaf than a
+                    // narrow cherry blade does.
+                    coverage: 0.49,
+                    cards_per_sleeve: 4,
+                    // Scaled off the card, as sakura's is: a sleeve step of
+                    // ~0.45 card sides keeps the sleeves overlapping along a
+                    // twig instead of beading.
+                    sleeve_spacing_m: 0.18,
+                    sprite_elements: 60,
+                    sprite_runs: 1,
+                ),
+                // Momiji never blooms in this registry (`blossom_frac: 0.0`),
+                // so no blossom CARD is ever emitted - but the sprite geometry
+                // is still built and size-checked, so these describe the real
+                // flower rather than being filler: Acer palmatum carries small
+                // reddish-purple flowers, ~6 mm, in corymbs of 10-15 hanging
+                // under the new shoots.
+                blossom: (
+                    size_m: 0.14,
+                    coverage: 0.18,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.10,
+                    sprite_elements: 5,
+                    sprite_runs: 6,
+                ),
+                flower_size_m: 0.006,
+                flowers_per_umbel: 12,
+                umbel_spacing_m: 0.022,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                near_blade_tri_frac: 0.45,
+            )),
         ),
         // Temperate broadleaves, global in the mid latitudes. These are what
         // break up the endless conifer wall in the operator's forest shots.
@@ -190,6 +317,107 @@
             leaf_color: (0.16, 0.34, 0.13),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Quercus robur. Pinnately lobed: one blade cut into 4-6 pairs of
+            // ROUNDED lobes with deep sinuses, widest well ABOVE the middle
+            // (obovate - this is the cue that reads as "oak" even in
+            // silhouette), a blunt tip, an entire margin between the lobes,
+            // and a very short petiole. 7-14 cm long by 4-8 cm wide, so an
+            // aspect near 0.58 rather than the generic 0.70.
+            leaf_shape: "pinnate-lobed",
+            leaf_aspect: 0.58,
+            leaf_lobes: 5,
+            // Cut half way to the midrib. A real English oak runs anywhere
+            // from a third to two thirds; half is the honest middle and it is
+            // what makes the lobes read as lobes rather than as a wavy edge.
+            leaf_sinus_frac: 0.50,
+            leaf_widest_frac: 0.60,
+            leaf_tip_frac: 0.10,
+            // Entire between the lobes: an oak has no teeth, and adding any
+            // would blur the one margin feature that distinguishes it.
+            leaf_teeth: 0,
+            // ── Cluster cards ────────────────────────────────────────
+            clusters: Some((
+                // The densest crown in the registry, and correctly so: a
+                // mature open-grown oak measures LAI 4-6 and is the canonical
+                // "you cannot see sky through it" tree. 3.8 transmits
+                // exp(-0.5 * 3.8) = 15% of the sky by Beer-Lambert, against
+                // the cherry's 27%.
+                //
+                // Held at 3.8 rather than the 4.2 first tried, for a reason
+                // that is arithmetic and not taste: the card layer may spend
+                // 3400 triangles = 850 cards, and an 18 m oak's crown projects
+                // 232 m2, so the fit has to buy `lai * 232` m2 of leaf out of
+                // 850 cards no matter what. At 4.2 that solved to a 1.78 m
+                // card - a tarpaulin - and pushed the whole tree to 8925
+                // triangles, 325 over the 8600 ceiling.
+                target_lai: 3.8,
+                leaf: (
+                    // 1.4 m, and this is the honest number rather than a
+                    // modest-looking one. An 18 m oak is the biggest broadleaf
+                    // here, its twigs are metres apart, and the LAI fit solves
+                    // the card SIDE - so understating this does not produce
+                    // smaller cards, it only bakes the sprite at a size the
+                    // cards are not drawn at, which is the one thing
+                    // `mean_card_side` exists to prevent. The fit settles
+                    // around 1.4-1.9 m across the three variants, ~20% of the
+                    // crown spread, the same ratio sakura's 0.85 m card is to
+                    // its 5 m crown.
+                    size_m: 1.40,
+                    // MEASURED by the CPU twin of the cluster bake, after two
+                    // rounds: 44 elements measured 0.267, 115 measured 0.413,
+                    // 175 lands here. Coverage saturates like
+                    // 1 - exp(-density) AND the card side shrinks as coverage
+                    // rises (the LAI fit solves side for area), so the two
+                    // fight each other and the number has to be converged on
+                    // rather than solved.
+                    //
+                    // Worth converging on, because coverage is the divisor in
+                    // the crown's OVERDRAW (alpha-test layers per canopy pixel
+                    // = LAI / coverage) and this is the tallest, heaviest and
+                    // most common broadleaf in the registry. At the first
+                    // pass's 0.267 the oak paid 14 layers; here it pays 7.8.
+                    coverage: 0.49,
+                    cards_per_sleeve: 4,
+                    // ~0.24 card sides, tighter than the others relative to
+                    // the card: an oak's foliage is carried in dense masses
+                    // right along the shoot, not in tufts at the tips.
+                    sleeve_spacing_m: 0.34,
+                    // 175, and the biggest element count in the registry by
+                    // far (the cherry spends 84, the maple 60). An oak card
+                    // settles at 1.4-1.9 m and has to be FILLED at that size,
+                    // and a 20 cm leaf covers very little of a 2 m square, so
+                    // the count has to go where the arithmetic says rather
+                    // than where the other species sit. Denser is also
+                    // CHEAPER: a canopy pixel pays LAI / coverage alpha-test
+                    // layers, so buying coverage buys frame time back.
+                    sprite_elements: 175,
+                    sprite_runs: 1,
+                ),
+                // Inert (`blossom_frac: 0.0`), but real: an oak flowers as
+                // pendulous yellow-green catkins 2-4 cm long, a dense string
+                // of 2-3 mm florets rather than a bouquet.
+                blossom: (
+                    size_m: 0.13,
+                    coverage: 0.16,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.09,
+                    sprite_elements: 9,
+                    sprite_runs: 5,
+                ),
+                flower_size_m: 0.003,
+                flowers_per_umbel: 10,
+                umbel_spacing_m: 0.006,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                // 0.20, against 0.45 everywhere else, and this is where the
+                // oak's triangle overrun was actually paid for. An 18 m tree
+                // spends most of MAX_TRIS on WOOD; the near-field blade layer
+                // is a sub-metre parallax detail that a card already covers,
+                // so it is the cheapest 700 triangles in the budget to give
+                // back. Nothing about the crown's silhouette changes - the
+                // blades were never the silhouette on a clustered species.
+                near_blade_tri_frac: 0.20,
+            )),
         ),
         (
             id: "birch",
@@ -208,6 +436,75 @@
             leaf_color: (0.26, 0.45, 0.16),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Betula pendula. Ovate-TRIANGULAR: broad and almost straight
+            // across near the base, then two nearly straight sides converging
+            // to a long drawn-out point, with a doubly serrate margin (big
+            // teeth carrying smaller teeth). 3-7 cm long by 3-5 cm wide, so it
+            // is a wide little leaf - aspect 0.85, widest a quarter of the way
+            // up, which is what gives it the triangle read.
+            leaf_shape: "serrate-ovate",
+            leaf_aspect: 0.85,
+            // 0.22, very low, and low is the point: the widest part of a birch
+            // leaf is right down at its nearly-straight base, which is what
+            // makes the outline a TRIANGLE rather than the spade every other
+            // simple blade here is. The first dump used 0.26 with a longer
+            // tip and came out visibly teardrop-shaped.
+            leaf_widest_frac: 0.22,
+            // Still the longest tip in the registry (a birch's acuminate point
+            // is the species' margin signature at any range you can resolve a
+            // leaf at), but 0.55 rather than 0.72: the tip exponent also
+            // controls how much the SIDES bow out on the way to it, and at
+            // 0.72 they bowed enough to round the triangle off.
+            leaf_tip_frac: 0.55,
+            leaf_teeth: 13,
+            // ── Cluster cards ────────────────────────────────────────
+            clusters: Some((
+                // 2.8 - deliberately the THINNEST leafy crown here, and lower
+                // than the flowering cherry's 2.6 is high. Birch stands
+                // measure LAI 2-4 and an airy crown you can see sky and moving
+                // branch through is the whole character of the species; a
+                // birch built at oak density would just be a pale oak.
+                target_lai: 2.8,
+                leaf: (
+                    // 0.52 m. Between the maple and the oak, as the tree is
+                    // (14 m), but pulled DOWN relative to its height because a
+                    // birch carries its foliage on long, fine, pendulous
+                    // shoots - the tufts are small and there are many.
+                    size_m: 0.52,
+                    // MEASURED by the CPU bake twin: 0.56, the highest in the
+                    // registry, and it looks like a contradiction of the airy
+                    // crown above until you separate the two numbers.
+                    // COVERAGE is how solid one card is; LAI is how many
+                    // card-loads of leaf the whole crown carries. A birch is
+                    // dense in the small and sparse in the large - little
+                    // solid rosettes of leaf hung on long bare pendulous
+                    // shoots. High coverage at low LAI is exactly that, and it
+                    // is also the cheapest combination there is: overdraw is
+                    // LAI / coverage, so birch pays 4.8 alpha-test layers
+                    // against the oak's 7.8.
+                    coverage: 0.58,
+                    cards_per_sleeve: 4,
+                    sleeve_spacing_m: 0.24,
+                    sprite_elements: 66,
+                    sprite_runs: 1,
+                ),
+                // Inert (`blossom_frac: 0.0`), but real: birch catkins, 2-4 cm
+                // pendulous strings of ~2 mm florets.
+                blossom: (
+                    size_m: 0.12,
+                    coverage: 0.15,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.09,
+                    sprite_elements: 9,
+                    sprite_runs: 5,
+                ),
+                flower_size_m: 0.0025,
+                flowers_per_umbel: 12,
+                umbel_spacing_m: 0.005,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                near_blade_tri_frac: 0.45,
+            )),
         ),
         // Dry-tropics umbrella form, so savanna edges stop growing firs.
         (
@@ -226,6 +523,45 @@
             leaf_color: (0.20, 0.32, 0.12),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Vachellia (Acacia) tortilis. NOT one blade at all: the whole
+            // leaf is a BIPINNATE FROND - a central rachis carrying pinna
+            // pairs, and every pinna carrying its own row of leaflet pairs a
+            // few millimetres long. What reads at any distance is feathery
+            // texture, and what reads close up is that the "leaf" is made of
+            // dozens of separate specks with sky between them. That is why
+            // this species looked worst of all as a solid triangle.
+            leaf_shape: "bipinnate",
+            leaf_aspect: 0.72,
+            // 5 pinna pairs of 7 leaflet pairs = 140 leaflets on one frond.
+            // A real tortilis carries 4-10 pinna pairs of 10-20 leaflet pairs;
+            // this is the low end on both counts, because at the sprite's
+            // ~1.2 mm per texel a full-count frond would bake as a smear and
+            // cost triangles for detail that never resolves.
+            leaf_lobes: 5,
+            leaf_leaflets: 7,
+            // NO `clusters` BLOCK, and this is a MEASURED blocker rather than
+            // an omission. Two things in the "umbrella" form stop the cluster
+            // card layer reaching this species, and both live in
+            // `renderer::tree_mesh`, not here:
+            //
+            //   1. Cards sleeve TWIGS, and a `Twig` is only recorded by the
+            //      recursive `branch()` that the broadleaf and conifer forms
+            //      use. `umbrella()` lays out its own bole, primaries and
+            //      horizontal fans and calls `leaf_cluster` directly, so it
+            //      pushes no twigs at all - an acacia given this block builds
+            //      ZERO cards and trips `cluster_cards_reach_target_lai`
+            //      ("a clustered species emitted no cards").
+            //   2. `foliage_of("umbrella")` carries 14 elements per sprig
+            //      against a broadleaf's 3, so one sprig SPANS
+            //      0.144 * 14 * 0.5 = 1.0 m. The cluster sprite bakes a ball
+            //      of those, which measured 1.88 m across against the 0.45 m
+            //      card meant to sample it - `cluster_sprite_geometry_fits_
+            //      its_card` catches it exactly.
+            //
+            // The `leaf_*` fields above are still correct and still land the
+            // moment the form supports cards: they are read by the sprite
+            // bake, and with no cluster block no sprite is baked, so they sit
+            // inert rather than wrong. See the wiring note in the arc report.
         ),
         // Wet-tropics palm.
         (

@@ -598,14 +598,51 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // Type 19: TEXTURED MESH (v0.909, the photoscanned-plant path):
         // the material's albedo texture times base_color, alpha-cutout for
         // foliage (the photoscan leaf textures carry alpha), then the
-        // normal sun-lit PBR path below. textureSampleLevel 0 because
-        // these textures ship one mip level.
-        let mesh_tex = textureSampleLevel(albedo_texture, albedo_sampler, in.uv, 0.0);
+        // normal sun-lit PBR path below.
+        //
+        // textureSampleGrad, not textureSampleLevel(0) (v0.1101): the
+        // photoscan atlases are 1024x1024 and a near-tree spray magnifies
+        // ~8-10x, but MINIFIES hard at range - forcing LOD 0 sampled one
+        // texel of a 1k atlas per pixel and aliased. The gradients are the
+        // ones computed once in uniform control flow at the top of this
+        // function, so this is legal inside the branch.
+        let mesh_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler, in.uv, uv_dx, uv_dy);
         if (mesh_tex.a < 0.35) {
             discard;
         }
         albedo = albedo * mesh_tex.rgb;
         emissive_strength = 0.0;
+
+        // FOLIAGE TRANSMISSION (v0.1101). Without this, type 19 had NO
+        // sunless-side light at all: the sun term is shadow-gated, the fill
+        // is N.L-gated, and the ambient floor is 0.005 - so every face whose
+        // normal pointed away from the sun rendered at 1/255. Measured in a
+        // probe capture as a BIMODAL population: blown-out pale fronds and
+        // pure black (1,1,0) ones, thousands of pixels of each and almost no
+        // mid-tones, in the same frame. That signature is a missing
+        // transmission term, not a shading gradient.
+        //
+        // Gated on params.w because type 19 is SHARED with furniture,
+        // machines and world decorations, which must not transmit light.
+        // params.w is the wind class and is set to 1.0 only for near-tree
+        // foliage (src/lib.rs near-tree material registration).
+        //
+        // Same lobe, coefficients and shadow gate as the type-20 leaf branch
+        // below - see the BUG-060 note there for why the coefficients are
+        // what they are and why NO sun-derived term may skip the shadow map.
+        if (material.params.w > 0.5) {
+            let t19_sun = normalize(camera.sun_direction.xyz);
+            let t19_lt = normalize(t19_sun + normal * 0.4);
+            let t19_trans = pow(max(dot(view_dir, -t19_lt), 0.0), 1.6);
+            let t19_backlit = max(-dot(normal, t19_sun), 0.0);
+            let t19_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+            let t19_shadow = sun_shadow(in.world_position, dot(normal, t19_sun));
+            proc_emissive = proc_emissive
+                + albedo * camera.sun_color.rgb
+                    * (t19_trans * 0.15 + t19_backlit * 0.06)
+                    * t19_day * t19_shadow;
+        }
     }
     if (material_type >= 20.5 && material_type < 21.5) {
         // ── Type 21: FOLIAGE CLUSTER CARD (v0.1088) ─────────────────────
@@ -617,8 +654,20 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         let cc_code = floor(in.uv.x * 0.5);
         let cc_u = in.uv.x - 2.0 * cc_code;
         let cc_ao = cc_code / 63.0;
-        let cc_tex = textureSampleLevel(
-            albedo_texture, albedo_sampler, vec2<f32>(cc_u, in.uv.y), 0.0);
+        // textureSampleGrad, not textureSampleLevel(0) (v0.1101): v0.1090
+        // built these cards a full alpha-coverage-preserving mip chain and a
+        // trilinear sampler with anisotropy_clamp 8 to stop the crawling,
+        // and then this fetch forced LOD 0 and used NEITHER. The upload code
+        // was the evidence; the rendered result never changed.
+        //
+        // The gradients are safe despite cc_u's discontinuity: within one
+        // card `floor(uv.x*0.5)` is constant, so d(cc_u) == d(uv.x), and the
+        // only fragments where that fails are quads straddling two cards -
+        // there the derivative reads large, which selects a coarser mip. Erring
+        // blurry on a card seam is exactly the right failure direction.
+        let cc_tex = textureSampleGrad(
+            albedo_texture, albedo_sampler,
+            vec2<f32>(cc_u, in.uv.y), uv_dx, uv_dy);
         if (cc_tex.a < 0.5) {
             discard;
         }
@@ -629,12 +678,21 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
         // Foliage transmission (the BUG-056 lesson: cards are LEAVES, never
         // plain mesh) - same day-gated backlit term as the type-20 leaf
         // branch, scaled by AO so the crown core does not glow.
+        // MULTIPLIED BY THE SHADOW MAP (v0.1101): BUG-060 established that no
+        // sun-derived term may skip it - a leaf in shadow receives no sun to
+        // transmit - and that fix landed on the type-20 leaf and type-23
+        // grass branches but MISSED this one, so cluster cards standing
+        // inside another tree's shadow kept emitting their full backlit term
+        // and shaded crowns glowed. Two of three is how a fix looks when it
+        // is applied by search-and-edit instead of by enumerating the term's
+        // every occurrence.
         let cc_sun = normalize(camera.sun_direction.xyz);
         let cc_backlit = max(-dot(normal, cc_sun), 0.0);
         let cc_day = clamp(camera.sun_direction.w * 0.4, 0.0, 1.0);
+        let cc_shadow = sun_shadow(in.world_position, dot(normal, cc_sun));
         proc_emissive = proc_emissive
             + albedo * camera.sun_color.rgb
-                * (cc_backlit * 0.30) * cc_day * (0.3 + 0.7 * cc_ao);
+                * (cc_backlit * 0.30) * cc_day * cc_shadow * (0.3 + 0.7 * cc_ao);
     }
     if (material_type >= 21.5 && material_type < 22.5) {
         // ── Type 22: BAKED BARK (v0.1089) ───────────────────────────────

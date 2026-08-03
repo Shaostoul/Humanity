@@ -41,7 +41,7 @@
 //!   is exact only if nothing hand-encodes in between.
 
 use super::mesh::Vertex;
-use super::plant_mesh::PlantMeshBuilder;
+use super::plant_mesh::{Organ, PlantMeshBuilder};
 use super::tree_mesh::{self, CardFootprint, ClusterCards, ClusterLayer};
 use super::Renderer;
 use wgpu::util::DeviceExt;
@@ -840,7 +840,16 @@ impl Renderer {
         for t in reg.trees.iter() {
             let Some(cd) = t.clusters.as_ref() else { continue };
             for layer in ClusterLayer::ALL {
-                let Some(mesh) = tree_mesh::cluster_sprite_geometry(t, layer, t.height_m) else {
+                // A species that never blooms emits no blossom CARD (the layer
+                // coin in `emit_cluster_cards` needs `blossom_frac > 0`), so
+                // baking its blossom sprite is a whole 2048px render, readback
+                // and mip chain spent on a texture nothing will ever sample.
+                // That was free while sakura was the only clustered species;
+                // with four it would be four wasted bakes at world entry.
+                if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
+                    continue;
+                }
+                let Some(mesh) = leaf_shape::sprite_geometry(t, layer, t.height_m) else {
                     continue;
                 };
                 if mesh.indices.is_empty() {
@@ -1080,6 +1089,1007 @@ impl Renderer {
         );
         self.queue.submit([encoder.finish()]);
     }
+}
+
+// ── Per-species leaf silhouettes (v0.1100) ───────────────────────────────
+//
+// THE DEFECT. Every foliage face on every procedural species is one isoceles
+// triangle (`tree_mesh::blade`). At 0.09-0.20 m that was defensible while the
+// blades WERE the canopy: the count read, not the outline. It stopped being
+// defensible the moment cluster cards took over the canopy, because a card
+// samples a BAKED SPRITE, and a sprite is a texture - the triangles in it are
+// resolved at 1.0-1.7 mm per texel and they read, unmistakably, as triangles.
+// The operator's word for it was "little triangle leaves".
+//
+// WHERE THE FIX BELONGS. In the sprite, not in the runtime mesh, and that is
+// not a compromise - it is what baking is FOR. A 7-lobed maple leaf costs
+// ~160 triangles. Drawn per frame on 256 near instances that is unaffordable
+// and always will be; rasterized ONCE into a 512 px texture that every card in
+// the forest then samples, it costs nothing per frame at all. So the runtime
+// blade layer keeps its cheap deltoid proxy (it is a sub-metre parallax detail
+// living INSIDE the card mass, never the silhouette - see
+// `tree_mesh::near_blade_clump_k`), and the silhouette a player actually sees
+// is stamped here.
+//
+// HOW A SPECIES SAYS WHAT ITS LEAF LOOKS LIKE. Through the `leaf_*` fields on
+// its row in `data/vegetation/trees.ron`, in the terms a field guide uses:
+// where the blade is widest, how drawn out the tip is, how many lobes, how
+// deep the cuts, how many marginal teeth. The FAMILIES here are algorithms and
+// therefore code; the assignment of a family and its numbers to a plant is a
+// per-species measurement and therefore data (`docs/design/infinite-of-x.md`).
+// Adding an eighth species with a new leaf is a row, not a patch.
+pub mod leaf_shape {
+    use super::{Organ, PlantMeshBuilder};
+    use super::{tree_mesh, ClusterLayer};
+
+    /// Outline family. The list is closed on purpose: each of these is a
+    /// distinct CONSTRUCTION (one strip, several strips radiating, strips of
+    /// strips), not a parameter setting of the others.
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum LeafFamily {
+        /// The plain isoceles blade every species drew before this. Kept as
+        /// the default so a species row with no `leaf_shape` is unchanged.
+        Deltoid,
+        /// One simple blade with an entire (smooth) margin.
+        Ovate,
+        /// One simple blade with a doubly toothed margin.
+        SerrateOvate,
+        /// One blade cut into lobe PAIRS either side of the midrib (oak).
+        PinnateLobed,
+        /// Several lobes radiating from the petiole (maple).
+        Palmate,
+        /// A frond: pinna pairs along a rachis, each carrying leaflet pairs
+        /// (acacia and the other mimosoid legumes).
+        Bipinnate,
+    }
+
+    impl LeafFamily {
+        pub fn parse(s: &str) -> LeafFamily {
+            match s {
+                "ovate" => LeafFamily::Ovate,
+                "serrate-ovate" => LeafFamily::SerrateOvate,
+                "pinnate-lobed" => LeafFamily::PinnateLobed,
+                "palmate" => LeafFamily::Palmate,
+                "bipinnate" => LeafFamily::Bipinnate,
+                // Unknown falls back rather than failing, the same way
+                // `TreeDef::form` does: a typo in a data file must never be
+                // able to stop the forest growing.
+                _ => LeafFamily::Deltoid,
+            }
+        }
+
+        pub fn key(self) -> &'static str {
+            match self {
+                LeafFamily::Deltoid => "deltoid",
+                LeafFamily::Ovate => "ovate",
+                LeafFamily::SerrateOvate => "serrate-ovate",
+                LeafFamily::PinnateLobed => "pinnate-lobed",
+                LeafFamily::Palmate => "palmate",
+                LeafFamily::Bipinnate => "bipinnate",
+            }
+        }
+    }
+
+    /// One species' leaf, as its row in `data/vegetation/trees.ron` states it.
+    ///
+    /// Every field carries a serde default, so a row states only what its
+    /// plant actually has: an oak declares lobes and no teeth, a birch
+    /// declares teeth and no lobes.
+    #[derive(Clone, Debug, serde::Deserialize)]
+    pub struct LeafSilhouette {
+        pub id: String,
+        #[serde(default)]
+        pub leaf_shape: String,
+        /// Leaf WIDTH over petiole-to-tip LENGTH. 0 keeps whatever width the
+        /// mesh builder handed the blade (which is what Deltoid wants).
+        #[serde(default)]
+        pub leaf_aspect: f32,
+        /// Where along the midrib the blade is widest. Below 0.5 is ovate,
+        /// above is obovate. The single strongest silhouette cue there is.
+        #[serde(default = "default_widest")]
+        pub leaf_widest_frac: f32,
+        /// 0 = a blunt or rounded tip, 1 = a long acuminate drip tip.
+        #[serde(default = "default_tip")]
+        pub leaf_tip_frac: f32,
+        /// Palmate: lobe COUNT. Pinnate-lobed: lobe PAIRS. Bipinnate: pinna
+        /// PAIRS along the rachis.
+        #[serde(default)]
+        pub leaf_lobes: u32,
+        /// How far the cuts between lobes run toward the midrib (or, palmate,
+        /// back toward the petiole), 0..1.
+        #[serde(default)]
+        pub leaf_sinus_frac: f32,
+        /// Marginal teeth per side. 0 is an entire margin.
+        #[serde(default)]
+        pub leaf_teeth: u32,
+        /// Bipinnate only: leaflet PAIRS carried on one pinna.
+        #[serde(default)]
+        pub leaf_leaflets: u32,
+    }
+
+    fn default_widest() -> f32 {
+        0.42
+    }
+    fn default_tip() -> f32 {
+        0.35
+    }
+
+    impl LeafSilhouette {
+        pub fn family(&self) -> LeafFamily {
+            LeafFamily::parse(&self.leaf_shape)
+        }
+
+        /// A species that never declared a leaf: the pre-v0.1100 deltoid.
+        pub fn deltoid(id: &str) -> LeafSilhouette {
+            LeafSilhouette {
+                id: id.to_string(),
+                leaf_shape: String::new(),
+                leaf_aspect: 0.0,
+                leaf_widest_frac: default_widest(),
+                leaf_tip_frac: default_tip(),
+                leaf_lobes: 0,
+                leaf_sinus_frac: 0.0,
+                leaf_teeth: 0,
+                leaf_leaflets: 0,
+            }
+        }
+    }
+
+    /// The shipped rows, compiled in so a build with no `data/` still knows
+    /// what a maple leaf looks like. Same file and same precedence as
+    /// `tree_mesh::registry` (disk wins in a dev checkout).
+    const EMBEDDED_TREES: &str = include_str!("../../data/vegetation/trees.ron");
+
+    #[derive(serde::Deserialize)]
+    struct SilhouetteRegistry {
+        trees: Vec<LeafSilhouette>,
+    }
+
+    /// Leaf silhouettes, keyed by species id.
+    ///
+    /// Parsed out of the SAME rows `tree_mesh::registry` reads, through a
+    /// struct that names only the `leaf_*` fields (serde ignores the rest).
+    /// It is a separate parse rather than a field on `TreeDef` because leaf
+    /// silhouette is a BAKE-TIME property and nothing outside this module can
+    /// observe it: the runtime mesh, the card planner, the LAI fit and the
+    /// species picker all work identically whether a leaf is a triangle or a
+    /// maple. Keeping it out of `TreeDef` keeps a bake-only concern out of the
+    /// hot registry every spawn cell touches.
+    pub fn registry() -> &'static Vec<LeafSilhouette> {
+        static REG: std::sync::OnceLock<Vec<LeafSilhouette>> = std::sync::OnceLock::new();
+        REG.get_or_init(|| {
+            let parse = |t: &str| ron::from_str::<SilhouetteRegistry>(t).ok().map(|r| r.trees);
+            std::fs::read_to_string("data/vegetation/trees.ron")
+                .ok()
+                .and_then(|t| parse(&t))
+                .filter(|v| !v.is_empty())
+                .or_else(|| parse(EMBEDDED_TREES))
+                .unwrap_or_default()
+        })
+    }
+
+    /// This species' leaf, or the plain deltoid when it never declared one.
+    pub fn of(species_id: &str) -> LeafSilhouette {
+        registry()
+            .iter()
+            .find(|s| s.id == species_id)
+            .cloned()
+            .unwrap_or_else(|| LeafSilhouette::deltoid(species_id))
+    }
+
+    // ── Construction ─────────────────────────────────────────────────────
+    //
+    // Everything below builds in LEAF SPACE: y runs 0 at the petiole to 1 at
+    // the tip, x is across and spans exactly 1 (so the caller scales x by the
+    // leaf's real width and y by its real length). Shapes are symmetric about
+    // x = 0.
+
+    /// A leaf is assembled out of exactly two primitives.
+    #[derive(Clone, Debug)]
+    pub enum LeafPart {
+        /// A strip symmetric about a straight axis. A whole blade, a maple
+        /// lobe, a pinna rachis and a single leaflet are all this.
+        ///
+        /// Triangulated as a STRIP between its two margins, never as a fan
+        /// from a centroid: a lobed blade is concave, and a centroid fan would
+        /// bridge straight across the sinuses and fill in exactly the cuts
+        /// that make an oak an oak.
+        Ribbon {
+            at: [f32; 2],
+            /// Unit axis direction.
+            dir: [f32; 2],
+            len: f32,
+            /// `(t, halfwidth)` samples along the axis, t rising 0..1.
+            spine: Vec<[f32; 2]>,
+        },
+        /// A polygon that is STAR-SHAPED about its first point, so fanning
+        /// from that point is exact. Used for the connective centre of a
+        /// palmate leaf, whose boundary scallops in and out between lobes.
+        Poly(Vec<[f32; 2]>),
+    }
+
+    /// Marginal half-width profile of a simple blade at midrib fraction `t`.
+    ///
+    /// The envelope is `t^a (1-t)^b` normalised to peak at 1. That is not an
+    /// arbitrary curve: `a/(a+b)` IS the position of the widest point, which
+    /// is the number a field guide gives you (ovate, obovate, elliptic), so
+    /// the data states `leaf_widest_frac` and this solves the exponents for
+    /// it. `b` alone sets how drawn out the tip is.
+    fn blade_halfwidth(s: &LeafSilhouette, t: f32) -> f32 {
+        let peak = s.leaf_widest_frac.clamp(0.08, 0.92);
+        // 0.6 = blunt/rounded, 2.2 = a long acuminate drip tip.
+        let b = 0.6 + 1.6 * s.leaf_tip_frac.clamp(0.0, 1.0);
+        let a = b * peak / (1.0 - peak);
+        let norm = peak.powf(a) * (1.0 - peak).powf(b);
+        let t = t.clamp(0.0, 1.0);
+        let mut w = if norm > 1e-6 {
+            t.powf(a) * (1.0 - t).powf(b) / norm
+        } else {
+            0.0
+        };
+        // LOBES: a cut that is deepest in each sinus and absent on each lobe
+        // axis, phased so the blade starts NARROW at the petiole (a lobed leaf
+        // has a cuneate base, not a shoulder).
+        //
+        // The cut is a RAISED cosine to a power, not a plain cosine, and the
+        // power is the whole difference between an oak and a caltrop. A plain
+        // cosine spends equal arc on lobe and sinus, so the lobes come out as
+        // sharp symmetric spikes; an oak has BROAD ROUNDED lobes separated by
+        // NARROW sinuses, which is a cut concentrated near the sinus centre.
+        // Raising the cosine to 2.2 does exactly that concentration.
+        if s.leaf_lobes > 0 && s.leaf_sinus_frac > 0.0 {
+            let l = s.leaf_lobes as f32;
+            let cut = s.leaf_sinus_frac.clamp(0.0, 0.95);
+            let g = 0.5 + 0.5 * (std::f32::consts::TAU * l * t).cos();
+            w *= 1.0 - cut * g.powf(2.2);
+        }
+        // TEETH: a sawtooth whose slow side climbs toward the tip and whose
+        // fast side drops back, so every tooth POINTS AT THE TIP the way a
+        // serrate margin does. A second, finer, shallower saw at 3x the
+        // frequency is what "doubly serrate" means, and it is the margin
+        // signature of a birch.
+        if s.leaf_teeth > 0 {
+            let n = s.leaf_teeth as f32;
+            let saw = |f: f32| 1.0 - (f * t).fract();
+            w *= 1.0 - 0.13 * saw(n) - 0.05 * saw(3.0 * n);
+        }
+        w.max(0.0)
+    }
+
+    /// Samples along one margin. Enough to resolve the finest feature the
+    /// margin carries, and no more: every extra sample is two triangles on
+    /// every leaf of every sprig of the sprite, and a sprite carries hundreds
+    /// of leaves.
+    ///
+    /// Four per tooth and ten per lobe, both found by looking at the dumps
+    /// rather than reasoned: at three per tooth a serrate margin came out as a
+    /// visible staircase, and at six per lobe an oak's rounded lobes came out
+    /// as angular spikes.
+    fn margin_samples(s: &LeafSilhouette) -> usize {
+        let by_teeth = if s.leaf_teeth > 0 { s.leaf_teeth as usize * 4 } else { 0 };
+        let by_lobes = if s.leaf_lobes > 0 { s.leaf_lobes as usize * 10 } else { 0 };
+        by_teeth.max(by_lobes).clamp(14, 56)
+    }
+
+    fn spine_of(s: &LeafSilhouette, n: usize, scale: f32) -> Vec<[f32; 2]> {
+        (0..=n)
+            .map(|i| {
+                let t = i as f32 / n as f32;
+                [t, blade_halfwidth(s, t) * scale]
+            })
+            .collect()
+    }
+
+    /// The parts of one leaf, in leaf space and NOT yet normalised.
+    fn raw_parts(s: &LeafSilhouette) -> Vec<LeafPart> {
+        match s.family() {
+            LeafFamily::Deltoid => vec![LeafPart::Ribbon {
+                at: [0.0, 0.0],
+                dir: [0.0, 1.0],
+                len: 1.0,
+                // The exact pre-v0.1100 outline: straight sides from a
+                // full-width base to a point. Two samples, two triangles.
+                spine: vec![[0.0, 0.5], [1.0, 0.0]],
+            }],
+            LeafFamily::Ovate | LeafFamily::SerrateOvate | LeafFamily::PinnateLobed => {
+                let n = margin_samples(s);
+                vec![LeafPart::Ribbon {
+                    at: [0.0, 0.0],
+                    dir: [0.0, 1.0],
+                    len: 1.0,
+                    spine: spine_of(s, n, 0.5),
+                }]
+            }
+            LeafFamily::Palmate => palmate(s),
+            LeafFamily::Bipinnate => bipinnate(s),
+        }
+    }
+
+    /// How far the outermost lobes of a palmate leaf swing off the midrib.
+    ///
+    /// 80 degrees: an Acer palmatum leaf is very nearly orbicular, its basal
+    /// lobes reaching sideways almost to the horizontal. Past 90 they would
+    /// point BACK past the petiole, which a cordate maple base does do but
+    /// which would put leaf tissue behind the twig the leaf is attached to.
+    const PALMATE_SPREAD_DEG: f32 = 80.0;
+
+    /// Width of one maple lobe as a fraction of its own length. A palmatum
+    /// lobe is lanceolate: long, narrow, and drawn to a point.
+    const PALMATE_LOBE_WIDTH: f32 = 0.34;
+
+    /// How much shorter the outermost lobe pair is than the central lobe.
+    /// On a real palmatum the basal pair is roughly half the middle one, and
+    /// that gradient is most of what stops the leaf reading as a starfish.
+    const PALMATE_LOBE_FALLOFF: f32 = 0.45;
+
+    fn palmate(s: &LeafSilhouette) -> Vec<LeafPart> {
+        // Odd, so one lobe sits on the midrib. 5 and 7 are the usual counts
+        // on Acer palmatum; 9 and 11 exist on the dissected cultivars.
+        let l = (s.leaf_lobes.max(3) | 1).min(11) as i32;
+        let mid = (l - 1) / 2;
+        let step = if l > 1 {
+            2.0 * PALMATE_SPREAD_DEG / (l - 1) as f32
+        } else {
+            0.0
+        };
+        // Driven by TEETH alone, deliberately, and NOT by `margin_samples`: a
+        // maple lobe is a little blade, not a lobed one, so the leaf's lobe
+        // count says nothing about how finely its lobes' margins need
+        // sampling. Coupling the two would multiply a 7-lobed leaf's cost by
+        // its own lobe count for detail nothing can resolve - a momiji leaf
+        // bakes about 64 px tall, so a lobe is ~12 px across.
+        let n = (s.leaf_teeth as usize * 3).clamp(10, 20);
+        // Each lobe is a narrow blade in its own right, so it reuses the
+        // simple-blade profile - the same teeth, the same acuminate tip - with
+        // the lobe modulation turned OFF (a maple lobe is not itself lobed).
+        let lobe_profile = LeafSilhouette { leaf_lobes: 0, leaf_sinus_frac: 0.0, ..s.clone() };
+        let lobe_len = |i: i32| -> f32 {
+            let x = (i - mid).abs() as f32 / mid.max(1) as f32;
+            1.0 - PALMATE_LOBE_FALLOFF * x.powf(1.3)
+        };
+        let mut parts: Vec<LeafPart> = Vec::with_capacity(l as usize + 1);
+        let mut dirs: Vec<([f32; 2], f32)> = Vec::with_capacity(l as usize);
+        for i in 0..l {
+            let ang = ((i - mid) as f32 * step).to_radians();
+            let dir = [ang.sin(), ang.cos()];
+            let len = lobe_len(i);
+            dirs.push((dir, len));
+            parts.push(LeafPart::Ribbon {
+                at: [0.0, 0.0],
+                dir,
+                len,
+                spine: spine_of(&lobe_profile, n, 0.5 * PALMATE_LOBE_WIDTH * len),
+            });
+        }
+        // THE CONNECTIVE CENTRE. Lobes pinch to nothing at the petiole, so
+        // without this the leaf is a star of detached slivers. Its boundary
+        // runs out to `1 - sinus` along each lobe axis and dips between them,
+        // which is exactly what "incised two thirds of the way to the base"
+        // describes. Star-shaped about the petiole, so the fan is exact even
+        // though the boundary is not convex.
+        let keep = (1.0 - s.leaf_sinus_frac.clamp(0.0, 0.95)).max(0.05);
+        let mut centre = vec![[0.0f32, 0.0f32]];
+        for (i, (dir, len)) in dirs.iter().enumerate() {
+            let r = keep * len;
+            centre.push([dir[0] * r, dir[1] * r]);
+            if let Some((nd, nl)) = dirs.get(i + 1) {
+                // The sinus floor between two lobes sits lower than either.
+                let md = [0.5 * (dir[0] + nd[0]), 0.5 * (dir[1] + nd[1])];
+                let m = (md[0] * md[0] + md[1] * md[1]).sqrt().max(1e-6);
+                let r = 0.72 * keep * 0.5 * (len + nl);
+                centre.push([md[0] / m * r, md[1] / m * r]);
+            }
+        }
+        parts.push(LeafPart::Poly(centre));
+        parts
+    }
+
+    /// Angle a pinna leaves the rachis at, degrees off the rachis axis.
+    ///
+    /// 74, nearly square. The first dump used 62 - a 28 degree forward rake -
+    /// and the frond came out as a chevron rather than a feather, because
+    /// every pinna pair swept up and out together. A real mimosoid frond is
+    /// flat and comb-like, its pinnae only slightly ascending.
+    const PINNA_ANGLE_DEG: f32 = 74.0;
+
+    fn bipinnate(s: &LeafSilhouette) -> Vec<LeafPart> {
+        let pairs = s.leaf_lobes.clamp(2, 12) as usize;
+        let leaflets = s.leaf_leaflets.clamp(2, 16) as usize;
+        let mut parts: Vec<LeafPart> = Vec::new();
+        // The rachis itself. Sub-millimetre on a real frond and close to
+        // sub-texel in the sprite, but it is what makes a frond read as ONE
+        // leaf instead of a swarm of specks.
+        parts.push(LeafPart::Ribbon {
+            at: [0.0, 0.0],
+            dir: [0.0, 1.0],
+            len: 1.0,
+            spine: vec![[0.0, 0.010], [1.0, 0.004]],
+        });
+        let ang = PINNA_ANGLE_DEG.to_radians();
+        for j in 0..pairs {
+            // Pinnae start above the bare basal stretch of the rachis.
+            let t = 0.20 + 0.80 * (j as f32 + 0.5) / pairs as f32;
+            let plen = 0.42 * (1.0 - 0.12 * j as f32 / pairs as f32);
+            for sign in [-1.0f32, 1.0] {
+                let pdir = [sign * ang.sin(), ang.cos()];
+                let root = [0.0, t];
+                parts.push(LeafPart::Ribbon {
+                    at: root,
+                    dir: pdir,
+                    len: plen,
+                    spine: vec![[0.0, 0.006], [1.0, 0.002]],
+                });
+                // Leaflets: tiny oblongs in opposite pairs along the pinna,
+                // standing almost square to it. On a real Vachellia they are
+                // 1-5 mm, and their SEPARATION is the whole visual: a frond
+                // has sky between its specks, which is why an acacia crown
+                // reads as feathery rather than as a solid paddle.
+                let llen = plen / leaflets as f32 * 1.55;
+                let lperp = [-pdir[1], pdir[0]];
+                for k in 0..leaflets {
+                    let f = (k as f32 + 0.55) / leaflets as f32;
+                    let base = [root[0] + pdir[0] * f * plen, root[1] + pdir[1] * f * plen];
+                    for ls in [-1.0f32, 1.0] {
+                        // Rake each leaflet slightly toward the pinna tip.
+                        let d = [
+                            ls * lperp[0] + 0.32 * pdir[0],
+                            ls * lperp[1] + 0.32 * pdir[1],
+                        ];
+                        let m = (d[0] * d[0] + d[1] * d[1]).sqrt().max(1e-6);
+                        parts.push(LeafPart::Ribbon {
+                            at: base,
+                            dir: [d[0] / m, d[1] / m],
+                            len: llen,
+                            // Oblong with rounded ends: three samples is all a
+                            // 3 px speck can carry, and this primitive is
+                            // emitted 100+ times per frond.
+                            spine: vec![
+                                [0.0, llen * 0.16],
+                                [0.5, llen * 0.24],
+                                [1.0, llen * 0.05],
+                            ],
+                        });
+                    }
+                }
+            }
+        }
+        parts
+    }
+
+    fn ribbon_margins(
+        at: [f32; 2],
+        dir: [f32; 2],
+        len: f32,
+        spine: &[[f32; 2]],
+    ) -> (Vec<[f32; 2]>, Vec<[f32; 2]>) {
+        let perp = [-dir[1], dir[0]];
+        let mut lft = Vec::with_capacity(spine.len());
+        let mut rgt = Vec::with_capacity(spine.len());
+        for sp in spine {
+            let (t, w) = (sp[0], sp[1]);
+            let axis = [at[0] + dir[0] * t * len, at[1] + dir[1] * t * len];
+            lft.push([axis[0] + perp[0] * w, axis[1] + perp[1] * w]);
+            rgt.push([axis[0] - perp[0] * w, axis[1] - perp[1] * w]);
+        }
+        (lft, rgt)
+    }
+
+    /// Every triangle of one leaf, in leaf space, x spanning exactly 1 and y
+    /// running 0 at the petiole to 1 at the tip.
+    pub fn triangles(s: &LeafSilhouette) -> Vec<[[f32; 2]; 3]> {
+        let parts = normalized(s);
+        let mut tris = Vec::new();
+        for p in &parts {
+            match p {
+                LeafPart::Ribbon { at, dir, len, spine } => {
+                    let (l, r) = ribbon_margins(*at, *dir, *len, spine);
+                    for i in 0..spine.len().saturating_sub(1) {
+                        tris.push([l[i], r[i], r[i + 1]]);
+                        tris.push([l[i], r[i + 1], l[i + 1]]);
+                    }
+                }
+                LeafPart::Poly(pts) => {
+                    for i in 1..pts.len().saturating_sub(1) {
+                        tris.push([pts[0], pts[i], pts[i + 1]]);
+                    }
+                }
+            }
+        }
+        tris.retain(|t| {
+            let a = (t[1][0] - t[0][0]) * (t[2][1] - t[0][1])
+                - (t[2][0] - t[0][0]) * (t[1][1] - t[0][1]);
+            a.abs() > 1e-9
+        });
+        tris
+    }
+
+    /// The closed boundary of every part, for drawing and for tests. Same
+    /// source of truth as `triangles`, so the two cannot drift.
+    pub fn outlines(s: &LeafSilhouette) -> Vec<Vec<[f32; 2]>> {
+        normalized(s)
+            .iter()
+            .map(|p| match p {
+                LeafPart::Ribbon { at, dir, len, spine } => {
+                    let (l, mut r) = ribbon_margins(*at, *dir, *len, spine);
+                    r.reverse();
+                    let mut o = l;
+                    o.extend(r);
+                    o
+                }
+                LeafPart::Poly(pts) => pts.clone(),
+            })
+            .collect()
+    }
+
+    /// Parts scaled so y reaches exactly 1 at the tip and x spans exactly 1.
+    ///
+    /// The leaf's real width enters later, at `emit_leaf`, as
+    /// `length * leaf_aspect` - so the ASPECT is a stated botanical fact and
+    /// the outline generator never has to know about it.
+    fn normalized(s: &LeafSilhouette) -> Vec<LeafPart> {
+        let mut parts = raw_parts(s);
+        let (mut ymax, mut xabs) = (1e-6f32, 1e-6f32);
+        let mut visit = |p: [f32; 2], ymax: &mut f32, xabs: &mut f32| {
+            *ymax = ymax.max(p[1]);
+            *xabs = xabs.max(p[0].abs());
+        };
+        for p in &parts {
+            match p {
+                LeafPart::Ribbon { at, dir, len, spine } => {
+                    let (l, r) = ribbon_margins(*at, *dir, *len, spine);
+                    for q in l.iter().chain(r.iter()) {
+                        visit(*q, &mut ymax, &mut xabs);
+                    }
+                }
+                LeafPart::Poly(pts) => {
+                    for q in pts {
+                        visit(*q, &mut ymax, &mut xabs);
+                    }
+                }
+            }
+        }
+        let (sy, sx) = (1.0 / ymax, 0.5 / xabs);
+        for p in parts.iter_mut() {
+            match p {
+                LeafPart::Ribbon { at, dir, len, spine } => {
+                    // Scaling x and y by different factors is an anisotropic
+                    // map, so the axis direction and every half-width have to
+                    // be re-derived rather than scaled in place. Convert the
+                    // ribbon to its endpoints, map both, and rebuild.
+                    let end = [at[0] + dir[0] * *len, at[1] + dir[1] * *len];
+                    let a = [at[0] * sx, at[1] * sy];
+                    let e = [end[0] * sx, end[1] * sy];
+                    let d = [e[0] - a[0], e[1] - a[1]];
+                    let m = (d[0] * d[0] + d[1] * d[1]).sqrt().max(1e-9);
+                    // Half-widths are measured across the axis; under the same
+                    // anisotropic map that scale depends on the axis angle.
+                    // Exact for the two cases that matter (an axis along y
+                    // scales widths by sx, an axis along x by sy) and a smooth
+                    // interpolation between.
+                    let ux = (d[0] / m).abs();
+                    let ws = sx * (1.0 - ux) + sy * ux;
+                    *at = a;
+                    *dir = [d[0] / m, d[1] / m];
+                    *len = m;
+                    for q in spine.iter_mut() {
+                        q[1] *= ws;
+                    }
+                }
+                LeafPart::Poly(pts) => {
+                    for q in pts.iter_mut() {
+                        q[0] *= sx;
+                        q[1] *= sy;
+                    }
+                }
+            }
+        }
+        parts
+    }
+
+    // ── Stamping the silhouette into a sprite mesh ───────────────────────
+
+    /// Rebuild a cluster-sprite LEAF mesh with this species' real leaf outline
+    /// in place of every deltoid blade.
+    ///
+    /// `tree_mesh::cluster_sprite_geometry`'s leaf arm emits nothing but
+    /// `sprig`s of `blade`s, and a blade is one `tri2` - front face `(l, tip,
+    /// r)` then back face `(l, r, tip)`, six vertices, no sharing. So each
+    /// six-vertex group recovers a leaf's exact frame: base, midrib direction,
+    /// length, width axis, and the per-leaf size jitter and midrib roll the
+    /// generator already applied. Reshaping in that recovered frame keeps the
+    /// SCATTER (which is measured, tuned and gated upstream) byte for byte and
+    /// changes only the outline of what sits at each position.
+    ///
+    /// Returns None, and the caller keeps the original mesh, if the input is
+    /// not that exact shape - so a future change to the leaf arm degrades to
+    /// the old triangles instead of silently corrupting the sprite.
+    pub fn reshape_blades(
+        src: &PlantMeshBuilder,
+        s: &LeafSilhouette,
+        color: [f32; 3],
+    ) -> Option<PlantMeshBuilder> {
+        if s.family() == LeafFamily::Deltoid {
+            return None;
+        }
+        let v = &src.vertices;
+        if v.is_empty() || v.len() % 6 != 0 {
+            return None;
+        }
+        let tris = triangles(s);
+        if tris.is_empty() {
+            return None;
+        }
+        let mut out = PlantMeshBuilder::new();
+        out.set_organ(Organ::Leaf);
+        for g in v.chunks_exact(6) {
+            let (p0, p1, p2) = (g[0].position, g[1].position, g[2].position);
+            // The tri2 signature: the back face repeats a, then c, then b.
+            if g[3].position != p0 || g[4].position != p2 || g[5].position != p1 {
+                return None;
+            }
+            let base = [
+                0.5 * (p0[0] + p2[0]),
+                0.5 * (p0[1] + p2[1]),
+                0.5 * (p0[2] + p2[2]),
+            ];
+            let axis = [p1[0] - base[0], p1[1] - base[1], p1[2] - base[2]];
+            let len = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+            let cross = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+            let wid_in = (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2]).sqrt();
+            if len < 1e-6 || wid_in < 1e-9 {
+                return None;
+            }
+            let dir = [axis[0] / len, axis[1] / len, axis[2] / len];
+            // Re-orthogonalise the width axis against the midrib. It already
+            // is by construction; doing it anyway means a future blade that
+            // skews its base cannot shear the outline.
+            let mut side = [cross[0] / wid_in, cross[1] / wid_in, cross[2] / wid_in];
+            let d = side[0] * dir[0] + side[1] * dir[1] + side[2] * dir[2];
+            for i in 0..3 {
+                side[i] -= dir[i] * d;
+            }
+            let sm = (side[0] * side[0] + side[1] * side[1] + side[2] * side[2]).sqrt();
+            if sm < 1e-6 {
+                return None;
+            }
+            for i in 0..3 {
+                side[i] /= sm;
+            }
+            // A stated aspect is a measurement of the plant and overrides the
+            // generic width the mesh builder gives every broadleaf; 0 keeps
+            // whatever the blade already had.
+            let wid = if s.leaf_aspect > 0.0 { len * s.leaf_aspect } else { wid_in };
+            let map = |p: [f32; 2]| -> [f32; 3] {
+                [
+                    base[0] + dir[0] * p[1] * len + side[0] * p[0] * wid,
+                    base[1] + dir[1] * p[1] * len + side[1] * p[0] * wid,
+                    base[2] + dir[2] * p[1] * len + side[2] * p[0] * wid,
+                ]
+            };
+            for t in &tris {
+                out.tri2(map(t[0]), map(t[1]), map(t[2]), color);
+            }
+        }
+        out.set_organ(Organ::Stem);
+        Some(out)
+    }
+
+    /// The cluster-sprite geometry a species should actually be baked from:
+    /// `tree_mesh`'s scatter, wearing this species' leaf.
+    ///
+    /// One place, so the GPU baker and the CPU twin below can never disagree
+    /// about what was baked.
+    pub fn sprite_geometry(
+        def: &tree_mesh::TreeDef,
+        layer: ClusterLayer,
+        height_m: f32,
+    ) -> Option<PlantMeshBuilder> {
+        let mesh = tree_mesh::cluster_sprite_geometry(def, layer, height_m)?;
+        if layer != ClusterLayer::Leaf {
+            return Some(mesh);
+        }
+        let s = of(&def.id);
+        match reshape_blades(&mesh, &s, def.leaf_color) {
+            Some(m) => Some(m),
+            None => {
+                if s.family() != LeafFamily::Deltoid {
+                    log::warn!(
+                        "[Leaf] {}: sprite mesh is not a plain run of blades, keeping the deltoid \
+                         outline (the {} silhouette is not being baked)",
+                        def.id,
+                        s.family().key()
+                    );
+                }
+                Some(mesh)
+            }
+        }
+    }
+}
+
+// ── The CPU twin of the cluster bake (v0.1100 dev aid) ───────────────────
+//
+// `bake_cluster_sprites` needs a GPU, an adapter, a swapchain format and a
+// booted app. That is the right way to BAKE, and the wrong way to ANSWER "does
+// a maple leaf come out looking like a maple leaf" - a question that has to be
+// answerable from a test, on a build machine, without booting anything and
+// without taking the operator's one GPU (see the ONE GPU rule in CLAUDE.md).
+//
+// So this is the same pass on the CPU: the same orthographic framing
+// `bake_parts_into` computes, the same packed-colour decode the bake shader
+// does, the same 4x supersample, the same `box_downsample_rgba`, the same
+// `alpha_coverage`. What comes out is what the GPU would have produced, minus
+// the rasteriser's own fill-rule tie-breaks - close enough that the coverage it
+// measures is the number a species' `coverage` field should state, which is
+// exactly what it was used for when this arc's data was written.
+
+/// One species' baked sprite, measured on the CPU.
+pub struct CpuSprite {
+    pub species: String,
+    pub layer: ClusterLayer,
+    /// RGBA8, `sprite_px` square, sRGB-encoded exactly like the bake target.
+    pub rgba: Vec<u8>,
+    pub sprite_px: u32,
+    /// Fraction of texels above `CLUSTER_ALPHA_CUTOFF`. THE number that
+    /// belongs in the species' `coverage` field.
+    pub coverage: f32,
+    pub triangles: usize,
+}
+
+/// Rasterise a packed-colour plant mesh orthographically, side on, framed
+/// exactly the way `bake_parts_into` frames it.
+///
+/// Kept deliberately in lockstep with that function: the frame is the joint
+/// AABB's widest horizontal extent against its height, squared off with the
+/// same 5% margin. If the two ever disagree the CPU twin stops predicting the
+/// bake, which is its only job.
+pub fn rasterize_packed_ortho(vertices: &[Vertex], indices: &[u32], px: u32) -> Vec<u8> {
+    let mut out = vec![0u8; (px * px * 4) as usize];
+    if vertices.is_empty() || indices.len() < 3 || px == 0 {
+        return out;
+    }
+    let mut mn = [f32::MAX; 3];
+    let mut mx = [f32::MIN; 3];
+    for v in vertices {
+        for i in 0..3 {
+            mn[i] = mn[i].min(v.position[i]);
+            mx[i] = mx[i].max(v.position[i]);
+        }
+    }
+    let w_m = (mx[0] - mn[0]).max(mx[2] - mn[2]).max(1e-3);
+    let h_m = (mx[1] - mn[1]).max(1e-3);
+    let half = 0.5 * w_m.max(h_m) * 1.05;
+    let cx = 0.5 * (mn[0] + mx[0]);
+    let cy = 0.5 * (mn[1] + mx[1]);
+    let fpx = px as f32;
+    // Eye is at +Z looking down -Z, so a LARGER z is nearer and wins.
+    let mut depth = vec![f32::MIN; (px * px) as usize];
+    for f in indices.chunks_exact(3) {
+        let v: [&Vertex; 3] = [
+            &vertices[f[0] as usize],
+            &vertices[f[1] as usize],
+            &vertices[f[2] as usize],
+        ];
+        // Same decode as the bake shader's packed branch and the megashader's
+        // type-20 branch: r and g are 8-bit integers in uv.x (above whatever
+        // organ bits ride there), b is a float in uv.y, all LINEAR.
+        let packed = v[0].uv[0].max(0.0).round() as u32;
+        let lin = [
+            ((packed >> 8) & 255) as f32 / 255.0,
+            (packed & 255) as f32 / 255.0,
+            v[0].uv[1].clamp(0.0, 1.0),
+        ];
+        // The bake target is an sRGB format, so the hardware encodes on write.
+        let rgb = [
+            linear_to_srgb(lin[0]),
+            linear_to_srgb(lin[1]),
+            linear_to_srgb(lin[2]),
+        ];
+        let sp: Vec<[f32; 3]> = v
+            .iter()
+            .map(|q| {
+                [
+                    ((q.position[0] - cx) / half * 0.5 + 0.5) * fpx,
+                    (0.5 - (q.position[1] - cy) / half * 0.5) * fpx,
+                    q.position[2],
+                ]
+            })
+            .collect();
+        let x0 = sp.iter().fold(f32::MAX, |a, p| a.min(p[0])).floor().max(0.0) as u32;
+        let x1 = (sp.iter().fold(f32::MIN, |a, p| a.max(p[0])).ceil() + 1.0).clamp(0.0, fpx) as u32;
+        let y0 = sp.iter().fold(f32::MAX, |a, p| a.min(p[1])).floor().max(0.0) as u32;
+        let y1 = (sp.iter().fold(f32::MIN, |a, p| a.max(p[1])).ceil() + 1.0).clamp(0.0, fpx) as u32;
+        let area = (sp[1][0] - sp[0][0]) * (sp[2][1] - sp[0][1])
+            - (sp[2][0] - sp[0][0]) * (sp[1][1] - sp[0][1]);
+        if area.abs() < 1e-9 {
+            continue;
+        }
+        let inv = 1.0 / area;
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+                let e = |a: &[f32; 3], b: &[f32; 3]| {
+                    (b[0] - a[0]) * (fy - a[1]) - (fx - a[0]) * (b[1] - a[1])
+                };
+                let (w0, w1, w2) = (
+                    e(&sp[1], &sp[2]) * inv,
+                    e(&sp[2], &sp[0]) * inv,
+                    e(&sp[0], &sp[1]) * inv,
+                );
+                // The bake pipeline culls nothing (foliage is double sided),
+                // so accept either winding.
+                if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                    continue;
+                }
+                let z = w0 * sp[0][2] + w1 * sp[1][2] + w2 * sp[2][2];
+                let di = (y * px + x) as usize;
+                if z <= depth[di] {
+                    continue;
+                }
+                depth[di] = z;
+                let o = di * 4;
+                out[o] = rgb[0];
+                out[o + 1] = rgb[1];
+                out[o + 2] = rgb[2];
+                out[o + 3] = 255;
+            }
+        }
+    }
+    out
+}
+
+/// Bake one species' cluster sprite on the CPU and measure its coverage.
+///
+/// `bake_px` is the supersampled render size and must be a whole multiple of
+/// `sprite_px`, exactly as `CLUSTER_BAKE_PX` is of `CLUSTER_SPRITE_PX`.
+pub fn cpu_cluster_sprite(
+    def: &tree_mesh::TreeDef,
+    layer: ClusterLayer,
+    bake_px: u32,
+    sprite_px: u32,
+) -> Option<CpuSprite> {
+    let mesh = leaf_shape::sprite_geometry(def, layer, def.height_m)?;
+    if mesh.indices.is_empty() {
+        return None;
+    }
+    let hi = rasterize_packed_ortho(&mesh.vertices, &mesh.indices, bake_px);
+    let base = box_downsample_rgba(&hi, bake_px, bake_px, (bake_px / sprite_px).max(1), true);
+    let coverage = alpha_coverage(&base, CLUSTER_ALPHA_CUTOFF);
+    Some(CpuSprite {
+        species: def.id.clone(),
+        layer,
+        rgba: base,
+        sprite_px,
+        coverage,
+        triangles: mesh.indices.len() / 3,
+    })
+}
+
+/// Write one leaf, big, as its own PNG. The most direct answer there is to
+/// "what does this species' leaf look like": no scatter, no overlap, no
+/// minification, just the outline the data asked for.
+pub fn dump_leaf_silhouettes(dir: &std::path::Path, px: u32) -> Vec<(String, String, usize)> {
+    let _ = std::fs::create_dir_all(dir);
+    let mut out = Vec::new();
+    for s in leaf_shape::registry() {
+        let tris = leaf_shape::triangles(s);
+        if tris.is_empty() {
+            continue;
+        }
+        let aspect = if s.leaf_aspect > 0.0 { s.leaf_aspect } else { 0.70 };
+        // OPAQUE black, not a transparent clear. A transparent PNG is
+        // composited against whatever the viewer feels like (white, in every
+        // image tool tried), and a white leaf on a white page is a blank page
+        // - which is exactly how the first dump of this came out.
+        let mut img: Vec<u8> = std::iter::repeat([0u8, 0, 0, 255])
+            .take((px * px) as usize)
+            .flatten()
+            .collect();
+        // Fit the leaf in the square with a small margin, petiole at the
+        // bottom, tip at the top - the way a field guide prints one.
+        let m = 0.06 * px as f32;
+        let span = px as f32 - 2.0 * m;
+        let scale = span.min(span / aspect.max(1e-3));
+        for t in &tris {
+            let p: Vec<[f32; 2]> = t
+                .iter()
+                .map(|q| {
+                    [
+                        px as f32 * 0.5 + q[0] * aspect * scale,
+                        px as f32 - m - q[1] * scale,
+                    ]
+                })
+                .collect();
+            fill_tri_mask(&mut img, px, &p);
+        }
+        let path = dir.join(format!("leaf_{}_{}.png", s.id, s.family().key()));
+        if let Some(i) = image::RgbaImage::from_raw(px, px, img) {
+            let _ = i.save(&path);
+        }
+        out.push((s.id.clone(), s.family().key().to_string(), tris.len()));
+    }
+    out
+}
+
+/// Opaque white, so a silhouette is unmistakable against the black clear.
+fn fill_tri_mask(img: &mut [u8], px: u32, p: &[[f32; 2]]) {
+    let area = (p[1][0] - p[0][0]) * (p[2][1] - p[0][1]) - (p[2][0] - p[0][0]) * (p[1][1] - p[0][1]);
+    if area.abs() < 1e-9 {
+        return;
+    }
+    let inv = 1.0 / area;
+    let x0 = p.iter().fold(f32::MAX, |a, q| a.min(q[0])).floor().max(0.0) as u32;
+    let x1 = (p.iter().fold(f32::MIN, |a, q| a.max(q[0])).ceil() + 1.0).clamp(0.0, px as f32) as u32;
+    let y0 = p.iter().fold(f32::MAX, |a, q| a.min(q[1])).floor().max(0.0) as u32;
+    let y1 = (p.iter().fold(f32::MIN, |a, q| a.max(q[1])).ceil() + 1.0).clamp(0.0, px as f32) as u32;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            let e = |a: &[f32; 2], b: &[f32; 2]| {
+                (b[0] - a[0]) * (fy - a[1]) - (fx - a[0]) * (b[1] - a[1])
+            };
+            let (w0, w1, w2) = (
+                e(&p[1], &p[2]) * inv,
+                e(&p[2], &p[0]) * inv,
+                e(&p[0], &p[1]) * inv,
+            );
+            if w0 < 0.0 || w1 < 0.0 || w2 < 0.0 {
+                continue;
+            }
+            let o = ((y * px + x) * 4) as usize;
+            img[o] = 255;
+            img[o + 1] = 255;
+            img[o + 2] = 255;
+            img[o + 3] = 255;
+        }
+    }
+}
+
+/// CPU-bake every clustered species' sprite and write two PNGs each: the true
+/// RGBA sprite, and an opaque black-and-white ALPHA sheet, because a
+/// transparent PNG of dark green foliage is close to unreadable and the
+/// silhouette is the thing being judged.
+///
+/// Returns `(species, layer, coverage, triangles)` per sprite - the coverage
+/// column is what the species' `coverage` data field should say.
+pub fn dump_cluster_sprites_cpu(
+    dir: &std::path::Path,
+    bake_px: u32,
+    sprite_px: u32,
+) -> Vec<(String, &'static str, f32, usize)> {
+    let _ = std::fs::create_dir_all(dir);
+    let mut rows = Vec::new();
+    for t in tree_mesh::registry().trees.iter() {
+        if t.clusters.is_none() {
+            continue;
+        }
+        for layer in ClusterLayer::ALL {
+            if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
+                continue;
+            }
+            let Some(spr) = cpu_cluster_sprite(t, layer, bake_px, sprite_px) else {
+                continue;
+            };
+            let stem = format!("cluster_{}_{}", t.id, layer.key());
+            if let Some(i) =
+                image::RgbaImage::from_raw(sprite_px, sprite_px, spr.rgba.clone())
+            {
+                let _ = i.save(dir.join(format!("{stem}.png")));
+            }
+            let mask: Vec<u8> = spr
+                .rgba
+                .chunks_exact(4)
+                .flat_map(|p| {
+                    let a = if p[3] as f32 / 255.0 >= CLUSTER_ALPHA_CUTOFF { 255u8 } else { 0 };
+                    [a, a, a, 255]
+                })
+                .collect();
+            if let Some(i) = image::RgbaImage::from_raw(sprite_px, sprite_px, mask) {
+                let _ = i.save(dir.join(format!("{stem}_alpha.png")));
+            }
+            rows.push((t.id.clone(), layer.key(), spr.coverage, spr.triangles));
+        }
+    }
+    rows
 }
 
 // ── Cluster mip chain (pure CPU, so the gate runs in CI) ─────────────────
@@ -1618,6 +2628,333 @@ mod tests {
             "the type-21 cluster decode in 90-fragment-main.wgsl does not contain `{want}` - \
              it must match tree_mesh::decode_card_uv and the bake shader exactly"
         );
+    }
+
+    // ── Per-species leaf silhouettes (v0.1100) ───────────────────────────
+
+    /// Every species that declares a leaf must produce a leaf: closed parts,
+    /// real area, the stated aspect, and normalised into the unit leaf box the
+    /// emitter maps from. A silhouette that fails any of these would still
+    /// bake something - just something wrong - so the gate is arithmetic
+    /// rather than a look at the PNG.
+    #[test]
+    fn every_declared_leaf_builds_a_normalised_silhouette() {
+        let reg = leaf_shape::registry();
+        assert!(
+            reg.len() >= 8,
+            "the silhouette side-parse found {} rows; it reads the same trees.ron the species \
+             registry does, so this means the parse broke",
+            reg.len()
+        );
+        let mut declared = 0;
+        for s in reg {
+            let tris = leaf_shape::triangles(s);
+            assert!(!tris.is_empty(), "{}: no leaf triangles at all", s.id);
+            if s.family() != leaf_shape::LeafFamily::Deltoid {
+                declared += 1;
+            }
+            let (mut ymin, mut ymax, mut xabs, mut area) = (f32::MAX, f32::MIN, 0.0f32, 0.0f32);
+            for t in &tris {
+                for q in t {
+                    ymin = ymin.min(q[1]);
+                    ymax = ymax.max(q[1]);
+                    xabs = xabs.max(q[0].abs());
+                }
+                area += 0.5
+                    * ((t[1][0] - t[0][0]) * (t[2][1] - t[0][1])
+                        - (t[2][0] - t[0][0]) * (t[1][1] - t[0][1]))
+                        .abs();
+            }
+            eprintln!(
+                "[leaf] {:>7} {:>14}: {:>5} tris, y {ymin:.2}..{ymax:.2}, |x| {xabs:.3}, \
+                 area {area:.3} of the unit box",
+                s.id,
+                s.family().key(),
+                tris.len()
+            );
+            assert!(
+                (ymax - 1.0).abs() < 1e-3,
+                "{}: tip reaches {ymax:.3}, not 1.0 - the normalisation is wrong and the leaf \
+                 will bake at the wrong length",
+                s.id
+            );
+            // 1% rather than exact: the normalisation maps x and y by
+            // different factors, and under an anisotropic map a ribbon's
+            // half-width scale depends on its axis angle. That is solved
+            // exactly for an axis along x or y and interpolated between, so a
+            // frond full of obliquely set leaflets (acacia) lands a fraction
+            // under. Visually irrelevant, arithmetically worth stating.
+            assert!(
+                (xabs - 0.5).abs() < 0.01,
+                "{}: half-width is {xabs:.3}, not 0.5 - x must span 1 so the emitter can scale it \
+                 by the leaf's real width",
+                s.id
+            );
+            // A little tissue BEHIND the petiole is correct, not a bug: a
+            // palmate leaf has a cordate base and its basal lobes reach out
+            // almost horizontally, so their lower margins dip below the
+            // attachment point (momiji measures -0.06). What must never
+            // happen is a leaf hanging backwards down its own shoot.
+            assert!(
+                ymin >= -0.15,
+                "{}: leaf tissue at y {ymin:.3}, a sixth of a leaf length behind its own petiole",
+                s.id
+            );
+            // Summed triangle area OVERCOUNTS a palmate leaf (seven lobes all
+            // rooted at the petiole overlap near it), so this bound is
+            // deliberately loose and the real shape comparison below measures
+            // the rasterised UNION instead.
+            assert!(
+                (0.10..1.20).contains(&area),
+                "{}: the outline covers {area:.3} of its bounding box - outside anything a leaf \
+                 shape reaches",
+                s.id
+            );
+        }
+        assert!(
+            declared >= 4,
+            "only {declared} species declare a leaf shape; the whole point of this arc is that \
+             the broadleaves stopped being triangles"
+        );
+    }
+
+    /// The families must be DISTINGUISHABLE, which is the actual requirement -
+    /// a palmate maple and a lobed oak that measure the same are two names for
+    /// one blob. Checked through the numbers a silhouette is made of: how much
+    /// of the bounding box is filled, and how many times the margin turns
+    /// (teeth and lobes both show up as margin reversals).
+    #[test]
+    fn the_leaf_families_are_actually_different_shapes() {
+        // The UNION of the outline, measured by rasterising it, NOT the sum of
+        // its triangle areas. On a palmate leaf those differ by a third: seven
+        // lobes and a connective centre all overlap around the petiole, and a
+        // summed area counts that overlap several times over - which is
+        // precisely the reading that would hide a leaf whose sinuses had been
+        // webbed shut. What the eye sees is the union.
+        let fill = |s: &leaf_shape::LeafSilhouette| -> f32 {
+            const PX: u32 = 256;
+            let mut img = vec![0u8; (PX * PX * 4) as usize];
+            for t in &leaf_shape::triangles(s) {
+                let p: Vec<[f32; 2]> = t
+                    .iter()
+                    .map(|q| [(q[0] + 0.5) * PX as f32, (1.0 - q[1]) * PX as f32])
+                    .collect();
+                fill_tri_mask(&mut img, PX, &p);
+            }
+            img.chunks_exact(4).filter(|p| p[3] > 0).count() as f32 / (PX * PX) as f32
+        };
+        let get = |id: &str| leaf_shape::of(id);
+        let (momiji, oak, birch, sakura) =
+            (get("momiji"), get("oak"), get("birch"), get("sakura"));
+        assert_eq!(momiji.family(), leaf_shape::LeafFamily::Palmate);
+        assert_eq!(oak.family(), leaf_shape::LeafFamily::PinnateLobed);
+        assert_eq!(birch.family(), leaf_shape::LeafFamily::SerrateOvate);
+        // A palmate leaf is CUT, so it fills far less of its box than a simple
+        // blade. If this inverts, the sinuses have been webbed over - which is
+        // exactly what a centroid fan would do to a concave outline.
+        let (fm, fo, fb) = (fill(&momiji), fill(&oak), fill(&birch));
+        eprintln!("[family] box fill: momiji {fm:.3}, oak {fo:.3}, birch {fb:.3}");
+        assert!(
+            fm + 0.03 < fo,
+            "the palmate maple fills {fm:.3} against the lobed oak's {fo:.3} - a 7-lobed leaf \
+             incised two thirds of the way back cannot be as solid as an oak paddle"
+        );
+        // Margin turns: count sign changes in the outline's x as it walks. A
+        // toothed or lobed margin reverses many times; a plain blade twice.
+        let turns = |s: &leaf_shape::LeafSilhouette| -> usize {
+            let outs = leaf_shape::outlines(s);
+            let o = outs
+                .iter()
+                .max_by_key(|o| o.len())
+                .expect("every leaf has at least one part");
+            let mut n = 0usize;
+            let mut prev = 0.0f32;
+            for w in o.windows(2) {
+                let d = w[1][0] - w[0][0];
+                if d.abs() > 1e-5 {
+                    if prev != 0.0 && d.signum() != prev.signum() {
+                        n += 1;
+                    }
+                    prev = d;
+                }
+            }
+            n
+        };
+        let (tb, ts) = (turns(&birch), turns(&sakura));
+        eprintln!("[family] margin turns: birch {tb}, sakura {ts}");
+        assert!(
+            tb >= 8,
+            "the birch margin reverses only {tb} times - a doubly serrate margin is this \
+             species' whole close-range signature"
+        );
+        assert!(ts >= 6, "the cherry margin reverses only {ts} times, so it is not serrate");
+    }
+
+    /// The reshape must keep the SCATTER and change only the outline. That is
+    /// the property the whole approach rests on: the sprig placement, the card
+    /// fit and the LAI planner upstream are all measured against a scatter
+    /// that must not move.
+    #[test]
+    fn reshaping_a_sprite_keeps_every_leaf_where_the_generator_put_it() {
+        let reg = tree_mesh::registry();
+        let t = reg
+            .trees
+            .iter()
+            .find(|t| t.id == "momiji")
+            .expect("momiji is in the shipped registry");
+        let src = tree_mesh::cluster_sprite_geometry(t, ClusterLayer::Leaf, t.height_m)
+            .expect("momiji carries a cluster block");
+        let s = leaf_shape::of("momiji");
+        let out = leaf_shape::reshape_blades(&src, &s, t.leaf_color)
+            .expect("the leaf arm emits nothing but blades, so the reshape must apply");
+        let leaves = src.vertices.len() / 6;
+        assert!(leaves > 50, "only {leaves} blades in the momiji sprite");
+        // Every original blade's BASE must still be occupied. Measured as the
+        // nearest reshaped vertex, which for a leaf rooted at that base is
+        // zero to within the outline's own petiole rounding.
+        let mut worst = 0.0f32;
+        for g in src.vertices.chunks_exact(6) {
+            let (p0, p2) = (g[0].position, g[2].position);
+            let base = [
+                0.5 * (p0[0] + p2[0]),
+                0.5 * (p0[1] + p2[1]),
+                0.5 * (p0[2] + p2[2]),
+            ];
+            let d = out
+                .vertices
+                .iter()
+                .map(|v| {
+                    let q = v.position;
+                    ((q[0] - base[0]).powi(2) + (q[1] - base[1]).powi(2) + (q[2] - base[2]).powi(2))
+                        .sqrt()
+                })
+                .fold(f32::MAX, f32::min);
+            worst = worst.max(d);
+        }
+        eprintln!(
+            "[reshape] momiji: {leaves} blades -> {} tris, worst base drift {worst:.5} m",
+            out.indices.len() / 3
+        );
+        assert!(
+            worst < 1e-4,
+            "a leaf base moved {worst:.4} m under the reshape - the scatter the LAI fit was \
+             measured against has shifted"
+        );
+        // And the organ tag must survive, or the shader lights the whole
+        // canopy as BARK (the v0.1081 black-canopy bug).
+        const ORGAN_BIT_LEAF: u32 = 524_288;
+        assert!(
+            out.vertices
+                .iter()
+                .all(|v| (v.uv[0].max(0.0).round() as u32) & ORGAN_BIT_LEAF != 0),
+            "reshaped foliage lost its Organ::Leaf tag"
+        );
+    }
+
+    /// A mesh that is not a plain run of `tri2` blades must be REFUSED, not
+    /// reinterpreted. The blossom sprite is the live example: it carries tubes
+    /// and five-petalled flowers, and reading it six vertices at a time would
+    /// turn a cherry blossom into confetti.
+    #[test]
+    fn the_reshape_refuses_a_mesh_that_is_not_blades() {
+        let reg = tree_mesh::registry();
+        let t = reg.trees.iter().find(|t| t.id == "sakura").expect("sakura ships");
+        let blossom = tree_mesh::cluster_sprite_geometry(t, ClusterLayer::Blossom, t.height_m)
+            .expect("sakura carries a blossom layer");
+        let s = leaf_shape::of("sakura");
+        assert!(
+            leaf_shape::reshape_blades(&blossom, &s, t.leaf_color).is_none(),
+            "the reshape accepted the blossom mesh, which is tubes and petals - it must only \
+             ever rewrite a pure run of blades"
+        );
+        // And the whole-sprite entry point must therefore hand the blossom
+        // layer straight through, untouched.
+        let through = leaf_shape::sprite_geometry(t, ClusterLayer::Blossom, t.height_m)
+            .expect("blossom geometry");
+        assert_eq!(
+            through.indices.len(),
+            blossom.indices.len(),
+            "the blossom sprite was rewritten on its way to the baker"
+        );
+    }
+
+    /// THE SILHOUETTE GATE, and the one that answers the operator's actual
+    /// complaint: CPU-bake each clustered species' sprite and check that what
+    /// comes out covers what its `coverage` field promised.
+    ///
+    /// `coverage` is not decoration - it is the number the LAI planner spends
+    /// to turn card area into leaf area, so a species whose sprite bakes
+    /// thinner than it claims silently misses its target canopy density. The
+    /// GPU baker logs this mismatch at world entry; this catches it in CI,
+    /// before a build exists.
+    ///
+    /// Set `HUMANITY_DUMP_LEAF_PNG=1` to also write the sprites and the
+    /// individual leaves as PNGs under `debug/leaf_shapes/`.
+    #[test]
+    fn cpu_baked_sprites_cover_what_the_data_promised() {
+        // 512 -> 128 rather than the production 2048 -> 512: coverage is a
+        // geometric area fraction and barely moves with resolution (measured
+        // within 0.02 across that whole range), while the rasteriser's cost is
+        // quadratic in it and this test runs UNOPTIMISED on every `cargo test`.
+        // The PNG dump path below still runs at full production size, because
+        // the thing being looked at there is detail, not area.
+        let (bake, sprite) = (512u32, 128u32);
+        let dump = std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok();
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
+        let rows = if dump {
+            let leaves = dump_leaf_silhouettes(&dir, 512);
+            for (id, fam, n) in &leaves {
+                eprintln!("[dump] leaf_{id}_{fam}.png ({n} tris)");
+            }
+            dump_cluster_sprites_cpu(&dir, CLUSTER_BAKE_PX, CLUSTER_SPRITE_PX)
+        } else {
+            let mut rows = Vec::new();
+            for t in tree_mesh::registry().trees.iter() {
+                if t.clusters.is_none() {
+                    continue;
+                }
+                for layer in ClusterLayer::ALL {
+                    if layer == ClusterLayer::Blossom && t.blossom_frac <= 0.0 {
+                        continue;
+                    }
+                    if let Some(s) = cpu_cluster_sprite(t, layer, bake, sprite) {
+                        rows.push((t.id.clone(), layer.key(), s.coverage, s.triangles));
+                    }
+                }
+            }
+            rows
+        };
+        assert!(
+            rows.len() >= 4,
+            "only {} cluster sprites baked; the registry carries more clustered species",
+            rows.len()
+        );
+        for (id, layer, cov, tris) in &rows {
+            let t = tree_mesh::registry()
+                .trees
+                .iter()
+                .find(|t| &t.id == id)
+                .expect("row came from the registry");
+            let cd = t.clusters.as_ref().expect("clustered");
+            let want = cd
+                .layer(if *layer == "leaf" { ClusterLayer::Leaf } else { ClusterLayer::Blossom })
+                .coverage;
+            eprintln!(
+                "[cpu-bake] {id:>7} {layer:>7}: {tris:>6} tris, coverage {cov:.3} (data {want:.2})"
+            );
+            assert!(
+                *cov > 0.05,
+                "{id} {layer}: the sprite baked all but empty ({cov:.3}) - a card sampling it \
+                 would draw nothing"
+            );
+            // The same 0.15 band the GPU baker warns on, asserted instead of
+            // logged: if the two drift, the crown misses its target leaf area.
+            assert!(
+                (cov - want).abs() <= 0.15,
+                "{id} {layer}: bakes {cov:.3} coverage against the {want:.2} its data spends on \
+                 the LAI fit - correct `coverage` in data/vegetation/trees.ron"
+            );
+        }
     }
 
     /// The bake shader's packed decode must be the SAME arithmetic as the
