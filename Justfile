@@ -392,6 +392,11 @@ verify:
 # anything renderer, shader, world or asset shaped. Pass driver args through,
 # e.g. `just verify-runtime --exe v0.1069.1_HumanityOS.exe`.
 #
+# `just verify-runtime --operator-config` runs the gate at the operator's LIVE
+# graphics settings instead of the rig's (heavier on every axis: render_distance
+# 2000 vs 500, tree_model_distance 300 vs 120). Either way the verdict now
+# prints WHICH settings it is a verdict about.
+#
 # Boot the real binary, enter the world, fail on any panic or missed capture.
 verify-runtime *ARGS:
     node scripts/verify-runtime.js {{ARGS}}
@@ -744,6 +749,19 @@ snapshot-check:
 # through, e.g. `just probe-sweep --only moon-surface-200m`.
 # This is the exploratory tour (every vantage in the spec, no verdict). For the
 # pass/fail gate over the three incident vantages, use `just verify-runtime`.
+#
+# SETTINGS MATTER AS MUCH AS THE BUILD. The rig's config.json is not the
+# operator's: on 2026-08-02 an SSAO A/B on the rig read "nothing here, +-3%
+# noise" for a bug that separates 6.6-9.5% at the operator's settings, because
+# the rig sat at ssao 0.55 / veg 0.6 / fog 1 / rd 500 while the operator plays
+# at 0.96 / 0.10 / 4 / 2000. So:
+#   just probe-sweep --operator-config       mirror the operator's live graphics
+#                                            settings into the rig before boot
+#                                            (visual settings only, never
+#                                            identity/vault/server/window)
+# Every sweep now records what it ran at in manifest.graphics, and a run WITHOUT
+# the flag prints the gap against the operator up front. Never call a visual
+# effect absent, weak or fixed from a run that did not mirror.
 #
 # Tour every canonical 3D vantage and capture a screenshot + fps at each.
 probe-sweep *ARGS:

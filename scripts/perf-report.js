@@ -37,6 +37,22 @@ const pad = (s, n) => String(s).padEnd(n);
 const padL = (s, n) => String(s).padStart(n);
 
 console.log(`\nPerf sweep  ${m.stamp}   captured ${m.captured}/${m.total}   panics ${m.panics}`);
+// Which settings produced these numbers. A sweep manifest from before
+// 2026-08-02 has no record at all, and that is worth saying out loud rather
+// than letting the table imply the readings are comparable to a current one.
+{
+  const g = m.graphics || {};
+  const src = m.graphics_source;
+  const label = {
+    "operator-mirrored": "operator-mirrored ",
+    "rig-config-matches-operator": "rig = operator    ",
+  }[src] || "RIG DEFAULTS      ";
+  if (!src) {
+    console.log("graphics    UNRECORDED (manifest predates settings provenance - not comparable)");
+  } else {
+    console.log(`graphics    ${label}  ssao ${g.ssao_strength}  veg ${g.veg_density}  fog ${g.fog_density}  rd ${g.render_distance}  tree ${g.tree_model_distance}  godray ${g.godray_intensity}`);
+  }
+}
 console.log("-".repeat(base ? 78 : 60));
 console.log(
   pad("vantage", 26) + padL("fps", 8) + padL("ms", 8) + padL("floor", 8) + (base ? padL("Δfps", 10) : "") + "  status"

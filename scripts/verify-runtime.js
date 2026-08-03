@@ -17,6 +17,7 @@
 //
 // Usage:
 //   node scripts/verify-runtime.js [--exe PATH] [--timeout-min N] [--keep-open]
+//                                  [--operator-config [--operator-config-path F]]
 //   node scripts/verify-runtime.js --dry-verdict <manifest.json> [--log <run.log>]
 // Exit 0 = every vantage reached the world and captured, zero panics.
 // Exit 1 = refused to run (stale binary, missing vantage, rig already busy).
@@ -185,6 +186,14 @@ const sweepArgs = [
   "--only", RUNTIME_VANTAGES.join(","),
 ];
 if (KEEP_OPEN) sweepArgs.push("--keep-open");
+// Forwarded so this gate can run at the settings the operator actually plays
+// at, which are heavier than the rig defaults on every axis (render_distance
+// 2000 vs 500, tree_model_distance 300 vs 120) and therefore likelier to trip a
+// world-entry failure. Either way the sweep records what it ran at, and the
+// verdict block below prints it.
+if (args.includes("--operator-config")) sweepArgs.push("--operator-config");
+const opCfgPath = opt("--operator-config-path", null);
+if (opCfgPath) sweepArgs.push("--operator-config-path", opCfgPath);
 
 console.log(`[gate] rig ${rel(RIG)}`);
 console.log(`[gate] vantages ${RUNTIME_VANTAGES.join(", ")}`);
@@ -266,6 +275,21 @@ function report(sweepExit) {
   const m = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const byId = Object.fromEntries(m.vantages.map((v) => [v.id, v]));
   let failed = 0;
+
+  // WHICH SETTINGS this verdict is about. A PASS at rig defaults is not a PASS
+  // at the operator's settings: their render_distance is 4x and their
+  // tree_model_distance 2.5x the rig's, so a world-entry or streaming failure
+  // can live entirely outside what a default run touches.
+  const g = m.graphics || {};
+  if (!m.graphics_source) {
+    console.log("settings  UNRECORDED (this manifest predates settings provenance)");
+  } else {
+    console.log(
+      `settings  ${m.graphics_source}  ssao ${g.ssao_strength}  veg ${g.veg_density}  ` +
+      `fog ${g.fog_density}  rd ${g.render_distance}  tree ${g.tree_model_distance}  godray ${g.godray_intensity}`
+    );
+  }
+  console.log("");
 
   for (const id of RUNTIME_VANTAGES) {
     const v = byId[id];

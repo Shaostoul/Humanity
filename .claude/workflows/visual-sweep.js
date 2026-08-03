@@ -26,12 +26,18 @@ export const meta = {
 const MANIFEST = {
   type: 'object',
   additionalProperties: false,
-  required: ['dir', 'captured', 'total', 'panics', 'vantages'],
+  required: ['dir', 'captured', 'total', 'panics', 'graphics_source', 'graphics_summary', 'vantages'],
   properties: {
     dir: { type: 'string', description: 'absolute sweep output directory' },
     captured: { type: 'integer' },
     total: { type: 'integer' },
     panics: { type: 'integer' },
+    // WHICH SETTINGS this sweep is a verdict about. On 2026-08-02 an SSAO A/B
+    // at rig defaults reported "nothing here" for a bug that is plain at the
+    // operator's settings, so a verdict that does not carry its settings is
+    // not a verdict.
+    graphics_source: { type: 'string', description: 'manifest.graphics_source verbatim, e.g. "rig-defaults" or "operator-mirrored"' },
+    graphics_summary: { type: 'string', description: 'ssao/veg/fog/render_distance/tree_model_distance/godray values from manifest.graphics' },
     vantages: {
       type: 'array',
       items: {
@@ -88,7 +94,7 @@ const REPORT = {
 
 phase('Capture')
 const cap = await agent(
-  'From C:\\Humanity run `node scripts/probe-sweep.js` (Bash) and wait for it to finish - it boots the release exe, drives the canonical vantage tour, writes screenshots + a manifest, and kills the game. Then Read the manifest: the absolute output dir is the content of .probe-rig/latest-sweep.txt, and the manifest is <dir>/manifest.json. Return the manifest fields exactly: dir, captured, total, panics, and for each vantage its id, ok, screenshot (the PNG filename), expect, regressions, fps, and error if any. Do not judge the images - only report what the sweep produced.',
+  'From C:\\Humanity run `node scripts/probe-sweep.js` (Bash) and wait for it to finish - it boots the release exe, drives the canonical vantage tour, writes screenshots + a manifest, and kills the game. Then Read the manifest: the absolute output dir is the content of .probe-rig/latest-sweep.txt, and the manifest is <dir>/manifest.json. Return the manifest fields exactly: dir, captured, total, panics, graphics_source (verbatim), graphics_summary (build it from manifest.graphics as "ssao <ssao_strength>, veg <veg_density>, fog <fog_density>, rd <render_distance>, tree <tree_model_distance>, godray <godray_intensity>"), and for each vantage its id, ok, screenshot (the PNG filename), expect, regressions, fps, and error if any. Do not judge the images - only report what the sweep produced.',
   { label: 'capture', phase: 'Capture', schema: MANIFEST }
 )
 
@@ -106,7 +112,7 @@ const verdicts = await parallel(
 phase('Report')
 const failedCapture = cap.vantages.filter((v) => !v.ok).map((v) => ({ id: v.id, verdict: 'fail', note: `capture failed: ${v.error || 'unknown'}` }))
 const report = await agent(
-  `Summarize this 3D visual-regression sweep for the operator.\n\nCapture: ${cap.captured}/${cap.total} vantages, ${cap.panics} panic(s).\nCapture failures: ${JSON.stringify(failedCapture)}\nJudge verdicts: ${JSON.stringify(verdicts.filter(Boolean))}\n\nstatus = "regressions" if any verdict is fail or any capture failed or panics>0; "warnings" if any warn but no fail; else "clean". Give a one-line summary and the per-vantage verdict list (fold in the capture failures as fails). Lead with anything that failed.`,
+  `Summarize this 3D visual-regression sweep for the operator.\n\nCapture: ${cap.captured}/${cap.total} vantages, ${cap.panics} panic(s).\nSettings this sweep ran at: ${cap.graphics_source} (${cap.graphics_summary}).\nCapture failures: ${JSON.stringify(failedCapture)}\nJudge verdicts: ${JSON.stringify(verdicts.filter(Boolean))}\n\nstatus = "regressions" if any verdict is fail or any capture failed or panics>0; "warnings" if any warn but no fail; else "clean". Give a one-line summary and the per-vantage verdict list (fold in the capture failures as fails). Lead with anything that failed. The summary MUST state which settings the verdict is about, and when graphics_source is not "operator-mirrored" it must say the verdict describes the rig's settings, not the operator's, and that a clean result there does not clear an effect at the operator's settings (re-run with --operator-config to judge those).`,
   { label: 'report', phase: 'Report', schema: REPORT }
 )
 return report

@@ -15,11 +15,30 @@
 //   node scripts/probe-sweep.js [--rig DIR] [--exe PATH] [--out DIR]
 //                               [--only id1,id2] [--keep-open] [--no-refresh]
 //                               [--width PX] [--shipped-assets]
+//                               [--operator-config [--operator-config-path F]]
 // Defaults: rig = .probe-rig, exe = target/release/HumanityOS.exe,
 //           out = .probe-rig/sweeps/<timestamp>/, width = 2560
 // Writes <out>/manifest.json  [{id, desc, screenshot, fps, frame_ms, expect,
 //   regressions, perf_floor_fps, capture_w, capture_h, ok, error}]  and copies
 //   each PNG into <out>.
+//
+// --operator-config: mirror the operator's LIVE graphics settings into the rig
+//   before boot (%APPDATA%\HumanityOS\config.json - the same file
+//   AppConfig::config_path() resolves for their install). Only visual settings
+//   are copied: never identity, vault, keys, server, window/focus, or frame
+//   caps, so the rig stays a portable autopilot sandbox. Fails loudly if that
+//   config is missing or predates the graphics settings - it never silently
+//   falls back to rig defaults while claiming to be the operator.
+//
+//   Every sweep records what it ran at, mirrored or not: manifest.graphics is
+//   the settings the run actually used, manifest.graphics_source says where
+//   they came from, and a default (non-mirrored) run also records
+//   manifest.graphics_vs_operator plus prints the gap. This exists because on
+//   2026-08-02 an SSAO A/B on the rig returned "nothing here, +-3% noise" for a
+//   bug that separates by 6.6-9.5% at the operator's settings: the rig differed
+//   on ssao_strength, veg_density, fog_density, render_distance,
+//   tree_model_distance and godray_intensity, and nothing in the output said
+//   so. See scripts/rig-graphics.js.
 //
 // --width PX (default 2560): the capture width this sweep is ALLOWED to
 //   produce. Any vantage whose PNG comes back at another width is marked
@@ -42,6 +61,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn, execSync } = require("child_process");
+const G = require("./rig-graphics.js");
 
 const REPO = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
@@ -86,6 +106,10 @@ const EXPECT_W = parseInt(opt("--width", "2560"), 10) || 0;
 // shader entirely inside .probe-rig/assets.
 const RELOAD_SHADERS = flag("--reload-shaders");
 const NO_REFRESH = flag("--no-refresh");
+// --operator-config: run at the operator's live graphics settings instead of
+// whatever the rig's config.json happens to hold. See prepareGraphics().
+const OPERATOR_CONFIG = flag("--operator-config");
+const OPERATOR_CONFIG_PATH = opt("--operator-config-path", null);
 
 const stamp = new Date()
   .toISOString()
@@ -250,6 +274,157 @@ async function waitBoot(timeoutMs) {
   throw new Error("probe did not finish booting in time");
 }
 
+// ── Graphics provenance ───────────────────────────────────────────────────
+// Runs once, before boot. Two jobs, and the first one is not optional:
+//   1. RECORD what this run will actually render at, into the manifest.
+//   2. With --operator-config, make that the operator's live visual settings.
+// A sweep with no record of its settings produced a real wrong answer on
+// 2026-08-02 (see the header). Everything here is loud on purpose.
+function prepareGraphics() {
+  const rigCfgPath = G.rigConfigPath(RIG);
+  const rec = {
+    graphics: null,
+    graphics_source: null,
+    graphics_config_path: rigCfgPath,
+    graphics_missing_keys: [],
+    graphics_operator_config: null,
+    graphics_mirrored: null,
+    graphics_not_mirrored: null,
+    graphics_vs_operator: null,
+  };
+
+  const dataDirOverride = (process.env.HUMANITY_DATA_DIR || "").trim();
+  if (dataDirOverride) {
+    log(`NOTE: HUMANITY_DATA_DIR=${dataDirOverride} is set, so the rig's config.json is`);
+    log(`      ${rigCfgPath}, NOT ${path.join(RIG, "config.json")}.`);
+  }
+
+  let rigRead = G.readConfig(rigCfgPath);
+
+  if (OPERATOR_CONFIG) {
+    const opPath = OPERATOR_CONFIG_PATH ? path.resolve(OPERATOR_CONFIG_PATH) : G.operatorConfigPath();
+    const opRead = G.readConfig(opPath);
+    if (!opRead.ok) {
+      console.error(
+        `ERROR: --operator-config asked for the operator's live graphics settings, but\n` +
+        `  ${opPath}\n` +
+        `  could not be read (${opRead.error}).\n` +
+        `  That file is written by the app itself. Launch HumanityOS once (just play) and exit,\n` +
+        `  or pass --operator-config-path <file> if their config lives elsewhere.\n` +
+        `  Refusing to sweep: a run at rig defaults labelled "operator settings" is exactly the\n` +
+        `  mistake this flag exists to prevent.`
+      );
+      process.exit(1);
+    }
+    const opSnap = G.snapshotGraphics(opRead.cfg);
+    if (opSnap.missing.length) {
+      console.error(
+        `ERROR: ${opPath} is not a live HumanityOS config: it has no ${opSnap.missing.join(", ")}.\n` +
+        `  (${Object.keys(opRead.cfg).length} keys, last written ${opRead.mtime})\n` +
+        `  That is almost always a stale leftover from an older build. Find the config the operator\n` +
+        `  actually plays with (AppConfig::config_path in src/config.rs) and pass it with\n` +
+        `  --operator-config-path, or launch the app once to write a current one.`
+      );
+      process.exit(1);
+    }
+    const m = G.mirrorOperatorGraphics(rigRead.cfg, opRead.cfg);
+    fs.mkdirSync(path.dirname(rigCfgPath), { recursive: true }); // HUMANITY_DATA_DIR may not exist yet
+    fs.writeFileSync(rigCfgPath, JSON.stringify(m.next, null, 2));
+    log("=".repeat(72));
+    log(`MIRRORING OPERATOR GRAPHICS from ${opPath} (written ${opRead.mtime})`);
+    if (!rigRead.ok) {
+      log(`  the rig had no config.json (${rigRead.error}); wrote one with the visual settings only.`);
+      log(`  Everything else in this rig comes from the engine's built-in defaults.`);
+    }
+    const copiedKeys = Object.keys(m.copied);
+    if (!copiedKeys.length) log("  (rig already matched the operator on every visual setting)");
+    for (const k of copiedKeys) {
+      log(`  ${k.padEnd(26)} ${G.fmt(m.copied[k].rig_was)} -> ${G.fmt(m.copied[k].operator)}`);
+    }
+    const skippedKeys = Object.keys(m.skipped);
+    if (skippedKeys.length) {
+      log(`  NOT mirrored (still differs from the operator, on purpose):`);
+      for (const k of skippedKeys) log(`    ${k.padEnd(26)} ${m.skipped[k]}`);
+    }
+    if (m.unknown.length) {
+      log(`  !! NEW CONFIG KEY(S) mirrored by the default-visual rule: ${m.unknown.join(", ")}`);
+      log(`  !! If any of those are not graphics settings, classify them in scripts/rig-graphics.js`);
+      log(`  !! (NOT_VISUAL / RECORD_ONLY / PRIVATE_KEYS) so no rig ever copies them again.`);
+    }
+    log("=".repeat(72));
+    rigRead = G.readConfig(rigCfgPath);
+    rec.graphics_source = "operator-mirrored";
+    rec.graphics_operator_config = { path: opRead.path, mtime: opRead.mtime };
+    rec.graphics_mirrored = m.copied;
+    rec.graphics_not_mirrored = m.skipped;
+  } else {
+    // Default run: change nothing, but make the difference impossible to miss.
+    const opRead = G.readConfig(OPERATOR_CONFIG_PATH ? path.resolve(OPERATOR_CONFIG_PATH) : G.operatorConfigPath());
+    const diff = G.diffAgainstOperator(rigRead.cfg, opRead);
+    // "Rig defaults" is a claim, so only make it when it is true: a rig can
+    // already hold the operator's values from an earlier --operator-config run,
+    // and mislabelling that would poison the warning people need to trust.
+    const mirrorableDiffs = diff.ok ? Object.keys(diff.diffs).filter((k) => diff.diffs[k].mirrorable) : [];
+    const matchesOperator = rigRead.ok && diff.ok && mirrorableDiffs.length === 0;
+    rec.graphics_source = !rigRead.ok
+      ? "unknown (rig has no config.json yet)"
+      : !diff.ok
+        ? "rig-defaults (operator config unreadable)"
+        : matchesOperator
+          ? "rig-config-matches-operator"
+          : "rig-defaults";
+    rec.graphics_vs_operator = diff.ok
+      ? { operator_config: diff.path, operator_config_mtime: diff.mtime, differs: diff.diffs }
+      : { operator_config: diff.path, unreadable: diff.reason };
+    log("=".repeat(72));
+    if (matchesOperator) {
+      log("NOTE: not mirrored this run, but the rig config already matches the operator");
+      log("      on every mirrorable visual setting. Values this sweep will render at:");
+    } else {
+      log("NOTE: rig graphics defaults in effect (NOT operator settings).");
+    }
+    for (const k of G.REQUIRED_KEYS) {
+      const rigVal = rigRead.ok ? rigRead.cfg[k] : undefined;
+      const opVal = diff.ok ? opRead.cfg[k] : undefined;
+      const opCol = diff.ok ? `   operator ${G.fmt(opVal)}` : "";
+      log(`  ${k.padEnd(22)} rig ${G.fmt(rigVal).padEnd(10)}${opCol}`);
+    }
+    if (diff.ok) {
+      const extra = Object.keys(diff.diffs).filter((k) => !G.REQUIRED_KEYS.includes(k));
+      const extraVisual = extra.filter((k) => diff.diffs[k].mirrorable);
+      const extraFixed = extra.filter((k) => !diff.diffs[k].mirrorable);
+      if (extraVisual.length) {
+        log(`  +${extraVisual.length} more visual setting(s) differ: ${extraVisual.slice(0, 8).join(", ")}${extraVisual.length > 8 ? ", ..." : ""}`);
+      }
+      if (extraFixed.length) {
+        log(`  ${extraFixed.length} non-visual setting(s) also differ and are never mirrored: ${extraFixed.join(", ")}`);
+      }
+      if (extra.length) log(`  full list in manifest.graphics_vs_operator`);
+    } else {
+      log(`  (could not read the operator's config to compare: ${diff.reason} at ${diff.path})`);
+    }
+    log("Any visual verdict from this sweep is a verdict about THOSE values.");
+    if (!matchesOperator) {
+      log("On 2026-08-02 an SSAO A/B read +-3% \"nothing here\" on the rig while the same");
+      log("bug separates 6.6-9.5% at the operator's settings.");
+    }
+    log("Pass --operator-config to mirror the operator's live graphics before booting");
+    log("(a match today is incidental: nothing keeps this rig in step with them).");
+    log("=".repeat(72));
+  }
+
+  const snap = G.snapshotGraphics(rigRead.cfg);
+  rec.graphics = rigRead.ok ? snap.values : null;
+  rec.graphics_missing_keys = rigRead.ok ? snap.missing : G.REQUIRED_KEYS.slice();
+  if (rec.graphics_missing_keys.length) {
+    log(`  !! NO SETTINGS RECORD for ${rec.graphics_missing_keys.join(", ")}.`);
+    log(`  !! ${rigRead.ok ? `${rigCfgPath} has no such key(s)` : `${rigCfgPath}: ${rigRead.error}`}.`);
+    log(`  !! This sweep's manifest cannot say what it rendered at. If those settings were`);
+    log(`  !! renamed in src/config.rs, update REQUIRED_KEYS in scripts/rig-graphics.js.`);
+  }
+  return rec;
+}
+
 async function main() {
   const spec = JSON.parse(fs.readFileSync(path.join(REPO, "tests", "visual", "vantages.json"), "utf8"));
   let vantages = spec.vantages;
@@ -267,6 +442,12 @@ async function main() {
   }
   if (fs.existsSync(LOG)) fs.truncateSync(LOG, 0);
   fs.mkdirSync(OUT, { recursive: true });
+
+  // Settings provenance, BEFORE the boot that will use them: mirrors the
+  // operator's graphics when asked, and either way records what this run runs
+  // at. Must come after setupRig (the rig dir + portable.txt must exist) and
+  // before spawn (the engine reads config.json once at startup).
+  const gfx = prepareGraphics();
 
   log(`launching ${path.basename(EXE_SRC)} in ${RIG}`);
   const child = spawn(path.join(RIG, "HumanityOS.exe"), [], {
@@ -448,6 +629,31 @@ async function main() {
     if (shipped_ok) log(`shipped-assets confirmed: rig data dir + ${fallbacks} procedural fallback lines`);
   }
 
+  // Did the RUN change any setting it started from? The engine rewrites
+  // config.json whenever a setting is applied, and any key GuiState does not
+  // round-trip would quietly revert to its default mid-sweep - which would make
+  // the pre-boot record a lie. Cheap to check, so check it.
+  const postRun = G.readConfig(G.rigConfigPath(RIG));
+  const postSnap = G.snapshotGraphics(postRun.cfg);
+  let graphicsChanged = null;
+  if (gfx.graphics && postRun.ok) {
+    const changed = {};
+    for (const [k, before] of Object.entries(gfx.graphics)) {
+      if (k in postSnap.values && postSnap.values[k] !== before) {
+        changed[k] = { before, after: postSnap.values[k] };
+      }
+    }
+    if (Object.keys(changed).length) {
+      graphicsChanged = changed;
+      log(`  !! THE RUN CHANGED ITS OWN GRAPHICS SETTINGS mid-sweep:`);
+      for (const [k, d] of Object.entries(changed)) {
+        log(`  !!   ${k.padEnd(24)} ${G.fmt(d.before)} -> ${G.fmt(d.after)}`);
+      }
+      log(`  !! manifest.graphics records the values this sweep STARTED at; captures taken`);
+      log(`  !! after the change did not use them. Check ${gfx.graphics_config_path}.`);
+    }
+  }
+
   const manifest = {
     stamp,
     exe: EXE_SRC,
@@ -458,11 +664,26 @@ async function main() {
     panics,
     captured: results.filter((r) => r.ok).length,
     total: results.length,
+    ...gfx,
+    graphics_changed_during_run: graphicsChanged,
     vantages: results,
   };
   fs.writeFileSync(path.join(OUT, "manifest.json"), JSON.stringify(manifest, null, 2));
   log(`manifest -> ${path.join(OUT, "manifest.json")}`);
   log(`captured ${manifest.captured}/${manifest.total}, panics=${panics}`);
+  // Repeat the provenance at the END too: the tail of the log is what an agent
+  // or a tired operator actually reads before writing down a verdict.
+  const gfxCount = Object.keys(manifest.graphics || {}).length;
+  if (manifest.graphics_source === "operator-mirrored") {
+    log(`graphics: OPERATOR-MIRRORED (${gfxCount} settings recorded in manifest.graphics)`);
+  } else if (manifest.graphics_source === "rig-config-matches-operator") {
+    log(`graphics: rig config, already equal to the operator's visual settings`);
+    log(`          (${gfxCount} settings recorded in manifest.graphics)`);
+  } else {
+    log(`graphics: RIG DEFAULTS, not the operator's settings (${gfxCount} settings recorded in`);
+    log(`          manifest.graphics). Re-run with --operator-config before calling any visual`);
+    log(`          effect absent, weak, or fixed.`);
+  }
   // Stable pointer to the newest sweep for the workflow + perf report.
   fs.writeFileSync(path.join(RIG, "latest-sweep.txt"), OUT);
   const clean =
