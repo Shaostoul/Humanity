@@ -3705,8 +3705,17 @@ mod tests {
         for base in &conifers {
             for carded in [false, true] {
                 let mut t = base.clone();
+                // BOTH ARMS ARE CONSTRUCTED, never assumed (v0.1107). Until fir
+                // and pine gained their own `clusters:` blocks this loop only
+                // ever ADDED one, so the `false` arm was whatever the row
+                // happened to ship - and the moment the rows shipped a block
+                // that arm silently became a second carded case and then failed
+                // the 0.28-0.52 m band. A test that can only build one of the
+                // two states it claims to cover is not testing the branch.
                 if carded {
                     t.clusters = Some(lent.clone());
+                } else {
+                    t.clusters = None;
                 }
                 let (mean, longest, n) = drawn_element_len(&t, shipped_seed(0));
                 // Authored 0.30-0.50 m x 1.25 jitter = 0.625 m; authored
@@ -4713,11 +4722,20 @@ mod tests {
     /// permanent by inattention. ACACIA CAME OFF THIS LIST in v0.1103: real
     /// allometry took its terminal twigs from 11.3 mm radius to 4.0 mm, which
     /// is what `cluster_cards_envelop_every_twig_tip` was rightly refusing.
-    /// Fir and pine are next and are blocked only on authoring their
-    /// needle-shoot ClusterDefs; palm needs its card sized deliberately (its
+    ///
+    /// FIR AND PINE CAME OFF IT in v0.1107, which is what this whole list was
+    /// counting down to: they were 7508 double-sided deltoids at 0.483 m and
+    /// 0.351 m mean size - 91% of an 8260-triangle tree and 100% of its
+    /// silhouette - and those are the "grass leaves" the operator reported
+    /// three builds running. Their rows now carry needle-shoot cluster blocks,
+    /// the carded arm of `foliage_of` drops the drawn blade to a 0.10-0.15 m
+    /// branchlet, and the tree comes out CHEAPER (5612 and 5692 triangles
+    /// against 8260, card layers 3060 and 3140 inside the 3400 budget).
+    ///
+    /// Palm is the last one, and it needs its card sized deliberately: its
     /// drawn element is a life-size 0.82 m coconut leaflet, so a palm card is
-    /// a ~2 m chunk of frond).
-    const UNCARDED_SPECIES: &[&str] = &["fir", "pine", "palm"];
+    /// a ~2 m chunk of frond and its lent-block sprite bakes 8.55x its card.
+    const UNCARDED_SPECIES: &[&str] = &["palm"];
 
     /// THE NON-VACUITY GUARD every card gate needs.
     ///
@@ -5782,6 +5800,21 @@ mod tests {
         dist(p, add(a, ab, t))
     }
 
+    /// ALPHA-TEST LAYERS one canopy pixel may pay, at most.
+    ///
+    /// Every card covers only `coverage` of its own area, so a pixel looking
+    /// into a crown of leaf area index L passes through L / coverage cards
+    /// before it is opaque - and each of those is a fetch, an alpha test and a
+    /// discard at full canopy resolution. Card COUNT cancels out of that ratio
+    /// entirely, so the only two levers are the sprite's real density and the
+    /// species' target LAI.
+    ///
+    /// 8 is a RATCHET, not a taste: the shipped registry runs 3.8 (acacia),
+    /// 4.8 (birch), 5.9 (sakura), 7.2 (pine), 7.3 (momiji), 7.5 (fir) and 7.8
+    /// (oak), so this admits everything that ships today and nothing worse.
+    /// Lower it as species improve; never raise it to make a number fit.
+    const MAX_CANOPY_OVERDRAW: f32 = 8.0;
+
     /// THE GENERATOR-SIDE TWIN of the crown-gap image gate.
     ///
     /// The image gate ("sky through an isolated crown <= 30%") cannot run in
@@ -5792,6 +5825,17 @@ mod tests {
     /// sky by Beer-Lambert; the geometric blade layer alone reached 0.31-0.50
     /// and transmitted 78-86%, which is why every tree read as a bare winter
     /// tree with sprinkles.
+    ///
+    /// ── AND THE OTHER DIRECTION (v0.1107) ────────────────────────────────
+    ///
+    /// This test COMPUTED and PRINTED `overdraw` from the day the layer landed
+    /// and asserted nothing about it, which is the "check whose evidence is its
+    /// own setup" pattern: a number nobody can fail is a number nobody reads.
+    /// It is now a gate, and it is the one that catches the opposite mistake
+    /// from a bare crown - a crown that reaches its LAI by stacking cards that
+    /// are each mostly sky. Fir's first pass, with a broadleaf's `coverage`
+    /// lent to it, sat at 19.1 layers and pine at 27.4; both would have shipped
+    /// green and cost 2.5-3.5x the fill rate of every broadleaf beside them.
     #[test]
     fn cluster_cards_reach_target_lai_and_fit_the_budget() {
         let r = registry();
@@ -5824,17 +5868,17 @@ mod tests {
                     .map(|c| cd.layer(c.layer).coverage * c.leaf_area_m2)
                     .sum::<f32>()
                     / area.max(1e-4);
+                let overdraw = lai / mean_cov.max(0.01);
                 eprintln!(
                     "[lai] {:>7} v{v}: crown r {:.2} m, spread {:.2} m ({:.1} m2), {n_cards} cards, \
-                     {:.1} m2 leaf, LAI {lai:.2} (target {:.2}), overdraw {:.1} layers, {total} tris \
-                     ({card_tris} card)",
+                     {:.1} m2 leaf, LAI {lai:.2} (target {:.2}), overdraw {overdraw:.1} layers, \
+                     {total} tris ({card_tris} card)",
                     t.id,
                     crown.radius_m,
                     crown.spread_m,
                     crown.projected_area_m2(),
                     area,
                     cd.target_lai,
-                    lai / mean_cov.max(0.01)
                 );
                 for c in cards.iter() {
                     eprintln!(
@@ -5862,6 +5906,16 @@ mod tests {
                 assert!(
                     card_tris <= CARD_TRI_BUDGET,
                     "{} v{v}: {card_tris} card triangles over the {CARD_TRI_BUDGET} card budget",
+                    t.id
+                );
+                assert!(
+                    overdraw <= MAX_CANOPY_OVERDRAW,
+                    "{} v{v}: a canopy pixel pays {overdraw:.1} alpha-test layers (LAI {lai:.2} \
+                     over coverage {mean_cov:.3}), past the {MAX_CANOPY_OVERDRAW:.0} ceiling. \
+                     Raise the layer's `coverage` - which means making the sprite genuinely \
+                     denser and RE-MEASURING it, not writing a bigger number - or lower \
+                     `target_lai`. Adding cards does not help: overdraw is LAI / coverage and \
+                     card COUNT cancels out of it entirely",
                     t.id
                 );
             }

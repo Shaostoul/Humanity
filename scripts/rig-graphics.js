@@ -41,7 +41,9 @@ const os = require("os");
 // so out loud instead of writing a manifest that looks complete.
 const REQUIRED_KEYS = [
   "ssao_strength",
-  "veg_density",
+  // v0.1106 split the one vegetation slider into three.
+  "tree_density",
+  "grass_density",
   "fog_density",
   "render_distance",
   "tree_model_distance",
@@ -268,7 +270,9 @@ const KNOWN_VISUAL = new Set([
   "terrain_patch_budget",
   "terrain_detail_distance",
   "tree_model_distance",
-  "veg_density",
+  "tree_density",
+  "grass_density",
+  "grass_detail",
   "veg_tree_card_m",
   "sun_shadows",
   "godray_intensity",

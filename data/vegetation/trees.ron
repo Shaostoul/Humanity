@@ -92,7 +92,17 @@
 //   leaf_needle_len_frac    ONE needle's length as a fraction of the whole
 //                           shoot's length. This single ratio is most of what
 //                           separates the two conifers on sight: a fir needle
-//                           is a fiftieth of its shoot, a pine needle a fifth.
+//                           is a third of its shoot, a pine needle two thirds.
+//                           IT IS A RATIO OF THE DRAWN SHOOT, and which shoot
+//                           that is depends on whether the species carries a
+//                           `clusters` block: carded, `foliage_of` draws a
+//                           0.10-0.15 m last-year BRANCHLET; uncarded, a
+//                           0.30-0.50 m needle SPRAY. Give a species cards and
+//                           these four ratios must ALL be re-derived against
+//                           the new element, or every needle silently renders
+//                           at a fraction of life size and washes out under the
+//                           sprite's alpha cutoff (measured: fir card coverage
+//                           0.136 instead of 0.536).
 //   leaf_needle_width_frac  a needle's WIDTH as a fraction of its own length.
 //                           Fir needles are flat straps; pine needles are round
 //                           in section and far finer.
@@ -144,40 +154,195 @@
             // Abies, the silver/grand fir group. PECTINATE: the needles are
             // spirally inserted and then twisted into ONE PLANE, two ranks
             // either side of the shoot, so a spray is flat and comb-like and
-            // you can lay it on a table. Needles 2-3 cm, flat in section, ~2 mm
-            // wide, parallel-sided with a BLUNT (usually notched) tip - that
+            // you can lay it on a table. Flat in section, ~2 mm wide,
+            // parallel-sided with a BLUNT (usually notched) tip - that
             // bluntness is the field mark that separates a fir from a spruce
             // in the hand, and it is why this family tapers its needle to 0.80
             // of its base width rather than to a point.
             //
-            // The shoot this is stamped into is the 0.48 m element the conifer
-            // form already grows (`Foliage::leaf` = h * 0.022, clamped
-            // 0.30-0.50), so a 25 mm needle is 0.052 of it.
+            // ── WHAT SHOOT ARE THESE RATIOS OF? (v0.1107) ────────────────
+            // Every `leaf_needle_*` field is a fraction OF THE DRAWN SHOOT, and
+            // the drawn shoot CHANGED the moment this row gained the `clusters`
+            // block below: the carded arm of `foliage_of` swaps the conifer
+            // element from a 0.30-0.50 m needle SPRAY to a 0.10-0.15 m
+            // BRANCHLET, the real last-year shoot, because the cards are the
+            // canopy now and one sprig must fit one card. On a 22 m fir that is
+            // h * 0.0060 = 0.132 m.
+            //
+            // So all four numbers below were re-derived against 0.132 m, and
+            // leaving them alone was NOT an option: a 25 mm needle was 0.052 of
+            // a 0.48 m spray but is 0.19 of a 0.132 m branchlet. Left at 0.052
+            // the needles came out 6.9 mm long and 0.6 mm wide against a sprite
+            // texel of ~2.1 mm, so most of them averaged away under the bake's
+            // alpha cutoff and the card measured 0.136 coverage - a third of
+            // any broadleaf's, which is what made a fir crown a see-through
+            // 19-alpha-layer smear when a cherry's block was lent to it.
             leaf_shape: "needle-flat-rank",
-            // DERIVED, not chosen: 2 * 0.052 * sin(80 deg), less what the tip
+            // DERIVED, not chosen: ~2 * 0.303 * sin(80 deg) plus what the tip
             // needles overhang the shoot's end by. MEASURED off the built
-            // outline by `leaf_shape::natural_aspect` (0.1026) rather than
-            // taken from the closed form. See the leaf_aspect note in the
-            // header - stating this wrong squashes every needle on the shoot.
-            leaf_aspect: 0.1026,
-            leaf_needle_len_frac: 0.052,
-            leaf_needle_width_frac: 0.088,
+            // outline by `leaf_shape::natural_aspect` rather than taken from
+            // the closed form. See the leaf_aspect note in the header - stating
+            // this wrong squashes every needle on the shoot.
+            leaf_aspect: 0.5781,
+            // 40 mm on the 132 mm branchlet. Abies grandis runs 3-6 cm and
+            // A. alba 1.8-3 cm, so this is mid-range for the group the row
+            // names. Needle LENGTH is also the one free lever on card coverage:
+            // the silhouette gate measures BOX FILL, and fill works out to
+            // (needle count * needle width) / (2 * shoot length * sin(angle))
+            // with the needle's own length cancelling out entirely - so a
+            // longer needle at the same count and width buys leaf area for
+            // free. 28 mm measured 0.496 coverage; 40 mm measured 0.536.
+            leaf_needle_len_frac: 0.303,
+            // 2.0 mm on a 40 mm needle. Real Abies needles are 1.5-2.5 mm, and
+            // 2.0 is deliberately the resolvable end: the finished sprite is
+            // ~2.1 mm per texel, so a narrower needle is a sub-texel line that
+            // the alpha cutoff eats after the 4x supersample comes down.
+            leaf_needle_width_frac: 0.050,
             // 80 rather than a square 90: Abies needles stand almost
             // perpendicular but rake perceptibly toward the shoot's tip, which
             // is what stops the spray reading as a ladder.
             leaf_needle_angle_deg: 80.0,
-            // 48 needle PAIRS, and this is SPARSER THAN LIFE on purpose. A real
-            // Abies rank sets its needles 3-5 mm apart, which on a 0.48 m shoot
-            // is ~110 pairs and ~450 triangles per spray - more than any leaf in
-            // this registry and three times the pine's. 48 pairs is 9.5 mm
-            // within a rank, and because the two ranks are offset by half a
-            // station the shoot carries a needle every 4.7 mm counting both
-            // sides, which IS the real spacing at silhouette level. The
-            // shortfall is in one rank's own rhythm, not in the density of the
-            // spray, and it is invisible at every range the sprite is sampled
-            // at (a 512 px sprite on a metre-class card is ~2 mm per texel, so
-            // a 3 mm rank spacing could not be resolved anyway).
-            leaf_lobes: 48,
+            // 26 needle PAIRS, and this one IS at the sparse end of life. The
+            // needled run is 0.94 of the shoot (the base is bare), so 26 pairs
+            // is 4.8 mm within a rank, and because the two ranks are offset by
+            // half a station the shoot carries a needle every 2.4 mm counting
+            // both sides. A real Abies rank sets them 3-5 mm apart.
+            //
+            // It is not a cost compromise any more, it is the BOX FILL GATE:
+            // `the_conifer_sprays_are_needled_shoots_not_blades` holds a needle
+            // shoot under 0.35 of its own bounding box ("a needled shoot is
+            // mostly sky"), and 26 pairs of 2 mm needles measures 0.331. That
+            // gate is calibrated on a shoot, not on a flat-pressed herbarium
+            // spray, and a real pectinate comb viewed square on is close to
+            // half solid - so this is the one number here that is bounded by
+            // the engine rather than by the plant. Raise it only together with
+            // that ceiling, and re-measure the fill when you do.
+            leaf_lobes: 26,
+            // ── Cluster cards (v0.1107) ──────────────────────────────
+            // THE FIRST CONIFER TO CARRY THEM, and the increment that closes
+            // the operator's most-repeated report ("trees with grass leaves
+            // instead of leaf textured leaves", three builds running). Uncarded,
+            // this species drew 7508 faces of 0.483 m mean blade: 91% of an
+            // 8260-triangle tree and 100% of its silhouette. Those triangles
+            // ARE the complaint, and they disappear by construction - the
+            // carded arm of `foliage_of` drops the drawn blade to 0.132 m, and
+            // the whole tree comes out CHEAPER at 5732 triangles (3180 of them
+            // cards, inside the 3400 card budget).
+            clusters: Some((
+                // 4.0: the densest crown in the registry, one notch above the
+                // oak's 3.8, and correctly so - a fir is the canonical tree you
+                // cannot see sky through. Beer-Lambert at K = 0.5 puts its
+                // transmission at exp(-2.0) = 13.5%, against the 37.9% this
+                // species MEASURED in the operator's Fuji frame and the 30% bar
+                // the crown-gap gate sets.
+                //
+                // SOURCED, not copied off a broadleaf row: Asner, Scurlock &
+                // Hicke, "Global synthesis of leaf area index observations",
+                // Global Ecology and Biogeography 12:191-205 (2003), give
+                // evergreen NEEDLELEAF forest biome means around 4.6-5.5
+                // (boreal to temperate) against a ~4.5 cross-biome mean - the
+                // needleleaf classes are the dense end, which is why this is
+                // the biggest number in this file.
+                //
+                // Discounted to 4.0 exactly the way every other row here is
+                // discounted from its stand measurement (oak 3.8 against a
+                // measured 4-6, momiji 3.6 against 3.5-5, birch 2.8 against
+                // 2-4): a published stand LAI is leaf area over GROUND area in
+                // a closed canopy where crowns overlap, so more than one square
+                // metre of crown projection carries each square metre of
+                // ground; and our crown envelope is a single dome, which
+                // over-counts its own projected area. Authoring the raw 5-6
+                // instead was tried and is not free - at this species' measured
+                // coverage a target of 6.0 pays 11.2 alpha-test layers per
+                // canopy pixel and `cluster_cards_reach_target_lai_and_fit_the_
+                // budget` now rejects it.
+                target_lai: 4.0,
+                leaf: (
+                    // 0.55 m: the patch of frond one card stands in for. The
+                    // LAI fit solves the card SIDE from here (it settles at
+                    // 1.02-1.05 m over the three variants, ~17% of the 6.1 m crown
+                    // spread), and this number's other job is to set the sprig
+                    // count through k = fitted / nominal.
+                    size_m: 0.55,
+                    // MEASURED by the CPU twin of the cluster bake
+                    // (`billboard_bake::cpu_cluster_sprite`, 2048 px
+                    // supersampled down to 512), and measured AGAIN after every
+                    // change above until authored and measured agreed to three
+                    // decimals. That agreement is the whole point of this
+                    // number: lending this species a broadleaf's 0.38 made the
+                    // leaf-area planner believe each card carried 2.8x the leaf
+                    // it really did, so the crown was planned for LAI 2.6 and
+                    // delivered the optical density of 0.9.
+                    //
+                    // 0.536 is high for this registry (between acacia's 0.52
+                    // and birch's 0.58) and it has to be: overdraw is
+                    // LAI / coverage, so the densest crown here can only stay
+                    // under the 8-layer ceiling by having the solidest card.
+                    coverage: 0.536,
+                    // 2, where every broadleaf here spends 4, and this is the
+                    // one number in the block that is about the FORM rather
+                    // than the plant. A cherry's foliage-bearing twig is a
+                    // 0.3 m stub, so its cards are best spent AROUND it; a
+                    // fir's is a whorl BRANCH, and this species' 45 of them run
+                    // 0.9 to 5.8 m (nine whorl levels, five branches each). At
+                    // 4 cards a sleeve the card budget affords ~180 sleeve
+                    // stations over 152 m of branch, the uniform-stretch
+                    // backstop floors the shortest branches to ONE station -
+                    // and `sleeve_station_frac` puts a lone station at the
+                    // MIDDLE - so a 1.53 m branch wearing a 1.07 m card ended
+                    // 0.233 m of bare 4 mm pipe past its foliage. That is the
+                    // spear-through-the-crown defect
+                    // `cluster_cards_envelop_every_twig_tip` exists to catch,
+                    // and it caught it the moment this row gained a block.
+                    //
+                    // Halving the cards per sleeve doubles the stations the
+                    // same triangles buy, which puts every branch on 2 or more
+                    // and therefore always lands one station ON the tip. It is
+                    // also the more honest distribution for the form: a fir
+                    // carries flat sprays ALONG a branch, not radial tufts at
+                    // its end. The pair of cards at one station is edge-on from
+                    // one direction, but each station draws its own random
+                    // azimuth, so the run along a branch never opens up.
+                    cards_per_sleeve: 2,
+                    // 0.40 m, and it is authored to be the spacing that
+                    // actually ships. The station plan has a BACKSTOP: if the
+                    // physical spacing overruns the card budget it stretches
+                    // every twig's by the same factor, so authoring 0.30 here
+                    // does not give 0.30, it gives 0.39 after one stretch pass
+                    // plus a floor-division that can drop a short branch to a
+                    // single station. Stating the settled number keeps the plan
+                    // legible and keeps every branch on two stations or more.
+                    sleeve_spacing_m: 0.40,
+                    // 105 nominal, which at k = 1.9 is ~380 real sprigs of 4
+                    // branchlets each. Set against the 400-sprig ceiling in
+                    // `cluster_sprite_geometry` deliberately: sprig count is
+                    // the second lever on coverage after needle length, and
+                    // this species needs both of them.
+                    sprite_elements: 105,
+                    sprite_runs: 1,
+                ),
+                // A fir has no flowers at all - it is a gymnosperm, and what
+                // this layer describes is its POLLEN CONES. Inert here
+                // (`blossom_frac: 0.0`, so no blossom card is ever emitted),
+                // but the sprite is still built and size-checked, so these are
+                // the real organ rather than filler: Abies bears ~1.5 cm
+                // yellowish male cones in dense clusters on the underside of
+                // the previous year's shoots.
+                blossom: (
+                    size_m: 0.14,
+                    coverage: 0.16,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.09,
+                    sprite_elements: 9,
+                    sprite_runs: 5,
+                ),
+                flower_size_m: 0.015,
+                flowers_per_umbel: 8,
+                umbel_spacing_m: 0.012,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                near_blade_tri_frac: 0.45,
+            )),
         ),
         (
             id: "pine",
@@ -209,44 +374,151 @@
             //   - the fascicles are borne in a SPIRAL all round the shoot, not
             //     in two ranks in one plane, so the shoot reads as a radial
             //     bottle-brush and each bundle is seen at its own azimuth;
-            //   - a pine needle is 6 cm where a fir needle is 2.5, round in
+            //   - a pine needle is 6-7 cm where a fir needle is 4, round in
             //     section rather than flat, and drawn to a fine point rather
             //     than blunt.
-            // The generator hands this species a 0.352 m shoot (h * 0.022), so
-            // a 60 mm needle is 0.170 of it - more than three times the fir's
-            // ratio, which is the whole difference at silhouette level.
+            //
+            // SAME RE-DERIVATION AS THE FIR (v0.1107), and for the same reason:
+            // the `clusters` block below moves this species onto the carded arm
+            // of `foliage_of`, so the shoot these ratios are OF is no longer a
+            // 0.352 m spray but a 0.100 m BRANCHLET (h * 0.0060, floored at the
+            // 0.10 m clamp). A 65 mm needle is 0.65 of that - and yes, a pine's
+            // needles really are most of its shoot's own length, which is
+            // exactly why a pine reads as a bottle-brush and a fir as a comb.
             leaf_shape: "needle-fascicle",
             // DERIVED from the needle length, the 45 deg fascicle angle and the
             // splay, exactly as the fir's is, and MEASURED off the built
-            // outline by `leaf_shape::natural_aspect` (0.2588). Two and a half
-            // times the fir's 0.1026 because a pine shoot really is a fat brush
-            // where a fir spray really is a thin comb.
-            leaf_aspect: 0.2588,
-            leaf_needle_len_frac: 0.170,
-            // 2.0 mm on a 60 mm needle. Pinus sylvestris and nigra run
+            // outline by `leaf_shape::natural_aspect`. Well over the fir's
+            // 0.5781 because a pine shoot really is a fat brush where a fir
+            // spray really is a thin comb.
+            leaf_aspect: 0.7980,
+            // 65 mm on the 100 mm branchlet. Pinus sylvestris runs 4-7 cm and
+            // nigra 8-16, so this is the top of the sylvestris range for the
+            // 16 m mid-latitude tree this row describes. As on the fir, needle
+            // LENGTH is the free lever on coverage: box fill is set by needle
+            // COUNT and WIDTH alone, so length buys leaf area at no cost to the
+            // gate: 55 mm on 25 fascicles measured 0.446 card coverage, and
+            // 65 mm on the 23 fascicles a real Scots pine carries measured
+            // 0.435 - the same coverage off two fewer bundles.
+            leaf_needle_len_frac: 0.650,
+            // 2.0 mm on a 65 mm needle. Pinus sylvestris and nigra run
             // 1.5-2 mm, so this is the resolvable end of the real range rather
             // than a fattened one - a needle is still around one texel wide in
             // the finished sprite, and the 4x supersample the cluster bake runs
             // at is what keeps it from aliasing away entirely.
-            leaf_needle_width_frac: 0.033,
+            leaf_needle_width_frac: 0.031,
             // 45: pine fascicles ASCEND steeply, unlike the fir's near-square
             // needles. That single angle is why a pine shoot reads as a brush
             // swept toward its tip and a fir spray reads as a flat comb.
             leaf_needle_angle_deg: 45.0,
-            // 48 fascicles over the needled part of a 0.352 m shoot is 6.9 mm
-            // apart, squarely inside the 4-8 mm a real Scots pine sets them at
-            // on the current season's growth. Unlike the fir's rank spacing
-            // this needed no compromise: a fascicle is 2 needles and a shoot
-            // this long carries far fewer of them than a fir shoot carries
-            // single needles, so the honest count and the affordable count are
-            // the same number.
-            leaf_lobes: 48,
+            // 23 fascicles over the needled 0.94 of a 0.100 m branchlet is
+            // 4.1 mm apart, just inside the 4-8 mm a real Scots pine sets them
+            // at on the current season's growth. Unlike the fir's rank spacing
+            // this is bounded by the PLANT and not by the box-fill gate: a
+            // fascicle is 2 needles where a fir rank is one per station, so a
+            // pine shoot measures 0.156 box fill against the 0.35 ceiling and
+            // could carry twice this count before the gate noticed. It should
+            // not; 4 mm is where Pinus stops.
+            leaf_lobes: 23,
             // Two. Every pine on earth carries 2, 3 or 5.
             leaf_leaflets: 2,
             // 22 deg of splay: a two-needle fascicle is a split cylinder whose
             // halves bow apart along their length, reaching about this much
             // between the tips.
             leaf_fascicle_spread_deg: 22.0,
+            // ── Cluster cards (v0.1107) ──────────────────────────────
+            // The second half of the conifer card increment. Uncarded, this
+            // species drew 3754 double-sided deltoids at 0.351 m mean size and
+            // measured 48.4% sky-through in the operator's Fuji frame - the
+            // WORST of any species, against a carded broadleaf's 10.3% and a
+            // 30% bar. Carded it draws a 0.100 m branchlet and 5692 triangles
+            // (3140 of them cards, inside the 3400 card budget).
+            //
+            // NOTHING here is copied from the fir. A Scots pine is a thinner,
+            // higher-crowned, altogether airier tree than a silver fir, and
+            // every number in this block moves.
+            clusters: Some((
+                // 3.2, against the fir's 4.0 - between the birch (2.8) and the
+                // oak (3.8), and the one conifer number in this file that is
+                // NOT near the needleleaf biome mean. Pinus sylvestris is the
+                // open end of the evergreen needleleaf class: mature Scots pine
+                // stands are routinely reported at LAI 2-4 where Abies stands
+                // run 5-11, because a pine self-prunes to a high, thin, flat
+                // crown and a fir holds branches to the ground. Asner, Scurlock
+                // & Hicke 2003 give the CLASS mean as 4.6-5.5; that mean is
+                // carried by the spruce and fir end of it, and authoring it
+                // here would have made a pine that is denser than any pine.
+                //
+                // Transmission at K = 0.5 is exp(-1.6) = 20%, comfortably under
+                // the 30% crown-gap bar and less than half the 48.4% measured.
+                target_lai: 3.2,
+                leaf: (
+                    // 0.45 m, against the fir's 0.55: this is a 16 m tree to
+                    // the fir's 22 with a 4.4 m crown spread to its 6.1, so the
+                    // patch of crown one card stands in for is smaller in every
+                    // direction. The LAI fit settles the real side at
+                    // 0.74-0.76 m over the three variants.
+                    size_m: 0.45,
+                    // MEASURED by the CPU bake twin, then re-measured until
+                    // authored and measured agreed. Lower than the fir's 0.536
+                    // and it should be: a fascicle is a fine radial brush that
+                    // leaves sky between its needles at every azimuth, where a
+                    // pectinate fir comb presents a nearly solid flat face. The
+                    // two sprites (`debug/sprite_fir.png` against
+                    // `debug/sprite_pine.png`) do not look like the same plant,
+                    // which is the entire reason the needle families exist.
+                    coverage: 0.435,
+                    // 2, for the reason spelled out on the fir: a conifer's
+                    // foliage-bearing unit is a long whorl BRANCH (this
+                    // species' 45 run 0.47 to 4.22 m), so the sleeve budget
+                    // goes ALONG it rather than around it, and every branch
+                    // then lands a station on its own tip. Left at 4 this
+                    // species passed `cluster_cards_envelop_every_twig_tip` by
+                    // 34 mm, which is not passing, it is not having failed yet.
+                    cards_per_sleeve: 2,
+                    // 0.30 m against the fir's 0.40: a pine is the smaller tree
+                    // with the shorter branches and the smaller card (0.75 m
+                    // against 1.05 m), and the sleeve step scales with the
+                    // card, not with the species. This is also the spacing that
+                    // SHIPS - it plans 785 cards (3140 triangles) of the 850
+                    // the card budget allows, so the stretch backstop never
+                    // fires and the authored number is the drawn number. 0.28
+                    // was tried and lands 835 cards, 3340 triangles against a
+                    // 3400 ceiling: inside it, but 60 triangles of headroom is
+                    // not headroom, it is the next change away from a red
+                    // build.
+                    sleeve_spacing_m: 0.30,
+                    // 140 nominal, ~398 real sprigs at k = 1.69. Higher
+                    // nominal than the fir's 105 only because this species' card
+                    // is smaller, so k is smaller and the k-squared scaling
+                    // gives back less; the real sprig counts land within 5% of
+                    // each other. 145 was tried and solves to 413, over the
+                    // 400-sprig clamp in `cluster_sprite_geometry` - which is
+                    // not wrong, but it makes the authored number a fiction,
+                    // and the whole point of this block is that it is not.
+                    sprite_elements: 140,
+                    sprite_runs: 1,
+                ),
+                // POLLEN CONES, not flowers - a pine is a gymnosperm. Inert
+                // (`blossom_frac: 0.0`) but still built and size-checked, so
+                // this describes the real organ: Pinus bears ~1 cm yellow male
+                // cones in tight whorled clusters at the base of the new
+                // shoots, denser and smaller than the fir's.
+                blossom: (
+                    size_m: 0.12,
+                    coverage: 0.15,
+                    cards_per_sleeve: 3,
+                    sleeve_spacing_m: 0.08,
+                    sprite_elements: 9,
+                    sprite_runs: 5,
+                ),
+                flower_size_m: 0.010,
+                flowers_per_umbel: 10,
+                umbel_spacing_m: 0.010,
+                leaf_off_above_blossom_frac: 0.50,
+                bloom_leaf_area_share: 0.09,
+                near_blade_tri_frac: 0.45,
+            )),
         ),
 
         // ── Procedural broadleaves: no art, generated by tree_mesh ────────
