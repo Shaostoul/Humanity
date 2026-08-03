@@ -220,6 +220,11 @@
    "date": "2026-08-02",
    "decision": "v0.1098.0/1 SHIPPED: the branch weld finally EXISTS - surface-rooted spines + real collars on all 460 junctions, zero back-poke across 31,788 gated vertices, fork caps, headless fork rasteriser as permanent dev aid. Probed at 2560, panics=0, taskbar refreshed.",
    "why": "PROCESS LESSON journaled: the v0.1096 round claimed its weld was already-applied-and-verified in the worktree - a grep this round found ONE COMMENT and zero code. Writers must verify claimed prior work with grep/line evidence, never trust a worktree narrative; the audit-first instruction in this round dispatch is now the template. Trunk base rings still open below ground (bark_cap available); wood tri share rose (collars) - budget gates absorbed it."
+  },
+  {
+   "date": "2026-08-03",
+   "decision": "v0.1099.0/1 SHIPPED: branch basal flare (exponential, CI-capped so welds never exceed the parent) + the da Vinci pipe model at every fork (area exp 2.3). The operator junction report was two stacked defects - no flare AND 2x area conservation per fork; the acacia was feeding 5x its bole area into bole-width primaries. Now junctions are the widest point of each branch, shafts run ~30 percent thinner, acacia matches real Vachellia field numbers. Back-poke gate widened to 39,559 vertices, zero violations. Probed at 2560, 24.3 fps, panics=0. Taskbar refreshed.",
+   "why": "Junction system now: surface roots + collars + flare + pipe model, all CI-gated. Remaining tree wants: dorito species ClusterDefs, bark_scale_m data field, bark_tube reps rounding across the flare (logged). Queue: operator eye on v0.1099, pies allocate, celestial 14.3ms, pause state, vehicle frame."
   }
  ],
  "active_scopes_to_avoid": [
