@@ -1141,6 +1141,14 @@ pub mod leaf_shape {
         /// A frond: pinna pairs along a rachis, each carrying leaflet pairs
         /// (acacia and the other mimosoid legumes).
         Bipinnate,
+        /// A CONIFER SHOOT, two-ranked: needles set pectinately either side of
+        /// one twig axis, all in one plane, so the spray reads flat and
+        /// comb-like. Abies (fir), Taxus, Tsuga.
+        NeedleFlatRank,
+        /// A CONIFER SHOOT, radial: needles bundled in fascicles of 2-5 borne
+        /// in a spiral all round the twig, so the shoot reads tufted and
+        /// bottle-brushy rather than flat. Pinus.
+        NeedleFascicle,
     }
 
     impl LeafFamily {
@@ -1151,6 +1159,8 @@ pub mod leaf_shape {
                 "pinnate-lobed" => LeafFamily::PinnateLobed,
                 "palmate" => LeafFamily::Palmate,
                 "bipinnate" => LeafFamily::Bipinnate,
+                "needle-flat-rank" => LeafFamily::NeedleFlatRank,
+                "needle-fascicle" => LeafFamily::NeedleFascicle,
                 // Unknown falls back rather than failing, the same way
                 // `TreeDef::form` does: a typo in a data file must never be
                 // able to stop the forest growing.
@@ -1166,7 +1176,22 @@ pub mod leaf_shape {
                 LeafFamily::PinnateLobed => "pinnate-lobed",
                 LeafFamily::Palmate => "palmate",
                 LeafFamily::Bipinnate => "bipinnate",
+                LeafFamily::NeedleFlatRank => "needle-flat-rank",
+                LeafFamily::NeedleFascicle => "needle-fascicle",
             }
+        }
+
+        /// True for the families whose drawn element is a whole SHOOT rather
+        /// than one blade.
+        ///
+        /// This is the distinction that makes the conifers a different kind of
+        /// thing rather than a broadleaf with smaller leaves: a broadleaf's
+        /// element is one leaf and its silhouette is that leaf's margin, while
+        /// a conifer's element is a needled twig and its silhouette is the
+        /// ARRANGEMENT of a few hundred needles on it. Everything that reads
+        /// `leaf_needle_*` is gated on this.
+        pub fn is_needle_shoot(self) -> bool {
+            matches!(self, LeafFamily::NeedleFlatRank | LeafFamily::NeedleFascicle)
         }
     }
 
@@ -1202,9 +1227,33 @@ pub mod leaf_shape {
         /// Marginal teeth per side. 0 is an entire margin.
         #[serde(default)]
         pub leaf_teeth: u32,
-        /// Bipinnate only: leaflet PAIRS carried on one pinna.
+        /// Bipinnate: leaflet PAIRS carried on one pinna. Needle-fascicle:
+        /// needles bundled in ONE fascicle (2 on a Scots pine, 3 on a
+        /// ponderosa, 5 on a white pine).
         #[serde(default)]
         pub leaf_leaflets: u32,
+        /// Needle families: one NEEDLE's length as a fraction of the whole
+        /// shoot's length. A fir needle is a fiftieth of its shoot; a pine
+        /// needle is a fifth of it, and that ratio alone is most of why the two
+        /// read as different plants at any range.
+        #[serde(default)]
+        pub leaf_needle_len_frac: f32,
+        /// Needle families: a needle's WIDTH as a fraction of its own length.
+        /// Fir needles are flat straps (~0.09); pine needles are round in
+        /// section and far finer (~0.03).
+        #[serde(default)]
+        pub leaf_needle_width_frac: f32,
+        /// Needle families: the angle a needle (flat-rank) or a whole fascicle
+        /// (fascicle) leaves the shoot at, DEGREES OFF THE SHOOT AXIS. 90 is
+        /// square to the shoot; smaller rakes forward toward its tip. Abies
+        /// needles stand nearly square, pine fascicles ascend steeply.
+        #[serde(default)]
+        pub leaf_needle_angle_deg: f32,
+        /// Needle-fascicle only: TOTAL angular splay of the needles inside one
+        /// fascicle, degrees. This is the shaving-brush spread that separates a
+        /// bundle from a single thick needle.
+        #[serde(default)]
+        pub leaf_fascicle_spread_deg: f32,
     }
 
     fn default_widest() -> f32 {
@@ -1231,7 +1280,55 @@ pub mod leaf_shape {
                 leaf_sinus_frac: 0.0,
                 leaf_teeth: 0,
                 leaf_leaflets: 0,
+                leaf_needle_len_frac: 0.0,
+                leaf_needle_width_frac: 0.0,
+                leaf_needle_angle_deg: 0.0,
+                leaf_fascicle_spread_deg: 0.0,
             }
+        }
+
+        /// Needle length in shoot-length units, floored so a needle family
+        /// declared with no numbers still draws a plausible spray instead of a
+        /// degenerate one. Same principle as `LeafFamily::parse` falling back
+        /// to Deltoid: a data file must never be able to stop the forest
+        /// growing.
+        fn needle_len(&self) -> f32 {
+            if self.leaf_needle_len_frac > 1e-4 {
+                self.leaf_needle_len_frac.min(0.9)
+            } else {
+                0.06
+            }
+        }
+
+        fn needle_halfwidth(&self) -> f32 {
+            let w = if self.leaf_needle_width_frac > 1e-4 {
+                self.leaf_needle_width_frac.clamp(0.005, 0.5)
+            } else {
+                0.06
+            };
+            0.5 * self.needle_len() * w
+        }
+
+        /// Radians off the shoot axis. Clamped short of 0 and 90 + a little:
+        /// a needle exactly along the shoot has no silhouette at all, and one
+        /// swept BACKWARD past the horizontal would put needle tissue behind
+        /// the shoot's own attachment point.
+        fn needle_angle(&self) -> f32 {
+            let d = if self.leaf_needle_angle_deg > 1.0 {
+                self.leaf_needle_angle_deg
+            } else {
+                80.0
+            };
+            d.clamp(12.0, 92.0).to_radians()
+        }
+
+        fn fascicle_spread(&self) -> f32 {
+            let d = if self.leaf_fascicle_spread_deg > 0.5 {
+                self.leaf_fascicle_spread_deg
+            } else {
+                20.0
+            };
+            d.clamp(2.0, 70.0).to_radians()
         }
     }
 
@@ -1402,6 +1499,8 @@ pub mod leaf_shape {
             }
             LeafFamily::Palmate => palmate(s),
             LeafFamily::Bipinnate => bipinnate(s),
+            LeafFamily::NeedleFlatRank => needle_flat_rank(s),
+            LeafFamily::NeedleFascicle => needle_fascicle(s),
         }
     }
 
@@ -1554,6 +1653,230 @@ pub mod leaf_shape {
             }
         }
         parts
+    }
+
+    // ── Conifers: the drawn element is a SHOOT, not a leaf ───────────────
+    //
+    // Everything above builds ONE BLADE and lets the generator scatter
+    // hundreds of them. A conifer cannot be built that way. The unit a conifer
+    // canopy is actually made of is a NEEDLE SPRAY - a twig carrying a hundred
+    // or more needles - and this engine's conifer form already knows that: its
+    // `Foliage::leaf` is 0.30-0.50 m of "narrow strap", three times the size of
+    // a broadleaf's blade and the size of a real branchlet, and the comment
+    // there says so outright ("a conifer's drawn element is a NEEDLE SPRAY, not
+    // a single needle"). Until now that spray was drawn as ONE TRIANGLE, which
+    // is what the operator's fuji-forest capture shows: two big conifers wearing
+    // a few hundred scattered dark darts on otherwise bare branches.
+    //
+    // So the two families below stamp a whole needled shoot into that element,
+    // in the same leaf space every other family uses (y 0 at the shoot's base
+    // to 1 at its tip, x spanning exactly 1). The needles are the repeated
+    // primitive; the shoot itself is one thin ribbon down the middle.
+    //
+    // WHY THE TWO ARE SEPARATE CONSTRUCTIONS AND NOT ONE WITH A FLAG:
+    //   - Abies (fir) sets its needles PECTINATELY, in two ranks either side of
+    //     the shoot and all in ONE PLANE. Every needle is broadside to a viewer
+    //     looking at the flat of the spray, so the spray reads as an even comb
+    //     with a near-constant reach.
+    //   - Pinus sets its needles in FASCICLES of 2-5 sheathed at the base,
+    //     borne in a spiral all round the shoot. A viewer sees each bundle at a
+    //     different azimuth, so bundles pointing across the view read full
+    //     length and bundles pointing at the viewer read foreshortened - which
+    //     is exactly why a pine shoot looks ragged and tufted where a fir spray
+    //     looks combed. That foreshortening is computed here, not faked: the
+    //     needle's real 3D direction is built and then projected.
+    //
+    // COST. Both keep the needle at the cheapest primitive that still carries a
+    // silhouette: a two-sample ribbon, i.e. ONE QUAD, two triangles, whose base
+    // and tip widths carry the whole shape difference (a fir needle is a
+    // parallel-sided blunt strap, a pine needle tapers to a point). There is no
+    // tube, no cross-section and no midrib. The whole element lands under a
+    // maple leaf's 278 triangles.
+
+    /// Tip width of a needle as a fraction of its base width, per family.
+    ///
+    /// Abies needles are parallel-sided straps with a BLUNT, usually notched
+    /// tip - that bluntness is the field mark that separates a fir from a
+    /// spruce at arm's length, so it is worth the one number it costs. Pinus
+    /// needles are acicular and drawn to a fine point.
+    const NEEDLE_FLAT_TAPER: f32 = 0.80;
+    const NEEDLE_FASCICLE_TAPER: f32 = 0.10;
+
+    /// Shoot half-thickness as a fraction of ONE NEEDLE's length.
+    ///
+    /// A fir branchlet is ~2.5 mm across carrying 25 mm needles (0.05); a pine
+    /// shoot is ~4 mm across carrying 60 mm needles (0.033). Sub-millimetre in
+    /// the finished sprite either way, and drawn for the same reason the
+    /// acacia's rachis is: without it the element is a swarm of loose specks
+    /// instead of one shoot.
+    const NEEDLE_SHOOT_FLAT: f32 = 0.05;
+    const NEEDLE_SHOOT_FASCICLE: f32 = 0.033;
+
+    /// Fraction of the shoot's base that carries no needles.
+    ///
+    /// Real: the season's growth starts bare where it left its parent, and on a
+    /// pine the lowest fascicles have usually been shed. It also matters
+    /// mechanically here - `reshape_blades` roots the element at y = 0, which is
+    /// where it meets the twig, so needles at y = 0 would grow out of the wood.
+    const NEEDLE_BASE_BARE: f32 = 0.06;
+
+    /// How much shorter the needles get toward the shoot's tip.
+    ///
+    /// 0.30 on both. The current season's needles at the very tip of a shoot
+    /// have not finished extending, so a real spray tapers rather than ending
+    /// square, and a square-ended spray is the single thing that most makes a
+    /// procedural conifer look stamped.
+    const NEEDLE_TIP_FALLOFF: f32 = 0.30;
+
+    /// The golden angle, the same 2.399963 rad the tree generator spirals
+    /// everything else by. Used here for the azimuth of successive fascicles
+    /// about the shoot, which is what a real pine's phyllotaxis does.
+    const NEEDLE_SPIRAL: f32 = 2.399_963;
+
+    /// One needle: the cheapest primitive that still has a silhouette.
+    fn needle(at: [f32; 2], dir: [f32; 2], len: f32, hw: f32, taper: f32) -> LeafPart {
+        LeafPart::Ribbon {
+            at,
+            dir,
+            len,
+            spine: vec![[0.0, hw], [1.0, hw * taper]],
+        }
+    }
+
+    /// The shoot every needle family hangs its needles on.
+    fn needle_shoot(hw: f32) -> LeafPart {
+        LeafPart::Ribbon {
+            at: [0.0, 0.0],
+            dir: [0.0, 1.0],
+            len: 1.0,
+            // Tapering, because a shoot does: it is thinnest at the growing tip.
+            spine: vec![[0.0, hw], [1.0, hw * 0.55]],
+        }
+    }
+
+    /// Where the `j`th of `n` needle stations sits along the shoot.
+    fn needle_station(j: usize, n: usize) -> f32 {
+        NEEDLE_BASE_BARE + (1.0 - NEEDLE_BASE_BARE) * (j as f32 + 0.5) / n as f32
+    }
+
+    /// FIR (Abies): needles in two ranks, one plane, near-square to the shoot.
+    ///
+    /// The two ranks are offset along the shoot by HALF a station rather than
+    /// sitting exactly opposite. That is what a real pectinate shoot does (the
+    /// needles are spirally inserted and then twisted into the plane, so they
+    /// interleave), and it is also the difference between a spray that reads as
+    /// foliage and one that reads as a fish skeleton.
+    fn needle_flat_rank(s: &LeafSilhouette) -> Vec<LeafPart> {
+        // 6..96 needle PAIRS. The ceiling is a triangle ceiling, not a
+        // botanical one: a real Abies branchlet sets its needles 3-5 mm apart,
+        // which on the 0.48 m spray this engine's conifer form hands us would
+        // be ~120 pairs and ~490 triangles per element. See the note on the
+        // fir row in trees.ron for why the shipped count is sparser than life.
+        let pairs = s.leaf_lobes.clamp(6, 96) as usize;
+        let nlen = s.needle_len();
+        let hw = s.needle_halfwidth();
+        let ang = s.needle_angle();
+        let (sa, ca) = (ang.sin(), ang.cos());
+        let mut parts = Vec::with_capacity(2 * pairs + 1);
+        parts.push(needle_shoot(nlen * NEEDLE_SHOOT_FLAT));
+        for j in 0..pairs {
+            for (i, sign) in [-1.0f32, 1.0].into_iter().enumerate() {
+                // Half-station offset between the two ranks.
+                let t = needle_station(j, pairs) + (i as f32 - 0.5) * 0.5 / pairs as f32;
+                let t = t.clamp(NEEDLE_BASE_BARE * 0.5, 1.0);
+                let len = nlen * (1.0 - NEEDLE_TIP_FALLOFF * t * t);
+                parts.push(needle([0.0, t], [sign * sa, ca], len, hw, NEEDLE_FLAT_TAPER));
+            }
+        }
+        parts
+    }
+
+    /// PINE (Pinus): fascicles of 2-5 needles, spiralled all round the shoot.
+    ///
+    /// The bundle is the unit, and the arrangement is RADIAL, so this function
+    /// does the one thing `needle_flat_rank` does not need to: it builds each
+    /// fascicle's true 3D direction (tilted `needle_angle` off the shoot, at
+    /// azimuth `j * golden angle` about it) and PROJECTS it into the sprite
+    /// plane. A bundle lying across the view keeps its full length; a bundle
+    /// pointing at or away from the viewer collapses toward the shoot axis.
+    /// That variation IS the tufted, ragged read - a pine shoot drawn with
+    /// every bundle at full length comes out as a herringbone, which is a fir
+    /// with bigger needles and exactly the mistake this family exists to avoid.
+    fn needle_fascicle(s: &LeafSilhouette) -> Vec<LeafPart> {
+        let stations = s.leaf_lobes.clamp(4, 72) as usize;
+        // 2 (sylvestris, densiflora, nigra), 3 (ponderosa, taeda) or 5
+        // (strobus, lambertiana). Every pine on earth is in this range.
+        let per = s.leaf_leaflets.clamp(2, 5) as usize;
+        let nlen = s.needle_len();
+        let hw = s.needle_halfwidth();
+        let ang = s.needle_angle();
+        let (sa, ca) = (ang.sin(), ang.cos());
+        let spread = s.fascicle_spread();
+        let mut parts = Vec::with_capacity(stations * per + 1);
+        parts.push(needle_shoot(nlen * NEEDLE_SHOOT_FASCICLE));
+        for j in 0..stations {
+            let t = needle_station(j, stations);
+            let phi = j as f32 * NEEDLE_SPIRAL;
+            // Project the fascicle's 3D axis (sa*cos φ, ca, sa*sin φ) onto the
+            // sprite plane. `m` is the foreshortening: 1 across the view, down
+            // to |ca| straight at it.
+            let (px, py) = (sa * phi.cos(), ca);
+            let m = (px * px + py * py).sqrt().max(1e-4);
+            let axis = [px / m, py / m];
+            let base_len = nlen * m * (1.0 - NEEDLE_TIP_FALLOFF * t * t);
+            // The splay a viewer SEES also foreshortens: a bundle pointing at
+            // the camera splays around the view axis, not across it, so it
+            // reads as a tight rosette rather than a fan. Scaling the drawn
+            // splay by the same `m` errs toward the tight read, which is the
+            // honest direction for a projection that cannot draw a rosette.
+            let half = 0.5 * spread * m;
+            for i in 0..per {
+                let f = if per > 1 { i as f32 / (per - 1) as f32 - 0.5 } else { 0.0 };
+                let (sd, cd) = (2.0 * f * half).sin_cos();
+                // Rotate the projected axis by the splay offset.
+                let dir = [axis[0] * cd - axis[1] * sd, axis[0] * sd + axis[1] * cd];
+                parts.push(needle([0.0, t], dir, base_len, hw, NEEDLE_FASCICLE_TAPER));
+            }
+        }
+        parts
+    }
+
+    /// The leaf ASPECT (width over length) this species' outline would have if
+    /// it were drawn undistorted, measured off the raw construction.
+    ///
+    /// `normalized` maps x and y by DIFFERENT factors so that x spans exactly 1
+    /// and the tip reaches exactly 1, and `reshape_blades` then rescales x by
+    /// the data's `leaf_aspect`. Those two cancel - leaving the shape
+    /// undistorted - only when the data states the aspect the construction
+    /// actually has, i.e. `2 * max|x| / max(y)`.
+    ///
+    /// It matters far more for a needle family than for a blade. A blade's
+    /// aspect is a stated botanical measurement and a 10% error just makes a
+    /// slightly narrow leaf; a needle spray's aspect is DERIVED from the needle
+    /// length and the angle it leaves the shoot at, so a wrong aspect silently
+    /// stretches or squashes every needle on the shoot and the species stops
+    /// being the species. `conifer_sprays_are_drawn_undistorted` gates it.
+    pub fn natural_aspect(s: &LeafSilhouette) -> f32 {
+        let parts = raw_parts(s);
+        let (mut ymax, mut xabs) = (1e-6f32, 1e-6f32);
+        for p in &parts {
+            match p {
+                LeafPart::Ribbon { at, dir, len, spine } => {
+                    let (l, r) = ribbon_margins(*at, *dir, *len, spine);
+                    for q in l.iter().chain(r.iter()) {
+                        ymax = ymax.max(q[1]);
+                        xabs = xabs.max(q[0].abs());
+                    }
+                }
+                LeafPart::Poly(pts) => {
+                    for q in pts {
+                        ymax = ymax.max(q[1]);
+                        xabs = xabs.max(q[0].abs());
+                    }
+                }
+            }
+        }
+        2.0 * xabs / ymax
     }
 
     fn ribbon_margins(
@@ -1986,6 +2309,15 @@ pub fn dump_leaf_silhouettes(dir: &std::path::Path, px: u32) -> Vec<(String, Str
             .collect();
         // Fit the leaf in the square with a small margin, petiole at the
         // bottom, tip at the top - the way a field guide prints one.
+        //
+        // ...EXCEPT for a very narrow element, which is drawn LYING DOWN, base
+        // at the left. A conifer shoot's aspect is around a tenth, so upright
+        // it would occupy a 50 px sliver of a 512 px page and the arrangement
+        // of its needles - the entire thing being judged - would be unreadable.
+        // Rotating it fills the page and is also how every field guide prints a
+        // conifer shoot. No broadleaf in the registry is near this threshold
+        // (the narrowest, sakura, is 0.45), so nothing else moves.
+        let lying = aspect < 0.35;
         let m = 0.06 * px as f32;
         let span = px as f32 - 2.0 * m;
         let scale = span.min(span / aspect.max(1e-3));
@@ -1993,10 +2325,14 @@ pub fn dump_leaf_silhouettes(dir: &std::path::Path, px: u32) -> Vec<(String, Str
             let p: Vec<[f32; 2]> = t
                 .iter()
                 .map(|q| {
-                    [
-                        px as f32 * 0.5 + q[0] * aspect * scale,
-                        px as f32 - m - q[1] * scale,
-                    ]
+                    if lying {
+                        [m + q[1] * scale, px as f32 * 0.5 - q[0] * aspect * scale]
+                    } else {
+                        [
+                            px as f32 * 0.5 + q[0] * aspect * scale,
+                            px as f32 - m - q[1] * scale,
+                        ]
+                    }
                 })
                 .collect();
             fill_tri_mask(&mut img, px, &p);
@@ -2790,6 +3126,301 @@ mod tests {
         assert!(ts >= 6, "the cherry margin reverses only {ts} times, so it is not serrate");
     }
 
+    // ── Conifer needle sprays (v0.1101) ──────────────────────────────────
+
+    /// Rasterise a silhouette into a binary mask, so the tests below can ask
+    /// questions about the SHAPE rather than about the parts it was built out
+    /// of. Same framing as `the_leaf_families_are_actually_different_shapes`
+    /// uses: x -0.5..0.5 across the image, y 1 at the top.
+    fn silhouette_mask(s: &leaf_shape::LeafSilhouette, px: u32) -> Vec<u8> {
+        let mut img = vec![0u8; (px * px * 4) as usize];
+        for t in &leaf_shape::triangles(s) {
+            let p: Vec<[f32; 2]> = t
+                .iter()
+                .map(|q| [(q[0] + 0.5) * px as f32, (1.0 - q[1]) * px as f32])
+                .collect();
+            fill_tri_mask(&mut img, px, &p);
+        }
+        img.chunks_exact(4).map(|p| u8::from(p[3] > 0)).collect()
+    }
+
+    fn mean_and_cv(v: &[f32]) -> (f32, f32) {
+        if v.is_empty() {
+            return (0.0, 0.0);
+        }
+        let mean = v.iter().sum::<f32>() / v.len() as f32;
+        let var = v.iter().map(|x| (x - mean) * (x - mean)).sum::<f32>() / v.len() as f32;
+        (mean, var.sqrt() / mean.max(1e-6))
+    }
+
+    /// Where every needle's ROOT and TIP sit, recovered from the outlines.
+    ///
+    /// A needle is a two-sample ribbon, so `outlines` hands back exactly four
+    /// points: left base, left tip, right tip, right base. The axis endpoints
+    /// are the midpoints of the first/last and the middle pair. Recovering them
+    /// this way rather than exposing the parts keeps the test measuring what
+    /// the BAKER will draw, through the same public surface.
+    ///
+    /// The shoot (the one part that spans the whole element) is dropped.
+    fn needle_axes(s: &leaf_shape::LeafSilhouette) -> Vec<([f32; 2], [f32; 2])> {
+        let outs = leaf_shape::outlines(s);
+        let span = |o: &Vec<[f32; 2]>| {
+            o.iter().fold(f32::MIN, |m, p| m.max(p[1])) - o.iter().fold(f32::MAX, |m, p| m.min(p[1]))
+        };
+        let shoot = outs
+            .iter()
+            .enumerate()
+            .max_by(|a, b| span(a.1).partial_cmp(&span(b.1)).expect("finite"))
+            .map(|(i, _)| i)
+            .expect("a needle family always emits its shoot");
+        outs.iter()
+            .enumerate()
+            .filter(|(i, o)| *i != shoot && o.len() == 4)
+            .map(|(_, o)| {
+                let mid = |a: [f32; 2], b: [f32; 2]| [0.5 * (a[0] + b[0]), 0.5 * (a[1] + b[1])];
+                (mid(o[0], o[3]), mid(o[1], o[2]))
+            })
+            .collect()
+    }
+
+    /// THE CONIFER GATE. A fir spray must read FLAT AND TWO-RANKED; a pine
+    /// shoot must read as SPLAYED BUNDLES. Both must read as needles on a twig
+    /// rather than as any kind of blade.
+    ///
+    /// Written as measurements rather than as a look at the PNG because the
+    /// failure this replaces is not subtle-but-visible, it is invisible: a
+    /// conifer drawn as a broadleaf with narrow leaves passes every existing
+    /// gate in this file (it normalises, it has area, it bakes, it covers) and
+    /// only fails by being the wrong plant.
+    #[test]
+    fn the_conifer_sprays_are_needled_shoots_not_blades() {
+        const PX: u32 = 512;
+        let fir = leaf_shape::of("fir");
+        let pine = leaf_shape::of("pine");
+        assert_eq!(fir.family(), leaf_shape::LeafFamily::NeedleFlatRank);
+        assert_eq!(pine.family(), leaf_shape::LeafFamily::NeedleFascicle);
+        assert!(fir.family().is_needle_shoot() && pine.family().is_needle_shoot());
+
+        // STRUCTURE. The part count is exactly the arrangement: a shoot plus
+        // two needles per station for the fir, a shoot plus one FASCICLE of
+        // `leaf_leaflets` needles per station for the pine. If either of these
+        // drifts, the species stopped being built the way its data says.
+        let fir_parts = leaf_shape::outlines(&fir).len();
+        let pine_parts = leaf_shape::outlines(&pine).len();
+        assert_eq!(
+            fir_parts,
+            1 + 2 * fir.leaf_lobes as usize,
+            "the fir spray is not one shoot plus {} needle PAIRS",
+            fir.leaf_lobes
+        );
+        assert_eq!(
+            pine_parts,
+            1 + pine.leaf_lobes as usize * pine.leaf_leaflets as usize,
+            "the pine shoot is not one twig plus {} fascicles of {}",
+            pine.leaf_lobes,
+            pine.leaf_leaflets
+        );
+
+        // BUNDLES. A pine's needles must share their roots in groups of
+        // `leaf_leaflets`; a fir's must not share them at all, because a fir
+        // has no fascicles - Abies bears its needles singly.
+        let cluster = |s: &leaf_shape::LeafSilhouette| -> Vec<usize> {
+            let mut groups: Vec<([f32; 2], usize)> = Vec::new();
+            for (root, _) in needle_axes(s) {
+                match groups
+                    .iter_mut()
+                    .find(|(g, _)| (g[0] - root[0]).abs() < 1e-4 && (g[1] - root[1]).abs() < 1e-4)
+                {
+                    Some((_, n)) => *n += 1,
+                    None => groups.push((root, 1)),
+                }
+            }
+            groups.into_iter().map(|(_, n)| n).collect()
+        };
+        let pine_groups = cluster(&pine);
+        eprintln!(
+            "[needle] pine: {} needles in {} fascicles, sizes {:?}",
+            pine_parts - 1,
+            pine_groups.len(),
+            &pine_groups[..pine_groups.len().min(6)]
+        );
+        assert_eq!(
+            pine_groups.len(),
+            pine.leaf_lobes as usize,
+            "the pine's needles do not group into {} fascicles - they are being emitted \
+             individually, which is a fir with longer needles",
+            pine.leaf_lobes
+        );
+        assert!(
+            pine_groups.iter().all(|&n| n == pine.leaf_leaflets as usize),
+            "a pine fascicle came out with the wrong needle count: {pine_groups:?}"
+        );
+        assert!(
+            cluster(&fir).iter().all(|&n| n == 1),
+            "the fir grew fascicles; Abies bears its needles singly, in two ranks"
+        );
+
+        // SHAPE. Both are mostly air - that is what a needled shoot IS, and it
+        // is the property a blade cannot have (the broadleaves in this registry
+        // fill 0.43-0.77 of their box).
+        let (fm, pm) = (silhouette_mask(&fir, PX), silhouette_mask(&pine, PX));
+        let fill = |m: &[u8]| m.iter().filter(|v| **v != 0).count() as f32 / (PX * PX) as f32;
+        let (ff, pf) = (fill(&fm), fill(&pm));
+        eprintln!("[needle] box fill: fir {ff:.3}, pine {pf:.3}");
+        for (id, f) in [("fir", ff), ("pine", pf)] {
+            assert!(
+                (0.02..0.35).contains(&f),
+                "{id}: the spray fills {f:.3} of its box - a needled shoot is mostly sky, and \
+                 anything solid enough to leave this band is a blade wearing a conifer's name"
+            );
+        }
+
+        // THE READ, and the measurement that actually separates the two
+        // families: how far each needle's TIP stands off the shoot axis.
+        //
+        // A pectinate fir spray is a COMB - every needle is broadside to the
+        // viewer at the same angle, so the tips all stand off by nearly the
+        // same amount and the only spread is the gentle shortening toward the
+        // shoot's growing tip. A pine's fascicles spiral all round the twig, so
+        // a viewer sees each at its own azimuth: bundles lying across the view
+        // reach full length, bundles pointing at or away from the camera
+        // collapse toward the axis. That spread IS the tufted read, and a pine
+        // drawn without it is a herringbone, i.e. a fir with longer needles.
+        //
+        // (Measured on tips rather than on image rows: a comb is mostly GAPS,
+        // so a row-by-row reach is dominated by the bare rows between needles
+        // and says nothing about either arrangement.)
+        let tip_reach = |s: &leaf_shape::LeafSilhouette| -> Vec<f32> {
+            needle_axes(s).iter().map(|(_, tip)| tip[0].abs()).collect()
+        };
+        let (fmean, fcv) = mean_and_cv(&tip_reach(&fir));
+        let (pmean, pcv) = mean_and_cv(&tip_reach(&pine));
+        eprintln!(
+            "[needle] tip stand-off: fir mean {fmean:.3} cv {fcv:.3}, pine mean {pmean:.3} \
+             cv {pcv:.3}"
+        );
+        assert!(
+            fcv < 0.20,
+            "the fir's needle tips stand off by {fcv:.2} coefficient of variation - a pectinate \
+             Abies spray is an EVEN COMB, every needle broadside at the same angle, so a spread \
+             this wide means the two ranks are not being drawn flat"
+        );
+        assert!(
+            pcv > 0.45,
+            "the pine's needle tips vary by only {pcv:.2} - its fascicles spiral all round the \
+             twig, so the ones pointing at the viewer must FORESHORTEN"
+        );
+
+        // RAKE. Every needle must point at least slightly toward the shoot's
+        // GROWING TIP, never back down it. A needle raked backward is not a
+        // stylistic wrong note, it is an anatomical impossibility - needles are
+        // borne on the shoot as it extends - and it is the one error the
+        // anisotropic normalisation could introduce silently, because that map
+        // squashes the forward component of every needle by the aspect while
+        // leaving the sideways component alone.
+        for (id, s) in [("fir", &fir), ("pine", &pine)] {
+            let axes = needle_axes(s);
+            let rake: Vec<f32> = axes.iter().map(|(r, t)| t[1] - r[1]).collect();
+            let (mean, _) = mean_and_cv(&rake);
+            let back = rake.iter().filter(|d| **d <= 0.0).count();
+            eprintln!("[needle] {id} rake: mean {mean:+.4} of a shoot length, {back} backward");
+            assert!(
+                back == 0,
+                "{id}: {back} of {} needles rake BACK down the shoot - a needle is borne on the \
+                 shoot as it extends, so it cannot point at its own base",
+                axes.len()
+            );
+        }
+
+        // ...and the fir's two ranks must actually be TWO RANKS: an equal
+        // count either side, and a silhouette that is mirror-symmetric about
+        // the shoot. The pine's spiral has no reason to be either.
+        let (mut lft, mut rgt) = (0usize, 0usize);
+        for (_, tip) in needle_axes(&fir) {
+            if tip[0] < 0.0 {
+                lft += 1;
+            } else {
+                rgt += 1;
+            }
+        }
+        assert_eq!(lft, rgt, "the fir's ranks carry {lft} and {rgt} needles, not one each per pair");
+        let half_fill = |m: &[u8]| -> (f32, f32) {
+            let (mut l, mut r) = (0usize, 0usize);
+            for y in 0..PX {
+                for x in 0..PX {
+                    if m[(y * PX + x) as usize] != 0 {
+                        if x < PX / 2 {
+                            l += 1;
+                        } else {
+                            r += 1;
+                        }
+                    }
+                }
+            }
+            (l as f32, r as f32)
+        };
+        let (fl, fr) = half_fill(&fm);
+        let asym = (fl - fr).abs() / (fl + fr);
+        eprintln!("[needle] fir left/right asymmetry: {asym:.4}");
+        assert!(
+            asym < 0.05,
+            "the fir spray is {:.1}% lopsided - two ranks either side of one shoot is the \
+             definition of pectinate, so this is not one",
+            asym * 100.0
+        );
+
+        // COST. The whole point of a two-sample ribbon per needle. Compared
+        // against the maple, which is the most expensive leaf in the registry
+        // and the one flagged as a triangle risk when it landed.
+        let (ft, pt) = (leaf_shape::triangles(&fir).len(), leaf_shape::triangles(&pine).len());
+        let momiji = leaf_shape::triangles(&leaf_shape::of("momiji")).len();
+        eprintln!("[needle] triangles: fir {ft}, pine {pt}, momiji {momiji}");
+        for (id, n) in [("fir", ft), ("pine", pt)] {
+            assert!(
+                n <= momiji,
+                "{id}: {n} triangles per spray against the maple leaf's {momiji}. A conifer draws \
+                 FAR more of these elements than a broadleaf draws leaves, so a spray that costs \
+                 more than the registry's dearest leaf is the wrong trade"
+            );
+        }
+    }
+
+    /// A needle family's `leaf_aspect` is DERIVED, not chosen: the spray's
+    /// width falls out of its needle length and the angle the needles leave the
+    /// shoot at. State it wrong and `reshape_blades` stretches or squashes
+    /// every needle, which is invisible in every other gate here (the outline
+    /// still normalises, still has area, still bakes).
+    #[test]
+    fn conifer_sprays_are_drawn_undistorted() {
+        for s in leaf_shape::registry() {
+            if !s.family().is_needle_shoot() {
+                continue;
+            }
+            let want = leaf_shape::natural_aspect(s);
+            eprintln!(
+                "[needle] {:>7}: stated aspect {:.4}, geometry wants {want:.4}",
+                s.id, s.leaf_aspect
+            );
+            assert!(
+                s.leaf_aspect > 0.0,
+                "{}: a needle family must state its aspect - 0 would keep the generic 0.40 strap \
+                 width the mesh builder hands every conifer, which has nothing to do with how long \
+                 this species' needles are",
+                s.id
+            );
+            let err = (s.leaf_aspect - want).abs() / want;
+            assert!(
+                err < 0.05,
+                "{}: leaf_aspect {:.4} against the {want:.4} its own needle length and angle \
+                 imply ({:.1}% out) - every needle on this shoot is being drawn at the wrong \
+                 width-to-length",
+                s.id,
+                s.leaf_aspect,
+                err * 100.0
+            );
+        }
+    }
+
     /// The reshape must keep the SCATTER and change only the outline. That is
     /// the property the whole approach rests on: the sprig placement, the card
     /// fit and the LAI planner upstream are all measured against a scatter
@@ -2902,7 +3533,17 @@ mod tests {
         let dump = std::env::var("HUMANITY_DUMP_LEAF_PNG").is_ok();
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("debug/leaf_shapes");
         let rows = if dump {
-            let leaves = dump_leaf_silhouettes(&dir, 512);
+            // The env var doubles as the page size when it parses as one. A
+            // maple leaf is legible at 512; a conifer shoot is 48 needle
+            // stations end to end, which is 10 px apart at that size - enough
+            // to see that it IS a comb, not enough to see which way the teeth
+            // point. `HUMANITY_DUMP_LEAF_PNG=2048` is the close-up.
+            let page = std::env::var("HUMANITY_DUMP_LEAF_PNG")
+                .ok()
+                .and_then(|v| v.parse::<u32>().ok())
+                .map(|v| v.clamp(128, 4096))
+                .unwrap_or(512);
+            let leaves = dump_leaf_silhouettes(&dir, page);
             for (id, fam, n) in &leaves {
                 eprintln!("[dump] leaf_{id}_{fam}.png ({n} tris)");
             }

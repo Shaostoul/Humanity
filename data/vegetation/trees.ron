@@ -40,10 +40,26 @@
 //                                      petiole (maple)
 //                       "bipinnate"    a frond: pinna pairs along a rachis,
 //                                      each carrying leaflet pairs (acacia)
+//                       "needle-flat-rank"  a CONIFER SHOOT with its needles
+//                                      set in two ranks either side of one
+//                                      twig, all in one plane, so the spray
+//                                      reads flat and comb-like (fir, Abies)
+//                       "needle-fascicle"   a CONIFER SHOOT carrying FASCICLES
+//                                      of 2-5 needles spiralled all round the
+//                                      twig, so it reads tufted and radial
+//                                      rather than flat (pine, Pinus)
 //   leaf_aspect       leaf WIDTH divided by petiole-to-tip LENGTH. This is a
 //                     measurable fact about the plant and it overrides the
 //                     generic 0.70 width the mesh builder hands every
 //                     broadleaf. 0 (the default) keeps the incoming width.
+//                     For the two NEEDLE families this is not a free choice:
+//                     the spray's width is DERIVED from its needle length and
+//                     the angle the needles leave the shoot at, so the stated
+//                     aspect must equal `2 * needle_len_frac * sin(angle)` (to
+//                     within a few percent, once the tip taper and the shoot
+//                     overhang are counted). State the wrong number and every
+//                     needle on the shoot is silently stretched or squashed;
+//                     `conifer_sprays_are_drawn_undistorted` gates it.
 //   leaf_widest_frac  where along the midrib the blade is widest, 0 at the
 //                     petiole and 1 at the tip. Below 0.5 = ovate, above =
 //                     obovate. This is the single number that separates a
@@ -52,11 +68,42 @@
 //                     acuminate drip tip.
 //   leaf_lobes        palmate: lobe COUNT (odd, the middle lobe is on the
 //                     midrib). pinnate-lobed: lobe PAIRS. bipinnate: pinna
-//                     PAIRS along the rachis.
+//                     PAIRS along the rachis. needle-flat-rank: needle PAIRS
+//                     along the shoot. needle-fascicle: FASCICLES along it.
 //   leaf_sinus_frac   how deep the cuts between lobes go, as a fraction of
 //                     the way to the midrib (or, palmate, to the petiole).
 //   leaf_teeth        marginal teeth per side. 0 = an entire (smooth) margin.
-//   leaf_leaflets     bipinnate only: leaflet PAIRS on one pinna.
+//   leaf_leaflets     bipinnate: leaflet PAIRS on one pinna. needle-fascicle:
+//                     needles bundled in ONE fascicle (2 on a Scots pine, 3 on
+//                     a ponderosa, 5 on a white pine).
+//
+// ── NEEDLE SPRAYS (v0.1101) ──────────────────────────────────────────────
+// A conifer is NOT a broadleaf with smaller leaves. The unit a conifer canopy
+// is built from is a NEEDLE SPRAY - a whole twig carrying a hundred or more
+// needles - and the engine's conifer form has always drawn its foliage at that
+// scale (`Foliage::leaf` is 0.30-0.50 m of "narrow strap" against a
+// broadleaf's 0.09-0.22 m blade). What it lacked was the needles: each spray
+// was ONE triangle, which is why the operator's forest capture shows the two
+// big conifers wearing scattered dark darts on bare branches.
+//
+// These four fields describe the needles on that shoot. They are read only by
+// the two "needle-*" families and ignored by every other row.
+//
+//   leaf_needle_len_frac    ONE needle's length as a fraction of the whole
+//                           shoot's length. This single ratio is most of what
+//                           separates the two conifers on sight: a fir needle
+//                           is a fiftieth of its shoot, a pine needle a fifth.
+//   leaf_needle_width_frac  a needle's WIDTH as a fraction of its own length.
+//                           Fir needles are flat straps; pine needles are round
+//                           in section and far finer.
+//   leaf_needle_angle_deg   the angle a needle (flat-rank) or a whole fascicle
+//                           (fascicle) leaves the shoot at, DEGREES OFF THE
+//                           SHOOT AXIS. 90 is square to the shoot; smaller
+//                           rakes forward toward its tip.
+//   leaf_fascicle_spread_deg  needle-fascicle only: the total angular splay of
+//                           the needles inside one bundle - the shaving-brush
+//                           spread that separates a fascicle from one thick
+//                           needle.
 //
 // Anything omitted defaults, and a species with no `leaf_shape` at all bakes
 // exactly the deltoid it always did - this is additive, never a migration.
@@ -79,6 +126,43 @@
             leaf_color: (0.10, 0.26, 0.12),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Abies, the silver/grand fir group. PECTINATE: the needles are
+            // spirally inserted and then twisted into ONE PLANE, two ranks
+            // either side of the shoot, so a spray is flat and comb-like and
+            // you can lay it on a table. Needles 2-3 cm, flat in section, ~2 mm
+            // wide, parallel-sided with a BLUNT (usually notched) tip - that
+            // bluntness is the field mark that separates a fir from a spruce
+            // in the hand, and it is why this family tapers its needle to 0.80
+            // of its base width rather than to a point.
+            //
+            // The shoot this is stamped into is the 0.48 m element the conifer
+            // form already grows (`Foliage::leaf` = h * 0.022, clamped
+            // 0.30-0.50), so a 25 mm needle is 0.052 of it.
+            leaf_shape: "needle-flat-rank",
+            // DERIVED, not chosen: 2 * 0.052 * sin(80 deg), less what the tip
+            // needles overhang the shoot's end by. MEASURED off the built
+            // outline by `leaf_shape::natural_aspect` (0.1026) rather than
+            // taken from the closed form. See the leaf_aspect note in the
+            // header - stating this wrong squashes every needle on the shoot.
+            leaf_aspect: 0.1026,
+            leaf_needle_len_frac: 0.052,
+            leaf_needle_width_frac: 0.088,
+            // 80 rather than a square 90: Abies needles stand almost
+            // perpendicular but rake perceptibly toward the shoot's tip, which
+            // is what stops the spray reading as a ladder.
+            leaf_needle_angle_deg: 80.0,
+            // 48 needle PAIRS, and this is SPARSER THAN LIFE on purpose. A real
+            // Abies rank sets its needles 3-5 mm apart, which on a 0.48 m shoot
+            // is ~110 pairs and ~450 triangles per spray - more than any leaf in
+            // this registry and three times the pine's. 48 pairs is 9.5 mm
+            // within a rank, and because the two ranks are offset by half a
+            // station the shoot carries a needle every 4.7 mm counting both
+            // sides, which IS the real spacing at silhouette level. The
+            // shortfall is in one rank's own rhythm, not in the density of the
+            // spray, and it is invisible at every range the sprite is sampled
+            // at (a 512 px sprite on a metre-class card is ~2 mm per texel, so
+            // a 3 mm rank spacing could not be resolved anyway).
+            leaf_lobes: 48,
         ),
         (
             id: "pine",
@@ -96,6 +180,51 @@
             leaf_color: (0.12, 0.28, 0.13),
             blossom_color: (0.0, 0.0, 0.0),
             blossom_frac: 0.0,
+            // Pinus, the two-needle group (sylvestris / densiflora / nigra),
+            // which is what a 16 m unspecified "Pine" on a global lat band is.
+            // NOTHING about this is the fir with different numbers:
+            //   - the needles come in FASCICLES, sheathed in pairs at the base;
+            //   - the fascicles are borne in a SPIRAL all round the shoot, not
+            //     in two ranks in one plane, so the shoot reads as a radial
+            //     bottle-brush and each bundle is seen at its own azimuth;
+            //   - a pine needle is 6 cm where a fir needle is 2.5, round in
+            //     section rather than flat, and drawn to a fine point rather
+            //     than blunt.
+            // The generator hands this species a 0.352 m shoot (h * 0.022), so
+            // a 60 mm needle is 0.170 of it - more than three times the fir's
+            // ratio, which is the whole difference at silhouette level.
+            leaf_shape: "needle-fascicle",
+            // DERIVED from the needle length, the 45 deg fascicle angle and the
+            // splay, exactly as the fir's is, and MEASURED off the built
+            // outline by `leaf_shape::natural_aspect` (0.2588). Two and a half
+            // times the fir's 0.1026 because a pine shoot really is a fat brush
+            // where a fir spray really is a thin comb.
+            leaf_aspect: 0.2588,
+            leaf_needle_len_frac: 0.170,
+            // 2.0 mm on a 60 mm needle. Pinus sylvestris and nigra run
+            // 1.5-2 mm, so this is the resolvable end of the real range rather
+            // than a fattened one - a needle is still around one texel wide in
+            // the finished sprite, and the 4x supersample the cluster bake runs
+            // at is what keeps it from aliasing away entirely.
+            leaf_needle_width_frac: 0.033,
+            // 45: pine fascicles ASCEND steeply, unlike the fir's near-square
+            // needles. That single angle is why a pine shoot reads as a brush
+            // swept toward its tip and a fir spray reads as a flat comb.
+            leaf_needle_angle_deg: 45.0,
+            // 48 fascicles over the needled part of a 0.352 m shoot is 6.9 mm
+            // apart, squarely inside the 4-8 mm a real Scots pine sets them at
+            // on the current season's growth. Unlike the fir's rank spacing
+            // this needed no compromise: a fascicle is 2 needles and a shoot
+            // this long carries far fewer of them than a fir shoot carries
+            // single needles, so the honest count and the affordable count are
+            // the same number.
+            leaf_lobes: 48,
+            // Two. Every pine on earth carries 2, 3 or 5.
+            leaf_leaflets: 2,
+            // 22 deg of splay: a two-needle fascicle is a split cylinder whose
+            // halves bow apart along their length, reaching about this much
+            // between the tips.
+            leaf_fascicle_spread_deg: 22.0,
         ),
 
         // ── Procedural broadleaves: no art, generated by tree_mesh ────────
