@@ -230,6 +230,16 @@
    "date": "2026-08-03",
    "decision": "Operator v0.1099.1 close-up report, four items: (1) flare still too bulky - radially symmetric sleeve; real collars are ASYMMETRIC (crotch + underside compression wood, near-flush topside) - directional-flare writer dispatched (peak 1.45 -> ~1.25 strong side / 1.05 flush); (2) voronoi cells jump size at ring seams - the logged bark_tube reps-rounding bug, now operator-visible - same writer threads one reference radius per limb; (3) tree AURA recoloring grass behind silhouettes - screen-space artifact, diagnosis critic dispatched (SSAO halo prime suspect - check bilateral blur depth-awareness, A/B with ssao off if GPU free); (4) dorito species still triangle leaves - ClusterDef + sprites QUEUED behind the flare writer (shared files). Answered the operator two-textures question: ONE baked texture per species; the two visible scales = the UV repeat stepping between segments + relief shading derived from the same height channel.",
    "why": "Junction realism converging by operator-eye iteration; each report is a permanent gate."
+  },
+  {
+   "date": "2026-08-03",
+   "decision": "v0.1100.0/.1 SHIPPED - three of four items from the operator v0.1099.1 close-up. (1) Directional flare: junctions are ellipses (crotch 1.25x, flank 1.045x, +34% cross-section vs the v0.1099 sleeve +110%). (2) Continuous bark UVs: one reference radius per limb, cells foreshorten with taper instead of stepping at ring seams - this answers the operator two-textures question (ONE texture; the repeat count was recomputed+rounded per segment). (3) BUG-062 tree aura: NOT a blur artifact (no blur pass exists) - the SSAO estimator itself, 48px disc + 1.6m full-occluder window; rebuilt normal-aware with cosine weighting above the tangent plane and 0.4m contact radius; measured deficit went from -9.5% to +4.0% (i.e. gone). PLUS a new gate from adversarial review: FLARE_LOBE_P was the ONE flare parameter nothing could react to (p=0.8, a visual sleeve, would have shipped green while a comment claimed the gate caught it) - flare_lobe_stays_an_ellipse_not_a_sleeve added and confirmed to FAIL at 0.8 before restore. PLUS probe-rig settings provenance (--operator-config + graphics in every manifest) after the aura A/B returned a clean FALSE NEGATIVE at rig defaults.",
+   "why": "Operator-eye iteration on junction realism; each report becomes a permanent gate."
+  },
+  {
+   "date": "2026-08-03",
+   "decision": "OPEN: (a) dorito species - only sakura has a ClusterDef, so momiji/oak/birch/acacia still draw triangle leaves; writer dispatched with per-species leaf silhouettes (palmate/lobed/ovate/bipinnate). (b) NEW DEFECT spotted in the v0.1100 capture: large pale flat blades lying horizontal over the grass, ~1m+, plus black slivers of the same shape and near-black palm fronds against the sky. Confirmed NOT SSAO (present at ssao=0, and SSAO cannot brighten). Diagnosis critic dispatched - suspect a two-sided card with no transmission term (black backlit / blown-out frontlit) plus a scale or up-axis error.",
+   "why": "Track what the next session must not re-derive."
   }
  ],
  "active_scopes_to_avoid": [
